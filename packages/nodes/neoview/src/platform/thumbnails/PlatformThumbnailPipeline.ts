@@ -18,11 +18,13 @@ import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { VideoThumbnailProvider, VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 
 export interface PlatformThumbnailPipelineOptions {
   loadImageTransformer?: ImageTransformerLoader
   thumbnailStore?: ReaderThumbnailStore
   bookLoader?: ReaderBookLoader
+  loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   maxMemoryBytes?: number
   maxEntryBytes?: number
 }
@@ -69,13 +71,16 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   readonly #loadImageTransformer?: ImageTransformerLoader
   readonly #thumbnailStore?: ReaderThumbnailStore
   readonly #bookLoader?: ReaderBookLoader
+  readonly #loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   readonly #coordinator: ThumbnailCoordinatorService<PlatformThumbnailDemandSource>
   #imageTransformer?: Promise<ImageTransformer>
+  #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
 
   constructor(options: PlatformThumbnailPipelineOptions = {}) {
     this.#loadImageTransformer = options.loadImageTransformer
     this.#thumbnailStore = options.thumbnailStore
     this.#bookLoader = options.bookLoader
+    this.#loadVideoThumbnailProvider = options.loadVideoThumbnailProvider
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
       maxMemoryBytes: options.maxMemoryBytes,
       maxEntryBytes: options.maxEntryBytes,
@@ -84,13 +89,18 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   }
 
   get available(): boolean {
-    return Boolean(this.#thumbnailStore || this.#loadImageTransformer)
+    return Boolean(this.#thumbnailStore || this.#loadImageTransformer || this.#loadVideoThumbnailProvider)
+  }
+
+  supportsPage(page: ReaderPage): boolean {
+    return Boolean(page.thumbnailSource) && (
+      page.mediaKind === "image" || page.mediaKind === "animated-image"
+      || (page.mediaKind === "video" && Boolean(this.#loadVideoThumbnailProvider) && !page.entryPath)
+    )
   }
 
   acquirePage(page: ReaderPage, options: PageThumbnailAcquireOptions): ThumbnailLease {
-    if (!page.thumbnailSource || (page.mediaKind !== "image" && page.mediaKind !== "animated-image")) {
-      throw new ThumbnailUnavailableError()
-    }
+    if (!this.supportsPage(page)) throw new ThumbnailUnavailableError()
     const profile = "page-strip-v1" as const
     return this.#coordinator.acquire({
       cacheKey: pageThumbnailCacheKey(page, profile),
@@ -112,7 +122,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     if (!store?.getMany || !pages.length) return { requested: pages.length, databaseHits: 0, primed: 0 }
     if (pages.length > 512) throw new RangeError("Thumbnail prewarm batch cannot exceed 512 pages.")
     const candidates = pages.filter((page) => page.thumbnailSource
-      && (page.mediaKind === "image" || page.mediaKind === "animated-image"))
+      && (page.mediaKind === "image" || page.mediaKind === "animated-image" || page.mediaKind === "video"))
     const byCategory = new Map<"file" | "folder", ReaderPage[]>()
     for (const page of candidates) {
       const category = page.thumbnailSource!.category
@@ -234,6 +244,32 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
       if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
     }
+    if (page.mediaKind === "video") {
+      if (!this.#loadVideoThumbnailProvider || page.entryPath) throw new ThumbnailUnavailableError()
+      try {
+        const result = await (await this.#getVideoThumbnailProvider()).generate({
+          sourcePath: page.sourcePath,
+          maxEdge: 320,
+          quality: 78,
+          priority: thumbnailLanePriority(demand.lane),
+          ownerId: demand.contextId,
+        }, signal)
+        if (thumbnailStore?.put) {
+          void thumbnailStore.put({
+            key: persistence.key,
+            category: persistence.category,
+            bytes: result.bytes,
+            sourceSize: page.byteLength,
+            date: sqliteTimestamp(new Date()),
+            generationHash: thumbnailGenerationHash(page.contentVersion),
+          }).catch(() => undefined)
+        }
+        return { bytes: result.bytes, contentType: result.contentType, version: demandSource.profile, cacheable: true }
+      } catch (error) {
+        this.#recordFailure(persistence.key, error)
+        throw error
+      }
+    }
     if (!this.#loadImageTransformer) throw new ThumbnailUnavailableError()
 
     let source: PageSource | undefined
@@ -270,14 +306,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       }
       return { bytes, contentType: result.contentType, version: demandSource.profile, cacheable: true }
     } catch (error) {
-      if (thumbnailStore?.recordFailure && !isAbortError(error)) {
-        void thumbnailStore.recordFailure({
-          key: persistence.key,
-          reason: thumbnailFailureReason(error),
-          lastAttempt: sqliteTimestamp(new Date()),
-          errorMessage: error instanceof Error ? error.message : String(error),
-        }).catch(() => undefined)
-      }
+      this.#recordFailure(persistence.key, error)
       throw error
     } finally {
       await source?.close().catch(() => undefined)
@@ -312,13 +341,13 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
       if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
     }
-    if (!this.#bookLoader || !this.#loadImageTransformer) throw new ThumbnailUnavailableError()
+    if (!this.#bookLoader || (!this.#loadImageTransformer && !this.#loadVideoThumbnailProvider)) throw new ThumbnailUnavailableError()
 
     let book: Awaited<ReturnType<ReaderBookLoader>> | undefined
     let source: PageSource | undefined
     try {
       book = await this.#bookLoader({ kind: "path", path: descriptor.path }, { signal })
-      const page = book.pages.find((candidate) => candidate.mediaKind === "image" || candidate.mediaKind === "animated-image")
+      const page = book.pages.find((candidate) => candidate.mediaKind === "image" || candidate.mediaKind === "animated-image" || candidate.mediaKind === "video")
       if (!page) throw new ThumbnailUnavailableError()
 
       const reusable = page.thumbnailSource && thumbnailStore
@@ -329,6 +358,15 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       let bytes: Uint8Array
       if (reusableMatches) {
         bytes = reusable.bytes
+      } else if (page.mediaKind === "video") {
+        if (!this.#loadVideoThumbnailProvider || page.entryPath) throw new ThumbnailUnavailableError()
+        bytes = (await (await this.#getVideoThumbnailProvider()).generate({
+          sourcePath: page.sourcePath,
+          maxEdge: 416,
+          quality: 82,
+          priority: thumbnailLanePriority(demand.lane),
+          ownerId: demand.contextId,
+        }, signal)).bytes
       } else {
         source = await page.content.load(signal)
         const input = await source.open(signal)
@@ -391,6 +429,30 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     }
     return this.#imageTransformer
   }
+
+  #getVideoThumbnailProvider(): Promise<VideoThumbnailProvider> {
+    if (!this.#loadVideoThumbnailProvider) return Promise.reject(new ThumbnailUnavailableError())
+    if (!this.#videoThumbnailProvider) {
+      const pending = this.#loadVideoThumbnailProvider()
+      const guarded = pending.catch((error) => {
+        if (this.#videoThumbnailProvider === guarded) this.#videoThumbnailProvider = undefined
+        throw error
+      })
+      this.#videoThumbnailProvider = guarded
+    }
+    return this.#videoThumbnailProvider
+  }
+
+  #recordFailure(key: string, error: unknown): void {
+    const thumbnailStore = this.#thumbnailStore
+    if (!thumbnailStore?.recordFailure || isAbortError(error) || error instanceof ThumbnailUnavailableError) return
+    void thumbnailStore.recordFailure({
+      key,
+      reason: thumbnailFailureReason(error),
+      lastAttempt: sqliteTimestamp(new Date()),
+      errorMessage: error instanceof Error ? error.message : String(error),
+    }).catch(() => undefined)
+  }
 }
 
 export class ThumbnailUnavailableError extends Error {}
@@ -414,6 +476,7 @@ function thumbnailFailureReason(error: unknown): string {
   if (message.includes("password")) return "password-required"
   if (message.includes("unsupported") || message.includes("expected image")) return "unsupported-format"
   if (message.includes("archive") || message.includes("7z") || message.includes("zip")) return "archive-error"
+  if (message.includes("ffmpeg") || message.includes("video")) return "video-error"
   if (message.includes("enoent") || message.includes("not found") || message.includes("missing")) return "source-missing"
   return "decode-error"
 }

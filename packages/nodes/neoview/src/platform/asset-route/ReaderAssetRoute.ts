@@ -79,7 +79,7 @@ export class ReaderAssetRoute {
     if (!this.#thumbnailPipeline?.available) return undefined
     const session = this.#readerService.getSession(sessionId)
     const page = session?.getPage(pageId)
-    if (!page?.thumbnailSource || (page.mediaKind !== "image" && page.mediaKind !== "animated-image")) return undefined
+    if (!page || !this.#thumbnailPipeline.supportsPage(page)) return undefined
     const path = `/reader/s/${encodeURIComponent(sessionId)}/thumbnail/${encodeURIComponent(pageId)}`
     const url = new URL(path, this.#baseUrl)
     url.searchParams.set("version", page.contentVersion)

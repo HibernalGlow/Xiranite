@@ -133,6 +133,33 @@ describe("ReaderHttpController", () => {
     expect(disposeThumbnailStore).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.thumbnail.video.http] serves a video page thumbnail through the opaque session URL", async () => {
+    const directory = await createBookDirectory()
+    const videoPath = join(directory, "clip.mp4")
+    await writeFile(videoPath, Uint8Array.of(0, 1, 2, 3))
+    const generated = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 4, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 5])
+    const generate = vi.fn(async () => ({ bytes: generated, contentType: "image/webp" as const }))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      loadVideoThumbnailProvider: async () => ({ generate }),
+    })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: videoPath })))!
+      const session = await opened.json() as ReaderSessionDto
+      const thumbnailUrl = session.visiblePages[0]?.thumbnailUrl
+      expect(thumbnailUrl).toContain(`/reader/s/${session.sessionId}/thumbnail/`)
+      expect(thumbnailUrl).not.toContain(videoPath)
+      const thumbnail = (await controller.handle(new Request(thumbnailUrl!)))!
+      expect(thumbnail.status).toBe(200)
+      expect(thumbnail.headers.get("content-type")).toBe("image/webp")
+      expect(new Uint8Array(await thumbnail.arrayBuffer())).toEqual(generated)
+      expect(generate).toHaveBeenCalledWith(expect.objectContaining({ sourcePath: expect.stringContaining("clip.mp4"), maxEdge: 320 }), expect.any(AbortSignal))
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.control.session] opens, pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
     const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })

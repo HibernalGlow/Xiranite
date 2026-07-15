@@ -89,6 +89,44 @@ describe("PlatformThumbnailPipeline", () => {
     lease.release()
     await pipeline.dispose()
   })
+
+  it("[neoview.thumbnail.video.page] generates and persists a video page through the shared coordinator", async () => {
+    const page = fixtureVideoPage("D:/videos/clip.mp4")
+    const generated = fixtureWebp(6)
+    const generate = vi.fn(async () => ({ bytes: generated, contentType: "image/webp" as const }))
+    const put = vi.fn(async () => undefined)
+    const pipeline = new PlatformThumbnailPipeline({
+      thumbnailStore: { get: async () => undefined, put },
+      loadVideoThumbnailProvider: async () => ({ generate }),
+    })
+    const lease = pipeline.acquirePage(page, { contextId: "reader:video" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: generated, contentType: "image/webp" })
+    expect(generate).toHaveBeenCalledWith({
+      sourcePath: "D:/videos/clip.mp4",
+      maxEdge: 320,
+      quality: 78,
+      priority: "interactive",
+      ownerId: "reader:video",
+    }, expect.any(AbortSignal))
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ key: "D:/videos/clip.mp4", category: "file", bytes: generated }))
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.video.file-cover] uses the same provider for library video covers at view priority", async () => {
+    const page = fixtureVideoPage("D:/videos/clip.mp4")
+    const generated = fixtureWebp(4)
+    const generate = vi.fn(async () => ({ bytes: generated, contentType: "image/webp" as const }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(page),
+      loadVideoThumbnailProvider: async () => ({ generate }),
+    })
+    const lease = pipeline.acquireLibrary(librarySource("file", "D:/videos/clip.mp4", 99), { contextId: "library:video" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: generated })
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ maxEdge: 416, priority: "view", ownerId: "library:video" }), expect.any(AbortSignal))
+    lease.release()
+    await pipeline.dispose()
+  })
 })
 
 function librarySource(kind: "file" | "folder", path: string, sourceSize?: number): LibraryThumbnailSource {
@@ -125,6 +163,29 @@ function fixturePage(key: string): ReaderPage {
     byteLength: 3,
     contentVersion: "page-v1",
     content: { load: async () => source },
+  }
+}
+
+function fixtureVideoPage(path: string): ReaderPage {
+  const close = vi.fn(async () => undefined)
+  return {
+    id: "video-1",
+    index: 0,
+    name: "clip.mp4",
+    sourcePath: path,
+    thumbnailSource: { key: path, category: "file" },
+    mediaKind: "video",
+    mimeType: "video/mp4",
+    byteLength: 99,
+    contentVersion: "video-v1",
+    content: {
+      load: async () => ({
+        rangeSupported: true,
+        open: async () => byteStream(Uint8Array.of(1, 2, 3)),
+        close,
+        [Symbol.asyncDispose]: close,
+      }),
+    },
   }
 }
 

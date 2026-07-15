@@ -5,6 +5,7 @@ import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
@@ -55,6 +56,7 @@ export interface ReaderSessionDto {
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
   sessionOptions?: Partial<ReaderSessionOptions>
   thumbnailStore?: ReaderThumbnailStore
+  loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
   shellOptions?: NeoviewShellConfig
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
@@ -84,10 +86,15 @@ export class ReaderHttpController implements AsyncDisposable {
       const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
       return new SharpImageTransformer(options.resourceScheduler)
     }
+    const loadVideoThumbnailProvider = options.loadVideoThumbnailProvider ?? (async () => {
+      const { FfmpegVideoThumbnailProvider } = await import("../video/FfmpegVideoThumbnailProvider.js")
+      return new FfmpegVideoThumbnailProvider({ resourceScheduler: options.resourceScheduler })
+    })
     this.#thumbnailPipeline = new PlatformThumbnailPipeline({
       bookLoader,
       loadImageTransformer,
       thumbnailStore: options.thumbnailStore,
+      loadVideoThumbnailProvider,
       maxMemoryBytes: 32 * 1024 * 1024,
       maxEntryBytes: 512 * 1024,
     })

@@ -22,10 +22,16 @@ import type {
   PlatformThumbnailPipeline,
   PlatformThumbnailPipelineOptions,
 } from "./platform/thumbnails/PlatformThumbnailPipeline.js"
+import type {
+  FfmpegVideoThumbnailProvider,
+  FfmpegVideoThumbnailProviderOptions,
+} from "./platform/video/FfmpegVideoThumbnailProvider.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPipelineOptions } from "./platform/thumbnails/PlatformThumbnailPipeline.js"
+export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "./ports/VideoThumbnailProvider.js"
+export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
 
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
@@ -146,6 +152,13 @@ export async function createPlatformThumbnailPipeline(
 ): Promise<PlatformThumbnailPipeline> {
   const { PlatformThumbnailPipeline } = await import("./platform/thumbnails/PlatformThumbnailPipeline.js")
   return new PlatformThumbnailPipeline(options)
+}
+
+export async function createFfmpegVideoThumbnailProvider(
+  options: FfmpegVideoThumbnailProviderOptions = {},
+): Promise<FfmpegVideoThumbnailProvider> {
+  const { FfmpegVideoThumbnailProvider } = await import("./platform/video/FfmpegVideoThumbnailProvider.js")
+  return new FfmpegVideoThumbnailProvider(options)
 }
 
 export async function createReaderHeadlessController(
