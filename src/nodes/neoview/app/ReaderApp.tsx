@@ -210,11 +210,11 @@ export function ReaderApp({
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
       <div className={cn("border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-md", floatingFrame && "xiranite-app-region-drag")} style={edgeSurfaceStyle(shell, "top")} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}>
-        <div className={cn("flex items-center gap-2", compact ? "p-2" : "px-3 py-2.5", floatingFrame && "xiranite-app-region-no-drag")}>
+        <div className={cn("flex items-center gap-2", compact ? "p-2" : "px-3 py-2.5")}>
           <BookOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
             aria-label="漫画、图片或目录路径"
-            className="min-w-0 flex-1"
+            className="xiranite-app-region-no-drag min-w-0 flex-1"
             value={path}
             placeholder="选择 CBZ、ZIP、图片或目录"
             onChange={(event) => setPath(event.currentTarget.value)}
@@ -225,13 +225,13 @@ export function ReaderApp({
               }
             }}
           />
-          {pickFile ? <Button aria-label="选择漫画或图片文件" type="button" size="sm" variant="outline" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
-          {pickDirectory ? <Button aria-label="选择图片目录" type="button" size="sm" variant="outline" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
-          <Button aria-label="打开书籍" type="button" size="sm" onClick={() => void openPath()} disabled={!path.trim() || busy}>
+          {pickFile ? <Button className="xiranite-app-region-no-drag" aria-label="选择漫画或图片文件" type="button" size="sm" variant="outline" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
+          {pickDirectory ? <Button className="xiranite-app-region-no-drag" aria-label="选择图片目录" type="button" size="sm" variant="outline" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
+          <Button className="xiranite-app-region-no-drag" aria-label="打开书籍" type="button" size="sm" onClick={() => void openPath()} disabled={!path.trim() || busy}>
             {busy && !session ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
             {compact ? null : "打开"}
           </Button>
-          <Button aria-label="打开 NeoView 设置" type="button" size="icon-sm" variant="ghost" disabled={!shell} onClick={() => setSettingsOpen(true)}><Settings2 /></Button><FloatingWindowCaptionControls integrated />
+          <Button className="xiranite-app-region-no-drag" aria-label="打开 NeoView 设置" type="button" size="icon-sm" variant="ghost" disabled={!shell} onClick={() => setSettingsOpen(true)}><Settings2 /></Button><FloatingWindowCaptionControls integrated />
         </div>
         {error ? <div role="alert" className="border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}
       </div>
