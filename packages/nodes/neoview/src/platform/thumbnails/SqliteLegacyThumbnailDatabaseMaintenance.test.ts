@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { inspectLegacyThumbnailDatabase } from "./LegacyThumbnailDatabaseInspector.js"
 import { SqliteLegacyThumbnailDatabaseMaintenance } from "./SqliteLegacyThumbnailDatabaseMaintenance.js"
+import { WritableLegacyThumbnailStore } from "./WritableLegacyThumbnailStore.js"
 
 describe("SqliteLegacyThumbnailDatabaseMaintenance", () => {
   const roots: string[] = []
@@ -79,6 +80,43 @@ describe("SqliteLegacyThumbnailDatabaseMaintenance", () => {
     unrelated.exec("CREATE TABLE other (id INTEGER)")
     unrelated.close()
     await expect(maintenance.backup(incompatible, join(root, "unused.db"))).rejects.toThrow("incompatible")
+  })
+
+  it("[neoview.thumbnail.database-maintenance-lock] refuses optimize while an Xiranite writer is active", async () => {
+    const root = await temporaryRoot(roots)
+    const source = join(root, "thumbnails.db")
+    const backup = join(root, "backup.db")
+    const seed = await openFixtureDatabase(source)
+    seed.exec(CURRENT_SCHEMA_SQL)
+    seed.close()
+    const writer = await WritableLegacyThumbnailStore.open(source)
+    try {
+      await expect(new SqliteLegacyThumbnailDatabaseMaintenance().optimize(source, { backupPath: backup, vacuum: false }))
+        .rejects.toThrow("already in use")
+      await expect(stat(backup)).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      await writer.close()
+    }
+
+    await expect(new SqliteLegacyThumbnailDatabaseMaintenance().optimize(source, { backupPath: backup, vacuum: false }))
+      .resolves.toMatchObject({ optimized: true, backup: { quickCheck: "ok" } })
+  })
+
+  it("[neoview.thumbnail.database-maintenance-lock-release] releases the lock when backup creation fails", async () => {
+    const root = await temporaryRoot(roots)
+    const source = join(root, "thumbnails.db")
+    const backup = join(root, "occupied.db")
+    const seed = await openFixtureDatabase(source)
+    seed.exec(CURRENT_SCHEMA_SQL)
+    seed.close()
+    const occupied = await openFixtureDatabase(backup)
+    occupied.exec("CREATE TABLE occupied (id INTEGER)")
+    occupied.close()
+
+    await expect(new SqliteLegacyThumbnailDatabaseMaintenance().optimize(source, { backupPath: backup, vacuum: false }))
+      .rejects.toThrow("already exists")
+    const writer = await WritableLegacyThumbnailStore.open(source)
+    await writer.close()
   })
 })
 

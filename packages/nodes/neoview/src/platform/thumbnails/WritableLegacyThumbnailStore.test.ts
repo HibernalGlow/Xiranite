@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, parse, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -93,6 +93,18 @@ describe("WritableLegacyThumbnailStore", () => {
     const verified = await openFixtureDatabase(path)
     expect(verified.get("PRAGMA journal_mode")).toEqual({ journal_mode: "delete" })
     verified.close()
+  })
+
+  it("[neoview.thumbnail.writer-access-lock] allows only one Xiranite writer and releases the lock on close", async () => {
+    const path = await createFixture(roots)
+    const first = await WritableLegacyThumbnailStore.open(path)
+    expect((await stat(`${path}.xr-write.lock`)).isDirectory()).toBe(true)
+    await expect(WritableLegacyThumbnailStore.open(path)).rejects.toThrow("already in use")
+    await first.close()
+    await expect(stat(`${path}.xr-write.lock`)).rejects.toMatchObject({ code: "ENOENT" })
+
+    const reopened = await WritableLegacyThumbnailStore.open(path)
+    await reopened.close()
   })
 
   it("[neoview.thumbnail.writer.external-epoch] increments only when another SQLite connection commits", async () => {

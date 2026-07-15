@@ -12,6 +12,7 @@ import {
   inspectLegacyThumbnailDatabase,
   type LegacyThumbnailDatabaseReport,
 } from "./LegacyThumbnailDatabaseInspector.js"
+import { acquireThumbnailDatabaseAccessLock } from "./ThumbnailDatabaseAccessLock.js"
 
 export interface SqliteLegacyThumbnailDatabaseMaintenanceOptions {
   busyTimeoutMs?: number
@@ -79,46 +80,55 @@ export class SqliteLegacyThumbnailDatabaseMaintenance implements ReaderThumbnail
   ): Promise<ReaderThumbnailDatabaseOptimizeResult> {
     signal?.throwIfAborted()
     const source = await realpath(sourcePath)
-    const before = await requireCurrent(source)
-    const backup = await this.backup(source, options.backupPath, signal)
-    signal?.throwIfAborted()
-
-    const database = await openWritableSqlite(source)
-    let checkpoint: ReaderThumbnailDatabaseOptimizeResult["checkpoint"]
+    const accessLock = await acquireThumbnailDatabaseAccessLock(source, signal)
     try {
-      database.exec(`PRAGMA busy_timeout = ${this.#busyTimeoutMs};`)
-      if (before.journalMode?.toLowerCase() === "wal") {
-        const row = database.get("PRAGMA wal_checkpoint(TRUNCATE)")
-        checkpoint = {
-          busy: integerCell(row, "busy"),
-          logFrames: integerCell(row, "log"),
-          checkpointedFrames: integerCell(row, "checkpointed"),
-        }
-        if (checkpoint.busy !== 0) throw new Error("Thumbnail database checkpoint is busy; close other writers and retry.")
-      }
+      const before = await requireCurrent(source)
+      const backup = await this.backup(source, options.backupPath, signal)
       signal?.throwIfAborted()
-      database.exec("PRAGMA optimize;")
-      if (options.vacuum) {
-        signal?.throwIfAborted()
-        database.exec("VACUUM;")
-      }
-      requireQuickCheck(database.get("PRAGMA quick_check"))
-    } finally {
-      database.close()
-    }
+      accessLock.assertHeld()
 
-    const after = await requireCurrent(source)
-    if (after.metadataVersion !== before.metadataVersion || after.userVersion !== before.userVersion) {
-      throw new Error("Thumbnail database metadata changed during maintenance.")
-    }
-    if (after.journalMode !== before.journalMode) throw new Error("Thumbnail database journal mode changed during maintenance.")
-    return {
-      backup,
-      checkpoint,
-      optimized: true,
-      vacuumed: options.vacuum,
-      journalModeBefore: before.journalMode,
-      journalModeAfter: after.journalMode,
+      const database = await openWritableSqlite(source)
+      let checkpoint: ReaderThumbnailDatabaseOptimizeResult["checkpoint"]
+      try {
+        database.exec(`PRAGMA busy_timeout = ${this.#busyTimeoutMs};`)
+        if (before.journalMode?.toLowerCase() === "wal") {
+          const row = database.get("PRAGMA wal_checkpoint(TRUNCATE)")
+          checkpoint = {
+            busy: integerCell(row, "busy"),
+            logFrames: integerCell(row, "log"),
+            checkpointedFrames: integerCell(row, "checkpointed"),
+          }
+          if (checkpoint.busy !== 0) throw new Error("Thumbnail database checkpoint is busy; close other writers and retry.")
+        }
+        signal?.throwIfAborted()
+        accessLock.assertHeld()
+        database.exec("PRAGMA optimize;")
+        if (options.vacuum) {
+          signal?.throwIfAborted()
+          accessLock.assertHeld()
+          database.exec("VACUUM;")
+        }
+        requireQuickCheck(database.get("PRAGMA quick_check"))
+      } finally {
+        database.close()
+      }
+
+      accessLock.assertHeld()
+      const after = await requireCurrent(source)
+      if (after.metadataVersion !== before.metadataVersion || after.userVersion !== before.userVersion) {
+        throw new Error("Thumbnail database metadata changed during maintenance.")
+      }
+      if (after.journalMode !== before.journalMode) throw new Error("Thumbnail database journal mode changed during maintenance.")
+      return {
+        backup,
+        checkpoint,
+        optimized: true,
+        vacuumed: options.vacuum,
+        journalModeBefore: before.journalMode,
+        journalModeAfter: after.journalMode,
+      }
+    } finally {
+      await accessLock.release()
     }
   }
 }

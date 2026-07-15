@@ -13,6 +13,10 @@ import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/ope
 import { SqliteDataVersionTracker } from "../sqlite/SqliteDataVersionTracker.js"
 import { inspectLegacyThumbnailDatabase, type LegacyThumbnailDatabaseReport } from "./LegacyThumbnailDatabaseInspector.js"
 import { decodeLegacyThumbnailBlob, detectImageContentType, DEFAULT_MAX_THUMBNAIL_BYTES } from "./ThumbnailBlobCodec.js"
+import {
+  acquireThumbnailDatabaseAccessLock,
+  type ThumbnailDatabaseAccessLock,
+} from "./ThumbnailDatabaseAccessLock.js"
 import type { LegacyThumbnailCategory, LegacyThumbnailRecord } from "./ReadonlyLegacyThumbnailStore.js"
 
 export interface WritableLegacyThumbnailStoreOptions {
@@ -36,6 +40,7 @@ type PendingWrite =
 export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, AsyncDisposable {
   readonly report: LegacyThumbnailDatabaseReport
   readonly #database: WritableSqliteConnection
+  readonly #accessLock: ThumbnailDatabaseAccessLock
   readonly #maxThumbnailBytes: number
   readonly #flushIntervalMs: number
   readonly #maxBatchSize: number
@@ -55,8 +60,14 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
   #lastError?: string
   #invalidScanCursor = ""
 
-  private constructor(database: WritableSqliteConnection, report: LegacyThumbnailDatabaseReport, options: WritableLegacyThumbnailStoreOptions) {
+  private constructor(
+    database: WritableSqliteConnection,
+    accessLock: ThumbnailDatabaseAccessLock,
+    report: LegacyThumbnailDatabaseReport,
+    options: WritableLegacyThumbnailStoreOptions,
+  ) {
     this.#database = database
+    this.#accessLock = accessLock
     this.report = report
     this.#maxThumbnailBytes = options.maxThumbnailBytes ?? DEFAULT_MAX_THUMBNAIL_BYTES
     this.#flushIntervalMs = options.flushIntervalMs ?? 50
@@ -79,14 +90,17 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
   static async open(path: string, options: WritableLegacyThumbnailStoreOptions = {}): Promise<WritableLegacyThumbnailStore> {
     const report = await inspectLegacyThumbnailDatabase(path)
     if (report.compatibility !== "current") throw new Error(`NeoView thumbnail database is not writable (${report.compatibility}): ${path}`)
-    const database = await openWritableSqlite(path)
+    const accessLock = await acquireThumbnailDatabaseAccessLock(path)
+    let database: WritableSqliteConnection | undefined
     try {
+      database = await openWritableSqlite(path)
       const busyTimeoutMs = options.busyTimeoutMs ?? 5_000
       assertInteger(busyTimeoutMs, "busyTimeoutMs", 0, 60_000)
       database.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}; PRAGMA synchronous = NORMAL;`)
-      return new WritableLegacyThumbnailStore(database, report, options)
+      return new WritableLegacyThumbnailStore(database, accessLock, report, options)
     } catch (error) {
-      database.close()
+      try { database?.close() } catch { /* preserve the original open failure */ }
+      await accessLock.release().catch(() => undefined)
       throw error
     }
   }
@@ -351,11 +365,12 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     if (this.#closed) return
     this.#closed = true
     this.#clearTimer()
-    try {
-      await this.flush()
-    } finally {
-      this.#database.close()
-    }
+    const errors: unknown[] = []
+    try { await this.flush() } catch (error) { errors.push(error) }
+    try { this.#database.close() } catch (error) { errors.push(error) }
+    try { await this.#accessLock.release() } catch (error) { errors.push(error) }
+    if (errors.length === 1) throw errors[0]
+    if (errors.length > 1) throw new AggregateError(errors, "Failed to close the thumbnail writer and access lock.")
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -392,8 +407,10 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     let lastError: unknown
     for (let attempt = 0; attempt <= this.#writeBusyRetries; attempt += 1) {
       try {
+        this.#accessLock.assertHeld()
         this.#database.exec("BEGIN IMMEDIATE")
         const result = operation()
+        this.#accessLock.assertHeld()
         this.#database.exec("COMMIT")
         return result
       } catch (error) {
@@ -450,6 +467,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
 
   #assertOpen(): void {
     if (this.#closed) throw new Error("Legacy thumbnail store is closed.")
+    this.#accessLock.assertHeld()
   }
 }
 
