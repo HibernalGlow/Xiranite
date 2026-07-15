@@ -70,4 +70,13 @@ describe("reader-http-client", () => {
     await expect(request).rejects.toThrow("Unsupported reader path")
     await expect(request).rejects.toMatchObject({ status: 400, name: "ReaderHttpError" } satisfies Partial<ReaderHttpError>)
   })
+
+  it("[neoview.metadata.client] loads metadata only through the authenticated session route", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ book: { displayName: "demo.cbz" } }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.metadata!("reader-1")
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader-1/metadata")
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
 })

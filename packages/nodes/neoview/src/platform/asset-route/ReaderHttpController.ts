@@ -1,3 +1,6 @@
+import type { Stats } from "node:fs"
+import { stat } from "node:fs/promises"
+
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/frame.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
@@ -39,6 +42,7 @@ const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
+const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
 
 export interface ReaderPageDto {
@@ -185,6 +189,8 @@ export class ReaderHttpController implements AsyncDisposable {
 
     const pagesMatch = SESSION_PAGES_PATH.exec(url.pathname)
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
+    const metadataMatch = SESSION_METADATA_PATH.exec(url.pathname)
+    if (metadataMatch && request.method === "GET") return this.#metadata(metadataMatch[1]!, request.signal)
     const navigateMatch = SESSION_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
@@ -390,6 +396,44 @@ export class ReaderHttpController implements AsyncDisposable {
     return jsonResponse({ pages, nextCursor, total: catalog.length })
   }
 
+  async #metadata(encodedSessionId: string, signal?: AbortSignal): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const snapshot = session.snapshot()
+    const page = session.book.pages[snapshot.anchorPageIndex]
+    const sourcePath = session.book.source.path
+    const pageFilePath = page?.entryPath ? sourcePath : page?.sourcePath
+    const [bookStats, pageStats] = await Promise.all([
+      safeStat(sourcePath, signal),
+      pageFilePath && pageFilePath !== sourcePath ? safeStat(pageFilePath, signal) : Promise.resolve(undefined),
+    ])
+    signal?.throwIfAborted()
+    return jsonResponse({
+      book: {
+        displayName: session.book.displayName,
+        sourceKind: session.book.source.kind,
+        sourcePath,
+        pageCount: session.book.pages.length,
+        currentPage: snapshot.anchorPageIndex + 1,
+        progressPercent: session.book.pages.length ? (snapshot.anchorPageIndex + 1) / session.book.pages.length * 100 : 0,
+        byteLength: bookStats?.isFile() ? bookStats.size : undefined,
+        createdAtMs: validTime(bookStats?.birthtimeMs),
+        modifiedAtMs: validTime(bookStats?.mtimeMs),
+      },
+      page: page ? {
+        index: page.index,
+        name: page.name,
+        displayPath: page.entryPath ?? page.sourcePath,
+        mediaKind: page.mediaKind,
+        mimeType: page.mimeType,
+        byteLength: page.byteLength ?? (pageStats?.isFile() ? pageStats.size : undefined),
+        dimensions: page.dimensions,
+        createdAtMs: validTime((pageStats ?? bookStats)?.birthtimeMs),
+        modifiedAtMs: validTime((pageStats ?? bookStats)?.mtimeMs),
+      } : undefined,
+    })
+  }
+
   async #navigate(encodedSessionId: string, request: Request): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -575,6 +619,22 @@ function safeDecode(value: string): string | undefined {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+async function safeStat(path: string, signal?: AbortSignal): Promise<Stats | undefined> {
+  signal?.throwIfAborted()
+  try {
+    const result = await stat(path)
+    signal?.throwIfAborted()
+    return result
+  } catch (error) {
+    if (signal?.aborted) throw error
+    return undefined
+  }
+}
+
+function validTime(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
 function jsonResponse(data: unknown, status = 200): Response {

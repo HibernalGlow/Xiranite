@@ -143,7 +143,7 @@
       "legacyCommandPatterns": ["(metadata|file_info|file_metadata|dimension|image_info|system_info|folder_size|directory_total_size|calculate_path_hash)"],
       "settingsKeys": [], "dataStores": ["dimension cache", "folder size cache"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["尺寸/格式/大小/时间", "批量尺寸扫描", "归档 entry 属性", "取消扫描", "系统 shell 元数据 fallback"],
-      "testIds": ["neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.cli.inspect", "neoview.cli.reader-e2e", "neoview.tui.reader"], "benchmarkIds": ["dimension-scan"], "knownDifferences": []
+      "testIds": ["neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.metadata.http", "neoview.metadata.client", "neoview.metadata.cards", "neoview.metadata.cancel", "neoview.cli.inspect", "neoview.cli.reader-e2e", "neoview.tui.reader"], "benchmarkIds": ["dimension-scan"], "knownDifferences": []
     },
     {
       "id": "emm-ratings-tags-translation",

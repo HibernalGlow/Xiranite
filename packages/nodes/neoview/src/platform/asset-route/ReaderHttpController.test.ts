@@ -240,7 +240,7 @@ describe("ReaderHttpController", () => {
     }
   })
 
-  it("[neoview.control.session] [neoview.page-list.catalog] opens, filters pages, navigates and closes without exposing local paths", async () => {
+  it("[neoview.control.session] [neoview.page-list.catalog] [neoview.metadata.http] opens, filters pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
     const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
     try {
@@ -254,6 +254,12 @@ describe("ReaderHttpController", () => {
       expect(session.frame.anchorPageIndex).toBe(1)
       expect(session.visiblePages[0]?.name).toBe("2.jpg")
       expect(JSON.stringify(session)).not.toContain(directory)
+
+      const metadata = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!
+      expect(await metadata.json()).toMatchObject({
+        book: { sourceKind: "directory", sourcePath: directory, pageCount: 3, currentPage: 2 },
+        page: { index: 1, name: "2.jpg", byteLength: 1 },
+      })
 
       const options = (await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,

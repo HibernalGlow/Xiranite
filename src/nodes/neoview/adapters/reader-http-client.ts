@@ -32,6 +32,31 @@ export interface ReaderPageListDto {
   total: number
 }
 
+export interface ReaderMetadataDto {
+  book: {
+    displayName: string
+    sourceKind: "path" | "directory" | "archive" | "image" | "media" | "document"
+    sourcePath: string
+    pageCount: number
+    currentPage: number
+    progressPercent: number
+    byteLength?: number
+    createdAtMs?: number
+    modifiedAtMs?: number
+  }
+  page?: {
+    index: number
+    name: string
+    displayPath: string
+    mediaKind: PageMediaKind
+    mimeType?: string
+    byteLength?: number
+    dimensions?: PageDimensions
+    createdAtMs?: number
+    modifiedAtMs?: number
+  }
+}
+
 export interface ReaderDirectoryEntryDto {
   name: string
   path: string
@@ -130,6 +155,7 @@ export interface ReaderHttpClient {
   closeDirectoryBrowser?(sessionId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
+  metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
   updateSessionOptions(sessionId: string, patch: { layout: { pageMode: PageMode } }, signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -228,6 +254,7 @@ export function createReaderHttpClient(
       if (options.thumbnails === false) search.set("thumbnails", "0")
       return request<ReaderPageListDto>(`/reader/s/${encodeURIComponent(sessionId)}/pages?${search}`, { signal })
     },
+    metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
     navigate: (sessionId, action, signal) => request<ReaderNavigationDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/navigate`,
       {

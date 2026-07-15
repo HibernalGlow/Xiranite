@@ -1,0 +1,27 @@
+export function formatBytes(bytes?: number): string {
+  if (bytes === undefined) return "-"
+  if (bytes < 1_024) return `${bytes} B`
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KB`
+  if (bytes < 1_073_741_824) return `${(bytes / 1_048_576).toFixed(2)} MB`
+  return `${(bytes / 1_073_741_824).toFixed(2)} GB`
+}
+
+export function formatDate(timestamp?: number): string {
+  return timestamp === undefined ? "-" : new Date(timestamp).toLocaleString("zh-CN")
+}
+
+export function formatSourceKind(kind: string): string {
+  if (kind === "directory") return "文件夹"
+  if (kind === "archive") return "压缩包"
+  if (kind === "document") return "文档"
+  if (kind === "media") return "媒体"
+  if (kind === "image") return "图片"
+  return kind
+}
+
+export function formatMediaKind(kind: string): string {
+  if (kind === "video") return "视频"
+  if (kind === "animated-image") return "动态图"
+  if (kind === "document-page") return "文档页"
+  return "图片"
+}

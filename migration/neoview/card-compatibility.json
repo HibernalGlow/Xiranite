@@ -192,7 +192,8 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "pending"
+      "status": "partial",
+      "currentCardId": "image-information"
     },
     {
       "legacyId": "storage",
@@ -200,7 +201,8 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "pending"
+      "status": "partial",
+      "currentCardId": "storage-information"
     },
     {
       "legacyId": "time",
@@ -208,7 +210,8 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "pending"
+      "status": "partial",
+      "currentCardId": "time-information"
     },
     {
       "legacyId": "sidebarControl",

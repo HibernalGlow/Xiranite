@@ -197,7 +197,7 @@
 - 设置：无
 - 数据：dimension cache、folder size cache
 - 行为：尺寸/格式/大小/时间；批量尺寸扫描；归档 entry 属性；取消扫描；系统 shell 元数据 fallback
-- 测试：`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.cli.inspect`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
+- 测试：`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.metadata.http`、`neoview.metadata.client`、`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.cli.inspect`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
 - 性能基准：`dimension-scan`
 - 已知差异：无
 
