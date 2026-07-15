@@ -12,6 +12,7 @@ import type {
 import type {
   ReaderThumbnailMaintenanceSnapshot,
 } from "./ports/ReaderThumbnailStore.js"
+import type { ReaderThumbnailDatabaseMaintenance } from "./ports/ReaderThumbnailDatabaseMaintenance.js"
 import {
   ReaderThumbnailMaintenanceService,
   type ReaderThumbnailMaintenancePort,
@@ -26,6 +27,7 @@ const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
   "reader-data-inspect", "reader-data-import",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
+  "thumbnail-db-backup", "thumbnail-db-optimize",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
 ])
 const VALUE_FLAGS = new Set([
@@ -45,7 +47,7 @@ const VALUE_FLAGS = new Set([
   "--reason",
   "--database",
 ])
-const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes"])
+const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 
@@ -60,6 +62,7 @@ export interface NeoviewCliDependencies {
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
+  createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
 
 interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, AsyncDisposable {}
@@ -94,6 +97,11 @@ export async function runProgram(
   if (command === "thumbnail-db-inspect") {
     if (parsed.positionals.length > 1) throw usage("thumbnail-db-inspect accepts at most one database path.")
     await runThumbnailDatabaseInspect(parsed.positionals[0], parsed.booleans.has("--json"), host)
+    return
+  }
+  if (command === "thumbnail-db-backup" || command === "thumbnail-db-optimize") {
+    if (parsed.positionals.length > 1) throw usage(`${command} accepts at most one database path.`)
+    await runThumbnailDatabaseOfflineCommand(command, parsed.positionals[0], parsed, host, dependencies)
     return
   }
   if (command.startsWith("thumbnail-db-")) {
@@ -183,6 +191,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "thumbnail-db-clear-failures") {
     rejectOptions(parsed, new Set(["--json", "--yes", "--reason", "--limit"]))
+    return
+  }
+  if (command === "thumbnail-db-backup") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--output"] ))
+    return
+  }
+  if (command === "thumbnail-db-optimize") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--offline", "--vacuum", "--output"] ))
     return
   }
   if (command === "presentation-cache-stats") {
@@ -413,6 +429,41 @@ async function runThumbnailMaintenanceCommand(
   } finally {
     await store[Symbol.asyncDispose]()
   }
+}
+
+async function runThumbnailDatabaseOfflineCommand(
+  command: "thumbnail-db-backup" | "thumbnail-db-optimize",
+  path: string | undefined,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!parsed.booleans.has("--yes")) throw usage(`${command} requires --yes because it creates or rewrites database files.`)
+  if (command === "thumbnail-db-optimize" && !parsed.booleans.has("--offline")) {
+    throw usage("thumbnail-db-optimize requires --offline after closing NeoView and Xiranite database users.")
+  }
+  const output = oneValue(parsed, "--output")
+  if (!output) throw usage(`${command} requires --output <backup.db>.`)
+  const sourcePath = await resolveThumbnailDatabasePath(path, host)
+  const backupPath = resolve(host.cwd, output)
+  const maintenance = dependencies.createThumbnailDatabaseMaintenance
+    ? await dependencies.createThumbnailDatabaseMaintenance()
+    : await (await import("./platform.js")).createLegacyThumbnailDatabaseMaintenance()
+  const result = command === "thumbnail-db-backup"
+    ? await maintenance.backup(sourcePath, backupPath)
+    : await maintenance.optimize(sourcePath, { backupPath, vacuum: parsed.booleans.has("--vacuum") })
+  if (parsed.booleans.has("--json")) {
+    writeJson(host, result)
+    return
+  }
+  if (command === "thumbnail-db-backup") {
+    const backup = result as import("./ports/ReaderThumbnailDatabaseMaintenance.js").ReaderThumbnailDatabaseBackupResult
+    writeLine(host, `Backup: ${backup.destinationPath} (${backup.bytes} bytes, quick_check=${backup.quickCheck})`)
+    return
+  }
+  const optimized = result as import("./ports/ReaderThumbnailDatabaseMaintenance.js").ReaderThumbnailDatabaseOptimizeResult
+  writeLine(host, `Backup: ${optimized.backup.destinationPath} (${optimized.backup.bytes} bytes)`)
+  writeLine(host, `Maintenance: optimized=true vacuumed=${optimized.vacuumed} journal=${optimized.journalModeAfter ?? "-"}`)
 }
 
 type ThumbnailMaintenancePlan =
@@ -754,6 +805,8 @@ function formatCliHelp(): string {
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
     "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
     "  thumbnail-db-clear-failures [path]  Clear a bounded failure batch",
+    "  thumbnail-db-backup [path]   Create and verify a SQLite snapshot with VACUUM INTO",
+    "  thumbnail-db-optimize [path] Backup, checkpoint and optimize an offline database",
     "  presentation-cache-stats       Show L3 content-cache statistics",
     "  presentation-cache-cleanup     Run age/budget maintenance for L3",
     "  presentation-cache-clear       Clear unleased L3 entries",
@@ -779,6 +832,8 @@ function formatCliHelp(): string {
     "  --kind KIND          Thumbnail cleanup kind: empty, expired or invalid",
     "  --days N             Expiration age in days (default 30)",
     "  --scan-limit N       Invalid-path scan batch (default 500)",
+    "  --offline            Confirm all NeoView/Xiranite database users are closed",
+    "  --vacuum             Rebuild the database after backup during offline optimize",
     "  --reason REASON      Failure reason, or L3 cleanup reason: age|budget|explicit",
   ].join("\n")
 }

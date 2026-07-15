@@ -353,6 +353,58 @@ describe("NeoView CLI", () => {
     expect(dispose).toHaveBeenCalledTimes(3)
   })
 
+  it("[neoview.thumbnail.database-maintenance-cli] requires confirmation and keeps offline work behind one shared adapter", async () => {
+    const backup = vi.fn(async (sourcePath: string, destinationPath: string) => ({
+      sourcePath,
+      destinationPath,
+      bytes: 1024,
+      compatibility: "current" as const,
+      metadataVersion: "2.4",
+      userVersion: 7,
+      journalMode: "delete",
+      quickCheck: "ok" as const,
+    }))
+    const optimize = vi.fn(async (sourcePath: string, options: { backupPath: string; vacuum: boolean }) => ({
+      backup: await backup(sourcePath, options.backupPath),
+      checkpoint: { busy: 0, logFrames: 0, checkpointedFrames: 0 },
+      optimized: true as const,
+      vacuumed: options.vacuum,
+      journalModeBefore: "wal",
+      journalModeAfter: "wal",
+    }))
+    const createThumbnailDatabaseMaintenance = vi.fn(async () => ({ backup, optimize }))
+    const dependencies = { createController: async () => fakeReader(), createThumbnailDatabaseMaintenance }
+
+    await expect(runProgram([
+      "thumbnail-db-backup", "private/thumbnails.db", "--output", "private/backup.db",
+    ], host([]), dependencies)).rejects.toThrow("requires --yes")
+    expect(createThumbnailDatabaseMaintenance).not.toHaveBeenCalled()
+
+    const backupOutput: unknown[] = []
+    await runProgram([
+      "thumbnail-db-backup", "private/thumbnails.db", "--output", "private/backup.db", "--yes", "--json",
+    ], host(backupOutput), dependencies)
+    expect(JSON.parse(backupOutput.join(""))).toMatchObject({ bytes: 1024, quickCheck: "ok" })
+    expect(String(backup.mock.calls[0]?.[0]).replace(/\\/g, "/")).toMatch(/private\/thumbnails\.db$/)
+    expect(String(backup.mock.calls[0]?.[1]).replace(/\\/g, "/")).toMatch(/private\/backup\.db$/)
+
+    await expect(runProgram([
+      "thumbnail-db-optimize", "private/thumbnails.db", "--output", "private/pre-optimize.db", "--yes",
+    ], host([]), dependencies)).rejects.toThrow("requires --offline")
+    expect(optimize).not.toHaveBeenCalled()
+
+    const optimizeOutput: unknown[] = []
+    await runProgram([
+      "thumbnail-db-optimize", "private/thumbnails.db", "--output", "private/pre-optimize.db",
+      "--yes", "--offline", "--vacuum", "--json",
+    ], host(optimizeOutput), dependencies)
+    expect(JSON.parse(optimizeOutput.join(""))).toMatchObject({ optimized: true, vacuumed: true, checkpoint: { busy: 0 } })
+    expect(optimize).toHaveBeenCalledWith(expect.stringMatching(/thumbnails\.db$/), {
+      backupPath: expect.stringMatching(/pre-optimize\.db$/),
+      vacuum: true,
+    })
+  })
+
   it("[neoview.cache.cli] reuses the shared cache service and gates destructive maintenance", async () => {
     const output: unknown[] = []
     const created: Array<{ cache: ReturnType<typeof fakePresentationCache>; options: unknown }> = []

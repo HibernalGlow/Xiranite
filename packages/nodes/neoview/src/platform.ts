@@ -38,12 +38,17 @@ import type {
   FfmpegVideoThumbnailProvider,
   FfmpegVideoThumbnailProviderOptions,
 } from "./platform/video/FfmpegVideoThumbnailProvider.js"
+import type {
+  SqliteLegacyThumbnailDatabaseMaintenance,
+  SqliteLegacyThumbnailDatabaseMaintenanceOptions,
+} from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPipelineOptions } from "./platform/thumbnails/PlatformThumbnailPipeline.js"
 export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "./ports/VideoThumbnailProvider.js"
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
+export type { SqliteLegacyThumbnailDatabaseMaintenanceOptions } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
 export type {
   ReaderFileTreeChange,
   ReaderFileTreeChangeKind,
@@ -243,6 +248,13 @@ export async function createWritableLegacyThumbnailStore(
   }
   const { WritableLegacyThumbnailStore } = await import("./platform/thumbnails/WritableLegacyThumbnailStore.js")
   return WritableLegacyThumbnailStore.open(path, options)
+}
+
+export async function createLegacyThumbnailDatabaseMaintenance(
+  options: SqliteLegacyThumbnailDatabaseMaintenanceOptions = {},
+): Promise<SqliteLegacyThumbnailDatabaseMaintenance> {
+  const { SqliteLegacyThumbnailDatabaseMaintenance } = await import("./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js")
+  return new SqliteLegacyThumbnailDatabaseMaintenance(options)
 }
 
 export async function createPlatformThumbnailPipeline(
