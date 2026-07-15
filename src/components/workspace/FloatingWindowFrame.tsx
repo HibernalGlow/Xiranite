@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react"
 import { useTranslation } from "react-i18next"
-import { Minus, Minimize2, X } from "lucide-react"
+import { Copy, Minus, RectangleHorizontal, X } from "lucide-react"
 import type { MainWindowAction } from "@/backend/runtime/runtime"
 import { cn } from "@/lib/utils"
 
@@ -49,7 +49,7 @@ export function FloatingWindowCaptionControls({ className, integrated = false }:
 
   if (!frame) return null
 
-  const buttonClass = "grid min-h-9 w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+  const buttonClass = "grid min-h-9 w-11 place-items-center text-foreground/70 transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
 
   return (
     <div
@@ -57,15 +57,15 @@ export function FloatingWindowCaptionControls({ className, integrated = false }:
       className={cn("xiranite-app-region-no-drag flex shrink-0 self-stretch items-stretch", className)}
     >
       <button type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>
-        <Minus className="h-3.5 w-3.5" />
+        <Minus className="size-3.5" strokeWidth={1.75} />
       </button>
       <button type="button" title={t("common:maximize")} aria-label={t("common:maximize")} aria-pressed={frame.isMaximized} disabled={frame.pending} onClick={() => frame.control("maximize")} className={buttonClass}>
         {frame.isMaximized
-          ? <Minimize2 className="h-3.5 w-3.5" />
-          : <span aria-hidden="true" className="block h-2.5 w-3 border border-current" />}
+          ? <Copy className="size-3.5" strokeWidth={1.75} />
+          : <RectangleHorizontal className="size-3.5" strokeWidth={1.75} />}
       </button>
       <button type="button" title={t("common:closeWindow")} aria-label={t("common:closeWindow")} disabled={frame.pending} onClick={() => frame.control("close")} className={cn(buttonClass, "hover:bg-[#c42b1c] hover:text-white")}>
-        <X className="h-3.5 w-3.5" />
+        <X className="size-3.5" strokeWidth={1.75} />
       </button>
     </div>
   )
