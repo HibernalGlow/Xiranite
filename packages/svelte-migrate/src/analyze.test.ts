@@ -64,4 +64,22 @@ describe("analyzeSvelteFrontend", () => {
       classificationReasons: ["host primitive"],
     })
   })
+
+  it("emits provenance-bearing partial scaffolds for configured manual components", async () => {
+    const inventory = await analyzeSvelteFrontend({
+      projectRoot: fixture,
+      scaffoldPatterns: ["src/App\\.svelte$"],
+    })
+    const app = inventory.reactScaffolds.find((scaffold) => scaffold.sourceFile === "src/App.svelte")
+    expect(app).toMatchObject({
+      migrationStatus: "partial-scaffold",
+      sourceDisposition: "manual",
+      unsupported: ["template node RenderTag", "template node SnippetBlock"],
+    })
+    expect(app?.content).toContain("@source-disposition manual")
+    expect(app?.content).toContain("@migration-status partial-scaffold")
+    expect(app?.content).toContain("@unsupported template node RenderTag; template node SnippetBlock")
+    expect(app?.content).toContain("const load = () => invoke(\"open_book\", { count })")
+    expect(parseSync("App.tsx", app!.content, { lang: "tsx", sourceType: "module", astType: "ts" }).errors).toEqual([])
+  })
 })

@@ -14,7 +14,7 @@ This report is generated from Svelte compiler and OXC AST evidence. A `converted
 - Unresolved component imports: 0
 - Tauri-using files/calls: 107/389
 - Unmapped components/modules: 0/0
-- Generated React TSX scaffolds: 10
+- Generated React TSX scaffolds: 29
 - Component dispositions: converted=10, adapter-needed=3, manual=247, replaced=282, blocked=9
 - Module dispositions: converted=214, adapter-needed=39, manual=113, replaced=77, blocked=4
 

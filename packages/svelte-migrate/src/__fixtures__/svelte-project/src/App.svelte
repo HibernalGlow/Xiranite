@@ -9,3 +9,7 @@
 <Child />
 <button onclick={load}>{count}</button>
 <canvas></canvas>
+{#snippet status()}
+  <span>{count}</span>
+{/snippet}
+{@render status()}

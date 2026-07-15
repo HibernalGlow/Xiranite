@@ -236,10 +236,11 @@ export async function analyzeSvelteFrontend(
   }
   const reactScaffolds: ReactScaffoldEntry[] = []
   for (const component of components) {
-    if (component.disposition !== "converted") continue
+    const forcedScaffold = matchesAnyPattern(component.file, options.scaffoldPatterns)
+    if (component.disposition !== "converted" && !forcedScaffold) continue
     const source = componentSources.get(component.file)
     if (!source) continue
-    const result = generateReactScaffold(source, component)
+    const result = generateReactScaffold(source, component, { allowPartial: forcedScaffold })
     if (!result.scaffold) {
       component.disposition = "manual"
       component.classificationReasons.push(`React scaffold unsupported: ${result.unsupported.join(", ")}`)
@@ -280,6 +281,10 @@ export async function analyzeSvelteFrontend(
     tauriUsage,
     reactScaffolds,
   }
+}
+
+function matchesAnyPattern(file: string, patterns: readonly string[] | undefined): boolean {
+  return patterns?.some((pattern) => new RegExp(pattern).test(file)) ?? false
 }
 
 function scriptRegions(source: string, ast: SvelteAstShape): ScriptRegion[] {

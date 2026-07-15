@@ -118,6 +118,9 @@ export interface ReactScaffoldEntry {
   outputFile: string
   sourceHash: string
   featureIds: string[]
+  migrationStatus: "scaffold" | "review-scaffold" | "partial-scaffold"
+  sourceDisposition: FrontendDisposition
+  unsupported: string[]
   content: string
 }
 
@@ -150,6 +153,8 @@ export interface SvelteMigrationConfig {
   sourceRoot?: string
   classificationOverrides?: ClassificationOverride[]
   featureMappings?: FeatureMappingRule[]
+  /** Emit review scaffolds for matching components even when heuristics classify them as manual/replaced. */
+  scaffoldPatterns?: string[]
 }
 
 export interface AnalyzeSvelteFrontendOptions extends SvelteMigrationConfig {

@@ -36,7 +36,7 @@
       "replaced": 77,
       "blocked": 4
     },
-    "reactScaffolds": 10
+    "reactScaffolds": 29
   },
   "scaffolds": [
     {
@@ -60,7 +60,10 @@
         "startup-window-cli-lifecycle",
         "super-resolution",
         "theme-background-empty-state"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
     },
     {
       "sourceFile": "src/lib/cards/benchmark/SummaryCard.svelte",
@@ -83,7 +86,36 @@
         "startup-window-cli-lifecycle",
         "super-resolution",
         "theme-background-empty-state"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/CardRenderer.svelte",
+      "outputFile": "src/lib/cards/CardRenderer.tsx",
+      "sourceHash": "sha256:dd854b58fb1db524426e01c2a983113d3664ec0d55afaeda73ae44717842c069",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
     },
     {
       "sourceFile": "src/lib/cards/folder/FolderMainCard.svelte",
@@ -106,7 +138,10 @@
         "startup-window-cli-lifecycle",
         "super-resolution",
         "theme-background-empty-state"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
     },
     {
       "sourceFile": "src/lib/cards/monitor/components/GpuMonitor.svelte",
@@ -129,6 +164,22 @@
         "startup-window-cli-lifecycle",
         "super-resolution",
         "theme-background-empty-state"
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/PanelContainer.svelte",
+      "outputFile": "src/lib/cards/PanelContainer.tsx",
+      "sourceHash": "sha256:8c2dc923d863fd8e7c233964b27ccdef496ad68c3097003fe212e597b0c089a8",
+      "featureIds": [
+        "card-windows-tabs"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node RenderTag"
       ]
     },
     {
@@ -153,7 +204,10 @@
         "startup-window-cli-lifecycle",
         "super-resolution",
         "theme-background-empty-state"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
     },
     {
       "sourceFile": "src/lib/cards/properties/EmmSyncCard.svelte",
@@ -177,7 +231,10 @@
         "startup-window-cli-lifecycle",
         "super-resolution",
         "theme-background-empty-state"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
     },
     {
       "sourceFile": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
@@ -201,7 +258,10 @@
         "startup-window-cli-lifecycle",
         "super-resolution",
         "theme-background-empty-state"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
     },
     {
       "sourceFile": "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
@@ -226,7 +286,10 @@
         "super-resolution",
         "theme-background-empty-state",
         "thumbnail-system"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
     },
     {
       "sourceFile": "src/lib/components/browser/FileSystemBrowser.svelte",
@@ -234,6 +297,259 @@
       "sourceHash": "sha256:035e1305dbafbb398e58ae6b64685208ee747551d70ba4a2f227ca64f95024eb",
       "featureIds": [
         "file-browser-navigation"
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/cards/CollapsibleCard.svelte",
+      "outputFile": "src/lib/components/cards/CollapsibleCard.tsx",
+      "sourceHash": "sha256:517de356df45c43dc30c31f9b4bd2ef63a32dfc60cdf41063ab1bb062aa2ff04",
+      "featureIds": [
+        "card-windows-tabs"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective",
+        "attribute TransitionDirective",
+        "template node RenderTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/cardwindow/CardWindowContent.svelte",
+      "outputFile": "src/lib/components/cardwindow/CardWindowContent.tsx",
+      "sourceHash": "sha256:d254fcc5e0dbfb655b1188533fc56d92aa9c4bf3a36f0e35ffe1114fc4a53728",
+      "featureIds": [
+        "card-windows-tabs"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/cardwindow/TabBar.svelte",
+      "outputFile": "src/lib/components/cardwindow/TabBar.tsx",
+      "sourceHash": "sha256:8742306d755e81b8c68f891226e46c6a2183242eb0e0f586b6d31e5abf4124fc",
+      "featureIds": [
+        "card-windows-tabs"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective",
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/BottomThumbnailBar.svelte",
+      "outputFile": "src/lib/components/layout/BottomThumbnailBar.tsx",
+      "sourceHash": "sha256:75fd8d1faa6b36a46295bcf84746398c0ae8bc6b6ec9ac213c32845ec29e0d91",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective",
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/HoverWrapper.svelte",
+      "outputFile": "src/lib/components/layout/HoverWrapper.tsx",
+      "sourceHash": "sha256:5d0e6929622519e0b179067398aa0900c9a8b97def1bb53ef783590744b4d158",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective",
+        "template node RenderTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/LeftSidebar.svelte",
+      "outputFile": "src/lib/components/layout/LeftSidebar.tsx",
+      "sourceHash": "sha256:3c2fce2245cdca6b6224995c39adc4b6199ddd2c4b714e90a7a7f79767404b46",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective",
+        "attribute ClassDirective",
+        "template node ConstTag",
+        "template node SnippetBlock"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/MainLayout.svelte",
+      "outputFile": "src/lib/components/layout/MainLayout.tsx",
+      "sourceHash": "sha256:6d7539a648dd4e0b96f714723e61ec71b8afdae91521427e3b501b756b68f303",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective",
+        "template node RenderTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/PanelTabBar.svelte",
+      "outputFile": "src/lib/components/layout/PanelTabBar.tsx",
+      "sourceHash": "sha256:bbeb9b1630d8239cacd946d68818bad85c4b54e537e8008748df40e99a101fd8",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/RightSidebar.svelte",
+      "outputFile": "src/lib/components/layout/RightSidebar.tsx",
+      "sourceHash": "sha256:b9d05589604ae5dcaf05f4a435278f78e23cc55de7ceb32c3700829f419adf90",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective",
+        "attribute ClassDirective",
+        "template node ConstTag",
+        "template node SnippetBlock"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TabBar.svelte",
+      "outputFile": "src/lib/components/layout/TabBar.tsx",
+      "sourceHash": "sha256:30b55f8c0f89ede5c49cfe5c682548246b430dcd53963adaf9022cd418b900d6",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TopToolbar/HoverScrollPanel.svelte",
+      "outputFile": "src/lib/components/layout/TopToolbar/HoverScrollPanel.tsx",
+      "sourceHash": "sha256:3e2646506cc0585fa406b6a1b96ab9f212f2c7c0230e4aafbea871c144f886b9",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "zoom-rotate-magnifier"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TopToolbar/MagnifierPanel.svelte",
+      "outputFile": "src/lib/components/layout/TopToolbar/MagnifierPanel.tsx",
+      "sourceHash": "sha256:45d78ef56d556d595bcf9b88f65641973c13a5b514f673bd4d47ee862b7c5088",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "zoom-rotate-magnifier"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TopToolbar/RotatePanel.svelte",
+      "outputFile": "src/lib/components/layout/TopToolbar/RotatePanel.tsx",
+      "sourceHash": "sha256:c823ae6af0f8659ac7cccdaaa2eedfbbb8c8be5088b5148288bb57f3caf4acb5",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "zoom-rotate-magnifier"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TopToolbar/SlideshowPanel.svelte",
+      "outputFile": "src/lib/components/layout/TopToolbar/SlideshowPanel.tsx",
+      "sourceHash": "sha256:eb7a063ad1252600384269d05fe9a67c8af75568dd31cf48f66ed912d5a9f326",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "slideshow",
+        "zoom-rotate-magnifier"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TopToolbar/SortPanel.svelte",
+      "outputFile": "src/lib/components/layout/TopToolbar/SortPanel.tsx",
+      "sourceHash": "sha256:3ebb2eb6cbbeaa3c30ba9ed68afa78c2c5b2ab744ba713e7e150c7b2a8eb269a",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "search-sort-filter-library",
+        "zoom-rotate-magnifier"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TopToolbar/TopToolbar.svelte",
+      "outputFile": "src/lib/components/layout/TopToolbar/TopToolbar.tsx",
+      "sourceHash": "sha256:993aa8bc696d9f362ae66bd759f2da2a66128b6010c371036e705b42dc302fea",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "zoom-rotate-magnifier"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/layout/TopToolbar/ZoomPanel.svelte",
+      "outputFile": "src/lib/components/layout/TopToolbar/ZoomPanel.tsx",
+      "sourceHash": "sha256:c099c03c7b5ea915f60bd4aad42a9919776bf8f136001552fea4680068337b9a",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "zoom-rotate-magnifier"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "template node ConstTag"
       ]
     },
     {
@@ -242,7 +558,10 @@
       "sourceHash": "sha256:bf689199d9ef192fd9c1f6c00646a0ec55ac8843d19161579633831b0594ef05",
       "featureIds": [
         "panels-toolbar-shell"
-      ]
+      ],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
     }
   ]
 }

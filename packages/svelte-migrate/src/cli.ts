@@ -29,6 +29,7 @@ export async function runSvelteMigrationCli(args = process.argv.slice(2)): Promi
     outputDir: resolve(outputDir),
     sourceRoot: config.sourceRoot,
     classificationOverrides: config.classificationOverrides,
+    scaffoldPatterns: config.scaffoldPatterns,
     featureMappings,
     force: args.includes("--force"),
   })

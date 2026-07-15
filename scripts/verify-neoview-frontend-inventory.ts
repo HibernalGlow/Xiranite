@@ -23,6 +23,7 @@ const inventory = await analyzeSvelteFrontend({
   projectRoot: source,
   sourceRoot: config.sourceRoot,
   classificationOverrides: config.classificationOverrides,
+  scaffoldPatterns: config.scaffoldPatterns,
   featureMappings,
 })
 
@@ -49,15 +50,27 @@ for (const entry of entries) {
 }
 for (const usage of inventory.tauriUsage) if (!usage.featureIds.length) errors.push(`${usage.file}: Tauri usage has no feature mapping`)
 const convertedComponents = inventory.components.filter((component) => component.disposition === "converted")
-if (convertedComponents.length !== inventory.reactScaffolds.length) {
-  errors.push(`converted components (${convertedComponents.length}) differ from React scaffolds (${inventory.reactScaffolds.length})`)
+const scaffoldedSources = new Set(inventory.reactScaffolds.map((scaffold) => scaffold.sourceFile))
+for (const component of convertedComponents) {
+  if (!scaffoldedSources.has(component.file)) errors.push(`${component.file}: converted component has no React scaffold`)
 }
 for (const scaffold of inventory.reactScaffolds) {
   const parsed = parseSync(scaffold.outputFile, scaffold.content, { lang: "tsx", sourceType: "module", astType: "ts" })
   if (parsed.errors.length) errors.push(`${scaffold.outputFile}: invalid generated TSX: ${parsed.errors.map((error) => error.message).join("; ")}`)
   if (!scaffold.content.includes(`@migrated-from ${scaffold.sourceFile}`)) errors.push(`${scaffold.outputFile}: missing source provenance`)
-  if (/from\s+["'](?:svelte|[^"']*\.svelte)["']|\$(?:bindable|derived|effect|props|state)\b/.test(scaffold.content)) {
+  if (scaffold.migrationStatus === "scaffold" && /from\s+["'](?:svelte|[^"']*\.svelte)["']|\$(?:bindable|derived|effect|props|state)\b/.test(scaffold.content)) {
     errors.push(`${scaffold.outputFile}: generated React scaffold retains Svelte runtime syntax`)
+  }
+  if (scaffold.migrationStatus === "partial-scaffold" && !scaffold.unsupported.length) {
+    errors.push(`${scaffold.outputFile}: partial scaffold has no unsupported evidence`)
+  }
+}
+for (const patternText of config.scaffoldPatterns ?? []) {
+  const pattern = new RegExp(patternText)
+  const matchingComponents = inventory.components.filter((component) => pattern.test(component.file))
+  if (!matchingComponents.length) errors.push(`scaffold pattern matches no component: ${patternText}`)
+  for (const component of matchingComponents) {
+    if (!scaffoldedSources.has(component.file)) errors.push(`${component.file}: configured review scaffold was not generated`)
   }
 }
 for (const override of config.classificationOverrides ?? []) {
