@@ -1659,6 +1659,33 @@ export function Component(props: NodeComponentProps) {
 
 `ReaderView` 使用独立外部 store，并通过 selector 或 `useSyncExternalStore` 建立 React 可追踪的订阅。禁止把逐帧/逐页状态写入 workspace 全局 store，也禁止每次翻页替换包含全书内容的单一大对象。
 
+#### 16.3.1 三类控制面读取统一到 TanStack Query
+
+项目已经提供根级 `QueryClient` 和 `@tanstack/react-query`。NeoView 不得继续为
+metadata、列表分页和缩略图窗口分别维护 `WeakMap`、引用计数、`AbortController`、
+loading/error state 与请求去重；这些是同一种“可取消的控制面读取”，统一交给
+TanStack Query。`ReaderHttpClient` 仍是唯一的鉴权 HTTP adapter，query function 必须
+使用 Query 传入的 `signal`，不得绕过它直接 `fetch`。
+
+| 读取类别 | Query 形式与 key | 生命周期与组件职责 |
+| --- | --- | --- |
+| 当前书籍/页面 metadata | `useQuery(["neoview", sessionId, "metadata", frameGeneration])` | 只在信息 Card 可见时 `enabled`；generation 改变即换 key；`gcTime: 0`，Card 卸载后 Query 自动 abort 并释放条目。现有 `useReaderMetadata` 的外部 store 是过渡实现，迁移后删除。 |
+| History、Bookmark 与目录/页列表 cursor 分页 | `useInfiniteQuery(["neoview", "library", kind, filters])` 或 `useInfiniteQuery(["neoview", sessionId, "pages", query, thumbnails])` | `getNextPageParam` 只传 backend cursor；`@tanstack/react-virtual` 仍只负责可见行和触底触发，不保存独立 pages/loading/abort state。书签写入、删除、筛选切换和 session close 必须精确 invalidate/remove 对应 key。 |
+| 缩略图条的可视批次 | `useQuery(["neoview", sessionId, "thumbnail-window", cursor, limit, contentVersion])`，按 viewport 派生有限批次 | `ResizeObserver`、窗口计算、预热优先级和 `<img>` 渲染保留在 `ThumbnailStrip`；只删除批次 `Map<cursor, AbortController>`、请求去重和结果缓存。当前页窗口变化或 session close 要取消/移除离屏 batch。 |
+
+Query cache 只保存 DTO、cursor、缩略图 URL 与小型控制面状态；禁止缓存原图
+`Blob`、`ArrayBuffer`、`ImageBitmap`、SIXEL payload 或 archive entry bytes。页面主链继续
+使用稳定的原始 `assetUrl` 和浏览器 `<img>` cache，Reader 的 archive/source/cache/lease
+仍是后端权威。Reader application 在成功 close/replace session 后调用
+`queryClient.removeQueries({ queryKey: ["neoview", sessionId] })`，避免 session token、路径
+摘要或旧 frame DTO 在前端长期存活。
+
+迁移顺序固定为：先以 metadata 验证 `signal`、`gcTime: 0` 和 lazy Card 卸载取消；再将
+History/Bookmark/PageList 收敛到共享 cursor hook；最后迁移 `ThumbnailStrip` 的请求层，
+并保留其窗口与预热基准。每一步使用测试专属 `QueryClient`，关闭 retry；自动化必须断言
+同 key 只发一个请求、切换 generation/筛选会 abort 旧请求、最后 observer 卸载后无缓存
+entry，且热翻页不因 Query 引入 Blob/Canvas/额外图片解码。
+
 当前 React viewer 的 `PageImage` 保持唯一 DOM `<img>` 主链，`src` 始终是后端返回的原始 `assetUrl`。`domain/presentation` 已提供 GUI/CLI/TUI 可共用的纯 TS 几何：五种 fit mode、双页 frame 尺寸、90° 旋转、manual scale 归一化；`ReaderFrame` 用 `ResizeObserver` 获取视口，只改变稳定 wrapper 与 `<img>` 的 CSS 尺寸/transform。首次测量、fit 切换、缩放和旋转都不重挂活动图片，不构造 transform URL，不经 sharp 解码再编码；原始大小或 fill 超出视口时，`h-max/w-max` 内容层保留完整滚动范围。双页模式继续只消费 backend `FrameSnapshot` 给出的可见页，全景与连续模式后续仍复用这条 DOM 主链。
 
 `ReaderFrame/PageImage` 与 `ReaderViewToolbar` 是打开书籍时才加载的两个独立 chunk；动态 import 与 backend `open` 同时开始，不形成串行 waterfall。UI chunk 失败时关闭已经创建的 session，组件卸载后迟到的 open 结果也会立即回收。fit mode 与单双页默认值已从旧 `defaultZoomMode/doublePageView` 兼容读取，统一经 `/reader/config` 严格 PATCH 写回 Xiranite TOML；单双页当前 session 通过 `/reader/s/{sessionId}/options` 更新，成功后才持久化默认值，并同步刷新 `CoreReaderService`，使同一 backend 进程后续打开的新书立即采用新默认。manual scale/rotation 仍是每次成功打开书籍后重置的 presentation 会话态；按书覆盖和最近视图记忆后续仍须走统一配置/阅读进度契约，不能用 localStorage 再建立第二套状态。
