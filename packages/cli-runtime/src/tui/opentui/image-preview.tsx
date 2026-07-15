@@ -487,8 +487,40 @@ export function encodeRgbaToSixel(
   frame: Pick<TerminalImageFrame, "rgba" | "width" | "height">,
 ): Uint8Array {
   return new TextEncoder().encode(
-    image2sixel(frame.rgba, frame.width, frame.height, 128, 2),
+    image2sixel(
+      prepareRgbaForSixel(frame.rgba),
+      frame.width,
+      frame.height,
+      256,
+      2,
+    ),
   );
+}
+
+export function prepareRgbaForSixel(rgba: Uint8Array): Uint8Array {
+  const opaque = rgba.slice();
+  for (let offset = 0; offset < opaque.length; offset += 4) {
+    const alpha = opaque[offset + 3] ?? 255;
+    if (alpha === 255) continue;
+    const inverseAlpha = 255 - alpha;
+    opaque[offset] = compositeChannel(opaque[offset] ?? 0, alpha, inverseAlpha);
+    opaque[offset + 1] = compositeChannel(
+      opaque[offset + 1] ?? 0,
+      alpha,
+      inverseAlpha,
+    );
+    opaque[offset + 2] = compositeChannel(
+      opaque[offset + 2] ?? 0,
+      alpha,
+      inverseAlpha,
+    );
+    opaque[offset + 3] = 255;
+  }
+  return opaque;
+}
+
+function compositeChannel(channel: number, alpha: number, inverseAlpha: number) {
+  return Math.round((channel * alpha + 255 * inverseAlpha) / 255);
 }
 
 function getCachedSixelPayload(frame: TerminalImageFrame) {

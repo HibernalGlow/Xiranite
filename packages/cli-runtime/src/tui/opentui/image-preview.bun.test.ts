@@ -4,6 +4,7 @@ import {
   decodeTerminalImageFrames,
   encodeRgbaToSixel,
   eraseTerminalGraphicsRect,
+  prepareRgbaForSixel,
   projectRgbaToHalfBlocks,
   resolveTerminalImageBackend,
   writeTerminalBytes,
@@ -53,6 +54,41 @@ test("encodes true-colour pixels as a complete SIXEL control sequence", () => {
   expect(encoded).toStartWith("\u001bP");
   expect(encoded).toContain("\u001bP0;2;q");
   expect(encoded).toEndWith("\u001b\\");
+});
+
+test("flattens SIXEL transparency without mutating the cached RGBA frame", () => {
+  const rgba = new Uint8Array([
+    10, 20, 30, 0,
+    100, 50, 0, 128,
+    1, 2, 3, 255,
+  ]);
+  const original = rgba.slice();
+
+  expect(prepareRgbaForSixel(rgba)).toEqual(
+    new Uint8Array([
+      255, 255, 255, 255,
+      177, 152, 127, 255,
+      1, 2, 3, 255,
+    ]),
+  );
+  encodeRgbaToSixel({ rgba, width: 3, height: 1 });
+  expect(rgba).toEqual(original);
+});
+
+test("keeps the full SIXEL palette budget for detailed images", () => {
+  const rgba = new Uint8Array(256 * 4);
+  for (let pixel = 0; pixel < 256; pixel += 1) {
+    const offset = pixel * 4;
+    rgba[offset] = pixel;
+    rgba[offset + 1] = (pixel * 37) % 256;
+    rgba[offset + 2] = (pixel * 73) % 256;
+    rgba[offset + 3] = 255;
+  }
+  const encoded = new TextDecoder().decode(
+    encodeRgbaToSixel({ rgba, width: 256, height: 1 }),
+  );
+
+  expect(encoded.match(/#[0-9]+;2;/g)?.length ?? 0).toBeGreaterThan(128);
 });
 
 test("writes graphic bytes as a byte-preserving string to OpenTUI", () => {
