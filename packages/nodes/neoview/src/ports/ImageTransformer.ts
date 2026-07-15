@@ -1,5 +1,6 @@
 import type { ImageTransformRequest } from "../domain/image/image-transform.js"
 import type { ResourcePriority } from "./ResourceScheduler.js"
+import type { ResourceLease } from "./ResourceScheduler.js"
 
 export interface ImageTransformResult {
   stream: ReadableStream<Uint8Array>
@@ -10,6 +11,7 @@ export interface ImageTransformExecution {
   priority?: ResourcePriority
   kind?: string
   ownerId?: string
+  resourceLease?: ResourceLease
 }
 
 export interface ImageTransformer {

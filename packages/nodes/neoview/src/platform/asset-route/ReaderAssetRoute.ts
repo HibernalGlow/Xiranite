@@ -15,6 +15,7 @@ import {
 import type { PageByteRange, PageSource } from "../../domain/page/page-content.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
@@ -25,6 +26,7 @@ import {
   type ThumbnailPrewarmResult,
 } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { buildPresentationCacheKey, SHARP_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
+import { transformPageSource } from "../images/transform-page-source.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -41,6 +43,7 @@ export interface ReaderAssetRouteDependencies {
   presentationProducerVersion?: string
   thumbnailStore?: ReaderThumbnailStore
   thumbnailPipeline?: PlatformThumbnailPipeline
+  resourceScheduler?: ResourceScheduler
 }
 
 export class ReaderAssetRoute {
@@ -52,6 +55,7 @@ export class ReaderAssetRoute {
   readonly #presentationDiskCache?: ReaderPresentationDiskCache
   readonly #presentationProducerVersion: string
   readonly #thumbnailPipeline?: PlatformThumbnailPipeline
+  readonly #resourceScheduler?: ResourceScheduler
   readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   #imageTransformer?: Promise<ImageTransformer>
@@ -71,6 +75,7 @@ export class ReaderAssetRoute {
     this.#presentationCache = dependencies.presentationCache
     this.#presentationDiskCache = dependencies.presentationDiskCache
     this.#presentationProducerVersion = dependencies.presentationProducerVersion ?? SHARP_PRESENTATION_PRODUCER_VERSION
+    this.#resourceScheduler = dependencies.resourceScheduler
     this.#ownsThumbnailPipeline = !dependencies.thumbnailPipeline
       && Boolean(dependencies.thumbnailStore || dependencies.loadImageTransformer)
     this.#thumbnailPipeline = dependencies.thumbnailPipeline ?? (
@@ -78,6 +83,7 @@ export class ReaderAssetRoute {
         ? new PlatformThumbnailPipeline({
             loadImageTransformer: dependencies.loadImageTransformer,
             thumbnailStore: dependencies.thumbnailStore,
+            resourceScheduler: dependencies.resourceScheduler,
             maxMemoryBytes: 32 * 1024 * 1024,
             maxEntryBytes: 512 * 1024,
           })
@@ -346,10 +352,16 @@ export class ReaderAssetRoute {
     let source: PageSource | undefined
     try {
       source = await page.content.load(workSignal)
-      const input = await source.open(workSignal)
       const transformer = await this.#getImageTransformer()
       workSignal.throwIfAborted()
-      const result = await transformer.transform(input, transform, workSignal)
+      const result = await transformPageSource(
+        source,
+        transformer,
+        transform,
+        workSignal,
+        { kind: "neoview.image-transform", priority: "interactive" },
+        this.#resourceScheduler,
+      )
       const expectedContentType = imageTransformContentType(transform.format)
       if (result.contentType !== expectedContentType) {
         await result.stream.cancel("unexpected image transform content type").catch(() => undefined)

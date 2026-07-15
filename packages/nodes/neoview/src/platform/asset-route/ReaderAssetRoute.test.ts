@@ -299,6 +299,48 @@ describe("ReaderAssetRoute", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.image.transform-route-shared-lease] releases one shared lease when the HTTP body is cancelled", async () => {
+    const release = vi.fn()
+    const acquire = vi.fn(async () => ({ release }))
+    const sourceClosed = vi.fn(async () => undefined)
+    let sharedLease: unknown
+    const source: PageSource = {
+      rangeSupported: false,
+      transformResource: "cpu",
+      async open(_signal, _range, execution) {
+        sharedLease = execution?.resourceLease
+        return new ReadableStream({ start(controller) { controller.enqueue(Uint8Array.of(1)); controller.close() } })
+      },
+      close: sourceClosed,
+      [Symbol.asyncDispose]: sourceClosed,
+    }
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input, _request, _signal, execution) => {
+      await input.cancel("fixture consumed")
+      expect(execution?.resourceLease).toBe(sharedLease)
+      return {
+        contentType: "image/webp",
+        stream: new ReadableStream({ pull(controller) { controller.enqueue(Uint8Array.of(9)) } }),
+      }
+    })
+    const service = new CoreReaderService(async () => fixtureBook(source))
+    const session = await service.openViewSource({ kind: "path", path: "opaque" })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { loadImageTransformer: async () => ({ transform }), resourceScheduler: { acquire } },
+    )
+    const url = new URL(route.pageUrl(session.id, "page-1"))
+    url.searchParams.set("width", "320")
+    const response = (await route.handle(new Request(url)))!
+    const reader = response.body!.getReader()
+    await reader.read()
+    await reader.cancel("client disconnected")
+    expect(acquire).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+    expect(sourceClosed).toHaveBeenCalledOnce()
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.image.transform-validation] rejects invalid transforms before loading native code", async () => {
     const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
     const loadImageTransformer = vi.fn<ImageTransformerLoader>()

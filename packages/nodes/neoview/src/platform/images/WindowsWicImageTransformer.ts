@@ -62,7 +62,8 @@ export class WindowsWicImageTransformer implements ImageTransformer {
       return this.#fallback.transform(byteStream(bytes), request, signal, execution)
     }
 
-    const lease = await this.#resourceScheduler.acquire({
+    const ownsLease = !execution.resourceLease
+    const lease = execution.resourceLease ?? await this.#resourceScheduler.acquire({
       resource: "cpu",
       kind: execution.kind ?? "neoview.image-transform.wic",
       priority: execution.priority ?? "interactive",
@@ -81,7 +82,7 @@ export class WindowsWicImageTransformer implements ImageTransformer {
     } catch (error) {
       failure = error
     } finally {
-      lease.release()
+      if (ownsLease) lease.release()
     }
     try {
       return await this.#fallback.transform(byteStream(bytes), request, signal, execution)

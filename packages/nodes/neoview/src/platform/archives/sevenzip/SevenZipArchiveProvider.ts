@@ -57,6 +57,10 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     materialization: "optional",
   }
 
+  get entryStreamResource(): "cpu" | undefined {
+    return this.#initialized && !this.capabilities.solid ? "cpu" : undefined
+  }
+
   readonly #resolveExecutable: () => Promise<SevenZipExecutable>
   readonly #maxListingBytes: number
   readonly #resourceScheduler: ResourceScheduler
@@ -119,15 +123,16 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       options.rawPassword?.fill(0)
       throw new Error("Encrypted RAR/7z streaming is not available until secure password transport is implemented.")
     }
-    const lease = await this.#resourceScheduler.acquire({
+    const ownsLease = !options.resourceLease
+    const lease = options.resourceLease ?? await this.#resourceScheduler.acquire({
       resource: "cpu",
       kind: "neoview.archive-extract",
       priority: "interactive",
     }, options.signal)
     try {
-      return this.#streamEntry(entry, options.signal, lease)
+      return this.#streamEntry(entry, options.signal, lease, ownsLease)
     } catch (error) {
-      lease.release()
+      if (ownsLease) lease.release()
       throw error
     }
   }
@@ -300,7 +305,12 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     else await materializer?.close()
   }
 
-  #streamEntry(entry: ArchiveEntry, signal: AbortSignal | undefined, lease: ResourceLease): ReadableStream<Uint8Array> {
+  #streamEntry(
+    entry: ArchiveEntry,
+    signal: AbortSignal | undefined,
+    lease: ResourceLease,
+    ownsLease: boolean,
+  ): ReadableStream<Uint8Array> {
     const executable = this.#executable!
     const child = spawn(executable.path, [
       "x", "-so", "-bd", "-bb0", "-sccUTF-8", "-spd", "--", this.sourcePath, entry.path,
@@ -326,7 +336,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       if (exit.error) throw exit.error
       if (exit.code !== 0) throw new Error(stderr.trim() || `7-Zip extraction exited with code ${exit.code}.`)
     }).finally(() => {
-      lease.release()
+      if (ownsLease) lease.release()
       signal?.removeEventListener("abort", onAbort)
       this.#active.delete(extractionId)
     })

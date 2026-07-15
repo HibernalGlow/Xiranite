@@ -13,11 +13,13 @@ import {
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailAsset, ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { SystemThumbnailProvider, SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProvider, VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { FolderRepresentativeIndex } from "./FolderRepresentativeIndex.js"
+import { transformPageSource } from "../images/transform-page-source.js"
 
 export interface PlatformThumbnailPipelineOptions {
   loadImageTransformer?: ImageTransformerLoader
@@ -28,6 +30,7 @@ export interface PlatformThumbnailPipelineOptions {
   maxMemoryBytes?: number
   maxEntryBytes?: number
   folderRepresentativeIndex?: FolderRepresentativeIndex
+  resourceScheduler?: ResourceScheduler
 }
 
 interface PageThumbnailDemandSource {
@@ -77,6 +80,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   readonly #coordinator: ThumbnailCoordinatorService<PlatformThumbnailDemandSource>
   readonly #folderRepresentativeIndex: FolderRepresentativeIndex
   readonly #ownsFolderRepresentativeIndex: boolean
+  readonly #resourceScheduler?: ResourceScheduler
   #imageTransformer?: Promise<ImageTransformer>
   #systemThumbnailProvider?: Promise<SystemThumbnailProvider>
   #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
@@ -87,6 +91,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#bookLoader = options.bookLoader
     this.#loadSystemThumbnailProvider = options.loadSystemThumbnailProvider
     this.#loadVideoThumbnailProvider = options.loadVideoThumbnailProvider
+    this.#resourceScheduler = options.resourceScheduler
     this.#ownsFolderRepresentativeIndex = !options.folderRepresentativeIndex
     this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex()
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
@@ -358,9 +363,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     let source: PageSource | undefined
     try {
       source = await page.content.load(signal)
-      const input = await source.open(signal)
       const transformer = await this.#getImageTransformer()
-      const result = await transformer.transform(input, {
+      const result = await transformPageSource(source, transformer, {
         width: 320,
         height: 320,
         dpr: 1,
@@ -371,7 +375,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         priority: thumbnailLanePriority(demand.lane),
         kind: "neoview.thumbnail.generate",
         ownerId: demand.contextId,
-      })
+      }, this.#resourceScheduler)
       if (result.contentType !== "image/webp") {
         await result.stream.cancel("unexpected thumbnail content type").catch(() => undefined)
         throw new Error(`Thumbnail transformer returned ${result.contentType}; expected image/webp.`)
@@ -467,9 +471,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         }, signal)).bytes
       } else {
         source = await page.content.load(signal)
-        const input = await source.open(signal)
         const transformer = await this.#getImageTransformer()
-        const result = await transformer.transform(input, {
+        const result = await transformPageSource(source, transformer, {
           width: 416,
           height: 416,
           dpr: 1,
@@ -480,7 +483,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
           priority: thumbnailLanePriority(demand.lane),
           kind: "neoview.thumbnail.generate",
           ownerId: demand.contextId,
-        })
+        }, this.#resourceScheduler)
         if (result.contentType !== "image/webp") {
           await result.stream.cancel("unexpected thumbnail content type").catch(() => undefined)
           throw new Error(`Thumbnail transformer returned ${result.contentType}; expected image/webp.`)

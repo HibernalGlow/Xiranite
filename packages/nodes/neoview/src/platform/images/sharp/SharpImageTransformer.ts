@@ -20,7 +20,8 @@ export class SharpImageTransformer implements ImageTransformer {
     execution: ImageTransformExecution = {},
   ): Promise<ImageTransformResult> {
     signal?.throwIfAborted()
-    const lease = await this.scheduler.acquire({
+    const ownsLease = !execution.resourceLease
+    const lease = execution.resourceLease ?? await this.scheduler.acquire({
       resource: "cpu",
       kind: execution.kind ?? "neoview.image-transform",
       priority: execution.priority ?? "interactive",
@@ -55,11 +56,13 @@ export class SharpImageTransformer implements ImageTransformer {
       const pumping = input.pipeTo(duplex.writable as WritableStream<Uint8Array>, { signal })
       void pumping.catch((error: unknown) => pipeline.destroy(asError(error)))
       return {
-        stream: releaseWithStream(duplex.readable as ReadableStream<Uint8Array>, lease.release, signal),
+        stream: ownsLease
+          ? releaseWithStream(duplex.readable as ReadableStream<Uint8Array>, lease.release, signal)
+          : duplex.readable as ReadableStream<Uint8Array>,
         contentType: imageTransformContentType(request.format),
       }
     } catch (error) {
-      lease.release()
+      if (ownsLease) lease.release()
       throw error
     }
   }

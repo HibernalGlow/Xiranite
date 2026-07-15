@@ -1,4 +1,5 @@
 import type { ArchiveByteRange } from "../domain/archive/archive-range.js"
+import type { ResourceClass, ResourceLease } from "./ResourceScheduler.js"
 
 export type { ArchiveByteRange } from "../domain/archive/archive-range.js"
 
@@ -30,6 +31,7 @@ export interface OpenArchiveEntryOptions {
   range?: ArchiveByteRange
   password?: string
   rawPassword?: Uint8Array
+  resourceLease?: ResourceLease
 }
 
 export interface MaterializedEntryLease extends AsyncDisposable {
@@ -40,6 +42,7 @@ export interface MaterializedEntryLease extends AsyncDisposable {
 export interface ArchiveProvider extends AsyncDisposable {
   readonly sourcePath: string
   readonly capabilities: ArchiveCapabilities
+  readonly entryStreamResource?: ResourceClass
   list(signal?: AbortSignal): Promise<readonly ArchiveEntry[]>
   openEntry(entryId: string, options?: OpenArchiveEntryOptions): Promise<ReadableStream<Uint8Array>>
   materializeEntry?(

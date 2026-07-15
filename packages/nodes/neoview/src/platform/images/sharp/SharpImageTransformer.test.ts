@@ -93,6 +93,22 @@ describe("SharpImageTransformer", () => {
     }, undefined)
     expect(release).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.image.shared-lease] reuses but never releases an externally owned CPU lease", async () => {
+    const sharp = await loadSharp()
+    const source = await sharp({ create: { width: 1, height: 1, channels: 4, background: "red" } }).png().toBuffer()
+    const acquire = vi.fn()
+    const release = vi.fn()
+    const result = await new SharpImageTransformer({ acquire }).transform(
+      new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(source); controller.close() } }),
+      WEBP_REQUEST,
+      undefined,
+      { resourceLease: { release } },
+    )
+    await new Response(result.stream).arrayBuffer()
+    expect(acquire).not.toHaveBeenCalled()
+    expect(release).not.toHaveBeenCalled()
+  })
 })
 
 async function loadSharp(): Promise<typeof sharp> {

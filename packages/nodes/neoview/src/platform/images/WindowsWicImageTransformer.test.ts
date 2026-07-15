@@ -49,6 +49,23 @@ describe("WindowsWicImageTransformer", () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.image.wic-shared-lease] reuses but never releases an externally owned CPU lease", async () => {
+    const acquire = vi.fn()
+    const release = vi.fn()
+    const transformer = new WindowsWicImageTransformer(unusedFallback(), {
+      resourceScheduler: { acquire },
+      loadWic: async () => ({ createWicImageThumbnail: async () => rgba() }),
+      encode: async () => WEBP,
+    })
+
+    const result = await transformer.transform(byteStream(isoBrand("avif")), REQUEST, undefined, {
+      resourceLease: { release },
+    })
+    expect(await readAll(result.stream)).toEqual(WEBP)
+    expect(acquire).not.toHaveBeenCalled()
+    expect(release).not.toHaveBeenCalled()
+  })
+
   it("[neoview.image.wic-fit] preserves full pixels for two-dimensional crop transforms", async () => {
     const createWicImageThumbnail = vi.fn(async () => rgba())
     const transformer = new WindowsWicImageTransformer(unusedFallback(), {

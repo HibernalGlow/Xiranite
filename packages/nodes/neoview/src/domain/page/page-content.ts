@@ -3,11 +3,16 @@ export interface PageByteRange {
   end: number
 }
 
+export interface PageSourceExecution {
+  resourceLease?: { release(): void }
+}
+
 export interface PageSource extends AsyncDisposable {
   readonly byteLength?: number
   readonly contentType?: string
   readonly rangeSupported: boolean
-  open(signal?: AbortSignal, range?: PageByteRange): Promise<ReadableStream<Uint8Array>>
+  readonly transformResource?: "cpu" | "io" | "gpu"
+  open(signal?: AbortSignal, range?: PageByteRange, execution?: PageSourceExecution): Promise<ReadableStream<Uint8Array>>
   close(): Promise<void>
 }
 

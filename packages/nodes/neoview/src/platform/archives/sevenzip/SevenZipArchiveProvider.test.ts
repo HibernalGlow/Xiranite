@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { deterministicBytes } from "../../../../test/fixture-builders/create-zip-fixture.js"
 import type { ResourceClass, ResourceScheduler, ResourceTaskRequest } from "../../../ports/ResourceScheduler.js"
@@ -95,6 +95,23 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     await provider.close()
     await provider.close()
     await expect(provider.list()).rejects.toThrow("closed")
+  })
+
+  it("[neoview.sevenzip.shared-lease] reuses but never releases an externally owned CPU lease", async () => {
+    const scheduler = new RecordingScheduler()
+    const provider = createProvider(nonSolidPath, scheduler)
+    try {
+      const entry = (await provider.list()).find((candidate) => candidate.path === "pages/001.jpg")!
+      expect(provider.entryStreamResource).toBe("cpu")
+      const release = vi.fn()
+      const cpuRequests = scheduler.requests.filter((request) => request.resource === "cpu").length
+      expect(await collect(await provider.openEntry(entry.id, { resourceLease: { release } })))
+        .toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      expect(scheduler.requests.filter((request) => request.resource === "cpu")).toHaveLength(cpuRequests)
+      expect(release).not.toHaveBeenCalled()
+    } finally {
+      await provider.close()
+    }
   })
 
   it("[neoview.sevenzip.solid-streaming] materializes a solid archive once and publishes exact entries", async () => {

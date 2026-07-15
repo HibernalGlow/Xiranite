@@ -1,4 +1,4 @@
-import type { PageByteRange, PageContent, PageSource } from "../../domain/page/page-content.js"
+import type { PageByteRange, PageContent, PageSource, PageSourceExecution } from "../../domain/page/page-content.js"
 import type { ArchiveProvider } from "../../ports/ArchiveProvider.js"
 import type { ArchiveCredentialStore } from "../../application/reader/ArchiveCredentialStore.js"
 
@@ -29,6 +29,7 @@ class ArchivePageSource implements PageSource {
   readonly byteLength: number
   readonly contentType: string
   readonly rangeSupported = false
+  get transformResource() { return this.#provider.entryStreamResource }
   readonly #provider: ArchiveProvider
   readonly #entryId: string
   readonly #credentials?: ArchiveCredentialStore
@@ -53,7 +54,7 @@ class ArchivePageSource implements PageSource {
     this.#entryPaths = entryPaths
   }
 
-  async open(signal?: AbortSignal, range?: PageByteRange): Promise<ReadableStream<Uint8Array>> {
+  async open(signal?: AbortSignal, range?: PageByteRange, execution?: PageSourceExecution): Promise<ReadableStream<Uint8Array>> {
     if (this.#closed) throw new Error(`Archive page source is closed: ${this.#entryId}`)
     if (this.#opened) throw new Error(`Archive page source can only be opened once: ${this.#entryId}`)
     if (range) throw new Error("Archive page source does not support decompressed byte ranges.")
@@ -61,7 +62,11 @@ class ArchivePageSource implements PageSource {
     const rawPassword = this.#credentials?.copyRawPassword(this.#entryPaths)
     let stream: ReadableStream<Uint8Array>
     try {
-      stream = await this.#provider.openEntry(this.#entryId, { signal, rawPassword })
+      stream = await this.#provider.openEntry(this.#entryId, {
+        signal,
+        rawPassword,
+        resourceLease: execution?.resourceLease,
+      })
     } catch (error) {
       this.#credentials?.clearRawPassword(rawPassword)
       if (!this.#credentials) rawPassword?.fill(0)
