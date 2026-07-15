@@ -6,6 +6,7 @@ import {
   ThumbnailRetryDeferredError,
   ThumbnailUnavailableError,
   type LibraryThumbnailKind,
+  type LibraryThumbnailPreviewCount,
   type LibraryThumbnailSource,
 } from "../thumbnails/PlatformThumbnailPipeline.js"
 
@@ -79,7 +80,7 @@ export class LibraryThumbnailRoute {
     try {
       described = await mapConcurrent(parsed.items, 16, async (item) => ({
         item,
-        source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal),
+        source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount),
       }))
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -209,7 +210,7 @@ export class LibraryThumbnailRoute {
   }
 }
 
-interface RegistrationItem { id: string; path: string; kind: LibraryThumbnailKind }
+interface RegistrationItem { id: string; path: string; kind: LibraryThumbnailKind; previewCount: LibraryThumbnailPreviewCount }
 
 function parseRegistration(body: Record<string, unknown> | undefined): { contextId: string; generation: number; items: RegistrationItem[] } | undefined {
   if (!body || typeof body.contextId !== "string" || !body.contextId || body.contextId.length > 1024) return undefined
@@ -223,8 +224,11 @@ function parseRegistration(body: Record<string, unknown> | undefined): { context
     if (typeof item.id !== "string" || !item.id || item.id.length > 1024 || ids.has(item.id)) return undefined
     if (typeof item.path !== "string" || !item.path || item.path.length > 32_768 || item.path.includes("\0")) return undefined
     if (item.kind !== "file" && item.kind !== "folder") return undefined
+    const previewCount = item.previewCount ?? 1
+    if (previewCount !== 1 && previewCount !== 4 && previewCount !== 9 && previewCount !== 16) return undefined
+    if (item.kind !== "folder" && previewCount !== 1) return undefined
     ids.add(item.id)
-    items.push({ id: item.id, path: item.path, kind: item.kind })
+    items.push({ id: item.id, path: item.path, kind: item.kind, previewCount })
   }
   return { contextId: body.contextId, generation: body.generation as number, items }
 }

@@ -123,6 +123,26 @@ describe("PlatformThumbnailPipeline", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.folder-mosaic] composes a folder preview without overwriting the legacy cover key", async () => {
+    const page = fixturePage("D:/library/folder/001.png")
+    const closeBook = vi.fn(async () => undefined)
+    const compose = vi.fn(async () => ({ bytes: fixtureWebp(12), contentType: "image/webp" as const }))
+    const put = vi.fn(async () => undefined)
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(page, closeBook),
+      thumbnailStore: { get: async () => undefined, put },
+      loadMosaicImageComposer: async () => ({ compose }),
+    })
+    const descriptor = { ...librarySource("folder", "D:/library/folder"), previewCount: 4 as const, contentVersion: "folder:mosaic:library-mosaic-4-v1" }
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: fixtureWebp(12), contentType: "image/webp" })
+    expect(compose).toHaveBeenCalledWith(expect.any(Array), { count: 4, size: 416, quality: 82 }, expect.any(AbortSignal), expect.objectContaining({ kind: "neoview.thumbnail.folder-mosaic" }))
+    expect(put).not.toHaveBeenCalled()
+    lease.release()
+    await pipeline.dispose()
+    expect(closeBook).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.thumbnail.windows.page] prefers a cached system thumbnail before image decoding", async () => {
     const page = fixturePage("D:/library/page.png")
     page.sourcePath = "D:/library/page.png"
@@ -211,7 +231,7 @@ describe("PlatformThumbnailPipeline", () => {
 })
 
 function librarySource(kind: "file" | "folder", path: string, sourceSize?: number): LibraryThumbnailSource {
-  return { kind, path, sourceSize, modifiedAtMs: 1_700_000_000_000, contentVersion: `${kind}:${sourceSize ?? "directory"}:1700000000000:library-cover-v1` }
+  return { kind, path, sourceSize, modifiedAtMs: 1_700_000_000_000, previewCount: 1, contentVersion: `${kind}:${sourceSize ?? "directory"}:1700000000000:library-cover-v1` }
 }
 
 function fixtureBook(page: ReaderPage, close = vi.fn(async () => undefined)): ReaderBook {

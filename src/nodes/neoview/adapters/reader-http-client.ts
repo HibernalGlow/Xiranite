@@ -160,6 +160,7 @@ export interface ReaderLibraryThumbnailRegistrationDto {
   id: string
   path: string
   kind: "file" | "folder"
+  previewCount?: 1 | 4 | 9 | 16
 }
 
 export type ReaderDirectoryNavigationDto =

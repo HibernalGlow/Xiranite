@@ -23,11 +23,11 @@ export interface FolderRepresentativeIndexOptions {
 
 interface RepresentativeEntry {
   directoryModifiedAtMs: number
-  name?: string
-  size?: number
-  modifiedAtMs?: number
+  sources?: readonly RepresentativeSource[]
   version?: string
 }
+
+interface RepresentativeSource { name: string; size: number; modifiedAtMs: number }
 
 interface RepresentativeFlight {
   controller: AbortController
@@ -55,17 +55,21 @@ export class FolderRepresentativeIndex {
     this.#statPath = options.statPath ?? stat
   }
 
-  describe(path: string, directoryModifiedAtMs: number, signal?: AbortSignal): Promise<string | undefined> {
+  describe(path: string, directoryModifiedAtMs: number, signal?: AbortSignal, count = 1): Promise<string | undefined> {
     if (!path) return Promise.reject(new Error("Folder representative path cannot be empty."))
     if (!Number.isSafeInteger(directoryModifiedAtMs) || directoryModifiedAtMs < 0) {
       return Promise.reject(new RangeError("Folder representative directory mtime must be a non-negative integer."))
     }
+    if (!Number.isSafeInteger(count) || count < 1 || count > 16) {
+      return Promise.reject(new RangeError("Folder representative count must be an integer from 1 to 16."))
+    }
     signal?.throwIfAborted()
-    const flightKey = `${path}\0${directoryModifiedAtMs}`
+    const cacheKey = `${path}\0${count}`
+    const flightKey = `${cacheKey}\0${directoryModifiedAtMs}`
     let flight = this.#flights.get(flightKey)
     if (!flight) {
-      const revision = (this.#revisions.get(path) ?? 0) + 1
-      this.#revisions.set(path, revision)
+      const revision = (this.#revisions.get(cacheKey) ?? 0) + 1
+      this.#revisions.set(cacheKey, revision)
       const controller = new AbortController()
       const created: RepresentativeFlight = {
         controller,
@@ -73,9 +77,9 @@ export class FolderRepresentativeIndex {
         settled: false,
         promise: Promise.resolve(undefined),
       }
-      created.promise = this.#resolve(path, directoryModifiedAtMs, controller.signal)
+      created.promise = this.#resolve(path, cacheKey, directoryModifiedAtMs, count, controller.signal)
         .then((entry) => {
-          if (this.#revisions.get(path) === revision) this.#setCache(path, entry)
+          if (this.#revisions.get(cacheKey) === revision) this.#setCache(cacheKey, entry)
           return entry.version
         })
         .finally(() => {
@@ -100,51 +104,59 @@ export class FolderRepresentativeIndex {
     this.#revisions.clear()
   }
 
-  async #resolve(path: string, directoryModifiedAtMs: number, signal: AbortSignal): Promise<RepresentativeEntry> {
+  async #resolve(path: string, cacheKey: string, directoryModifiedAtMs: number, count: number, signal: AbortSignal): Promise<RepresentativeEntry> {
     signal.throwIfAborted()
-    const cached = this.#cache.get(path)
+    const cached = this.#cache.get(cacheKey)
     if (cached?.directoryModifiedAtMs === directoryModifiedAtMs) {
-      if (!cached.name) {
-        this.#touch(path, cached)
+      if (!cached.sources?.length) {
+        this.#touch(cacheKey, cached)
         return cached
       }
       try {
-        const sourceStats = await this.#statPath(join(path, cached.name))
+        const sources = await Promise.all(cached.sources.map(async (source) => {
+          const sourceStats = await this.#statPath(join(path, source.name))
+          return sourceStats.isFile() ? representativeSource(source.name, sourceStats) : undefined
+        }))
         signal.throwIfAborted()
-        if (sourceStats.isFile()) {
-          const entry = representativeEntry(directoryModifiedAtMs, cached.name, sourceStats)
-          this.#touch(path, entry)
+        if (sources.every((source): source is RepresentativeSource => Boolean(source))) {
+          const entry = representativeEntry(directoryModifiedAtMs, sources)
+          this.#touch(cacheKey, entry)
           return entry
         }
       } catch (error) {
         if (!isMissingFile(error)) throw error
       }
     }
-    return this.#scan(path, directoryModifiedAtMs, signal, true)
+    return this.#scan(path, directoryModifiedAtMs, count, signal, true)
   }
 
   async #scan(
     path: string,
     directoryModifiedAtMs: number,
+    count: number,
     signal: AbortSignal,
     retryMissing: boolean,
   ): Promise<RepresentativeEntry> {
     signal.throwIfAborted()
     const entries = await this.#readDirectory(path)
     signal.throwIfAborted()
-    let representative: string | undefined
-    for (const entry of entries) {
-      if (!entry.isFile() || !pageMediaType(entry.name)) continue
-      if (representative === undefined || compareNaturalPath(entry.name, representative) < 0) representative = entry.name
-    }
-    if (!representative) return { directoryModifiedAtMs }
+    const representatives = entries
+      .filter((entry) => entry.isFile() && Boolean(pageMediaType(entry.name)))
+      .map((entry) => entry.name)
+      .sort((left, right) => compareNaturalPath(left, right))
+      .slice(0, count)
+    if (!representatives.length) return { directoryModifiedAtMs }
     try {
-      const sourceStats = await this.#statPath(join(path, representative))
+      const sources = await Promise.all(representatives.map(async (name) => {
+        const sourceStats = await this.#statPath(join(path, name))
+        return sourceStats.isFile() ? representativeSource(name, sourceStats) : undefined
+      }))
       signal.throwIfAborted()
-      if (sourceStats.isFile()) return representativeEntry(directoryModifiedAtMs, representative, sourceStats)
+      const present = sources.filter((source): source is RepresentativeSource => Boolean(source))
+      if (present.length) return representativeEntry(directoryModifiedAtMs, present)
     } catch (error) {
       if (!isMissingFile(error)) throw error
-      if (retryMissing) return this.#scan(path, directoryModifiedAtMs, signal, false)
+      if (retryMissing) return this.#scan(path, directoryModifiedAtMs, count, signal, false)
     }
     return { directoryModifiedAtMs }
   }
@@ -166,14 +178,15 @@ export class FolderRepresentativeIndex {
   }
 }
 
-function representativeEntry(directoryModifiedAtMs: number, name: string, sourceStats: FileStatsLike): RepresentativeEntry {
-  const modifiedAtMs = Math.trunc(sourceStats.mtimeMs)
+function representativeSource(name: string, sourceStats: FileStatsLike): RepresentativeSource {
+  return { name, size: sourceStats.size, modifiedAtMs: Math.trunc(sourceStats.mtimeMs) }
+}
+
+function representativeEntry(directoryModifiedAtMs: number, sources: readonly RepresentativeSource[]): RepresentativeEntry {
   return {
     directoryModifiedAtMs,
-    name,
-    size: sourceStats.size,
-    modifiedAtMs,
-    version: `${name}:${sourceStats.size}:${modifiedAtMs}`,
+    sources,
+    version: sources.map((source) => `${source.name}:${source.size}:${source.modifiedAtMs}`).join("|"),
   }
 }
 

@@ -144,6 +144,10 @@ export class ReaderHttpController implements AsyncDisposable {
       const { FfmpegVideoThumbnailProvider } = await import("../video/FfmpegVideoThumbnailProvider.js")
       return new FfmpegVideoThumbnailProvider({ resourceScheduler: options.resourceScheduler })
     })
+    const loadMosaicImageComposer = async () => {
+      const { SharpMosaicImageComposer } = await import("../images/sharp/SharpMosaicImageComposer.js")
+      return new SharpMosaicImageComposer(options.resourceScheduler)
+    }
     const loadSystemThumbnailProvider = options.loadSystemThumbnailProvider ?? (process.platform === "win32"
       ? async () => {
           const { WindowsSystemThumbnailProvider } = await import("../windows/WindowsSystemThumbnailProvider.js")
@@ -155,6 +159,7 @@ export class ReaderHttpController implements AsyncDisposable {
       loadImageTransformer,
       loadSystemThumbnailProvider,
       loadVideoThumbnailProvider,
+      loadMosaicImageComposer,
       thumbnailStore: options.thumbnailStore,
       maxMemoryBytes: 32 * 1024 * 1024,
       maxEntryBytes: 512 * 1024,

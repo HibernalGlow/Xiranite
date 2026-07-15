@@ -216,8 +216,8 @@
       "targetContract": "完整保留 list、content、banner、thumbnail 的信息密度、缩略图位置、选中/hover/focus 表现；目标内部可用更清晰的 mode 名。",
       "surfaces": ["GUI"],
       "status": "partial",
-      "testIds": ["neoview.folder.view-compact", "neoview.folder.view-cover-grid"],
-      "notes": "当前 compact 与 cover-grid 仅覆盖两条基础形态，不等于原版四模式完成。"
+      "testIds": ["neoview.folder.view-compact", "neoview.folder.view-cover-list", "neoview.folder.view-mosaic-list", "neoview.folder.view-cover-grid", "neoview.folder.view-mosaic-grid"],
+      "notes": "当前已提供 compact、cover-list、mosaic-list、cover-grid、mosaic-grid 五种内部模式，并复用同一 catalog/selection/focus/sort/EMM 状态；仍需完成原版 list/content/banner/thumbnail 的逐项视觉、设置持久化与 details 验收。"
     },
     {
       "id": "folder.view.details",
@@ -270,9 +270,9 @@
       "sourceEvidence": ["components/FolderListItem.svelte", "components/FolderToolbar/tabs/DisplayTab.svelte"],
       "targetContract": "文件夹缩略图支持单封面及 4/9/16 图 mosaic，稳定选图、异步缺图占位和可见范围批量 demand。",
       "surfaces": ["GUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "用户特别要求单预览与四预览，原版还包含 9/16。"
+      "status": "partial",
+      "testIds": ["neoview.folder.mosaic-4", "neoview.folder.mosaic-9", "neoview.folder.mosaic-16", "neoview.folder.mosaic-single-image-dom"],
+      "notes": "文件夹已支持 4/9/16 选择，服务端按自然顺序稳定选取前 N 张并通过 sharp.composite() 合成为单个 WebP；前端每项始终只挂一个 img，文件项强制单预览。仍缺持久设置、缺图视觉 characterization、磁盘 profile 缓存与 10K/100K 性能门禁。"
     },
     {
       "id": "folder.view.thumbnail-pipeline",
@@ -282,8 +282,8 @@
       "targetContract": "仅对可见+overscan 项按 32-64 对齐窗口注册，opaque URL 输出，按字节预算缓存并在 context 释放后取消低优先级任务。",
       "surfaces": ["GUI"],
       "status": "partial",
-      "testIds": ["neoview.folder.thumbnail-visible-batch", "neoview.folder.thumbnail-release"],
-      "notes": "当前最多 64 项 demand 已接入。"
+      "testIds": ["neoview.folder.thumbnail-visible-batch", "neoview.folder.thumbnail-release", "neoview.folder.thumbnail-opaque-mosaic"],
+      "notes": "当前最多 64 项 demand 已接入；单封面与 4/9/16 mosaic 都使用 opaque URL 和单请求/单 img，mosaic profile 只进入有界内存 coordinator，避免覆盖旧单封面持久缓存键。"
     },
     {
       "id": "folder.view.virtualization",

@@ -84,7 +84,14 @@ describe("FolderMainCard", () => {
     expect(generation).toBeGreaterThan(0)
     expect(items.length).toBeGreaterThan(0)
     expect(items.length).toBeLessThanOrEqual(64)
-    expect(items).toEqual(expect.arrayContaining([{ id: "0", path: "C:/books/folder", kind: "folder" }]))
+    expect(items).toEqual(expect.arrayContaining([expect.objectContaining({ id: "0", path: "C:/books/folder", kind: "folder", previewCount: 1 })]))
+    fireEvent.click(currentView.getByLabelText("多图网格"))
+    await waitFor(() => expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "0", kind: "folder", previewCount: 4 }),
+      expect.objectContaining({ id: "1", kind: "file", previewCount: 1 }),
+    ])))
+    expect(currentView.getByLabelText("多图数量")).toBeTruthy()
+    await waitFor(() => expect(view.container.querySelectorAll('[data-preview-mode="mosaic-grid"] img')).toHaveLength(2))
     view.unmount()
     expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(contextId)
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")

@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=26`，`pending=48`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=27`，`pending=47`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### architecture（5）
 
@@ -118,8 +118,8 @@
 - [ ] `folder.view.modes` list/content/banner/thumbnail 四种原版视图
   - 目标：完整保留 list、content、banner、thumbnail 的信息密度、缩略图位置、选中/hover/focus 表现；目标内部可用更清晰的 mode 名。
   - 源码：`components/FolderList.svelte`、`components/FolderListItem.svelte`、`components/FolderToolbar/ViewModeButtons.svelte`
-  - 测试：`neoview.folder.view-compact`、`neoview.folder.view-cover-grid`
-  - 备注：当前 compact 与 cover-grid 仅覆盖两条基础形态，不等于原版四模式完成。
+  - 测试：`neoview.folder.view-compact`、`neoview.folder.view-cover-list`、`neoview.folder.view-mosaic-list`、`neoview.folder.view-cover-grid`、`neoview.folder.view-mosaic-grid`
+  - 备注：当前已提供 compact、cover-list、mosaic-list、cover-grid、mosaic-grid 五种内部模式，并复用同一 catalog/selection/focus/sort/EMM 状态；仍需完成原版 list/content/banner/thumbnail 的逐项视觉、设置持久化与 details 验收。
 - [ ] `folder.view.details` 详细信息视图与列
   - 目标：显示名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分和标签信息；列宽/截断/tooltip 与原版一致。
   - 源码：`components/FolderListItem.svelte`、`stores/folderPanelStore/types.ts`
@@ -146,13 +146,13 @@
 - [ ] `folder.view.folder-mosaic` 文件夹 4/9/16 图多预览
   - 目标：文件夹缩略图支持单封面及 4/9/16 图 mosaic，稳定选图、异步缺图占位和可见范围批量 demand。
   - 源码：`components/FolderListItem.svelte`、`components/FolderToolbar/tabs/DisplayTab.svelte`
-  - 测试：待补
-  - 备注：用户特别要求单预览与四预览，原版还包含 9/16。
+  - 测试：`neoview.folder.mosaic-4`、`neoview.folder.mosaic-9`、`neoview.folder.mosaic-16`、`neoview.folder.mosaic-single-image-dom`
+  - 备注：文件夹已支持 4/9/16 选择，服务端按自然顺序稳定选取前 N 张并通过 sharp.composite() 合成为单个 WebP；前端每项始终只挂一个 img，文件项强制单预览。仍缺持久设置、缺图视觉 characterization、磁盘 profile 缓存与 10K/100K 性能门禁。
 - [ ] `folder.view.thumbnail-pipeline` 可见范围缩略图管线
   - 目标：仅对可见+overscan 项按 32-64 对齐窗口注册，opaque URL 输出，按字节预算缓存并在 context 释放后取消低优先级任务。
   - 源码：`components/FolderList.svelte`、`components/FolderListItem.svelte`
-  - 测试：`neoview.folder.thumbnail-visible-batch`、`neoview.folder.thumbnail-release`
-  - 备注：当前最多 64 项 demand 已接入。
+  - 测试：`neoview.folder.thumbnail-visible-batch`、`neoview.folder.thumbnail-release`、`neoview.folder.thumbnail-opaque-mosaic`
+  - 备注：当前最多 64 项 demand 已接入；单封面与 4/9/16 mosaic 都使用 opaque URL 和单请求/单 img，mosaic profile 只进入有界内存 coordinator，避免覆盖旧单封面持久缓存键。
 
 ### performance（2）
 

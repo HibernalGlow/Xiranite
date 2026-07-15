@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -131,9 +131,38 @@ describe("LibraryThumbnailRoute", () => {
     route.close()
     await pipeline.dispose()
   })
+
+  it("[neoview.thumbnail.library-mosaic-http] keeps a folder mosaic behind one opaque asset URL", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-mosaic-route-"))
+    roots.push(root)
+    const folder = join(root, "book")
+    const cover = join(folder, "001.png")
+    await mkdir(folder)
+    await writeFile(cover, Uint8Array.of(1, 2, 3))
+    const compose = vi.fn(async () => ({ bytes: fixtureWebp(9), contentType: "image/webp" as const }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(cover),
+      loadMosaicImageComposer: async () => ({ compose }),
+    })
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const registered = (await route.handle(registerRequest(folder, 1, true, "folder", 4)))!
+    const body = await registered.json() as { items: Array<{ thumbnailUrl: string }> }
+    expect(body.items).toHaveLength(1)
+    const response = (await route.handle(new Request(body.items[0]!.thumbnailUrl)))!
+    expect(response.status).toBe(200)
+    expect(compose).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ count: 4 }), expect.any(AbortSignal), expect.any(Object))
+    route.close()
+    await pipeline.dispose()
+  })
 })
 
-function registerRequest(path: string, generation: number, authorized: boolean): Request {
+function registerRequest(
+  path: string,
+  generation: number,
+  authorized: boolean,
+  kind: "file" | "folder" = "file",
+  previewCount: 1 | 4 | 9 | 16 = 1,
+): Request {
   return new Request("http://127.0.0.1:41000/reader/library/thumbnails", {
     method: "POST",
     headers: {
@@ -143,7 +172,7 @@ function registerRequest(path: string, generation: number, authorized: boolean):
     body: JSON.stringify({
       contextId: "library:test",
       generation,
-      items: [{ id: "cover", path, kind: "file" }],
+      items: [{ id: "cover", path, kind, previewCount }],
     }),
   })
 }

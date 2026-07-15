@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, Grid2X2, Heart, List, Lock, MoreHorizontal, RefreshCw, Star, Unlock } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, List, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Star, Unlock } from "lucide-react"
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -64,10 +64,12 @@ const SORT_SOURCE_LABELS: Record<ReaderDirectorySortSourceDto, string> = {
   "global-default": "全局默认",
 }
 
-type FolderViewMode = "compact" | "cover-grid"
+type FolderViewMode = "compact" | "cover-list" | "mosaic-list" | "cover-grid" | "mosaic-grid"
+type FolderPreviewCount = 4 | 9 | 16
 
 interface SavedDirectoryState {
   viewMode: FolderViewMode
+  previewCount: FolderPreviewCount
   selectedPaths: readonly string[]
   focusedPath?: string
   focusedIndex?: number
@@ -97,6 +99,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
   const [draftPath, setDraftPath] = useState(sourcePath ?? "")
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [viewMode, setViewMode] = useState<FolderViewMode>("compact")
+  const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(4)
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set())
   const [focusedPath, setFocusedPath] = useState<string>()
@@ -112,18 +115,18 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
   }, [sourcePath])
 
   useEffect(() => {
-    if (!catalog || viewMode !== "cover-grid") return
+    if (!catalog || !viewUsesThumbnails(viewMode)) return
     registerVisibleThumbnails()
-  }, [catalog?.sessionId, catalog?.generation, viewMode])
+  }, [catalog?.sessionId, catalog?.generation, viewMode, previewCount])
 
   function registerVisibleThumbnails() {
     const current = catalogRef.current
-    if (!current || viewMode !== "cover-grid" || !client.registerLibraryThumbnails) return
+    if (!current || !viewUsesThumbnails(viewMode) || !client.registerLibraryThumbnails) return
     const range = visibleRangeRef.current
     const visible = directoryLoadedEntries(current, range.startIndex, range.endIndex, MAX_THUMBNAILS)
       .filter(({ entry }) => entry.kind === "directory" || entry.kind === "file")
     if (!visible.length) return
-    const signature = `${current.sessionId}:${current.generation}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
+    const signature = `${current.sessionId}:${current.generation}:${viewMode}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
     if (thumbnailSignatureRef.current === signature) return
     thumbnailSignatureRef.current = signature
     thumbnailRequestRef.current?.abort()
@@ -140,6 +143,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
         id: String(index),
         path: entry.path,
         kind: entry.kind === "directory" ? "folder" : "file",
+        previewCount: entry.kind === "directory" && viewUsesMosaic(viewMode) ? previewCount : 1,
       })),
       request.signal,
     ).then((batch) => {
@@ -157,9 +161,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     if (!catalog || !restoreState) return
     const index = Math.min(Math.max(restoreState.focusedIndex ?? restoreState.anchorIndex, 0), Math.max(0, catalog.total - 1))
     requestRange({ startIndex: index, endIndex: index })
-    if (viewMode === "compact" && !restoreState.listSnapshot) {
+    if (!viewUsesGrid(viewMode) && !restoreState.listSnapshot) {
       queueMicrotask(() => listRef.current?.scrollToIndex({ index, align: "center" }))
-    } else if (viewMode === "cover-grid" && !restoreState.gridSnapshot) {
+    } else if (viewUsesGrid(viewMode) && !restoreState.gridSnapshot) {
       queueMicrotask(() => gridRef.current?.scrollToIndex({ index, align: "center" }))
     }
   }, [catalog?.sessionId, catalog?.generation, restoreState, viewMode])
@@ -223,6 +227,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     const suggested = page.suggestedSelection
     const restored: SavedDirectoryState = preferredState ?? saved ?? {
       viewMode,
+      previewCount,
       selectedPaths: suggested ? [suggested.path] : [],
       focusedPath: suggested?.path,
       focusedIndex: suggested?.index,
@@ -230,6 +235,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     }
     focusedIndexRef.current = restored.focusedIndex
     setViewMode(restored.viewMode)
+    setPreviewCount(restored.previewCount)
     setRestoreState(restored)
     setSelectedPaths(new Set(restored.selectedPaths))
     setFocusedPath(restored.focusedPath)
@@ -249,6 +255,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
       const focusIndex = result.suggestedSelection?.index
       applyPage(result, {
         viewMode,
+        previewCount,
         selectedPaths: [...selectedPaths],
         focusedPath,
         focusedIndex: focusIndex,
@@ -280,6 +287,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
       const focusIndex = result.suggestedSelection?.index
       applyPage(result, {
         viewMode,
+        previewCount,
         selectedPaths: [...selectedPaths],
         focusedPath,
         focusedIndex: focusIndex,
@@ -329,14 +337,15 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     const range = visibleRangeRef.current
     const state: SavedDirectoryState = {
       viewMode,
+      previewCount,
       selectedPaths: [...selectedPaths],
       focusedPath,
       focusedIndex: focusedIndexRef.current,
       anchorIndex: range.startIndex,
-      gridSnapshot: viewMode === "cover-grid" ? gridSnapshotRef.current : undefined,
+      gridSnapshot: viewUsesGrid(viewMode) ? gridSnapshotRef.current : undefined,
     }
     rememberState(current.path, state)
-    if (viewMode === "compact") {
+    if (!viewUsesGrid(viewMode)) {
       listRef.current?.getState((snapshot) => {
         const latest = historyStatesRef.current.get(current.path)
         if (latest) rememberState(current.path, { ...latest, listSnapshot: snapshot })
@@ -351,18 +360,28 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     const anchorIndex = focusedIndexRef.current ?? visibleRangeRef.current.startIndex
     const nextState: SavedDirectoryState = {
       viewMode: next,
+      previewCount,
       selectedPaths: [...selectedPaths],
       focusedPath,
       focusedIndex: focusedIndexRef.current,
       anchorIndex,
     }
     if (current) rememberState(current.path, nextState)
-    if (next === "compact") {
+    if (!viewUsesThumbnails(next)) {
       releaseThumbnailContext()
       setThumbnailUrls(new Map())
     }
     setRestoreState(nextState)
     setViewMode(next)
+  }
+
+  function switchPreviewCount(next: FolderPreviewCount) {
+    if (next === previewCount) return
+    captureCurrentState()
+    releaseThumbnailContext()
+    setThumbnailUrls(new Map())
+    setPreviewCount(next)
+    thumbnailSignatureRef.current = ""
   }
 
   function selectEntry(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent) {
@@ -431,7 +450,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
   }
 
   const loadedCount = catalog ? [...catalog.pages.values()].reduce((total, entries) => total + entries.length, 0) : 0
-  const virtualKey = catalog ? `${catalog.sessionId}:${catalog.generation}:${viewMode}` : viewMode
+  const virtualKey = catalog ? `${catalog.sessionId}:${catalog.generation}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
 
   return (
     <div className="grid min-h-0 gap-2" data-neoview-folder-card="true">
@@ -451,17 +470,32 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
           <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
           <BrowserButton label="上级" disabled={!catalog?.parentPath || loading} onClick={() => void navigate({ action: "up" })}><ArrowUp /></BrowserButton>
           <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
+          <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
+        </div>
+        <div className="flex min-w-0 items-center gap-1">
           <ToggleGroup
             type="single"
             size="sm"
             value={viewMode}
-            className="ml-auto"
+            className="min-w-0"
             onValueChange={(value) => { if (value) switchView(value as FolderViewMode) }}
           >
             <ToggleGroupItem value="compact" aria-label="紧凑列表" title="紧凑列表"><List /></ToggleGroupItem>
+            <ToggleGroupItem value="cover-list" aria-label="封面列表" title="封面列表"><Rows3 /></ToggleGroupItem>
+            <ToggleGroupItem value="mosaic-list" aria-label="多图列表" title="多图列表"><GalleryHorizontalEnd /></ToggleGroupItem>
             <ToggleGroupItem value="cover-grid" aria-label="封面网格" title="封面网格"><Grid2X2 /></ToggleGroupItem>
+            <ToggleGroupItem value="mosaic-grid" aria-label="多图网格" title="多图网格"><PanelsTopLeft /></ToggleGroupItem>
           </ToggleGroup>
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
+          {viewUsesMosaic(viewMode) ? (
+            <Select value={String(previewCount)} onValueChange={(value) => switchPreviewCount(Number(value) as FolderPreviewCount)}>
+              <SelectTrigger size="sm" className="ml-auto h-7 w-[5.25rem] text-xs" aria-label="多图数量"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="4">4 图</SelectItem>
+                <SelectItem value="9">9 图</SelectItem>
+                <SelectItem value="16">16 图</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : null}
         </div>
         {catalog ? (
           <div className="grid grid-cols-[minmax(6rem,1fr)_2rem_2rem_2rem] items-center gap-1">
@@ -526,17 +560,17 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
       </div>
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div className="min-h-32 overflow-hidden rounded border bg-background/60" data-neoview-folder-list="true">
-        {catalog && viewMode === "compact" ? (
+        {catalog && !viewUsesGrid(viewMode) ? (
           <Virtuoso
             key={virtualKey}
             ref={listRef}
             style={{ height: LIST_HEIGHT }}
             totalCount={catalog.total}
-            fixedItemHeight={34}
-            increaseViewportBy={{ top: 68, bottom: 136 }}
+            fixedItemHeight={viewMode === "compact" ? 34 : 76}
+            increaseViewportBy={{ top: viewMode === "compact" ? 68 : 152, bottom: viewMode === "compact" ? 136 : 304 }}
             computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
             rangeChanged={requestRange}
-            restoreStateFrom={restoreState?.viewMode === "compact" ? restoreState.listSnapshot : undefined}
+            restoreStateFrom={restoreState?.viewMode === viewMode ? restoreState.listSnapshot : undefined}
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)
               return (
@@ -548,6 +582,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
                   focused={entry?.path === focusedPath}
                   showRating={catalog.metadataFields.includes("rating")}
                   showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
+                  visualMode={viewMode}
+                  thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
                   onSelect={selectEntry}
                   onActivate={activate}
                 />
@@ -555,7 +591,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
             }}
           />
         ) : null}
-        {catalog && viewMode === "cover-grid" ? (
+        {catalog && viewUsesGrid(viewMode) ? (
           <VirtuosoGrid
             key={virtualKey}
             ref={gridRef}
@@ -566,7 +602,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
             increaseViewportBy={{ top: 144, bottom: 288 }}
             computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
             rangeChanged={requestRange}
-            restoreStateFrom={restoreState?.viewMode === "cover-grid" ? restoreState.gridSnapshot : undefined}
+            restoreStateFrom={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
             stateChanged={(snapshot) => { gridSnapshotRef.current = snapshot }}
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)
@@ -579,6 +615,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
                   focused={entry?.path === focusedPath}
                   showRating={catalog.metadataFields.includes("rating")}
                   showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
+                  visualMode={viewMode}
                   thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
                   onSelect={selectEntry}
                   onActivate={activate}
@@ -593,12 +630,13 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
   )
 }
 
-function DirectoryListItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, onSelect, onActivate }: DirectoryItemProps) {
-  if (!entry) return <div className="h-[34px] animate-pulse border-b bg-muted/30" aria-hidden="true" />
+function DirectoryListItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
+  const rich = visualMode !== "compact"
+  if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
     <button
       type="button"
-      className="flex h-[34px] w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent"
+      className={`flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent ${rich ? "h-[76px]" : "h-[34px]"}`}
       aria-selected={selected}
       data-focused={focused || undefined}
       disabled={disabled}
@@ -606,15 +644,23 @@ function DirectoryListItem({ entry, index, disabled, selected, focused, showRati
       onClick={(event) => onSelect(entry, index, event)}
       onDoubleClick={() => onActivate(entry)}
       onKeyDown={(event) => { if (event.key === "Enter") onActivate(entry) }}
+      data-preview-mode={visualMode}
     >
-      <EntryIcon entry={entry} />
-      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+      {rich ? (
+        <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30">
+          {thumbnailUrl ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" /> : <EntryIcon entry={entry} className="size-7" />}
+        </span>
+      ) : <EntryIcon entry={entry} />}
+      <span className="grid min-w-0 flex-1 gap-1">
+        <span className="truncate">{entry.name}</span>
+        {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
+      </span>
       <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
     </button>
   )
 }
 
-function DirectoryGridItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { thumbnailUrl?: string }) {
+function DirectoryGridItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
   if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   const showMetadata = showRating || showCollectTagCount
   return (
@@ -628,6 +674,7 @@ function DirectoryGridItem({ entry, index, disabled, selected, focused, showRati
       onClick={(event) => onSelect(entry, index, event)}
       onDoubleClick={() => onActivate(entry)}
       onKeyDown={(event) => { if (event.key === "Enter") onActivate(entry) }}
+      data-preview-mode={visualMode}
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
         {thumbnailUrl
@@ -694,4 +741,16 @@ function isAbortError(error: unknown): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function viewUsesGrid(mode: FolderViewMode): boolean {
+  return mode === "cover-grid" || mode === "mosaic-grid"
+}
+
+function viewUsesMosaic(mode: FolderViewMode): boolean {
+  return mode === "mosaic-list" || mode === "mosaic-grid"
+}
+
+function viewUsesThumbnails(mode: FolderViewMode): boolean {
+  return mode !== "compact"
 }

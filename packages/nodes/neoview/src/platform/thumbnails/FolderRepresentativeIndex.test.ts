@@ -63,6 +63,19 @@ describe("FolderRepresentativeIndex", () => {
     expect(readDirectory).toHaveBeenCalledTimes(2)
     index.clear()
   })
+
+  it("[neoview.thumbnail.folder-index-mosaic] fingerprints the natural-first 4/9/16 representatives", async () => {
+    const readDirectory = vi.fn(async () => [file("10.png"), file("2.png"), file("1.png"), file("3.png"), file("4.png")])
+    const statPath = vi.fn(async (path: string) => stats(Number(path.match(/(\d+)\.png$/)?.[1]), 100))
+    const index = new FolderRepresentativeIndex({ readDirectory, statPath })
+    await expect(index.describe("D:/mosaic", 50, undefined, 4)).resolves.toBe(
+      "1.png:1:100|2.png:2:100|3.png:3:100|4.png:4:100",
+    )
+    await expect(index.describe("D:/mosaic", 50, undefined, 4)).resolves.toContain("4.png:4:100")
+    expect(readDirectory).toHaveBeenCalledOnce()
+    expect(statPath).toHaveBeenCalledTimes(8)
+    index.clear()
+  })
 })
 
 function file(name: string) {

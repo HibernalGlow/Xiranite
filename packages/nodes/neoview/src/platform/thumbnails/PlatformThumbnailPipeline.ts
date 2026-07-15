@@ -18,6 +18,11 @@ import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailAsset, ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { SystemThumbnailProvider, SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProvider, VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
+import type {
+  MosaicImageComposer,
+  MosaicImageComposerLoader,
+  MosaicPreviewCount,
+} from "../../ports/MosaicImageComposer.js"
 import { FolderRepresentativeIndex } from "./FolderRepresentativeIndex.js"
 import { transformPageSource } from "../images/transform-page-source.js"
 
@@ -30,6 +35,7 @@ export interface PlatformThumbnailPipelineOptions {
   maxMemoryBytes?: number
   maxEntryBytes?: number
   folderRepresentativeIndex?: FolderRepresentativeIndex
+  loadMosaicImageComposer?: MosaicImageComposerLoader
   resourceScheduler?: ResourceScheduler
 }
 
@@ -40,6 +46,7 @@ interface PageThumbnailDemandSource {
 }
 
 export type LibraryThumbnailKind = "file" | "folder"
+export type LibraryThumbnailPreviewCount = 1 | MosaicPreviewCount
 
 export interface LibraryThumbnailSource {
   kind: LibraryThumbnailKind
@@ -47,14 +54,17 @@ export interface LibraryThumbnailSource {
   sourceSize?: number
   modifiedAtMs: number
   representativeVersion?: string
+  previewCount: LibraryThumbnailPreviewCount
   contentVersion: string
 }
 
 interface LibraryThumbnailDemandSource {
   kind: "library"
   source: LibraryThumbnailSource
-  profile: "library-cover-v1"
+  profile: LibraryThumbnailProfile
 }
+
+type LibraryThumbnailProfile = "library-cover-v1" | `library-mosaic-${MosaicPreviewCount}-v1`
 
 type PlatformThumbnailDemandSource = PageThumbnailDemandSource | LibraryThumbnailDemandSource
 
@@ -80,10 +90,12 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   readonly #coordinator: ThumbnailCoordinatorService<PlatformThumbnailDemandSource>
   readonly #folderRepresentativeIndex: FolderRepresentativeIndex
   readonly #ownsFolderRepresentativeIndex: boolean
+  readonly #loadMosaicImageComposer?: MosaicImageComposerLoader
   readonly #resourceScheduler?: ResourceScheduler
   #imageTransformer?: Promise<ImageTransformer>
   #systemThumbnailProvider?: Promise<SystemThumbnailProvider>
   #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
+  #mosaicImageComposer?: Promise<MosaicImageComposer>
 
   constructor(options: PlatformThumbnailPipelineOptions = {}) {
     this.#loadImageTransformer = options.loadImageTransformer
@@ -92,6 +104,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#loadSystemThumbnailProvider = options.loadSystemThumbnailProvider
     this.#loadVideoThumbnailProvider = options.loadVideoThumbnailProvider
     this.#resourceScheduler = options.resourceScheduler
+    this.#loadMosaicImageComposer = options.loadMosaicImageComposer
     this.#ownsFolderRepresentativeIndex = !options.folderRepresentativeIndex
     this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex()
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
@@ -185,7 +198,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     if (sources.length > 512) throw new RangeError("Library thumbnail prewarm batch cannot exceed 512 sources.")
 
     const byCategory = new Map<LibraryThumbnailKind, LibraryThumbnailSource[]>()
-    for (const source of sources) {
+    for (const source of sources.filter((source) => source.previewCount === 1)) {
       const current = byCategory.get(source.kind)
       if (current) current.push(source)
       else byCategory.set(source.kind, [source])
@@ -216,8 +229,17 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     return { requested: sources.length, databaseHits, primed }
   }
 
-  async describeLibrarySource(path: string, kind: LibraryThumbnailKind, signal?: AbortSignal): Promise<LibraryThumbnailSource> {
+  async describeLibrarySource(
+    path: string,
+    kind: LibraryThumbnailKind,
+    signal?: AbortSignal,
+    previewCount: LibraryThumbnailPreviewCount = 1,
+  ): Promise<LibraryThumbnailSource> {
     signal?.throwIfAborted()
+    if (previewCount !== 1 && previewCount !== 4 && previewCount !== 9 && previewCount !== 16) {
+      throw new RangeError("Library thumbnail preview count must be 1, 4, 9 or 16.")
+    }
+    if (kind !== "folder" && previewCount !== 1) throw new Error("Mosaic previews are only available for folders.")
     const normalizedPath = await realpath(path)
     signal?.throwIfAborted()
     const sourceStats = await stat(normalizedPath)
@@ -227,20 +249,22 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const sourceSize = kind === "file" ? sourceStats.size : undefined
     const modifiedAtMs = Math.trunc(sourceStats.mtimeMs)
     const representativeVersion = kind === "folder"
-      ? await this.#folderRepresentativeIndex.describe(normalizedPath, modifiedAtMs, signal)
+      ? await this.#folderRepresentativeIndex.describe(normalizedPath, modifiedAtMs, signal, previewCount)
       : undefined
+    const profile = libraryThumbnailProfile(previewCount)
     return {
       kind,
       path: normalizedPath,
       sourceSize,
       modifiedAtMs,
       representativeVersion,
-      contentVersion: `${kind}:${sourceSize ?? "directory"}:${modifiedAtMs}:${representativeVersion ?? "empty"}:library-cover-v1`,
+      previewCount,
+      contentVersion: `${kind}:${sourceSize ?? "directory"}:${modifiedAtMs}:${representativeVersion ?? "empty"}:${profile}`,
     }
   }
 
   acquireLibrary(source: LibraryThumbnailSource, options: PageThumbnailAcquireOptions): ThumbnailLease {
-    const profile = "library-cover-v1" as const
+    const profile = libraryThumbnailProfile(source.previewCount)
     return this.#coordinator.acquire({
       cacheKey: libraryThumbnailCacheKey(source, profile),
       source: { kind: "library", source, profile },
@@ -406,6 +430,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     signal: AbortSignal,
   ): Promise<ThumbnailAsset> {
     const descriptor = demandSource.source
+    if (descriptor.previewCount !== 1) return this.#resolveLibraryMosaic(demandSource, demand, signal)
     const thumbnailStore = this.#thumbnailStore
     const category = descriptor.kind
     const expectedHash = thumbnailGenerationHash(descriptor.contentVersion)
@@ -518,6 +543,46 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     }
   }
 
+  async #resolveLibraryMosaic(
+    demandSource: LibraryThumbnailDemandSource,
+    demand: Readonly<ThumbnailDemand<PlatformThumbnailDemandSource>>,
+    signal: AbortSignal,
+  ): Promise<ThumbnailAsset> {
+    const descriptor = demandSource.source
+    if (descriptor.kind !== "folder" || descriptor.previewCount === 1 || !this.#bookLoader || !this.#loadMosaicImageComposer) {
+      throw new ThumbnailUnavailableError()
+    }
+    let book: Awaited<ReturnType<ReaderBookLoader>> | undefined
+    const sources: PageSource[] = []
+    try {
+      book = await this.#bookLoader({ kind: "directory", path: descriptor.path }, { signal })
+      const pages = book.pages
+        .filter((page) => page.mediaKind === "image" || page.mediaKind === "animated-image")
+        .slice(0, descriptor.previewCount)
+      if (!pages.length) throw new ThumbnailUnavailableError()
+      const inputs: ReadableStream<Uint8Array>[] = []
+      for (const page of pages) {
+        signal.throwIfAborted()
+        const source = await page.content.load(signal)
+        sources.push(source)
+        inputs.push(await source.open(signal))
+      }
+      const result = await (await this.#getMosaicImageComposer()).compose(inputs, {
+        count: descriptor.previewCount,
+        size: 416,
+        quality: 82,
+      }, signal, {
+        priority: thumbnailLanePriority(demand.lane),
+        kind: "neoview.thumbnail.folder-mosaic",
+        ownerId: demand.contextId,
+      })
+      return { bytes: result.bytes, contentType: result.contentType, version: demandSource.profile, cacheable: true }
+    } finally {
+      await Promise.all(sources.map((source) => source.close().catch(() => undefined)))
+      await book?.close().catch(() => undefined)
+    }
+  }
+
   #getImageTransformer(): Promise<ImageTransformer> {
     if (!this.#loadImageTransformer) return Promise.reject(new Error("Image transforms are unavailable"))
     if (!this.#imageTransformer) {
@@ -542,6 +607,19 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       this.#videoThumbnailProvider = guarded
     }
     return this.#videoThumbnailProvider
+  }
+
+  #getMosaicImageComposer(): Promise<MosaicImageComposer> {
+    if (!this.#loadMosaicImageComposer) return Promise.reject(new ThumbnailUnavailableError())
+    if (!this.#mosaicImageComposer) {
+      const pending = this.#loadMosaicImageComposer()
+      const guarded = pending.catch((error) => {
+        if (this.#mosaicImageComposer === guarded) this.#mosaicImageComposer = undefined
+        throw error
+      })
+      this.#mosaicImageComposer = guarded
+    }
+    return this.#mosaicImageComposer
   }
 
   #getSystemThumbnailProvider(): Promise<SystemThumbnailProvider> {
@@ -612,8 +690,12 @@ function thumbnailGenerationHash(contentVersion: string): number {
   return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
 }
 
-function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: "library-cover-v1"): string {
+function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile): string {
   return `${source.kind}:${source.path}:${source.contentVersion}:${profile}`
+}
+
+function libraryThumbnailProfile(count: LibraryThumbnailPreviewCount): LibraryThumbnailProfile {
+  return count === 1 ? "library-cover-v1" : `library-mosaic-${count}-v1`
 }
 
 function isValidLibraryThumbnail(
