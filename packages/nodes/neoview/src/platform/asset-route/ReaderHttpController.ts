@@ -80,6 +80,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #ownsSolidArchiveCache: boolean
   readonly #disposeThumbnailStore?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
+  #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
@@ -145,7 +146,7 @@ export class ReaderHttpController implements AsyncDisposable {
       return this.#openSession(request)
     }
     if (url.pathname === "/reader/config" && request.method === "GET") {
-      return jsonResponse({ schemaVersion: 1, shell: this.#shellOptions, viewDefaults: this.#viewDefaults })
+      return jsonResponse({ schemaVersion: 1, shell: { ...this.#shellOptions, revision: this.#shellRevision }, viewDefaults: this.#viewDefaults })
     }
     if (url.pathname === "/reader/config" && request.method === "PATCH") {
       return this.#patchShellConfig(request)
@@ -259,7 +260,7 @@ export class ReaderHttpController implements AsyncDisposable {
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
         await operation
-        return jsonResponse({ schemaVersion: 1, shell: this.#shellOptions, viewDefaults: updated })
+        return jsonResponse({ schemaVersion: 1, shell: { ...this.#shellOptions, revision: this.#shellRevision }, viewDefaults: updated })
       } catch (error) {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
@@ -277,14 +278,25 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     let updated: NeoviewShellConfig | undefined
     const operation = this.#configUpdateQueue.then(async () => {
+      if ("expectedRevision" in parsed.patch && parsed.patch.expectedRevision !== this.#shellRevision) {
+        throw new ReaderShellRevisionConflict(parsed.patch.expectedRevision, this.#shellRevision)
+      }
       updated = await this.#updateShellOptions!(parsed.patch, parsed.tomlPatch)
       this.#shellOptions = updated
+      this.#shellRevision += 1
     })
     this.#configUpdateQueue = operation.catch(() => undefined)
     try {
       await operation
-      return jsonResponse({ schemaVersion: 1, shell: updated, viewDefaults: this.#viewDefaults })
+      return jsonResponse({ schemaVersion: 1, shell: { ...updated, revision: this.#shellRevision }, viewDefaults: this.#viewDefaults })
     } catch (error) {
+      if (error instanceof ReaderShellRevisionConflict) {
+        return jsonResponse({
+          error: error.message,
+          shell: { ...this.#shellOptions, revision: this.#shellRevision },
+          viewDefaults: this.#viewDefaults,
+        }, 409)
+      }
       return jsonResponse({ error: errorMessage(error) }, 500)
     }
   }
@@ -403,6 +415,13 @@ export class ReaderHttpController implements AsyncDisposable {
 
   #isAuthorized(request: Request, url: URL): boolean {
     return request.headers.get("x-xiranite-token") === this.#token || url.searchParams.get("token") === this.#token
+  }
+}
+
+class ReaderShellRevisionConflict extends Error {
+  constructor(expected: number, actual: number) {
+    super(`Reader layout changed while editing (expected revision ${expected}, current revision ${actual}).`)
+    this.name = "ReaderShellRevisionConflict"
   }
 }
 

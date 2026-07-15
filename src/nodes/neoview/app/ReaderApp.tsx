@@ -14,6 +14,7 @@ import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFl
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import {
   createReaderHttpClient,
+  ReaderHttpError,
   type ReaderHttpClient,
   type ReaderNavigationDto,
   type ReaderSessionDto,
@@ -264,6 +265,10 @@ export function ReaderApp({
     try {
       setShell(await clientRef.current.updateBoardLayout(patch))
     } catch (cause) {
+      if (cause instanceof ReaderHttpError && cause.status === 409) {
+        const latest = await clientRef.current.config().catch(() => undefined)
+        if (latest) setShell(latest.shell)
+      }
       setError(errorMessage(cause))
       throw cause
     }

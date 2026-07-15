@@ -33,6 +33,7 @@ export interface ReaderPageListDto {
 }
 
 export interface ReaderShellConfigDto {
+  revision?: number
   showDelayMs: number
   hideDelayMs: number
   opacity: { top: number; bottom: number; sidebar: number }
@@ -71,6 +72,7 @@ export interface ReaderCardLayoutPatch {
 }
 
 export interface ReaderBoardLayoutPatch {
+  expectedRevision: number
   board: {
     panels: Array<{ id: string; visible: boolean; order: number; position: ReaderShellConfigDto["panelLayout"][string]["position"] }>
     cards: Array<{ cardId: string; panelId: string; visible: boolean; order: number }>
@@ -91,6 +93,13 @@ export interface ReaderHttpClient {
   close(sessionId: string): Promise<void>
 }
 
+export class ReaderHttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = "ReaderHttpError"
+  }
+}
+
 export function createReaderHttpClient(
   resolveConfig: () => LocalBackendConfig = resolveLocalBackendConfig,
 ): ReaderHttpClient {
@@ -100,7 +109,7 @@ export function createReaderHttpClient(
     const headers = new Headers(init.headers)
     if (config.token) headers.set("x-xiranite-token", config.token)
     const response = await fetch(url, { ...init, headers, cache: "no-store" })
-    if (!response.ok) throw new Error(await responseError(response))
+    if (!response.ok) throw new ReaderHttpError(await responseError(response), response.status)
     if (response.status === 204) return undefined as T
     return await response.json() as T
   }

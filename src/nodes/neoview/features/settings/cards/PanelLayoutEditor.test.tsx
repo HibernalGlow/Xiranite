@@ -15,6 +15,7 @@ describe("PanelLayoutEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存面板布局" }))
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
     expect(save.mock.calls[0]?.[0]).toMatchObject({
+      expectedRevision: 0,
       board: {
         cards: expect.arrayContaining([
           { cardId: "page-navigation", panelId: "pageList", visible: true, order: 0 },
@@ -34,6 +35,16 @@ describe("PanelLayoutEditor", () => {
     const patch = createPanelBoardPatch(current, moved)
     expect(patch.board.cards).toContainEqual({ cardId: "panel-layout-settings", panelId: "settings", visible: true, order: 0 })
     expect(patch.board.panels).toContainEqual({ id: "settings", visible: true, order: 99, position: "left" })
+  })
+
+  it("[neoview.settings.card-policy] rejects hiding fixed cards and unsupported floating destinations", () => {
+    const columns = createPanelLayoutColumns(shell())
+    render(<PanelLayoutEditor shell={shell()} onSave={vi.fn()} />)
+    const destinations = Array.from(screen.getByRole("combobox", { name: "移动页面导航到" }).querySelectorAll("option"), (option) => option.value)
+    expect(destinations).not.toContain("__hidden__")
+    expect(destinations).not.toContain("cardwindow")
+    expect(movePanelLayoutCard(columns, "page-navigation", "__hidden__")).toBe(columns)
+    expect(movePanelLayoutCard(columns, "book-information", "cardwindow")).toBe(columns)
   })
 })
 

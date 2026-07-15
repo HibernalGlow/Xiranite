@@ -22,7 +22,7 @@ export function PanelLayoutSettingsCard({
         </div>
       </header>
       <Suspense fallback={<div className="h-72 animate-pulse bg-muted/35" aria-label="正在加载面板布局编辑器" />}>
-        <PanelLayoutEditor shell={shell} onSave={onSave} />
+        <PanelLayoutEditor key={shell.revision ?? 0} shell={shell} onSave={onSave} />
       </Suspense>
     </section>
   )

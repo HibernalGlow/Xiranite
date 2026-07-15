@@ -74,7 +74,7 @@ describe("ReaderHttpController", () => {
       const body = await response.json()
       expect(body).toMatchObject({
         schemaVersion: 1,
-        shell: { showDelayMs: 50, sidebars: { left: { width: 333 } } },
+        shell: { revision: 0, showDelayMs: 50, sidebars: { left: { width: 333 } } },
         viewDefaults: { fitMode: "fit-height", pageMode: "single" },
       })
       expect(JSON.stringify(body)).not.toMatch(/path|token|password/i)
@@ -93,6 +93,7 @@ describe("ReaderHttpController", () => {
         { panels: { card_state: { "page-navigation": { expanded: false } } } },
       )
       const board = {
+        expectedRevision: 2,
         board: {
           panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
           cards: [{ cardId: "book-information", panelId: "pageList", visible: true, order: 0 }],
@@ -105,6 +106,10 @@ describe("ReaderHttpController", () => {
           card_state: { "book-information": { visible: true, order: 0, panel_id: "pageList" } },
         },
       })
+      const staleBoard = (await controller.handle(jsonRequest("/reader/config", board, true, "PATCH")))!
+      expect(staleBoard.status).toBe(409)
+      expect(await staleBoard.json()).toMatchObject({ shell: { revision: 3 } })
+      expect(updateShellOptions).toHaveBeenCalledTimes(3)
       const viewPatched = (await controller.handle(jsonRequest("/reader/config", {
         viewDefaults: { fitMode: "original", pageMode: "double" },
       }, true, "PATCH")))!

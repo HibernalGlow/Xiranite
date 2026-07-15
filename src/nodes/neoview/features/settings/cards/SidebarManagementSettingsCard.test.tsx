@@ -23,6 +23,7 @@ describe("SidebarManagementSettingsCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存边栏布局" }))
 
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    expect(save.mock.calls[0]?.[0].expectedRevision).toBe(0)
     expect(save.mock.calls[0]?.[0].board.panels).toContainEqual({ id: "history", visible: true, order: 41, position: "right" })
     expect(save.mock.calls[0]?.[0].board.cards).toEqual(expect.arrayContaining([
       { cardId: "future-card", panelId: "future-panel", visible: false, order: 7 },

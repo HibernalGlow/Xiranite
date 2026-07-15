@@ -194,6 +194,7 @@ export function resetSidebarPanelDraft(draft: PanelDraft[]): PanelDraft[] {
 
 export function createSidebarBoardPatch(shell: ReaderShellConfigDto, draft: PanelDraft[]): ReaderBoardLayoutPatch {
   return {
+    expectedRevision: shell.revision ?? 0,
     board: {
       panels: draft.map(({ id, visible, order, position }) => ({ id, visible, order, position })),
       cards: Object.entries(shell.cardLayout).map(([cardId, card]) => ({ cardId, panelId: card.panelId, visible: card.visible, order: card.order })),

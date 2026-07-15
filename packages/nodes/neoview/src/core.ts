@@ -52,6 +52,17 @@ export {
 } from "./domain/presentation/presentation.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
 export type { PageDimensions, PageId, PageMediaKind, ReaderPage } from "./domain/page/page.js"
+export {
+  READER_CARD_MANIFEST,
+  READER_PANEL_MANIFEST,
+  readerCardCanMoveTo,
+  readerPanelAcceptsCards,
+  type ReaderCardId,
+  type ReaderCardManifestEntry,
+  type ReaderPanelId,
+  type ReaderPanelManifestEntry,
+  type ReaderPanelPosition,
+} from "./application/config/ReaderLayoutManifest.js"
 export type { PageByteRange, PageContent, PageSource } from "./domain/page/page-content.js"
 export type { ImageMetadataProbe, ProbedImageFormat, ProbedImageMetadata } from "./ports/ImageMetadataProbe.js"
 export type { ImageTransformer, ImageTransformerLoader, ImageTransformResult } from "./ports/ImageTransformer.js"

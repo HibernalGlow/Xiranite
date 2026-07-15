@@ -193,14 +193,16 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "../bad", expanded: false })).toThrow("cardId")
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation" })).toThrow("at least one")
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation", height: 20 })).toThrow("height")
+    expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation", visible: false })).toThrow("cannot hide")
+    expect(() => parseNeoviewCardLayoutPatch({ cardId: "book-information", panelId: "cardwindow" })).toThrow("cannot place")
   })
 
   it("[neoview.settings.board-patch] compacts a complete editor draft into one canonical patch", () => {
-    expect(parseNeoviewBoardLayoutPatch({ board: {
+    expect(parseNeoviewBoardLayoutPatch({ expectedRevision: 7, board: {
       panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
       cards: [{ cardId: "book-information", panelId: "pageList", visible: true, order: 0 }],
     } })).toEqual({
-      patch: { board: {
+      patch: { expectedRevision: 7, board: {
         panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
         cards: [{ cardId: "book-information", panelId: "pageList", visible: true, order: 0 }],
       } },
@@ -209,9 +211,17 @@ describe("parseNeoviewRuntimeConfig", () => {
         card_state: { "book-information": { visible: true, order: 0, panel_id: "pageList" } },
       } },
     })
-    expect(() => parseNeoviewBoardLayoutPatch({ board: { panels: [], cards: [
+    expect(() => parseNeoviewBoardLayoutPatch({ expectedRevision: 0, board: { panels: [], cards: [
       { cardId: "same", panelId: "info", visible: true, order: 0 },
       { cardId: "same", panelId: "info", visible: true, order: 1 },
     ] } })).toThrow("duplicate card")
+    expect(() => parseNeoviewBoardLayoutPatch({ expectedRevision: 0, board: {
+      panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
+      cards: [{ cardId: "page-navigation", panelId: "pageList", visible: false, order: 0 }],
+    } })).toThrow("cannot hide card page-navigation")
+    expect(() => parseNeoviewBoardLayoutPatch({ expectedRevision: 0, board: {
+      panels: [{ id: "cardwindow", visible: true, order: 0, position: "floating" }],
+      cards: [{ cardId: "book-information", panelId: "cardwindow", visible: true, order: 0 }],
+    } })).toThrow("cannot be placed in a floating panel")
   })
 })

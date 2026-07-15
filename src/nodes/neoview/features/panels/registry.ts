@@ -6,12 +6,18 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
+import {
+  READER_CARD_MANIFEST,
+  READER_PANEL_MANIFEST,
+  type ReaderCardId,
+  type ReaderPanelId,
+} from "@xiranite/node-neoview/core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
 
 import type { ReaderBoardLayoutPatch, ReaderHttpClient, ReaderSessionDto, ReaderShellConfigDto } from "../../adapters/reader-http-client"
 
 export type ReaderPanelSide = "left" | "right"
-export type LegacyPanelId = "folder" | "history" | "bookmark" | "pageList" | "playlist" | "info" | "properties" | "upscale" | "insights" | "settings" | "benchmark" | "ai" | "control" | "cardwindow"
+export type LegacyPanelId = ReaderPanelId
 
 export interface ReaderPanelContext {
   session: ReaderSessionDto
@@ -31,6 +37,7 @@ export interface ReaderPanelDefinition {
   defaultOrder: number
   canMove: boolean
   canHide: boolean
+  acceptsCards: boolean
 }
 
 export interface ReaderCardDefinition {
@@ -54,55 +61,33 @@ export interface ResolvedPanelConfig extends LegacyPanelConfig {
   unknown: boolean
 }
 
-export const PANEL_DEFINITIONS: readonly ReaderPanelDefinition[] = [
-  panel("folder", "文件夹", "📁", "left", true, 0, false),
-  panel("history", "历史记录", "📚", "left", true, 1),
-  panel("bookmark", "书签", "🔖", "left", true, 2),
-  panel("pageList", "页面列表", "📄", "left", true, 3),
-  panel("playlist", "播放列表", "📝", "left", false, 4),
-  panel("settings", "设置", "⚙️", "left", true, 99),
-  panel("info", "信息", "📋", "right", true, 0),
-  panel("properties", "属性", "📑", "right", true, 1),
-  panel("upscale", "超分", "✨", "right", true, 2),
-  panel("insights", "洞察", "📊", "right", true, 3),
-  panel("control", "控制", "🎛️", "right", true, 4),
-  panel("ai", "AI", "🤖", "right", true, 5),
-  panel("benchmark", "基准测试", "⏱️", "right", false, 10),
-  panel("cardwindow", "卡片窗口", "🪟", "floating", false, 100, false, false),
-]
+export const PANEL_DEFINITIONS: readonly ReaderPanelDefinition[] = READER_PANEL_MANIFEST.map((definition) => ({
+  id: definition.id,
+  title: definition.title,
+  emoji: definition.emoji,
+  defaultSide: definition.defaultPosition,
+  defaultVisible: definition.defaultVisible,
+  defaultOrder: definition.defaultOrder,
+  canMove: definition.canMove,
+  canHide: definition.canHide,
+  acceptsCards: definition.acceptsCards,
+}))
 
-export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = [
-  {
-    id: "page-navigation",
-    title: "页面导航",
-    defaultPanel: "pageList",
-    canHide: false,
-    load: () => import("./cards/PageNavigationCard"),
-  },
-  {
-    id: "book-information",
-    title: "书籍信息",
-    defaultPanel: "info",
-    canHide: false,
-    load: () => import("./cards/BookInformationCard"),
-  },
-  {
-    id: "panel-layout-settings",
-    title: "面板布局设置",
-    defaultPanel: "settings",
-    canHide: true,
-    defaultSidebarVisible: false,
-    load: () => import("../settings/cards/PanelLayoutSettingsCard"),
-  },
-  {
-    id: "sidebar-management-settings",
-    title: "边栏管理设置",
-    defaultPanel: "settings",
-    canHide: true,
-    defaultSidebarVisible: false,
-    load: () => import("../settings/cards/SidebarManagementSettingsCard"),
-  },
-]
+const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
+  "page-navigation": () => import("./cards/PageNavigationCard"),
+  "book-information": () => import("./cards/BookInformationCard"),
+  "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
+  "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
+}
+
+export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = READER_CARD_MANIFEST.map((definition) => ({
+  id: definition.id,
+  title: definition.title,
+  defaultPanel: definition.defaultPanelId as LegacyPanelId,
+  canHide: definition.canHide,
+  defaultSidebarVisible: definition.defaultVisible,
+  load: CARD_LOADERS[definition.id],
+}))
 
 const panelById = new Map(PANEL_DEFINITIONS.map((definition) => [definition.id, definition]))
 const cardById = new Map(CARD_DEFINITIONS.map((definition) => [definition.id, definition]))
@@ -147,17 +132,4 @@ export function resolveLegacyPanels(configs: readonly LegacyPanelConfig[]): Reso
     const definition = panelById.get(config.id as LegacyPanelId)
     return { ...config, definition, unknown: !definition }
   })
-}
-
-function panel(
-  id: LegacyPanelId,
-  title: string,
-  emoji: string,
-  defaultSide: ReaderPanelDefinition["defaultSide"],
-  defaultVisible: boolean,
-  defaultOrder: number,
-  canHide = true,
-  canMove = true,
-): ReaderPanelDefinition {
-  return { id, title, emoji, defaultSide, defaultVisible, defaultOrder, canHide, canMove }
 }

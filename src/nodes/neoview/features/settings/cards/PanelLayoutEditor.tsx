@@ -29,7 +29,11 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
 
   return (
     <div className="grid gap-3" data-neoview-panel-layout-editor="true">
-      <Kanban value={columns} getItemValue={(item) => item.id} onValueChange={setColumns}>
+      <Kanban
+        value={columns}
+        getItemValue={(item) => item.id}
+        onValueChange={(next) => setColumns((current) => layoutColumnsRespectPolicy(next) ? next : current)}
+      >
         <KanbanBoard className="h-[min(28rem,calc(100vh-16rem))] min-h-72 gap-3 overflow-x-auto">
           {Object.entries(columns).map(([panelId, cards]) => (
             <KanbanColumn key={panelId} value={panelId} className="h-full w-60 shrink-0 bg-muted/35" data-panel-layout-column={panelId}>
@@ -48,8 +52,8 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
                       value={panelId}
                       onChange={(event) => setColumns((current) => movePanelLayoutCard(current, card.id, event.target.value))}
                     >
-                      <option value={HIDDEN_COLUMN}>隐藏</option>
-                      {PANEL_DEFINITIONS.map((panel) => <option key={panel.id} value={panel.id}>{panel.title}</option>)}
+                      {cardCanHide(card.id) ? <option value={HIDDEN_COLUMN}>隐藏</option> : null}
+                      {PANEL_DEFINITIONS.filter(isCardHostPanel).map((panel) => <option key={panel.id} value={panel.id}>{panel.title}</option>)}
                     </select>
                   </KanbanItem>
                 ))}
@@ -98,6 +102,7 @@ export function createPanelBoardPatch(shell: ReaderShellConfigDto, columns: Layo
   const panelsWithVisibleCards = new Set(cards.filter((card) => card.visible).map((card) => card.panelId))
   const panelIds = new Set([...Object.keys(shell.panelLayout), ...panelsWithVisibleCards])
   return {
+    expectedRevision: shell.revision ?? 0,
     board: {
       panels: [...panelIds].map((id) => {
         const current = shell.panelLayout[id]
@@ -115,6 +120,7 @@ export function createPanelBoardPatch(shell: ReaderShellConfigDto, columns: Layo
 }
 
 export function movePanelLayoutCard(columns: LayoutColumns, cardId: string, destination: string): LayoutColumns {
+  if (!cardCanMoveTo(cardId, destination)) return columns
   let moved: LayoutCardItem | undefined
   const next: LayoutColumns = {}
   for (const [panelId, cards] of Object.entries(columns)) {
@@ -127,6 +133,24 @@ export function movePanelLayoutCard(columns: LayoutColumns, cardId: string, dest
   if (!moved) return columns
   next[destination] = [...(next[destination] ?? []), moved]
   return next
+}
+
+function layoutColumnsRespectPolicy(columns: LayoutColumns): boolean {
+  return Object.entries(columns).every(([panelId, cards]) => cards.every((card) => cardCanMoveTo(card.id, panelId)))
+}
+
+function cardCanMoveTo(cardId: string, panelId: string): boolean {
+  if (panelId === HIDDEN_COLUMN) return cardCanHide(cardId)
+  const definition = PANEL_DEFINITIONS.find((panel) => panel.id === panelId)
+  return definition ? isCardHostPanel(definition) : true
+}
+
+function cardCanHide(cardId: string): boolean {
+  return CARD_DEFINITIONS.find((card) => card.id === cardId)?.canHide ?? true
+}
+
+function isCardHostPanel(panel: (typeof PANEL_DEFINITIONS)[number]): boolean {
+  return panel.acceptsCards && (panel.defaultSide === "left" || panel.defaultSide === "right")
 }
 
 function panelTitle(panelId: string): string {

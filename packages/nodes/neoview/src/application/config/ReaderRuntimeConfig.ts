@@ -2,6 +2,9 @@ import { DEFAULT_READER_LAYOUT, type PageMode } from "../../domain/frame/frame.j
 import type { TailOverflowBehavior } from "../../domain/navigation/navigation.js"
 import { DEFAULT_READER_PRESENTATION, type ReaderFitMode } from "../../domain/presentation/presentation.js"
 import type { ReaderSessionOptions } from "../reader/contracts.js"
+import { READER_CARD_MANIFEST, READER_PANEL_MANIFEST, readerCardCanMoveTo } from "./ReaderLayoutManifest.js"
+
+const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
 export interface NeoviewRuntimeConfig {
   schemaVersion: 1
@@ -78,6 +81,7 @@ export interface NeoviewCardLayoutPatch {
 }
 
 export interface NeoviewBoardLayoutPatch {
+  expectedRevision: number
   board: {
     panels: Array<{ id: string; visible: boolean; order: number; position: NeoviewPanelLayout["position"] }>
     cards: Array<{ cardId: string; panelId: string; visible: boolean; order: number }>
@@ -106,28 +110,17 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
     left: { width: 320, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
     right: { width: 280, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
   },
-  panelLayout: {
-    folder: { visible: true, order: 0, position: "left" },
-    history: { visible: true, order: 1, position: "left" },
-    bookmark: { visible: true, order: 2, position: "left" },
-    pageList: { visible: true, order: 3, position: "left" },
-    playlist: { visible: false, order: 4, position: "left" },
-    settings: { visible: true, order: 99, position: "left" },
-    info: { visible: true, order: 0, position: "right" },
-    properties: { visible: true, order: 1, position: "right" },
-    upscale: { visible: true, order: 2, position: "right" },
-    insights: { visible: true, order: 3, position: "right" },
-    control: { visible: true, order: 4, position: "right" },
-    ai: { visible: true, order: 5, position: "right" },
-    benchmark: { visible: false, order: 10, position: "right" },
-    cardwindow: { visible: false, order: 100, position: "floating" },
-  },
-  cardLayout: {
-    "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
-    "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
-    "panel-layout-settings": { panelId: "settings", visible: false, expanded: true, order: 0 },
-    "sidebar-management-settings": { panelId: "settings", visible: false, expanded: true, order: 1 },
-  },
+  panelLayout: Object.fromEntries(READER_PANEL_MANIFEST.map((panel) => [panel.id, {
+    visible: panel.defaultVisible,
+    order: panel.defaultOrder,
+    position: panel.defaultPosition,
+  }])),
+  cardLayout: Object.fromEntries(READER_CARD_MANIFEST.map((card) => [card.id, {
+    panelId: card.defaultPanelId,
+    visible: card.defaultVisible,
+    expanded: card.defaultExpanded,
+    order: card.defaultOrder,
+  }])),
 }
 
 export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig {
@@ -247,6 +240,11 @@ export function parseNeoviewCardLayoutPatch(value: unknown): {
   if (record.height === null) patch.height = null
   else if (record.height !== undefined) patch.height = boundedNumber(record.height, 50, 4_096, 50, "reader card patch.height")
   if (Object.keys(patch).length === 1) throw new Error("reader card patch must change at least one field.")
+  const manifest = READER_CARD_MANIFEST_BY_ID.get(patch.cardId)
+  if (manifest && patch.visible === false && !manifest.canHide) throw new Error(`reader card patch cannot hide card ${patch.cardId}.`)
+  if (patch.panelId && !readerCardCanMoveTo(patch.cardId, patch.panelId)) {
+    throw new Error(`reader card patch cannot place card ${patch.cardId} in panel ${patch.panelId}.`)
+  }
   const state: Record<string, unknown> = {}
   if (patch.panelId !== undefined) state.panel_id = patch.panelId
   if (patch.visible !== undefined) state.visible = patch.visible
@@ -261,7 +259,8 @@ export function parseNeoviewBoardLayoutPatch(value: unknown): {
   tomlPatch: Record<string, unknown>
 } {
   const record = requireRecord(value, "reader board patch")
-  if (Object.keys(record).some((key) => key !== "board")) throw new Error("reader board patch contains unsupported fields.")
+  if (Object.keys(record).some((key) => key !== "board" && key !== "expectedRevision")) throw new Error("reader board patch contains unsupported fields.")
+  const expectedRevision = boundedInteger(record.expectedRevision, 0, Number.MAX_SAFE_INTEGER, "reader board patch.expectedRevision")
   const board = requireRecord(record.board, "reader board patch.board")
   if (Object.keys(board).some((key) => key !== "panels" && key !== "cards")) throw new Error("reader board patch.board contains unsupported fields.")
   if (!Array.isArray(board.panels) || !Array.isArray(board.cards)) throw new Error("reader board patch requires panels and cards arrays.")
@@ -292,10 +291,22 @@ export function parseNeoviewBoardLayoutPatch(value: unknown): {
       order: boundedNumber(item.order, 0, 10_000, 0, `${cardId}.order`),
     }
   })
+  const panelById = new Map(panels.map((panel) => [panel.id, panel]))
+  for (const card of cards) {
+    const manifest = READER_CARD_MANIFEST_BY_ID.get(card.cardId)
+    if (!manifest) continue
+    if (!card.visible && !manifest.canHide) throw new Error(`reader board patch cannot hide card ${card.cardId}.`)
+    if (!card.visible) continue
+    const panel = panelById.get(card.panelId)
+    if (!panel) throw new Error(`reader board patch card ${card.cardId} references missing panel ${card.panelId}.`)
+    if (panel.position !== "left" && panel.position !== "right") {
+      throw new Error(`reader board patch card ${card.cardId} cannot be placed in a ${panel.position} panel.`)
+    }
+  }
   const panelState = Object.fromEntries(panels.map(({ id, ...state }) => [id, state]))
   const cardState = Object.fromEntries(cards.map(({ cardId, panelId, ...state }) => [cardId, { ...state, panel_id: panelId }]))
   return {
-    patch: { board: { panels, cards } },
+    patch: { expectedRevision, board: { panels, cards } },
     tomlPatch: { panels: { panel_state: panelState, card_state: cardState } },
   }
 }
@@ -431,6 +442,13 @@ function boundedNumber(value: unknown, min: number, max: number, fallback: numbe
   if (value === undefined) return fallback
   if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
     throw new Error(`${path} must be a finite number between ${min} and ${max}.`)
+  }
+  return value
+}
+
+function boundedInteger(value: unknown, min: number, max: number, path: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max) {
+    throw new Error(`${path} must be an integer between ${min} and ${max}.`)
   }
   return value
 }

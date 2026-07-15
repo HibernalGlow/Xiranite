@@ -199,10 +199,13 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await page.getByRole("button", { name: "保存边栏布局" }).click()
   const sidebarBoardResult = await sidebarBoardResponse
   expect(sidebarBoardResult.status()).toBe(200)
+  expect(sidebarBoardResult.request().postDataJSON()).toMatchObject({ expectedRevision: 0 })
   expect((await sidebarBoardResult.json() as { shell: { panelLayout: Record<string, { position: string }> } }).shell.panelLayout.history?.position).toBe("right")
   expect(boardPatchRequests).toBe(1)
   await page.getByRole("button", { name: "卡片管理" }).click()
   await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "移动页面导航到" }).locator('option[value="__hidden__"]')).toHaveCount(0)
+  await expect(page.getByRole("combobox", { name: "移动页面导航到" }).locator('option[value="cardwindow"]')).toHaveCount(0)
   const dockedSettingCard = page.locator('[data-panel-layout-column="settings"] [data-panel-layout-card="panel-layout-settings"]')
   const dockedSidebarSettingCard = page.locator('[data-panel-layout-column="settings"] [data-panel-layout-card="sidebar-management-settings"]')
   await page.getByRole("combobox", { name: "移动面板布局设置到" }).selectOption("settings")
@@ -213,7 +216,9 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
     response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH" && response.request().postData()?.includes('"board"') === true
   ))
   await page.getByRole("button", { name: "保存面板布局" }).click()
-  expect((await boardResponse).status()).toBe(200)
+  const savedBoardResponse = await boardResponse
+  expect(savedBoardResponse.status()).toBe(200)
+  expect(savedBoardResponse.request().postDataJSON()).toMatchObject({ expectedRevision: 1 })
   expect(boardPatchRequests).toBe(2)
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toHaveCount(0)
