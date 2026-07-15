@@ -11,6 +11,7 @@
  * @migration-status adapted
  */
 import { Suspense, useRef, useState } from "react"
+import { Pin, PinOff } from "lucide-react"
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
 
@@ -68,6 +69,21 @@ export function ReaderSidebar({
         onPointerCancel={cancelGesture}
       />
       <nav className={cn("flex w-11 shrink-0 flex-col items-center gap-1 py-2", side === "left" ? "border-r" : "border-l")} aria-label={`${side === "left" ? "左" : "右"}侧面板`}>
+        <button
+          type="button"
+          title={shell?.edges[side].pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
+          aria-label={shell?.edges[side].pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
+          aria-pressed={shell?.edges[side].pinned ?? false}
+          disabled={context.disabled || !onLayoutCommit}
+          className={cn(
+            "grid size-8 place-items-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            shell?.edges[side].pinned ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+          onClick={() => onLayoutCommit?.({ side, pinned: !(shell?.edges[side].pinned ?? false) })}
+        >
+          {shell?.edges[side].pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+        </button>
+        <span className="my-0.5 h-px w-6 shrink-0 bg-border" aria-hidden="true" />
         {panels.map((panel) => (
           <button
             key={panel.id}

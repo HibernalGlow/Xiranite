@@ -64,6 +64,7 @@ export interface NeoviewCardLayout {
 
 export interface NeoviewSidebarLayoutPatch {
   side: "left" | "right"
+  pinned?: boolean
   width?: number
   height?: NeoviewShellSidebarConfig["height"]
   customHeight?: number
@@ -197,12 +198,13 @@ export function parseNeoviewSidebarLayoutPatch(value: unknown): {
   tomlPatch: Record<string, unknown>
 } {
   const record = requireRecord(value, "reader shell patch")
-  const allowed = new Set(["side", "width", "height", "customHeight", "verticalAlign", "horizontalPosition"])
+  const allowed = new Set(["side", "pinned", "width", "height", "customHeight", "verticalAlign", "horizontalPosition"])
   const unknown = Object.keys(record).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader shell patch contains unsupported fields: ${unknown.join(", ")}.`)
   const side = optionalEnum(record.side, "reader shell patch.side", ["left", "right"] as const)
   if (!side) throw new Error("reader shell patch.side is required.")
   const patch: NeoviewSidebarLayoutPatch = { side }
+  if (record.pinned !== undefined) patch.pinned = optionalBoolean(record.pinned, "reader shell patch.pinned")
   if (record.width !== undefined) patch.width = boundedNumber(record.width, 200, 600, 320, "reader shell patch.width")
   if (record.height !== undefined) patch.height = sidebarHeight(record.height, "reader shell patch.height")
   if (record.customHeight !== undefined) patch.customHeight = boundedNumber(record.customHeight, 10, 100, 100, "reader shell patch.customHeight")
@@ -210,6 +212,7 @@ export function parseNeoviewSidebarLayoutPatch(value: unknown): {
   if (record.horizontalPosition !== undefined) patch.horizontalPosition = boundedNumber(record.horizontalPosition, 0, 100, 0, "reader shell patch.horizontalPosition")
   if (Object.keys(patch).length === 1) throw new Error("reader shell patch must change at least one layout field.")
   const sidePatch: Record<string, unknown> = {}
+  if (patch.pinned !== undefined) sidePatch.pinned = patch.pinned
   if (patch.width !== undefined) sidePatch.width = patch.width
   if (patch.height !== undefined) sidePatch.height = patch.height === "two-thirds" ? "2/3" : patch.height === "one-third" ? "1/3" : patch.height
   if (patch.customHeight !== undefined) sidePatch.custom_height = patch.customHeight

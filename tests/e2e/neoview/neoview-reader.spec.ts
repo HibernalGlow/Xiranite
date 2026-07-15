@@ -401,6 +401,53 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   })).status).toBe(404)
 })
 
+test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide", async ({ page }) => {
+  const startupErrors: string[] = []
+  page.on("pageerror", (error) => startupErrors.push(error.stack ?? error.message))
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.__XIRANITE_BACKEND__ = { baseUrl, token }
+  }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.waitForTimeout(1_000)
+  expect(startupErrors).toEqual([])
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+
+  await page.locator('[data-reader-edge-trigger="left"]').hover()
+  const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+  const leftEdge = page.getByRole("region", { name: "NeoView 左侧面板" })
+  await expect(leftSidebar).toBeVisible()
+
+  const pinResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"side":"left"') === true
+    && response.request().postData()?.includes('"pinned":true') === true
+  ))
+  await leftSidebar.getByRole("button", { name: "固定左侧栏" }).click()
+  expect((await pinResponse).status()).toBe(200)
+  await expect(leftEdge).toHaveAttribute("data-pinned", "true")
+  const viewport = page.viewportSize()!
+  await page.mouse.move(viewport.width - 1, viewport.height / 2)
+  await expect(leftSidebar).toBeVisible()
+
+  const unpinResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"side":"left"') === true
+    && response.request().postData()?.includes('"pinned":false') === true
+  ))
+  await leftSidebar.getByRole("button", { name: "取消固定左侧栏" }).click()
+  expect((await unpinResponse).status()).toBe(200)
+  await expect(leftSidebar).toHaveCount(0, { timeout: 1_500 })
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain("pinned = false")
+
+  await page.locator('[data-reader-edge-trigger="left"]').hover()
+  await expect(leftSidebar).toBeVisible()
+  await expect(leftEdge).toHaveAttribute("data-pinned", "false")
+  await expect(leftSidebar.getByRole("button", { name: "固定左侧栏" })).toBeVisible()
+})
+
 const CURRENT_THUMBNAIL_SCHEMA = `
   PRAGMA journal_mode = WAL;
   CREATE TABLE thumbs (key TEXT PRIMARY KEY,size INTEGER,date TEXT,ghash INTEGER,category TEXT DEFAULT 'file',value BLOB,emm_json TEXT,rating_data TEXT,ai_translation TEXT,manual_tags TEXT);

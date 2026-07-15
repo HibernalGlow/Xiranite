@@ -60,6 +60,23 @@ describe("ReaderEdgeShell", () => {
     expect(screen.getByText("cards")).toBeTruthy()
   })
 
+  it("[neoview.shell.unpin] restores auto-hide after a pinned edge is released", () => {
+    vi.useFakeTimers()
+    const view = render(
+      <ReaderEdgeShell edges={{ left: { ...slot("left", <div>cards</div>), pinned: true, initialVisible: true, hideDelayMs: 20 } }}>
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    view.rerender(
+      <ReaderEdgeShell edges={{ left: { ...slot("left", <div>cards</div>), pinned: false, initialVisible: true, hideDelayMs: 20 } }}>
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    fireEvent.pointerLeave(screen.getByRole("region", { name: "left edge" }))
+    act(() => vi.advanceTimersByTime(20))
+    expect(screen.queryByText("cards")).toBeNull()
+  })
+
   it("[neoview.shell.input-protection] does not retract while a text control owns focus", () => {
     vi.useFakeTimers()
     render(

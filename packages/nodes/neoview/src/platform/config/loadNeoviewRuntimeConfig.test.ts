@@ -154,10 +154,11 @@ describe("loadNeoviewSessionOptions", () => {
       const patched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
-        body: JSON.stringify({ side: "left", width: 438, height: "half", verticalAlign: 25 }),
+        body: JSON.stringify({ side: "left", pinned: false, width: 438, height: "half", verticalAlign: 25 }),
       }))
-      expect(await patched?.json()).toMatchObject({ shell: { sidebars: { left: { width: 438, height: "half", verticalAlign: 25 } } } })
+      expect(await patched?.json()).toMatchObject({ shell: { edges: { left: { pinned: false } }, sidebars: { left: { width: 438, height: "half", verticalAlign: 25 } } } })
       expect(await readFile(configPath, "utf8")).toContain("width = 438")
+      expect(await readFile(configPath, "utf8")).toContain("pinned = false")
       const cardPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },

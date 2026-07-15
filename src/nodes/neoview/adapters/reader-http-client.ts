@@ -55,6 +55,7 @@ export interface ReaderViewDefaultsPatch {
 
 export interface ReaderSidebarLayoutPatch {
   side: "left" | "right"
+  pinned?: boolean
   width?: number
   height?: ReaderShellConfigDto["sidebars"]["left"]["height"]
   customHeight?: number

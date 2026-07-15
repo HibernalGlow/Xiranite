@@ -26,7 +26,7 @@ describe("reader-http-client", () => {
       shell: { showDelayMs: 0, panelLayout: {}, cardLayout: {} },
       viewDefaults: { fitMode: "fit", pageMode: "single" },
     })
-    expect(await client.updateSidebarLayout({ side: "left", width: 360 })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
+    expect(await client.updateSidebarLayout({ side: "left", pinned: false, width: 360 })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateCardLayout({ cardId: "page-navigation", expanded: false })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateBoardLayout({ expectedRevision: 4, board: { panels: [], cards: [] } })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateViewDefaults({ viewDefaults: { fitMode: "fit-width" } })).toEqual({ fitMode: "fit", pageMode: "single" })
@@ -40,7 +40,7 @@ describe("reader-http-client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(11)
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/config")
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "PATCH" })
-    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ side: "left", width: 360 })
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ side: "left", pinned: false, width: 360 })
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ cardId: "page-navigation", expanded: false })
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ expectedRevision: 4, board: { panels: [], cards: [] } })
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ viewDefaults: { fitMode: "fit-width" } })

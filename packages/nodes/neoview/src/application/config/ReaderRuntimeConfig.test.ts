@@ -119,14 +119,15 @@ describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.shell-patch] validates and converts sidebar patches to TOML shape", () => {
     expect(parseNeoviewSidebarLayoutPatch({
       side: "right",
+      pinned: false,
       width: 412,
       height: "two-thirds",
       customHeight: 72,
       verticalAlign: 35,
       horizontalPosition: 18,
     })).toEqual({
-      patch: { side: "right", width: 412, height: "two-thirds", customHeight: 72, verticalAlign: 35, horizontalPosition: 18 },
-      tomlPatch: { panels: { sidebars: { right: { width: 412, height: "2/3", custom_height: 72, vertical_align: 35, horizontal_position: 18 } } } },
+      patch: { side: "right", pinned: false, width: 412, height: "two-thirds", customHeight: 72, verticalAlign: 35, horizontalPosition: 18 },
+      tomlPatch: { panels: { sidebars: { right: { pinned: false, width: 412, height: "2/3", custom_height: 72, vertical_align: 35, horizontal_position: 18 } } } },
     })
     expect(() => parseNeoviewSidebarLayoutPatch({ side: "left" })).toThrow("at least one")
     expect(() => parseNeoviewSidebarLayoutPatch({ side: "left", width: 199 })).toThrow("width")

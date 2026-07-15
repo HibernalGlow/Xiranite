@@ -8,6 +8,21 @@ import { ReaderSidebar } from "./ReaderSidebar"
 afterEach(cleanup)
 
 describe("ReaderSidebar layout gestures", () => {
+  it("[neoview.shell.sidebar-pin] exposes and commits the legacy pin state from the icon rail", () => {
+    const commit = vi.fn()
+    const view = render(<ReaderSidebar side="left" context={context()} shell={shell()} onLayoutCommit={commit} />)
+    const unpin = screen.getByRole("button", { name: "取消固定左侧栏" })
+    expect(unpin.getAttribute("aria-pressed")).toBe("true")
+    fireEvent.click(unpin)
+    expect(commit).toHaveBeenCalledWith({ side: "left", pinned: false })
+
+    const unpinned = shell()
+    unpinned.edges.left.pinned = false
+    view.rerender(<ReaderSidebar side="left" context={context()} shell={unpinned} onLayoutCommit={commit} />)
+    fireEvent.click(screen.getByRole("button", { name: "固定左侧栏" }))
+    expect(commit).toHaveBeenLastCalledWith({ side: "left", pinned: true })
+  })
+
   it("[neoview.shell.resize-performance] mutates width outside React and commits once on pointer up", () => {
     const commit = vi.fn()
     render(<ReaderSidebar side="left" context={context()} shell={shell()} onLayoutCommit={commit} />)
