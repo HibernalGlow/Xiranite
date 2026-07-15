@@ -6,6 +6,141 @@
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri/src/lib/components/panels/folderPanel",
   "statusValues": ["pending", "partial", "complete"],
   "completionRule": "Only complete when the target contract, source UI parity, persisted settings, keyboard behavior, error states, GUI tests and shared CLI/TUI application contracts are all covered. API availability alone is insufficient.",
+  "sourceUiInventory": [
+    {
+      "id": "folder-ui.shell",
+      "title": "整体结构与布局宿主",
+      "sourceEvidence": ["FolderPanel.svelte", "components/FolderStack.svelte", "components/FolderToolbar/FolderToolbar.svelte"],
+      "acceptanceItems": ["FolderPanel 宿主", "FolderTabBar 标签栏", "BreadcrumbBar 面包屑/路径输入", "FolderToolbar 工具栏", "FolderStack 分层内容区", "FolderTree 外置树", "InlineTreeList 内联树", "SelectionBar 多选栏", "MigrationBar 迁移栏", "PenetrateSettingsBar 穿透设置栏", "FavoriteTagPanel 收藏标签面板", "FolderContextMenu 项目右键菜单"],
+      "mappedChecklistIds": ["folder.nav.stack", "folder.tabs.layout", "folder.ui.parity", "folder.ui.responsive"]
+    },
+    {
+      "id": "folder-ui.navigation",
+      "title": "导航工具栏",
+      "sourceEvidence": ["components/FolderToolbar/NavigationButtons.svelte"],
+      "acceptanceItems": ["主页", "右键把当前目录设为主页", "后退 Alt+Left", "前进 Alt+Right", "返回上级 Alt+Up", "刷新普通目录", "重新加载历史", "重新加载书签", "历史/书签选择时同步文件夹开关", "清理失效记录", "高级清理选项", "一键清空历史/书签", "清理结果数量反馈", "清理中禁用状态"],
+      "mappedChecklistIds": ["folder.nav.history", "folder.nav.parent", "folder.nav.home-refresh", "folder.virtual.cleanup"]
+    },
+    {
+      "id": "folder-ui.breadcrumb",
+      "title": "面包屑与路径编辑",
+      "sourceEvidence": ["components/BreadcrumbBar.svelte"],
+      "acceptanceItems": ["根目录/盘符段", "逐级路径段跳转", "被折叠路径段的下拉菜单", "当前段状态", "进入路径编辑", "Enter 确认路径", "Escape 取消编辑", "blur 提交/取消规则", "无效路径错误反馈", "复制当前路径", "从面包屑新建标签", "水平/垂直布局下等价操作"],
+      "mappedChecklistIds": ["folder.nav.path", "folder.tabs.lifecycle", "folder.ui.responsive", "folder.ui.states"]
+    },
+    {
+      "id": "folder-ui.tabs",
+      "title": "文件夹标签栏",
+      "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/tabManagement.svelte.ts"],
+      "acceptanceItems": ["创建标签", "切换标签", "关闭标签", "复制标签及完整浏览状态", "复制标签路径", "固定/取消固定标签", "滚动到当前焦点项", "关闭其他标签", "关闭左侧标签", "关闭右侧标签", "恢复最近关闭标签", "最近关闭最多 10 项", "固定标签关闭保护", "活动标签访问历史", "关闭活动标签后选择最近访问项", "标签栏 none/top/left/right/bottom 布局", "标签栏宽度", "标签溢出与窄栏行为"],
+      "mappedChecklistIds": ["folder.tabs.lifecycle", "folder.tabs.bulk-close", "folder.tabs.pin-duplicate", "folder.tabs.reopen", "folder.tabs.navigation-history", "folder.tabs.layout"]
+    },
+    {
+      "id": "folder-ui.views",
+      "title": "视图模式与尺寸",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderListItem.svelte", "components/FolderToolbar/ViewPanel.svelte", "components/FolderToolbar/ViewModeButtons.svelte", "components/FolderToolbar/tabs/DisplayTab.svelte"],
+      "acceptanceItems": ["list 列表视图", "content 内容视图", "banner 横幅视图", "thumbnail 缩略图视图", "thumbnail 紧凑模式", "目标 details 详细信息视图", "缩略图宽度 10-90% 连续调节", "缩略图像素反馈", "横幅宽度 20-100% 调节", "横幅列数反馈", "响应式列数", "模式切换保持选中项与滚动锚点", "文件夹/归档/图像/视频类型图标", "名称、路径与扩展信息", "评分、收藏标签与普通标签徽标", "缺图占位与错误态"],
+      "mappedChecklistIds": ["folder.view.modes", "folder.view.details", "folder.view.thumbnail-size", "folder.view.banner-width", "folder.ui.parity", "folder.ui.states"]
+    },
+    {
+      "id": "folder-ui.details",
+      "title": "详细信息表格",
+      "sourceEvidence": ["components/FolderListItem.svelte", "stores/folderPanelStore/types.ts"],
+      "acceptanceItems": ["名称列", "路径列", "类型列", "扩展名列", "大小列", "修改时间列", "图像尺寸列", "页数列", "评分列", "标签列", "列显隐", "名称列不可隐藏", "列拖拽排序", "列左固定", "列右固定", "列取消固定", "列宽调整与持久化", "截断文本 tooltip", "排序/过滤后的稳定行 ID", "未加载稀疏行占位", "10K/100K 远端虚拟滚动", "滚动到选中项"],
+      "mappedChecklistIds": ["folder.view.details", "folder.view.virtualization", "folder.select.restore", "folder.performance.budgets"]
+    },
+    {
+      "id": "folder-ui.preview",
+      "title": "封面、Mosaic 与 Hover 预览",
+      "sourceEvidence": ["components/FolderListItem.svelte", "components/FolderToolbar/tabs/DisplayTab.svelte"],
+      "acceptanceItems": ["文件单封面", "文件夹单封面", "文件夹 4 图 2x2", "文件夹 9 图 3x3", "文件夹 16 图 4x4", "多图预览开关", "稳定选图顺序", "可见项批量 demand", "离屏取消", "Hover 预览开关", "Hover 200ms 延迟", "Hover 500ms 延迟", "Hover 800ms 延迟", "Hover 1200ms 延迟", "离开/滚动/切标签取消 Hover", "预览加载/缺图/失败状态", "单个可见项最多一个 img", "Opaque URL 且不暴露路径"],
+      "mappedChecklistIds": ["folder.view.hover-preview", "folder.view.folder-mosaic", "folder.view.thumbnail-pipeline", "folder.view.virtualization"]
+    },
+    {
+      "id": "folder-ui.sort",
+      "title": "完整排序面板",
+      "sourceEvidence": ["components/FolderToolbar/SortPanel.svelte", "components/FolderStack/sortingUtils.ts", "stores/folderTabStore/sortingFiltering.svelte.ts"],
+      "acceptanceItems": ["name 名称排序", "path 路径排序", "date 日期/虚拟源添加时间排序", "size 文件与目录大小排序", "type 类型排序", "random 稳定随机排序", "rating EMM 评分排序", "collectTagCount 收藏标签数量排序", "升序", "降序", "随机排序隐藏无意义方向", "目录优先", "当前文件夹临时规则", "标签默认排序", "全局默认排序", "文件夹排序记忆", "清空文件夹排序记忆", "显示当前命中排序来源", "临时 > 记忆 > 标签默认 > 全局默认", "字段相等时名称/稳定 ID 兜底", "虚拟源独立日期语义"],
+      "mappedChecklistIds": ["folder.sort.fields", "folder.sort.name", "folder.sort.directories-first", "folder.sort.folder-size", "folder.sort.random", "folder.sort.emm", "folder.sort.precedence", "folder.sort.memory", "folder.sort.virtual"]
+    },
+    {
+      "id": "folder-ui.selection",
+      "title": "选择、焦点与键盘",
+      "sourceEvidence": ["components/SelectionBar.svelte", "components/FolderList.svelte", "components/FolderListItem.svelte", "utils/keyboardHandler.ts", "stores/chainSelectStore.svelte.ts"],
+      "acceptanceItems": ["单击单选", "Ctrl/Meta toggle", "Shift 范围选择", "链式选择 anchor", "焦点项与 selected set 分离", "选择全部", "反转选择", "取消全部选择", "显示已选数量", "多选打开/浏览", "批量复制", "批量剪切", "批量删除", "退出多选模式", "Arrow 四向导航", "Home/End", "PageUp/PageDown", "Enter 打开", "Backspace 后退", "F5 刷新", "Delete 删除", "Ctrl/Cmd+A", "Ctrl/Cmd+F", "Escape 取消", "输入框/菜单/IME 键盘排除", "虚拟化卸载后身份不丢失", "前进/后退/上级/切标签恢复焦点、选择和滚动"],
+      "mappedChecklistIds": ["folder.select.basic", "folder.select.range", "folder.select.bulk", "folder.select.restore", "folder.keyboard.navigation", "folder.keyboard.commands"]
+    },
+    {
+      "id": "folder-ui.search-filter",
+      "title": "搜索、标签与类型筛选",
+      "sourceEvidence": ["components/SearchResultList.svelte", "components/AdvancedSearchPanel.svelte", "components/FavoriteTagPanel.svelte", "components/FolderToolbar/TypeFilterBar.svelte", "stores/folderTabStore/sortingFiltering.svelte.ts"],
+      "acceptanceItems": ["当前目录名称搜索", "路径搜索开关", "包含子目录搜索", "流式递归搜索", "搜索加载/空/错误态", "搜索历史", "聚焦显示搜索历史开关", "清除搜索", "高级搜索面板", "EMM 标签搜索", "收藏标签搜索", "随机标签推荐", "标签面板固定/取消固定", "全部类型", "压缩包类型", "文件夹类型", "视频类型", "类型筛选栏展开/收起", "搜索结果继续虚拟化", "取消过期查询"],
+      "mappedChecklistIds": ["folder.search.current", "folder.search.recursive", "folder.search.emm-tags", "folder.filter.type"]
+    },
+    {
+      "id": "folder-ui.tree",
+      "title": "文件树与 FolderStack",
+      "sourceEvidence": ["components/FolderTree.svelte", "components/InlineTreeList.svelte", "components/FolderStack.svelte", "components/FolderToolbar/TreePanel.svelte", "utils/directoryTreeCache.ts"],
+      "acceptanceItems": ["文件树显示/隐藏", "树节点惰性展开", "树节点折叠", "活动路径跟随", "树位置 top/left/right/bottom", "树尺寸拖动", "树 pin/取消 pin", "外置树模式", "主视图内联树模式", "父/当前/子 FolderStack 层", "每层独立滚动与选择", "刷新树", "清理树缓存", "排除当前目录", "取消排除", "活动根增量监听", "卸载时 unsubscribe"],
+      "mappedChecklistIds": ["folder.nav.stack", "folder.tree.panel", "folder.tree.layout-pin", "folder.tree.inline", "folder.tree.cache", "folder.arch.watch"]
+    },
+    {
+      "id": "folder-ui.virtual-sources",
+      "title": "书签、历史和虚拟搜索源",
+      "sourceEvidence": ["utils/virtualPathLoader.ts", "components/FolderToolbar/NavigationButtons.svelte", "components/FolderToolbar/TypeFilterBar.svelte"],
+      "acceptanceItems": ["virtual://bookmark", "virtual://history", "virtual://search", "历史访问时间语义", "书签创建时间语义", "虚拟源独立排序/视图", "点击历史同步文件夹", "点击书签同步文件夹", "清理失效记录", "高级清理筛选", "清空全部二次确认", "按 archive/folder/video 筛选", "刷新虚拟源", "失效源稳定降级"],
+      "mappedChecklistIds": ["folder.sort.virtual", "folder.virtual.sources", "folder.virtual.cleanup"]
+    },
+    {
+      "id": "folder-ui.file-actions",
+      "title": "文件与目录操作",
+      "sourceEvidence": ["components/FolderContextMenu.svelte", "components/SelectionBar.svelte"],
+      "acceptanceItems": ["浏览目录", "在新标签打开目录", "作为书籍打开", "打开文件", "打开所在文件夹", "系统默认软件打开", "资源管理器定位", "复制", "剪切", "粘贴", "复制路径", "复制名称", "重命名", "回收站删除", "永久删除", "批量删除", "删除确认", "删除进度", "撤销上一次删除", "添加书签", "移除书签", "按项目类型/选择数/剪贴板状态禁用动作", "成功 Toast", "错误 Toast", "部分失败结果"],
+      "mappedChecklistIds": ["folder.op.open", "folder.op.system", "folder.op.clipboard", "folder.op.copy-metadata", "folder.op.rename", "folder.op.delete", "folder.op.undo-delete", "folder.op.bookmark", "folder.op.context-menu"]
+    },
+    {
+      "id": "folder-ui.thumbnail-actions",
+      "title": "缩略图维护快捷操作",
+      "sourceEvidence": ["components/FolderToolbar/tabs/ActionTab.svelte"],
+      "acceptanceItems": ["递归预热当前目录", "显示预热当前项/完成数/总数", "取消预热", "重载当前目录全部缩略图", "显示重载进度", "重载选中项缩略图", "空目录反馈", "未选择反馈", "重载时禁用重复操作", "刷新统一缩略图缓存", "Card 关闭取消后台任务"],
+      "mappedChecklistIds": ["folder.op.thumbnail", "folder.arch.dispose", "folder.view.thumbnail-pipeline"]
+    },
+    {
+      "id": "folder-ui.emm",
+      "title": "EMM 信息与编辑",
+      "sourceEvidence": ["components/FolderListItem.svelte", "components/FavoriteTagPanel.svelte", "components/FolderToolbar/tabs/OtherTab.svelte"],
+      "acceptanceItems": ["批量读取评分", "批量读取收藏标签数量", "显示 EMM 标签", "显示 manual 标签", "显示 AI 标签", "标签数量/截断/tooltip 规则", "默认评分 0-5 且步进 0.1", "默认评分快捷值 3.5/4.0/4.5/5.0", "编辑评分", "编辑/添加/移除标签", "收藏标签快捷应用", "EMM 缺库/缺列降级", "同步中状态", "数据库错误状态", "EMM 排序 hydration 保持选择身份"],
+      "mappedChecklistIds": ["folder.sort.emm", "folder.search.emm-tags", "folder.emm.metadata", "folder.emm.display", "folder.emm.edit"]
+    },
+    {
+      "id": "folder-ui.penetration",
+      "title": "穿透与递归显示",
+      "sourceEvidence": ["components/PenetrateSettingsBar.svelte", "components/FolderToolbar/ActionButtons.svelte"],
+      "acceptanceItems": ["穿透模式开关", "穿透设置栏", "最大深度 1/2/3/5/10/无限", "内部文件 none/penetrate/always", "纯媒体文件夹识别", "single/all 文件夹范围", "在新标签打开模式", "递归显示快捷开关", "循环/过深保护", "取消旧穿透任务", "路径身份稳定"],
+      "mappedChecklistIds": ["folder.penetrate.mode", "folder.penetrate.depth", "folder.penetrate.internal-files"]
+    },
+    {
+      "id": "folder-ui.migration",
+      "title": "迁移栏",
+      "sourceEvidence": ["components/MigrationBar.svelte"],
+      "acceptanceItems": ["迁移栏显示/隐藏", "迁移目标列表", "新增目标名称", "新增目标路径", "编辑目标", "删除目标", "选择目标", "把选中项目加入迁移", "迁移队列", "迁移进度", "取消迁移", "冲突处理", "成功/失败/部分完成状态", "目标路径失效反馈", "迁移完成刷新目录"],
+      "mappedChecklistIds": ["folder.migration.bar", "folder.ui.states"]
+    },
+    {
+      "id": "folder-ui.more-settings",
+      "title": "更多设置与空白区行为",
+      "sourceEvidence": ["components/FolderToolbar/MoreSettingsTabs.svelte", "components/FolderToolbar/tabs/ActionTab.svelte", "components/FolderToolbar/tabs/DisplayTab.svelte", "components/FolderToolbar/tabs/OtherTab.svelte"],
+      "acceptanceItems": ["快捷操作/显示设置/其他 三页", "显示当前文件数", "工具栏 tooltip 开关", "单击空白 none/goUp/goBack", "双击空白 none/goUp/goBack", "列表底部返回按钮显示/隐藏", "清除当前标签导航历史", "显示/隐藏搜索栏", "显示/隐藏迁移栏", "显示/隐藏随机标签栏", "全部设置持久化", "恢复默认值", "旧 localStorage 设置导入一次", "未知未来配置无损保留"],
+      "mappedChecklistIds": ["folder.nav.blank-action", "folder.nav.bottom-return", "folder.settings.persistence", "folder.ui.parity"]
+    },
+    {
+      "id": "folder-ui.states-performance",
+      "title": "状态、生命周期与性能门禁",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderStack/FolderDataLoader.ts", "stores/folderPanelStore/core.svelte.ts", "utils/directoryTreeCache.ts"],
+      "acceptanceItems": ["初始空态", "目录为空", "加载首批", "加载更多", "权限拒绝", "路径不存在", "目录变化失效", "单项 metadata 失败", "缩略图失败", "可重试错误", "焦点/hover/selected/active/disabled 视觉状态", "桌面 Card 截图", "窄 Card 截图", "独立 Card 窗口截图", "10K 目录 DOM/Heap 门禁", "100K 目录 DOM/Heap 门禁", "前进/后退恢复定位延迟门禁", "搜索取消延迟门禁", "缩略图并发与字节预算", "折叠停止后台工作", "关闭标签释放会话", "关闭 Card 释放 watcher/Worker/cache lease", "普通 Reader 未打开文件浏览器时零常驻任务"],
+      "mappedChecklistIds": ["folder.arch.session", "folder.arch.page", "folder.arch.dispose", "folder.view.virtualization", "folder.ui.states", "folder.ui.accessibility", "folder.performance.budgets"]
+    }
+  ],
   "items": [
     {
       "id": "folder.arch.session",

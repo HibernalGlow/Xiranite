@@ -15,6 +15,14 @@ interface ChecklistItem {
   notes: string
 }
 
+interface SourceUiInventoryGroup {
+  id: string
+  title: string
+  sourceEvidence: string[]
+  acceptanceItems: string[]
+  mappedChecklistIds: string[]
+}
+
 interface CardChecklist {
   schemaVersion: 1
   featureId: string
@@ -22,6 +30,7 @@ interface CardChecklist {
   sourceRoot: string
   statusValues: ChecklistStatus[]
   completionRule: string
+  sourceUiInventory: SourceUiInventoryGroup[]
   items: ChecklistItem[]
 }
 
@@ -82,6 +91,7 @@ const sourceFiles = new Set([
   ...componentInventory.components.map((entry) => entry.file),
 ])
 const ids = new Set<string>()
+const inventoryGroupIds = new Set<string>()
 const allowedStatuses = new Set(checklist.statusValues)
 const allowedSurfaces = new Set(["GUI", "CLI", "TUI"])
 
@@ -114,6 +124,21 @@ for (const item of checklist.items) {
   }
 }
 
+for (const group of checklist.sourceUiInventory) {
+  if (inventoryGroupIds.has(group.id)) errors.push(`duplicate source UI inventory group ${group.id}`)
+  inventoryGroupIds.add(group.id)
+  if (!group.id.trim() || !group.title.trim()) errors.push(`${group.id || "<missing id>"} has blank source UI inventory identity`)
+  if (!group.sourceEvidence.length) errors.push(`${group.id} has no source UI evidence`)
+  if (!group.acceptanceItems.length || group.acceptanceItems.some((item) => !item.trim())) errors.push(`${group.id} has blank source UI acceptance items`)
+  if (!group.mappedChecklistIds.length) errors.push(`${group.id} has no checklist mapping`)
+  for (const evidence of group.sourceEvidence) {
+    if (!sourceFiles.has(`${sourcePrefix}${evidence}`)) errors.push(`${group.id} references source missing from frozen inventory: ${evidence}`)
+  }
+  for (const itemId of group.mappedChecklistIds) {
+    if (!ids.has(itemId)) errors.push(`${group.id} maps to unknown checklist item ${itemId}`)
+  }
+}
+
 const legacyCard = cardMatrix.cards.find((card) => card.legacyId === checklist.legacyCardId)
 if (!legacyCard) errors.push(`legacy card ${checklist.legacyCardId} is missing from card matrix`)
 const incomplete = checklist.items.filter((item) => item.status !== "complete")
@@ -133,6 +158,8 @@ console.log(JSON.stringify({
   byStatus: counts(checklist.items.map((item) => item.status)),
   byCategory: counts(checklist.items.map((item) => item.category)),
   acceptanceDimensions: contract.requiredDimensions.length,
+  sourceUiInventoryGroups: checklist.sourceUiInventory.length,
+  sourceUiInventoryItems: checklist.sourceUiInventory.reduce((total, group) => total + group.acceptanceItems.length, 0),
   functionalScopes: functionalScopes.cards.length,
   cardSourceComponents: cardMatrix.cards.filter((card) => card.sourceDisposition === "component").length,
   registryOnlyCards: cardMatrix.cards.filter((card) => card.sourceDisposition === "registry-only").map((card) => card.legacyId),

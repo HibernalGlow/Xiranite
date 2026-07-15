@@ -14,6 +14,432 @@
 
 共 74 项：`partial=29`，`pending=45`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
+### 旧版源码 UI/控件库存（19 组，325 项）
+
+这里逐项冻结原版可见控件、选项值、字段和状态。实现不能只满足下方 74 个能力域；本库存中的每一项也必须保留，或记录明确的替代/偏离决策。
+
+#### `folder-ui.shell` 整体结构与布局宿主
+
+- 源码：`FolderPanel.svelte`、`components/FolderStack.svelte`、`components/FolderToolbar/FolderToolbar.svelte`
+- 映射：`folder.nav.stack`、`folder.tabs.layout`、`folder.ui.parity`、`folder.ui.responsive`
+- [ ] FolderPanel 宿主
+- [ ] FolderTabBar 标签栏
+- [ ] BreadcrumbBar 面包屑/路径输入
+- [ ] FolderToolbar 工具栏
+- [ ] FolderStack 分层内容区
+- [ ] FolderTree 外置树
+- [ ] InlineTreeList 内联树
+- [ ] SelectionBar 多选栏
+- [ ] MigrationBar 迁移栏
+- [ ] PenetrateSettingsBar 穿透设置栏
+- [ ] FavoriteTagPanel 收藏标签面板
+- [ ] FolderContextMenu 项目右键菜单
+
+#### `folder-ui.navigation` 导航工具栏
+
+- 源码：`components/FolderToolbar/NavigationButtons.svelte`
+- 映射：`folder.nav.history`、`folder.nav.parent`、`folder.nav.home-refresh`、`folder.virtual.cleanup`
+- [ ] 主页
+- [ ] 右键把当前目录设为主页
+- [ ] 后退 Alt+Left
+- [ ] 前进 Alt+Right
+- [ ] 返回上级 Alt+Up
+- [ ] 刷新普通目录
+- [ ] 重新加载历史
+- [ ] 重新加载书签
+- [ ] 历史/书签选择时同步文件夹开关
+- [ ] 清理失效记录
+- [ ] 高级清理选项
+- [ ] 一键清空历史/书签
+- [ ] 清理结果数量反馈
+- [ ] 清理中禁用状态
+
+#### `folder-ui.breadcrumb` 面包屑与路径编辑
+
+- 源码：`components/BreadcrumbBar.svelte`
+- 映射：`folder.nav.path`、`folder.tabs.lifecycle`、`folder.ui.responsive`、`folder.ui.states`
+- [ ] 根目录/盘符段
+- [ ] 逐级路径段跳转
+- [ ] 被折叠路径段的下拉菜单
+- [ ] 当前段状态
+- [ ] 进入路径编辑
+- [ ] Enter 确认路径
+- [ ] Escape 取消编辑
+- [ ] blur 提交/取消规则
+- [ ] 无效路径错误反馈
+- [ ] 复制当前路径
+- [ ] 从面包屑新建标签
+- [ ] 水平/垂直布局下等价操作
+
+#### `folder-ui.tabs` 文件夹标签栏
+
+- 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
+- 映射：`folder.tabs.lifecycle`、`folder.tabs.bulk-close`、`folder.tabs.pin-duplicate`、`folder.tabs.reopen`、`folder.tabs.navigation-history`、`folder.tabs.layout`
+- [ ] 创建标签
+- [ ] 切换标签
+- [ ] 关闭标签
+- [ ] 复制标签及完整浏览状态
+- [ ] 复制标签路径
+- [ ] 固定/取消固定标签
+- [ ] 滚动到当前焦点项
+- [ ] 关闭其他标签
+- [ ] 关闭左侧标签
+- [ ] 关闭右侧标签
+- [ ] 恢复最近关闭标签
+- [ ] 最近关闭最多 10 项
+- [ ] 固定标签关闭保护
+- [ ] 活动标签访问历史
+- [ ] 关闭活动标签后选择最近访问项
+- [ ] 标签栏 none/top/left/right/bottom 布局
+- [ ] 标签栏宽度
+- [ ] 标签溢出与窄栏行为
+
+#### `folder-ui.views` 视图模式与尺寸
+
+- 源码：`components/FolderList.svelte`、`components/FolderListItem.svelte`、`components/FolderToolbar/ViewPanel.svelte`、`components/FolderToolbar/ViewModeButtons.svelte`、`components/FolderToolbar/tabs/DisplayTab.svelte`
+- 映射：`folder.view.modes`、`folder.view.details`、`folder.view.thumbnail-size`、`folder.view.banner-width`、`folder.ui.parity`、`folder.ui.states`
+- [ ] list 列表视图
+- [ ] content 内容视图
+- [ ] banner 横幅视图
+- [ ] thumbnail 缩略图视图
+- [ ] thumbnail 紧凑模式
+- [ ] 目标 details 详细信息视图
+- [ ] 缩略图宽度 10-90% 连续调节
+- [ ] 缩略图像素反馈
+- [ ] 横幅宽度 20-100% 调节
+- [ ] 横幅列数反馈
+- [ ] 响应式列数
+- [ ] 模式切换保持选中项与滚动锚点
+- [ ] 文件夹/归档/图像/视频类型图标
+- [ ] 名称、路径与扩展信息
+- [ ] 评分、收藏标签与普通标签徽标
+- [ ] 缺图占位与错误态
+
+#### `folder-ui.details` 详细信息表格
+
+- 源码：`components/FolderListItem.svelte`、`stores/folderPanelStore/types.ts`
+- 映射：`folder.view.details`、`folder.view.virtualization`、`folder.select.restore`、`folder.performance.budgets`
+- [ ] 名称列
+- [ ] 路径列
+- [ ] 类型列
+- [ ] 扩展名列
+- [ ] 大小列
+- [ ] 修改时间列
+- [ ] 图像尺寸列
+- [ ] 页数列
+- [ ] 评分列
+- [ ] 标签列
+- [ ] 列显隐
+- [ ] 名称列不可隐藏
+- [ ] 列拖拽排序
+- [ ] 列左固定
+- [ ] 列右固定
+- [ ] 列取消固定
+- [ ] 列宽调整与持久化
+- [ ] 截断文本 tooltip
+- [ ] 排序/过滤后的稳定行 ID
+- [ ] 未加载稀疏行占位
+- [ ] 10K/100K 远端虚拟滚动
+- [ ] 滚动到选中项
+
+#### `folder-ui.preview` 封面、Mosaic 与 Hover 预览
+
+- 源码：`components/FolderListItem.svelte`、`components/FolderToolbar/tabs/DisplayTab.svelte`
+- 映射：`folder.view.hover-preview`、`folder.view.folder-mosaic`、`folder.view.thumbnail-pipeline`、`folder.view.virtualization`
+- [ ] 文件单封面
+- [ ] 文件夹单封面
+- [ ] 文件夹 4 图 2x2
+- [ ] 文件夹 9 图 3x3
+- [ ] 文件夹 16 图 4x4
+- [ ] 多图预览开关
+- [ ] 稳定选图顺序
+- [ ] 可见项批量 demand
+- [ ] 离屏取消
+- [ ] Hover 预览开关
+- [ ] Hover 200ms 延迟
+- [ ] Hover 500ms 延迟
+- [ ] Hover 800ms 延迟
+- [ ] Hover 1200ms 延迟
+- [ ] 离开/滚动/切标签取消 Hover
+- [ ] 预览加载/缺图/失败状态
+- [ ] 单个可见项最多一个 img
+- [ ] Opaque URL 且不暴露路径
+
+#### `folder-ui.sort` 完整排序面板
+
+- 源码：`components/FolderToolbar/SortPanel.svelte`、`components/FolderStack/sortingUtils.ts`、`stores/folderTabStore/sortingFiltering.svelte.ts`
+- 映射：`folder.sort.fields`、`folder.sort.name`、`folder.sort.directories-first`、`folder.sort.folder-size`、`folder.sort.random`、`folder.sort.emm`、`folder.sort.precedence`、`folder.sort.memory`、`folder.sort.virtual`
+- [ ] name 名称排序
+- [ ] path 路径排序
+- [ ] date 日期/虚拟源添加时间排序
+- [ ] size 文件与目录大小排序
+- [ ] type 类型排序
+- [ ] random 稳定随机排序
+- [ ] rating EMM 评分排序
+- [ ] collectTagCount 收藏标签数量排序
+- [ ] 升序
+- [ ] 降序
+- [ ] 随机排序隐藏无意义方向
+- [ ] 目录优先
+- [ ] 当前文件夹临时规则
+- [ ] 标签默认排序
+- [ ] 全局默认排序
+- [ ] 文件夹排序记忆
+- [ ] 清空文件夹排序记忆
+- [ ] 显示当前命中排序来源
+- [ ] 临时 > 记忆 > 标签默认 > 全局默认
+- [ ] 字段相等时名称/稳定 ID 兜底
+- [ ] 虚拟源独立日期语义
+
+#### `folder-ui.selection` 选择、焦点与键盘
+
+- 源码：`components/SelectionBar.svelte`、`components/FolderList.svelte`、`components/FolderListItem.svelte`、`utils/keyboardHandler.ts`、`stores/chainSelectStore.svelte.ts`
+- 映射：`folder.select.basic`、`folder.select.range`、`folder.select.bulk`、`folder.select.restore`、`folder.keyboard.navigation`、`folder.keyboard.commands`
+- [ ] 单击单选
+- [ ] Ctrl/Meta toggle
+- [ ] Shift 范围选择
+- [ ] 链式选择 anchor
+- [ ] 焦点项与 selected set 分离
+- [ ] 选择全部
+- [ ] 反转选择
+- [ ] 取消全部选择
+- [ ] 显示已选数量
+- [ ] 多选打开/浏览
+- [ ] 批量复制
+- [ ] 批量剪切
+- [ ] 批量删除
+- [ ] 退出多选模式
+- [ ] Arrow 四向导航
+- [ ] Home/End
+- [ ] PageUp/PageDown
+- [ ] Enter 打开
+- [ ] Backspace 后退
+- [ ] F5 刷新
+- [ ] Delete 删除
+- [ ] Ctrl/Cmd+A
+- [ ] Ctrl/Cmd+F
+- [ ] Escape 取消
+- [ ] 输入框/菜单/IME 键盘排除
+- [ ] 虚拟化卸载后身份不丢失
+- [ ] 前进/后退/上级/切标签恢复焦点、选择和滚动
+
+#### `folder-ui.search-filter` 搜索、标签与类型筛选
+
+- 源码：`components/SearchResultList.svelte`、`components/AdvancedSearchPanel.svelte`、`components/FavoriteTagPanel.svelte`、`components/FolderToolbar/TypeFilterBar.svelte`、`stores/folderTabStore/sortingFiltering.svelte.ts`
+- 映射：`folder.search.current`、`folder.search.recursive`、`folder.search.emm-tags`、`folder.filter.type`
+- [ ] 当前目录名称搜索
+- [ ] 路径搜索开关
+- [ ] 包含子目录搜索
+- [ ] 流式递归搜索
+- [ ] 搜索加载/空/错误态
+- [ ] 搜索历史
+- [ ] 聚焦显示搜索历史开关
+- [ ] 清除搜索
+- [ ] 高级搜索面板
+- [ ] EMM 标签搜索
+- [ ] 收藏标签搜索
+- [ ] 随机标签推荐
+- [ ] 标签面板固定/取消固定
+- [ ] 全部类型
+- [ ] 压缩包类型
+- [ ] 文件夹类型
+- [ ] 视频类型
+- [ ] 类型筛选栏展开/收起
+- [ ] 搜索结果继续虚拟化
+- [ ] 取消过期查询
+
+#### `folder-ui.tree` 文件树与 FolderStack
+
+- 源码：`components/FolderTree.svelte`、`components/InlineTreeList.svelte`、`components/FolderStack.svelte`、`components/FolderToolbar/TreePanel.svelte`、`utils/directoryTreeCache.ts`
+- 映射：`folder.nav.stack`、`folder.tree.panel`、`folder.tree.layout-pin`、`folder.tree.inline`、`folder.tree.cache`、`folder.arch.watch`
+- [ ] 文件树显示/隐藏
+- [ ] 树节点惰性展开
+- [ ] 树节点折叠
+- [ ] 活动路径跟随
+- [ ] 树位置 top/left/right/bottom
+- [ ] 树尺寸拖动
+- [ ] 树 pin/取消 pin
+- [ ] 外置树模式
+- [ ] 主视图内联树模式
+- [ ] 父/当前/子 FolderStack 层
+- [ ] 每层独立滚动与选择
+- [ ] 刷新树
+- [ ] 清理树缓存
+- [ ] 排除当前目录
+- [ ] 取消排除
+- [ ] 活动根增量监听
+- [ ] 卸载时 unsubscribe
+
+#### `folder-ui.virtual-sources` 书签、历史和虚拟搜索源
+
+- 源码：`utils/virtualPathLoader.ts`、`components/FolderToolbar/NavigationButtons.svelte`、`components/FolderToolbar/TypeFilterBar.svelte`
+- 映射：`folder.sort.virtual`、`folder.virtual.sources`、`folder.virtual.cleanup`
+- [ ] virtual://bookmark
+- [ ] virtual://history
+- [ ] virtual://search
+- [ ] 历史访问时间语义
+- [ ] 书签创建时间语义
+- [ ] 虚拟源独立排序/视图
+- [ ] 点击历史同步文件夹
+- [ ] 点击书签同步文件夹
+- [ ] 清理失效记录
+- [ ] 高级清理筛选
+- [ ] 清空全部二次确认
+- [ ] 按 archive/folder/video 筛选
+- [ ] 刷新虚拟源
+- [ ] 失效源稳定降级
+
+#### `folder-ui.file-actions` 文件与目录操作
+
+- 源码：`components/FolderContextMenu.svelte`、`components/SelectionBar.svelte`
+- 映射：`folder.op.open`、`folder.op.system`、`folder.op.clipboard`、`folder.op.copy-metadata`、`folder.op.rename`、`folder.op.delete`、`folder.op.undo-delete`、`folder.op.bookmark`、`folder.op.context-menu`
+- [ ] 浏览目录
+- [ ] 在新标签打开目录
+- [ ] 作为书籍打开
+- [ ] 打开文件
+- [ ] 打开所在文件夹
+- [ ] 系统默认软件打开
+- [ ] 资源管理器定位
+- [ ] 复制
+- [ ] 剪切
+- [ ] 粘贴
+- [ ] 复制路径
+- [ ] 复制名称
+- [ ] 重命名
+- [ ] 回收站删除
+- [ ] 永久删除
+- [ ] 批量删除
+- [ ] 删除确认
+- [ ] 删除进度
+- [ ] 撤销上一次删除
+- [ ] 添加书签
+- [ ] 移除书签
+- [ ] 按项目类型/选择数/剪贴板状态禁用动作
+- [ ] 成功 Toast
+- [ ] 错误 Toast
+- [ ] 部分失败结果
+
+#### `folder-ui.thumbnail-actions` 缩略图维护快捷操作
+
+- 源码：`components/FolderToolbar/tabs/ActionTab.svelte`
+- 映射：`folder.op.thumbnail`、`folder.arch.dispose`、`folder.view.thumbnail-pipeline`
+- [ ] 递归预热当前目录
+- [ ] 显示预热当前项/完成数/总数
+- [ ] 取消预热
+- [ ] 重载当前目录全部缩略图
+- [ ] 显示重载进度
+- [ ] 重载选中项缩略图
+- [ ] 空目录反馈
+- [ ] 未选择反馈
+- [ ] 重载时禁用重复操作
+- [ ] 刷新统一缩略图缓存
+- [ ] Card 关闭取消后台任务
+
+#### `folder-ui.emm` EMM 信息与编辑
+
+- 源码：`components/FolderListItem.svelte`、`components/FavoriteTagPanel.svelte`、`components/FolderToolbar/tabs/OtherTab.svelte`
+- 映射：`folder.sort.emm`、`folder.search.emm-tags`、`folder.emm.metadata`、`folder.emm.display`、`folder.emm.edit`
+- [ ] 批量读取评分
+- [ ] 批量读取收藏标签数量
+- [ ] 显示 EMM 标签
+- [ ] 显示 manual 标签
+- [ ] 显示 AI 标签
+- [ ] 标签数量/截断/tooltip 规则
+- [ ] 默认评分 0-5 且步进 0.1
+- [ ] 默认评分快捷值 3.5/4.0/4.5/5.0
+- [ ] 编辑评分
+- [ ] 编辑/添加/移除标签
+- [ ] 收藏标签快捷应用
+- [ ] EMM 缺库/缺列降级
+- [ ] 同步中状态
+- [ ] 数据库错误状态
+- [ ] EMM 排序 hydration 保持选择身份
+
+#### `folder-ui.penetration` 穿透与递归显示
+
+- 源码：`components/PenetrateSettingsBar.svelte`、`components/FolderToolbar/ActionButtons.svelte`
+- 映射：`folder.penetrate.mode`、`folder.penetrate.depth`、`folder.penetrate.internal-files`
+- [ ] 穿透模式开关
+- [ ] 穿透设置栏
+- [ ] 最大深度 1/2/3/5/10/无限
+- [ ] 内部文件 none/penetrate/always
+- [ ] 纯媒体文件夹识别
+- [ ] single/all 文件夹范围
+- [ ] 在新标签打开模式
+- [ ] 递归显示快捷开关
+- [ ] 循环/过深保护
+- [ ] 取消旧穿透任务
+- [ ] 路径身份稳定
+
+#### `folder-ui.migration` 迁移栏
+
+- 源码：`components/MigrationBar.svelte`
+- 映射：`folder.migration.bar`、`folder.ui.states`
+- [ ] 迁移栏显示/隐藏
+- [ ] 迁移目标列表
+- [ ] 新增目标名称
+- [ ] 新增目标路径
+- [ ] 编辑目标
+- [ ] 删除目标
+- [ ] 选择目标
+- [ ] 把选中项目加入迁移
+- [ ] 迁移队列
+- [ ] 迁移进度
+- [ ] 取消迁移
+- [ ] 冲突处理
+- [ ] 成功/失败/部分完成状态
+- [ ] 目标路径失效反馈
+- [ ] 迁移完成刷新目录
+
+#### `folder-ui.more-settings` 更多设置与空白区行为
+
+- 源码：`components/FolderToolbar/MoreSettingsTabs.svelte`、`components/FolderToolbar/tabs/ActionTab.svelte`、`components/FolderToolbar/tabs/DisplayTab.svelte`、`components/FolderToolbar/tabs/OtherTab.svelte`
+- 映射：`folder.nav.blank-action`、`folder.nav.bottom-return`、`folder.settings.persistence`、`folder.ui.parity`
+- [ ] 快捷操作/显示设置/其他 三页
+- [ ] 显示当前文件数
+- [ ] 工具栏 tooltip 开关
+- [ ] 单击空白 none/goUp/goBack
+- [ ] 双击空白 none/goUp/goBack
+- [ ] 列表底部返回按钮显示/隐藏
+- [ ] 清除当前标签导航历史
+- [ ] 显示/隐藏搜索栏
+- [ ] 显示/隐藏迁移栏
+- [ ] 显示/隐藏随机标签栏
+- [ ] 全部设置持久化
+- [ ] 恢复默认值
+- [ ] 旧 localStorage 设置导入一次
+- [ ] 未知未来配置无损保留
+
+#### `folder-ui.states-performance` 状态、生命周期与性能门禁
+
+- 源码：`components/FolderList.svelte`、`components/FolderStack/FolderDataLoader.ts`、`stores/folderPanelStore/core.svelte.ts`、`utils/directoryTreeCache.ts`
+- 映射：`folder.arch.session`、`folder.arch.page`、`folder.arch.dispose`、`folder.view.virtualization`、`folder.ui.states`、`folder.ui.accessibility`、`folder.performance.budgets`
+- [ ] 初始空态
+- [ ] 目录为空
+- [ ] 加载首批
+- [ ] 加载更多
+- [ ] 权限拒绝
+- [ ] 路径不存在
+- [ ] 目录变化失效
+- [ ] 单项 metadata 失败
+- [ ] 缩略图失败
+- [ ] 可重试错误
+- [ ] 焦点/hover/selected/active/disabled 视觉状态
+- [ ] 桌面 Card 截图
+- [ ] 窄 Card 截图
+- [ ] 独立 Card 窗口截图
+- [ ] 10K 目录 DOM/Heap 门禁
+- [ ] 100K 目录 DOM/Heap 门禁
+- [ ] 前进/后退恢复定位延迟门禁
+- [ ] 搜索取消延迟门禁
+- [ ] 缩略图并发与字节预算
+- [ ] 折叠停止后台工作
+- [ ] 关闭标签释放会话
+- [ ] 关闭 Card 释放 watcher/Worker/cache lease
+- [ ] 普通 Reader 未打开文件浏览器时零常驻任务
+
+### 源码级验收项
+
 ### architecture（5）
 
 - [ ] `folder.arch.session` 有界目录浏览会话
@@ -1126,13 +1552,14 @@
 
 每张 Card 的专用 JSON 至少包含以下 10 类，不能以这份模板本身代替源码逐项清单：
 
-1. `capabilities`：全部命令、模式、数据字段、批量动作和跨模块联动。
-2. `ui-parity`：层级、控件、图标、文字、密度、尺寸和响应式几何。
-3. `interaction-states`：默认、hover、focus、selected、disabled、loading、empty、partial、error、retry、disposed。
-4. `settings`：默认值、旧键、优先级、TOML 目标字段、重置和导入。
-5. `keyboard-accessibility`：快捷键、焦点顺序、语义角色、IME 排除和可访问名称。
-6. `data-contract`：DTO、稳定身份、分页/流、取消、generation、错误和过期结果。
-7. `lifecycle`：lazy load、open、suspend、resume、close、dispose 和失败清理。
-8. `performance`：代表性语料、延迟、内存、DOM、任务和缓存预算。
-9. `tests`：稳定测试 ID、交互、截图/几何和性能回归。
-10. `deviations`：删减、替换或有意改变的旧行为及理由。
+1. `source-ui-inventory`：逐个控件、菜单项、选项值、字段、快捷键和状态，含源码证据及验收项映射。
+2. `capabilities`：全部命令、模式、数据字段、批量动作和跨模块联动。
+3. `ui-parity`：层级、控件、图标、文字、密度、尺寸和响应式几何。
+4. `interaction-states`：默认、hover、focus、selected、disabled、loading、empty、partial、error、retry、disposed。
+5. `settings`：默认值、旧键、优先级、TOML 目标字段、重置和导入。
+6. `keyboard-accessibility`：快捷键、焦点顺序、语义角色、IME 排除和可访问名称。
+7. `data-contract`：DTO、稳定身份、分页/流、取消、generation、错误和过期结果。
+8. `lifecycle`：lazy load、open、suspend、resume、close、dispose 和失败清理。
+9. `performance`：代表性语料、延迟、内存、DOM、任务和缓存预算。
+10. `tests`：稳定测试 ID、交互、截图/几何和性能回归。
+11. `deviations`：删减、替换或有意改变的旧行为及理由。

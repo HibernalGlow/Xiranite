@@ -14,6 +14,14 @@ interface FolderItem {
   notes: string
 }
 
+interface SourceUiInventoryGroup {
+  id: string
+  title: string
+  sourceEvidence: string[]
+  acceptanceItems: string[]
+  mappedChecklistIds: string[]
+}
+
 interface CardEntry {
   legacyId: string
   title: string
@@ -34,7 +42,7 @@ interface CardFunctionalScope {
 }
 
 const root = resolve(import.meta.dir, "..")
-const folder = await readJson<{ items: FolderItem[] }>(resolve(root, "migration/neoview/folder-main-compatibility.json"))
+const folder = await readJson<{ sourceUiInventory: SourceUiInventoryGroup[]; items: FolderItem[] }>(resolve(root, "migration/neoview/folder-main-compatibility.json"))
 const cards = await readJson<{ cards: CardEntry[] }>(resolve(root, "migration/neoview/card-compatibility.json"))
 const scopes = await readJson<{ cards: CardFunctionalScope[] }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
 const features = await readJson<{ features: Array<{ id: string; title: string }> }>(resolve(root, "migration/neoview/feature-compatibility.json"))
@@ -57,7 +65,24 @@ const lines: string[] = [
   "",
   `共 ${folder.items.length} 项：${statusSummary(folder.items)}。以下是完整验收项，不是自然排序或单列表的缩减版。`,
   "",
+  `### 旧版源码 UI/控件库存（${folder.sourceUiInventory.length} 组，${folder.sourceUiInventory.reduce((total, group) => total + group.acceptanceItems.length, 0)} 项）`,
+  "",
+  "这里逐项冻结原版可见控件、选项值、字段和状态。实现不能只满足下方 74 个能力域；本库存中的每一项也必须保留，或记录明确的替代/偏离决策。",
+  "",
 ]
+
+for (const group of folder.sourceUiInventory) {
+  lines.push(
+    `#### \`${group.id}\` ${group.title}`,
+    "",
+    `- 源码：${group.sourceEvidence.map((source) => `\`${source}\``).join("、")}`,
+    `- 映射：${group.mappedChecklistIds.map((id) => `\`${id}\``).join("、")}`,
+    ...group.acceptanceItems.map((item) => `- [ ] ${item}`),
+    "",
+  )
+}
+
+lines.push("### 源码级验收项", "")
 
 for (const [category, items] of groupBy(folder.items, (item) => item.category)) {
   lines.push(`### ${category}（${items.length}）`, "")
@@ -103,16 +128,17 @@ lines.push(
   "",
   "每张 Card 的专用 JSON 至少包含以下 10 类，不能以这份模板本身代替源码逐项清单：",
   "",
-  "1. `capabilities`：全部命令、模式、数据字段、批量动作和跨模块联动。",
-  "2. `ui-parity`：层级、控件、图标、文字、密度、尺寸和响应式几何。",
-  "3. `interaction-states`：默认、hover、focus、selected、disabled、loading、empty、partial、error、retry、disposed。",
-  "4. `settings`：默认值、旧键、优先级、TOML 目标字段、重置和导入。",
-  "5. `keyboard-accessibility`：快捷键、焦点顺序、语义角色、IME 排除和可访问名称。",
-  "6. `data-contract`：DTO、稳定身份、分页/流、取消、generation、错误和过期结果。",
-  "7. `lifecycle`：lazy load、open、suspend、resume、close、dispose 和失败清理。",
-  "8. `performance`：代表性语料、延迟、内存、DOM、任务和缓存预算。",
-  "9. `tests`：稳定测试 ID、交互、截图/几何和性能回归。",
-  "10. `deviations`：删减、替换或有意改变的旧行为及理由。",
+  "1. `source-ui-inventory`：逐个控件、菜单项、选项值、字段、快捷键和状态，含源码证据及验收项映射。",
+  "2. `capabilities`：全部命令、模式、数据字段、批量动作和跨模块联动。",
+  "3. `ui-parity`：层级、控件、图标、文字、密度、尺寸和响应式几何。",
+  "4. `interaction-states`：默认、hover、focus、selected、disabled、loading、empty、partial、error、retry、disposed。",
+  "5. `settings`：默认值、旧键、优先级、TOML 目标字段、重置和导入。",
+  "6. `keyboard-accessibility`：快捷键、焦点顺序、语义角色、IME 排除和可访问名称。",
+  "7. `data-contract`：DTO、稳定身份、分页/流、取消、generation、错误和过期结果。",
+  "8. `lifecycle`：lazy load、open、suspend、resume、close、dispose 和失败清理。",
+  "9. `performance`：代表性语料、延迟、内存、DOM、任务和缓存预算。",
+  "10. `tests`：稳定测试 ID、交互、截图/几何和性能回归。",
+  "11. `deviations`：删减、替换或有意改变的旧行为及理由。",
 )
 
 const outputPath = resolve(root, "docs/neoview-card-functional-checklist.md")

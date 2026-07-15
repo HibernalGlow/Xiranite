@@ -24,6 +24,10 @@
       "requirement": "Enumerate every user-visible command, mode, data field, batch action and integration from the frozen source."
     },
     {
+      "id": "source-ui-inventory",
+      "requirement": "Before implementation, enumerate every source control, menu item, option value, visible field, shortcut and state with source evidence and map each entry to dedicated acceptance items; summaries are not sufficient."
+    },
+    {
       "id": "ui-parity",
       "requirement": "Freeze layout hierarchy, controls, icon meaning, density, labels and responsive geometry; record intentional XR-token adaptations."
     },
@@ -61,6 +65,7 @@
     }
   ],
   "completionGate": [
+    "A source UI inventory exists for the Card and every inventory group maps to source-evidenced acceptance items.",
     "No pending or partial checklist items remain for the Card.",
     "Every item has source evidence and at least one automated test ID.",
     "GUI, CLI and TUI use the same core/application contract where the capability is non-visual.",
