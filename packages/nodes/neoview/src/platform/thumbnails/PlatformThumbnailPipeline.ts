@@ -17,7 +17,7 @@ import { pageMediaType } from "../../domain/page/media.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
-import type { ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { ReaderThumbnailAsset, ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { SystemThumbnailProvider, SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProvider, VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 
@@ -166,6 +166,48 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     return { requested: pages.length, databaseHits, primed }
   }
 
+  async prewarmLibrary(
+    sources: readonly LibraryThumbnailSource[],
+    options: { ttlMs?: number; signal?: AbortSignal } = {},
+  ): Promise<ThumbnailPrewarmResult> {
+    options.signal?.throwIfAborted()
+    const ttlMs = options.ttlMs ?? 1_000
+    const store = this.#thumbnailStore
+    if (!store?.getMany || !sources.length) return { requested: sources.length, databaseHits: 0, primed: 0 }
+    if (sources.length > 512) throw new RangeError("Library thumbnail prewarm batch cannot exceed 512 sources.")
+
+    const byCategory = new Map<LibraryThumbnailKind, LibraryThumbnailSource[]>()
+    for (const source of sources) {
+      const current = byCategory.get(source.kind)
+      if (current) current.push(source)
+      else byCategory.set(source.kind, [source])
+    }
+
+    let databaseHits = 0
+    let primed = 0
+    const primedKeys = new Set<string>()
+    for (const [category, categorySources] of byCategory) {
+      options.signal?.throwIfAborted()
+      const records = await store.getMany([...new Set(categorySources.map((source) => source.path))], category)
+      options.signal?.throwIfAborted()
+      for (const source of categorySources) {
+        const record = records.get(source.path)
+        if (!isValidLibraryThumbnail(record, source)) continue
+        databaseHits += 1
+        const cacheKey = libraryThumbnailCacheKey(source, "library-cover-v1")
+        if (primedKeys.has(cacheKey)) continue
+        primedKeys.add(cacheKey)
+        if (this.#coordinator.prime(cacheKey, {
+          bytes: record.bytes,
+          contentType: record.contentType,
+          version: `${record.date ?? ""}:${record.generationHash ?? ""}`,
+          cacheable: false,
+        }, { ttlMs })) primed += 1
+      }
+    }
+    return { requested: sources.length, databaseHits, primed }
+  }
+
   async describeLibrarySource(path: string, kind: LibraryThumbnailKind, signal?: AbortSignal): Promise<LibraryThumbnailSource> {
     signal?.throwIfAborted()
     const normalizedPath = await realpath(path)
@@ -190,7 +232,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   acquireLibrary(source: LibraryThumbnailSource, options: PageThumbnailAcquireOptions): ThumbnailLease {
     const profile = "library-cover-v1" as const
     return this.#coordinator.acquire({
-      cacheKey: `${source.kind}:${source.path}:${source.contentVersion}:${profile}`,
+      cacheKey: libraryThumbnailCacheKey(source, profile),
       source: { kind: "library", source, profile },
       lane: options.lane ?? (source.kind === "folder" ? "folder-preview" : "library-visible"),
       contextId: options.contextId,
@@ -355,12 +397,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const expectedHash = thumbnailGenerationHash(descriptor.contentVersion)
     if (thumbnailStore) {
       const stored = await thumbnailStore.get(descriptor.path, category)
-      const validFile = descriptor.kind === "file"
-        && (stored?.sourceSize === undefined || stored.sourceSize === descriptor.sourceSize)
-        && (stored?.generationHash === expectedHash || timestampAtOrAfter(stored?.date, descriptor.modifiedAtMs))
-      const validFolder = descriptor.kind === "folder"
-        && (stored?.generationHash === expectedHash || timestampAtOrAfter(stored?.date, descriptor.modifiedAtMs))
-      if (stored?.contentType?.startsWith("image/") && (validFile || validFolder)) {
+      if (isValidLibraryThumbnail(stored, descriptor)) {
         return {
           bytes: stored.bytes,
           contentType: stored.contentType,
@@ -560,6 +597,21 @@ function thumbnailFailureReason(error: unknown): string {
 
 function thumbnailGenerationHash(contentVersion: string): number {
   return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
+}
+
+function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: "library-cover-v1"): string {
+  return `${source.kind}:${source.path}:${source.contentVersion}:${profile}`
+}
+
+function isValidLibraryThumbnail(
+  record: ReaderThumbnailAsset | undefined,
+  source: LibraryThumbnailSource,
+): record is ReaderThumbnailAsset & { contentType: string } {
+  if (!record?.contentType?.startsWith("image/")) return false
+  const versionMatches = record.generationHash === thumbnailGenerationHash(source.contentVersion)
+    || timestampAtOrAfter(record.date, source.modifiedAtMs)
+  if (!versionMatches) return false
+  return source.kind === "folder" || record.sourceSize === undefined || record.sourceSize === source.sourceSize
 }
 
 function sqliteTimestamp(value: Date): string {

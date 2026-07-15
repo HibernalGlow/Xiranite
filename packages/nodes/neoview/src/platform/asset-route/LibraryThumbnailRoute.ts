@@ -85,6 +85,11 @@ export class LibraryThumbnailRoute {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: "One or more thumbnail sources are unavailable or have the wrong kind" }, 400)
     }
+    try {
+      await this.#pipeline.prewarmLibrary(described.map(({ source }) => source), { signal: request.signal })
+    } catch (error) {
+      if (request.signal.aborted || isAbortError(error)) throw error
+    }
     const latest = this.#contexts.get(parsed.contextId)
     if (latest && parsed.generation < latest.generation) return jsonResponse({ error: "Thumbnail generation is stale" }, 409)
     this.#pipeline.releaseContext(pipelineContextId(parsed.contextId))

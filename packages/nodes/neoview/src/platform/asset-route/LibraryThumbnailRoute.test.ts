@@ -28,6 +28,7 @@ describe("LibraryThumbnailRoute", () => {
       }),
     })
     const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const prewarmLibrary = vi.spyOn(pipeline, "prewarmLibrary")
 
     expect((await route.handle(registerRequest(sourcePath, 1, false)))?.status).toBe(401)
     const registered = (await route.handle(registerRequest(sourcePath, 1, true)))!
@@ -37,6 +38,8 @@ describe("LibraryThumbnailRoute", () => {
     expect(body.items[0]?.id).toBe("cover")
     expect(body.items[0]?.thumbnailUrl).not.toContain(encodeURIComponent(sourcePath))
     expect(body.items[0]?.thumbnailUrl).not.toContain("private-cover")
+    expect(prewarmLibrary).toHaveBeenCalledOnce()
+    expect(prewarmLibrary.mock.calls[0]?.[0]).toEqual([expect.objectContaining({ path: sourcePath, kind: "file" })])
 
     const thumbnail = (await route.handle(new Request(body.items[0]!.thumbnailUrl)))!
     expect(thumbnail.status).toBe(200)
@@ -71,6 +74,26 @@ describe("LibraryThumbnailRoute", () => {
     const released = await route.handle(new Request("http://127.0.0.1:41000/reader/library/contexts/library%3Atest?token=secret", { method: "DELETE" }))
     expect(released?.status).toBe(204)
     expect((await route.handle(new Request(body.items[0]!.thumbnailUrl)))?.status).toBe(404)
+    route.close()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.library.prewarm-fallback] keeps registration available when batch cache lookup fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-prewarm-fallback-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const pipeline = new PlatformThumbnailPipeline({
+      thumbnailStore: {
+        get: async () => undefined,
+        getMany: async () => { throw new Error("database is busy") },
+      },
+    })
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+
+    const response = await route.handle(registerRequest(sourcePath, 0, true))
+
+    expect(response?.status).toBe(201)
     route.close()
     await pipeline.dispose()
   })

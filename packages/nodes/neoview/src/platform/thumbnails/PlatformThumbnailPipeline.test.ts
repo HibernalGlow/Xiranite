@@ -65,6 +65,39 @@ describe("PlatformThumbnailPipeline", () => {
     expect(closeBook).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.thumbnail.library.prewarm] batches visible file and folder hits into L1 by category", async () => {
+    const file = librarySource("file", "D:/library/book.cbz", 100)
+    const folder = librarySource("folder", "D:/library/series")
+    const fileBytes = fixtureWebp(4)
+    const folderBytes = fixtureWebp(5)
+    const get = vi.fn(async () => undefined)
+    const getMany = vi.fn(async (keys: readonly string[], category: "file" | "folder") => new Map(keys.map((key) => [key, {
+      bytes: category === "file" ? fileBytes : folderBytes,
+      contentType: "image/webp",
+      sourceSize: category === "file" ? 100 : undefined,
+      date: "2024-01-01 00:00:00",
+    }])))
+    const pipeline = new PlatformThumbnailPipeline({ thumbnailStore: { get, getMany } })
+
+    await expect(pipeline.prewarmLibrary([file, folder, file])).resolves.toEqual({
+      requested: 3,
+      databaseHits: 3,
+      primed: 2,
+    })
+    expect(getMany).toHaveBeenCalledTimes(2)
+    expect(getMany).toHaveBeenCalledWith([file.path], "file")
+    expect(getMany).toHaveBeenCalledWith([folder.path], "folder")
+
+    const fileLease = pipeline.acquireLibrary(file, { contextId: "library:prewarm" })
+    const folderLease = pipeline.acquireLibrary(folder, { contextId: "library:prewarm" })
+    await expect(fileLease.ready).resolves.toMatchObject({ bytes: fileBytes, cacheable: false })
+    await expect(folderLease.ready).resolves.toMatchObject({ bytes: folderBytes, cacheable: false })
+    expect(get).not.toHaveBeenCalled()
+    fileLease.release()
+    folderLease.release()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.folder.reuse] reuses the representative file WebP without another decode", async () => {
     const page = fixturePage("D:/library/folder/001.png")
     const representative = fixtureWebp(9)
