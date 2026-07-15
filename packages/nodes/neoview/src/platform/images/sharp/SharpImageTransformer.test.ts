@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import type { ImageTransformRequest } from "../../../domain/image/image-transform.js"
 import { SharpImageTransformer } from "./SharpImageTransformer.js"
@@ -57,6 +57,27 @@ describe("SharpImageTransformer", () => {
     abort.abort(new Error("superseded transform"))
     await expect(reading).rejects.toThrow()
     await expect.poll(() => cancelled).toBeInstanceOf(Error)
+  })
+
+  it("[neoview.thumbnail.scheduler-priority] forwards the demand lane to the host CPU scheduler and releases after consumption", async () => {
+    const sharp = await loadSharp()
+    const source = await sharp({ create: { width: 1, height: 1, channels: 4, background: "red" } }).png().toBuffer()
+    const release = vi.fn()
+    const acquire = vi.fn(async () => ({ release }))
+    const result = await new SharpImageTransformer({ acquire }).transform(
+      new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(source); controller.close() } }),
+      WEBP_REQUEST,
+      undefined,
+      { priority: "background", kind: "neoview.thumbnail.generate", ownerId: "folder:D:/library" },
+    )
+    await new Response(result.stream).arrayBuffer()
+    expect(acquire).toHaveBeenCalledWith({
+      resource: "cpu",
+      priority: "background",
+      kind: "neoview.thumbnail.generate",
+      ownerId: "folder:D:/library",
+    }, undefined)
+    expect(release).toHaveBeenCalledOnce()
   })
 })
 

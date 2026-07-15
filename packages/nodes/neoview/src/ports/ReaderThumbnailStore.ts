@@ -1,6 +1,7 @@
 export interface ReaderThumbnailAsset {
   bytes: Uint8Array
   contentType?: string
+  sourceSize?: number
   date?: string
   generationHash?: number
 }

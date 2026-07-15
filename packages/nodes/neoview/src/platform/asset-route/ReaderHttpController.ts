@@ -11,6 +11,8 @@ import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataPro
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
+import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
+import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeline.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   parseNeoviewBoardLayoutPatch,
@@ -60,6 +62,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
 export class ReaderHttpController implements AsyncDisposable {
   readonly #service: CoreReaderService
   readonly #assets: ReaderAssetRoute
+  readonly #libraryThumbnails: LibraryThumbnailRoute
+  readonly #thumbnailPipeline: PlatformThumbnailPipeline
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -73,19 +77,29 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
       maxBytes: options.maxSolidArchiveCacheBytes,
     })
+    const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache })
+    const loadImageTransformer = async () => {
+      const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
+      return new SharpImageTransformer(options.resourceScheduler)
+    }
+    this.#thumbnailPipeline = new PlatformThumbnailPipeline({
+      bookLoader,
+      loadImageTransformer,
+      thumbnailStore: options.thumbnailStore,
+      maxMemoryBytes: 32 * 1024 * 1024,
+      maxEntryBytes: 512 * 1024,
+    })
     this.#service = new CoreReaderService(
-      createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache }),
+      bookLoader,
       new StreamingImageMetadataProbe(),
       options.sessionOptions,
     )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),
-      loadImageTransformer: async () => {
-        const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
-        return new SharpImageTransformer(options.resourceScheduler)
-      },
-      thumbnailStore: options.thumbnailStore,
+      loadImageTransformer,
+      thumbnailPipeline: this.#thumbnailPipeline,
     })
+    this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
@@ -99,6 +113,8 @@ export class ReaderHttpController implements AsyncDisposable {
 
     const assetResponse = await this.#assets.handle(request)
     if (assetResponse) return assetResponse
+    const libraryThumbnailResponse = await this.#libraryThumbnails.handle(request)
+    if (libraryThumbnailResponse) return libraryThumbnailResponse
 
     if (url.pathname === "/reader/sessions" && request.method === "POST") {
       return this.#openSession(request)
@@ -122,7 +138,13 @@ export class ReaderHttpController implements AsyncDisposable {
 
   async [Symbol.asyncDispose](): Promise<void> {
     this.#assets.close()
+    this.#libraryThumbnails.close()
     const errors: unknown[] = []
+    try {
+      await this.#thumbnailPipeline.dispose()
+    } catch (error) {
+      errors.push(error)
+    }
     try {
       await this.#service[Symbol.asyncDispose]()
     } catch (error) {

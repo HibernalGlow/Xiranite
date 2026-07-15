@@ -182,6 +182,14 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     }
   }
 
+  releaseContext(contextId: string, reason: unknown = abortError(`Thumbnail context ${contextId} was released.`)): void {
+    if (!contextId) throw new Error("Thumbnail contextId cannot be empty.")
+    for (const record of [...this.#demands.values()]) {
+      if (record.contextId === contextId) this.#releaseDemand(record.id, reason)
+    }
+    this.#contextGenerations.delete(contextId)
+  }
+
   snapshot(): ThumbnailCoordinatorSnapshot {
     const demandsByLane = emptyLaneCounts()
     for (const demand of this.#demands.values()) demandsByLane[demand.lane] += 1

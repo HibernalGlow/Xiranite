@@ -489,11 +489,37 @@ describe("backend", () => {
       const cachedTransform = await fetch(transformedUrl)
       const cachedBytes = Buffer.from(await cachedTransform.arrayBuffer())
       expect(cachedBytes).toEqual(transformedBytes)
-      expect(acquireResource).toHaveBeenCalledTimes(1)
       expect(acquireResource).toHaveBeenCalledWith(expect.objectContaining({
         resource: "cpu",
         kind: "neoview.image-transform",
         priority: "interactive",
+      }), expect.any(AbortSignal))
+
+      const libraryRegistered = await fetch(`${backend.url}/reader/library/thumbnails`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "test-token" },
+        body: JSON.stringify({
+          contextId: "backend-library",
+          generation: 1,
+          items: [{ id: "book-folder", path: bookDir, kind: "folder" }],
+        }),
+      })
+      const library = await libraryRegistered.json() as { items: Array<{ id: string; thumbnailUrl: string }> }
+      expect(libraryRegistered.status).toBe(201)
+      expect(library.items[0]?.id).toBe("book-folder")
+      expect(library.items[0]?.thumbnailUrl).not.toContain(encodeURIComponent(bookDir))
+      const folderThumbnail = await fetch(library.items[0]!.thumbnailUrl)
+      const folderBytes = Buffer.from(await folderThumbnail.arrayBuffer())
+      expect(folderThumbnail.status).toBe(200)
+      expect(folderThumbnail.headers.get("content-type")).toBe("image/webp")
+      expect(folderBytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
+      expect(folderBytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
+      expect(acquireResource).toHaveBeenCalledTimes(2)
+      expect(acquireResource).toHaveBeenCalledWith(expect.objectContaining({
+        resource: "cpu",
+        kind: "neoview.thumbnail.generate",
+        priority: "background",
+        ownerId: "library:backend-library",
       }), expect.any(AbortSignal))
 
       const closed = await fetch(`${backend.url}/reader/s/${session.sessionId}`, {

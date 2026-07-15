@@ -85,6 +85,21 @@ describe("ThumbnailCoordinatorService", () => {
     })
   })
 
+  it("[neoview.thumbnail.coordinator.context-release] forgets one context without cancelling shared consumers", async () => {
+    const pending = deferred<ThumbnailAsset>()
+    const coordinator = new ThumbnailCoordinatorService<string>({ resolver: { resolve: async () => pending.promise } })
+    const released = coordinator.acquire(demand("shared", "page", { contextId: "library:old", generation: 5 }))
+    const retained = coordinator.acquire(demand("shared", "page", { contextId: "reader:active", generation: 0 }))
+    coordinator.releaseContext("library:old")
+    await expect(released.ready).rejects.toMatchObject({ name: "AbortError" })
+    pending.resolve(asset(8, 1))
+    await expect(retained.ready).resolves.toMatchObject({ contentType: "image/webp" })
+    expect(coordinator.snapshot()).toMatchObject({ demands: 1, activeFlights: 0 })
+    retained.release()
+    expect(() => coordinator.acquire(demand("new", "page", { contextId: "library:old", generation: 0 }))).not.toThrow()
+    await coordinator.dispose()
+  })
+
   it("maps thumbnail lanes onto the shared scheduler priorities", () => {
     expect(thumbnailLanePriority("reader-visible")).toBe("interactive")
     expect(thumbnailLanePriority("library-visible")).toBe("view")

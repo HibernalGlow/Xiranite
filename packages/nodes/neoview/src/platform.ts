@@ -18,9 +18,14 @@ import type {
   WritableLegacyThumbnailStore,
   WritableLegacyThumbnailStoreOptions,
 } from "./platform/thumbnails/WritableLegacyThumbnailStore.js"
+import type {
+  PlatformThumbnailPipeline,
+  PlatformThumbnailPipelineOptions,
+} from "./platform/thumbnails/PlatformThumbnailPipeline.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
+export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPipelineOptions } from "./platform/thumbnails/PlatformThumbnailPipeline.js"
 
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
@@ -134,6 +139,13 @@ export async function createWritableLegacyThumbnailStore(
   }
   const { WritableLegacyThumbnailStore } = await import("./platform/thumbnails/WritableLegacyThumbnailStore.js")
   return WritableLegacyThumbnailStore.open(path, options)
+}
+
+export async function createPlatformThumbnailPipeline(
+  options: PlatformThumbnailPipelineOptions = {},
+): Promise<PlatformThumbnailPipeline> {
+  const { PlatformThumbnailPipeline } = await import("./platform/thumbnails/PlatformThumbnailPipeline.js")
+  return new PlatformThumbnailPipeline(options)
 }
 
 export async function createReaderHeadlessController(

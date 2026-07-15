@@ -1,8 +1,6 @@
 import { createHash } from "node:crypto"
 import {
-  ThumbnailCoordinatorService,
   type ThumbnailAsset,
-  type ThumbnailDemand,
   type ThumbnailLease,
 } from "@xiranite/services/thumbnail-coordinator"
 
@@ -18,7 +16,12 @@ import type { PageByteRange, PageSource } from "../../domain/page/page-content.j
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
-import type { ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import {
+  PlatformThumbnailPipeline,
+  ThumbnailRetryDeferredError,
+  ThumbnailUnavailableError,
+} from "../thumbnails/PlatformThumbnailPipeline.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -32,10 +35,7 @@ export interface ReaderAssetRouteDependencies {
   loadImageTransformer?: ImageTransformerLoader
   presentationCache?: ReaderPresentationCache
   thumbnailStore?: ReaderThumbnailStore
-}
-
-interface ReaderThumbnailDemandSource {
-  page: ReaderPage
+  thumbnailPipeline?: PlatformThumbnailPipeline
 }
 
 export class ReaderAssetRoute {
@@ -44,8 +44,8 @@ export class ReaderAssetRoute {
   readonly #token: string
   readonly #loadImageTransformer?: ImageTransformerLoader
   readonly #presentationCache?: ReaderPresentationCache
-  readonly #thumbnailStore?: ReaderThumbnailStore
-  readonly #thumbnailCoordinator?: ThumbnailCoordinatorService<ReaderThumbnailDemandSource>
+  readonly #thumbnailPipeline?: PlatformThumbnailPipeline
+  readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   #imageTransformer?: Promise<ImageTransformer>
   #closed = false
@@ -60,18 +60,22 @@ export class ReaderAssetRoute {
     this.#token = options.token
     this.#loadImageTransformer = dependencies.loadImageTransformer
     this.#presentationCache = dependencies.presentationCache
-    this.#thumbnailStore = dependencies.thumbnailStore
-    if (dependencies.thumbnailStore || dependencies.loadImageTransformer) {
-      this.#thumbnailCoordinator = new ThumbnailCoordinatorService<ReaderThumbnailDemandSource>({
-        maxMemoryBytes: 32 * 1024 * 1024,
-        maxEntryBytes: 512 * 1024,
-        resolver: { resolve: (demand, signal) => this.#resolveThumbnail(demand, signal) },
-      })
-    }
+    this.#ownsThumbnailPipeline = !dependencies.thumbnailPipeline
+      && Boolean(dependencies.thumbnailStore || dependencies.loadImageTransformer)
+    this.#thumbnailPipeline = dependencies.thumbnailPipeline ?? (
+      this.#ownsThumbnailPipeline
+        ? new PlatformThumbnailPipeline({
+            loadImageTransformer: dependencies.loadImageTransformer,
+            thumbnailStore: dependencies.thumbnailStore,
+            maxMemoryBytes: 32 * 1024 * 1024,
+            maxEntryBytes: 512 * 1024,
+          })
+        : undefined
+    )
   }
 
   thumbnailUrl(sessionId: ReaderSessionId, pageId: PageId): string | undefined {
-    if (!this.#thumbnailCoordinator) return undefined
+    if (!this.#thumbnailPipeline?.available) return undefined
     const session = this.#readerService.getSession(sessionId)
     const page = session?.getPage(pageId)
     if (!page?.thumbnailSource || (page.mediaKind !== "image" && page.mediaKind !== "animated-image")) return undefined
@@ -152,15 +156,13 @@ export class ReaderAssetRoute {
     const pageId = safeDecode(encodedPageId)
     if (!sessionId || !pageId) return textResponse("Invalid reader asset identifier", 400)
     const page = this.#readerService.getSession(sessionId)?.getPage(pageId)
-    if (!page?.thumbnailSource || !this.#thumbnailCoordinator) return textResponse("Reader thumbnail not found", 404)
+    if (!page?.thumbnailSource || !this.#thumbnailPipeline?.available) return textResponse("Reader thumbnail not found", 404)
     if (url.searchParams.get("version") !== page.contentVersion) return textResponse("Reader thumbnail version is stale", 410)
     request.signal.throwIfAborted()
     let lease: ThumbnailLease | undefined
     let thumbnail: ThumbnailAsset
     try {
-      lease = this.#thumbnailCoordinator.acquire({
-        cacheKey: `${page.thumbnailSource.category}:${page.thumbnailSource.key}:${page.contentVersion}:page-strip-v1`,
-        source: { page },
+      lease = this.#thumbnailPipeline.acquirePage(page, {
         lane: "reader-visible",
         contextId: `reader:${sessionId}`,
         generation: 0,
@@ -214,80 +216,8 @@ export class ReaderAssetRoute {
 
   close(): void {
     this.#closed = true
-    void this.#thumbnailCoordinator?.dispose()
+    if (this.#ownsThumbnailPipeline) void this.#thumbnailPipeline?.dispose()
     this.clearPresentationCache()
-  }
-
-  async #resolveThumbnail(
-    demand: Readonly<ThumbnailDemand<ReaderThumbnailDemandSource>>,
-    signal: AbortSignal,
-  ): Promise<ThumbnailAsset> {
-    const page = demand.source.page
-    if (page.thumbnailSource && this.#thumbnailStore) {
-      const stored = await this.#thumbnailStore.get(page.thumbnailSource.key, page.thumbnailSource.category)
-      if (stored?.contentType?.startsWith("image/")) {
-        return {
-          bytes: stored.bytes,
-          contentType: stored.contentType,
-          version: `${stored.date ?? ""}:${stored.generationHash ?? ""}`,
-          cacheable: false,
-        }
-      }
-      const failure = await this.#thumbnailStore.getFailure?.(page.thumbnailSource.key)
-      const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
-      if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
-    }
-    if (!this.#loadImageTransformer || (page.mediaKind !== "image" && page.mediaKind !== "animated-image")) {
-      throw new ThumbnailUnavailableError()
-    }
-
-    let source: PageSource | undefined
-    try {
-      source = await page.content.load(signal)
-      const input = await source.open(signal)
-      const transformer = await this.#getImageTransformer()
-      const result = await transformer.transform(input, {
-        width: 320,
-        height: 320,
-        dpr: 1,
-        fit: "inside",
-        format: "webp",
-        quality: 78,
-      }, signal)
-      if (result.contentType !== "image/webp") {
-        await result.stream.cancel("unexpected thumbnail content type").catch(() => undefined)
-        throw new Error(`Thumbnail transformer returned ${result.contentType}; expected image/webp.`)
-      }
-      const bytes = await collectThumbnailBytes(result.stream, 2 * 1024 * 1024, signal)
-      if (page.thumbnailSource && this.#thumbnailStore?.put) {
-        void this.#thumbnailStore.put({
-          key: page.thumbnailSource.key,
-          category: page.thumbnailSource.category,
-          bytes,
-          sourceSize: page.byteLength,
-          date: sqliteTimestamp(new Date()),
-          generationHash: thumbnailGenerationHash(page.contentVersion),
-        }).catch(() => undefined)
-      }
-      return {
-        bytes,
-        contentType: result.contentType,
-        version: "page-strip-v1",
-        cacheable: true,
-      }
-    } catch (error) {
-      if (page.thumbnailSource && this.#thumbnailStore?.recordFailure && !isAbortError(error)) {
-        void this.#thumbnailStore.recordFailure({
-          key: page.thumbnailSource.key,
-          reason: thumbnailFailureReason(error),
-          lastAttempt: sqliteTimestamp(new Date()),
-          errorMessage: error instanceof Error ? error.message : String(error),
-        }).catch(() => undefined)
-      }
-      throw error
-    } finally {
-      await source?.close().catch(() => undefined)
-    }
   }
 
   async #respondOriginal(request: Request, page: ReaderPage, source: PageSource): Promise<Response> {
@@ -538,35 +468,6 @@ function streamCachedBytes(bytes: Uint8Array): ReadableStream<Uint8Array> {
   })
 }
 
-async function collectThumbnailBytes(stream: ReadableStream<Uint8Array>, maxBytes: number, signal: AbortSignal): Promise<Uint8Array> {
-  const reader = stream.getReader()
-  const chunks: Uint8Array[] = []
-  let bytes = 0
-  try {
-    while (true) {
-      signal.throwIfAborted()
-      const result = await reader.read()
-      if (result.done) break
-      bytes += result.value.byteLength
-      if (bytes > maxBytes) {
-        await reader.cancel("thumbnail output exceeds the hard byte limit").catch(() => undefined)
-        throw new RangeError(`Thumbnail output exceeds ${maxBytes} bytes.`)
-      }
-      chunks.push(result.value)
-    }
-    if (!bytes) throw new Error("Thumbnail transformer returned empty bytes.")
-    const output = new Uint8Array(bytes)
-    let offset = 0
-    for (const chunk of chunks) {
-      output.set(chunk, offset)
-      offset += chunk.byteLength
-    }
-    return output
-  } finally {
-    reader.releaseLock()
-  }
-}
-
 function waitForSharedTransform(
   completion: Promise<CachedPresentation | undefined>,
   signal: AbortSignal,
@@ -610,43 +511,6 @@ function thumbnailEtag(page: ReaderPage, thumbnail: ThumbnailAsset): string {
     .update(thumbnail.bytes)
     .digest("base64url")
   return `"neoview-thumb-${hash}"`
-}
-
-class ThumbnailUnavailableError extends Error {}
-
-class ThumbnailRetryDeferredError extends Error {
-  constructor(readonly retryAfterMs: number) {
-    super(`Thumbnail retry is deferred for ${retryAfterMs}ms.`)
-  }
-}
-
-function thumbnailRetryAfterMs(failure: ReaderThumbnailFailure, now = Date.now()): number {
-  const attemptedAt = Date.parse(failure.lastAttempt)
-  if (!Number.isFinite(attemptedAt)) return 0
-  const exponent = Math.min(14, Math.max(0, failure.retryCount - 1))
-  const delay = Math.min(24 * 60 * 60 * 1000, 5_000 * 2 ** exponent)
-  return Math.max(0, attemptedAt + delay - now)
-}
-
-function thumbnailFailureReason(error: unknown): string {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
-  if (message.includes("password")) return "password-required"
-  if (message.includes("unsupported") || message.includes("expected image")) return "unsupported-format"
-  if (message.includes("archive") || message.includes("7z") || message.includes("zip")) return "archive-error"
-  if (message.includes("enoent") || message.includes("not found") || message.includes("missing")) return "source-missing"
-  return "decode-error"
-}
-
-function thumbnailGenerationHash(contentVersion: string): number {
-  return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
-}
-
-function sqliteTimestamp(value: Date): string {
-  return value.toISOString().replace("T", " ").slice(0, 19)
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError"
 }
 
 function matchesEtag(value: string | null, etag: string): boolean {

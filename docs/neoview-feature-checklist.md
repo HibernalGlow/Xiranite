@@ -153,7 +153,7 @@
 - 设置：`performance.preLoadSize`、`performance.adaptivePreload`、`performance.preDecodeCacheSize`、`performance.progressiveLoad`、`image.preloadCount`、`book.preloadPages`
 - 数据：priority queues、request dedup
 - 行为：View/Ahead/Background 优先级；方向感知预读；渐进批次；背压；快速翻页取消；多节点资源配额
-- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`、`neoview.sevenzip.scheduler`、`neoview.archive.materialize-lease`、`neoview.archive.materialize-cancellation`、`neoview.react.predecode`、`neoview.thumbnail.react-list`
+- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`、`neoview.sevenzip.scheduler`、`neoview.archive.materialize-lease`、`neoview.archive.materialize-cancellation`、`neoview.react.predecode`、`neoview.thumbnail.react-list`、`neoview.thumbnail.scheduler-priority`
 - 性能基准：`scheduler-contention`、`cancel-latency`、`reader-hot-page-turn`、`reader-loopback-pipeline`
 - 已知差异：无
 
@@ -164,9 +164,9 @@
 - 设置：`system.thumbnailDirectory`
 - 数据：%APPDATA%/NeoView/thumbnails.db、thumbnail V1/V3/V4 records、WAL/SHM
 - 行为：原数据库位置沿用；只读 schema/WAL 探测；批量命中与生成；失败记录；清理/vacuum/统计；V1/V3/V4 兼容迁移；视频和归档缩略图
-- 测试：`neoview.thumbnail.legacy-path`、`neoview.thumbnail.schema`、`neoview.thumbnail.inspect-cli`、`neoview.thumbnail.blob`、`neoview.thumbnail.read`、`neoview.thumbnail.asset-route`、`neoview.thumbnail.http`、`neoview.thumbnail.http-e2e`、`neoview.thumbnail.react-list`、`neoview.thumbnail.react-e2e`
+- 测试：`neoview.thumbnail.legacy-path`、`neoview.thumbnail.schema`、`neoview.thumbnail.inspect-cli`、`neoview.thumbnail.blob`、`neoview.thumbnail.read`、`neoview.thumbnail.asset-route`、`neoview.thumbnail.http`、`neoview.thumbnail.http-e2e`、`neoview.thumbnail.react-list`、`neoview.thumbnail.react-e2e`、`neoview.thumbnail.coordinator.singleflight`、`neoview.thumbnail.coordinator.generation`、`neoview.thumbnail.coordinator.memory`、`neoview.thumbnail.coordinator.context-release`、`neoview.thumbnail.generate.singleflight`、`neoview.thumbnail.persist.batch`、`neoview.thumbnail.failure.retry`、`neoview.thumbnail.failure.backoff`、`neoview.thumbnail.library.describe`、`neoview.thumbnail.library.singleflight`、`neoview.thumbnail.folder.reuse`、`neoview.thumbnail.library.http`、`neoview.thumbnail.library.release`、`neoview.thumbnail.library.cancellation`
 - 性能基准：`thumbnail-hit`、`thumbnail-batch`、`reader-hot-page-turn`
-- 已知差异：嵌套归档页在旧版键语义得到可靠证明前不提供旧数据库 thumbnailUrl
+- 已知差异：嵌套归档页在旧版键语义得到可靠证明前不提供旧数据库 thumbnailUrl；视频缩略图仍等待 ffmpeg provider；当前 library cover 覆盖图片、目录与已支持归档
 
 ### 内存、磁盘、索引和资源缓存生命周期（`cache-lifecycle`）
 

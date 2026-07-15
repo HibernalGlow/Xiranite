@@ -1,7 +1,7 @@
 import { Duplex } from "node:stream"
 
 import { imageTransformContentType } from "../../../domain/image/image-transform.js"
-import type { ImageTransformer, ImageTransformResult } from "../../../ports/ImageTransformer.js"
+import type { ImageTransformer, ImageTransformExecution, ImageTransformResult } from "../../../ports/ImageTransformer.js"
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { defaultImageTransformScheduler } from "../../scheduler/PriorityResourceScheduler.js"
 
@@ -16,12 +16,14 @@ export class SharpImageTransformer implements ImageTransformer {
     input: ReadableStream<Uint8Array>,
     request: Parameters<ImageTransformer["transform"]>[1],
     signal?: AbortSignal,
+    execution: ImageTransformExecution = {},
   ): Promise<ImageTransformResult> {
     signal?.throwIfAborted()
     const lease = await this.scheduler.acquire({
       resource: "cpu",
-      kind: "neoview.image-transform",
-      priority: "interactive",
+      kind: execution.kind ?? "neoview.image-transform",
+      priority: execution.priority ?? "interactive",
+      ownerId: execution.ownerId,
     }, signal)
     try {
       const sharp = await loadSharp()
