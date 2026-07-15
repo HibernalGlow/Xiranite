@@ -219,7 +219,7 @@
 - 设置：`history`、`book.rememberProgress`、`historySettings`
 - 数据：history、bookmarks、reading heatmap、streak
 - 行为：记录和恢复进度；历史大小与自动清理；书签排序/搜索；历史与文件树联动；热力图和连续阅读统计
-- 测试：待补
+- 测试：`neoview.progress.restore`、`neoview.progress.flush`、`neoview.progress.sqlite`
 - 性能基准：无专项
 - 已知差异：无
 
