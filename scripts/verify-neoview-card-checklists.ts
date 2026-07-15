@@ -36,7 +36,13 @@ interface AcceptanceContract {
 const root = resolve(import.meta.dir, "..")
 const checklist = await readJson<CardChecklist>(resolve(root, "migration/neoview/folder-main-compatibility.json"))
 const contract = await readJson<AcceptanceContract>(resolve(root, "migration/neoview/card-acceptance-contract.json"))
-const cardMatrix = await readJson<{ cards: Array<{ legacyId: string; status: string }> }>(resolve(root, contract.scope.inventory))
+const cardMatrix = await readJson<{ cards: Array<{
+  legacyId: string
+  status: string
+  sourceComponent?: string
+  sourceDisposition?: "component" | "registry-only"
+  sourceNotes?: string
+}> }>(resolve(root, contract.scope.inventory))
 const inventory = await readJson<{ modules: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/module-inventory.json"))
 const componentInventory = await readJson<{ components: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/component-inventory.json"))
 const errors: string[] = []
@@ -55,6 +61,18 @@ const sourceFiles = new Set([
 const ids = new Set<string>()
 const allowedStatuses = new Set(checklist.statusValues)
 const allowedSurfaces = new Set(["GUI", "CLI", "TUI"])
+
+for (const card of cardMatrix.cards) {
+  if (card.sourceDisposition === "component") {
+    if (!card.sourceComponent) errors.push(`${card.legacyId} has component disposition without sourceComponent`)
+    else if (!sourceFiles.has(card.sourceComponent)) errors.push(`${card.legacyId} references source component missing from frozen inventory: ${card.sourceComponent}`)
+  } else if (card.sourceDisposition === "registry-only") {
+    if (card.sourceComponent) errors.push(`${card.legacyId} is registry-only but still has sourceComponent`)
+    if (!card.sourceNotes?.trim()) errors.push(`${card.legacyId} is registry-only without an explicit migration decision note`)
+  } else {
+    errors.push(`${card.legacyId} has no source disposition`)
+  }
+}
 
 for (const item of checklist.items) {
   if (ids.has(item.id)) errors.push(`duplicate checklist item ${item.id}`)
@@ -92,6 +110,8 @@ console.log(JSON.stringify({
   byStatus: counts(checklist.items.map((item) => item.status)),
   byCategory: counts(checklist.items.map((item) => item.category)),
   acceptanceDimensions: contract.requiredDimensions.length,
+  cardSourceComponents: cardMatrix.cards.filter((card) => card.sourceDisposition === "component").length,
+  registryOnlyCards: cardMatrix.cards.filter((card) => card.sourceDisposition === "registry-only").map((card) => card.legacyId),
 }, null, 2))
 
 async function readJson<T>(path: string): Promise<T> {

@@ -23,7 +23,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/VisibilityCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "latency",
@@ -31,7 +33,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/LatencyCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "renderer",
@@ -39,7 +43,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/RendererCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "files",
@@ -47,7 +53,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/FilesCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "detailed",
@@ -55,7 +63,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/DetailedCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "loadmode",
@@ -63,7 +73,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/LoadModeCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "archives",
@@ -71,7 +83,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/ArchivesCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "realworld",
@@ -79,7 +93,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/RealWorldCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "imageSource",
@@ -87,7 +103,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/ImageSourceCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "protocolTest",
@@ -95,7 +113,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceDisposition": "registry-only",
+      "sourceNotes": "旧 CardRenderer 没有组件映射；迁移前必须显式补齐或记录替代决策。"
     },
     {
       "legacyId": "results",
@@ -103,7 +123,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/ResultsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "summary",
@@ -111,7 +133,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/SummaryCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "pipelineLatency",
@@ -119,7 +143,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/PipelineLatencyCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "transcodeBenchmark",
@@ -127,7 +153,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/TranscodeBenchmarkCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "thumbnailLatency",
@@ -135,7 +163,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/ThumbnailLatencyCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "pageFlipMonitor",
@@ -143,7 +173,9 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/benchmark/PageFlipMonitorCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "preloadStatus",
@@ -151,7 +183,9 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "preload-stream-scheduler",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/PreloadStatusCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "systemMonitor",
@@ -159,7 +193,9 @@
       "panelId": "insights",
       "priority": "integration",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/monitor/SystemMonitorCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "bookInfo",
@@ -168,7 +204,9 @@
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
       "status": "partial",
-      "currentCardId": "book-information"
+      "currentCardId": "book-information",
+      "sourceComponent": "src/lib/cards/info/BookInfoCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "infoOverlay",
@@ -176,7 +214,9 @@
       "panelId": "info",
       "priority": "deferred",
       "featureId": "metadata-dimensions-properties",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/InfoOverlayCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "switchToast",
@@ -184,7 +224,9 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "metadata-dimensions-properties",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/SwitchToastCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "imageInfo",
@@ -193,7 +235,9 @@
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
       "status": "partial",
-      "currentCardId": "image-information"
+      "currentCardId": "image-information",
+      "sourceComponent": "src/lib/cards/info/ImageInfoCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "storage",
@@ -202,7 +246,9 @@
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
       "status": "partial",
-      "currentCardId": "storage-information"
+      "currentCardId": "storage-information",
+      "sourceComponent": "src/lib/cards/info/StorageCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "time",
@@ -211,7 +257,9 @@
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
       "status": "partial",
-      "currentCardId": "time-information"
+      "currentCardId": "time-information",
+      "sourceComponent": "src/lib/cards/info/TimeCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "sidebarControl",
@@ -219,7 +267,9 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "panels-toolbar-shell",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/SidebarControlCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "colorFilter",
@@ -227,7 +277,9 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "image-effects-transitions",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/ColorFilterCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "imageTrim",
@@ -235,7 +287,9 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "image-effects-transitions",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/ImageTrimCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "pageTransition",
@@ -243,7 +297,9 @@
       "panelId": "control",
       "priority": "deferred",
       "featureId": "image-effects-transitions",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/PageTransitionCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "animatedVideoMode",
@@ -251,7 +307,9 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "animated-image-video",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/AnimatedVideoModeCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "ambientBackground",
@@ -259,7 +317,9 @@
       "panelId": "control",
       "priority": "deferred",
       "featureId": "theme-background-empty-state",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/AmbientBackgroundCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "sidebarHeight",
@@ -267,7 +327,9 @@
       "panelId": "control",
       "priority": "deferred",
       "featureId": "panels-toolbar-shell",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/info/SidebarHeightCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "emmTags",
@@ -275,7 +337,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/EmmTagsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "bookSettings",
@@ -283,7 +347,9 @@
       "panelId": "properties",
       "priority": "core",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/BookSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "folderRatings",
@@ -291,7 +357,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/FolderRatingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "favoriteTags",
@@ -299,7 +367,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/FavoriteTagsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "emmSync",
@@ -307,7 +377,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/EmmSyncCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "thumbnailMaintenance",
@@ -315,7 +387,9 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "thumbnail-system",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "thumbnailArchMetrics",
@@ -323,7 +397,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "thumbnail-system",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "emmRawData",
@@ -331,7 +407,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/EmmRawDataCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "emmConfig",
@@ -339,7 +417,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/EmmConfigCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "fileListTagDisplay",
@@ -347,7 +427,9 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "upscaleControl",
@@ -355,7 +437,9 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/upscale/UpscaleControlCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "upscaleModel",
@@ -363,7 +447,9 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/upscale/UpscaleModelCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "upscaleStatus",
@@ -371,7 +457,9 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/upscale/UpscaleStatusCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "upscaleCache",
@@ -379,7 +467,9 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "upscaleConditions",
@@ -387,7 +477,9 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/upscale/UpscaleConditionsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "progressiveUpscale",
@@ -395,7 +487,9 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "historyList",
@@ -404,7 +498,9 @@
       "priority": "core",
       "featureId": "history-bookmarks-progress",
       "status": "partial",
-      "currentCardId": "history-list"
+      "currentCardId": "history-list",
+      "sourceComponent": "src/lib/cards/history/HistoryListCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "bookmarkList",
@@ -413,7 +509,9 @@
       "priority": "core",
       "featureId": "history-bookmarks-progress",
       "status": "partial",
-      "currentCardId": "bookmark-list"
+      "currentCardId": "bookmark-list",
+      "sourceComponent": "src/lib/cards/bookmark/BookmarkListCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "pageListMain",
@@ -422,7 +520,9 @@
       "priority": "core",
       "featureId": "page-index-navigation",
       "status": "partial",
-      "currentCardId": "page-navigation"
+      "currentCardId": "page-navigation",
+      "sourceComponent": "src/lib/cards/pageList/PageListCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "dailyTrend",
@@ -430,7 +530,9 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/insights/DailyTrendCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "readingStreak",
@@ -438,7 +540,9 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/insights/ReadingStreakCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "readingHeatmap",
@@ -446,7 +550,9 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/insights/ReadingHeatmapCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "bookmarkOverview",
@@ -454,7 +560,9 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/insights/BookmarkOverviewCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "sourceBreakdown",
@@ -462,7 +570,9 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/insights/SourceBreakdownCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "emmTagsHot",
@@ -470,7 +580,9 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/insights/EmmTagsHotCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "folderMain",
@@ -479,7 +591,9 @@
       "priority": "core",
       "featureId": "file-browser-navigation",
       "status": "partial",
-      "currentCardId": "folder-main"
+      "currentCardId": "folder-main",
+      "sourceComponent": "src/lib/cards/folder/FolderMainCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "aiTags",
@@ -487,7 +601,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/AiTagsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "aiApiConfig",
@@ -495,7 +611,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/properties/AiApiConfigCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "aiTitleTranslation",
@@ -503,7 +621,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/ai/AiTitleTranslationCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "aiServiceConfig",
@@ -511,7 +631,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/ai/AiServiceConfigCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "aiTranslationCache",
@@ -519,7 +641,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/ai/AiTranslationCacheCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "aiTranslationTest",
@@ -527,7 +651,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/ai/AiTranslationTestCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "translationOverlay",
@@ -535,7 +661,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/ai/TranslationOverlayCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "voiceControl",
@@ -543,7 +671,9 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/ai/VoiceControlCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsGeneral",
@@ -551,7 +681,9 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/GeneralSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsSystem",
@@ -559,7 +691,9 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/SystemSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsView",
@@ -568,7 +702,9 @@
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
       "status": "partial",
-      "currentCardId": "view-defaults-settings"
+      "currentCardId": "view-defaults-settings",
+      "sourceComponent": "src/lib/cards/settings/ViewSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsImage",
@@ -576,7 +712,9 @@
       "panelId": "settings",
       "priority": "integration",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/ImageSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsBook",
@@ -584,7 +722,9 @@
       "panelId": "settings",
       "priority": "integration",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/BookSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsPerformance",
@@ -592,7 +732,9 @@
       "panelId": "settings",
       "priority": "integration",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/PerformanceSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsTheme",
@@ -600,7 +742,9 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/ThemeSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsNotification",
@@ -608,7 +752,9 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/NotificationSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsPanels",
@@ -617,7 +763,9 @@
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
       "status": "partial",
-      "currentCardId": "sidebar-management-settings"
+      "currentCardId": "sidebar-management-settings",
+      "sourceComponent": "src/lib/cards/settings/PanelManagementCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsCards",
@@ -626,7 +774,9 @@
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
       "status": "partial",
-      "currentCardId": "panel-layout-settings"
+      "currentCardId": "panel-layout-settings",
+      "sourceComponent": "src/lib/cards/settings/CardManagementCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsBindings",
@@ -634,7 +784,9 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/BindingsSettingsCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "settingsData",
@@ -642,7 +794,9 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending"
+      "status": "pending",
+      "sourceComponent": "src/lib/cards/settings/DataSettingsCard.svelte",
+      "sourceDisposition": "component"
     }
   ]
 }
