@@ -20,7 +20,7 @@ describe("PanelLayoutEditor", () => {
         cards: expect.arrayContaining([
           { cardId: "page-navigation", panelId: "pageList", visible: true, order: 0 },
           { cardId: "book-information", panelId: "info", visible: true, order: 0 },
-          { cardId: "panel-layout-settings", panelId: "settings", visible: false, order: 0 },
+          { cardId: "panel-layout-settings", panelId: "settings", visible: false, order: 1 },
         ]),
       },
     })

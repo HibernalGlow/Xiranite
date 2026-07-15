@@ -371,15 +371,23 @@ export class ReaderHttpController implements AsyncDisposable {
   async #listPages(encodedSessionId: string, url: URL, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
-    const cursor = boundedInteger(url.searchParams.get("cursor"), 0, session.book.pages.length, 0)
+    const query = url.searchParams.get("query")?.trim() ?? ""
+    if (query.length > 128) return jsonResponse({ error: "Page query must not exceed 128 characters" }, 400)
+    const normalizedQuery = query.toLocaleLowerCase()
+    const catalog = normalizedQuery
+      ? session.book.pages.filter((page) => page.name.toLocaleLowerCase().includes(normalizedQuery) || String(page.index + 1).includes(normalizedQuery))
+      : session.book.pages
+    const cursor = boundedInteger(url.searchParams.get("cursor"), 0, catalog.length, 0)
     const limit = boundedInteger(url.searchParams.get("limit"), 1, 500, 100)
-    const sourcePages = session.book.pages.slice(cursor, cursor + limit)
-    await this.#assets.prewarmThumbnails(sourcePages, signal).catch((error) => {
-      if (signal?.aborted) throw error
-    })
+    const sourcePages = catalog.slice(cursor, cursor + limit)
+    if (url.searchParams.get("thumbnails") !== "0") {
+      await this.#assets.prewarmThumbnails(sourcePages, signal).catch((error) => {
+        if (signal?.aborted) throw error
+      })
+    }
     const pages = sourcePages.map((page) => this.#pageDto(session, page))
-    const nextCursor = cursor + pages.length < session.book.pages.length ? cursor + pages.length : undefined
-    return jsonResponse({ pages, nextCursor, total: session.book.pages.length })
+    const nextCursor = cursor + pages.length < catalog.length ? cursor + pages.length : undefined
+    return jsonResponse({ pages, nextCursor, total: catalog.length })
   }
 
   async #navigate(encodedSessionId: string, request: Request): Promise<Response> {

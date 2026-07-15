@@ -54,7 +54,7 @@
       "settingsKeys": ["book.readingDirection", "book.tailOverflowBehavior", "book.lockedSortMode", "book.lockedMediaPriority"],
       "dataStores": ["page index", "current page", "frame snapshot"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["自然排序与媒体优先级", "LTR/RTL", "首尾跳转和随机页", "五种尾页行为", "generation 取消和旧结果零回写"],
-      "testIds": ["neoview.frame.boundaries", "neoview.session.navigation", "neoview.book.directory", "neoview.book.archive", "neoview.control.session", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.headless.navigation", "neoview.cli.pages", "neoview.cli.frame", "neoview.tui.navigation"], "benchmarkIds": ["reader-hot-page-turn"], "knownDifferences": []
+      "testIds": ["neoview.frame.boundaries", "neoview.session.navigation", "neoview.book.directory", "neoview.book.archive", "neoview.control.session", "neoview.page-list.catalog", "neoview.page-list.virtual", "neoview.page-list.search", "neoview.page-list.thumbnail-mode", "neoview.page-list.retry", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.headless.navigation", "neoview.cli.pages", "neoview.cli.frame", "neoview.tui.navigation"], "benchmarkIds": ["reader-hot-page-turn"], "knownDifferences": []
     },
     {
       "id": "page-layout-modes",

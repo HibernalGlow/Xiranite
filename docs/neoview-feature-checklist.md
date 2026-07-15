@@ -98,7 +98,7 @@
 - 设置：`book.readingDirection`、`book.tailOverflowBehavior`、`book.lockedSortMode`、`book.lockedMediaPriority`
 - 数据：page index、current page、frame snapshot
 - 行为：自然排序与媒体优先级；LTR/RTL；首尾跳转和随机页；五种尾页行为；generation 取消和旧结果零回写
-- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`、`neoview.control.session`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.headless.navigation`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.tui.navigation`
+- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`、`neoview.control.session`、`neoview.page-list.catalog`、`neoview.page-list.virtual`、`neoview.page-list.search`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.retry`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.headless.navigation`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.tui.navigation`
 - 性能基准：`reader-hot-page-turn`
 - 已知差异：无
 

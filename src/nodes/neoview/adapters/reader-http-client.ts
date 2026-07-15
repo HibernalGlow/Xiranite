@@ -129,6 +129,7 @@ export interface ReaderHttpClient {
   navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   closeDirectoryBrowser?(sessionId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
+  listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
   updateSessionOptions(sessionId: string, patch: { layout: { pageMode: PageMode } }, signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -221,6 +222,12 @@ export function createReaderHttpClient(
       `/reader/s/${encodeURIComponent(sessionId)}/pages?cursor=${cursor}&limit=${limit}`,
       { signal },
     ),
+    listPageCatalog: (sessionId, cursor, limit, options, signal) => {
+      const search = new URLSearchParams({ cursor: String(cursor), limit: String(limit) })
+      if (options.query) search.set("query", options.query)
+      if (options.thumbnails === false) search.set("thumbnails", "0")
+      return request<ReaderPageListDto>(`/reader/s/${encodeURIComponent(sessionId)}/pages?${search}`, { signal })
+    },
     navigate: (sessionId, action, signal) => request<ReaderNavigationDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/navigate`,
       {

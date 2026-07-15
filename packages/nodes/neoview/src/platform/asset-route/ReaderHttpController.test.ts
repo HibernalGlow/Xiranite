@@ -240,7 +240,7 @@ describe("ReaderHttpController", () => {
     }
   })
 
-  it("[neoview.control.session] opens, pages, navigates and closes without exposing local paths", async () => {
+  it("[neoview.control.session] [neoview.page-list.catalog] opens, filters pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
     const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
     try {
@@ -286,6 +286,23 @@ describe("ReaderHttpController", () => {
       expect(pageList.pages.map((page) => page.name)).toEqual(["2.jpg"])
       expect(pageList.nextCursor).toBe(2)
       expect(pageList.pages[0]!.assetUrl).toContain("token=reader-token")
+
+      const prewarmThumbnails = vi.spyOn(ReaderAssetRoute.prototype, "prewarmThumbnails")
+      try {
+        const filteredResponse = (await controller.handle(authorizedRequest(
+          `/reader/s/${session.sessionId}/pages?cursor=0&limit=64&query=2&thumbnails=0`,
+        )))!
+        expect(await filteredResponse.json()).toMatchObject({
+          pages: [{ index: 1, name: "2.jpg" }],
+          total: 1,
+        })
+        expect(prewarmThumbnails).not.toHaveBeenCalled()
+      } finally {
+        prewarmThumbnails.mockRestore()
+      }
+      expect((await controller.handle(authorizedRequest(
+        `/reader/s/${session.sessionId}/pages?query=${"x".repeat(129)}`,
+      )))?.status).toBe(400)
 
       const asset = (await controller.handle(new Request(pageList.pages[0]!.assetUrl)))!
       expect(new Uint8Array(await asset.arrayBuffer())).toEqual(Uint8Array.of(2))
