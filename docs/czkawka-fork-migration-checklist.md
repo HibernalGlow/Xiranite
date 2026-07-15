@@ -329,14 +329,39 @@ Q05/Q09/Q12 验证证据（2026-07-15）：表驱动测试对 11 个工具分别
 3. **M3：智能选择助手** — A04–A12，复用 fork 规则管线思想，不复制 Jotai 绑定。
 4. **M4：媒体直通与预览** — P01–P10，抽到共享宿主能力后再接入 Czkawka。
 5. **M5：文件操作** — O02–O12，全部 TypeScript，保持 dry-run 安全边界。
-6. **M6：分析与节点内布局** — D02–D10、U01–U12，适配节点卡片而非照搬窗口壳。
+6. **M6：AST 前端源码迁移与宿主适配** — 先完整复制 fork 前端源码和状态层，再用 AST 改写模块边界；仅在 Tauri/窗口/宿主能力处增加适配层，在此基础上完成 D02–D10、U01–U12。
 7. **M7：CLI/TUI 对等和最终交付** — C04–C09、Q03–Q12、release 原生构建。
 
 ## 15. 明确不照搬的内容
 
 - Tauri 自定义标题栏、最小化/最大化/关闭按钮：由 Xiranite 桌面壳负责。
 - fork 的本地视频 HTTP server：改用 Xiranite 通用本地文件/媒体 URL。
-- fork 的 Jotai 全局状态结构：迁移业务规则和交互语义，不在节点内再建第二套全局应用状态。
+- fork 的 Jotai 状态树先随前端源码完整迁入，作为兼容层保留组件能力；通过单一节点状态桥接器同步 Xiranite config/state，稳定后再按证据决定是否收敛，不手工重写整套组件状态。
 - fork 的 Rust 删除、移动、保存、预设逻辑：统一改为 TypeScript。
 - fork 的 thumbnail Rust manager：优先共享图片直通；只有性能证据证明必要时才增加通用缓存层。
 - fork 的独立主题系统：继承 Xiranite 设计 token 和宿主主题。
+
+## 16. AST 前端源码迁移轨道
+
+用户 fork 的 `ui/src` 是 GUI 功能和视觉结构的权威实现。后续不再以截图重新拼装同名界面，而是把原组件作为主线源码迁移；Xiranite 已有 TypeScript 领域逻辑继续作为 GUI、CLI、OpenTUI 的共享后端。
+
+| ID | 状态 | 工作项 | 验收标准 |
+| --- | --- | --- | --- |
+| AST01 | `[x]` | 通用前端源码迁移器 | `@xiranite/tauri-migrate frontend` 递归复制 TS/TSX/JS/样式资源，仅通过 AST 改写 import/export module specifier，并输出 JSON/Markdown 报告 |
+| AST02 | `[x]` | Czkawka 完整源码快照 | `migration/czkawka/frontend` 由 fork `ui/src` 生成；源码、组件、atoms、hooks、views 和 shadcn 依赖树不靠手抄 |
+| AST03 | `[ ]` | Tauri Host adapters | 报告列出的 core/event/window/dialog/opener/clipboard 等边界映射到 Xiranite Host；不得在迁入组件内散改 invoke |
+| AST04 | `[ ]` | Jotai 节点状态桥 | fork atoms 保留，统一桥接 `NodeComponentHost` 的 config/state、扫描结果、选择和布局持久化 |
+| AST05 | `[ ]` | 原版 App shell 嵌入节点 | 直接复用 `AppSidebar`、`AppBody`、`BottomBar`、Operations、ToolSettings、FilterPanel、SelectionAssistant；仅移除窗口标题栏职责 |
+| AST06 | `[ ]` | 共享 TS 后端接线 | `ipc.scan/move/delete/save/rename` 适配到现有 `@xiranite/node-czkawka` 与 Node-API，GUI/CLI/TUI 不维护多套业务逻辑 |
+| AST07 | `[ ]` | Playwright 视觉与交互验收 | 以 `migration/czkawka/image.png` 和原项目实际运行结果对照；允许宿主化改良，但所有差异必须是明确决策而非遗漏 |
+
+当前生成命令：
+
+```powershell
+bun packages/tauri-migrate/src/cli.ts frontend ../ImageAll/czkawka-tauri/ui/src `
+  --out migration/czkawka/frontend `
+  --config migration/czkawka/frontend-migration.json `
+  --force
+```
+
+2026-07-15 首次完整生成结果：224 个源文件、711 处 AST import/export 改写、16 个源文件包含 Tauri 边界、未映射 Tauri import 为 0、未解析 `~/` alias 为 0。生成树包含 fork 自带的 UI primitives，避免相对导入遗漏；已将 `framer-motion` AST 映射到宿主现有的 `motion/react`。`frontend-port.json` 用于机器审计，`REPORT.md` 用于人工检查；后续先完成 AST03/AST04，再把生成树接入编译，避免一边手改组件一边丢失 fork 功能。

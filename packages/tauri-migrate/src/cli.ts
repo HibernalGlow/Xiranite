@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url"
 import { readFile } from "node:fs/promises"
 
 import { generateMigrationArtifacts } from "./generate.js"
+import { portTauriFrontend } from "./frontend.js"
 import type { TauriMigrationConfig } from "./types.js"
 
 export async function runTauriMigrationCli(args = process.argv.slice(2)): Promise<void> {
@@ -13,8 +14,18 @@ export async function runTauriMigrationCli(args = process.argv.slice(2)): Promis
   }
 
   const command = args[0]
+  if (command === "frontend") {
+    const sourceRoot = positional(args, 1)
+    const outputDir = value(args, "--out")
+    if (!sourceRoot || !outputDir) throw new Error("Both <source-root> and --out <directory> are required.")
+    const configPath = value(args, "--config")
+    const config = configPath ? JSON.parse(await readFile(resolve(configPath), "utf8")) : {}
+    const manifest = await portTauriFrontend({ sourceRoot, outputDir, ...config, force: args.includes("--force") })
+    process.stdout.write(`Tauri frontend port: ${manifest.summary.sourceFiles} source file(s), ${manifest.summary.rewrittenImports} import rewrite(s), ${manifest.summary.tauriImportFiles} Tauri adapter file(s).\n`)
+    return
+  }
   if (command !== "generate") {
-    throw new Error(`Unknown command ${JSON.stringify(command)}. Expected "generate".`)
+    throw new Error(`Unknown command ${JSON.stringify(command)}. Expected "generate" or "frontend".`)
   }
   const projectRoot = positional(args, 1)
   const outputDir = value(args, "--out")
@@ -64,6 +75,7 @@ function help(): string {
     "",
     "Usage:",
     "  xiranite-tauri-migrate generate <project-root> --out <directory> [options]",
+    "  xiranite-tauri-migrate frontend <source-root> --out <directory> [options]",
     "",
     "Options:",
     "  --source <directory>       Rust source root; repeatable; auto-detected by default",

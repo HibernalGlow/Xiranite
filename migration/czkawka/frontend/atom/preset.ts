@@ -1,0 +1,61 @@
+import { atom } from 'jotai';
+import { toastError } from '@/nodes/czkawka/upstream/components';
+import { getDefaultPreset } from '@/nodes/czkawka/upstream/consts';
+import { ipc } from '@/nodes/czkawka/upstream/ipc';
+import type { Preset } from '@/nodes/czkawka/upstream/types';
+import { platformSettingsAtom, presetsAtom } from './primitive';
+
+export const currentPresetAtom = atom(
+  (get) => {
+    const presets = get(presetsAtom);
+    return presets.find((preset) => preset.active) || getDefaultPreset();
+  },
+  (get, set, values: Partial<Preset>) => {
+    const presets = get(presetsAtom);
+    set(
+      presetsAtom,
+      presets.map((preset) => {
+        if (preset.active) {
+          return { ...preset, ...values, changed: true };
+        }
+        return preset;
+      }),
+    );
+  },
+);
+
+export const initCurrentPresetAtom = atom(null, async (get, set) => {
+  try {
+    const data = await ipc.getPlatformSettings();
+    set(platformSettingsAtom, data);
+    const currentPreset = get(currentPresetAtom);
+    if (!currentPreset.changed) {
+      const threadNumber = await ipc.setupNumberOfThreads(
+        data.availableThreadNumber,
+      );
+      set(currentPresetAtom, {
+        settings: {
+          ...currentPreset.settings,
+          includedDirectories: data.includedDirectories,
+          excludedDirectories: data.excludedDirectories,
+          excludedItems: data.excludedItems,
+          threadNumber,
+        },
+        changed: true,
+      });
+      return;
+    }
+    const threadNumber = await ipc.setupNumberOfThreads(
+      currentPreset.settings.threadNumber,
+    );
+    set(currentPresetAtom, {
+      settings: {
+        ...currentPreset.settings,
+        threadNumber,
+      },
+      changed: true,
+    });
+  } catch (error) {
+    toastError('Failed to load settings', error);
+  }
+});

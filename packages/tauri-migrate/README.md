@@ -6,6 +6,7 @@ The tool has two deliberately separate layers:
 
 1. `analyzeTauriProject` parses Rust with ast-grep/tree-sitter, discovers Cargo source roots, inventories `#[tauri::command]`, `generate_handler!`, arguments, return types, state, app handles, events, calls, and transitive native dependency evidence.
 2. `applyStructuralRewrites` runs deterministic ast-grep codemods for Rust, JavaScript, TypeScript, and TSX. It is intended for imports, API renames, and other same-language structural edits—not automatic Rust-to-TypeScript business-logic translation.
+3. `portTauriFrontend` copies a frontend source tree and rewrites import/export module specifiers through ast-grep nodes. It emits a source manifest and a review report so application components can be migrated wholesale while Tauri APIs remain visible as explicit host-adapter boundaries.
 
 ## CLI
 
@@ -14,6 +15,17 @@ bun run migrate:tauri -- generate D:\path\to\tauri-project `
   --out artifacts\tauri-migration\my-project `
   --config path\to\tauri-migration.json
 ```
+
+Frontend source port:
+
+```powershell
+bun run migrate:tauri -- frontend D:\path\to\tauri-project\ui\src `
+  --out migration\my-project\frontend `
+  --config migration\my-project\frontend-migration.json `
+  --force
+```
+
+The config accepts `aliasReplacements`, `moduleReplacements`, and optional excluded source-tree prefixes. Rewrites apply only to AST module specifiers, so matching text in application strings and comments is left unchanged. The output includes `frontend-port.json` and `REPORT.md`; source Tauri imports and any unmapped adapters are reported separately.
 
 The generated directory contains:
 
