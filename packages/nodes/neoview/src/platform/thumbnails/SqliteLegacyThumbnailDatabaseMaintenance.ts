@@ -1,10 +1,12 @@
-import { mkdir, realpath, rm, stat } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import { mkdir, realpath, rename, rm, stat } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 
 import type {
   ReaderThumbnailDatabaseBackupResult,
   ReaderThumbnailDatabaseMaintenance,
   ReaderThumbnailDatabaseOptimizeResult,
+  ReaderThumbnailDatabaseRecoveryResult,
 } from "../../ports/ReaderThumbnailDatabaseMaintenance.js"
 import { openReadonlySqlite } from "../sqlite/openReadonlySqlite.js"
 import { openWritableSqlite } from "../sqlite/openWritableSqlite.js"
@@ -16,13 +18,16 @@ import { acquireThumbnailDatabaseAccessLock } from "./ThumbnailDatabaseAccessLoc
 
 export interface SqliteLegacyThumbnailDatabaseMaintenanceOptions {
   busyTimeoutMs?: number
+  renamePath?: (source: string, destination: string) => Promise<void>
 }
 
 export class SqliteLegacyThumbnailDatabaseMaintenance implements ReaderThumbnailDatabaseMaintenance {
   readonly #busyTimeoutMs: number
+  readonly #renamePath: (source: string, destination: string) => Promise<void>
 
   constructor(options: SqliteLegacyThumbnailDatabaseMaintenanceOptions = {}) {
     this.#busyTimeoutMs = options.busyTimeoutMs ?? 5_000
+    this.#renamePath = options.renamePath ?? rename
     if (!Number.isSafeInteger(this.#busyTimeoutMs) || this.#busyTimeoutMs < 0 || this.#busyTimeoutMs > 60_000) {
       throw new RangeError("busyTimeoutMs must be an integer from 0 to 60000.")
     }
@@ -131,6 +136,91 @@ export class SqliteLegacyThumbnailDatabaseMaintenance implements ReaderThumbnail
       await accessLock.release()
     }
   }
+
+  async recover(
+    sourcePath: string,
+    options: { backupPath: string; quarantinePath: string },
+    signal?: AbortSignal,
+  ): Promise<ReaderThumbnailDatabaseRecoveryResult> {
+    signal?.throwIfAborted()
+    const source = await realpath(sourcePath)
+    const backup = await realpath(options.backupPath)
+    const quarantine = resolve(options.quarantinePath)
+    validateRecoveryPaths(source, backup, quarantine)
+    const backupReport = await verifyCurrentBackup(backup)
+    const accessLock = await acquireThumbnailDatabaseAccessLock(source, signal)
+    const staging = `${source}.xr-recovery-${randomUUID()}.db`
+    const moved: Array<{ source: string; quarantine: string }> = []
+    try {
+      const original = await inspectLegacyThumbnailDatabase(source)
+      await assertRecoveryDestinationsMissing(quarantine)
+      await this.backup(backup, staging, signal)
+      signal?.throwIfAborted()
+      accessLock.assertHeld()
+
+      let installed = false
+      try {
+        await this.#moveRecoveryComponent(source, quarantine, true, moved)
+        await this.#moveRecoveryComponent(`${source}-wal`, `${quarantine}-wal`, false, moved)
+        await this.#moveRecoveryComponent(`${source}-shm`, `${quarantine}-shm`, false, moved)
+        await this.#renamePath(staging, source)
+        installed = true
+        accessLock.assertHeld()
+        const restored = await verifyCurrentBackup(source)
+        return {
+          recovered: true,
+          sourcePath: source,
+          backupPath: backup,
+          quarantinedDatabasePath: quarantine,
+          quarantinedWalPath: moved.some((item) => item.quarantine === `${quarantine}-wal`) ? `${quarantine}-wal` : undefined,
+          quarantinedShmPath: moved.some((item) => item.quarantine === `${quarantine}-shm`) ? `${quarantine}-shm` : undefined,
+          originalCompatibility: original.compatibility,
+          restoredBytes: (await stat(source)).size,
+          metadataVersion: restored.metadataVersion ?? backupReport.metadataVersion,
+          userVersion: restored.userVersion ?? backupReport.userVersion,
+          journalMode: restored.journalMode,
+          quickCheck: "ok",
+        }
+      } catch (error) {
+        const rollbackErrors = await this.#rollbackRecovery(source, moved, installed)
+        if (rollbackErrors.length) {
+          throw new AggregateError([error, ...rollbackErrors], "Thumbnail database recovery failed and rollback was incomplete.")
+        }
+        throw error
+      }
+    } finally {
+      await rm(staging, { force: true }).catch(() => undefined)
+      await accessLock.release()
+    }
+  }
+
+  async #moveRecoveryComponent(
+    source: string,
+    quarantine: string,
+    required: boolean,
+    moved: Array<{ source: string; quarantine: string }>,
+  ): Promise<void> {
+    if (!required && !(await pathExists(source))) return
+    await this.#renamePath(source, quarantine)
+    moved.push({ source, quarantine })
+  }
+
+  async #rollbackRecovery(
+    source: string,
+    moved: Array<{ source: string; quarantine: string }>,
+    installed: boolean,
+  ): Promise<unknown[]> {
+    const errors: unknown[] = []
+    if (installed) {
+      for (const path of [source, `${source}-wal`, `${source}-shm`]) {
+        try { await rm(path, { force: true }) } catch (error) { errors.push(error) }
+      }
+    }
+    for (const item of [...moved].reverse()) {
+      try { await this.#renamePath(item.quarantine, item.source) } catch (error) { errors.push(error) }
+    }
+    return errors
+  }
 }
 
 async function requireBackupCompatible(path: string): Promise<LegacyThumbnailDatabaseReport> {
@@ -161,6 +251,14 @@ async function verifyBackup(path: string): Promise<LegacyThumbnailDatabaseReport
   return report
 }
 
+async function verifyCurrentBackup(path: string): Promise<LegacyThumbnailDatabaseReport> {
+  const report = await verifyBackup(path)
+  if (report.compatibility !== "current") {
+    throw new Error(`NeoView thumbnail recovery requires a current 2.4 backup (${report.compatibility}): ${path}`)
+  }
+  return report
+}
+
 function requireQuickCheck(row: Record<string, unknown> | undefined): void {
   const value = row?.quick_check ?? (row ? Object.values(row)[0] : undefined)
   if (value !== "ok") throw new Error(`Thumbnail database quick_check failed: ${String(value ?? "missing result")}`)
@@ -184,6 +282,33 @@ async function assertMissing(path: string): Promise<void> {
     throw error
   }
   throw new Error(`Thumbnail database backup already exists: ${path}`)
+}
+
+async function assertRecoveryDestinationsMissing(quarantine: string): Promise<void> {
+  await assertMissing(quarantine)
+  await assertMissing(`${quarantine}-wal`)
+  await assertMissing(`${quarantine}-shm`)
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ENOENT" || code === "ENOTDIR") return false
+    throw error
+  }
+}
+
+function validateRecoveryPaths(source: string, backup: string, quarantine: string): void {
+  if (samePath(source, backup)) throw new Error("Thumbnail database recovery backup must differ from the source.")
+  if (samePath(source, quarantine) || samePath(backup, quarantine)) {
+    throw new Error("Thumbnail database recovery quarantine path must differ from source and backup.")
+  }
+  if (!samePath(dirname(source), dirname(quarantine))) {
+    throw new Error("Thumbnail database recovery quarantine path must be in the source database directory.")
+  }
 }
 
 function samePath(left: string, right: string): boolean {

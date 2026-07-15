@@ -372,7 +372,19 @@ describe("NeoView CLI", () => {
       journalModeBefore: "wal",
       journalModeAfter: "wal",
     }))
-    const createThumbnailDatabaseMaintenance = vi.fn(async () => ({ backup, optimize }))
+    const recover = vi.fn(async (sourcePath: string, options: { backupPath: string; quarantinePath: string }) => ({
+      recovered: true as const,
+      sourcePath,
+      backupPath: options.backupPath,
+      quarantinedDatabasePath: options.quarantinePath,
+      originalCompatibility: "incompatible" as const,
+      restoredBytes: 1024,
+      metadataVersion: "2.4",
+      userVersion: 7,
+      journalMode: "delete",
+      quickCheck: "ok" as const,
+    }))
+    const createThumbnailDatabaseMaintenance = vi.fn(async () => ({ backup, optimize, recover }))
     const dependencies = { createController: async () => fakeReader(), createThumbnailDatabaseMaintenance }
 
     await expect(runProgram([
@@ -402,6 +414,28 @@ describe("NeoView CLI", () => {
     expect(optimize).toHaveBeenCalledWith(expect.stringMatching(/thumbnails\.db$/), {
       backupPath: expect.stringMatching(/pre-optimize\.db$/),
       vacuum: true,
+    })
+
+    await expect(runProgram([
+      "thumbnail-db-recover", "private/thumbnails.db", "--from", "private/verified.db",
+      "--output", "private/corrupt.db", "--yes",
+    ], host([]), dependencies)).rejects.toThrow("requires --offline")
+    expect(recover).not.toHaveBeenCalled()
+    await expect(runProgram([
+      "thumbnail-db-recover", "private/thumbnails.db", "--output", "private/corrupt.db",
+      "--yes", "--offline",
+    ], host([]), dependencies)).rejects.toThrow("requires --from")
+    expect(recover).not.toHaveBeenCalled()
+
+    const recoverOutput: unknown[] = []
+    await runProgram([
+      "thumbnail-db-recover", "private/thumbnails.db", "--from", "private/verified.db",
+      "--output", "private/corrupt.db", "--yes", "--offline", "--json",
+    ], host(recoverOutput), dependencies)
+    expect(JSON.parse(recoverOutput.join(""))).toMatchObject({ recovered: true, originalCompatibility: "incompatible", quickCheck: "ok" })
+    expect(recover).toHaveBeenCalledWith(expect.stringMatching(/thumbnails\.db$/), {
+      backupPath: expect.stringMatching(/verified\.db$/),
+      quarantinePath: expect.stringMatching(/corrupt\.db$/),
     })
   })
 

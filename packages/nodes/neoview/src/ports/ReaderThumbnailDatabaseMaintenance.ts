@@ -25,6 +25,21 @@ export interface ReaderThumbnailDatabaseOptimizeResult {
   journalModeAfter?: string
 }
 
+export interface ReaderThumbnailDatabaseRecoveryResult {
+  recovered: true
+  sourcePath: string
+  backupPath: string
+  quarantinedDatabasePath: string
+  quarantinedWalPath?: string
+  quarantinedShmPath?: string
+  originalCompatibility: ReaderThumbnailDatabaseCompatibility
+  restoredBytes: number
+  metadataVersion?: string
+  userVersion?: number
+  journalMode?: string
+  quickCheck: "ok"
+}
+
 export interface ReaderThumbnailDatabaseMaintenance {
   backup(sourcePath: string, destinationPath: string, signal?: AbortSignal): Promise<ReaderThumbnailDatabaseBackupResult>
   optimize(
@@ -32,4 +47,9 @@ export interface ReaderThumbnailDatabaseMaintenance {
     options: { backupPath: string; vacuum: boolean },
     signal?: AbortSignal,
   ): Promise<ReaderThumbnailDatabaseOptimizeResult>
+  recover(
+    sourcePath: string,
+    options: { backupPath: string; quarantinePath: string },
+    signal?: AbortSignal,
+  ): Promise<ReaderThumbnailDatabaseRecoveryResult>
 }

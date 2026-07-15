@@ -27,7 +27,7 @@ const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
   "reader-data-inspect", "reader-data-import",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
-  "thumbnail-db-backup", "thumbnail-db-optimize",
+  "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
 ])
 const VALUE_FLAGS = new Set([
@@ -36,6 +36,7 @@ const VALUE_FLAGS = new Set([
   "--cursor",
   "--limit",
   "--output",
+  "--from",
   "--password-env",
   "--archive-password-env",
   "--config",
@@ -99,7 +100,7 @@ export async function runProgram(
     await runThumbnailDatabaseInspect(parsed.positionals[0], parsed.booleans.has("--json"), host)
     return
   }
-  if (command === "thumbnail-db-backup" || command === "thumbnail-db-optimize") {
+  if (command === "thumbnail-db-backup" || command === "thumbnail-db-optimize" || command === "thumbnail-db-recover") {
     if (parsed.positionals.length > 1) throw usage(`${command} accepts at most one database path.`)
     await runThumbnailDatabaseOfflineCommand(command, parsed.positionals[0], parsed, host, dependencies)
     return
@@ -199,6 +200,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "thumbnail-db-optimize") {
     rejectOptions(parsed, new Set(["--json", "--yes", "--offline", "--vacuum", "--output"] ))
+    return
+  }
+  if (command === "thumbnail-db-recover") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--offline", "--from", "--output"] ))
     return
   }
   if (command === "presentation-cache-stats") {
@@ -432,26 +437,30 @@ async function runThumbnailMaintenanceCommand(
 }
 
 async function runThumbnailDatabaseOfflineCommand(
-  command: "thumbnail-db-backup" | "thumbnail-db-optimize",
+  command: "thumbnail-db-backup" | "thumbnail-db-optimize" | "thumbnail-db-recover",
   path: string | undefined,
   parsed: ParsedArguments,
   host: CliHost,
   dependencies: NeoviewCliDependencies,
 ): Promise<void> {
   if (!parsed.booleans.has("--yes")) throw usage(`${command} requires --yes because it creates or rewrites database files.`)
-  if (command === "thumbnail-db-optimize" && !parsed.booleans.has("--offline")) {
-    throw usage("thumbnail-db-optimize requires --offline after closing NeoView and Xiranite database users.")
+  if (command !== "thumbnail-db-backup" && !parsed.booleans.has("--offline")) {
+    throw usage(`${command} requires --offline after closing NeoView and Xiranite database users.`)
   }
   const output = oneValue(parsed, "--output")
-  if (!output) throw usage(`${command} requires --output <backup.db>.`)
+  if (!output) throw usage(`${command} requires --output <${command === "thumbnail-db-recover" ? "quarantine.db" : "backup.db"}>.`)
+  const from = oneValue(parsed, "--from")
+  if (command === "thumbnail-db-recover" && !from) throw usage("thumbnail-db-recover requires --from <verified-backup.db>.")
   const sourcePath = await resolveThumbnailDatabasePath(path, host)
-  const backupPath = resolve(host.cwd, output)
   const maintenance = dependencies.createThumbnailDatabaseMaintenance
     ? await dependencies.createThumbnailDatabaseMaintenance()
     : await (await import("./platform.js")).createLegacyThumbnailDatabaseMaintenance()
+  const destinationPath = resolve(host.cwd, output)
   const result = command === "thumbnail-db-backup"
-    ? await maintenance.backup(sourcePath, backupPath)
-    : await maintenance.optimize(sourcePath, { backupPath, vacuum: parsed.booleans.has("--vacuum") })
+    ? await maintenance.backup(sourcePath, destinationPath)
+    : command === "thumbnail-db-optimize"
+      ? await maintenance.optimize(sourcePath, { backupPath: destinationPath, vacuum: parsed.booleans.has("--vacuum") })
+      : await maintenance.recover(sourcePath, { backupPath: resolve(host.cwd, from!), quarantinePath: destinationPath })
   if (parsed.booleans.has("--json")) {
     writeJson(host, result)
     return
@@ -459,6 +468,12 @@ async function runThumbnailDatabaseOfflineCommand(
   if (command === "thumbnail-db-backup") {
     const backup = result as import("./ports/ReaderThumbnailDatabaseMaintenance.js").ReaderThumbnailDatabaseBackupResult
     writeLine(host, `Backup: ${backup.destinationPath} (${backup.bytes} bytes, quick_check=${backup.quickCheck})`)
+    return
+  }
+  if (command === "thumbnail-db-recover") {
+    const recovered = result as import("./ports/ReaderThumbnailDatabaseMaintenance.js").ReaderThumbnailDatabaseRecoveryResult
+    writeLine(host, `Recovered: ${recovered.sourcePath} from ${recovered.backupPath} (quick_check=${recovered.quickCheck})`)
+    writeLine(host, `Quarantined: ${recovered.quarantinedDatabasePath}`)
     return
   }
   const optimized = result as import("./ports/ReaderThumbnailDatabaseMaintenance.js").ReaderThumbnailDatabaseOptimizeResult
@@ -807,6 +822,7 @@ function formatCliHelp(): string {
     "  thumbnail-db-clear-failures [path]  Clear a bounded failure batch",
     "  thumbnail-db-backup [path]   Create and verify a SQLite snapshot with VACUUM INTO",
     "  thumbnail-db-optimize [path] Backup, checkpoint and optimize an offline database",
+    "  thumbnail-db-recover [path]  Restore a verified backup and quarantine the offline source",
     "  presentation-cache-stats       Show L3 content-cache statistics",
     "  presentation-cache-cleanup     Run age/budget maintenance for L3",
     "  presentation-cache-clear       Clear unleased L3 entries",
