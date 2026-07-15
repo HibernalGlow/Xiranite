@@ -6,6 +6,7 @@ import type { ReaderAssetRoute, ReaderAssetRouteOptions } from "./platform/asset
 import type { ReaderHttpController, ReaderHttpControllerOptions } from "./platform/asset-route/ReaderHttpController.js"
 import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
+import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
@@ -36,6 +37,7 @@ export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/Ffmpe
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
   legacyThumbnailDatabasePath?: string | false
+  loadLegacyThumbnailStore?: (databasePath?: string) => Promise<ReaderThumbnailStore>
 }
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
@@ -88,13 +90,14 @@ export async function createReaderHttpController(
   let thumbnailStore = options.thumbnailStore
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
-    try {
-      const ownedThumbnailStore = await createWritableLegacyThumbnailStore(options.legacyThumbnailDatabasePath)
-      thumbnailStore = ownedThumbnailStore
-      disposeThumbnailStore = () => ownedThumbnailStore.close()
-    } catch {
-      thumbnailStore = undefined
-    }
+    const { LazyReaderThumbnailStore } = await import("./platform/thumbnails/LazyReaderThumbnailStore.js")
+    const loadThumbnailStore = options.loadLegacyThumbnailStore ?? createWritableLegacyThumbnailStore
+    const ownedThumbnailStore = new LazyReaderThumbnailStore({
+      load: () => loadThumbnailStore(options.legacyThumbnailDatabasePath || undefined),
+      dispose: disposeLoadedThumbnailStore,
+    })
+    thumbnailStore = ownedThumbnailStore
+    disposeThumbnailStore = () => ownedThumbnailStore.close()
   }
   return new ReaderHttpController({
     ...options,
@@ -123,6 +126,13 @@ export async function createReaderHttpController(
     thumbnailStore,
     disposeThumbnailStore,
   })
+}
+
+async function disposeLoadedThumbnailStore(store: ReaderThumbnailStore): Promise<void> {
+  const disposable = store as ReaderThumbnailStore & Partial<AsyncDisposable> & { close?: () => void | Promise<void> }
+  const asyncDispose = disposable[Symbol.asyncDispose]
+  if (typeof asyncDispose === "function") await asyncDispose.call(disposable)
+  else await disposable.close?.()
 }
 
 export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {

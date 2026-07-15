@@ -21,7 +21,7 @@ describe("FfmpegVideoThumbnailProvider", () => {
     })))
   })
 
-  it("[neoview.thumbnail.video.scheduler] uses a process slot plus the host CPU lease and emits a fixed WebP command", async () => {
+  it("[neoview.thumbnail.video.provider] [neoview.thumbnail.video.scheduler] uses a process slot plus the host CPU lease and emits a fixed WebP command", async () => {
     const processRelease = vi.fn()
     const resourceRelease = vi.fn()
     const processAcquire = vi.fn(async () => ({ release: processRelease }))
