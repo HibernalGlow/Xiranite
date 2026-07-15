@@ -18,7 +18,7 @@ import type { PageByteRange, PageSource } from "../../domain/page/page-content.j
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
-import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -170,6 +170,16 @@ export class ReaderAssetRoute {
     } catch (error) {
       lease?.release()
       if (error instanceof ThumbnailUnavailableError) return textResponse("Reader thumbnail not found", 404)
+      if (error instanceof ThumbnailRetryDeferredError) {
+        return new Response("Reader thumbnail retry is deferred", {
+          status: 429,
+          headers: {
+            "cache-control": "private, no-store",
+            "retry-after": String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))),
+            "x-content-type-options": "nosniff",
+          },
+        })
+      }
       throw error
     }
     if (!thumbnail.contentType?.startsWith("image/")) {
@@ -223,6 +233,9 @@ export class ReaderAssetRoute {
           cacheable: false,
         }
       }
+      const failure = await this.#thumbnailStore.getFailure?.(page.thumbnailSource.key)
+      const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
+      if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
     }
     if (!this.#loadImageTransformer || (page.mediaKind !== "image" && page.mediaKind !== "animated-image")) {
       throw new ThumbnailUnavailableError()
@@ -245,12 +258,33 @@ export class ReaderAssetRoute {
         await result.stream.cancel("unexpected thumbnail content type").catch(() => undefined)
         throw new Error(`Thumbnail transformer returned ${result.contentType}; expected image/webp.`)
       }
+      const bytes = await collectThumbnailBytes(result.stream, 2 * 1024 * 1024, signal)
+      if (page.thumbnailSource && this.#thumbnailStore?.put) {
+        void this.#thumbnailStore.put({
+          key: page.thumbnailSource.key,
+          category: page.thumbnailSource.category,
+          bytes,
+          sourceSize: page.byteLength,
+          date: sqliteTimestamp(new Date()),
+          generationHash: thumbnailGenerationHash(page.contentVersion),
+        }).catch(() => undefined)
+      }
       return {
-        bytes: await collectThumbnailBytes(result.stream, 2 * 1024 * 1024, signal),
+        bytes,
         contentType: result.contentType,
         version: "page-strip-v1",
         cacheable: true,
       }
+    } catch (error) {
+      if (page.thumbnailSource && this.#thumbnailStore?.recordFailure && !isAbortError(error)) {
+        void this.#thumbnailStore.recordFailure({
+          key: page.thumbnailSource.key,
+          reason: thumbnailFailureReason(error),
+          lastAttempt: sqliteTimestamp(new Date()),
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }).catch(() => undefined)
+      }
+      throw error
     } finally {
       await source?.close().catch(() => undefined)
     }
@@ -579,6 +613,41 @@ function thumbnailEtag(page: ReaderPage, thumbnail: ThumbnailAsset): string {
 }
 
 class ThumbnailUnavailableError extends Error {}
+
+class ThumbnailRetryDeferredError extends Error {
+  constructor(readonly retryAfterMs: number) {
+    super(`Thumbnail retry is deferred for ${retryAfterMs}ms.`)
+  }
+}
+
+function thumbnailRetryAfterMs(failure: ReaderThumbnailFailure, now = Date.now()): number {
+  const attemptedAt = Date.parse(failure.lastAttempt)
+  if (!Number.isFinite(attemptedAt)) return 0
+  const exponent = Math.min(14, Math.max(0, failure.retryCount - 1))
+  const delay = Math.min(24 * 60 * 60 * 1000, 5_000 * 2 ** exponent)
+  return Math.max(0, attemptedAt + delay - now)
+}
+
+function thumbnailFailureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
+  if (message.includes("password")) return "password-required"
+  if (message.includes("unsupported") || message.includes("expected image")) return "unsupported-format"
+  if (message.includes("archive") || message.includes("7z") || message.includes("zip")) return "archive-error"
+  if (message.includes("enoent") || message.includes("not found") || message.includes("missing")) return "source-missing"
+  return "decode-error"
+}
+
+function thumbnailGenerationHash(contentVersion: string): number {
+  return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
+}
+
+function sqliteTimestamp(value: Date): string {
+  return value.toISOString().replace("T", " ").slice(0, 19)
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError"
+}
 
 function matchesEtag(value: string | null, etag: string): boolean {
   return value?.split(",").some((candidate) => candidate.trim() === etag || candidate.trim() === "*") ?? false

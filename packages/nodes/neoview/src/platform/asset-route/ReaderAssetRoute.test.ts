@@ -142,10 +142,14 @@ describe("ReaderAssetRoute", () => {
         }),
       }
     })
+    const put = vi.fn(async () => undefined)
     const route = new ReaderAssetRoute(
       service,
       { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
-      { loadImageTransformer: async () => ({ transform }) },
+      {
+        loadImageTransformer: async () => ({ transform }),
+        thumbnailStore: { get: async () => undefined, put },
+      },
     )
     const url = route.thumbnailUrl(session.id, "page-1")!
     const firstPending = route.handle(new Request(url))
@@ -163,6 +167,37 @@ describe("ReaderAssetRoute", () => {
     expect(new Uint8Array(await cached.arrayBuffer())).toEqual(Uint8Array.of(0x52, 0x49, 0x46, 0x46, 9, 8, 7))
     expect(transform).toHaveBeenCalledTimes(1)
     expect(openSource).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ category: "file", bytes: expect.any(Uint8Array) }))
+    route.close()
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.thumbnail.failure.backoff] defers regeneration while a persisted failure is cooling down", async () => {
+    const closeSource = async () => undefined
+    const service = new CoreReaderService(async () => fixtureBook({
+      rangeSupported: false,
+      open: async () => new ReadableStream<Uint8Array>(),
+      close: closeSource,
+      [Symbol.asyncDispose]: closeSource,
+    }))
+    const session = await service.openViewSource({ kind: "path", path: "failed" })
+    const transform = vi.fn()
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      {
+        loadImageTransformer: async () => ({ transform }),
+        thumbnailStore: {
+          get: async () => undefined,
+          getFailure: async (key) => ({ key, reason: "decode-error", retryCount: 4, lastAttempt: "2999-01-01 00:00:00" }),
+        },
+      },
+    )
+    const response = (await route.handle(new Request(route.thumbnailUrl(session.id, "page-1")!)))!
+    expect(response.status).toBe(429)
+    expect(Number(response.headers.get("retry-after"))).toBeGreaterThan(0)
+    expect(transform).not.toHaveBeenCalled()
     route.close()
     await service[Symbol.asyncDispose]()
   })

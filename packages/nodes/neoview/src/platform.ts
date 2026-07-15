@@ -14,6 +14,10 @@ import type {
   ReadonlyLegacyThumbnailStore,
   ReadonlyLegacyThumbnailStoreOptions,
 } from "./platform/thumbnails/ReadonlyLegacyThumbnailStore.js"
+import type {
+  WritableLegacyThumbnailStore,
+  WritableLegacyThumbnailStoreOptions,
+} from "./platform/thumbnails/WritableLegacyThumbnailStore.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
@@ -74,7 +78,7 @@ export async function createReaderHttpController(
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
     try {
-      const ownedThumbnailStore = await createReadonlyLegacyThumbnailStore(options.legacyThumbnailDatabasePath)
+      const ownedThumbnailStore = await createWritableLegacyThumbnailStore(options.legacyThumbnailDatabasePath)
       thumbnailStore = ownedThumbnailStore
       disposeThumbnailStore = () => ownedThumbnailStore.close()
     } catch {
@@ -117,6 +121,19 @@ export async function createReadonlyLegacyThumbnailStore(
   }
   const { ReadonlyLegacyThumbnailStore } = await import("./platform/thumbnails/ReadonlyLegacyThumbnailStore.js")
   return ReadonlyLegacyThumbnailStore.open(path, options)
+}
+
+export async function createWritableLegacyThumbnailStore(
+  databasePath?: string,
+  options: WritableLegacyThumbnailStoreOptions = {},
+): Promise<WritableLegacyThumbnailStore> {
+  let path = databasePath
+  if (!path) {
+    const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+    path = new LegacyNeoViewDataLocator().locate().thumbnailDatabasePath
+  }
+  const { WritableLegacyThumbnailStore } = await import("./platform/thumbnails/WritableLegacyThumbnailStore.js")
+  return WritableLegacyThumbnailStore.open(path, options)
 }
 
 export async function createReaderHeadlessController(
