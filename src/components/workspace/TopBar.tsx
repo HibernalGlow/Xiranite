@@ -16,10 +16,11 @@ import { WorkspaceMusicDockTopBarSlot } from "@/components/workspace/WorkspaceMu
 import {
   Activity, Settings, Grid, SplitSquareVertical, AlignJustify, Target,
   Gauge, LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
-  Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
+  Sun, Moon, Monitor, Palette,
   Code2, LayoutTemplate, Trash2, Edit3, Smile,
   History, ArrowLeft, BookOpen, Database, LogOut, ShieldAlert, ChevronRight,
 } from "lucide-react"
+import { WindowControlIcon } from "./WindowControlIcon"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -687,7 +688,7 @@ export function TopBar() {
             onClick={() => controlMainWindow("minimize")}
             className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           >
-            <Minus className="h-3.5 w-3.5" />
+            <WindowControlIcon action="minimize" />
           </button>
           <button
             title={t("common:maximize")}
@@ -696,7 +697,7 @@ export function TopBar() {
             onClick={() => controlMainWindow("maximize")}
             className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           >
-            {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
+            <WindowControlIcon action="maximize" maximized={isMaximized} />
           </button>
           <button
             title={t("common:close")}
@@ -705,7 +706,7 @@ export function TopBar() {
             onClick={() => controlMainWindow("close")}
             className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           >
-            <X className="h-3.5 w-3.5" />
+            <WindowControlIcon action="close" />
           </button>
         </div>
       )}
