@@ -10,6 +10,7 @@ import type {
 } from "./core.js"
 import { help } from "./help.js"
 import { createReaderHeadlessController } from "./platform.js"
+import type { ReaderCompositionOptions } from "./platform.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set(["inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import"])
@@ -35,7 +36,7 @@ export const cli: CliCommand = {
 }
 
 export interface NeoviewCliDependencies {
-  createController: () => Promise<ReaderHeadlessController>
+  createController: (options?: ReaderCompositionOptions) => Promise<ReaderHeadlessController>
 }
 
 const DEFAULT_DEPENDENCIES: NeoviewCliDependencies = {
@@ -78,7 +79,11 @@ export async function runProgram(
   const credentials = credentialsFromEnvironment(parsed, host)
   let controller: ReaderHeadlessController | undefined
   try {
-    controller = await dependencies.createController()
+    controller = await dependencies.createController({
+      configPath: oneValue(parsed, "--config"),
+      cwd: host.cwd,
+      env: host.env,
+    })
     const snapshot = await controller.open({
       path: resolve(host.cwd, path),
       entryPaths: parsed.values.get("--entry"),
@@ -111,7 +116,7 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--strategy", "--modules"]))
     return
   }
-  for (const option of ["--config", "--strategy", "--yes"]) {
+  for (const option of ["--strategy", "--modules", "--yes"]) {
     if (parsed.values.has(option) || parsed.booleans.has(option)) throw usage(`${command} does not accept ${option}.`)
   }
 }

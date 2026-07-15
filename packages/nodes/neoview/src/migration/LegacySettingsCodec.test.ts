@@ -30,7 +30,7 @@ describe("LegacySettingsCodec", () => {
         defaultZoomMode: "fitWidth",
         pageLayout: { splitHorizontalPages: true, widePageStretch: "uniformHeight" },
       },
-      book: { readingDirection: "right-to-left", doublePageView: true },
+      book: { readingDirection: "right-to-left", doublePageView: true, tailOverflowBehavior: "seamlessLoop" },
       subtitleFontSize: 1.2,
       theme: { theme: "dark", uiScale: 1.25 },
     })
@@ -51,6 +51,7 @@ describe("LegacySettingsCodec", () => {
         default_zoom_mode: "fitWidth",
         reading_direction: "right-to-left",
         double_page_view: true,
+        tail_overflow_behavior: "seamless-loop",
         view: { page_layout: { split_horizontal_pages: true, wide_page_stretch: "uniformHeight" } },
         subtitle: { font_size: 1.2 },
       },

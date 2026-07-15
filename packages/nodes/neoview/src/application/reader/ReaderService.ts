@@ -2,7 +2,7 @@ import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import { CoreReaderSession } from "./ReaderSession.js"
-import type { OpenViewSourceOptions, ReaderService, ReaderSession, ReaderSessionId } from "./contracts.js"
+import type { OpenViewSourceOptions, ReaderService, ReaderSession, ReaderSessionId, ReaderSessionOptions } from "./contracts.js"
 
 export class CoreReaderService implements ReaderService {
   #sessions = new Map<ReaderSessionId, CoreReaderSession>()
@@ -13,6 +13,7 @@ export class CoreReaderService implements ReaderService {
   constructor(
     private readonly loadBook: ReaderBookLoader,
     private readonly metadataProbe?: ImageMetadataProbe,
+    private readonly sessionDefaults: Partial<ReaderSessionOptions> = {},
   ) {}
 
   async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {
@@ -34,9 +35,9 @@ export class CoreReaderService implements ReaderService {
       id,
       book,
       {
-        direction: options.direction,
-        layout: options.layout,
-        tailOverflow: options.tailOverflow,
+        direction: options.direction ?? this.sessionDefaults.direction,
+        layout: options.layout ?? this.sessionDefaults.layout,
+        tailOverflow: options.tailOverflow ?? this.sessionDefaults.tailOverflow,
       },
       (sessionId) => this.#sessions.delete(sessionId),
       this.metadataProbe,

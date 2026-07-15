@@ -47,6 +47,32 @@ describe("CoreReaderSession", () => {
 })
 
 describe("CoreReaderService", () => {
+  it("[neoview.settings.runtime] applies service defaults while explicit open options win", async () => {
+    const service = new CoreReaderService(async () => book(4), undefined, {
+      direction: "right-to-left",
+      layout: { pageMode: "double", panorama: false, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: false },
+      tailOverflow: "loop",
+    })
+    const configured = await service.openViewSource({ kind: "directory", path: "C:/configured" })
+    expect(configured.snapshot()).toMatchObject({
+      direction: "right-to-left",
+      layout: { pageMode: "double" },
+      pages: [{ pageIndex: 1 }, { pageIndex: 0 }],
+    })
+    await configured.goTo(3)
+    expect((await configured.next()).anchorPageIndex).toBe(0)
+
+    const explicit = await service.openViewSource({ kind: "directory", path: "C:/explicit" }, {
+      direction: "left-to-right",
+      layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
+      tailOverflow: "stay-on-last-page",
+    })
+    expect(explicit.snapshot()).toMatchObject({ direction: "left-to-right", layout: { pageMode: "single" } })
+    await explicit.goTo(3)
+    expect((await explicit.next()).anchorPageIndex).toBe(3)
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.session.lifecycle] owns sessions and releases them on close/dispose", async () => {
     const loader = vi.fn(async () => book(3))
     const service = new CoreReaderService(loader)

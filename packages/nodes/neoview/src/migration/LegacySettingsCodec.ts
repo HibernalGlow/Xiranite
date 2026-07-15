@@ -446,6 +446,7 @@ function resolveNativeTarget(targetPrefix: readonly string[], key: string): stri
   if (section === "reader.view" && key === "defaultZoomMode") return ["reader", "default_zoom_mode"]
   if (section === "reader.book" && key === "readingDirection") return ["reader", "reading_direction"]
   if (section === "reader.book" && key === "doublePageView") return ["reader", "double_page_view"]
+  if (section === "reader.book" && key === "tailOverflowBehavior") return ["reader", "tail_overflow_behavior"]
   if (section === "reader.book" && key === "preloadPages") return ["performance", "preload_pages"]
   return [...targetPrefix, snakeCase(key)]
 }
@@ -636,10 +637,27 @@ function mapLeaf(
     entries.push({ sourcePath, targetPath: target.join("."), disposition: "invalid", message: validationError })
     return
   }
-  const sanitized = sanitizeToml(value, sourcePath, entries)
+  const transformed = transformKnownLeaf(sourcePath, value)
+  const sanitized = sanitizeToml(transformed, sourcePath, entries)
   if (sanitized === undefined) return
   setPath(config, target, sanitized)
-  entries.push({ sourcePath, targetPath: target.join("."), disposition })
+  entries.push({
+    sourcePath,
+    targetPath: target.join("."),
+    disposition: transformed === value ? disposition : "converted",
+  })
+}
+
+function transformKnownLeaf(sourcePath: string, value: unknown): unknown {
+  if (!sourcePath.endsWith(".tailOverflowBehavior") || typeof value !== "string") return value
+  const aliases: Readonly<Record<string, string>> = {
+    doNothing: "do-nothing",
+    stayOnLastPage: "stay-on-last-page",
+    nextBook: "next-book",
+    loopTopBottom: "loop",
+    seamlessLoop: "seamless-loop",
+  }
+  return aliases[value] ?? value
 }
 
 const ENUM_RULES: readonly { pattern: RegExp; values: ReadonlySet<string> }[] = [

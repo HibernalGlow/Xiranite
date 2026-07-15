@@ -427,16 +427,26 @@ describe("backend", () => {
     }
   })
 
-  test("[neoview.http.e2e] [neoview.scheduler.host-injection] lazily mounts the reader control and streaming asset routes", async () => {
+  test("[neoview.http.e2e] [neoview.scheduler.host-injection] [neoview.settings.runtime-backend] lazily mounts the configured reader routes", async () => {
     const dataDir = await createTempDataDir()
+    const configPath = join(dataDir, "xiranite.config.toml")
     const bookDir = await mkdtemp(join(RUN_ROOT, "neoview-book-"))
     await writeFile(join(bookDir, "001.jpg"), ONE_PIXEL_PNG)
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "[nodes.neoview.reader]",
+      "reading_direction = \"right-to-left\"",
+      "double_page_view = true",
+      "",
+    ].join("\n"), "utf8")
     const resourceScheduler = new ResourceSchedulerService()
     const acquireResource = vi.spyOn(resourceScheduler, "acquire")
     const backend = await startBackend({
       token: "test-token",
       repository: createMemoryWorkspaceRepository(),
       dataDir,
+      configPath,
       resourceScheduler,
     })
     try {
@@ -451,10 +461,12 @@ describe("backend", () => {
       const session = await opened.json() as {
         sessionId: string
         book: { pageCount: number }
+        frame: { direction: string; layout: { pageMode: string } }
         visiblePages: Array<{ assetUrl: string; dimensions?: { width: number; height: number } }>
       }
       expect(opened.status).toBe(201)
       expect(session.book.pageCount).toBe(1)
+      expect(session.frame).toMatchObject({ direction: "right-to-left", layout: { pageMode: "double" } })
       expect(session.visiblePages[0]?.dimensions).toEqual({ width: 1, height: 1 })
 
       const image = await fetch(session.visiblePages[0]!.assetUrl)

@@ -34,7 +34,7 @@
 | 18 | `input-bindings-radial-voice` | 键盘、鼠标、触摸、区域、径向菜单和语音控制 | pending | gui/tui | 1 | 38 | 上下文键绑定<br>鼠标单击/双击/按住<br>九宫格区域<br>手势录制<br>冲突管理<br>径向菜单<br>语音命令启停 |
 | 19 | `panels-toolbar-shell` | 左右边栏、顶部工具栏、底栏、面板和通知 | pending | gui | 1 | 173 | 边栏拖拽/尺寸/位置<br>面板排序和跨边栏移动<br>自动隐藏和触发区<br>置顶工具栏/底栏<br>通知样式/位置/占位<br>重启恢复 |
 | 20 | `theme-background-empty-state` | 主题接管、阅读背景和空页面背景 | pending | gui | 1 | 14 | 旧主题字段仅导入报告<br>Xiranite 主题接管<br>solid/ambient/aurora/spotlight 阅读背景<br>空页图片/视频背景设置 |
-| 21 | `settings-import-export-backup` | 设置、完整导入导出、备份、Gist 和 TOML 统一 | pending | gui/cli/tui | 12 | 45 | 全部非主题字段可识别<br>模块选择<br>merge/overwrite<br>幂等导入<br>完整备份<br>Gist 同步<br>运行时只写 TOML<br>未知字段报告 |
+| 21 | `settings-import-export-backup` | 设置、完整导入导出、备份、Gist 和 TOML 统一 | pending | gui/cli/tui | 12 | 45 | 全部非主题字段可识别<br>模块选择<br>merge/overwrite<br>幂等导入<br>完整备份<br>Gist 同步<br>GUI/CLI/TUI 共用 TOML<br>运行时只写 TOML<br>未知字段报告 |
 | 22 | `startup-window-cli-lifecycle` | 启动参数、窗口状态、托盘、卡片窗口和生命周期 | pending | gui/cli | 7 | 11 | CLI 路径打开<br>窗口大小/位置恢复<br>最小化托盘<br>卡片窗口恢复<br>单实例导航<br>宿主关闭释放所有进程 |
 | 23 | `slideshow` | 幻灯片自动翻页 | pending | gui/tui | 0 | 3 | 开始/暂停<br>间隔<br>循环/随机<br>淡入淡出<br>切书和手动操作协调 |
 | 24 | `ai-ollama-translation` | Ollama、AI 面板和翻译服务 | pending | gui/cli | 7 | 24 | 服务探测和模型列表<br>生成请求<br>配置保存<br>取消/错误<br>翻译缓存 |
@@ -273,8 +273,8 @@
 - 端：gui、cli、tui
 - 设置：`NeoViewSettings`、`FullExportPayload`、`ExtendedSettingsData`
 - 数据：legacy JSON/localStorage、backup files、Gist、[nodes.neoview] TOML
-- 行为：全部非主题字段可识别；模块选择；merge/overwrite；幂等导入；完整备份；Gist 同步；运行时只写 TOML；未知字段报告
-- 测试：`neoview.settings.codec`、`neoview.settings.inspect`、`neoview.settings.import`、`neoview.settings.atomic-toml`
+- 行为：全部非主题字段可识别；模块选择；merge/overwrite；幂等导入；完整备份；Gist 同步；GUI/CLI/TUI 共用 TOML；运行时只写 TOML；未知字段报告
+- 测试：`neoview.settings.codec`、`neoview.settings.inspect`、`neoview.settings.import`、`neoview.settings.atomic-toml`、`neoview.settings.runtime`、`neoview.settings.runtime-cli`、`neoview.settings.runtime-gui`、`neoview.settings.runtime-backend`
 - 性能基准：无专项
 - 已知差异：不保留第二套主题状态
 

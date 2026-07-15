@@ -168,7 +168,11 @@ export async function startBackend(options: StartBackendOptions = {}) {
       }
 
       if (url.pathname.startsWith("/reader/")) {
-        readerController ??= createReaderController(backendUrl, token, backend.resources).catch((error) => {
+        readerController ??= createReaderController(backendUrl, token, backend.resources, {
+          configPath: options.configPath,
+          databasePath: options.databasePath ?? backend.database?.path,
+          dataDir: options.dataDir,
+        }).catch((error) => {
           readerController = undefined
           throw error
         })
@@ -220,6 +224,7 @@ async function createReaderController(
   baseUrl: string,
   token: string,
   resourceScheduler: ResourceScheduler,
+  config: Pick<StartBackendOptions, "configPath" | "databasePath" | "dataDir">,
 ): Promise<BackendRequestController> {
   const platform = await loadNodePlatformModule("neoview")
   const factory = platform.createReaderHttpController
@@ -228,10 +233,14 @@ async function createReaderController(
     baseUrl: string
     token: string
     resourceScheduler: ResourceScheduler
+    configPath?: string
+    databasePath?: string
+    dataDir?: string
   }) => Promise<BackendRequestController>)({
     baseUrl,
     token,
     resourceScheduler,
+    ...config,
   })
 }
 

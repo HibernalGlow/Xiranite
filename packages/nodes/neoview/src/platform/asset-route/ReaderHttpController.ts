@@ -2,7 +2,7 @@ import type { FrameSnapshot } from "../../domain/frame/frame.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
-import type { ReaderSession } from "../../application/reader/contracts.js"
+import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
@@ -39,7 +39,9 @@ export interface ReaderSessionDto {
   visiblePages: ReaderPageDto[]
 }
 
-export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions
+export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
+  sessionOptions?: Partial<ReaderSessionOptions>
+}
 
 export class ReaderHttpController implements AsyncDisposable {
   readonly #service: CoreReaderService
@@ -56,6 +58,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#service = new CoreReaderService(
       createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache }),
       new StreamingImageMetadataProbe(),
+      options.sessionOptions,
     )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),

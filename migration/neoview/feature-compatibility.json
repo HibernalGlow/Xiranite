@@ -212,8 +212,8 @@
       "legacyCommandPatterns": ["(startup_config|performance_settings|upscale_settings|save_startup|get_startup|update_startup|save_performance|get_performance)"],
       "settingsKeys": ["NeoViewSettings", "FullExportPayload", "ExtendedSettingsData"],
       "dataStores": ["legacy JSON/localStorage", "backup files", "Gist", "[nodes.neoview] TOML"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
-      "behaviorCases": ["全部非主题字段可识别", "模块选择", "merge/overwrite", "幂等导入", "完整备份", "Gist 同步", "运行时只写 TOML", "未知字段报告"],
-      "testIds": ["neoview.settings.codec", "neoview.settings.inspect", "neoview.settings.import", "neoview.settings.atomic-toml"], "benchmarkIds": [], "knownDifferences": ["不保留第二套主题状态"]
+      "behaviorCases": ["全部非主题字段可识别", "模块选择", "merge/overwrite", "幂等导入", "完整备份", "Gist 同步", "GUI/CLI/TUI 共用 TOML", "运行时只写 TOML", "未知字段报告"],
+      "testIds": ["neoview.settings.codec", "neoview.settings.inspect", "neoview.settings.import", "neoview.settings.atomic-toml", "neoview.settings.runtime", "neoview.settings.runtime-cli", "neoview.settings.runtime-gui", "neoview.settings.runtime-backend"], "benchmarkIds": [], "knownDifferences": ["不保留第二套主题状态"]
     },
     {
       "id": "startup-window-cli-lifecycle",

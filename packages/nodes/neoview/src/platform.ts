@@ -9,9 +9,12 @@ import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
+import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
+
+export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
   sourceRevision: "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
@@ -55,10 +58,11 @@ export async function createReaderAssetRoute(
 }
 
 export async function createReaderHttpController(
-  options: ReaderHttpControllerOptions,
+  options: ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions,
 ): Promise<ReaderHttpController> {
   const { ReaderHttpController } = await import("./platform/asset-route/ReaderHttpController.js")
-  return new ReaderHttpController(options)
+  const { loadNeoviewSessionOptions } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  return new ReaderHttpController({ ...options, sessionOptions: await loadNeoviewSessionOptions(options) })
 }
 
 export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {
@@ -72,13 +76,14 @@ export async function createSolidArchiveCache(options: SolidArchiveCacheOptions 
 }
 
 export async function createReaderHeadlessController(
-  options: PlatformReaderBookLoaderOptions = {},
+  options: ReaderCompositionOptions = {},
 ): Promise<ReaderHeadlessController> {
   const { ReaderHeadlessController } = await import("./application/headless/ReaderHeadlessController.js")
   const { CoreReaderService } = await import("./application/reader/ReaderService.js")
   const { createPlatformReaderBookLoader } = await import("./platform/books/PlatformReaderBookLoader.js")
   const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
   const { SolidArchiveCache } = await import("./platform/archives/sevenzip/SolidArchiveCache.js")
+  const { loadNeoviewSessionOptions } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const ownsCache = !options.solidArchiveCache
   const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
     maxBytes: options.maxSolidArchiveCacheBytes,
@@ -87,6 +92,7 @@ export async function createReaderHeadlessController(
     new CoreReaderService(
       createPlatformReaderBookLoader({ ...options, solidArchiveCache }),
       new StreamingImageMetadataProbe(),
+      await loadNeoviewSessionOptions(options),
     ),
     ownsCache ? () => solidArchiveCache.close() : undefined,
   )

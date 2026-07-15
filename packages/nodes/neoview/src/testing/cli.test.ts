@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
@@ -133,6 +133,35 @@ describe("NeoView CLI", () => {
       const binaryOutput: unknown[] = []
       await runProgram(["extract-page", path, "--index", "0", "--output", "-"], host(binaryOutput))
       expect(Buffer.concat(binaryOutput.map((chunk) => Buffer.from(chunk as Uint8Array)))).toEqual(Buffer.from(bytes))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.settings.runtime-cli] applies the shared TOML defaults in the real headless composition", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-cli-config-"))
+    const bookPath = join(directory, "book")
+    const configPath = join(directory, "xiranite.config.toml")
+    await mkdir(bookPath)
+    await Promise.all(Array.from({ length: 4 }, (_, index) => writeFile(
+      join(bookPath, `${String(index + 1).padStart(3, "0")}.png`),
+      pngHeader(40 + index, 60 + index),
+    )))
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "[nodes.neoview.reader]",
+      "reading_direction = \"right-to-left\"",
+      "double_page_view = true",
+      "",
+    ].join("\n"), "utf8")
+    try {
+      const output: unknown[] = []
+      await runProgram(["inspect", bookPath, "--index", "1", "--config", configPath, "--json"], host(output))
+      expect(JSON.parse(output.join(""))).toMatchObject({
+        frame: { direction: "right-to-left", layout: { pageMode: "double" } },
+        visiblePages: [{ index: 2 }, { index: 1 }],
+      })
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
