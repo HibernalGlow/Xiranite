@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto"
-import { readdir, realpath, stat } from "node:fs/promises"
-import { join } from "node:path"
+import { realpath, stat } from "node:fs/promises"
 import {
   ThumbnailCoordinatorService,
   thumbnailLanePriority,
@@ -13,13 +12,12 @@ import {
 
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
-import { pageMediaType } from "../../domain/page/media.js"
-import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailAsset, ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { SystemThumbnailProvider, SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProvider, VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
+import { FolderRepresentativeIndex } from "./FolderRepresentativeIndex.js"
 
 export interface PlatformThumbnailPipelineOptions {
   loadImageTransformer?: ImageTransformerLoader
@@ -29,6 +27,7 @@ export interface PlatformThumbnailPipelineOptions {
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   maxMemoryBytes?: number
   maxEntryBytes?: number
+  folderRepresentativeIndex?: FolderRepresentativeIndex
 }
 
 interface PageThumbnailDemandSource {
@@ -76,6 +75,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   readonly #loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   readonly #loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   readonly #coordinator: ThumbnailCoordinatorService<PlatformThumbnailDemandSource>
+  readonly #folderRepresentativeIndex: FolderRepresentativeIndex
+  readonly #ownsFolderRepresentativeIndex: boolean
   #imageTransformer?: Promise<ImageTransformer>
   #systemThumbnailProvider?: Promise<SystemThumbnailProvider>
   #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
@@ -86,6 +87,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#bookLoader = options.bookLoader
     this.#loadSystemThumbnailProvider = options.loadSystemThumbnailProvider
     this.#loadVideoThumbnailProvider = options.loadVideoThumbnailProvider
+    this.#ownsFolderRepresentativeIndex = !options.folderRepresentativeIndex
+    this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex()
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
       maxMemoryBytes: options.maxMemoryBytes,
       maxEntryBytes: options.maxEntryBytes,
@@ -218,7 +221,9 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     }
     const sourceSize = kind === "file" ? sourceStats.size : undefined
     const modifiedAtMs = Math.trunc(sourceStats.mtimeMs)
-    const representativeVersion = kind === "folder" ? await describeFolderRepresentative(normalizedPath, signal) : undefined
+    const representativeVersion = kind === "folder"
+      ? await this.#folderRepresentativeIndex.describe(normalizedPath, modifiedAtMs, signal)
+      : undefined
     return {
       kind,
       path: normalizedPath,
@@ -259,6 +264,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
   async dispose(): Promise<void> {
     await this.#coordinator.dispose()
+    if (this.#ownsFolderRepresentativeIndex) this.#folderRepresentativeIndex.clear()
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -636,29 +642,6 @@ function pageThumbnailCacheKey(page: ReaderPage, profile: "page-strip-v1"): stri
   const source = page.thumbnailSource
   if (!source) throw new ThumbnailUnavailableError()
   return `${source.category}:${source.key}:${page.contentVersion}:${profile}`
-}
-
-async function describeFolderRepresentative(path: string, signal?: AbortSignal): Promise<string | undefined> {
-  signal?.throwIfAborted()
-  const entries = await readdir(path, { withFileTypes: true })
-  const names = entries
-    .filter((entry) => entry.isFile() && pageMediaType(entry.name))
-    .map((entry) => entry.name)
-    .sort(compareNaturalPath)
-  for (const name of names) {
-    signal?.throwIfAborted()
-    try {
-      const sourceStats = await stat(join(path, name))
-      if (sourceStats.isFile()) return `${name}:${sourceStats.size}:${Math.trunc(sourceStats.mtimeMs)}`
-    } catch (error) {
-      if (!isMissingFile(error)) throw error
-    }
-  }
-  return undefined
-}
-
-function isMissingFile(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT")
 }
 
 async function collectThumbnailBytes(stream: ReadableStream<Uint8Array>, maxBytes: number, signal: AbortSignal): Promise<Uint8Array> {
