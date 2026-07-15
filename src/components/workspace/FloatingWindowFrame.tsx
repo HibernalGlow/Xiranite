@@ -35,6 +35,18 @@ export function useFloatingWindowFrame() {
   return useContext(FloatingWindowFrameContext)
 }
 
+/** Keeps fallback chrome disabled while an auto-hidden title bar owns it. */
+export function FloatingWindowTitlebarReservation() {
+  const frame = useFloatingWindowFrame()
+
+  useLayoutEffect(() => {
+    if (!frame) return
+    return frame.registerIntegratedTitlebar()
+  }, [frame])
+
+  return null
+}
+
 /**
  * Adapts an existing node header to the frameless Wails window chrome.
  *

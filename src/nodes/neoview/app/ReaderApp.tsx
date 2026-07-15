@@ -4,6 +4,7 @@ import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircl
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import {
   createReaderHttpClient,
@@ -53,6 +54,7 @@ export function ReaderApp({
   onPathCommitted,
 }: ReaderAppProps) {
   const surface = useNodeSurface()
+  const floatingFrame = useFloatingWindowFrame()
   const [client] = useState<ReaderHttpClient>(() => injectedClient ?? createReaderHttpClient())
   const clientRef = useRef(client)
   const sessionRef = useRef<string | undefined>(undefined)
@@ -207,8 +209,8 @@ export function ReaderApp({
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
-      <div className="border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-md" style={edgeSurfaceStyle(shell, "top")}>
-        <div className={cn("flex items-center gap-2", compact ? "p-2" : "px-3 py-2.5")}>
+      <div className={cn("border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-md", floatingFrame && "xiranite-app-region-drag")} style={edgeSurfaceStyle(shell, "top")} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}>
+        <div className={cn("flex items-center gap-2", compact ? "p-2" : "px-3 py-2.5", floatingFrame && "xiranite-app-region-no-drag")}>
           <BookOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
             aria-label="漫画、图片或目录路径"
@@ -229,7 +231,7 @@ export function ReaderApp({
             {busy && !session ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
             {compact ? null : "打开"}
           </Button>
-          <Button aria-label="打开 NeoView 设置" type="button" size="icon-sm" variant="ghost" disabled={!shell} onClick={() => setSettingsOpen(true)}><Settings2 /></Button>
+          <Button aria-label="打开 NeoView 设置" type="button" size="icon-sm" variant="ghost" disabled={!shell} onClick={() => setSettingsOpen(true)}><Settings2 /></Button><FloatingWindowCaptionControls integrated />
         </div>
         {error ? <div role="alert" className="border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}
       </div>
@@ -314,6 +316,7 @@ export function ReaderApp({
         if (event.key === "ArrowRight") void navigate("next")
       }}
     >
+      <FloatingWindowTitlebarReservation />
       <ReaderEdgeShell edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
         <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
           {!session ? (
