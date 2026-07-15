@@ -172,12 +172,19 @@ export class SqliteReaderDataStore implements ReaderLibraryStore, ReaderProgress
       )
       this.database.run("DELETE FROM xr_reader_bookmark_memberships WHERE bookmark_id = ?1", bookmark.id)
       for (const listId of bookmark.listIds) {
-        this.database.run(
-          `INSERT OR IGNORE INTO xr_reader_bookmark_memberships (bookmark_id, list_id)
-           SELECT ?1, id FROM xr_reader_bookmark_lists WHERE id = ?2`,
-          bookmark.id,
-          listId,
-        )
+        if (listId === "default") {
+          this.database.run(
+            "INSERT OR IGNORE INTO xr_reader_bookmark_memberships (bookmark_id, list_id) VALUES (?1, 'default')",
+            bookmark.id,
+          )
+        } else {
+          this.database.run(
+            `INSERT OR IGNORE INTO xr_reader_bookmark_memberships (bookmark_id, list_id)
+             SELECT ?1, id FROM xr_reader_bookmark_lists WHERE id = ?2`,
+            bookmark.id,
+            listId,
+          )
+        }
       }
     })
   }
@@ -269,9 +276,22 @@ export class SqliteReaderDataStore implements ReaderLibraryStore, ReaderProgress
 
 function bookmarkListCondition(listId: string | undefined): { sql: string; bindings: string[] } {
   if (!listId || listId === "all") return { sql: "", bindings: [] }
-  if (listId === "favorites") return { sql: "WHERE b.starred = 1", bindings: [] }
+  if (listId === "favorites") {
+    return {
+      sql: `WHERE b.starred = 1 OR EXISTS (
+        SELECT 1 FROM xr_reader_bookmark_memberships m
+        JOIN xr_reader_bookmark_lists l ON l.id = m.list_id
+        WHERE m.bookmark_id = b.id AND l.is_favorite = 1
+      )`,
+      bindings: [],
+    }
+  }
   if (listId === "default") {
-    return { sql: "WHERE NOT EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id)", bindings: [] }
+    return {
+      sql: `WHERE NOT EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id)
+        OR EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id AND m.list_id = 'default')`,
+      bindings: [],
+    }
   }
   return {
     sql: "WHERE EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id AND m.list_id = ?1)",

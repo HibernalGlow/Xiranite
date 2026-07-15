@@ -28,7 +28,7 @@ describe("ReaderLibraryHttpController", () => {
       listIds: ["default"],
     })))!
     expect(created.status).toBe(201)
-    expect(await created.json()).toMatchObject({ id: "generated", name: "Demo", listIds: [] })
+    expect(await created.json()).toMatchObject({ id: "generated", name: "Demo", listIds: ["default"] })
     expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites")))?.status).toBe(200)
     expect((await controller.handle(request("/reader/library/bookmark-lists")))?.status).toBe(200)
   })

@@ -39,9 +39,9 @@ describe("ReaderLibraryService", () => {
       starred: true,
       createdAt: 2000,
       updatedAt: 2000,
-      listIds: ["custom"],
+      listIds: ["custom", "default"],
     })
-    expect(store.upsertBookmark).toHaveBeenCalledWith(expect.objectContaining({ id: "bookmark-1", listIds: ["custom"] }))
+    expect(store.upsertBookmark).toHaveBeenCalledWith(expect.objectContaining({ id: "bookmark-1", listIds: ["custom", "default"] }))
     await expect(service.saveBookmarkList({ id: "favorites", name: "duplicate" })).rejects.toThrow("reserved")
   })
 })

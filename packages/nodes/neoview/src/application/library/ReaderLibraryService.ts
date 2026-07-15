@@ -74,10 +74,10 @@ export class ReaderLibraryService implements AsyncDisposable {
       source: input.source,
       name,
       kind: input.kind ?? (input.source.kind === "directory" ? "folder" : "file"),
-      starred: input.starred ?? false,
+      starred: (input.starred ?? false) || input.listIds?.includes("favorites") === true,
       createdAt,
       updatedAt: now,
-      listIds: normalizeCustomListIds(input.listIds ?? []),
+      listIds: normalizeStoredListIds(input.listIds ?? ["default"]),
     }
     await this.store.upsertBookmark(bookmark)
     return bookmark
@@ -155,8 +155,9 @@ function normalizeLimit(limit: number, fallback: number): number {
   return Math.min(limit || fallback, 500)
 }
 
-function normalizeCustomListIds(listIds: readonly string[]): string[] {
-  return [...new Set(listIds.map((id) => id.trim()).filter((id) => id && !isSystemListId(id)))].sort()
+function normalizeStoredListIds(listIds: readonly string[]): string[] {
+  const normalized = [...new Set(listIds.map((id) => id.trim()).filter((id) => id && id !== "all" && id !== "favorites"))].sort()
+  return normalized.length ? normalized : ["default"]
 }
 
 function isSystemListId(id: string): id is typeof READER_SYSTEM_BOOKMARK_LIST_IDS[number] {

@@ -61,17 +61,17 @@ describe("SqliteReaderDataStore", () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)
     await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: true, createdAt: 1, updatedAt: 1 })
-    await store.upsertBookmark(bookmark("one", false, []))
-    await store.upsertBookmark(bookmark("two", true, ["reading", "missing"]))
+    await store.upsertBookmark(bookmark("one", false, ["default"]))
+    await store.upsertBookmark(bookmark("two", false, ["reading", "missing"]))
 
     await expect(store.listBookmarkLists()).resolves.toEqual([
       { id: "reading", name: "Reading", isFavorite: true, createdAt: 1, updatedAt: 1 },
     ])
     await expect(store.listBookmarks({ listId: "default", limit: 10, offset: 0 })).resolves.toEqual([
-      expect.objectContaining({ id: "one", listIds: [] }),
+      expect.objectContaining({ id: "one", listIds: ["default"] }),
     ])
     await expect(store.listBookmarks({ listId: "favorites", limit: 10, offset: 0 })).resolves.toEqual([
-      expect.objectContaining({ id: "two", starred: true, listIds: ["reading"] }),
+      expect.objectContaining({ id: "two", starred: false, listIds: ["reading"] }),
     ])
     await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toHaveLength(1)
     await expect(store.deleteBookmarkList("reading")).resolves.toBe(true)
