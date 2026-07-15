@@ -403,7 +403,8 @@
       "panelId": "history",
       "priority": "core",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "partial",
+      "currentCardId": "history-list"
     },
     {
       "legacyId": "bookmarkList",
@@ -411,7 +412,8 @@
       "panelId": "bookmark",
       "priority": "core",
       "featureId": "history-bookmarks-progress",
-      "status": "pending"
+      "status": "partial",
+      "currentCardId": "bookmark-list"
     },
     {
       "legacyId": "pageListMain",

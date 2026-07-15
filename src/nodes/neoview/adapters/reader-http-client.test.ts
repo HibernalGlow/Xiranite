@@ -79,4 +79,23 @@ describe("reader-http-client", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader-1/metadata")
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
+
+  it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {
+    const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
+      const url = String(request)
+      if (url.includes("bookmark-lists")) return Response.json({ items: [] })
+      return Response.json({ items: [] })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.listRecent!(40, 20)
+    await client.listBookmarks!(0, 100, "favorites")
+    await client.listBookmarkLists!()
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/library/recents?offset=40&limit=20")
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/reader/library/bookmarks?offset=0&limit=100&listId=favorites")
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/reader/library/bookmark-lists")
+    for (const call of fetchMock.mock.calls) {
+      expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    }
+  })
 })

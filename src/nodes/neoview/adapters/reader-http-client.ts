@@ -1,4 +1,4 @@
-import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode } from "@xiranite/node-neoview/core"
+import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ViewSource } from "@xiranite/node-neoview/core"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -55,6 +55,45 @@ export interface ReaderMetadataDto {
     createdAtMs?: number
     modifiedAtMs?: number
   }
+}
+
+export interface ReaderRecentDto {
+  bookId: string
+  source: ViewSource
+  displayName: string
+  pageIndex: number
+  pageCount: number
+  updatedAt: number
+}
+
+export interface ReaderBookmarkDto {
+  id: string
+  source: ViewSource
+  name: string
+  kind: "file" | "folder"
+  starred: boolean
+  createdAt: number
+  updatedAt: number
+  listIds: readonly string[]
+}
+
+export interface ReaderBookmarkListDto {
+  id: string
+  name: string
+  isFavorite: boolean
+  createdAt: number
+  updatedAt: number
+  system?: boolean
+}
+
+export interface SaveReaderBookmarkDto {
+  id?: string
+  source: ViewSource
+  name: string
+  kind?: "file" | "folder"
+  starred?: boolean
+  createdAt?: number
+  listIds?: readonly string[]
 }
 
 export interface ReaderDirectoryEntryDto {
@@ -156,6 +195,14 @@ export interface ReaderHttpClient {
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
+  listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
+  removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
+  listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
+  saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
+  removeBookmark?(id: string, signal?: AbortSignal): Promise<void>
+  listBookmarkLists?(signal?: AbortSignal): Promise<readonly ReaderBookmarkListDto[]>
+  saveBookmarkList?(list: { id?: string; name: string; isFavorite?: boolean }, signal?: AbortSignal): Promise<ReaderBookmarkListDto>
+  removeBookmarkList?(id: string, signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
   updateSessionOptions(sessionId: string, patch: { layout: { pageMode: PageMode } }, signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -255,6 +302,43 @@ export function createReaderHttpClient(
       return request<ReaderPageListDto>(`/reader/s/${encodeURIComponent(sessionId)}/pages?${search}`, { signal })
     },
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
+    listRecent: (offset, limit, signal) => request<{ items: ReaderRecentDto[] }>(
+      `/reader/library/recents?offset=${offset}&limit=${limit}`,
+      { signal },
+    ).then((value) => value.items),
+    removeRecent: (bookId, signal) => request<void>(`/reader/library/recents/${encodeURIComponent(bookId)}`, {
+      method: "DELETE",
+      signal,
+    }),
+    listBookmarks: (offset, limit, listId, signal) => {
+      const search = new URLSearchParams({ offset: String(offset), limit: String(limit) })
+      if (listId) search.set("listId", listId)
+      return request<{ items: ReaderBookmarkDto[] }>(`/reader/library/bookmarks?${search}`, { signal }).then((value) => value.items)
+    },
+    saveBookmark: (bookmark, signal) => request<ReaderBookmarkDto>("/reader/library/bookmarks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(bookmark),
+      signal,
+    }),
+    removeBookmark: (id, signal) => request<void>(`/reader/library/bookmarks/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      signal,
+    }),
+    listBookmarkLists: (signal) => request<{ items: ReaderBookmarkListDto[] }>(
+      "/reader/library/bookmark-lists",
+      { signal },
+    ).then((value) => value.items),
+    saveBookmarkList: (list, signal) => request<ReaderBookmarkListDto>("/reader/library/bookmark-lists", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(list),
+      signal,
+    }),
+    removeBookmarkList: (id, signal) => request<void>(`/reader/library/bookmark-lists/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      signal,
+    }),
     navigate: (sessionId, action, signal) => request<ReaderNavigationDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/navigate`,
       {

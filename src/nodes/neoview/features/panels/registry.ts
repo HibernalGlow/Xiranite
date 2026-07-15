@@ -96,6 +96,8 @@ export const PANEL_DEFINITIONS: readonly ReaderPanelDefinition[] = READER_PANEL_
 
 const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "folder-main": () => import("./cards/FolderMainCard"),
+  "history-list": () => import("./cards/HistoryListCard"),
+  "bookmark-list": () => import("./cards/BookmarkListCard"),
   "page-navigation": () => import("./cards/PageNavigationCard"),
   "book-information": () => import("./cards/BookInformationCard"),
   "image-information": () => import("./cards/ImageInformationCard"),
