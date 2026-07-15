@@ -413,14 +413,14 @@ describe("backend", () => {
         method: "OPTIONS",
         headers: {
           origin: "http://localhost:5173",
-          "access-control-request-method": "POST",
+          "access-control-request-method": "PATCH",
           "access-control-request-headers": "content-type,x-xiranite-token",
         },
       })
 
       expect(preflight.status).toBe(204)
       expect(preflight.headers.get("access-control-allow-origin")).toBe("*")
-      expect(preflight.headers.get("access-control-allow-methods")).toContain("POST")
+      expect(preflight.headers.get("access-control-allow-methods")).toContain("PATCH")
       expect(preflight.headers.get("access-control-allow-headers")).toContain("x-xiranite-token")
     } finally {
       backend.close()

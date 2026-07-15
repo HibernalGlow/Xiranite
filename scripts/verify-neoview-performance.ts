@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 const commands = [
+  { argv: ["bun", "run", "--cwd", "packages/nodes/neoview", "build"] },
   { argv: [process.execPath, "scripts/benchmark-neoview-reader.ts", "--assert"] },
   { argv: ["bunx", "playwright", "test", "tests/e2e/neoview/neoview-reader.spec.ts", "--project=chromium-desktop", "--project=chromium-card"] },
   { argv: ["bunx", "vite", "build", "--logLevel", "warn"], env: { XIRANITE_CHUNK_REPORT: "1" } },

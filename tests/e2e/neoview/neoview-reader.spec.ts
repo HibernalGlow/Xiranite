@@ -1,3 +1,4 @@
+import { readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { expect, test } from "@playwright/test"
@@ -53,10 +54,29 @@ test.beforeAll(async () => {
   insertThumbnail.run(`${fixture.path}::pages/002.png#1`, landscapeThumbnail)
   database.close()
 
+  const configPath = join(fixture.directory, "xiranite.config.toml")
+  await writeFile(configPath, [
+    "[nodes.neoview]",
+    "schema_version = 1",
+    "[nodes.neoview.panels]",
+    "left_sidebar_visible = true",
+    "right_sidebar_visible = true",
+    "bottom_panel_visible = true",
+    "auto_hide_toolbar = false",
+    "[nodes.neoview.panels.sidebars.left]",
+    "pinned = false",
+    "open = false",
+    "width = 320",
+    "[nodes.neoview.panels.sidebars.right]",
+    "pinned = false",
+    "open = false",
+    "width = 280",
+    "",
+  ].join("\n"), "utf8")
   backend = await startBackend({
     token: "neoview-e2e-token",
     repository: createMemoryWorkspaceRepository(),
-    configPath: join(fixture.directory, "xiranite.config.toml"),
+    configPath,
     legacyThumbnailDatabasePath: thumbnailDatabasePath,
   })
 })
@@ -96,13 +116,39 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(bottomEdge).toBeVisible()
   await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
   await page.locator('[data-reader-edge-trigger="left"]').hover()
-  await expect(page.locator('[data-reader-sidebar="left"]')).toBeVisible()
+  const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+  await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('[data-reader-card="页面导航"]')).toBeVisible()
+  await first.evaluate((image) => image.setAttribute("data-neoview-image-instance", "before-sidebar-resize"))
+  let shellPatchRequests = 0
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/config` && request.method() === "PATCH") shellPatchRequests += 1
+  })
+  const widthHandle = page.getByRole("separator", { name: "调整左侧栏宽度" })
+  const handleBox = await widthHandle.boundingBox()
+  expect(handleBox).not.toBeNull()
+  const patchResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH"
+  ))
+  const startX = handleBox!.x + handleBox!.width / 2
+  const startY = handleBox!.y + 20
+  await widthHandle.dispatchEvent("pointerdown", { pointerId: 17, clientX: startX, clientY: startY, buttons: 1 })
+  for (let step = 1; step <= 40; step += 1) {
+    await widthHandle.dispatchEvent("pointermove", { pointerId: 17, clientX: startX + step * 2, clientY: startY, buttons: 1 })
+  }
+  await widthHandle.dispatchEvent("pointerup", { pointerId: 17, clientX: startX + 80, clientY: startY, buttons: 0 })
+  expect((await patchResponse).status()).toBe(200)
+  expect(shellPatchRequests).toBe(1)
+  expect(await leftSidebar.evaluate((element) => Number.parseFloat(getComputedStyle(element).width))).toBeGreaterThan(320)
+  expect(await first.getAttribute("data-neoview-image-instance")).toBe("before-sidebar-resize")
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain("width = ")
   const viewport = page.viewportSize()!
   await page.mouse.move(viewport.width - 1, viewport.height / 2)
   await expect(page.locator('[data-reader-sidebar="left"]')).toHaveCount(0, { timeout: 1_500 })
   await expect(page.locator('[data-reader-sidebar="right"]')).toBeVisible()
   await expect(page.locator('[data-reader-card="书籍信息"]')).toBeVisible()
+  await expect(page.getByRole("region", { name: "NeoView 右侧面板" })).toHaveAttribute("data-pinned", "false")
+  await page.locator('[data-reader-viewport="true"]').click({ position: { x: viewport.width / 2, y: viewport.height / 2 }, force: true })
   await page.keyboard.press("Escape")
   await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
   await page.locator('[data-reader-edge-trigger="bottom"]').hover()

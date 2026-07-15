@@ -10,9 +10,9 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { Suspense, useState } from "react"
-import type { CSSProperties } from "react"
-import type { ReaderShellConfigDto } from "../../adapters/reader-http-client"
+import { Suspense, useRef, useState } from "react"
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
+import type { ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
 
 import { cn } from "@/lib/utils"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
@@ -25,24 +25,28 @@ import {
   type ReaderPanelSide,
 } from "./registry"
 
-export function ReaderSidebar({ side, context, shell }: { side: ReaderPanelSide; context: ReaderPanelContext; shell?: ReaderShellConfigDto }) {
+export function ReaderSidebar({
+  side,
+  context,
+  shell,
+  onLayoutCommit,
+}: {
+  side: ReaderPanelSide
+  context: ReaderPanelContext
+  shell?: ReaderShellConfigDto
+  onLayoutCommit?(patch: ReaderSidebarLayoutPatch): void
+}) {
   const panels = availablePanels(side)
   const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]
-  const height = sidebarHeight(layout)
-  const style = layout ? {
-    width: `min(${layout.width}px, calc(100vw - 2rem))`,
-    height,
-    top: height === "100%" ? 0 : `${(100 - Number.parseFloat(height)) * (layout.verticalAlign / 100)}%`,
-    left: side === "left" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
-    right: side === "right" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
-    backgroundColor: `color-mix(in oklch, var(--background) ${shell!.opacity.sidebar}%, transparent)`,
-    backdropFilter: `blur(${shell!.blur.sidebar}px)`,
-  } satisfies CSSProperties : undefined
+  const asideRef = useRef<HTMLElement>(null)
+  const gestureRef = useRef<SidebarGesture | undefined>(undefined)
+  const style = layout && shell ? sidebarStyle(layout, shell, side) : undefined
 
   return (
     <aside
+      ref={asideRef}
       className={cn(
         "relative flex max-h-full overflow-hidden border-border/70 bg-background/92 shadow-xl backdrop-blur-md",
         side === "left" ? "border-r" : "flex-row-reverse border-l",
@@ -50,6 +54,16 @@ export function ReaderSidebar({ side, context, shell }: { side: ReaderPanelSide;
       data-reader-sidebar={side}
       style={style}
     >
+      <div
+        aria-label={`调整${side === "left" ? "左" : "右"}侧栏宽度`}
+        role="separator"
+        aria-orientation="vertical"
+        className={cn("absolute inset-y-0 z-20 w-1.5 cursor-ew-resize touch-none", side === "left" ? "right-0" : "left-0")}
+        onPointerDown={(event) => startGesture(event, "width")}
+        onPointerMove={moveGesture}
+        onPointerUp={endGesture}
+        onPointerCancel={cancelGesture}
+      />
       <nav className={cn("flex w-11 shrink-0 flex-col items-center gap-1 py-2", side === "left" ? "border-r" : "border-l")} aria-label={`${side === "left" ? "左" : "右"}侧面板`}>
         {panels.map((panel) => (
           <button
@@ -72,6 +86,17 @@ export function ReaderSidebar({ side, context, shell }: { side: ReaderPanelSide;
         <div className="mb-2 flex items-center gap-2 px-1 py-1">
           <span aria-hidden="true">{active?.emoji}</span>
           <h2 className="truncate text-sm font-semibold">{active?.title}</h2>
+          {layout?.height !== "full" ? (
+            <button
+              type="button"
+              aria-label={`移动${side === "left" ? "左" : "右"}侧栏`}
+              className="ml-auto cursor-move touch-none rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+              onPointerDown={(event) => startGesture(event, "move")}
+              onPointerMove={moveGesture}
+              onPointerUp={endGesture}
+              onPointerCancel={cancelGesture}
+            >↕</button>
+          ) : null}
         </div>
         <div className="grid gap-2">
           {active ? cardsForPanel(active.id).map((card) => {
@@ -86,8 +111,98 @@ export function ReaderSidebar({ side, context, shell }: { side: ReaderPanelSide;
           }) : null}
         </div>
       </div>
+      <button
+        type="button"
+        aria-label={`调整${side === "left" ? "左" : "右"}侧栏大小`}
+        className={cn("absolute bottom-0 z-30 size-4 cursor-nwse-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100", side === "left" ? "right-0" : "left-0")}
+        onPointerDown={(event) => startGesture(event, "corner")}
+        onPointerMove={moveGesture}
+        onPointerUp={endGesture}
+        onPointerCancel={cancelGesture}
+      />
     </aside>
   )
+
+  function startGesture(event: ReactPointerEvent<HTMLElement>, kind: SidebarGesture["kind"]): void {
+    if (!layout || !asideRef.current) return
+    gestureRef.current = {
+      kind,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      width: layout.width,
+      height: layout.height === "full" ? 100 : Number.parseFloat(sidebarHeight(layout)),
+      verticalAlign: layout.verticalAlign,
+      horizontalPosition: layout.horizontalPosition,
+      latest: {},
+    }
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Synthetic/test pointers are not registered as active by every WebView.
+    }
+    event.preventDefault()
+  }
+
+  function moveGesture(event: ReactPointerEvent<HTMLElement>): void {
+    const gesture = gestureRef.current
+    const aside = asideRef.current
+    if (!gesture || gesture.pointerId !== event.pointerId || !aside) return
+    const widthDelta = (side === "left" ? 1 : -1) * (event.clientX - gesture.startX)
+    if (gesture.kind === "width" || gesture.kind === "corner") {
+      gesture.latest.width = clamp(gesture.width + widthDelta, 200, 600)
+      aside.style.width = `${gesture.latest.width}px`
+    }
+    if (gesture.kind === "corner") {
+      gesture.latest.height = "custom"
+      gesture.latest.customHeight = clamp(gesture.height + ((event.clientY - gesture.startY) / Math.max(window.innerHeight, 1)) * 100, 10, 100)
+      aside.style.height = `${gesture.latest.customHeight}%`
+      aside.style.top = `${(100 - gesture.latest.customHeight) * (gesture.verticalAlign / 100)}%`
+    }
+    if (gesture.kind === "move") {
+      gesture.latest.horizontalPosition = clamp(
+        gesture.horizontalPosition + ((event.clientX - gesture.startX) / Math.max(window.innerWidth, 1)) * (side === "left" ? 200 : -200),
+        0,
+        100,
+      )
+      gesture.latest.verticalAlign = clamp(
+        gesture.verticalAlign + ((event.clientY - gesture.startY) / Math.max(window.innerHeight, 1)) * 200,
+        0,
+        100,
+      )
+      aside.style.top = `${(100 - gesture.height) * (gesture.latest.verticalAlign / 100)}%`
+      if (side === "left") aside.style.left = `${gesture.latest.horizontalPosition * 0.5}vw`
+      else aside.style.right = `${gesture.latest.horizontalPosition * 0.5}vw`
+    }
+  }
+
+  function endGesture(event: ReactPointerEvent<HTMLElement>): void {
+    const gesture = gestureRef.current
+    if (!gesture || gesture.pointerId !== event.pointerId) return
+    gestureRef.current = undefined
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    if (Object.keys(gesture.latest).length) onLayoutCommit?.({ side, ...gesture.latest })
+  }
+
+  function cancelGesture(event: ReactPointerEvent<HTMLElement>): void {
+    if (gestureRef.current?.pointerId !== event.pointerId) return
+    gestureRef.current = undefined
+    if (asideRef.current && layout && shell) applySidebarStyle(asideRef.current, sidebarStyle(layout, shell, side))
+  }
+}
+
+interface SidebarGesture {
+  kind: "width" | "corner" | "move"
+  pointerId: number
+  startX: number
+  startY: number
+  width: number
+  height: number
+  verticalAlign: number
+  horizontalPosition: number
+  latest: Omit<ReaderSidebarLayoutPatch, "side">
 }
 
 function sidebarHeight(layout: ReaderShellConfigDto["sidebars"]["left"] | undefined): string {
@@ -96,4 +211,35 @@ function sidebarHeight(layout: ReaderShellConfigDto["sidebars"]["left"] | undefi
   if (layout.height === "half") return "50%"
   if (layout.height === "one-third") return "33.3333%"
   return `${layout.customHeight}%`
+}
+
+function sidebarStyle(
+  layout: ReaderShellConfigDto["sidebars"]["left"],
+  shell: ReaderShellConfigDto,
+  side: ReaderPanelSide,
+): CSSProperties {
+  const height = sidebarHeight(layout)
+  return {
+    width: layout.width,
+    maxWidth: "calc(100vw - 2rem)",
+    height,
+    top: height === "100%" ? 0 : `${(100 - Number.parseFloat(height)) * (layout.verticalAlign / 100)}%`,
+    left: side === "left" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
+    right: side === "right" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
+    backgroundColor: `color-mix(in oklch, var(--background) ${shell.opacity.sidebar}%, transparent)`,
+    backdropFilter: `blur(${shell.blur.sidebar}px)`,
+  }
+}
+
+function applySidebarStyle(element: HTMLElement, style: CSSProperties): void {
+  element.style.width = String(style.width ?? "")
+  element.style.maxWidth = String(style.maxWidth ?? "")
+  element.style.height = String(style.height ?? "")
+  element.style.top = typeof style.top === "number" ? `${style.top}px` : String(style.top ?? "")
+  element.style.left = String(style.left ?? "")
+  element.style.right = String(style.right ?? "")
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }

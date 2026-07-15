@@ -11,7 +11,12 @@ import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataPro
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
-import { DEFAULT_NEOVIEW_SHELL_CONFIG, type NeoviewShellConfig } from "../../application/config/ReaderRuntimeConfig.js"
+import {
+  DEFAULT_NEOVIEW_SHELL_CONFIG,
+  parseNeoviewSidebarLayoutPatch,
+  type NeoviewShellConfig,
+  type NeoviewSidebarLayoutPatch,
+} from "../../application/config/ReaderRuntimeConfig.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
@@ -47,6 +52,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   thumbnailStore?: ReaderThumbnailStore
   disposeThumbnailStore?: () => void | Promise<void>
   shellOptions?: NeoviewShellConfig
+  updateShellOptions?: (patch: NeoviewSidebarLayoutPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -56,7 +62,9 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
   readonly #disposeThumbnailStore?: () => void | Promise<void>
-  readonly #shellOptions: NeoviewShellConfig
+  #shellOptions: NeoviewShellConfig
+  readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
+  #shellUpdateQueue: Promise<void> = Promise.resolve()
 
   constructor(options: ReaderHttpControllerOptions) {
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -79,6 +87,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
+    this.#updateShellOptions = options.updateShellOptions
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -94,6 +103,9 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     if (url.pathname === "/reader/config" && request.method === "GET") {
       return jsonResponse({ schemaVersion: 1, shell: this.#shellOptions })
+    }
+    if (url.pathname === "/reader/config" && request.method === "PATCH") {
+      return this.#patchShellConfig(request)
     }
 
     const pagesMatch = SESSION_PAGES_PATH.exec(url.pathname)
@@ -165,6 +177,30 @@ export class ReaderHttpController implements AsyncDisposable {
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+  }
+
+  async #patchShellConfig(request: Request): Promise<Response> {
+    if (!this.#updateShellOptions) return jsonResponse({ error: "Reader shell config is read-only" }, 405)
+    const body = await readControlJson(request)
+    if (!body) return jsonResponse({ error: "Reader shell patch must be a JSON object" }, 400)
+    let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch>
+    try {
+      parsed = parseNeoviewSidebarLayoutPatch(body)
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+    let updated: NeoviewShellConfig | undefined
+    const operation = this.#shellUpdateQueue.then(async () => {
+      updated = await this.#updateShellOptions!(parsed.patch, parsed.tomlPatch)
+      this.#shellOptions = updated
+    })
+    this.#shellUpdateQueue = operation.catch(() => undefined)
+    try {
+      await operation
+      return jsonResponse({ schemaVersion: 1, shell: updated })
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 500)
     }
   }
 

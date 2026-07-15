@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewRuntimeConfig } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -97,5 +97,22 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewRuntimeConfig({ panels: { hover_areas: { top_trigger_height: 0 } } })).toThrow("top trigger")
     expect(() => parseNeoviewRuntimeConfig({ panels: { auto_hide_timing: { hide_delay_sec: 6 } } })).toThrow("hide_delay_sec")
     expect(() => parseNeoviewRuntimeConfig({ panels: { sidebars: { left: { width: 1000 } } } })).toThrow("left.width")
+  })
+
+  it("[neoview.settings.shell-patch] validates and converts sidebar patches to TOML shape", () => {
+    expect(parseNeoviewSidebarLayoutPatch({
+      side: "right",
+      width: 412,
+      height: "two-thirds",
+      customHeight: 72,
+      verticalAlign: 35,
+      horizontalPosition: 18,
+    })).toEqual({
+      patch: { side: "right", width: 412, height: "two-thirds", customHeight: 72, verticalAlign: 35, horizontalPosition: 18 },
+      tomlPatch: { panels: { sidebars: { right: { width: 412, height: "2/3", custom_height: 72, vertical_align: 35, horizontal_position: 18 } } } },
+    })
+    expect(() => parseNeoviewSidebarLayoutPatch({ side: "left" })).toThrow("at least one")
+    expect(() => parseNeoviewSidebarLayoutPatch({ side: "left", width: 199 })).toThrow("width")
+    expect(() => parseNeoviewSidebarLayoutPatch({ side: "left", width: 320, token: "no" })).toThrow("unsupported")
   })
 })

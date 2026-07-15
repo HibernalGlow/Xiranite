@@ -41,8 +41,18 @@ export interface ReaderShellConfigDto {
   sidebars: Record<"left" | "right", { width: number; height: "full" | "two-thirds" | "half" | "one-third" | "custom"; customHeight: number; verticalAlign: number; horizontalPosition: number }>
 }
 
+export interface ReaderSidebarLayoutPatch {
+  side: "left" | "right"
+  width?: number
+  height?: ReaderShellConfigDto["sidebars"]["left"]["height"]
+  customHeight?: number
+  verticalAlign?: number
+  horizontalPosition?: number
+}
+
 export interface ReaderHttpClient {
   config(signal?: AbortSignal): Promise<ReaderShellConfigDto>
+  updateSidebarLayout(patch: ReaderSidebarLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -66,6 +76,12 @@ export function createReaderHttpClient(
 
   return {
     config: (signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", { signal }).then((value) => value.shell),
+    updateSidebarLayout: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.shell),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },

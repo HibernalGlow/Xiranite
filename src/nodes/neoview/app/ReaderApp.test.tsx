@@ -11,6 +11,7 @@ describe("ReaderApp", () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
       config: vi.fn(async () => shellConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(async () => ({
@@ -45,6 +46,7 @@ describe("ReaderApp", () => {
     let rejectOpen!: (error: Error) => void
     const client: ReaderHttpClient = {
       config: vi.fn(async () => shellConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
       open: vi.fn((_path, signal) => new Promise((_resolve, reject) => {
         rejectOpen = reject
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
@@ -73,6 +75,7 @@ describe("ReaderApp", () => {
     }
     const client: ReaderHttpClient = {
       config: vi.fn(async () => shellConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({
         pages: [{ ...opened.visiblePages[0]!, thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-1" }, secondPage],
@@ -97,6 +100,7 @@ describe("ReaderApp", () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
       config: vi.fn(() => new Promise((resolve) => { resolveConfig = resolve })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),

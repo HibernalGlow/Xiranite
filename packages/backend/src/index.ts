@@ -625,7 +625,7 @@ function waitForDrain(outgoing: ServerResponse): Promise<void> {
 
 function writeCorsHeaders(outgoing: ServerResponse): void {
   outgoing.setHeader("access-control-allow-origin", "*")
-  outgoing.setHeader("access-control-allow-methods", "GET,POST,PUT,DELETE,OPTIONS")
+  outgoing.setHeader("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
   outgoing.setHeader("access-control-allow-headers", "content-type,x-xiranite-token")
   outgoing.setHeader("access-control-max-age", "86400")
 }

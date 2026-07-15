@@ -85,6 +85,12 @@ export async function createReaderHttpController(
     ...options,
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
+    updateShellOptions: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).shellOptions
+    },
     thumbnailStore,
     disposeThumbnailStore,
   })

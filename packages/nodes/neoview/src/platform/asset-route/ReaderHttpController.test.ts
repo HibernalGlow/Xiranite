@@ -20,6 +20,22 @@ afterEach(async () => {
 
 describe("ReaderHttpController", () => {
   it("[neoview.settings.shell-http] protects and returns only normalized shell settings", async () => {
+    const updateShellOptions = vi.fn(async (patch) => ({
+      showDelayMs: 50,
+      hideDelayMs: 200,
+      opacity: { top: 80, bottom: 70, sidebar: 60 },
+      blur: { top: 1, bottom: 2, sidebar: 3 },
+      edges: {
+        top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 4 },
+        right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5 },
+        bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 6 },
+        left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 7 },
+      },
+      sidebars: {
+        left: { width: patch.side === "left" && patch.width ? patch.width : 333, height: "half" as const, customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
+        right: { width: 277, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+      },
+    }))
     const controller = new ReaderHttpController({
       baseUrl: "http://127.0.0.1:41000",
       token: "reader-token",
@@ -39,6 +55,7 @@ describe("ReaderHttpController", () => {
           right: { width: 277, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
         },
       },
+      updateShellOptions,
     })
     try {
       expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/config")))?.status).toBe(401)
@@ -47,6 +64,14 @@ describe("ReaderHttpController", () => {
       const body = await response.json()
       expect(body).toMatchObject({ schemaVersion: 1, shell: { showDelayMs: 50, sidebars: { left: { width: 333 } } } })
       expect(JSON.stringify(body)).not.toMatch(/path|token|password/i)
+      const patched = (await controller.handle(jsonRequest("/reader/config", { side: "left", width: 401 }, true, "PATCH")))!
+      expect(patched.status).toBe(200)
+      expect(await patched.json()).toMatchObject({ shell: { sidebars: { left: { width: 401 } } } })
+      expect(updateShellOptions).toHaveBeenCalledWith(
+        { side: "left", width: 401 },
+        { panels: { sidebars: { left: { width: 401 } } } },
+      )
+      expect((await controller.handle(jsonRequest("/reader/config", { side: "left", width: 999 }, true, "PATCH")))?.status).toBe(400)
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -258,9 +283,9 @@ async function createBookDirectory(): Promise<string> {
   return directory
 }
 
-function jsonRequest(path: string, body: unknown, authorized = true): Request {
+function jsonRequest(path: string, body: unknown, authorized = true, method = "POST"): Request {
   return authorizedRequest(path, {
-    method: "POST",
+    method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   }, authorized)

@@ -61,6 +61,7 @@ describe("ThumbnailStrip", () => {
 function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {
   return {
     config: vi.fn(),
+    updateSidebarLayout: vi.fn(),
     open: vi.fn(),
     listPages: vi.fn(),
     navigate: vi.fn(),

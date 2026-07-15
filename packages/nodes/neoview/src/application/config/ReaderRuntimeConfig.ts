@@ -32,6 +32,15 @@ export interface NeoviewShellConfig {
   sidebars: Record<"left" | "right", NeoviewShellSidebarConfig>
 }
 
+export interface NeoviewSidebarLayoutPatch {
+  side: "left" | "right"
+  width?: number
+  height?: NeoviewShellSidebarConfig["height"]
+  customHeight?: number
+  verticalAlign?: number
+  horizontalPosition?: number
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -81,6 +90,32 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     },
     shellOptions: parseShellOptions(panels),
   }
+}
+
+export function parseNeoviewSidebarLayoutPatch(value: unknown): {
+  patch: NeoviewSidebarLayoutPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader shell patch")
+  const allowed = new Set(["side", "width", "height", "customHeight", "verticalAlign", "horizontalPosition"])
+  const unknown = Object.keys(record).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader shell patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const side = optionalEnum(record.side, "reader shell patch.side", ["left", "right"] as const)
+  if (!side) throw new Error("reader shell patch.side is required.")
+  const patch: NeoviewSidebarLayoutPatch = { side }
+  if (record.width !== undefined) patch.width = boundedNumber(record.width, 200, 600, 320, "reader shell patch.width")
+  if (record.height !== undefined) patch.height = sidebarHeight(record.height, "reader shell patch.height")
+  if (record.customHeight !== undefined) patch.customHeight = boundedNumber(record.customHeight, 10, 100, 100, "reader shell patch.customHeight")
+  if (record.verticalAlign !== undefined) patch.verticalAlign = boundedNumber(record.verticalAlign, 0, 100, 0, "reader shell patch.verticalAlign")
+  if (record.horizontalPosition !== undefined) patch.horizontalPosition = boundedNumber(record.horizontalPosition, 0, 100, 0, "reader shell patch.horizontalPosition")
+  if (Object.keys(patch).length === 1) throw new Error("reader shell patch must change at least one layout field.")
+  const sidePatch: Record<string, unknown> = {}
+  if (patch.width !== undefined) sidePatch.width = patch.width
+  if (patch.height !== undefined) sidePatch.height = patch.height === "two-thirds" ? "2/3" : patch.height === "one-third" ? "1/3" : patch.height
+  if (patch.customHeight !== undefined) sidePatch.custom_height = patch.customHeight
+  if (patch.verticalAlign !== undefined) sidePatch.vertical_align = patch.verticalAlign
+  if (patch.horizontalPosition !== undefined) sidePatch.horizontal_position = patch.horizontalPosition
+  return { patch, tomlPatch: { panels: { sidebars: { [side]: sidePatch } } } }
 }
 
 function parseShellOptions(panels: Record<string, unknown> | undefined): NeoviewShellConfig {

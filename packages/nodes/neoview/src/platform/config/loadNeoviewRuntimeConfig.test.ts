@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -111,6 +111,13 @@ describe("loadNeoviewSessionOptions", () => {
         headers: { "x-xiranite-token": "runtime-token" },
       }))
       expect(await shellResponse?.json()).toMatchObject({ schemaVersion: 1, shell: { edges: { left: { triggerSize: 32 } } } })
+      const patched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ side: "left", width: 438, height: "half", verticalAlign: 25 }),
+      }))
+      expect(await patched?.json()).toMatchObject({ shell: { sidebars: { left: { width: 438, height: "half", verticalAlign: 25 } } } })
+      expect(await readFile(configPath, "utf8")).toContain("width = 438")
     } finally {
       await controller[Symbol.asyncDispose]()
     }

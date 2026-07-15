@@ -11,6 +11,7 @@ import {
   type ReaderNavigationDto,
   type ReaderSessionDto,
   type ReaderShellConfigDto,
+  type ReaderSidebarLayoutPatch,
 } from "../adapters/reader-http-client"
 import { PageImage } from "../features/reader/PageImage"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
@@ -132,6 +133,16 @@ export function ReaderApp({
     if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
   }
 
+  async function commitSidebarLayout(patch: ReaderSidebarLayoutPatch) {
+    try {
+      const updated = await clientRef.current.updateSidebarLayout(patch)
+      setShell(updated)
+    } catch (cause) {
+      setShell((current) => current ? { ...current, sidebars: { ...current.sidebars } } : current)
+      setError(errorMessage(cause))
+    }
+  }
+
   async function choose(source: "file" | "directory") {
     const selected = source === "file" ? await pickFile?.() : await pickDirectory?.()
     if (selected) {
@@ -233,7 +244,7 @@ export function ReaderApp({
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
-        <LazyReaderSidebar side="left" context={panelContext} shell={shell} />
+        <LazyReaderSidebar side="left" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} />
       </Suspense>
     ),
   } : undefined
@@ -247,7 +258,7 @@ export function ReaderApp({
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-l border-border/70 bg-background/85" aria-label="正在加载右侧面板" />}>
-        <LazyReaderSidebar side="right" context={panelContext} shell={shell} />
+        <LazyReaderSidebar side="right" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} />
       </Suspense>
     ),
   } : undefined
