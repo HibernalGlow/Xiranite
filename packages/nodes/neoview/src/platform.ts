@@ -8,8 +8,10 @@ import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
+import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
+export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
   sourceRevision: "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
@@ -64,6 +66,11 @@ export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {
   return new StreamingImageMetadataProbe()
 }
 
+export async function createSolidArchiveCache(options: SolidArchiveCacheOptions = {}): Promise<SolidArchiveCache> {
+  const { SolidArchiveCache } = await import("./platform/archives/sevenzip/SolidArchiveCache.js")
+  return new SolidArchiveCache(options)
+}
+
 export async function createReaderHeadlessController(
   options: PlatformReaderBookLoaderOptions = {},
 ): Promise<ReaderHeadlessController> {
@@ -71,7 +78,16 @@ export async function createReaderHeadlessController(
   const { CoreReaderService } = await import("./application/reader/ReaderService.js")
   const { createPlatformReaderBookLoader } = await import("./platform/books/PlatformReaderBookLoader.js")
   const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
+  const { SolidArchiveCache } = await import("./platform/archives/sevenzip/SolidArchiveCache.js")
+  const ownsCache = !options.solidArchiveCache
+  const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
+    maxBytes: options.maxSolidArchiveCacheBytes,
+  })
   return new ReaderHeadlessController(
-    new CoreReaderService(createPlatformReaderBookLoader(options), new StreamingImageMetadataProbe()),
+    new CoreReaderService(
+      createPlatformReaderBookLoader({ ...options, solidArchiveCache }),
+      new StreamingImageMetadataProbe(),
+    ),
+    ownsCache ? () => solidArchiveCache.close() : undefined,
   )
 }

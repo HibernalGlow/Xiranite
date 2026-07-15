@@ -46,12 +46,14 @@ export interface HeadlessPageStream extends AsyncDisposable {
 /** Application-level Reader facade shared by CLI and TUI. */
 export class ReaderHeadlessController implements AsyncDisposable {
   readonly #service: ReaderService
+  readonly #disposeDependencies?: () => Promise<void>
   #session: ReaderSession | undefined
   #closed = false
   #disposing: Promise<void> | undefined
 
-  constructor(service: ReaderService) {
+  constructor(service: ReaderService, disposeDependencies?: () => Promise<void>) {
     this.#service = service
+    this.#disposeDependencies = disposeDependencies
   }
 
   get isOpen(): boolean {
@@ -146,11 +148,19 @@ export class ReaderHeadlessController implements AsyncDisposable {
     this.#disposing = Promise.resolve().then(async () => {
       const session = this.#session
       this.#session = undefined
-      const results = await Promise.allSettled([
-        session?.close(),
-        this.#service[Symbol.asyncDispose](),
-      ].filter((value): value is Promise<void> => value !== undefined))
-      const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+      const errors: unknown[] = []
+      for (const dispose of [
+        session ? () => session.close() : undefined,
+        () => this.#service[Symbol.asyncDispose](),
+        this.#disposeDependencies,
+      ]) {
+        if (!dispose) continue
+        try {
+          await dispose()
+        } catch (error) {
+          errors.push(error)
+        }
+      }
       if (errors.length) throw new AggregateError(errors, "Failed to close the headless reader.")
     })
     return this.#disposing

@@ -1,5 +1,7 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process"
+import { createHash } from "node:crypto"
 import { createReadStream } from "node:fs"
+import { realpath, stat } from "node:fs/promises"
 import { Readable } from "node:stream"
 
 import type {
@@ -12,6 +14,8 @@ import type {
 import type { ResourceLease, ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { defaultImageTransformScheduler } from "../../scheduler/PriorityResourceScheduler.js"
 import { materializeArchiveEntry } from "../materialize-entry.js"
+import type { CacheableSolidArchiveMaterializer, SolidArchiveCacheLease } from "./SolidArchiveCache.js"
+import { SolidArchiveCache } from "./SolidArchiveCache.js"
 import { SolidArchiveMaterializer } from "./SolidArchiveMaterializer.js"
 import {
   resolveSevenZipExecutable,
@@ -30,6 +34,7 @@ export interface SevenZipArchiveProviderOptions {
   resourceScheduler?: ResourceScheduler
   tempDirectory?: string
   maxMaterializedBytes?: number
+  solidArchiveCache?: SolidArchiveCache
   /** @deprecated Use tempDirectory. */
   solidTempDirectory?: string
   /** @deprecated Use maxMaterializedBytes. */
@@ -57,6 +62,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   readonly #resourceScheduler: ResourceScheduler
   readonly #tempDirectory?: string
   readonly #maxMaterializedBytes?: number
+  readonly #solidArchiveCache?: SolidArchiveCache
   readonly #lifecycle = new AbortController()
   readonly #active = new Map<number, ActiveExtraction>()
   readonly #activeFileReads = new Set<Promise<void>>()
@@ -65,7 +71,10 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   #entriesById = new Map<string, ArchiveEntry>()
   #executable?: SevenZipExecutable
   #initializing?: Promise<void>
-  #solidMaterializer?: SolidArchiveMaterializer
+  #solidMaterializer?: CacheableSolidArchiveMaterializer
+  #solidMaterializerLoading?: Promise<CacheableSolidArchiveMaterializer>
+  #solidCacheLease?: SolidArchiveCacheLease
+  #solidFingerprint?: { fingerprint: string; sourceIdentity: string; materializedBytes: number }
   #initialized = false
   #closed = false
 
@@ -78,6 +87,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     this.#resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
     this.#tempDirectory = options.tempDirectory ?? options.solidTempDirectory
     this.#maxMaterializedBytes = options.maxMaterializedBytes ?? options.maxSolidMaterializedBytes
+    this.#solidArchiveCache = options.solidArchiveCache
   }
 
   async list(signal?: AbortSignal): Promise<readonly ArchiveEntry[]> {
@@ -140,8 +150,8 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     }
     if (this.capabilities.solid) {
       const combinedSignal = combineSignals(signal, this.#lifecycle.signal)
-      const materializer = this.#solidMaterializerInstance()
-      const path = await materializer.pathFor(entry.id, combinedSignal)
+      const materializer = await this.#solidMaterializerInstance()
+      const path = await this.#pathForSolidEntry(materializer, entry.id, combinedSignal)
       const released = Promise.resolve()
       const release = () => released
       return {
@@ -169,7 +179,8 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     await Promise.allSettled(active.map((extraction) => extraction.completion))
     this.#active.clear()
     await Promise.allSettled(this.#activeFileReads)
-    await this.#solidMaterializer?.close()
+    await this.#solidMaterializerLoading?.catch(() => undefined)
+    await this.#releaseSolidMaterializer()
     await this.#initializing?.catch(() => undefined)
     this.#entries = []
     this.#entriesById.clear()
@@ -204,6 +215,13 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       this.capabilities.solid = index.solid
       this.capabilities.randomAccess = !index.solid
       this.capabilities.materialization = index.solid ? "required" : "optional"
+      if (index.solid && this.#solidArchiveCache) {
+        this.#solidFingerprint = await solidArchiveFingerprint(
+          this.sourcePath,
+          executable.version,
+          this.#entries,
+        )
+      }
       this.#initialized = true
     })()
     try {
@@ -215,7 +233,8 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
 
   async #openSolidEntry(entry: ArchiveEntry, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
     const combinedSignal = combineSignals(signal, this.#lifecycle.signal)
-    const path = await this.#solidMaterializerInstance().pathFor(entry.id, combinedSignal)
+    const materializer = await this.#solidMaterializerInstance()
+    const path = await this.#pathForSolidEntry(materializer, entry.id, combinedSignal)
     combinedSignal.throwIfAborted()
     const file = createReadStream(path, { highWaterMark: 64 * 1024, signal: combinedSignal })
     const completion = new Promise<void>((resolve) => file.once("close", resolve))
@@ -224,16 +243,61 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     return Readable.toWeb(file) as ReadableStream<Uint8Array>
   }
 
-  #solidMaterializerInstance(): SolidArchiveMaterializer {
-    this.#solidMaterializer ??= new SolidArchiveMaterializer({
-      sourcePath: this.sourcePath,
-      executable: this.#executable!,
-      entries: this.#entries,
-      resourceScheduler: this.#resourceScheduler,
-      tempDirectory: this.#tempDirectory,
-      maxMaterializedBytes: this.#maxMaterializedBytes,
+  #solidMaterializerInstance(): Promise<CacheableSolidArchiveMaterializer> {
+    if (this.#solidMaterializer) return Promise.resolve(this.#solidMaterializer)
+    if (this.#solidMaterializerLoading) return this.#solidMaterializerLoading
+    this.#solidMaterializerLoading = (async () => {
+      const create = () => new SolidArchiveMaterializer({
+        sourcePath: this.sourcePath,
+        executable: this.#executable!,
+        entries: this.#entries,
+        resourceScheduler: this.#resourceScheduler,
+        tempDirectory: this.#tempDirectory,
+        maxMaterializedBytes: this.#maxMaterializedBytes,
+      })
+      if (this.#solidArchiveCache && this.#solidFingerprint) {
+        const lease = await this.#solidArchiveCache.acquire({ ...this.#solidFingerprint, create })
+        if (this.#closed) {
+          await lease.release()
+          throw new Error(`7-Zip archive provider is closed: ${this.sourcePath}`)
+        }
+        this.#solidCacheLease = lease
+        this.#solidMaterializer = lease.materializer
+      } else {
+        this.#solidMaterializer = create()
+      }
+      return this.#solidMaterializer
+    })()
+    return this.#solidMaterializerLoading.finally(() => {
+      this.#solidMaterializerLoading = undefined
     })
-    return this.#solidMaterializer
+  }
+
+  async #pathForSolidEntry(
+    materializer: CacheableSolidArchiveMaterializer,
+    entryId: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    try {
+      return await materializer.pathFor(entryId, signal)
+    } catch (error) {
+      if (!signal.aborted && !this.#lifecycle.signal.aborted) await this.#invalidateSolidMaterializer()
+      throw error
+    }
+  }
+
+  async #invalidateSolidMaterializer(): Promise<void> {
+    const lease = this.#solidCacheLease
+    if (lease) await lease.invalidate()
+  }
+
+  async #releaseSolidMaterializer(): Promise<void> {
+    const lease = this.#solidCacheLease
+    const materializer = this.#solidMaterializer
+    this.#solidCacheLease = undefined
+    this.#solidMaterializer = undefined
+    if (lease) await lease.release()
+    else await materializer?.close()
   }
 
   #streamEntry(entry: ArchiveEntry, signal: AbortSignal | undefined, lease: ResourceLease): ReadableStream<Uint8Array> {
@@ -301,6 +365,41 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
 
   #assertOpen(): void {
     if (this.#closed) throw new Error(`7-Zip archive provider is closed: ${this.sourcePath}`)
+  }
+}
+
+async function solidArchiveFingerprint(
+  sourcePath: string,
+  executableVersion: string,
+  entries: readonly ArchiveEntry[],
+): Promise<{ fingerprint: string; sourceIdentity: string; materializedBytes: number }> {
+  const sourceIdentity = await realpath(sourcePath)
+  const sourceStats = await stat(sourceIdentity, { bigint: true })
+  const hash = createHash("sha256")
+  const append = (value: string | number | bigint | undefined) => {
+    hash.update(String(value ?? ""))
+    hash.update("\0")
+  }
+  append(sourceIdentity)
+  append(sourceStats.size)
+  append(sourceStats.mtimeNs)
+  append(sourceStats.ctimeNs)
+  append(sourceStats.ino)
+  append(executableVersion)
+  let materializedBytes = 0
+  for (const entry of entries) {
+    if (entry.kind !== "file") continue
+    materializedBytes += entry.uncompressedSize
+    if (!Number.isSafeInteger(materializedBytes)) throw new Error("Solid archive size exceeds the safe integer range.")
+    append(entry.id)
+    append(entry.path)
+    append(entry.uncompressedSize)
+    append(entry.crc32)
+  }
+  return {
+    fingerprint: hash.digest("hex"),
+    sourceIdentity,
+    materializedBytes,
   }
 }
 

@@ -149,6 +149,7 @@ async function createArchiveProvider(
     resourceScheduler: options.resourceScheduler,
     tempDirectory: options.archiveTempDirectory,
     maxMaterializedBytes,
+    solidArchiveCache: options.solidArchiveCache,
   })
 }
 

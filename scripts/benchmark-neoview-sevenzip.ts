@@ -8,6 +8,7 @@ import { promisify } from "node:util"
 
 import type { ResourceScheduler, ResourceTaskRequest } from "../packages/nodes/neoview/src/ports/ResourceScheduler.js"
 import { SevenZipArchiveProvider } from "../packages/nodes/neoview/src/platform/archives/sevenzip/SevenZipArchiveProvider.js"
+import { SolidArchiveCache } from "../packages/nodes/neoview/src/platform/archives/sevenzip/SolidArchiveCache.js"
 import { resolveSevenZipExecutable } from "../packages/nodes/neoview/src/platform/archives/sevenzip/SevenZipExecutable.js"
 import { deterministicBytes } from "../packages/nodes/neoview/test/fixture-builders/create-zip-fixture.js"
 
@@ -36,13 +37,14 @@ try {
 
   const sequential = await measureProvider(archivePath, materializedDirectory, "first-then-adjacent")
   const directLast = await measureProvider(archivePath, materializedDirectory, "last-page-first")
+  const crossSession = await measureCrossSessionCache(archivePath, materializedDirectory)
   const archiveBytes = await readFile(archivePath)
   process.stdout.write(`${JSON.stringify({
-    benchmarkIds: ["archive-entry-ttfb", "solid-adjacent-page"],
+    benchmarkIds: ["archive-entry-ttfb", "solid-adjacent-page", "solid-cross-session"],
     runtime: `Bun ${Bun.version}`,
     platform: `${process.platform}-${process.arch}`,
     sevenZip: executable,
-    cacheState: "new provider per scenario; operating-system file cache unspecified",
+    cacheState: "new provider for uncached scenarios; explicit host-lifetime cache for cross-session scenario; operating-system file cache unspecified",
     storage: "temporary filesystem; disk type not detected",
     sampleSha256: sampleHash.digest("hex"),
     archiveSha256: createHash("sha256").update(archiveBytes).digest("hex"),
@@ -50,9 +52,50 @@ try {
     archiveMiB: round(archiveBytes.byteLength / mib),
     sequential,
     directLast,
+    crossSession,
   }, null, 2)}\n`)
 } finally {
   await rm(root, { recursive: true, force: true })
+}
+
+async function measureCrossSessionCache(sourcePath: string, tempDirectory: string): Promise<unknown> {
+  const scheduler = new CountingScheduler()
+  const cache = new SolidArchiveCache({ maxBytes: pageCount * pageBytes })
+  const open = async (entryPosition: "first" | "last") => {
+    const provider = new SevenZipArchiveProvider(sourcePath, {
+      executable,
+      resourceScheduler: scheduler,
+      tempDirectory,
+      solidArchiveCache: cache,
+    })
+    try {
+      const entries = (await provider.list()).filter((entry) => entry.kind === "file")
+      const entry = entryPosition === "first" ? entries[0]! : entries.at(-1)!
+      const started = performance.now()
+      const stream = await provider.openEntry(entry.id)
+      const entryReadyMs = performance.now() - started
+      let bytes = 0
+      for await (const chunk of stream) bytes += chunk.byteLength
+      await waitUntil(() => scheduler.active.cpu === 0)
+      return { path: entry.path, entryReadyMs: round(entryReadyMs), outputMiB: round(bytes / mib) }
+    } finally {
+      await provider.close()
+    }
+  }
+  try {
+    const cold = await open("last")
+    const warm = await open("first")
+    return {
+      cold,
+      warm,
+      retainedBytes: cache.retainedBytes,
+      solidExtractorLeases: scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract").length,
+    }
+  } finally {
+    await cache.close()
+    const leftovers = await readdir(tempDirectory)
+    if (leftovers.length) throw new Error(`Solid cross-session benchmark leaked temporary directories: ${leftovers.join(", ")}`)
+  }
 }
 
 async function measureProvider(
@@ -110,11 +153,28 @@ async function measureProvider(
 
 class CountingScheduler implements ResourceScheduler {
   readonly requests: ResourceTaskRequest[] = []
+  readonly active = { cpu: 0, io: 0, gpu: 0 }
 
   async acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<{ release(): void }> {
     signal?.throwIfAborted()
     this.requests.push({ ...request })
-    return { release() {} }
+    this.active[request.resource] += 1
+    let released = false
+    return {
+      release: () => {
+        if (released) return
+        released = true
+        this.active[request.resource] -= 1
+      },
+    }
+  }
+}
+
+async function waitUntil(predicate: () => boolean, timeoutMs = 30_000): Promise<void> {
+  const started = performance.now()
+  while (!predicate()) {
+    if (performance.now() - started > timeoutMs) throw new Error("Timed out waiting for the solid extractor to become idle.")
+    await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
 

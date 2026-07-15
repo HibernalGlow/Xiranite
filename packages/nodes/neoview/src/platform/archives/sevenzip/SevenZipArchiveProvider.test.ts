@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { deterministicBytes } from "../../../../test/fixture-builders/create-zip-fixture.js"
 import type { ResourceClass, ResourceScheduler, ResourceTaskRequest } from "../../../ports/ResourceScheduler.js"
 import { SolidArchiveMaterializer } from "./SolidArchiveMaterializer.js"
+import { SolidArchiveCache } from "./SolidArchiveCache.js"
 import { SevenZipArchiveProvider, type SevenZipArchiveProviderOptions } from "./SevenZipArchiveProvider.js"
 import { resolveSevenZipExecutable } from "./SevenZipExecutable.js"
 
@@ -267,6 +268,45 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     await lease.release()
     expect(await access(lease.path).then(() => true, () => false)).toBe(true)
     await provider.close()
+    expect(await readdir(tempDirectory)).toEqual([])
+  })
+
+  it("[neoview.sevenzip.solid-cache-reuse] reuses a verified extraction across providers and invalidates changed sources", async () => {
+    const scheduler = new RecordingScheduler()
+    const tempDirectory = join(directory, "solid-shared-cache")
+    await mkdir(tempDirectory)
+    const cache = new SolidArchiveCache({ maxBytes: 1024 })
+    const options = {
+      executable: executable!,
+      resourceScheduler: scheduler,
+      tempDirectory,
+      solidArchiveCache: cache,
+    }
+    try {
+      const firstProvider = new SevenZipArchiveProvider(solidPath, options)
+      const firstEntry = (await firstProvider.list()).find((entry) => entry.path === "pages/001.jpg")!
+      expect(await collect(await firstProvider.openEntry(firstEntry.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      await expect.poll(() => scheduler.active.cpu).toBe(0)
+      await firstProvider.close()
+      expect(cache.entryCount).toBe(1)
+
+      const secondProvider = new SevenZipArchiveProvider(solidPath, options)
+      const secondEntry = (await secondProvider.list()).find((entry) => entry.path === "pages/002.jpg")!
+      expect(await collect(await secondProvider.openEntry(secondEntry.id))).toEqual(Uint8Array.of(6, 7, 8))
+      await secondProvider.close()
+      expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract")).toHaveLength(1)
+
+      const changedTime = new Date(Date.now() + 5_000)
+      await utimes(solidPath, changedTime, changedTime)
+      const changedProvider = new SevenZipArchiveProvider(solidPath, options)
+      const changedEntry = (await changedProvider.list()).find((entry) => entry.path === "pages/001.jpg")!
+      expect(await collect(await changedProvider.openEntry(changedEntry.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      await expect.poll(() => scheduler.active.cpu).toBe(0)
+      await changedProvider.close()
+      expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract")).toHaveLength(2)
+    } finally {
+      await cache.close()
+    }
     expect(await readdir(tempDirectory)).toEqual([])
   })
 })

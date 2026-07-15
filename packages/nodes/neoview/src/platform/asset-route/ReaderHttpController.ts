@@ -8,6 +8,7 @@ import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoade
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
+import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -44,10 +45,16 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #service: CoreReaderService
   readonly #assets: ReaderAssetRoute
   readonly #token: string
+  readonly #solidArchiveCache: SolidArchiveCache
+  readonly #ownsSolidArchiveCache: boolean
 
   constructor(options: ReaderHttpControllerOptions) {
+    this.#ownsSolidArchiveCache = !options.solidArchiveCache
+    this.#solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
+      maxBytes: options.maxSolidArchiveCacheBytes,
+    })
     this.#service = new CoreReaderService(
-      createPlatformReaderBookLoader(options),
+      createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache }),
       new StreamingImageMetadataProbe(),
     )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
@@ -84,7 +91,20 @@ export class ReaderHttpController implements AsyncDisposable {
 
   async [Symbol.asyncDispose](): Promise<void> {
     this.#assets.close()
-    await this.#service[Symbol.asyncDispose]()
+    const errors: unknown[] = []
+    try {
+      await this.#service[Symbol.asyncDispose]()
+    } catch (error) {
+      errors.push(error)
+    }
+    if (this.#ownsSolidArchiveCache) {
+      try {
+        await this.#solidArchiveCache.close()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length) throw new AggregateError(errors, "Failed to close the reader HTTP controller.")
   }
 
   async #openSession(request: Request): Promise<Response> {

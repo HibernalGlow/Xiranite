@@ -8,10 +8,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { CoreReaderService } from "../../../application/reader/ReaderService.js"
 import { createZipFixture, type ZipFixture } from "../../../../test/fixture-builders/create-zip-fixture.js"
 import { ReaderAssetRoute } from "../../asset-route/ReaderAssetRoute.js"
+import { ReaderHttpController, type ReaderSessionDto } from "../../asset-route/ReaderHttpController.js"
 import { createPlatformReaderBookLoader } from "../../books/PlatformReaderBookLoader.js"
 import { detectViewSource } from "../../filesystem/detectViewSource.js"
 import { StreamingImageMetadataProbe } from "../../images/StreamingImageMetadataProbe.js"
 import { resolveSevenZipExecutable } from "./SevenZipExecutable.js"
+import type { ResourceClass, ResourceScheduler, ResourceTaskRequest } from "../../../ports/ResourceScheduler.js"
 
 const execFileAsync = promisify(execFile)
 const executable = await resolveSevenZipExecutable().catch(() => undefined)
@@ -117,6 +119,46 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     }
   })
 
+  it("[neoview.sevenzip.solid-session-cache] reuses a complete solid extraction across HTTP reader sessions", async () => {
+    const tempDirectory = join(directory, "solid-session-cache")
+    await mkdir(tempDirectory)
+    const scheduler = new RecordingScheduler()
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+      archiveTempDirectory: tempDirectory,
+      resourceScheduler: scheduler,
+      maxSolidArchiveCacheBytes: 1024 * 1024,
+    })
+    const openSession = async () => {
+      const response = (await controller.handle(new Request("http://127.0.0.1:41000/reader/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "route-token" },
+        body: JSON.stringify({ path: solidArchivePath }),
+      })))!
+      expect(response.status).toBe(201)
+      return response.json() as Promise<ReaderSessionDto>
+    }
+    const closeSession = async (sessionId: string) => {
+      const response = (await controller.handle(new Request(
+        `http://127.0.0.1:41000/reader/s/${encodeURIComponent(sessionId)}`,
+        { method: "DELETE", headers: { "x-xiranite-token": "route-token" } },
+      )))!
+      expect(response.status).toBe(204)
+    }
+    try {
+      const first = await openSession()
+      await expect.poll(() => scheduler.active.cpu).toBe(0)
+      await closeSession(first.sessionId)
+      const second = await openSession()
+      await closeSession(second.sessionId)
+      expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract")).toHaveLength(1)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+    expect(await readdir(tempDirectory)).toEqual([])
+  })
+
   it("[neoview.sevenzip.solid-nested-e2e] opens an inner CBZ through a borrowed solid materialization lease", async () => {
     const tempDirectory = join(directory, "nested-materialized")
     await mkdir(tempDirectory)
@@ -153,3 +195,22 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     expect(await readdir(tempDirectory)).toEqual([])
   })
 })
+
+class RecordingScheduler implements ResourceScheduler {
+  readonly requests: ResourceTaskRequest[] = []
+  readonly active: Record<ResourceClass, number> = { cpu: 0, io: 0, gpu: 0 }
+
+  async acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<{ release(): void }> {
+    signal?.throwIfAborted()
+    this.requests.push({ ...request })
+    this.active[request.resource] += 1
+    let released = false
+    return {
+      release: () => {
+        if (released) return
+        released = true
+        this.active[request.resource] -= 1
+      },
+    }
+  }
+}

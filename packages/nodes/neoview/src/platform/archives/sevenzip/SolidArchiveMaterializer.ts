@@ -41,6 +41,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   #root?: string
   #child?: SevenZipChild
   #closed = false
+  #complete = false
 
   constructor(options: SolidArchiveMaterializerOptions) {
     this.#sourcePath = options.sourcePath
@@ -57,6 +58,10 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
       throw new Error(`Solid archive requires ${totalBytes} materialized bytes, exceeding the ${maxMaterializedBytes} byte budget.`)
     }
     for (const entry of this.#entries) this.#paths.set(entry.id, deferredPath())
+  }
+
+  get isComplete(): boolean {
+    return this.#complete
   }
 
   async pathFor(entryId: string, signal?: AbortSignal): Promise<string> {
@@ -125,6 +130,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
         if (exit.code !== 0) throw new Error(stderr.trim() || `7-Zip solid extraction exited with code ${exit.code}.`)
         for (const pending of this.#awaitingProcessVerification) this.#resolve(pending.entryId, pending.path)
         this.#awaitingProcessVerification.length = 0
+        this.#complete = true
       } finally {
         signal.removeEventListener("abort", onAbort)
         this.#child = undefined
