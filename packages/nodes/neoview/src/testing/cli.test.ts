@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
@@ -133,6 +133,65 @@ describe("NeoView CLI", () => {
       const binaryOutput: unknown[] = []
       await runProgram(["extract-page", path, "--index", "0", "--output", "-"], host(binaryOutput))
       expect(Buffer.concat(binaryOutput.map((chunk) => Buffer.from(chunk as Uint8Array)))).toEqual(Buffer.from(bytes))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.settings.inspect] previews legacy settings without writing TOML or exposing secrets", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-settings-inspect-"))
+    const inputPath = join(directory, "backup.json")
+    await writeFile(inputPath, JSON.stringify({
+      version: "2.0.0",
+      backupType: "manual",
+      nativeSettings: { system: { language: "zh-CN" }, view: { defaultZoomMode: "fit" } },
+      rawLocalStorage: { "neoview-gist-sync": JSON.stringify({ token: "must-not-leak" }) },
+    }))
+    try {
+      const output: unknown[] = []
+      await runProgram(["settings-inspect", inputPath, "--json"], host(output))
+      const text = output.join("")
+      expect(text).not.toContain("must-not-leak")
+      expect(JSON.parse(text)).toMatchObject({
+        report: { sourceKind: "backup", summary: { "rejected-sensitive": 1 } },
+        configPatch: { schema_version: 1, system: { language: "zh-CN" } },
+      })
+      await expect(readFile(join(directory, "xiranite.config.toml"), "utf8")).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.settings.import] requires confirmation and idempotently writes [nodes.neoview]", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-settings-import-"))
+    const inputPath = join(directory, "settings.json")
+    const configPath = join(directory, "xiranite.config.toml")
+    await writeFile(inputPath, JSON.stringify({
+      format: "NeoView/1.0",
+      config: {
+        system: { language: "en", thumbnailDirectory: "D:/thumbs" },
+        view: { defaultZoomMode: "fitWidth" },
+        book: { readingDirection: "right-to-left", doublePageView: true },
+      },
+    }))
+    try {
+      await expect(runProgram(["settings-import", inputPath, "--config", configPath], host([])))
+        .rejects.toThrow("requires --yes")
+
+      const firstOutput: unknown[] = []
+      await runProgram([
+        "settings-import", inputPath, "--config", configPath, "--strategy", "merge", "--modules", "native-settings", "--yes", "--json",
+      ], host(firstOutput))
+      expect(JSON.parse(firstOutput.join(""))).toMatchObject({ changed: true, strategy: "merge" })
+      const toml = await readFile(configPath, "utf8")
+      expect(toml).toContain("[nodes.neoview.reader]")
+      expect(toml).toContain('reading_direction = "right-to-left"')
+
+      const secondOutput: unknown[] = []
+      await runProgram([
+        "settings-import", inputPath, "--config", configPath, "--strategy", "merge", "--modules", "native-settings", "--yes", "--json",
+      ], host(secondOutput))
+      expect(JSON.parse(secondOutput.join(""))).toMatchObject({ changed: false })
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

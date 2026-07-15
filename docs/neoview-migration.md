@@ -1661,6 +1661,8 @@ thumbnail_directory = "D:/temp/neoview"
 
 旧字段名和 TOML 字段名之间维护显式 mapping table 与 schema version。删除或改名字段时必须提供 migration function，不能仅靠默认值掩盖导入失败。
 
+当前已完成设置迁移的第一条可执行纵切：`packages/nodes/neoview/src/migration/LegacySettingsCodec.ts` 识别直接对象、`NeoView/1.0`、`FullExportPayload`、完整备份和 Gist 共用 JSON 格式，将冻结版 `NeoViewSettings` 的非主题字段显式映射到 schema v1，并把映射表固定到前端 AST inventory 中 `src/lib/settings/types.ts` 的 SHA-256；源类型漂移后测试会要求同步更新 codec。旧 Canvas/IPC 选项记为 `host-replaced`，主题交给 Xiranite，书签/历史/评分等数据库数据记为 `pending-data`，凭据容器直接拒绝且不解析值。`xneoview settings-inspect <json> [--modules ...]` 提供只读预览，`xneoview settings-import <json> --yes [--strategy merge|overwrite] [--modules ...] [--config path]` 经确认后备份、原子替换并回读验证 `[nodes.neoview]`；模块选择覆盖原生设置、绑定、EMM、文件浏览、UI/面板、书签/历史、搜索历史、超分、性能、评分和语音控制，未选项明确记为 `skipped`。codec 与 TOML store 不从 `core.ts`/`platform.ts` 静态导出，普通 Reader 路径不会加载设置迁移代码。重复导入相同内容不会再次写文件。该 feature 仍保持 `pending`，直到 GUI/TUI 确认流、专用数据导入、导出/自动备份和 Gist transport 全部完成。
+
 ### 18.5 缩略图数据库沿用原版位置
 
 缩略图数据库是明确的例外：**不迁到 Xiranite 自己的节点数据目录，也不塞进 TOML**。当前 NeoView 由 Tauri `identifier: "NeoView"` 的 `app_data_dir` 初始化数据库：

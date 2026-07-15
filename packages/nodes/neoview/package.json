@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@zip.js/zip.js": "^2.8.26",
     "sharp": "0.34.5"

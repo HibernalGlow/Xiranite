@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { open, rm } from "node:fs/promises"
+import { open, readFile, rm, stat } from "node:fs/promises"
 import { resolve } from "node:path"
 import { CliUsageError, createCliHost, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
@@ -12,7 +12,7 @@ import { help } from "./help.js"
 import { createReaderHeadlessController } from "./platform.js"
 
 const CLI_NAME = "xneoview"
-const COMMANDS = new Set(["inspect", "pages", "frame", "extract-page"])
+const COMMANDS = new Set(["inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import"])
 const VALUE_FLAGS = new Set([
   "--entry",
   "--index",
@@ -21,8 +21,12 @@ const VALUE_FLAGS = new Set([
   "--output",
   "--password-env",
   "--archive-password-env",
+  "--config",
+  "--strategy",
+  "--modules",
 ])
-const BOOLEAN_FLAGS = new Set(["--json", "--force"])
+const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes"])
+const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -60,8 +64,16 @@ export async function runProgram(
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
   const parsed = parseArguments(args.slice(1))
+  validateCommandOptions(command, parsed)
   const path = parsed.positionals[0]
-  if (!path || parsed.positionals.length !== 1) throw usage(`${command} requires exactly one book path.`)
+  if (!path || parsed.positionals.length !== 1) {
+    const kind = command.startsWith("settings-") ? "settings JSON path" : "book path"
+    throw usage(`${command} requires exactly one ${kind}.`)
+  }
+  if (command.startsWith("settings-")) {
+    await runSettingsCommand(command, resolve(host.cwd, path), parsed, host)
+    return
+  }
   const index = integerOption(parsed, "--index", 0, Number.MAX_SAFE_INTEGER, 0)
   const credentials = credentialsFromEnvironment(parsed, host)
   let controller: ReaderHeadlessController | undefined
@@ -87,6 +99,29 @@ export async function runProgram(
   } finally {
     credentials.clear()
     await controller?.[Symbol.asyncDispose]()
+  }
+}
+
+function validateCommandOptions(command: string, parsed: ParsedArguments): void {
+  if (command === "settings-inspect") {
+    rejectOptions(parsed, new Set(["--json", "--modules"]))
+    return
+  }
+  if (command === "settings-import") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--strategy", "--modules"]))
+    return
+  }
+  for (const option of ["--config", "--strategy", "--yes"]) {
+    if (parsed.values.has(option) || parsed.booleans.has(option)) throw usage(`${command} does not accept ${option}.`)
+  }
+}
+
+function rejectOptions(parsed: ParsedArguments, allowed: ReadonlySet<string>): void {
+  for (const option of parsed.values.keys()) {
+    if (!allowed.has(option)) throw usage(`Settings command does not accept ${option}.`)
+  }
+  for (const option of parsed.booleans) {
+    if (!allowed.has(option)) throw usage(`Settings command does not accept ${option}.`)
   }
 }
 
@@ -228,6 +263,85 @@ async function writeBinaryStdout(stream: ReadableStream<Uint8Array>, host: CliHo
   }
 }
 
+async function runSettingsCommand(
+  command: string,
+  inputPath: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const inputStat = await stat(inputPath)
+  if (!inputStat.isFile()) throw usage(`Settings input is not a file: ${inputPath}`)
+  if (inputStat.size > MAX_SETTINGS_BYTES) throw usage(`Settings input exceeds ${MAX_SETTINGS_BYTES} bytes.`)
+  const content = await readFile(inputPath, "utf8")
+  const { LegacySettingsCodec, LEGACY_SETTINGS_MODULES } = await import("./migration/LegacySettingsCodec.js")
+  const moduleOption = oneValue(parsed, "--modules")
+  const modules = moduleOption?.split(",").map((value) => value.trim()).filter(Boolean)
+  if (modules?.length === 0) throw usage("--modules requires at least one module name.")
+  const knownModules = new Set<string>(LEGACY_SETTINGS_MODULES)
+  const invalidModules = modules?.filter((module) => !knownModules.has(module)) ?? []
+  if (invalidModules.length) throw usage(`Unknown settings module(s): ${invalidModules.join(", ")}.`)
+  const decoded = new LegacySettingsCodec().decode(content, {
+    modules: modules as import("./migration/LegacySettingsCodec.js").LegacySettingsModule[] | undefined,
+  })
+
+  if (command === "settings-inspect") {
+    printSettingsPreview(decoded, parsed.booleans.has("--json"), host)
+    return
+  }
+
+  if (!parsed.booleans.has("--yes")) {
+    throw usage("settings-import requires --yes after reviewing settings-inspect output.")
+  }
+  const strategy = oneValue(parsed, "--strategy") ?? "merge"
+  if (strategy !== "merge" && strategy !== "overwrite") throw usage("--strategy must be merge or overwrite.")
+  const configPath = oneValue(parsed, "--config")
+  const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+  const committed = await commitNeoviewConfig(decoded.configPatch, {
+    configPath,
+    cwd: host.cwd,
+    env: host.env,
+    strategy,
+  })
+  const output = {
+    ...decoded.report,
+    configPath: committed.configPath,
+    backupPath: committed.backupPath,
+    changed: committed.changed,
+    strategy,
+  }
+  if (parsed.booleans.has("--json")) writeJson(host, output)
+  else {
+    writeLine(host, `NeoView settings ${committed.changed ? "imported" : "already up to date"}: ${committed.configPath}`)
+    if (committed.backupPath) writeLine(host, `Backup: ${committed.backupPath}`)
+    printSettingsSummary(decoded.report.summary, decoded.report.fullyRecognized, host)
+  }
+}
+
+function printSettingsPreview(
+  decoded: import("./migration/LegacySettingsCodec.js").DecodedLegacySettings,
+  json: boolean,
+  host: CliHost,
+): void {
+  if (json) {
+    writeJson(host, { report: decoded.report, configPatch: decoded.configPatch })
+    return
+  }
+  writeLine(host, `NeoView settings source: ${decoded.report.sourceKind}${decoded.report.sourceVersion ? ` ${decoded.report.sourceVersion}` : ""}`)
+  for (const entry of decoded.report.entries) {
+    writeLine(host, `${entry.disposition.padEnd(18)} ${entry.sourcePath}${entry.targetPath ? ` -> ${entry.targetPath}` : ""}`)
+  }
+  printSettingsSummary(decoded.report.summary, decoded.report.fullyRecognized, host)
+}
+
+function printSettingsSummary(
+  summary: import("./migration/LegacySettingsCodec.js").LegacySettingsMigrationReport["summary"],
+  fullyRecognized: boolean,
+  host: CliHost,
+): void {
+  writeLine(host, Object.entries(summary).map(([key, count]) => `${key}=${count}`).join(" "))
+  writeLine(host, fullyRecognized ? "All supplied settings were recognized." : "Review unresolved settings before final migration acceptance.")
+}
+
 function integerOption(parsed: ParsedArguments, flag: string, minimum: number, maximum: number, fallback: number): number {
   const value = oneValue(parsed, flag)
   if (value === undefined) return fallback
@@ -280,6 +394,8 @@ function formatCliHelp(): string {
     "  pages <path>         List a bounded page window",
     "  frame <path>         Show the frame at --index",
     "  extract-page <path>  Stream the original page to --output <path|->",
+    "  settings-inspect <json>  Preview a legacy settings migration",
+    "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",
@@ -291,6 +407,12 @@ function formatCliHelp(): string {
     "  --archive-password-env SCOPE=VAR  Scoped nested password; join scope with ::",
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
+    "  --config PATH        Xiranite TOML path for settings-import",
+    "  --strategy MODE      Settings import mode: merge or overwrite",
+    "  --modules LIST       Comma-separated settings modules:",
+    "                       native-settings,keybindings,emm,file-browser,ui,panels,bookmarks,history,",
+    "                       search-history,upscale,performance,folder-ratings,voice-control",
+    "  --yes                Confirm settings-import after preview",
   ].join("\n")
 }
 

@@ -213,7 +213,7 @@
       "settingsKeys": ["NeoViewSettings", "FullExportPayload", "ExtendedSettingsData"],
       "dataStores": ["legacy JSON/localStorage", "backup files", "Gist", "[nodes.neoview] TOML"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["全部非主题字段可识别", "模块选择", "merge/overwrite", "幂等导入", "完整备份", "Gist 同步", "运行时只写 TOML", "未知字段报告"],
-      "testIds": [], "benchmarkIds": [], "knownDifferences": ["不保留第二套主题状态"]
+      "testIds": ["neoview.settings.codec", "neoview.settings.inspect", "neoview.settings.import", "neoview.settings.atomic-toml"], "benchmarkIds": [], "knownDifferences": ["不保留第二套主题状态"]
     },
     {
       "id": "startup-window-cli-lifecycle",

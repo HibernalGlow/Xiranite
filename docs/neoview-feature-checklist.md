@@ -274,7 +274,7 @@
 - 设置：`NeoViewSettings`、`FullExportPayload`、`ExtendedSettingsData`
 - 数据：legacy JSON/localStorage、backup files、Gist、[nodes.neoview] TOML
 - 行为：全部非主题字段可识别；模块选择；merge/overwrite；幂等导入；完整备份；Gist 同步；运行时只写 TOML；未知字段报告
-- 测试：待补
+- 测试：`neoview.settings.codec`、`neoview.settings.inspect`、`neoview.settings.import`、`neoview.settings.atomic-toml`
 - 性能基准：无专项
 - 已知差异：不保留第二套主题状态
 
