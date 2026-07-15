@@ -45,6 +45,12 @@ export interface CzkawkaInput {
   maximumFileSize?: number
   recursive?: boolean
   useCache?: boolean
+  saveAlsoAsJson?: boolean
+  deleteOutdatedCache?: boolean
+  cacheFolderPath?: string
+  configFolderPath?: string
+  duplicateMinimalHashCacheSizeKiB?: number
+  duplicateMinimalPrehashCacheSizeKiB?: number
   threadCount?: number
   ignoreHardLinks?: boolean
   usePrehash?: boolean
@@ -205,6 +211,12 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInpu
     maximumFileSize: clamp(input.maximumFileSize, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
     recursive: input.recursive ?? true,
     useCache: input.useCache ?? true,
+    saveAlsoAsJson: input.saveAlsoAsJson ?? false,
+    deleteOutdatedCache: input.deleteOutdatedCache ?? true,
+    cacheFolderPath: clean(input.cacheFolderPath),
+    configFolderPath: clean(input.configFolderPath),
+    duplicateMinimalHashCacheSizeKiB: clamp(input.duplicateMinimalHashCacheSizeKiB, 1, 1024 * 1024, 256),
+    duplicateMinimalPrehashCacheSizeKiB: clamp(input.duplicateMinimalPrehashCacheSizeKiB, 1, 1024 * 1024, 256),
     threadCount: clamp(input.threadCount, 0, 256, 0),
     ignoreHardLinks: input.ignoreHardLinks ?? true,
     usePrehash: input.usePrehash ?? true,

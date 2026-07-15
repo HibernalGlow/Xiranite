@@ -20,6 +20,10 @@ export interface DuplicateScanOptions {
   maximumFileSize?: number
   recursive?: boolean
   useCache?: boolean
+  saveAlsoAsJson?: boolean
+  deleteOutdatedCache?: boolean
+  minimalCacheFileSize?: number
+  minimalPrehashCacheFileSize?: number
   ignoreHardLinks?: boolean
   usePrehash?: boolean
   caseSensitiveNames?: boolean
@@ -57,6 +61,8 @@ export interface BasicScanOptions {
   minimumFileSize?: number
   maximumFileSize?: number
   useCache?: boolean
+  saveAlsoAsJson?: boolean
+  deleteOutdatedCache?: boolean
   numberOfFiles?: number
   biggestFirst?: boolean
   scanId?: string
@@ -91,6 +97,8 @@ export interface MediaScanOptions {
   minimumFileSize?: number
   maximumFileSize?: number
   useCache?: boolean
+  saveAlsoAsJson?: boolean
+  deleteOutdatedCache?: boolean
   ignoreHardLinks?: boolean
   similarity?: number
   imageHashSize?: number

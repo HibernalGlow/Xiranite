@@ -24,6 +24,18 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.similarVideosCropDetect).toBe("letterbox")
     expect(value.musicCheckType).toBe("tags")
     expect(value.brokenImage).toBe(true)
+    expect(value.saveAlsoAsJson).toBe(false)
+    expect(value.deleteOutdatedCache).toBe(true)
+    expect(value.duplicateMinimalHashCacheSizeKiB).toBe(256)
+    expect(value.duplicateMinimalPrehashCacheSizeKiB).toBe(256)
+  })
+
+  test("clamps cache thresholds and trims custom folders", () => {
+    const value = normalizeCzkawkaInput({ cacheFolderPath: "  D:/cache  ", configFolderPath: " D:/config ", duplicateMinimalHashCacheSizeKiB: 0, duplicateMinimalPrehashCacheSizeKiB: 2_000_000 })
+    expect(value.cacheFolderPath).toBe("D:/cache")
+    expect(value.configFolderPath).toBe("D:/config")
+    expect(value.duplicateMinimalHashCacheSizeKiB).toBe(1)
+    expect(value.duplicateMinimalPrehashCacheSizeKiB).toBe(1024 * 1024)
   })
 
   test("maps duplicate groups and reclaimable bytes", async () => {

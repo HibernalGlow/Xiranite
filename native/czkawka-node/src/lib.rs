@@ -51,6 +51,10 @@ pub struct DuplicateScanOptions {
     pub maximum_file_size: Option<i64>,
     pub recursive: Option<bool>,
     pub use_cache: Option<bool>,
+    pub save_also_as_json: Option<bool>,
+    pub delete_outdated_cache: Option<bool>,
+    pub minimal_cache_file_size: Option<i64>,
+    pub minimal_prehash_cache_file_size: Option<i64>,
     pub ignore_hard_links: Option<bool>,
     pub use_prehash: Option<bool>,
     pub case_sensitive_names: Option<bool>,
@@ -114,6 +118,10 @@ pub fn scan_duplicate_files(options: DuplicateScanOptions) -> Result<AsyncTask<D
     )?;
     core_options.recursive = options.recursive.unwrap_or(true);
     core_options.use_cache = options.use_cache.unwrap_or(false);
+    core_options.save_also_as_json = options.save_also_as_json.unwrap_or(false);
+    core_options.delete_outdated_cache = options.delete_outdated_cache.unwrap_or(true);
+    core_options.minimal_cache_file_size = non_negative_u64(options.minimal_cache_file_size.unwrap_or(256 * 1024), "minimalCacheFileSize")?;
+    core_options.minimal_prehash_cache_file_size = non_negative_u64(options.minimal_prehash_cache_file_size.unwrap_or(256 * 1024), "minimalPrehashCacheFileSize")?;
     core_options.ignore_hard_links = options.ignore_hard_links.unwrap_or(true);
     core_options.use_prehash = options.use_prehash.unwrap_or(true);
     core_options.case_sensitive_names = options.case_sensitive_names.unwrap_or(false);
@@ -200,6 +208,8 @@ pub struct BasicScanOptions {
     pub minimum_file_size: Option<i64>,
     pub maximum_file_size: Option<i64>,
     pub use_cache: Option<bool>,
+    pub save_also_as_json: Option<bool>,
+    pub delete_outdated_cache: Option<bool>,
     pub number_of_files: Option<u32>,
     pub biggest_first: Option<bool>,
     pub scan_id: Option<String>,
@@ -264,6 +274,8 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScan
     core_options.minimum_file_size = non_negative_u64(options.minimum_file_size.unwrap_or(1), "minimumFileSize")?;
     core_options.maximum_file_size = non_negative_u64(options.maximum_file_size.unwrap_or(i64::MAX), "maximumFileSize")?;
     core_options.use_cache = options.use_cache.unwrap_or(true);
+    core_options.save_also_as_json = options.save_also_as_json.unwrap_or(false);
+    core_options.delete_outdated_cache = options.delete_outdated_cache.unwrap_or(true);
     core_options.number_of_files = options.number_of_files.unwrap_or(50).max(1) as usize;
     core_options.biggest_first = options.biggest_first.unwrap_or(true);
     let session = ScanSession::create(options.scan_id);
@@ -313,6 +325,8 @@ pub struct MediaScanOptions {
     pub minimum_file_size: Option<i64>,
     pub maximum_file_size: Option<i64>,
     pub use_cache: Option<bool>,
+    pub save_also_as_json: Option<bool>,
+    pub delete_outdated_cache: Option<bool>,
     pub ignore_hard_links: Option<bool>,
     pub similarity: Option<u32>,
     pub image_hash_size: Option<u32>,
@@ -415,6 +429,8 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
     core_options.minimum_file_size = non_negative_u64(options.minimum_file_size.unwrap_or(1), "minimumFileSize")?;
     core_options.maximum_file_size = non_negative_u64(options.maximum_file_size.unwrap_or(i64::MAX), "maximumFileSize")?;
     core_options.use_cache = options.use_cache.unwrap_or(true);
+    core_options.save_also_as_json = options.save_also_as_json.unwrap_or(false);
+    core_options.delete_outdated_cache = options.delete_outdated_cache.unwrap_or(true);
     core_options.ignore_hard_links = options.ignore_hard_links.unwrap_or(true);
     core_options.similarity = options.similarity.unwrap_or(10);
     core_options.image_hash_size = options.image_hash_size.unwrap_or(16).clamp(1, u8::MAX as u32) as u8;

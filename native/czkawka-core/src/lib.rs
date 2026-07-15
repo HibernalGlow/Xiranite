@@ -24,7 +24,7 @@ use image_hasher::{FilterType, HashAlg};
 use thiserror::Error;
 use vid_dup_finder_lib::Cropdetect;
 
-pub const API_VERSION: u32 = 3;
+pub const API_VERSION: u32 = 4;
 
 #[derive(Debug, Clone)]
 pub struct ScanProgress {
@@ -114,6 +114,10 @@ pub struct DuplicateScanOptions {
     pub maximum_file_size: u64,
     pub recursive: bool,
     pub use_cache: bool,
+    pub save_also_as_json: bool,
+    pub delete_outdated_cache: bool,
+    pub minimal_cache_file_size: u64,
+    pub minimal_prehash_cache_file_size: u64,
     pub ignore_hard_links: bool,
     pub use_prehash: bool,
     pub case_sensitive_names: bool,
@@ -134,6 +138,10 @@ impl DuplicateScanOptions {
             maximum_file_size: u64::MAX,
             recursive: true,
             use_cache: false,
+            save_also_as_json: false,
+            delete_outdated_cache: true,
+            minimal_cache_file_size: 256 * 1024,
+            minimal_prehash_cache_file_size: 256 * 1024,
             ignore_hard_links: true,
             use_prehash: true,
             case_sensitive_names: false,
@@ -184,10 +192,7 @@ pub fn scan_duplicate_files_controlled(
             "minimum_file_size cannot exceed maximum_file_size".into(),
         ));
     }
-    static INITIALIZE_CACHE_PATH: Once = Once::new();
-    INITIALIZE_CACHE_PATH.call_once(|| {
-        let _ = set_config_cache_path("xiranite", "xiranite");
-    });
+    initialize_cache_path();
 
     let check_method = match options.check_method {
         DuplicateCheckMethod::Name => CheckingMethod::Name,
@@ -205,8 +210,8 @@ pub fn scan_duplicate_files_controlled(
         hash_type,
         options.ignore_hard_links,
         options.use_prehash,
-        256 * 1024,
-        4 * 1024,
+        options.minimal_cache_file_size,
+        options.minimal_prehash_cache_file_size,
         options.case_sensitive_names,
     ));
     finder.set_included_directory(options.included_directories);
@@ -221,6 +226,8 @@ pub fn scan_duplicate_files_controlled(
     finder.set_maximal_file_size(options.maximum_file_size);
     finder.set_recursive_search(options.recursive);
     finder.set_use_cache(options.use_cache);
+    finder.set_save_also_as_json(options.save_also_as_json);
+    finder.set_delete_outdated_cache(options.delete_outdated_cache);
 
     search_with_control(&mut finder, control);
     let raw_groups: Vec<Vec<(DuplicateEntry, bool)>> = if finder.get_use_reference() {
@@ -293,6 +300,8 @@ pub struct BasicScanOptions {
     pub minimum_file_size: u64,
     pub maximum_file_size: u64,
     pub use_cache: bool,
+    pub save_also_as_json: bool,
+    pub delete_outdated_cache: bool,
     pub number_of_files: usize,
     pub biggest_first: bool,
 }
@@ -311,6 +320,8 @@ impl BasicScanOptions {
             minimum_file_size: 1,
             maximum_file_size: u64::MAX,
             use_cache: true,
+            save_also_as_json: false,
+            delete_outdated_cache: true,
             number_of_files: 50,
             biggest_first: true,
         }
@@ -338,6 +349,7 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, Cz
 }
 
 pub fn scan_basic_files_controlled(options: BasicScanOptions, control: &ScanControl) -> Result<BasicScanResult, CzkawkaError> {
+    initialize_cache_path();
     if options.included_directories.is_empty() {
         return Err(CzkawkaError::InvalidOption(
             "included_directories cannot be empty".into(),
@@ -450,6 +462,8 @@ fn configure_tool<T: CommonData>(tool: &mut T, options: &BasicScanOptions) {
     tool.set_minimal_file_size(options.minimum_file_size);
     tool.set_maximal_file_size(options.maximum_file_size);
     tool.set_use_cache(options.use_cache);
+    tool.set_save_also_as_json(options.save_also_as_json);
+    tool.set_delete_outdated_cache(options.delete_outdated_cache);
 }
 
 fn basic_result<T: CommonData>(tool: &T, mut entries: Vec<BasicEntry>) -> BasicScanResult {
@@ -519,6 +533,8 @@ pub struct MediaScanOptions {
     pub minimum_file_size: u64,
     pub maximum_file_size: u64,
     pub use_cache: bool,
+    pub save_also_as_json: bool,
+    pub delete_outdated_cache: bool,
     pub ignore_hard_links: bool,
     pub similarity: u32,
     pub image_hash_size: u8,
@@ -560,6 +576,8 @@ impl MediaScanOptions {
             minimum_file_size: 1,
             maximum_file_size: u64::MAX,
             use_cache: true,
+            save_also_as_json: false,
+            delete_outdated_cache: true,
             ignore_hard_links: true,
             similarity: 10,
             image_hash_size: 16,
@@ -625,6 +643,7 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
 }
 
 pub fn scan_media_files_controlled(options: MediaScanOptions, control: &ScanControl) -> Result<MediaScanResult, CzkawkaError> {
+    initialize_cache_path();
     if options.included_directories.is_empty() {
         return Err(CzkawkaError::InvalidOption(
             "included_directories cannot be empty".into(),
@@ -846,6 +865,15 @@ fn configure_media_tool<T: CommonData>(tool: &mut T, options: &MediaScanOptions)
     tool.set_minimal_file_size(options.minimum_file_size);
     tool.set_maximal_file_size(options.maximum_file_size);
     tool.set_use_cache(options.use_cache);
+    tool.set_save_also_as_json(options.save_also_as_json);
+    tool.set_delete_outdated_cache(options.delete_outdated_cache);
+}
+
+fn initialize_cache_path() {
+    static INITIALIZE_CACHE_PATH: Once = Once::new();
+    INITIALIZE_CACHE_PATH.call_once(|| {
+        let _ = set_config_cache_path("xiranite", "xiranite");
+    });
 }
 
 fn media_result<T: CommonData>(tool: &T, groups: Vec<MediaGroup>) -> MediaScanResult {

@@ -8,6 +8,7 @@ import type { CzkawkaInput, CzkawkaNativeProgress, CzkawkaRuntime } from "./core
 
 type NormalizedInput = Required<CzkawkaInput>
 const execFileAsync = promisify(execFile)
+let cacheEnvironmentSignature: string | undefined
 
 export function toDuplicateScanOptions(input: NormalizedInput): DuplicateScanOptions {
   return {
@@ -21,6 +22,10 @@ export function toDuplicateScanOptions(input: NormalizedInput): DuplicateScanOpt
     maximumFileSize: input.maximumFileSize,
     recursive: input.recursive,
     useCache: input.useCache,
+    saveAlsoAsJson: input.saveAlsoAsJson,
+    deleteOutdatedCache: input.deleteOutdatedCache,
+    minimalCacheFileSize: input.duplicateMinimalHashCacheSizeKiB * 1024,
+    minimalPrehashCacheFileSize: input.duplicateMinimalPrehashCacheSizeKiB * 1024,
     ignoreHardLinks: input.ignoreHardLinks,
     usePrehash: input.usePrehash,
     caseSensitiveNames: input.caseSensitiveNames,
@@ -42,6 +47,8 @@ export function toBasicScanOptions(input: NormalizedInput): BasicScanOptions {
     minimumFileSize: input.minimumFileSize,
     maximumFileSize: input.maximumFileSize,
     useCache: input.useCache,
+    saveAlsoAsJson: input.saveAlsoAsJson,
+    deleteOutdatedCache: input.deleteOutdatedCache,
     numberOfFiles: input.numberOfFiles,
     biggestFirst: input.biggestFirst,
   }
@@ -60,6 +67,8 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
     minimumFileSize: input.minimumFileSize,
     maximumFileSize: input.maximumFileSize,
     useCache: input.useCache,
+    saveAlsoAsJson: input.saveAlsoAsJson,
+    deleteOutdatedCache: input.deleteOutdatedCache,
     ignoreHardLinks: input.ignoreHardLinks,
     similarity: input.similarity,
     imageHashSize: input.similarImagesHashSize,
@@ -90,9 +99,9 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
 
 export function createNodeCzkawkaRuntime(): CzkawkaRuntime {
   const runtime: CzkawkaRuntime = {
-    scanDuplicates: (input, onProgress) => runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles),
-    scanBasic: (input, onProgress) => runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles),
-    scanMedia: (input, onProgress) => runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles),
+    scanDuplicates: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles) },
+    scanBasic: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles) },
+    scanMedia: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },
     pathExists,
     removePath,
     copyPath,
@@ -128,6 +137,19 @@ async function runNativeScan<TOptions extends object, TResult>(options: TOptions
     if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId)
     return await pending
   } finally { publish(); clearInterval(timer) }
+}
+
+export function configureCzkawkaCacheEnvironment(input: { cacheFolderPath?: string; configFolderPath?: string }): void {
+  const cacheFolderPath = input.cacheFolderPath?.trim() ?? ""
+  const configFolderPath = input.configFolderPath?.trim() ?? ""
+  const signature = `${cacheFolderPath}\n${configFolderPath}`
+  if (cacheEnvironmentSignature !== undefined && cacheEnvironmentSignature !== signature) throw new Error("Czkawka cache/config folders are initialized by the first native scan; restart the desktop backend after changing them.")
+  if (cacheEnvironmentSignature !== undefined) return
+  if (cacheFolderPath) process.env.CZKAWKA_CACHE_PATH = cacheFolderPath
+  else delete process.env.CZKAWKA_CACHE_PATH
+  if (configFolderPath) process.env.CZKAWKA_CONFIG_PATH = configFolderPath
+  else delete process.env.CZKAWKA_CONFIG_PATH
+  cacheEnvironmentSignature = signature
 }
 
 function normalizeProgress(progress: CzkawkaScanProgress): CzkawkaNativeProgress { return { stage: progress.stage, stageIndex: Number(progress.stageIndex), stageCount: Number(progress.stageCount), entriesChecked: Number(progress.entriesChecked), entriesTotal: Number(progress.entriesTotal), bytesChecked: Number(progress.bytesChecked), bytesTotal: Number(progress.bytesTotal) } }

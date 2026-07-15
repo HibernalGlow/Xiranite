@@ -886,6 +886,10 @@ function CzkawkaCardContent({ id, props }: { id: CzkawkaCardId; props: View }) {
 }
 
 function SourceSettingsCard(props: View) {
+  const deleteOutdatedCache = props.data.deleteOutdatedCacheByTool?.[props.tool] ?? true
+  function setDeleteOutdatedCache(enabled: boolean) {
+    props.patch({ deleteOutdatedCacheByTool: { ...props.data.deleteOutdatedCacheByTool, [props.tool]: enabled } })
+  }
   return (
     <div className="grid gap-3">
       <ScanPresetManager {...props} />
@@ -911,6 +915,11 @@ function SourceSettingsCard(props: View) {
       </Field>
       <SwitchLine label={props.t("sources.recursive", "递归扫描")} checked={props.data.recursive ?? true} onChange={(recursive) => props.patch({ recursive })} />
       <SwitchLine label={props.t("sources.useCache", "使用缓存")} checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} />
+      <SwitchLine label={props.t("cache.saveJson", "同时保存 JSON 缓存")} checked={props.data.saveAlsoAsJson ?? false} onChange={(saveAlsoAsJson) => props.patch({ saveAlsoAsJson })} />
+      <SwitchLine label={props.t("cache.deleteOutdated", "清理当前工具的过期缓存项")} checked={deleteOutdatedCache} onChange={setDeleteOutdatedCache} />
+      <Field label={props.t("cache.cacheFolder", "自定义缓存目录")}><Input value={props.data.cacheFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} onChange={(event) => props.patch({ cacheFolderPath: event.currentTarget.value })} /></Field>
+      <Field label={props.t("cache.configFolder", "自定义配置目录")}><Input value={props.data.configFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} onChange={(event) => props.patch({ configFolderPath: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("cache.restartHint", "缓存与配置目录在首次原生扫描时初始化；修改后需重启桌面后端。")}</p></Field>
+      {props.tool === "duplicate-files" ? <div className="grid grid-cols-2 gap-2"><Field label={props.t("cache.minHash", "Hash 最小缓存文件（KiB）")}><Input type="number" min={1} value={props.data.duplicateMinimalHashCacheSizeKiB ?? "256"} onChange={(event) => props.patch({ duplicateMinimalHashCacheSizeKiB: event.currentTarget.value })} /></Field><Field label={props.t("cache.minPrehash", "Prehash 最小缓存文件（KiB）")}><Input type="number" min={1} value={props.data.duplicateMinimalPrehashCacheSizeKiB ?? "256"} onChange={(event) => props.patch({ duplicateMinimalPrehashCacheSizeKiB: event.currentTarget.value })} /></Field></div> : null}
       <Field label={props.t("sources.referencePathKeywords", "参考路径关键词")}>
         <Input value={props.data.referencePathKeywords ?? "#compare"} placeholder="#compare" onChange={(event) => props.patch({ referencePathKeywords: event.currentTarget.value })} />
         <p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("sources.referencePathKeywordsHint", "新增目录包含任一关键词时自动标记为参考；多个关键词用逗号、分号或换行分隔。")}</p>
@@ -1390,7 +1399,7 @@ function SectionTitle({ icon: Icon, title }: { icon: typeof Search; title: strin
 }
 
 export function scanInput(tool: CzkawkaTool, data: CzkawkaCardState): CzkawkaInput {
-  return createCzkawkaScanInput(tool, data as Record<string, unknown>)
+  return createCzkawkaScanInput(tool, { ...data, deleteOutdatedCache: data.deleteOutdatedCacheByTool?.[tool] ?? true } as Record<string, unknown>)
 }
 function toolMeta(tool: CzkawkaTool, t?: View["t"]) {
   const meta = TOOLS.find((item) => item.id === tool) ?? TOOLS[0]!

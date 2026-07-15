@@ -20,6 +20,8 @@ describe("Czkawka native DTO mapping", () => {
       maximumFileSize: 456_789,
       recursive: false,
       useCache: false,
+      saveAlsoAsJson: true,
+      deleteOutdatedCache: false,
     }))
     expect(nativeOptions(tool, input)).toMatchObject({
       includedDirectories: ["D:/library", "D:/reference"],
@@ -32,7 +34,26 @@ describe("Czkawka native DTO mapping", () => {
       maximumFileSize: 456_789,
       recursive: false,
       useCache: false,
+      saveAlsoAsJson: true,
+      deleteOutdatedCache: false,
     })
+  })
+
+  test("maps cache controls for every native family and converts duplicate KiB", () => {
+    const input = normalizeCzkawkaInput({ tool: "duplicate-files", saveAlsoAsJson: true, deleteOutdatedCache: false, duplicateMinimalHashCacheSizeKiB: 12, duplicateMinimalPrehashCacheSizeKiB: 3 })
+    expect(toDuplicateScanOptions(input)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false, minimalCacheFileSize: 12 * 1024, minimalPrehashCacheFileSize: 3 * 1024 })
+    const basic = normalizeCzkawkaInput({ tool: "empty-files", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    expect(toBasicScanOptions(basic)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
+    const media = normalizeCzkawkaInput({ tool: "similar-images", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    expect(toMediaScanOptions(media)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
+  })
+
+  test("locks native cache/config environment after first scan configuration", async () => {
+    const first = normalizeCzkawkaInput({ cacheFolderPath: "D:/cache-a", configFolderPath: "D:/config-a" })
+    const second = normalizeCzkawkaInput({ cacheFolderPath: "D:/cache-b", configFolderPath: "D:/config-b" })
+    const { configureCzkawkaCacheEnvironment } = await import("./platform.js")
+    configureCzkawkaCacheEnvironment(first)
+    expect(() => configureCzkawkaCacheEnvironment(second)).toThrow(/restart/i)
   })
 
   test.each([

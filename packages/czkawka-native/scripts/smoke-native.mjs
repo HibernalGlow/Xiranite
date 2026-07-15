@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-if (info.apiVersion !== 3 || info.sourceVersion !== "10.0.0") {
+if (info.apiVersion !== 4 || info.sourceVersion !== "10.0.0") {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
 }
 console.log(JSON.stringify(info))

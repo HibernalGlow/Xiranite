@@ -24,6 +24,12 @@ export interface CzkawkaCardState {
   maximumFileSize?: string
   recursive?: boolean
   useCache?: boolean
+  saveAlsoAsJson?: boolean
+  deleteOutdatedCacheByTool?: Partial<Record<CzkawkaTool, boolean>>
+  cacheFolderPath?: string
+  configFolderPath?: string
+  duplicateMinimalHashCacheSizeKiB?: string
+  duplicateMinimalPrehashCacheSizeKiB?: string
   threadCount?: string
   checkMethod?: CzkawkaCheckMethod
   hashType?: CzkawkaHashType

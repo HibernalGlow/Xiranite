@@ -59,6 +59,10 @@ describe("shared Czkawka option schema", () => {
       excludedItemsText: "*/cache/*; *.part",
       minimumFileSize: "100",
       similarImagesHashSize: "64",
+      saveAlsoAsJson: true,
+      deleteOutdatedCache: false,
+      cacheFolderPath: "D:/cache",
+      duplicateMinimalHashCacheSizeKiB: "12",
     })).toMatchObject({
       action: "scan",
       tool: "similar-images",
@@ -67,6 +71,10 @@ describe("shared Czkawka option schema", () => {
       excludedItems: ["*/cache/*", "*.part"],
       minimumFileSize: 100,
       similarImagesHashSize: 64,
+      saveAlsoAsJson: true,
+      deleteOutdatedCache: false,
+      cacheFolderPath: "D:/cache",
+      duplicateMinimalHashCacheSizeKiB: 12,
     })
   })
 
