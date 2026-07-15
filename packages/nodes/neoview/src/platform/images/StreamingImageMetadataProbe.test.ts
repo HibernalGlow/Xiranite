@@ -38,6 +38,15 @@ describe("StreamingImageMetadataProbe", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
+  it("[neoview.image.probe-fallback] leaves unsupported headers to the downstream decoder", async () => {
+    const cancelled = vi.fn()
+    const closed = vi.fn(async () => undefined)
+    const content = chunkedContent([new TextEncoder().encode("<svg></svg>  ")], cancelled, closed)
+    await expect(new StreamingImageMetadataProbe().probe(content, "image/svg+xml")).resolves.toBeUndefined()
+    expect(cancelled).not.toHaveBeenCalled()
+    expect(closed).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.image.probe-jxl] resolves a raw JXL codestream from its bounded header", async () => {
     const cancelled = vi.fn()
     const closed = vi.fn(async () => undefined)
