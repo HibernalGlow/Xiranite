@@ -1,7 +1,7 @@
 import type { DragEvent, ReactNode } from "react"
 import type { CzkawkaCardConfig, CzkawkaCardId, CzkawkaCardLayout, CzkawkaCardPanelId } from "@xiranite/node-czkawka/card-layout"
 import { cardsForPanel, createDefaultCzkawkaCardLayout, CZKAWKA_CARD_REGISTRY, moveCzkawkaCard, moveCzkawkaCardBy, updateCzkawkaCard } from "@xiranite/node-czkawka/card-layout"
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Eye, EyeOff, GripVertical, LayoutPanelTop, RotateCcw } from "lucide-react"
+import { ArrowDown, ArrowUp, BarChart3, ChevronDown, ChevronRight, Eye, EyeOff, GripVertical, Image, LayoutPanelTop, ListChecks, ScrollText, Settings2, Wrench, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -38,11 +38,15 @@ export function CzkawkaCardTabs({ activeId, layout, panel, onActiveChange, rende
   const cards = cardsForPanel(layout, panel)
   const active = cards.some((card) => card.id === activeId) ? activeId! : cards[0]?.id
   if (!active) return <div className="grid min-h-32 place-items-center text-xs text-muted-foreground">{t("cards.empty", "该面板没有可见卡片")}</div>
-  return <Tabs value={active} className="flex min-h-0 flex-1 flex-col" data-testid={`czkawka-card-tabs-${panel}`} onValueChange={(value) => onActiveChange(value as CzkawkaCardId)}>
-    <TabsList layout="fill" className="mx-2 mt-2 shrink-0">{cards.map((card) => { const definition = CZKAWKA_CARD_REGISTRY.find((item) => item.id === card.id)!; return <TabsTrigger key={card.id} value={card.id} title={cardTitle(card.id, definition.title, t)}><span className="truncate">{cardTitle(card.id, definition.title, t)}</span></TabsTrigger> })}</TabsList>
+  if (cards.length === 1) return <div className="min-h-0 flex-1" data-testid={`czkawka-card-tabs-${panel}`}><ScrollArea className="h-full"><div className="p-2">{renderCard(active)}</div></ScrollArea></div>
+  return <Tabs value={active} className="@container/czkawka-side-tabs flex min-h-0 min-w-0 flex-1 flex-col" data-testid={`czkawka-card-tabs-${panel}`} onValueChange={(value) => onActiveChange(value as CzkawkaCardId)}>
+    <TabsList layout="fill" variant="line" className="mx-2 mt-1 min-w-0 shrink-0 overflow-hidden bg-transparent">{cards.map((card) => { const definition = CZKAWKA_CARD_REGISTRY.find((item) => item.id === card.id)!, title = cardTitle(card.id, definition.title, t), Icon = cardTabIcon(card.id); return <TabsTrigger aria-label={title} key={card.id} value={card.id} title={title} className="min-w-0 px-1.5"><Icon className="size-3.5 shrink-0" /><span className="hidden truncate @xl/czkawka-side-tabs:inline">{cardTabLabel(card.id, t)}</span></TabsTrigger> })}</TabsList>
     {cards.map((card) => <TabsContent key={card.id} value={card.id} className="min-h-0 flex-1 overflow-hidden pt-1"><ScrollArea className="h-full"><div className="p-2 pt-0">{renderCard(card.id)}</div></ScrollArea></TabsContent>)}
   </Tabs>
 }
+
+function cardTabIcon(id: CzkawkaCardId) { if (id === "source-settings") return Settings2; if (id === "preview") return Image; if (id === "analysis") return BarChart3; if (id === "logs") return ScrollText; if (id === "selection") return ListChecks; return Wrench }
+function cardTabLabel(id: CzkawkaCardId, t: Translate) { if (id === "source-settings") return t("cards.tabs.scan", "扫描"); if (id === "preview") return t("cards.tabs.preview", "预览"); if (id === "analysis") return t("cards.tabs.analysis", "统计"); if (id === "logs") return t("cards.tabs.logs", "日志"); if (id === "selection") return t("cards.tabs.selection", "选择"); return t("cards.tabs.operations", "操作") }
 
 function CzkawkaLayoutCard({ card, first, last, layout, onChange, children, t }: { card: CzkawkaCardConfig; first: boolean; last: boolean; layout: CzkawkaCardLayout; onChange: (layout: CzkawkaCardLayout) => void; children: ReactNode; t: Translate }) {
   const definition = CZKAWKA_CARD_REGISTRY.find((item) => item.id === card.id)!

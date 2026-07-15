@@ -78,6 +78,7 @@ export interface CzkawkaCardState {
   activityLog?: CzkawkaActivityLogEntry[]
   cardLayout?: CzkawkaCardLayout
   sourcePanelTab?: CzkawkaCardId
+  sourceSettingsTab?: "paths" | "filters" | "cache" | "algorithm"
   analysisPanelTab?: CzkawkaCardId
   workspaceLayout?: CzkawkaWorkspaceLayout
   floatingAnalysisPanel?: CzkawkaFloatingPanelState
