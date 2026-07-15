@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { compress } from "lz4-napi"
 import { afterEach, describe, expect, it } from "vitest"
 import type { SqliteBinding } from "../sqlite/openReadonlySqlite.js"
 import { ReadonlyLegacyThumbnailStore } from "./ReadonlyLegacyThumbnailStore.js"
@@ -20,7 +19,7 @@ describe("ReadonlyLegacyThumbnailStore", () => {
     writer.exec(CURRENT_SCHEMA_SQL)
     const rawWebp = Uint8Array.from(Buffer.from("524946460400000057454250", "hex"))
     const png = Uint8Array.from(Buffer.from("89504e470d0a1a0a0102030405060708", "hex"))
-    const compressed = await compress(png)
+    const compressed = Uint8Array.from(Buffer.from("10000000f00189504e470d0a1a0a0102030405060708", "hex"))
     const storedPng = new Uint8Array(4 + compressed.byteLength)
     storedPng.set([0x4c, 0x5a, 0x34, 0x00])
     storedPng.set(compressed, 4)

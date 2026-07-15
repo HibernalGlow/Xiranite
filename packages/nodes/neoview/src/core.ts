@@ -7,6 +7,12 @@ export {
 } from "./application/node/runNeoview.js"
 export { CoreReaderService } from "./application/reader/ReaderService.js"
 export {
+  ReaderCacheService,
+  type ReaderCacheMaintenanceReason,
+  type ReaderCacheMaintenanceResult,
+  type ReaderCacheStatus,
+} from "./application/cache/ReaderCacheService.js"
+export {
   ReaderPreloadCoordinator,
   type ReaderNavigationIntent,
   type ReaderPreloadCandidate,

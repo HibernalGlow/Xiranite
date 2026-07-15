@@ -22,10 +22,17 @@ export async function decodeLegacyThumbnailBlob(
   if (expectedBytes === 0 || expectedBytes > maxBytes) {
     throw new Error(`Compressed thumbnail declares an invalid ${expectedBytes}-byte output.`)
   }
-  const { uncompress } = await import("lz4-napi")
-  const decoded = new Uint8Array(await uncompress(blob.subarray(LZ4_MAGIC.byteLength)))
-  if (decoded.byteLength !== expectedBytes) {
-    throw new Error(`LZ4 thumbnail length mismatch: expected ${expectedBytes}, received ${decoded.byteLength}.`)
+  const { decompressBlock } = await import("lz4js")
+  const decoded = new Uint8Array(expectedBytes)
+  const decodedBytes = decompressBlock(
+    blob,
+    decoded,
+    LZ4_MAGIC.byteLength + 4,
+    blob.byteLength - LZ4_MAGIC.byteLength - 4,
+    0,
+  )
+  if (decodedBytes !== expectedBytes) {
+    throw new Error(`LZ4 thumbnail length mismatch: expected ${expectedBytes}, received ${decodedBytes}.`)
   }
   return { bytes: decoded, compressed: true, contentType: detectImageContentType(decoded) }
 }

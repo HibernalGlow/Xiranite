@@ -12,6 +12,17 @@ export interface NeoviewRuntimeConfig {
   shellOptions: NeoviewShellConfig
   viewDefaults: NeoviewViewDefaults
   slideshow: NeoviewSlideshowConfig
+  presentationDiskCache: NeoviewPresentationDiskCacheConfig
+}
+
+export interface NeoviewPresentationDiskCacheConfig {
+  enabled: boolean
+  directory?: string
+  maxBytes: number
+  maxEntryBytes: number
+  maxAgeMs: number
+  trimRatio: number
+  minFreeBytes: number
 }
 
 export interface NeoviewViewDefaults {
@@ -115,6 +126,15 @@ export const DEFAULT_NEOVIEW_SLIDESHOW_CONFIG: NeoviewSlideshowConfig = {
   fadeTransition: true,
 }
 
+export const DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG: NeoviewPresentationDiskCacheConfig = {
+  enabled: true,
+  maxBytes: 2 * 1024 * 1024 * 1024,
+  maxEntryBytes: 24 * 1024 * 1024,
+  maxAgeMs: 30 * 24 * 60 * 60 * 1000,
+  trimRatio: 0.8,
+  minFreeBytes: 512 * 1024 * 1024,
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -150,6 +170,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
     viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
+    presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
   }
   const config = requireRecord(value, "[nodes.neoview]")
   const schemaVersion = config.schema_version ?? 1
@@ -159,6 +180,11 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const slideshow = optionalRecord(config.slideshow, "[nodes.neoview.slideshow]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
+  const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
+  const presentationDiskCache = optionalRecord(
+    performance?.presentation_disk_cache,
+    "[nodes.neoview.performance.presentation_disk_cache]",
+  )
 
   const direction = optionalEnum(
     reader?.reading_direction ?? nestedValue(reader, "book", "reading_direction"),
@@ -190,6 +216,58 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     shellOptions: parseShellOptions(panels),
     viewDefaults: { fitMode, pageMode },
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
+    presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
+  }
+}
+
+function parsePresentationDiskCache(value: Record<string, unknown> | undefined): NeoviewPresentationDiskCacheConfig {
+  if (!value) return DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG
+  const maxBytes = mebibytes(
+    value.max_size_mb,
+    64,
+    65_536,
+    DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG.maxBytes,
+    "[nodes.neoview.performance.presentation_disk_cache].max_size_mb",
+  )
+  const maxEntryBytes = mebibytes(
+    value.max_entry_size_mb,
+    1,
+    256,
+    DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG.maxEntryBytes,
+    "[nodes.neoview.performance.presentation_disk_cache].max_entry_size_mb",
+  )
+  if (maxEntryBytes > maxBytes) {
+    throw new Error("[nodes.neoview.performance.presentation_disk_cache].max_entry_size_mb must not exceed max_size_mb.")
+  }
+  const directory = value.directory
+  if (directory !== undefined && (typeof directory !== "string" || !directory.trim())) {
+    throw new Error("[nodes.neoview.performance.presentation_disk_cache].directory must be a non-empty path.")
+  }
+  return {
+    enabled: optionalBoolean(value.enabled, "[nodes.neoview.performance.presentation_disk_cache].enabled") ?? true,
+    directory: typeof directory === "string" ? directory : undefined,
+    maxBytes,
+    maxEntryBytes,
+    maxAgeMs: boundedInteger(
+      value.max_age_days ?? 30,
+      1,
+      3_650,
+      "[nodes.neoview.performance.presentation_disk_cache].max_age_days",
+    ) * 24 * 60 * 60 * 1000,
+    trimRatio: boundedNumber(
+      value.trim_ratio,
+      0.5,
+      0.95,
+      DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG.trimRatio,
+      "[nodes.neoview.performance.presentation_disk_cache].trim_ratio",
+    ),
+    minFreeBytes: mebibytes(
+      value.min_free_space_mb,
+      0,
+      65_536,
+      DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG.minFreeBytes,
+      "[nodes.neoview.performance.presentation_disk_cache].min_free_space_mb",
+    ),
   }
 }
 
@@ -540,6 +618,11 @@ function boundedInteger(value: unknown, min: number, max: number, path: string):
     throw new Error(`${path} must be an integer between ${min} and ${max}.`)
   }
   return value
+}
+
+function mebibytes(value: unknown, min: number, max: number, fallbackBytes: number, path: string): number {
+  if (value === undefined) return fallbackBytes
+  return boundedInteger(value, min, max, path) * 1024 * 1024
 }
 
 function parseTailOverflow(value: unknown): TailOverflowBehavior | undefined {

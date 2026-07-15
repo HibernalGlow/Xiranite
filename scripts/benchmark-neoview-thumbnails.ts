@@ -19,9 +19,16 @@ const databasePath = parsed.values.database
 
 const database = await openReadonlySqlite(databasePath)
 let keys: string[]
+let compressedSamples = 0
+let compressedKeys: string[] = []
 try {
-  keys = database.all(
-    `SELECT key FROM thumbs WHERE category = 'file' AND value IS NOT NULL LIMIT ${batchSize}`,
+  const rows = database.all(
+    `SELECT key, hex(substr(value, 1, 4)) AS prefix FROM thumbs WHERE category = 'file' AND value IS NOT NULL LIMIT ${batchSize}`,
+  )
+  keys = rows.map((row) => row.key).filter((key): key is string => typeof key === "string")
+  compressedSamples = rows.filter((row) => row.prefix === "4C5A3400").length
+  compressedKeys = database.all(
+    `SELECT key FROM thumbs WHERE category = 'file' AND value IS NOT NULL AND hex(substr(value, 1, 4)) = '4C5A3400' LIMIT ${batchSize}`,
   ).map((row) => row.key).filter((key): key is string => typeof key === "string")
 } finally {
   database.close()
@@ -42,12 +49,33 @@ try {
   started = performance.now()
   for (let index = 0; index < batchIterations; index += 1) await store.getMany(keys, "file")
   const batchTotalMs = performance.now() - started
+  let compressed: Record<string, number> | undefined
+  if (compressedKeys.length) {
+    await store.get(compressedKeys[0]!, "file")
+    started = performance.now()
+    for (let index = 0; index < iterations; index += 1) {
+      await store.get(compressedKeys[index % compressedKeys.length]!, "file")
+    }
+    const compressedSingleTotalMs = performance.now() - started
+    const compressedBatchIterations = Math.max(50, Math.ceil(iterations / compressedKeys.length))
+    started = performance.now()
+    for (let index = 0; index < compressedBatchIterations; index += 1) await store.getMany(compressedKeys, "file")
+    const compressedBatchTotalMs = performance.now() - started
+    compressed = {
+      sampledRecords: compressedKeys.length,
+      singleAverageMs: compressedSingleTotalMs / iterations,
+      averageBatchMs: compressedBatchTotalMs / compressedBatchIterations,
+      averageRecordMs: compressedBatchTotalMs / (compressedBatchIterations * compressedKeys.length),
+    }
+  }
 
   process.stdout.write(`${JSON.stringify({
     databaseBytes: store.report.bytes,
     metadataVersion: store.report.metadataVersion,
     compatibility: store.report.compatibility,
     sampledRecords: keys.length,
+    compressedSamples,
+    compressed,
     single: {
       iterations,
       totalMs: singleTotalMs,

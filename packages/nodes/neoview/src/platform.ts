@@ -9,14 +9,17 @@ import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
+import type { ReaderPresentationDiskCache } from "./ports/ReaderPresentationDiskCache.js"
 import type { ReaderFileTreeWatcher } from "./ports/ReaderFileTreeWatcher.js"
 import type { ReaderFileTreeScanner } from "./ports/ReaderFileTreeScanner.js"
 import type { ReaderLibraryService } from "./application/library/ReaderLibraryService.js"
+import type { ReaderCacheService } from "./application/cache/ReaderCacheService.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
+import type { NeoviewPresentationDiskCacheConfig } from "./application/config/ReaderRuntimeConfig.js"
 import type {
   ReadonlyLegacyThumbnailStore,
   ReadonlyLegacyThumbnailStoreOptions,
@@ -110,6 +113,11 @@ export async function createReaderHttpController(
   const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const presentationDiskCache = options.presentationDiskCache ?? (
+    runtimeConfig.presentationDiskCache.enabled
+      ? await createDefaultPresentationDiskCache(runtimeConfig.presentationDiskCache, options)
+      : undefined
+  )
   const useDefaultDataStore = options.legacyThumbnailDatabasePath !== false
     && (typeof options.legacyThumbnailDatabasePath === "string" || options.useDefaultLegacyProgressStore)
   const dataStore = useDefaultDataStore
@@ -142,6 +150,8 @@ export async function createReaderHttpController(
     shellOptions: runtimeConfig.shellOptions,
     viewDefaults: runtimeConfig.viewDefaults,
     slideshow: runtimeConfig.slideshow,
+    presentationDiskCache,
+    disposePresentationDiskCache: Boolean(presentationDiskCache && !options.presentationDiskCache),
     updateShellOptions: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
@@ -163,6 +173,19 @@ export async function createReaderHttpController(
     thumbnailStore,
     disposeThumbnailStore,
   })
+}
+
+export async function createReaderCacheService(
+  options: NeoviewRuntimeLoadOptions = {},
+): Promise<ReaderCacheService> {
+  const { ReaderCacheService } = await import("./application/cache/ReaderCacheService.js")
+  const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const config = (await loadNeoviewRuntimeConfig(options)).presentationDiskCache
+  if (!config.enabled) return new ReaderCacheService()
+  return new ReaderCacheService(
+    await createDefaultPresentationDiskCache(config, options),
+    { ownsPresentationCache: true },
+  )
 }
 
 async function disposeLoadedThumbnailStore(store: ReaderThumbnailStore): Promise<void> {
@@ -280,6 +303,25 @@ export async function createReaderHeadlessController(
 async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore> {
   const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
   return SqliteReaderDataStore.open(databasePath)
+}
+
+async function createDefaultPresentationDiskCache(
+  config: NeoviewPresentationDiskCacheConfig,
+  options: NeoviewRuntimeLoadOptions,
+): Promise<ReaderPresentationDiskCache> {
+  const { join, resolve } = await import("node:path")
+  const root = config.directory
+    ? resolve(options.cwd ?? process.cwd(), config.directory)
+    : join((await import("@xiranite/config")).resolveXiraniteDataDir(options), "cache", "neoview", "presentation-v1")
+  const { CacachePresentationDiskCache } = await import("./platform/cache/CacachePresentationDiskCache.js")
+  return new CacachePresentationDiskCache({
+    root,
+    maxBytes: config.maxBytes,
+    maxEntryBytes: config.maxEntryBytes,
+    maxAgeMs: config.maxAgeMs,
+    trimRatio: config.trimRatio,
+    minFreeBytes: config.minFreeBytes,
+  })
 }
 
 async function legacyNeoViewDatabasePath(explicitPath?: string): Promise<string> {

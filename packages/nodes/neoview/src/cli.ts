@@ -6,6 +6,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import type {
   HeadlessReaderPageSnapshot,
   HeadlessReaderSnapshot,
+  ReaderCacheService,
   ReaderHeadlessController,
 } from "./core.js"
 import type {
@@ -23,6 +24,7 @@ const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
   "reader-data-inspect", "reader-data-import",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
+  "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
 ])
 const VALUE_FLAGS = new Set([
   "--entry",
@@ -55,6 +57,7 @@ export interface NeoviewCliDependencies {
   createController: (options?: ReaderCompositionOptions) => Promise<ReaderHeadlessController>
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
+  createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
 }
 
 interface CliThumbnailMaintenanceStore extends AsyncDisposable {
@@ -99,6 +102,11 @@ export async function runProgram(
   if (command.startsWith("thumbnail-db-")) {
     if (parsed.positionals.length > 1) throw usage(`${command} accepts at most one database path.`)
     await runThumbnailMaintenanceCommand(command, parsed.positionals[0], parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("presentation-cache-")) {
+    if (parsed.positionals.length) throw usage(`${command} does not accept a path.`)
+    await runPresentationCacheCommand(command, parsed, host, dependencies)
     return
   }
   if (command.startsWith("reader-data-")) {
@@ -180,6 +188,18 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--yes", "--reason", "--limit"]))
     return
   }
+  if (command === "presentation-cache-stats") {
+    rejectOptions(parsed, new Set(["--json", "--config"]))
+    return
+  }
+  if (command === "presentation-cache-cleanup") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--reason"]))
+    return
+  }
+  if (command === "presentation-cache-clear") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--config"]))
+    return
+  }
   for (const option of ["--strategy", "--modules", "--yes"]) {
     if (parsed.values.has(option) || parsed.booleans.has(option)) throw usage(`${command} does not accept ${option}.`)
   }
@@ -198,6 +218,61 @@ async function runThumbnailDatabaseInspect(path: string | undefined, json: boole
   writeLine(host, `Version: metadata=${report.metadataVersion ?? "-"} user_version=${report.userVersion ?? "-"} journal=${report.journalMode ?? "-"}`)
   writeLine(host, `Sidecars: WAL=${report.sidecars.wal.exists ? report.sidecars.wal.bytes ?? 0 : "missing"} SHM=${report.sidecars.shm.exists ? report.sidecars.shm.bytes ?? 0 : "missing"}`)
   for (const issue of report.issues) writeLine(host, `- ${issue}`)
+}
+
+async function runPresentationCacheCommand(
+  command: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (command !== "presentation-cache-stats" && !parsed.booleans.has("--yes")) {
+    throw usage(`${command} requires --yes because it removes cache data.`)
+  }
+  const createService = dependencies.createCacheService ?? (async (options: ReaderCompositionOptions) => {
+    const { createReaderCacheService } = await import("./platform.js")
+    return createReaderCacheService(options)
+  })
+  const service = await createService({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+  })
+  try {
+    const result = command === "presentation-cache-stats"
+      ? await service.status()
+      : command === "presentation-cache-clear"
+        ? await service.clear()
+        : await service.cleanup(cacheMaintenanceReason(oneValue(parsed, "--reason")))
+    printPresentationCacheResult(result, parsed.booleans.has("--json"), host)
+  } finally {
+    await service[Symbol.asyncDispose]()
+  }
+}
+
+function cacheMaintenanceReason(value: string | undefined): "age" | "budget" | "explicit" {
+  const reason = value ?? "age"
+  if (reason !== "age" && reason !== "budget" && reason !== "explicit") {
+    throw usage("--reason must be age, budget or explicit for presentation-cache-cleanup.")
+  }
+  return reason
+}
+
+function printPresentationCacheResult(
+  result: Awaited<ReturnType<ReaderCacheService["status"] | ReaderCacheService["cleanup"]>>,
+  json: boolean,
+  host: CliHost,
+): void {
+  if (json) return writeJson(host, result)
+  if (!result.enabled) {
+    writeLine(host, "Presentation cache: disabled")
+    return
+  }
+  writeLine(host, `Presentation cache: entries=${result.entries} bytes=${result.bytes}/${result.maxBytes} active=${result.activeLeases}`)
+  writeLine(host, `Activity: hits=${result.hits} misses=${result.misses} writes=${result.writes} rejected=${result.rejectedWrites} evictions=${result.evictions} integrityFailures=${result.integrityFailures}`)
+  if ("removedEntries" in result) {
+    writeLine(host, `Maintenance: reason=${result.reason} removed=${result.removedEntries} bytes=${result.removedBytes} durationMs=${result.durationMs}`)
+  }
 }
 
 async function runReaderDataCommand(
@@ -677,6 +752,9 @@ function formatCliHelp(): string {
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
     "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
     "  thumbnail-db-clear-failures [path]  Clear a bounded failure batch",
+    "  presentation-cache-stats       Show L3 content-cache statistics",
+    "  presentation-cache-cleanup     Run age/budget maintenance for L3",
+    "  presentation-cache-clear       Clear unleased L3 entries",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",
@@ -688,7 +766,7 @@ function formatCliHelp(): string {
     "  --archive-password-env SCOPE=VAR  Scoped nested password; join scope with ::",
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
-    "  --config PATH        Xiranite TOML path for settings-import",
+    "  --config PATH        Xiranite TOML path for settings/cache commands",
     "  --database PATH      Override the legacy NeoView thumbnails.db path",
     "  --strategy MODE      Settings import mode: merge or overwrite",
     "  --modules LIST       Comma-separated settings modules:",
@@ -699,7 +777,7 @@ function formatCliHelp(): string {
     "  --kind KIND          Thumbnail cleanup kind: empty, expired or invalid",
     "  --days N             Expiration age in days (default 30)",
     "  --scan-limit N       Invalid-path scan batch (default 500)",
-    "  --reason REASON      Limit failure clearing to one normalized reason",
+    "  --reason REASON      Failure reason, or L3 cleanup reason: age|budget|explicit",
   ].join("\n")
 }
 

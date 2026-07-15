@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { loadNeoviewRuntimeConfig, loadNeoviewSessionOptions } from "./loadNeoviewRuntimeConfig.js"
-import { createReaderHttpController } from "../../platform.js"
+import { createReaderCacheService, createReaderHttpController } from "../../platform.js"
 
 describe("loadNeoviewSessionOptions", () => {
   const roots: string[] = []
@@ -61,6 +61,37 @@ describe("loadNeoviewSessionOptions", () => {
         layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
       },
     })).viewDefaults.pageMode).toBe("single")
+  })
+
+  it("[neoview.cache.cli-composition] opens the shared cache service from the same node TOML", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-cache-config-"))
+    roots.push(root)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "[nodes.neoview.performance.presentation_disk_cache]",
+      "enabled = false",
+      "",
+    ].join("\n"), "utf8")
+    const disabled = await createReaderCacheService({ configPath, cwd: root })
+    expect(await disabled.status()).toEqual({ enabled: false })
+    await disabled[Symbol.asyncDispose]()
+
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "[nodes.neoview.performance.presentation_disk_cache]",
+      "enabled = true",
+      "directory = \"relative-l3\"",
+      "max_size_mb = 64",
+      "max_entry_size_mb = 8",
+      "min_free_space_mb = 0",
+      "",
+    ].join("\n"), "utf8")
+    const enabled = await createReaderCacheService({ configPath, cwd: root })
+    expect(await enabled.status()).toMatchObject({ enabled: true, entries: 0, bytes: 0, maxBytes: 64 * 1024 * 1024 })
+    await enabled[Symbol.asyncDispose]()
   })
 
   it("does not create a config file when the default source is absent", async () => {

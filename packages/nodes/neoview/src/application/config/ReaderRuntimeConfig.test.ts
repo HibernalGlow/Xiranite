@@ -66,6 +66,32 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
   })
 
+  it("[neoview.settings.presentation-cache] parses the bounded L3 cache policy from node TOML", () => {
+    expect(parseNeoviewRuntimeConfig({ performance: { presentation_disk_cache: {
+      enabled: true,
+      directory: "D:/cache/neoview",
+      max_size_mb: 4096,
+      max_entry_size_mb: 48,
+      max_age_days: 45,
+      trim_ratio: 0.75,
+      min_free_space_mb: 1024,
+    } } }).presentationDiskCache).toEqual({
+      enabled: true,
+      directory: "D:/cache/neoview",
+      maxBytes: 4096 * 1024 * 1024,
+      maxEntryBytes: 48 * 1024 * 1024,
+      maxAgeMs: 45 * 24 * 60 * 60 * 1000,
+      trimRatio: 0.75,
+      minFreeBytes: 1024 * 1024 * 1024,
+    })
+    expect(() => parseNeoviewRuntimeConfig({ performance: { presentation_disk_cache: {
+      max_size_mb: 64, max_entry_size_mb: 128,
+    } } })).toThrow("max_entry_size_mb must not exceed")
+    expect(() => parseNeoviewRuntimeConfig({ performance: { presentation_disk_cache: {
+      directory: " ",
+    } } })).toThrow("directory")
+  })
+
   it("[neoview.slideshow.config] normalizes legacy settings and writes one canonical TOML shape", () => {
     expect(parseNeoviewRuntimeConfig({
       slideshow: { interval_seconds: 12, loop: true, fade_transition: false },

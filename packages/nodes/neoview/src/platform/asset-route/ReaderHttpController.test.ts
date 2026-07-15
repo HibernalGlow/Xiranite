@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
+import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
@@ -20,6 +21,55 @@ afterEach(async () => {
 })
 
 describe("ReaderHttpController", () => {
+  it("[neoview.cache.l3-maintenance-http] exposes authenticated stats, cleanup and clear operations", async () => {
+    const base = {
+      entries: 3, bytes: 30, maxBytes: 100, maxEntryBytes: 20, activeLeases: 0,
+      hits: 4, misses: 2, writes: 3, rejectedWrites: 0, evictions: 1, integrityFailures: 0,
+    }
+    const cleanup = vi.fn(async (reason = "explicit") => ({
+      ...base, reason, removedEntries: 1, removedBytes: 10, durationMs: 2,
+    }))
+    const clear = vi.fn(async () => ({
+      ...base, entries: 0, bytes: 0, reason: "explicit" as const, removedEntries: 3, removedBytes: 30, durationMs: 3,
+    }))
+    const close = vi.fn(async () => undefined)
+    const diskCache: ReaderPresentationDiskCache = {
+      maxEntryBytes: 20,
+      acquire: vi.fn(async () => undefined),
+      put: vi.fn(async () => true),
+      invalidate: vi.fn(async () => undefined),
+      snapshot: vi.fn(async () => base),
+      cleanup,
+      clear,
+      close,
+      [Symbol.asyncDispose]: close,
+    }
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      presentationDiskCache: diskCache,
+      disposePresentationDiskCache: true,
+    })
+    expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/cache/presentation")))?.status).toBe(401)
+    expect(await (await controller.handle(authorizedRequest("/reader/cache/presentation")))!.json()).toEqual({ enabled: true, ...base })
+    expect(await (await controller.handle(jsonRequest(
+      "/reader/cache/presentation/cleanup",
+      { reason: "age" },
+    )))!.json()).toMatchObject({ reason: "age", removedEntries: 1 })
+    expect(cleanup).toHaveBeenCalledWith("age")
+    expect((await controller.handle(jsonRequest(
+      "/reader/cache/presentation/cleanup",
+      { reason: "destroy-everything" },
+    )))?.status).toBe(400)
+    expect(await (await controller.handle(authorizedRequest(
+      "/reader/cache/presentation",
+      { method: "DELETE" },
+    )))!.json()).toMatchObject({ entries: 0, removedEntries: 3 })
+    expect(clear).toHaveBeenCalledOnce()
+    await controller[Symbol.asyncDispose]()
+    expect(close).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.settings.shell-http] protects and returns only normalized shell settings", async () => {
     const updateViewDefaults = vi.fn(async (patch) => ({
       fitMode: patch.viewDefaults.fitMode ?? "fit-height" as const,

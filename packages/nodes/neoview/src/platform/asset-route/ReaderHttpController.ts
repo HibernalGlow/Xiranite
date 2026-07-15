@@ -5,10 +5,12 @@ import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/fr
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
+import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
@@ -24,6 +26,7 @@ import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeli
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
+import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
@@ -46,6 +49,8 @@ const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
+const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
+const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
 
 export interface ReaderPageDto {
@@ -82,6 +87,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   progressStore?: ReaderProgressStore | false
   libraryService?: ReaderLibraryService
   disposeLibraryService?: boolean
+  presentationDiskCache?: ReaderPresentationDiskCache
+  disposePresentationDiskCache?: boolean
   shellOptions?: NeoviewShellConfig
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
@@ -100,6 +107,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #library?: ReaderLibraryHttpController
   readonly #libraryService?: ReaderLibraryService
   readonly #disposeLibraryService: boolean
+  readonly #cacheService: ReaderCacheService
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -155,6 +163,8 @@ export class ReaderHttpController implements AsyncDisposable {
     )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),
+      presentationDiskCache: options.presentationDiskCache,
+      presentationProducerVersion: process.platform === "win32" ? WINDOWS_PRESENTATION_PRODUCER_VERSION : undefined,
       loadImageTransformer,
       thumbnailPipeline: this.#thumbnailPipeline,
     })
@@ -164,6 +174,9 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(options.libraryService) : undefined
     this.#disposeLibraryService = options.disposeLibraryService ?? false
+    this.#cacheService = new ReaderCacheService(options.presentationDiskCache, {
+      ownsPresentationCache: options.disposePresentationDiskCache,
+    })
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
@@ -190,6 +203,21 @@ export class ReaderHttpController implements AsyncDisposable {
     if (directoryBrowserResponse) return directoryBrowserResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
+
+    if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "GET") {
+      return jsonResponse(await this.#cacheService.status())
+    }
+    if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "DELETE") {
+      return jsonResponse(await this.#cacheService.clear())
+    }
+    if (url.pathname === PRESENTATION_CACHE_CLEANUP_PATH && request.method === "POST") {
+      const body = await readControlJson(request)
+      const reason = body?.reason ?? "age"
+      if (reason !== "age" && reason !== "budget" && reason !== "explicit") {
+        return jsonResponse({ error: "reason must be age, budget or explicit" }, 400)
+      }
+      return jsonResponse(await this.#cacheService.cleanup(reason))
+    }
 
     if (url.pathname === "/reader/sessions" && request.method === "POST") {
       return this.#openSession(request)
@@ -254,6 +282,11 @@ export class ReaderHttpController implements AsyncDisposable {
       } catch (error) {
         errors.push(error)
       }
+    }
+    try {
+      await this.#cacheService.close()
+    } catch (error) {
+      errors.push(error)
     }
     if (errors.length) throw new AggregateError(errors, "Failed to close the reader HTTP controller.")
   }

@@ -1,4 +1,3 @@
-import { compress } from "lz4-napi"
 import { describe, expect, it } from "vitest"
 import { decodeLegacyThumbnailBlob, detectImageContentType } from "./ThumbnailBlobCodec.js"
 
@@ -12,7 +11,7 @@ describe("decodeLegacyThumbnailBlob", () => {
 
   it("[neoview.thumbnail.blob] decodes the Rust LZ4 magic plus size-prepended block", async () => {
     const png = Uint8Array.from(Buffer.from("89504e470d0a1a0a0001020304050607", "hex"))
-    const compressed = await compress(png)
+    const compressed = Uint8Array.from(Buffer.from("10000000f00189504e470d0a1a0a0001020304050607", "hex"))
     const stored = new Uint8Array(4 + compressed.byteLength)
     stored.set([0x4c, 0x5a, 0x34, 0x00])
     stored.set(compressed, 4)

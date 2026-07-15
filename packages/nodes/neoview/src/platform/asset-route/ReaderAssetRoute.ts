@@ -15,6 +15,7 @@ import {
 import type { PageByteRange, PageSource } from "../../domain/page/page-content.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
+import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import {
@@ -23,6 +24,7 @@ import {
   ThumbnailUnavailableError,
   type ThumbnailPrewarmResult,
 } from "../thumbnails/PlatformThumbnailPipeline.js"
+import { buildPresentationCacheKey, SHARP_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -35,6 +37,8 @@ export interface ReaderAssetRouteOptions {
 export interface ReaderAssetRouteDependencies {
   loadImageTransformer?: ImageTransformerLoader
   presentationCache?: ReaderPresentationCache
+  presentationDiskCache?: ReaderPresentationDiskCache
+  presentationProducerVersion?: string
   thumbnailStore?: ReaderThumbnailStore
   thumbnailPipeline?: PlatformThumbnailPipeline
 }
@@ -45,6 +49,8 @@ export class ReaderAssetRoute {
   readonly #token: string
   readonly #loadImageTransformer?: ImageTransformerLoader
   readonly #presentationCache?: ReaderPresentationCache
+  readonly #presentationDiskCache?: ReaderPresentationDiskCache
+  readonly #presentationProducerVersion: string
   readonly #thumbnailPipeline?: PlatformThumbnailPipeline
   readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
@@ -63,6 +69,8 @@ export class ReaderAssetRoute {
     this.#token = options.token
     this.#loadImageTransformer = dependencies.loadImageTransformer
     this.#presentationCache = dependencies.presentationCache
+    this.#presentationDiskCache = dependencies.presentationDiskCache
+    this.#presentationProducerVersion = dependencies.presentationProducerVersion ?? SHARP_PRESENTATION_PRODUCER_VERSION
     this.#ownsThumbnailPipeline = !dependencies.thumbnailPipeline
       && Boolean(dependencies.thumbnailStore || dependencies.loadImageTransformer)
     this.#thumbnailPipeline = dependencies.thumbnailPipeline ?? (
@@ -98,6 +106,7 @@ export class ReaderAssetRoute {
     url.searchParams.set("version", page.contentVersion)
     url.searchParams.set("token", this.#token)
     if (transform) appendImageTransform(url.searchParams, transform)
+    if (transform) url.searchParams.set("producer", this.#presentationProducerVersion)
     return url.href
   }
 
@@ -288,8 +297,15 @@ export class ReaderAssetRoute {
     const workSignal = AbortSignal.any([request.signal, this.#workController.signal])
     workSignal.throwIfAborted()
     const transformKey = imageTransformCacheKey(transform)
-    const etag = pageEtag(page, transformKey)
-    const cacheKey = `${etag}:sharp-0.35.3-jxl`
+    const etag = pageEtag(page, `${transformKey}:${this.#presentationProducerVersion}`)
+    const cacheKey = buildPresentationCacheKey({
+      cacheKind: "presentation-transform",
+      sourceIdentity: page.sourcePath,
+      sourceRevision: page.contentVersion,
+      entryIdentity: page.entryPath ?? page.id,
+      producerVersion: this.#presentationProducerVersion,
+      transformProfile: transformKey,
+    })
     const headers = new Headers({
       "cache-control": "private, max-age=31536000, immutable",
       "content-type": imageTransformContentType(transform.format),
@@ -303,6 +319,15 @@ export class ReaderAssetRoute {
       return new Response(null, { status: 200, headers })
     }
     if (cached) return cachedPresentationResponse(cached, headers)
+    const diskLease = await this.#presentationDiskCache?.acquire(cacheKey, workSignal).catch(() => undefined)
+    workSignal.throwIfAborted()
+    if (diskLease) {
+      const presentation = { bytes: diskLease.bytes, contentType: diskLease.contentType }
+      this.#presentationCache?.set(cacheKey, presentation)
+      const response = cachedPresentationResponse(presentation, headers)
+      diskLease.release()
+      return response
+    }
     const active = this.#transformFlights.get(cacheKey)
     if (active) {
       const shared = await waitForSharedTransform(active, workSignal)
@@ -339,6 +364,9 @@ export class ReaderAssetRoute {
           if (presentation && (this.#closed || presentationEpoch !== this.#presentationEpoch
             || !this.#presentationCache!.set(cacheKey, presentation))) {
             presentation = undefined
+          }
+          if (presentation && this.#presentationDiskCache) {
+            void this.#presentationDiskCache.put(cacheKey, presentation)
           }
           this.#transformFlights.delete(cacheKey)
           settleFlight!(presentation)

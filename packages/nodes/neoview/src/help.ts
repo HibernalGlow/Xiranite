@@ -15,6 +15,7 @@ export const help = {
         "Run `xiranite neoview inspect <path> --json` for book and current-frame metadata.",
         "Run `xiranite neoview extract-page <path> --index 0 --output -` for binary stdout.",
         "Run `xiranite neoview thumbnail-db-stats --json` for aggregate thumbnail database health.",
+        "Run `xiranite neoview presentation-cache-stats --json` for the shared L3 cache budget and hit counters.",
         "Run `xiranite neoview reader-data-inspect <backup.json> --json` before importing legacy history and bookmarks.",
       ],
     },
@@ -62,6 +63,16 @@ export const help = {
         description: "Delete at most 500 expired file thumbnails while preserving every folder thumbnail.",
       }],
     },
+    {
+      title: "Maintain presentation cache",
+      command: "xiranite neoview presentation-cache-stats --json",
+      description: "Inspect the shared content-addressed L3 cache without exposing source paths or cache keys.",
+      examples: [{
+        label: "Remove expired entries",
+        command: "xiranite neoview presentation-cache-cleanup --reason age --yes --json",
+        description: "Run the same lease-aware age cleanup used by the Reader HTTP maintenance route.",
+      }],
+    },
   ],
   safety: {
     defaultMode: "read-only",
@@ -71,6 +82,7 @@ export const help = {
       "Binary stdout never contains status or log text.",
       "Thumbnail cleanup is bounded and requires --yes; online cleanup never runs VACUUM or TRUNCATE checkpoint.",
       "Reader data import requires --yes; overwrite only clears Xiranite-owned xr_ Reader tables and never modifies legacy thumbnail tables.",
+      "Presentation-cache cleanup and clear require --yes, skip active leases and never touch thumbnails.db.",
     ],
   },
 } satisfies NodeHelp

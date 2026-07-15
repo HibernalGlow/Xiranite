@@ -12,6 +12,8 @@ import type {
 } from "../core.js"
 import { runProgram } from "../cli.js"
 import { createReaderHeadlessController } from "../platform.js"
+import { ReaderCacheService } from "../application/cache/ReaderCacheService.js"
+import type { ReaderPresentationDiskCache } from "../ports/ReaderPresentationDiskCache.js"
 
 const testPlatformDependencies = {
   createController: (options = {}) => createReaderHeadlessController({ ...options, progressStore: false }),
@@ -347,6 +349,44 @@ describe("NeoView CLI", () => {
     expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 50 })
     expect(dispose).toHaveBeenCalledTimes(3)
   })
+
+  it("[neoview.cache.cli] reuses the shared cache service and gates destructive maintenance", async () => {
+    const output: unknown[] = []
+    const created: Array<{ cache: ReturnType<typeof fakePresentationCache>; options: unknown }> = []
+    const createCacheService = vi.fn(async (options) => {
+      const cache = fakePresentationCache()
+      created.push({ cache, options })
+      return new ReaderCacheService(cache.value, { ownsPresentationCache: true })
+    })
+    const dependencies = { createController: async () => fakeReader(), createCacheService }
+
+    await runProgram([
+      "presentation-cache-stats", "--config", "private/xiranite.config.toml", "--json",
+    ], host(output), dependencies)
+    const statsText = output.join("")
+    expect(JSON.parse(statsText)).toMatchObject({ enabled: true, entries: 2, bytes: 20 })
+    expect(statsText).not.toContain("private")
+    expect(created[0]?.options).toMatchObject({ configPath: "private/xiranite.config.toml" })
+    expect(created[0]?.cache.close).toHaveBeenCalledOnce()
+
+    await expect(runProgram([
+      "presentation-cache-cleanup", "--reason", "budget", "--json",
+    ], host([]), dependencies)).rejects.toThrow("requires --yes")
+    expect(createCacheService).toHaveBeenCalledTimes(1)
+
+    const cleanupOutput: unknown[] = []
+    await runProgram([
+      "presentation-cache-cleanup", "--reason", "budget", "--yes", "--json",
+    ], host(cleanupOutput), dependencies)
+    expect(JSON.parse(cleanupOutput.join(""))).toMatchObject({ enabled: true, reason: "budget", removedEntries: 1 })
+    expect(created[1]?.cache.cleanup).toHaveBeenCalledWith("budget")
+
+    const clearOutput: unknown[] = []
+    await runProgram(["presentation-cache-clear", "--yes", "--json"], host(clearOutput), dependencies)
+    expect(JSON.parse(clearOutput.join(""))).toMatchObject({ enabled: true, entries: 0, removedEntries: 2 })
+    expect(created[2]?.cache.clear).toHaveBeenCalledOnce()
+    expect(created.every(({ cache }) => cache.close.mock.calls.length === 1)).toBe(true)
+  })
 })
 
 const pages: readonly HeadlessReaderPageSnapshot[] = [0, 1, 2].map((index) => ({
@@ -374,6 +414,32 @@ function snapshot(index: number): HeadlessReaderSnapshot {
     },
     visiblePages: [pages[index]!],
   }
+}
+
+function fakePresentationCache() {
+  const snapshot = {
+    entries: 2, bytes: 20, maxBytes: 100, maxEntryBytes: 20, activeLeases: 0,
+    hits: 3, misses: 1, writes: 2, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
+  }
+  const cleanup = vi.fn(async (reason = "age" as const) => ({
+    ...snapshot, reason, removedEntries: 1, removedBytes: 10, durationMs: 1,
+  }))
+  const clear = vi.fn(async () => ({
+    ...snapshot, entries: 0, bytes: 0, reason: "explicit" as const, removedEntries: 2, removedBytes: 20, durationMs: 1,
+  }))
+  const close = vi.fn(async () => undefined)
+  const value: ReaderPresentationDiskCache = {
+    maxEntryBytes: 20,
+    acquire: vi.fn(async () => undefined),
+    put: vi.fn(async () => true),
+    invalidate: vi.fn(async () => undefined),
+    snapshot: vi.fn(async () => snapshot),
+    cleanup,
+    clear,
+    close,
+    [Symbol.asyncDispose]: close,
+  }
+  return { value, cleanup, clear, close }
 }
 
 function fakeReader(overrides: Partial<{

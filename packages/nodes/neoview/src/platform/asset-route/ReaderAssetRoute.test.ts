@@ -11,6 +11,7 @@ import type { ImageTransformer, ImageTransformerLoader } from "../../ports/Image
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
+import { CacachePresentationDiskCache } from "../cache/CacachePresentationDiskCache.js"
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 
 const cleanupDirectories: string[] = []
@@ -352,6 +353,60 @@ describe("ReaderAssetRoute", () => {
     expect(new Uint8Array(await third.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
     expect(transform).toHaveBeenCalledOnce()
     expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4, hits: 1 })
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.cache.l3-route] reuses a verified transform across memory-cache lifecycles", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    const cacheDirectory = await mkdtemp(join(tmpdir(), "xiranite-neoview-route-l3-"))
+    cleanupDirectories.push(cacheDirectory)
+    const diskCache = new CacachePresentationDiskCache({
+      root: join(cacheDirectory, "content"),
+      maxBytes: 64,
+      maxEntryBytes: 16,
+      minFreeBytes: 0,
+      minimumRetentionMs: 0,
+    })
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input) => {
+      await input.cancel("fixture transformed")
+      return {
+        stream: new ReadableStream({ start(controller) { controller.enqueue(Uint8Array.of(4, 5, 6, 7)); controller.close() } }),
+        contentType: "image/webp",
+      }
+    })
+    const firstRoute = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      {
+        presentationCache: new WeightedLruPresentationCache({ maxBytes: 32, maxEntryBytes: 16 }),
+        presentationDiskCache: diskCache,
+        loadImageTransformer: async () => ({ transform }),
+      },
+    )
+    const requestUrl = new URL(firstRoute.pageUrl(session.id, session.book.pages[0]!.id))
+    requestUrl.searchParams.set("width", "100")
+    expect(new Uint8Array(await (await firstRoute.handle(new Request(requestUrl)))!.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
+    await expect.poll(async () => (await diskCache.snapshot()).writes).toBe(1)
+    firstRoute.hibernate()
+
+    const unexpectedTransform = vi.fn(async () => { throw new Error("L3 hit must not transform again") })
+    const secondRoute = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      {
+        presentationCache: new WeightedLruPresentationCache({ maxBytes: 32, maxEntryBytes: 16 }),
+        presentationDiskCache: diskCache,
+        loadImageTransformer: async () => ({ transform: unexpectedTransform }),
+      },
+    )
+    const response = (await secondRoute.handle(new Request(requestUrl)))!
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
+    expect(response.headers.get("content-length")).toBe("4")
+    expect(unexpectedTransform).not.toHaveBeenCalled()
+    expect(await diskCache.snapshot()).toMatchObject({ hits: 1, entries: 1, bytes: 4 })
+    firstRoute.close()
+    secondRoute.close()
+    await diskCache.close()
     await service[Symbol.asyncDispose]()
   })
 
