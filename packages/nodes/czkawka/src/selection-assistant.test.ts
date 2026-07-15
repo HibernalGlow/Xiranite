@@ -46,6 +46,8 @@ describe("Czkawka shared selection assistant", () => {
 
   test("supports directory include, exclude, and keep-one rules", () => {
     const config = createDefaultCzkawkaSelectionAssistantConfig().directory
+    config.mode = "select-all-in-directory"; config.directories = []
+    expect(applyCzkawkaDirectorySelection(groups, [], config, "replace")).toMatchObject({ error: "At least one directory is required.", errorCode: "directory-required" })
     config.mode = "select-all-in-directory"; config.directories = ["D:/a"]
     expect(applyCzkawkaDirectorySelection(groups, [], config, "replace").paths).toEqual(["D:/a/small.jpg", "D:/a/large.jpg"])
     config.mode = "exclude-directory"

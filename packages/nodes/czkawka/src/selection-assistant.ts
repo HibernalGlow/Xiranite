@@ -48,6 +48,7 @@ export interface CzkawkaSelectionResult {
   matchedPaths: string[]
   affectedCount: number
   error?: string
+  errorCode?: "directory-required"
 }
 
 export interface CzkawkaSelectionStats {
@@ -87,7 +88,7 @@ export function applyCzkawkaTextSelection(groups: CzkawkaGroup[], current: Itera
 }
 
 export function applyCzkawkaDirectorySelection(groups: CzkawkaGroup[], current: Iterable<string>, config: CzkawkaDirectorySelectionConfig, mode: CzkawkaSelectionApplyMode): CzkawkaSelectionResult {
-  if (config.mode !== "keep-one-per-directory" && config.directories.length === 0) return { paths: [...current], matchedPaths: [], affectedCount: 0, error: "请至少指定一个目录。" }
+  if (config.mode !== "keep-one-per-directory" && config.directories.length === 0) return { paths: [...current], matchedPaths: [], affectedCount: 0, error: "At least one directory is required.", errorCode: "directory-required" }
   const matched = new Set<string>()
   if (config.mode === "keep-one-per-directory") {
     for (const group of groups) {

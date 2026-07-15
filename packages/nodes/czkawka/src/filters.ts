@@ -6,6 +6,7 @@ export type CzkawkaPathMatchMode = "contains" | "not-contains" | "starts-with" |
 export type CzkawkaDatePreset = "today" | "last-7-days" | "last-30-days" | "last-year" | "custom"
 export type CzkawkaAspectRatio = "any" | "16:9" | "4:3" | "1:1"
 export type CzkawkaFormatCategory = "images" | "videos" | "audio" | "documents" | "archives" | "folders" | "other"
+export const CZKAWKA_NO_EXTENSION = "__no_extension__"
 export type CzkawkaTextField = "name" | "path" | "metadata" | "detail"
 export type CzkawkaBuiltinFilterPreset = "none" | "large-files" | "small-files" | "recently-modified" | "old-files"
 
@@ -207,7 +208,7 @@ function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: Czkawka
   const extensionMap = new Map<string, CzkawkaExtensionStat>()
   const categoryMap = new Map<CzkawkaFormatCategory, CzkawkaCategoryStat>()
   for (const entry of originalEntries) {
-    const extension = extensionOf(entry.path) || "(无扩展名)"
+    const extension = extensionOf(entry.path) || CZKAWKA_NO_EXTENSION
     const current = extensionMap.get(extension) ?? { extension, totalCount: 0, filteredCount: 0, totalBytes: 0, filteredBytes: 0 }
     current.totalCount += 1
     current.totalBytes += entry.size
@@ -218,7 +219,7 @@ function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: Czkawka
     categoryMap.set(category, categoryStat)
   }
   for (const entry of filteredEntries) {
-    const extension = extensionOf(entry.path) || "(无扩展名)"
+    const extension = extensionOf(entry.path) || CZKAWKA_NO_EXTENSION
     const current = extensionMap.get(extension) ?? { extension, totalCount: 0, filteredCount: 0, totalBytes: 0, filteredBytes: 0 }
     current.filteredCount += 1
     current.filteredBytes += entry.size
@@ -290,7 +291,7 @@ function entrySearchText(entry: CzkawkaEntry, fields: CzkawkaTextField[]): strin
 function sizeBoundary(value: number | undefined, unit: CzkawkaSizeUnit | undefined): number | undefined { return value === undefined ? undefined : value * ({ B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[unit ?? "B"]) }
 function inRange(value: number, min?: number, max?: number): boolean { return (min === undefined || value >= min) && (max === undefined || value <= max) }
 function extensionOf(path: string): string { const name = path.replace(/\\/g, "/").split("/").at(-1) ?? ""; const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1).toLocaleLowerCase() : "" }
-function normalizeExtension(value: string): string { const normalized = value.trim().replace(/^\./, "").toLocaleLowerCase(); return normalized === "(无扩展名)" ? "" : normalized }
+function normalizeExtension(value: string): string { const normalized = value.trim().replace(/^\./, "").toLocaleLowerCase(); return normalized === CZKAWKA_NO_EXTENSION || normalized === "(无扩展名)" || normalized === "(no extension)" ? "" : normalized }
 const CATEGORY_ORDER: CzkawkaFormatCategory[] = ["images", "videos", "audio", "documents", "archives", "folders", "other"]
 const CATEGORY_EXTENSIONS: Record<Exclude<CzkawkaFormatCategory, "folders" | "other">, Set<string>> = {
   images: new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "avif", "heic", "jxl", "svg", "raw", "cr2", "nef", "arw"]),

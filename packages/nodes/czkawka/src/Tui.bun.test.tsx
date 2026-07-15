@@ -20,6 +20,21 @@ test("Czkawka TUI renders eleven scanners and responds to mouse", async () => {
   } finally { await act(async () => screen.renderer.destroy()) }
 })
 
+test("Czkawka TUI renders the complete workbench in English", async () => {
+  const schema = createCzkawkaInteractionSchema({ includedDirectoriesText: "D:/media" }, "en")
+  const screen = await testRender(<CzkawkaTui definition={{ schema, run: async () => ({ success: true, message: "done", data: { action: "scan", tool: "duplicate-files", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 } }) }} language="en" onExit={() => undefined} />, { width: 170, height: 46 })
+  try {
+    await act(async () => screen.renderOnce())
+    const frame = screen.captureCharFrame()
+    expect(frame).toContain("All 11 scanners")
+    expect(frame).toContain("Duplicate Files")
+    expect(frame).toContain("Directories")
+    expect(frame).toContain("RESULT GROUPS")
+    expect(frame).toContain("Choose a scanner and directories")
+    expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
+  } finally { await act(async () => screen.renderer.destroy()) }
+})
+
 test("Czkawka TUI selects results, exposes media metadata, and opens the active path", async () => {
   const openPath = vi.fn(async () => undefined)
   const entry = { id: "media-1", groupId: 0, path: "D:/media/track.flac", name: "track.flac", size: 2048, modifiedDate: 10, width: 1920, height: 1080, similarity: "3", title: "Terminal Song", artist: "CLI Artist", genre: "Synth", year: "2026", length: "03:15", bitrate: 320, hash: "abc", detail: "fingerprint match" }

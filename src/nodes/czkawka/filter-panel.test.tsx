@@ -23,11 +23,12 @@ const stats: CzkawkaFilterStats = {
 describe("CzkawkaFilterPanel", () => {
   test("renders the complete filter surface in English", async () => {
     await i18n.changeLanguage("en")
-    render(<CzkawkaFilterPanel tool="similar-images" state={createDefaultCzkawkaFilterState()} stats={stats} presets={[]} onChange={vi.fn()} onPresetsChange={vi.fn()} />)
+    render(<CzkawkaFilterPanel tool="similar-images" state={createDefaultCzkawkaFilterState()} stats={{ ...stats, extensions: [...stats.extensions, { extension: "__no_extension__", totalCount: 1, filteredCount: 1, totalBytes: 0, filteredBytes: 0 }] }} presets={[]} onChange={vi.fn()} onPresetsChange={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "Open multidimensional filters" }))
     expect(screen.getByText("Filter presets")).toBeTruthy()
     expect(screen.getByText("Quick text")).toBeTruthy()
     expect(screen.getByText("Resolution / aspect ratio")).toBeTruthy()
+    expect(screen.getByRole("button", { name: /No extension 1\/1/ })).toBeTruthy()
     expect(screen.getByText("3/8 files · 2/3 groups · 500 B")).toBeTruthy()
   })
 

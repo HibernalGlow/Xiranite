@@ -3,7 +3,7 @@ import { hasPipedInput, nodeCliName, readStdinLines, runGuidedInteraction, write
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 import { CZKAWKA_TOOLS, runCzkawka, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
 import { createNodeCzkawkaRuntime, openCzkawkaPath } from "./platform.js"
@@ -40,7 +40,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = d
 
 async function runPipe(args: string[], host: CliHost): Promise<void> {
   if (!args.length) { writeLine(host, `${CLI_NAME} ui | gd | scan <tool> <directories...> | delete <paths...> | move <destination> <paths...> | rename <extension> <paths...> | save <output> <paths...>`); return }
-  const command = args[0] ?? "scan", json = args.includes("--json")
+  const command = args[0] ?? "scan", json = args.includes("--json"), language = resolveTerminalLanguage(valueFor(args, "--lang"), host.env)
   const { config } = await loadNodeConfigWithHints<CzkawkaConfig>("czkawka", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: json })
   let input: CzkawkaInput
   if (command === "scan" || CZKAWKA_TOOLS.includes(command as CzkawkaTool)) {
@@ -64,7 +64,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   try { result = await runCzkawka(input, { ...platform, isCancelled: () => cancelled }, (event) => { if (!json) writeLine(host, formatCzkawkaActivityMessage("info", event.message, event.progress)) }) }
   finally { process.off("SIGINT", requestCancel); process.off("SIGTERM", requestCancel) }
   if (json) writeJson(host, result)
-  else { writeLine(host, result.message); if (result.data?.action === "scan") { const analysis = buildCzkawkaAnalysis(result.data.groups, [], result.data.tool); writeLine(host, `Formats: ${analysis.formats.slice(0, 8).map((item) => `${item.format}=${item.count}/${item.bytes}B`).join(", ") || "none"}`); if (analysis.similarities.length) writeLine(host, `Similarity: ${analysis.similarities.map((item) => `${item.label}=${item.count}`).join(", ")}`); if (result.data.tool === "similar-images") writeLine(host, `Similar folders: ${result.data.similarFolders?.map((item) => `${item.path}=${item.count}`).join(", ") || "none"}`) } for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, entry.status ? `${entry.status}\t${entry.path}${entry.secondaryPath ? `\t→ ${entry.secondaryPath}` : ""}${entry.error ? `\t${entry.error}` : ""}` : `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
+  else { for (const line of formatCzkawkaPipeResult(result, language)) writeLine(host, line); for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, entry.status ? `${entry.status}\t${entry.path}${entry.secondaryPath ? `\t→ ${entry.secondaryPath}` : ""}${entry.error ? `\t${entry.error}` : ""}` : `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
   if (!result.success) process.exitCode = 1
 }
 
@@ -81,8 +81,27 @@ function preferences(host: CliHost, current: TerminalPreferenceValues): Terminal
   return { nodeId: "czkawka", current, async save(value) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "czkawka", { cli: { theme: value.theme, default_mode: value.defaultMode, language: value.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<CzkawkaConfig>("czkawka", { ...options, jsonMode: true }); const value = resolveInteractionPreferences(config); return { theme: value.theme, defaultMode: value.mode, language: value.language ?? "zh" } } }
 }
 
-const SCAN_VALUE_FLAGS = new Set([...CZKAWKA_CLI_VALUE_FLAGS, "--reference", "--exclude-dir", "--exclude-item", "--allow", "--exclude-ext", "--min-size", "--max-size", "--threads", "--filter"])
-const OPERATION_VALUE_FLAGS = new Set(["--conflict", "--scope", "--tool"])
+export function formatCzkawkaPipeResult(result: CzkawkaResult, language: TerminalLanguage): string[] {
+  const data = result.data
+  if (!data) return [result.message]
+  const zh = language === "zh", none = zh ? "无" : "none"
+  if (data.action !== "scan") return [zh ? `${operationLabel(data.action, true)}：影响 ${data.affectedCount} 项，错误 ${data.errorCount} 项。` : `${operationLabel(data.action, false)}: ${data.affectedCount} affected, ${data.errorCount} errors.`]
+  const analysis = buildCzkawkaAnalysis(data.groups, [], data.tool)
+  const lines = [
+    data.stopped ? zh ? `扫描已停止；保留 ${data.fileCount} 个部分结果。` : `Scan stopped; retained ${data.fileCount} partial item(s).` : zh ? `找到 ${data.fileCount} 项，共 ${data.groupCount} 组。` : `Found ${data.fileCount} item(s) in ${data.groupCount} group(s).`,
+    `${zh ? "格式" : "Formats"}: ${analysis.formats.slice(0, 8).map((item) => `${item.format}=${item.count}/${item.bytes}B`).join(", ") || none}`,
+  ]
+  if (analysis.similarities.length) lines.push(`${zh ? "相似度" : "Similarity"}: ${analysis.similarities.map((item) => `${similarityLabel(item.level, language)}=${item.count}`).join(", ")}`)
+  if (data.tool === "similar-images") lines.push(`${zh ? "相似文件夹" : "Similar folders"}: ${data.similarFolders?.map((item) => `${item.path}=${item.count}`).join(", ") || none}`)
+  return lines
+}
+
+const SIMILARITY_LABELS_EN = { original: "Original / identical", "very-high": "Very high", high: "High", medium: "Medium", small: "Small", "very-small": "Very small", minimal: "Minimal" } as const
+function similarityLabel(level: keyof typeof SIMILARITY_LABELS_EN, language: TerminalLanguage): string { return language === "zh" ? ({ original: "原始/相同", "very-high": "极高", high: "高", medium: "中等", small: "较小", "very-small": "很小", minimal: "最低" } as const)[level] : SIMILARITY_LABELS_EN[level] }
+function operationLabel(action: NonNullable<CzkawkaResult["data"]>["action"], zh: boolean): string { if (action === "delete") return zh ? "删除" : "Delete"; if (action === "move") return zh ? "移动/复制" : "Move/copy"; if (action === "rename") return zh ? "修正扩展名" : "Fix extension"; return zh ? "导出" : "Export" }
+
+const SCAN_VALUE_FLAGS = new Set([...CZKAWKA_CLI_VALUE_FLAGS, "--reference", "--exclude-dir", "--exclude-item", "--allow", "--exclude-ext", "--min-size", "--max-size", "--threads", "--filter", "--lang"])
+const OPERATION_VALUE_FLAGS = new Set(["--conflict", "--scope", "--tool", "--lang"])
 function positional(args: string[], valueFlags: Set<string>): string[] { return args.filter((arg, index) => !arg.startsWith("--") && !valueFlags.has(args[index - 1] ?? "")) }
 function valueFor(args: string[], flag: string): string | undefined { const index = args.indexOf(flag); return index >= 0 ? args[index + 1] : undefined }
 function valuesFor(args: string[], flag: string): string[] { return args.flatMap((value, index) => value === flag && args[index + 1] !== undefined ? [args[index + 1]!] : []) }

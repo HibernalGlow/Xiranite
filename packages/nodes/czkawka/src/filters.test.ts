@@ -81,7 +81,7 @@ describe("Czkawka shared filter engine", () => {
     state.text = { enabled: true, pattern: "^(a|c|README)", regex: true, caseSensitive: true, fields: ["name"] }
     state.showAllInFilteredGroups = false
     expect(applyCzkawkaFilters(extended, [], state, now).groups.flatMap((group) => group.entries.map((item) => item.name))).toEqual(["a.jpg", "c.jpg", "README"])
-    state.extension = { enabled: true, mode: "include", extensions: ["(无扩展名)"], excludedCategories: [] }
+    state.extension = { enabled: true, mode: "include", extensions: ["__no_extension__"], excludedCategories: [] }
     state.text.enabled = false
     expect(applyCzkawkaFilters(extended, [], state, now).groups.flatMap((group) => group.entries.map((item) => item.path))).toEqual(["D:/README"])
   })

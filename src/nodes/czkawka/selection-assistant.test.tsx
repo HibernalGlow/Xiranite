@@ -3,8 +3,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { createDefaultCzkawkaSelectionAssistantConfig } from "@xiranite/node-czkawka/selection-assistant"
 import { CzkawkaSelectionAssistant } from "./selection-assistant"
+import i18n from "@/i18n"
 
-afterEach(cleanup)
+afterEach(async () => { cleanup(); await i18n.changeLanguage("zh") })
 
 function props() {
   return {
@@ -75,5 +76,24 @@ describe("CzkawkaSelectionAssistant", () => {
     expect(value.onRedo).toHaveBeenCalledOnce()
     expect(value.onApply).toHaveBeenCalledWith("group")
     expect(value.onClear).toHaveBeenCalledTimes(2)
+  })
+
+  test("reacts to the shared language and renders the complete English assistant", async () => {
+    await i18n.changeLanguage("en")
+    const value = props()
+    value.onApply = vi.fn(() => ({ paths: [], matchedPaths: [], affectedCount: 0, error: "At least one directory is required.", errorCode: "directory-required" as const }))
+    render(<CzkawkaSelectionAssistant {...value} />)
+    expect(screen.getByText("Smart selection assistant")).toBeTruthy()
+    expect(screen.getByText("2 items · 30 B · 20 B reclaimable")).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "Group rules" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Apply group rules" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Add sort criterion" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Select all visible" })).toBeTruthy()
+    expect(screen.queryByText("智能选择助手")).toBeNull()
+    fireEvent.pointerDown(screen.getByRole("tab", { name: "Directory rules" }), { button: 0 })
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Directory rules" }), { button: 0 })
+    fireEvent.click(screen.getByRole("tab", { name: "Directory rules" }))
+    fireEvent.click(screen.getByRole("button", { name: "Apply directory rules" }))
+    expect(screen.getByRole("alert").textContent).toBe("At least one directory is required.")
   })
 })
