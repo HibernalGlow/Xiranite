@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { CARD_DEFINITIONS, PANEL_DEFINITIONS, availablePanels, resolveLegacyPanels } from "./registry"
+import { CARD_DEFINITIONS, PANEL_DEFINITIONS, availablePanels, cardsForPanel, resolveLegacyPanels } from "./registry"
 
 describe("NeoView panel and card registries", () => {
   it("[neoview.shell.registry] preserves the complete legacy panel identity surface", () => {
@@ -55,5 +55,9 @@ describe("NeoView panel and card registries", () => {
       panelLayout: { settings: { visible: true, order: 99, position: "left" } },
       cardLayout: { "panel-layout-settings": { panelId: "settings", visible: true, expanded: true, order: 0 } },
     } as never).map((panel) => panel.id)).toContain("settings")
+    expect(cardsForPanel("settings")).toEqual([])
+    expect(cardsForPanel("settings", {
+      cardLayout: { "sidebar-management-settings": { panelId: "settings", visible: true, expanded: true, order: 1 } },
+    } as never).map((card) => card.id)).toContain("sidebar-management-settings")
   })
 })

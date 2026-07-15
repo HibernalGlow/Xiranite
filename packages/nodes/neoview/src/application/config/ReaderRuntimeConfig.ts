@@ -110,6 +110,7 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
     "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
     "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
     "panel-layout-settings": { panelId: "settings", visible: false, expanded: true, order: 0 },
+    "sidebar-management-settings": { panelId: "settings", visible: false, expanded: true, order: 1 },
   },
 }
 

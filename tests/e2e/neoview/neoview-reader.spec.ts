@@ -125,17 +125,30 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   expect(settingsBox!.width).toBeGreaterThan(settingsViewport.width * 0.65)
   expect(settingsBox!.height).toBeGreaterThan(settingsViewport.height * 0.8)
   await page.screenshot({ path: testInfo.outputPath(`neoview-settings-${testInfo.project.name}.png`) })
+  await page.getByRole("combobox", { name: "历史记录位置" }).selectOption("right")
+  expect(boardPatchRequests).toBe(0)
+  const sidebarBoardResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH" && response.request().postData()?.includes('"board"') === true
+  ))
+  await page.getByRole("button", { name: "保存边栏布局" }).click()
+  const sidebarBoardResult = await sidebarBoardResponse
+  expect(sidebarBoardResult.status()).toBe(200)
+  expect((await sidebarBoardResult.json() as { shell: { panelLayout: Record<string, { position: string }> } }).shell.panelLayout.history?.position).toBe("right")
+  expect(boardPatchRequests).toBe(1)
   await page.getByRole("button", { name: "卡片管理" }).click()
   await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toBeVisible()
   const dockedSettingCard = page.locator('[data-panel-layout-column="settings"] [data-panel-layout-card="panel-layout-settings"]')
+  const dockedSidebarSettingCard = page.locator('[data-panel-layout-column="settings"] [data-panel-layout-card="sidebar-management-settings"]')
   await page.getByRole("combobox", { name: "移动面板布局设置到" }).selectOption("settings")
+  await page.getByRole("combobox", { name: "移动边栏管理设置到" }).selectOption("settings")
   await expect(dockedSettingCard).toBeVisible()
+  await expect(dockedSidebarSettingCard).toBeVisible()
   const boardResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH" && response.request().postData()?.includes('"board"') === true
   ))
   await page.getByRole("button", { name: "保存面板布局" }).click()
   expect((await boardResponse).status()).toBe(200)
-  expect(boardPatchRequests).toBe(1)
+  expect(boardPatchRequests).toBe(2)
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toHaveCount(0)
@@ -152,7 +165,9 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
   await leftSidebar.getByRole("button", { name: "设置", exact: true }).click()
   await expect(page.locator('[data-reader-card="面板布局设置"]')).toBeVisible()
+  await expect(page.locator('[data-reader-card="边栏管理设置"]')).toBeVisible()
   await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toBeVisible()
+  await expect(page.locator('[data-neoview-settings-card="sidebar-management"]')).toBeVisible()
   await leftSidebar.getByRole("button", { name: "页面列表", exact: true }).click()
   await expect(page.locator('[data-reader-card="页面导航"]')).toBeVisible()
   const collapseResponse = page.waitForResponse((response) => (

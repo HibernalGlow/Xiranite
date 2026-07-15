@@ -11,12 +11,15 @@ afterEach(cleanup)
 
 describe("ReaderSettingsWindow", () => {
   it("[neoview.settings.window] follows the standalone categorized settings fixture and defers Kanban", async () => {
-    render(<ReaderSettingsWindow shell={shell()} onClose={vi.fn()} onBoardLayout={vi.fn(async () => undefined)} />)
+    const save = vi.fn(async () => undefined)
+    render(<ReaderSettingsWindow shell={shell()} onClose={vi.fn()} onBoardLayout={save} />)
     expect(screen.getByRole("dialog")).toBeTruthy()
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
     expect(screen.getByRole("navigation", { name: "NeoView 设置分类" })).toBeTruthy()
     expect(screen.getByRole("heading", { name: "边栏布局" })).toBeTruthy()
     expect(screen.queryByTestId("panel-layout-editor")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "保存边栏布局" }))
+    expect(save).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole("button", { name: "卡片管理" }))
     expect(await screen.findByTestId("panel-layout-editor")).toBeTruthy()

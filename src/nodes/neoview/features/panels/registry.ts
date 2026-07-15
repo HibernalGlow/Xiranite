@@ -94,6 +94,14 @@ export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = [
     defaultSidebarVisible: false,
     load: () => import("../settings/cards/PanelLayoutSettingsCard"),
   },
+  {
+    id: "sidebar-management-settings",
+    title: "边栏管理设置",
+    defaultPanel: "settings",
+    canHide: true,
+    defaultSidebarVisible: false,
+    load: () => import("../settings/cards/SidebarManagementSettingsCard"),
+  },
 ]
 
 const panelById = new Map(PANEL_DEFINITIONS.map((definition) => [definition.id, definition]))

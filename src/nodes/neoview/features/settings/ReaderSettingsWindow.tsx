@@ -3,8 +3,8 @@ import { useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../adapters/reader-http-client"
-import { PANEL_DEFINITIONS } from "../panels/registry"
 import { PanelLayoutSettingsCard } from "./cards/PanelLayoutSettingsCard"
+import { SidebarManagementSettingsCard } from "./cards/SidebarManagementSettingsCard"
 
 export function ReaderSettingsWindow({
   shell,
@@ -43,7 +43,7 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            {active === "sidebar" ? <SidebarManagementPage shell={shell} /> : null}
+            {active === "sidebar" ? <SidebarManagementSettingsCard shell={shell} onSave={onBoardLayout} /> : null}
             {active === "cards" ? <PanelLayoutSettingsCard shell={shell} onSave={onBoardLayout} /> : null}
             {active !== "sidebar" && active !== "cards" ? <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === active)?.label ?? "设置"} /> : null}
           </div>
@@ -70,34 +70,6 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; label: string; icon: Com
   { id: "data", label: "数据", icon: Database },
   { id: "about", label: "关于", icon: Info },
 ]
-
-function SidebarManagementPage({ shell }: { shell: ReaderShellConfigDto }) {
-  const panels = Object.entries(shell.panelLayout).toSorted((left, right) => left[1].order - right[1].order)
-  return (
-    <div className="grid gap-4">
-      <div className="border-b pb-4">
-        <h2 className="text-xl font-semibold">边栏布局</h2>
-        <p className="mt-1 text-xs text-muted-foreground">管理左右边栏的面板位置、顺序和可见性。</p>
-      </div>
-      <section className="overflow-hidden rounded-md border bg-card/50">
-        <div className="grid grid-cols-[1fr_auto] border-b bg-muted/25 px-3 py-2 text-xs font-medium"><span>名称</span><span>状态</span></div>
-        {panels.map(([id, panel]) => (
-          <div key={id} className="grid min-h-12 grid-cols-[1fr_auto] items-center border-b px-3 py-2 last:border-b-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted" aria-hidden="true">{panelDefinition(id)?.emoji ?? "•"}</span>
-              <div className="min-w-0"><div className="truncate text-sm">{panelDefinition(id)?.title ?? id}</div><div className="text-[10px] uppercase text-muted-foreground">{id}</div></div>
-            </div>
-            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">{panel.visible ? panel.position : "隐藏"}</span>
-          </div>
-        ))}
-      </section>
-    </div>
-  )
-}
-
-function panelDefinition(id: string) {
-  return PANEL_DEFINITIONS.find((panel) => panel.id === id)
-}
 
 function SettingsPlaceholder({ title }: { title: string }) {
   return <section className="rounded-md border bg-card/50 p-4"><h2 className="text-lg font-semibold">{title}</h2></section>

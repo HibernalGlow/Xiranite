@@ -137,6 +137,9 @@ describe("parseNeoviewRuntimeConfig", () => {
   })
 
   it("[neoview.settings.card-layout] imports v14 card arrays and lets canonical state override them", () => {
+    expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["sidebar-management-settings"]).toEqual({
+      panelId: "settings", visible: false, expanded: true, order: 1,
+    })
     const parsed = parseNeoviewRuntimeConfig({
       panels: {
         card_configs: {
