@@ -1,7 +1,7 @@
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
@@ -19,6 +19,29 @@ afterEach(async () => {
 })
 
 describe("ReaderHttpController", () => {
+  it("[neoview.thumbnail.http] publishes thumbnail DTOs and disposes its owned store", async () => {
+    const directory = await createBookDirectory()
+    const disposeThumbnailStore = vi.fn(async () => undefined)
+    const get = vi.fn(async () => ({ bytes: Uint8Array.of(1, 2, 3), contentType: "image/webp" }))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      thumbnailStore: { get },
+      disposeThumbnailStore,
+    })
+    const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
+    const session = await opened.json() as ReaderSessionDto
+    expect(JSON.stringify(session)).not.toContain("thumbnailSource")
+    const thumbnailUrl = session.visiblePages[0]?.thumbnailUrl
+    expect(thumbnailUrl).toContain(`/reader/s/${session.sessionId}/thumbnail/`)
+    expect(thumbnailUrl).not.toContain(directory)
+    const thumbnail = (await controller.handle(new Request(thumbnailUrl!)))!
+    expect(new Uint8Array(await thumbnail.arrayBuffer())).toEqual(Uint8Array.of(1, 2, 3))
+    await controller[Symbol.asyncDispose]()
+    expect(get).toHaveBeenCalledOnce()
+    expect(disposeThumbnailStore).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.control.session] opens, pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
     const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
@@ -117,6 +140,7 @@ describe("ReaderHttpController", () => {
       expect(session.book).toMatchObject({ displayName: "inner.cbz", pageCount: 1 })
       expect(JSON.stringify(session)).not.toContain(tempDirectory)
       expect(JSON.stringify(session)).not.toContain(nestedPassword)
+      expect(session.visiblePages[0]!.thumbnailUrl).toBeUndefined()
       expect(session.visiblePages[0]!.assetUrl).not.toContain(nestedPassword)
       const asset = (await controller.handle(new Request(session.visiblePages[0]!.assetUrl)))!
       expect(Buffer.from(await asset.arrayBuffer())).toEqual(ONE_PIXEL_PNG)

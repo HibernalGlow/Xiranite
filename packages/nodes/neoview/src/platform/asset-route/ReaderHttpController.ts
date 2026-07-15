@@ -4,6 +4,7 @@ import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
+import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
@@ -26,6 +27,7 @@ export interface ReaderPageDto {
   dimensions?: ReaderPage["dimensions"]
   contentVersion: string
   assetUrl: string
+  thumbnailUrl?: string
 }
 
 export interface ReaderSessionDto {
@@ -41,6 +43,8 @@ export interface ReaderSessionDto {
 
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
   sessionOptions?: Partial<ReaderSessionOptions>
+  thumbnailStore?: ReaderThumbnailStore
+  disposeThumbnailStore?: () => void | Promise<void>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -49,6 +53,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
+  readonly #disposeThumbnailStore?: () => void | Promise<void>
 
   constructor(options: ReaderHttpControllerOptions) {
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -66,7 +71,9 @@ export class ReaderHttpController implements AsyncDisposable {
         const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
         return new SharpImageTransformer(options.resourceScheduler)
       },
+      thumbnailStore: options.thumbnailStore,
     })
+    this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
   }
 
@@ -103,6 +110,13 @@ export class ReaderHttpController implements AsyncDisposable {
     if (this.#ownsSolidArchiveCache) {
       try {
         await this.#solidArchiveCache.close()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (this.#disposeThumbnailStore) {
+      try {
+        await this.#disposeThumbnailStore()
       } catch (error) {
         errors.push(error)
       }
@@ -221,6 +235,7 @@ export class ReaderHttpController implements AsyncDisposable {
       dimensions: page.dimensions,
       contentVersion: page.contentVersion,
       assetUrl: this.#assets.pageUrl(session.id, page.id),
+      thumbnailUrl: this.#assets.thumbnailUrl(session.id, page.id),
     }
   }
 

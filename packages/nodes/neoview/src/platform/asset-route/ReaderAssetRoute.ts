@@ -12,8 +12,10 @@ import type { PageByteRange, PageSource } from "../../domain/page/page-content.j
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
+import type { ReaderThumbnailAsset, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
+const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
 
 export interface ReaderAssetRouteOptions {
   baseUrl: string
@@ -23,6 +25,7 @@ export interface ReaderAssetRouteOptions {
 export interface ReaderAssetRouteDependencies {
   loadImageTransformer?: ImageTransformerLoader
   presentationCache?: ReaderPresentationCache
+  thumbnailStore?: ReaderThumbnailStore
 }
 
 export class ReaderAssetRoute {
@@ -31,6 +34,7 @@ export class ReaderAssetRoute {
   readonly #token: string
   readonly #loadImageTransformer?: ImageTransformerLoader
   readonly #presentationCache?: ReaderPresentationCache
+  readonly #thumbnailStore?: ReaderThumbnailStore
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   #imageTransformer?: Promise<ImageTransformer>
   #closed = false
@@ -45,6 +49,19 @@ export class ReaderAssetRoute {
     this.#token = options.token
     this.#loadImageTransformer = dependencies.loadImageTransformer
     this.#presentationCache = dependencies.presentationCache
+    this.#thumbnailStore = dependencies.thumbnailStore
+  }
+
+  thumbnailUrl(sessionId: ReaderSessionId, pageId: PageId): string | undefined {
+    if (!this.#thumbnailStore) return undefined
+    const session = this.#readerService.getSession(sessionId)
+    const page = session?.getPage(pageId)
+    if (!page?.thumbnailSource) return undefined
+    const path = `/reader/s/${encodeURIComponent(sessionId)}/thumbnail/${encodeURIComponent(pageId)}`
+    const url = new URL(path, this.#baseUrl)
+    url.searchParams.set("version", page.contentVersion)
+    url.searchParams.set("token", this.#token)
+    return url.href
   }
 
   pageUrl(sessionId: ReaderSessionId, pageId: PageId, transform?: ImageTransformRequest): string {
@@ -61,6 +78,8 @@ export class ReaderAssetRoute {
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
+    const thumbnailMatch = THUMBNAIL_PATH.exec(url.pathname)
+    if (thumbnailMatch) return this.#handleThumbnail(request, url, thumbnailMatch[1]!, thumbnailMatch[2]!)
     const match = PAGE_PATH.exec(url.pathname)
     if (!match) return undefined
     if (this.#closed) return textResponse("Reader asset route is closed", 410)
@@ -98,6 +117,43 @@ export class ReaderAssetRoute {
       await source.close().catch(() => undefined)
       throw error
     }
+  }
+
+  async #handleThumbnail(
+    request: Request,
+    url: URL,
+    encodedSessionId: string,
+    encodedPageId: string,
+  ): Promise<Response> {
+    if (this.#closed) return textResponse("Reader asset route is closed", 410)
+    if (!this.#isAuthorized(request, url)) return textResponse("Unauthorized", 401)
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return new Response("Method not allowed", { status: 405, headers: { allow: "GET, HEAD" } })
+    }
+    const sessionId = safeDecode(encodedSessionId)
+    const pageId = safeDecode(encodedPageId)
+    if (!sessionId || !pageId) return textResponse("Invalid reader asset identifier", 400)
+    const page = this.#readerService.getSession(sessionId)?.getPage(pageId)
+    if (!page?.thumbnailSource || !this.#thumbnailStore) return textResponse("Reader thumbnail not found", 404)
+    if (url.searchParams.get("version") !== page.contentVersion) return textResponse("Reader thumbnail version is stale", 410)
+    request.signal.throwIfAborted()
+    const thumbnail = await this.#thumbnailStore.get(page.thumbnailSource.key, page.thumbnailSource.category)
+    if (!thumbnail) return textResponse("Reader thumbnail not found", 404)
+    if (!thumbnail.contentType?.startsWith("image/")) return textResponse("Reader thumbnail has an unsupported content type", 415)
+    const etag = thumbnailEtag(page, thumbnail)
+    const headers = new Headers({
+      "cache-control": "private, no-cache",
+      "content-type": thumbnail.contentType,
+      "content-length": String(thumbnail.bytes.byteLength),
+      "etag": etag,
+      "x-content-type-options": "nosniff",
+    })
+    if (matchesEtag(request.headers.get("if-none-match"), etag)) {
+      headers.delete("content-length")
+      return new Response(null, { status: 304, headers })
+    }
+    if (request.method === "HEAD") return new Response(null, { status: 200, headers })
+    return new Response(streamCachedBytes(thumbnail.bytes), { status: 200, headers })
   }
 
   clearPresentationCache(): void {
@@ -385,6 +441,23 @@ function pageEtag(page: ReaderPage, transformKey?: string): string {
     .update(transformKey ?? "original")
     .digest("base64url")
   return `"neoview-${hash}"`
+}
+
+function thumbnailEtag(page: ReaderPage, thumbnail: ReaderThumbnailAsset): string {
+  const hash = createHash("sha256")
+    .update(page.id)
+    .update("\0")
+    .update(page.contentVersion)
+    .update("\0")
+    .update(thumbnail.date ?? "")
+    .update("\0")
+    .update(String(thumbnail.generationHash ?? ""))
+    .update("\0")
+    .update(String(thumbnail.bytes.byteLength))
+    .update("\0")
+    .update(thumbnail.bytes)
+    .digest("base64url")
+  return `"neoview-thumb-${hash}"`
 }
 
 function matchesEtag(value: string | null, etag: string): boolean {

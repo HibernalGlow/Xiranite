@@ -10,6 +10,7 @@ describe("parseSevenZipSlt", () => {
       entry("empty", { folder: "+", attributes: "D", size: "0", packed: "0" }),
     ], "7z", "+"))
     expect(index).toMatchObject({ archiveType: "7z", solid: true })
+    expect(index.entries.map((item) => item.sourceIndex)).toEqual([0, 1, 2])
     expect(index.entries).toEqual([
       expect.objectContaining({ path: "pages/第一话.jpg", kind: "file", uncompressedSize: 5, compressedSize: 4, crc32: 0x470b99f4, encrypted: false }),
       expect.objectContaining({ path: "pages/002.jpg", kind: "file", uncompressedSize: 3, compressedSize: undefined, encrypted: true }),

@@ -112,6 +112,7 @@ export class ZipArchiveProvider implements ArchiveProvider {
           const path = normalizeArchivePath(entry.filename)
           const descriptor: ArchiveEntry = {
             id: `zip-${index}-${entry.offset}`,
+            sourceIndex: index,
             path,
             kind: entry.directory ? "directory" : "file",
             uncompressedSize: entry.uncompressedSize,

@@ -19,6 +19,9 @@ export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformR
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions
+export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
+  legacyThumbnailDatabasePath?: string | false
+}
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
   sourceRevision: "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
@@ -62,11 +65,27 @@ export async function createReaderAssetRoute(
 }
 
 export async function createReaderHttpController(
-  options: ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions,
+  options: ReaderHttpCompositionOptions,
 ): Promise<ReaderHttpController> {
   const { ReaderHttpController } = await import("./platform/asset-route/ReaderHttpController.js")
   const { loadNeoviewSessionOptions } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
-  return new ReaderHttpController({ ...options, sessionOptions: await loadNeoviewSessionOptions(options) })
+  let thumbnailStore = options.thumbnailStore
+  let disposeThumbnailStore = options.disposeThumbnailStore
+  if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
+    try {
+      const ownedThumbnailStore = await createReadonlyLegacyThumbnailStore(options.legacyThumbnailDatabasePath)
+      thumbnailStore = ownedThumbnailStore
+      disposeThumbnailStore = () => ownedThumbnailStore.close()
+    } catch {
+      thumbnailStore = undefined
+    }
+  }
+  return new ReaderHttpController({
+    ...options,
+    sessionOptions: await loadNeoviewSessionOptions(options),
+    thumbnailStore,
+    disposeThumbnailStore,
+  })
 }
 
 export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {

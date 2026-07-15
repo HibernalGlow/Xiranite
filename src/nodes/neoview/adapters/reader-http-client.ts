@@ -11,6 +11,7 @@ export interface ReaderPageDto {
   dimensions?: PageDimensions
   contentVersion: string
   assetUrl: string
+  thumbnailUrl?: string
 }
 
 export interface ReaderSessionDto {

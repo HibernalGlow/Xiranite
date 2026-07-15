@@ -47,6 +47,7 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal): Pro
       index,
       name: file.name,
       sourcePath: file.path,
+      thumbnailSource: { key: file.path, category: "file" },
       mediaKind: media.kind,
       mimeType: media.mimeType,
       byteLength: file.stats.size,

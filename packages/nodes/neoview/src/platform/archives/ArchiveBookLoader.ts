@@ -103,6 +103,9 @@ export async function loadArchiveBook(
         name: basename(entry.path),
         sourcePath: archivePath,
         entryPath: entry.path,
+        thumbnailSource: entryPaths.length || entry.sourceIndex === undefined
+          ? undefined
+          : { key: `${archivePath}::${entry.path}#${entry.sourceIndex}`, category: "file" },
         mediaKind: media.kind,
         mimeType: media.mimeType,
         byteLength: entry.uncompressedSize,

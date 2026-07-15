@@ -164,9 +164,9 @@
 - 设置：`system.thumbnailDirectory`
 - 数据：%APPDATA%/NeoView/thumbnails.db、thumbnail V1/V3/V4 records、WAL/SHM
 - 行为：原数据库位置沿用；只读 schema/WAL 探测；批量命中与生成；失败记录；清理/vacuum/统计；V1/V3/V4 兼容迁移；视频和归档缩略图
-- 测试：`neoview.thumbnail.legacy-path`、`neoview.thumbnail.schema`、`neoview.thumbnail.inspect-cli`、`neoview.thumbnail.blob`、`neoview.thumbnail.read`
+- 测试：`neoview.thumbnail.legacy-path`、`neoview.thumbnail.schema`、`neoview.thumbnail.inspect-cli`、`neoview.thumbnail.blob`、`neoview.thumbnail.read`、`neoview.thumbnail.asset-route`、`neoview.thumbnail.http`、`neoview.thumbnail.http-e2e`
 - 性能基准：`thumbnail-hit`、`thumbnail-batch`
-- 已知差异：无
+- 已知差异：嵌套归档页在旧版键语义得到可靠证明前不提供旧数据库 thumbnailUrl
 
 ### 内存、磁盘、索引和资源缓存生命周期（`cache-lifecycle`）
 

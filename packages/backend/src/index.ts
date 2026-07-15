@@ -37,6 +37,7 @@ export interface CreateDefaultBackendOptions {
   databasePath?: string
   databaseAuthToken?: string
   dataDir?: string
+  legacyThumbnailDatabasePath?: string | false
   nodeRunner?: NodeRunner
   resourceScheduler?: ResourceSchedulerService
   system?: XiraniteSystemService
@@ -172,6 +173,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
           configPath: options.configPath,
           databasePath: options.databasePath ?? backend.database?.path,
           dataDir: options.dataDir,
+          legacyThumbnailDatabasePath: options.legacyThumbnailDatabasePath,
         }).catch((error) => {
           readerController = undefined
           throw error
@@ -224,7 +226,7 @@ async function createReaderController(
   baseUrl: string,
   token: string,
   resourceScheduler: ResourceScheduler,
-  config: Pick<StartBackendOptions, "configPath" | "databasePath" | "dataDir">,
+  config: Pick<StartBackendOptions, "configPath" | "databasePath" | "dataDir" | "legacyThumbnailDatabasePath">,
 ): Promise<BackendRequestController> {
   const platform = await loadNodePlatformModule("neoview")
   const factory = platform.createReaderHttpController
@@ -236,6 +238,7 @@ async function createReaderController(
     configPath?: string
     databasePath?: string
     dataDir?: string
+    legacyThumbnailDatabasePath?: string | false
   }) => Promise<BackendRequestController>)({
     baseUrl,
     token,

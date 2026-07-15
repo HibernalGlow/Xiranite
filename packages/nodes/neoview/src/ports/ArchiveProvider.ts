@@ -6,6 +6,7 @@ export type ArchiveEntryKind = "file" | "directory"
 
 export interface ArchiveEntry {
   id: string
+  sourceIndex?: number
   path: string
   kind: ArchiveEntryKind
   uncompressedSize: number

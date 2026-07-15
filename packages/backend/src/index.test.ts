@@ -447,6 +447,7 @@ describe("backend", () => {
       repository: createMemoryWorkspaceRepository(),
       dataDir,
       configPath,
+      legacyThumbnailDatabasePath: false,
       resourceScheduler,
     })
     try {

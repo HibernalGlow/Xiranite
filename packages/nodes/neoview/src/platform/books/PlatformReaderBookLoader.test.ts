@@ -24,6 +24,10 @@ describe("PlatformReaderBookLoader", () => {
     try {
       expect(first.pages.map((page) => page.name)).toEqual(["1.avif", "2.jpg", "10.jpg", "clip.mp4"])
       expect(first.pages.map((page) => page.index)).toEqual([0, 1, 2, 3])
+      expect(first.pages.map((page) => page.thumbnailSource)).toEqual(first.pages.map((page) => ({
+        key: page.sourcePath,
+        category: "file",
+      })))
       expect(first.pages.map((page) => page.id)).toEqual(second.pages.map((page) => page.id))
       expect(first.pages.map((page) => page.mimeType)).toEqual([
         "image/avif",
@@ -73,6 +77,11 @@ describe("PlatformReaderBookLoader", () => {
     cleanupArchives.push(fixture)
     const book = await createPlatformReaderBookLoader()({ kind: "archive", path: fixture.path })
     expect(book.pages.map((page) => page.entryPath)).toEqual(["cover.avif", "pages/2.jpg", "pages/10.jpg"])
+    expect(book.pages.map((page) => page.thumbnailSource)).toEqual([
+      { key: `${fixture.path}::cover.avif#3`, category: "file" },
+      { key: `${fixture.path}::pages/2.jpg#1`, category: "file" },
+      { key: `${fixture.path}::pages/10.jpg#0`, category: "file" },
+    ])
     const page = book.pages[1]!
     const source = await page.content.load()
     expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(2))
@@ -90,6 +99,7 @@ describe("PlatformReaderBookLoader", () => {
     try {
       expect(book.pages).toHaveLength(1)
       expect(book.pages[0]).toMatchObject({ name: "standalone.jxl", mimeType: "image/jxl", byteLength: 3 })
+      expect(book.pages[0]!.thumbnailSource).toEqual({ key: path, category: "file" })
       const source = await book.pages[0]!.content.load()
       expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6))
       await source.close()
@@ -133,6 +143,7 @@ describe("PlatformReaderBookLoader", () => {
     })
     expect(book.displayName).toBe("deepest.cbz")
     expect(book.pages.map((page) => page.entryPath)).toEqual(["pages/2.jpg", "pages/10.jpg"])
+    expect(book.pages.every((page) => page.thumbnailSource === undefined)).toBe(true)
     const source = await book.pages[0]!.content.load()
     expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(2))
     await source.close()

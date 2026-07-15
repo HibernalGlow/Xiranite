@@ -28,6 +28,7 @@ export async function loadSingleFileBook(source: SingleFileSource, signal?: Abor
     index: 0,
     name,
     sourcePath: filePath,
+    thumbnailSource: { key: filePath, category: "file" },
     mediaKind: media.kind,
     mimeType: media.mimeType,
     byteLength: fileStats.size,

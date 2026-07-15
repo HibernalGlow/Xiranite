@@ -4,6 +4,7 @@ import {
   type LegacyThumbnailDatabaseReport,
 } from "./LegacyThumbnailDatabaseInspector.js"
 import { decodeLegacyThumbnailBlob, DEFAULT_MAX_THUMBNAIL_BYTES } from "./ThumbnailBlobCodec.js"
+import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 
 export type LegacyThumbnailCategory = "file" | "folder"
 
@@ -23,7 +24,7 @@ export interface ReadonlyLegacyThumbnailStoreOptions {
   decodeConcurrency?: number
 }
 
-export class ReadonlyLegacyThumbnailStore implements AsyncDisposable {
+export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, AsyncDisposable {
   readonly report: LegacyThumbnailDatabaseReport
   readonly #database: ReadonlySqliteConnection
   readonly #maxThumbnailBytes: number

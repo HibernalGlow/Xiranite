@@ -43,6 +43,7 @@ export function parseSevenZipSlt(output: string): SevenZipArchiveIndex {
     if (!directory && block) blocks.set(block, (blocks.get(block) ?? 0) + 1)
     entries.push({
       id: `sevenzip-${index}`,
+      sourceIndex: index,
       path,
       kind: directory ? "directory" : "file",
       uncompressedSize: size,

@@ -68,6 +68,52 @@ describe("ReaderAssetRoute", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.thumbnail.asset-route] serves opaque authenticated thumbnail URLs with HEAD and ETag", async () => {
+    const openSource = vi.fn(async () => { throw new Error("thumbnail route must not open original page bytes") })
+    const closeSource = vi.fn(async () => undefined)
+    const service = new CoreReaderService(async () => fixtureBook({
+      rangeSupported: false,
+      open: openSource,
+      close: closeSource,
+      [Symbol.asyncDispose]: closeSource,
+    }))
+    const session = await service.openViewSource({ kind: "path", path: "opaque" })
+    const get = vi.fn(async (key: string, category: "file" | "folder") => {
+      expect({ key, category }).toEqual({ key: "D:/private/page.jpg", category: "file" })
+      return { bytes: Uint8Array.of(0x52, 0x49, 0x46, 0x46), contentType: "image/webp", date: "2026-01-01", generationHash: 9 }
+    })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { thumbnailStore: { get } },
+    )
+    const url = route.thumbnailUrl(session.id, "page-1")!
+    expect(url).not.toContain("private")
+    expect(url).not.toContain(encodeURIComponent("D:/private/page.jpg"))
+    expect((await route.handle(new Request(url.replace("route-token", "wrong"))))?.status).toBe(401)
+    const stale = new URL(url)
+    stale.searchParams.set("version", "old")
+    expect((await route.handle(new Request(stale)))?.status).toBe(410)
+
+    const response = (await route.handle(new Request(url)))!
+    expect(response.status).toBe(200)
+    expect(response.headers.get("cache-control")).toBe("private, no-cache")
+    expect(response.headers.get("content-type")).toBe("image/webp")
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(Uint8Array.of(0x52, 0x49, 0x46, 0x46))
+    const head = (await route.handle(new Request(url, { method: "HEAD" })))!
+    expect(head.status).toBe(200)
+    expect(head.body).toBeNull()
+    const cached = (await route.handle(new Request(url, { headers: { "if-none-match": response.headers.get("etag")! } })))!
+    expect(cached.status).toBe(304)
+    get.mockResolvedValue({ bytes: Uint8Array.of(0x52, 0x49, 0x46, 0x47), contentType: "image/webp" })
+    const replaced = (await route.handle(new Request(url, { headers: { "if-none-match": response.headers.get("etag")! } })))!
+    expect(replaced.status).toBe(200)
+    expect(replaced.headers.get("etag")).not.toBe(response.headers.get("etag"))
+    expect(openSource).not.toHaveBeenCalled()
+    expect(get).toHaveBeenCalledTimes(4)
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.asset.archive-stream] sends ZIP entries without advertising decompressed ranges", async () => {
     const fixture = await createZipFixture()
     cleanupArchives.push(fixture)
@@ -372,6 +418,7 @@ function fixtureBook(source: PageSource): ReaderBook {
     index: 0,
     name: "page.jpg",
     sourcePath: "not-exposed",
+    thumbnailSource: { key: "D:/private/page.jpg", category: "file" },
     mediaKind: "image",
     mimeType: "image/jpeg",
     byteLength: 2,

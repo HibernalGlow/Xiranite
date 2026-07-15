@@ -15,6 +15,10 @@ export interface ReaderPage {
   name: string
   sourcePath: string
   entryPath?: string
+  thumbnailSource?: {
+    key: string
+    category: "file" | "folder"
+  }
   mediaKind: PageMediaKind
   mimeType?: string
   byteLength?: number
