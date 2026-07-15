@@ -94,6 +94,8 @@ export function ReaderApp({
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
   const viewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
+  const confirmedViewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
+  const viewDefaultsWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const viewDefaultsGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
@@ -117,6 +119,7 @@ export function ReaderApp({
     void clientRef.current.config(controller.signal).then((config) => {
       if (viewDefaultsGenerationRef.current === 0) {
         viewDefaultsRef.current = config.viewDefaults
+        confirmedViewDefaultsRef.current = config.viewDefaults
         setViewDefaults(config.viewDefaults)
       }
       setShell(config.shell)
@@ -216,24 +219,29 @@ export function ReaderApp({
   }
 
   async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
-    const previous = viewDefaultsRef.current
-    const next = { ...previous, ...patch }
+    const next = { ...viewDefaultsRef.current, ...patch }
     viewDefaultsRef.current = next
     setViewDefaults(next)
     const generation = ++viewDefaultsGenerationRef.current
-    try {
-      const updated = await clientRef.current.updateViewDefaults({ viewDefaults: patch })
-      if (generation === viewDefaultsGenerationRef.current) {
-        viewDefaultsRef.current = updated
-        setViewDefaults(updated)
+    const write = viewDefaultsWriteQueueRef.current.then(async () => {
+      try {
+        const updated = await clientRef.current.updateViewDefaults({ viewDefaults: patch })
+        confirmedViewDefaultsRef.current = updated
+        if (generation === viewDefaultsGenerationRef.current) {
+          viewDefaultsRef.current = updated
+          setViewDefaults(updated)
+        }
+      } catch (cause) {
+        if (generation === viewDefaultsGenerationRef.current) {
+          const confirmed = confirmedViewDefaultsRef.current
+          viewDefaultsRef.current = confirmed
+          setViewDefaults(confirmed)
+        }
+        setError(errorMessage(cause))
       }
-    } catch (cause) {
-      if (generation === viewDefaultsGenerationRef.current) {
-        viewDefaultsRef.current = previous
-        setViewDefaults(previous)
-      }
-      setError(errorMessage(cause))
-    }
+    })
+    viewDefaultsWriteQueueRef.current = write
+    await write
   }
 
   async function applyConfiguredViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {

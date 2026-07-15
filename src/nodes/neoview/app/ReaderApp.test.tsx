@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto, ReaderShellConfigDto } from "../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
 afterEach(cleanup)
@@ -113,6 +113,42 @@ describe("ReaderApp", () => {
     ))
     await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledWith({ viewDefaults: { pageMode: "double" } }))
     expect(document.querySelectorAll("[data-reader-page-image]")).toHaveLength(2)
+  })
+
+  it("[neoview.viewer.defaults-write-queue] serializes defaults written from independent controls", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    let finishFirstWrite!: (value: { fitMode: "original"; pageMode: "single" }) => void
+    const updateViewDefaults = vi.fn((patch: ReaderViewDefaultsPatch) => updateViewDefaults.mock.calls.length === 1
+      ? new Promise<{ fitMode: "original"; pageMode: "single" }>((resolve) => { finishFirstWrite = resolve })
+      : Promise.resolve({ fitMode: "original" as const, pageMode: patch.viewDefaults.pageMode ?? "single" as const }))
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => runtimeConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults,
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 1 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(async () => ({
+        frame: { ...opened.frame, layout: { ...opened.frame.layout, pageMode: "double" as const } },
+        visiblePages: opened.visiblePages,
+      })),
+      close: vi.fn(async () => undefined),
+    }
+
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.change(await screen.findByRole("combobox", { name: "缩放模式" }), { target: { value: "original" } })
+    await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("button", { name: "双页模式" }))
+    await waitFor(() => expect(client.updateSessionOptions).toHaveBeenCalledTimes(1))
+    expect(updateViewDefaults).toHaveBeenCalledTimes(1)
+
+    await act(async () => finishFirstWrite({ fitMode: "original", pageMode: "single" }))
+    await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledTimes(2))
+    expect(updateViewDefaults.mock.calls[1]?.[0]).toEqual({ viewDefaults: { pageMode: "double" } })
   })
 
   it("[neoview.react.open-cancel] closes a session that resolves after the reader unmounts", async () => {
