@@ -30,6 +30,13 @@ export interface NeoviewShellConfig {
   blur: { top: number; bottom: number; sidebar: number }
   edges: Record<"top" | "right" | "bottom" | "left", NeoviewShellEdgeConfig>
   sidebars: Record<"left" | "right", NeoviewShellSidebarConfig>
+  panelLayout: Record<string, NeoviewPanelLayout>
+}
+
+export interface NeoviewPanelLayout {
+  visible: boolean
+  order: number
+  position: "left" | "right" | "bottom" | "floating"
 }
 
 export interface NeoviewSidebarLayoutPatch {
@@ -55,6 +62,22 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   sidebars: {
     left: { width: 320, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
     right: { width: 280, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+  },
+  panelLayout: {
+    folder: { visible: true, order: 0, position: "left" },
+    history: { visible: true, order: 1, position: "left" },
+    bookmark: { visible: true, order: 2, position: "left" },
+    pageList: { visible: true, order: 3, position: "left" },
+    playlist: { visible: false, order: 4, position: "left" },
+    settings: { visible: true, order: 99, position: "left" },
+    info: { visible: true, order: 0, position: "right" },
+    properties: { visible: true, order: 1, position: "right" },
+    upscale: { visible: true, order: 2, position: "right" },
+    insights: { visible: true, order: 3, position: "right" },
+    control: { visible: true, order: 4, position: "right" },
+    ai: { visible: true, order: 5, position: "right" },
+    benchmark: { visible: false, order: 10, position: "right" },
+    cardwindow: { visible: false, order: 100, position: "floating" },
   },
 }
 
@@ -146,7 +169,28 @@ function parseShellOptions(panels: Record<string, unknown> | undefined): Neoview
       left: edgeConfig("left", optionalBoolean(panels.left_sidebar_visible, "left_sidebar_visible") ?? true, optionalBoolean(left?.open, "left.open") ?? true, optionalBoolean(left?.pinned, "left.pinned") ?? true, hover?.left_trigger_width),
     },
     sidebars: { left: sidebarConfig("left", left), right: sidebarConfig("right", right) },
+    panelLayout: parsePanelLayout(panels),
   }
+}
+
+function parsePanelLayout(panels: Record<string, unknown>): Record<string, NeoviewPanelLayout> {
+  const layout = optionalRecord(panels.layout, "[nodes.neoview.panels.layout]")
+  const source = optionalRecord(layout?.sidebarConfig, "[nodes.neoview.panels.layout.sidebarConfig]")
+    ?? layout
+  const values = source?.panels
+  const result: Record<string, NeoviewPanelLayout> = { ...DEFAULT_NEOVIEW_SHELL_CONFIG.panelLayout }
+  if (Array.isArray(values)) {
+    for (const value of values) {
+      if (!isRecord(value) || typeof value.id !== "string") continue
+      const id = value.id
+      result[id] = {
+        visible: optionalBoolean(value.visible, `${id}.visible`) ?? result[id]?.visible ?? true,
+        order: boundedNumber(value.order, 0, 10_000, result[id]?.order ?? 0, `${id}.order`),
+        position: optionalEnum(value.position, `${id}.position`, ["left", "right", "bottom", "floating"] as const) ?? result[id]?.position ?? "left",
+      }
+    }
+  }
+  return result
 }
 
 function edgeConfig(edge: string, enabled: boolean, initialVisible: boolean, pinned: boolean, trigger: unknown): NeoviewShellEdgeConfig {

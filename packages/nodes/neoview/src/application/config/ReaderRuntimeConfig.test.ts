@@ -115,4 +115,24 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewSidebarLayoutPatch({ side: "left", width: 199 })).toThrow("width")
     expect(() => parseNeoviewSidebarLayoutPatch({ side: "left", width: 320, token: "no" })).toThrow("unsupported")
   })
+
+  it("[neoview.settings.panel-layout] preserves unknown panels and normalizes legacy sidebarConfig arrays", () => {
+    const parsed = parseNeoviewRuntimeConfig({
+      panels: {
+        layout: {
+          sidebarConfig: {
+            panels: [
+              { id: "pageList", visible: false, order: 20, position: "left" },
+              { id: "futurePanel", visible: true, order: 1, position: "floating" },
+            ],
+          },
+        },
+      },
+    })
+    expect(parsed.shellOptions.panelLayout).toMatchObject({
+      pageList: { visible: false, order: 20, position: "left" },
+      futurePanel: { visible: true, order: 1, position: "floating" },
+      info: { visible: true, position: "right" },
+    })
+  })
 })

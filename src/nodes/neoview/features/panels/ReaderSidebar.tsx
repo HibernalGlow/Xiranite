@@ -36,7 +36,7 @@ export function ReaderSidebar({
   shell?: ReaderShellConfigDto
   onLayoutCommit?(patch: ReaderSidebarLayoutPatch): void
 }) {
-  const panels = availablePanels(side)
+  const panels = availablePanels(side, shell)
   const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]

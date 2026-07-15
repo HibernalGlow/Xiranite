@@ -64,11 +64,17 @@ describe("loadNeoviewSessionOptions", () => {
       "[nodes.neoview.panels.sidebars.left]",
       "width = 444",
       "height = \"half\"",
+      "[[nodes.neoview.panels.layout.sidebarConfig.panels]]",
+      "id = \"pageList\"",
+      "visible = false",
+      "order = 17",
+      "position = \"left\"",
     ].join("\n"), "utf8")
     expect((await loadNeoviewRuntimeConfig({ configPath })).shellOptions).toMatchObject({
       opacity: { sidebar: 70 },
       edges: { left: { enabled: true, triggerSize: 9 } },
       sidebars: { left: { width: 444, height: "half" } },
+      panelLayout: { pageList: { visible: false, order: 17, position: "left" } },
     })
   })
 

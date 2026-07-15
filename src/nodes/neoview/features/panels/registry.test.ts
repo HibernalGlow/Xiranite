@@ -27,4 +27,25 @@ describe("NeoView panel and card registries", () => {
       { id: "future-plugin-panel", position: "right", visible: false, definition: undefined, unknown: true },
     ])
   })
+
+  it("[neoview.shell.registry-config] applies visible/order config without touching lazy loaders", () => {
+    expect(availablePanels("left", {
+      panelLayout: {
+        pageList: { visible: false, order: 20, position: "left" },
+        folder: { visible: true, order: 0, position: "left" },
+      },
+    } as never).map((panel) => panel.id)).toEqual([])
+    expect(availablePanels("right", {
+      panelLayout: {
+        info: { visible: true, order: 10, position: "right" },
+        properties: { visible: true, order: 1, position: "right" },
+      },
+    } as never).map((panel) => panel.id)).toEqual(["info"])
+    expect(availablePanels("left", {
+      panelLayout: {
+        pageList: { visible: false, order: 20, position: "left" },
+        info: { visible: true, order: 0, position: "left" },
+      },
+    } as never).map((panel) => panel.id)).toEqual(["info"])
+  })
 })

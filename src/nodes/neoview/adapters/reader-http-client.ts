@@ -39,6 +39,7 @@ export interface ReaderShellConfigDto {
   blur: { top: number; bottom: number; sidebar: number }
   edges: Record<"top" | "right" | "bottom" | "left", { enabled: boolean; initialVisible: boolean; pinned: boolean; triggerSize: number }>
   sidebars: Record<"left" | "right", { width: number; height: "full" | "two-thirds" | "half" | "one-third" | "custom"; customHeight: number; verticalAlign: number; horizontalPosition: number }>
+  panelLayout: Record<string, { visible: boolean; order: number; position: "left" | "right" | "bottom" | "floating" }>
 }
 
 export interface ReaderSidebarLayoutPatch {

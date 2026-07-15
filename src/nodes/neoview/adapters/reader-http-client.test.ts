@@ -10,7 +10,7 @@ describe("reader-http-client", () => {
   it("[neoview.react.control] sends token-authenticated open, navigation and close requests", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(request)
-      if (url.endsWith("/reader/config")) return Response.json({ shell: { showDelayMs: 0 } })
+      if (url.endsWith("/reader/config")) return Response.json({ shell: { showDelayMs: 0, panelLayout: {} } })
       if (url.endsWith("/reader/sessions")) return Response.json({ sessionId: "reader-1" })
       if (url.includes("/pages?")) return Response.json({ pages: [], total: 2 })
       if (url.endsWith("/navigate")) return Response.json({ frame: {}, visiblePages: [] })
@@ -19,8 +19,8 @@ describe("reader-http-client", () => {
     vi.stubGlobal("fetch", fetchMock)
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
 
-    expect(await client.config()).toEqual({ showDelayMs: 0 })
-    expect(await client.updateSidebarLayout({ side: "left", width: 360 })).toEqual({ showDelayMs: 0 })
+    expect(await client.config()).toEqual({ showDelayMs: 0, panelLayout: {} })
+    expect(await client.updateSidebarLayout({ side: "left", width: 360 })).toEqual({ showDelayMs: 0, panelLayout: {} })
     await client.open("D:/books/demo.cbz")
     await client.listPages("reader-1", 64, 32)
     await client.navigate("reader-1", "next")

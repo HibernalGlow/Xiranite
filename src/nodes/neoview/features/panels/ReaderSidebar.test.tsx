@@ -59,6 +59,10 @@ function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "ful
       left: { width: 320, height, customHeight: 50, verticalAlign: 0, horizontalPosition: 0 },
       right: { width: 280, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
     },
+    panelLayout: {
+      pageList: { visible: true, order: 3, position: "left" },
+      info: { visible: true, order: 0, position: "right" },
+    },
   }
 }
 

@@ -172,5 +172,9 @@ function shellConfig(): ReaderShellConfigDto {
       left: { width: 320, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
       right: { width: 280, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
     },
+    panelLayout: {
+      pageList: { visible: true, order: 3, position: "left" },
+      info: { visible: true, order: 0, position: "right" },
+    },
   }
 }
