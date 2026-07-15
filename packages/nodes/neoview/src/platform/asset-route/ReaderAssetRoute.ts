@@ -49,6 +49,8 @@ export class ReaderAssetRoute {
   readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   #imageTransformer?: Promise<ImageTransformer>
+  #workController = new AbortController()
+  #presentationEpoch = 0
   #closed = false
 
   constructor(
@@ -217,13 +219,24 @@ export class ReaderAssetRoute {
   }
 
   clearPresentationCache(): void {
+    this.#presentationEpoch += 1
     this.#presentationCache?.clear()
   }
 
+  hibernate(): { thumbnailEntries: number; thumbnailBytes: number } {
+    const activeController = this.#workController
+    this.#workController = new AbortController()
+    activeController.abort(abortError("Reader assets hibernated."))
+    this.clearPresentationCache()
+    const evicted = this.#thumbnailPipeline?.hibernateReader() ?? { entries: 0, bytes: 0 }
+    return { thumbnailEntries: evicted.entries, thumbnailBytes: evicted.bytes }
+  }
+
   close(): void {
+    if (this.#closed) return
+    this.hibernate()
     this.#closed = true
     if (this.#ownsThumbnailPipeline) void this.#thumbnailPipeline?.dispose()
-    this.clearPresentationCache()
   }
 
   async #respondOriginal(request: Request, page: ReaderPage, source: PageSource): Promise<Response> {
@@ -272,6 +285,8 @@ export class ReaderAssetRoute {
     page: ReaderPage,
     transform: ImageTransformRequest,
   ): Promise<Response> {
+    const workSignal = AbortSignal.any([request.signal, this.#workController.signal])
+    workSignal.throwIfAborted()
     const transformKey = imageTransformCacheKey(transform)
     const etag = pageEtag(page, transformKey)
     const cacheKey = `${etag}:sharp-0.34.5`
@@ -290,13 +305,14 @@ export class ReaderAssetRoute {
     if (cached) return cachedPresentationResponse(cached, headers)
     const active = this.#transformFlights.get(cacheKey)
     if (active) {
-      const shared = await waitForSharedTransform(active, request.signal)
+      const shared = await waitForSharedTransform(active, workSignal)
       if (shared) return cachedPresentationResponse(shared, headers)
-      request.signal.throwIfAborted()
+      workSignal.throwIfAborted()
       return this.#respondTransformed(request, page, transform)
     }
 
     let settleFlight: ((value: CachedPresentation | undefined) => void) | undefined
+    const presentationEpoch = this.#presentationEpoch
     if (this.#presentationCache) {
       const completion = new Promise<CachedPresentation | undefined>((resolve) => { settleFlight = resolve })
       this.#transformFlights.set(cacheKey, completion)
@@ -304,11 +320,11 @@ export class ReaderAssetRoute {
 
     let source: PageSource | undefined
     try {
-      source = await page.content.load(request.signal)
-      const input = await source.open(request.signal)
+      source = await page.content.load(workSignal)
+      const input = await source.open(workSignal)
       const transformer = await this.#getImageTransformer()
-      request.signal.throwIfAborted()
-      const result = await transformer.transform(input, transform, request.signal)
+      workSignal.throwIfAborted()
+      const result = await transformer.transform(input, transform, workSignal)
       const expectedContentType = imageTransformContentType(transform.format)
       if (result.contentType !== expectedContentType) {
         await result.stream.cancel("unexpected image transform content type").catch(() => undefined)
@@ -320,7 +336,8 @@ export class ReaderAssetRoute {
       const [responseStream, cacheStream] = result.stream.tee()
       const cacheCompletion = collectPresentation(cacheStream, this.#presentationCache.maxEntryBytes, expectedContentType)
         .then((presentation) => {
-          if (presentation && (this.#closed || !this.#presentationCache!.set(cacheKey, presentation))) {
+          if (presentation && (this.#closed || presentationEpoch !== this.#presentationEpoch
+            || !this.#presentationCache!.set(cacheKey, presentation))) {
             presentation = undefined
           }
           this.#transformFlights.delete(cacheKey)
@@ -529,6 +546,10 @@ function safeDecode(value: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function abortError(message: string): DOMException {
+  return new DOMException(message, "AbortError")
 }
 
 function textResponse(body: string, status: number, headers?: Headers): Response {

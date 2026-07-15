@@ -24,6 +24,10 @@ export class CoreReaderService implements ReaderService {
     }
   }
 
+  get sessionCount(): number {
+    return this.#sessions.size
+  }
+
   async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {
     this.#assertOpen()
     options.signal?.throwIfAborted()

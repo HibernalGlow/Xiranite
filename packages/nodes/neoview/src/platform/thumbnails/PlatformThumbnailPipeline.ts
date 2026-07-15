@@ -253,6 +253,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     return this.#coordinator.snapshot()
   }
 
+  hibernateReader(): { entries: number; bytes: number } {
+    return this.#coordinator.evictUnpinned((key) => key.endsWith(":page-strip-v1"))
+  }
+
   async dispose(): Promise<void> {
     await this.#coordinator.dispose()
   }

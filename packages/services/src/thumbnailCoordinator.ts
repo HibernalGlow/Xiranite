@@ -42,6 +42,11 @@ export interface ThumbnailCoordinatorSnapshot {
   demandsByLane: Readonly<Record<ThumbnailLane, number>>
 }
 
+export interface ThumbnailEvictionResult {
+  entries: number
+  bytes: number
+}
+
 interface CacheEntry {
   asset: ThumbnailAsset
   bytes: number
@@ -224,6 +229,19 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       cachedBytes: this.#cachedBytes,
       demandsByLane,
     }
+  }
+
+  evictUnpinned(matches: (cacheKey: string) => boolean = () => true): ThumbnailEvictionResult {
+    this.#assertOpen()
+    let entries = 0
+    let bytes = 0
+    for (const [key, entry] of this.#cache) {
+      if (entry.pins > 0 || !matches(key)) continue
+      entries += 1
+      bytes += entry.bytes
+      this.#deleteCacheEntry(key, entry)
+    }
+    return { entries, bytes }
   }
 
   async dispose(): Promise<void> {

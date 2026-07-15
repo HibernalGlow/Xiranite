@@ -488,6 +488,49 @@ describe("ReaderAssetRoute", () => {
     expect((await route.handle(new Request(url)))?.status).toBe(410)
     await service[Symbol.asyncDispose]()
   })
+
+  it("[neoview.cache.hibernate] aborts old transforms, clears memory and accepts work after resume", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    let firstSignal: AbortSignal | undefined
+    const cache = new WeightedLruPresentationCache({ maxBytes: 16, maxEntryBytes: 8 })
+    cache.set("seed", { bytes: Uint8Array.of(1, 2), contentType: "image/webp" })
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input, _request, signal) => {
+      await input.cancel("fixture transformed")
+      if (transform.mock.calls.length === 1) {
+        firstSignal = signal
+        return {
+          stream: new ReadableStream({
+            start(controller) {
+              signal?.addEventListener("abort", () => controller.error(signal.reason), { once: true })
+            },
+          }),
+          contentType: "image/webp",
+        }
+      }
+      return {
+        stream: new ReadableStream({ start(controller) { controller.enqueue(Uint8Array.of(7, 8)); controller.close() } }),
+        contentType: "image/webp",
+      }
+    })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { presentationCache: cache, loadImageTransformer: async () => ({ transform }) },
+    )
+    const url = new URL(route.pageUrl(session.id, session.book.pages[0]!.id))
+    url.searchParams.set("width", "100")
+    const staleResponse = (await route.handle(new Request(url)))!
+
+    expect(route.hibernate()).toEqual({ thumbnailEntries: 0, thumbnailBytes: 0 })
+    expect(firstSignal?.aborted).toBe(true)
+    await expect(staleResponse.arrayBuffer()).rejects.toMatchObject({ name: "AbortError" })
+    expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0 })
+
+    const resumed = (await route.handle(new Request(url)))!
+    expect(new Uint8Array(await resumed.arrayBuffer())).toEqual(Uint8Array.of(7, 8))
+    expect(transform).toHaveBeenCalledTimes(2)
+    await service[Symbol.asyncDispose]()
+  })
 })
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {

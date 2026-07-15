@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
+import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 
 const cleanupDirectories: string[] = []
@@ -154,6 +155,45 @@ describe("ReaderHttpController", () => {
     expect((await maintenance.json() as { snapshot: { totalRows: number } }).snapshot.totalRows).toBe(1)
     expect(maintenanceSnapshot).toHaveBeenCalledOnce()
     expect(disposeThumbnailStore).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.session.hibernate] releases reader caches only after the last session closes", async () => {
+    const directory = await createBookDirectory()
+    const hibernate = vi.spyOn(ReaderAssetRoute.prototype, "hibernate")
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      const first = await (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!.json() as ReaderSessionDto
+      const second = await (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!.json() as ReaderSessionDto
+
+      expect((await controller.handle(authorizedRequest(`/reader/s/${first.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      expect(hibernate).not.toHaveBeenCalled()
+      expect((await controller.handle(authorizedRequest(`/reader/s/${second.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      expect(hibernate).toHaveBeenCalledOnce()
+    } finally {
+      await controller[Symbol.asyncDispose]()
+      hibernate.mockRestore()
+    }
+  })
+
+  it("[neoview.session.hibernate-concurrent] coalesces concurrent last-session idle checks", async () => {
+    const directory = await createBookDirectory()
+    const hibernate = vi.spyOn(ReaderAssetRoute.prototype, "hibernate")
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      const first = await (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!.json() as ReaderSessionDto
+      const second = await (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!.json() as ReaderSessionDto
+
+      const responses = await Promise.all([
+        controller.handle(authorizedRequest(`/reader/s/${first.sessionId}`, { method: "DELETE" })),
+        controller.handle(authorizedRequest(`/reader/s/${second.sessionId}`, { method: "DELETE" })),
+      ])
+
+      expect(responses.map((response) => response?.status)).toEqual([204, 204])
+      expect(hibernate).toHaveBeenCalledOnce()
+    } finally {
+      await controller[Symbol.asyncDispose]()
+      hibernate.mockRestore()
+    }
   })
 
   it("[neoview.thumbnail.video.http] serves a video page thumbnail through the opaque session URL", async () => {

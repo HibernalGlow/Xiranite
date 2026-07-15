@@ -124,6 +124,25 @@ describe("ThumbnailCoordinatorService", () => {
     await coordinator.dispose()
   })
 
+  it("[neoview.thumbnail.coordinator.hibernate] evicts matching unpinned entries without disturbing active leases", async () => {
+    const coordinator = new ThumbnailCoordinatorService<string>({
+      resolver: { resolve: async (request) => asset(6, request.source === "page" ? 1 : 2) },
+      maxMemoryBytes: 32,
+      maxEntryBytes: 16,
+    })
+    const page = coordinator.acquire(demand("page:page-strip-v1", "page"))
+    const library = coordinator.acquire(demand("file:library-cover-v1", "library", { contextId: "library" }))
+    await Promise.all([page.ready, library.ready])
+    library.release()
+
+    expect(coordinator.evictUnpinned((key) => key.endsWith("page-strip-v1"))).toEqual({ entries: 0, bytes: 0 })
+    page.release()
+    expect(coordinator.evictUnpinned((key) => key.endsWith("page-strip-v1"))).toEqual({ entries: 1, bytes: 6 })
+    expect(coordinator.snapshot()).toMatchObject({ cachedEntries: 1, cachedBytes: 6 })
+
+    await coordinator.dispose()
+  })
+
   it("maps thumbnail lanes onto the shared scheduler priorities", () => {
     expect(thumbnailLanePriority("reader-visible")).toBe("interactive")
     expect(thumbnailLanePriority("library-visible")).toBe("view")

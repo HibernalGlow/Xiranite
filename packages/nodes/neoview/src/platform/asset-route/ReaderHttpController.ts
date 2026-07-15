@@ -88,6 +88,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
+  #hibernateCheck?: Promise<void>
 
   constructor(options: ReaderHttpControllerOptions) {
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -381,7 +382,19 @@ export class ReaderHttpController implements AsyncDisposable {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     await this.#service.closeSession(session.id)
+    await this.#hibernateIfIdle()
     return new Response(null, { status: 204 })
+  }
+
+  #hibernateIfIdle(): Promise<void> {
+    if (this.#hibernateCheck) return this.#hibernateCheck
+    const pending = Promise.resolve().then(() => {
+      if (this.#service.sessionCount === 0) this.#assets.hibernate()
+    }).finally(() => {
+      if (this.#hibernateCheck === pending) this.#hibernateCheck = undefined
+    })
+    this.#hibernateCheck = pending
+    return pending
   }
 
   #sessionDto(session: ReaderSession): ReaderSessionDto {
