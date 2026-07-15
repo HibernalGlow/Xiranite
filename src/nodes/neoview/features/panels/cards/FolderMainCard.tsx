@@ -7,8 +7,8 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, List, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Star, Unlock } from "lucide-react"
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, List, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Star, TableProperties, Unlock } from "lucide-react"
+import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -64,8 +64,10 @@ const SORT_SOURCE_LABELS: Record<ReaderDirectorySortSourceDto, string> = {
   "global-default": "全局默认",
 }
 
-type FolderViewMode = "compact" | "cover-list" | "mosaic-list" | "cover-grid" | "mosaic-grid"
+type FolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
 type FolderPreviewCount = 4 | 9 | 16
+
+const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 
 interface SavedDirectoryState {
   viewMode: FolderViewMode
@@ -161,7 +163,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     if (!catalog || !restoreState) return
     const index = Math.min(Math.max(restoreState.focusedIndex ?? restoreState.anchorIndex, 0), Math.max(0, catalog.total - 1))
     requestRange({ startIndex: index, endIndex: index })
-    if (!viewUsesGrid(viewMode) && !restoreState.listSnapshot) {
+    if (viewUsesVirtuosoList(viewMode) && !restoreState.listSnapshot) {
       queueMicrotask(() => listRef.current?.scrollToIndex({ index, align: "center" }))
     } else if (viewUsesGrid(viewMode) && !restoreState.gridSnapshot) {
       queueMicrotask(() => gridRef.current?.scrollToIndex({ index, align: "center" }))
@@ -345,7 +347,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
       gridSnapshot: viewUsesGrid(viewMode) ? gridSnapshotRef.current : undefined,
     }
     rememberState(current.path, state)
-    if (!viewUsesGrid(viewMode)) {
+    if (viewUsesVirtuosoList(viewMode)) {
       listRef.current?.getState((snapshot) => {
         const latest = historyStatesRef.current.get(current.path)
         if (latest) rememberState(current.path, { ...latest, listSnapshot: snapshot })
@@ -483,6 +485,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
             <ToggleGroupItem value="compact" aria-label="紧凑列表" title="紧凑列表"><List /></ToggleGroupItem>
             <ToggleGroupItem value="cover-list" aria-label="封面列表" title="封面列表"><Rows3 /></ToggleGroupItem>
             <ToggleGroupItem value="mosaic-list" aria-label="多图列表" title="多图列表"><GalleryHorizontalEnd /></ToggleGroupItem>
+            <ToggleGroupItem value="details" aria-label="详细信息" title="详细信息"><TableProperties /></ToggleGroupItem>
             <ToggleGroupItem value="cover-grid" aria-label="封面网格" title="封面网格"><Grid2X2 /></ToggleGroupItem>
             <ToggleGroupItem value="mosaic-grid" aria-label="多图网格" title="多图网格"><PanelsTopLeft /></ToggleGroupItem>
           </ToggleGroup>
@@ -560,7 +563,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
       </div>
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div className="min-h-32 overflow-hidden rounded border bg-background/60" data-neoview-folder-list="true">
-        {catalog && !viewUsesGrid(viewMode) ? (
+        {catalog && viewUsesVirtuosoList(viewMode) ? (
           <Virtuoso
             key={virtualKey}
             ref={listRef}
@@ -590,6 +593,20 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
               )
             }}
           />
+        ) : null}
+        {catalog && viewMode === "details" ? (
+          <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
+            <FolderDetailsView
+              key={virtualKey}
+              catalog={catalog}
+              disabled={disabled}
+              selectedPaths={selectedPaths}
+              initialIndex={restoreState?.viewMode === "details" ? restoreState.focusedIndex ?? restoreState.anchorIndex : undefined}
+              onRangeChange={requestRange}
+              onSelect={selectEntry}
+              onActivate={activate}
+            />
+          </Suspense>
         ) : null}
         {catalog && viewUsesGrid(viewMode) ? (
           <VirtuosoGrid
@@ -752,5 +769,9 @@ function viewUsesMosaic(mode: FolderViewMode): boolean {
 }
 
 function viewUsesThumbnails(mode: FolderViewMode): boolean {
-  return mode !== "compact"
+  return mode === "cover-list" || mode === "mosaic-list" || mode === "cover-grid" || mode === "mosaic-grid"
+}
+
+function viewUsesVirtuosoList(mode: FolderViewMode): boolean {
+  return mode === "compact" || mode === "cover-list" || mode === "mosaic-list"
 }

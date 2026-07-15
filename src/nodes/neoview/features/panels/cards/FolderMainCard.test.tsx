@@ -175,6 +175,28 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(currentView.getByTitle("评分 4.8")).toBeTruthy())
     expect(currentView.getByTitle("收藏标签 3")).toBeTruthy()
   })
+
+  it("[neoview.folder.details-lazy] loads the sparse Niko view only after explicit activation", async () => {
+    const opened = page({
+      total: 1,
+      entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true, size: 1024 }],
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    await waitFor(() => expect(currentView.getByLabelText("详细信息")).toBeTruthy())
+    expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeNull()
+    fireEvent.click(currentView.getByLabelText("详细信息"))
+    await waitFor(() => expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy())
+    expect(currentView.getByText("扩展名")).toBeTruthy()
+  })
 })
 
 function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDto {

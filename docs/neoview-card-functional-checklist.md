@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=27`，`pending=47`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=28`，`pending=46`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### architecture（5）
 
@@ -118,13 +118,13 @@
 - [ ] `folder.view.modes` list/content/banner/thumbnail 四种原版视图
   - 目标：完整保留 list、content、banner、thumbnail 的信息密度、缩略图位置、选中/hover/focus 表现；目标内部可用更清晰的 mode 名。
   - 源码：`components/FolderList.svelte`、`components/FolderListItem.svelte`、`components/FolderToolbar/ViewModeButtons.svelte`
-  - 测试：`neoview.folder.view-compact`、`neoview.folder.view-cover-list`、`neoview.folder.view-mosaic-list`、`neoview.folder.view-cover-grid`、`neoview.folder.view-mosaic-grid`
-  - 备注：当前已提供 compact、cover-list、mosaic-list、cover-grid、mosaic-grid 五种内部模式，并复用同一 catalog/selection/focus/sort/EMM 状态；仍需完成原版 list/content/banner/thumbnail 的逐项视觉、设置持久化与 details 验收。
+  - 测试：`neoview.folder.view-compact`、`neoview.folder.view-cover-list`、`neoview.folder.view-mosaic-list`、`neoview.folder.view-details`、`neoview.folder.view-cover-grid`、`neoview.folder.view-mosaic-grid`
+  - 备注：当前已提供 compact、cover-list、mosaic-list、details、cover-grid、mosaic-grid 六种内部模式，并复用同一 catalog/selection/focus/sort/EMM 状态；仍需完成原版 list/content/banner/thumbnail 的逐项视觉与设置持久化验收。
 - [ ] `folder.view.details` 详细信息视图与列
   - 目标：显示名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分和标签信息；列宽/截断/tooltip 与原版一致。
   - 源码：`components/FolderListItem.svelte`、`stores/folderPanelStore/types.ts`
-  - 测试：待补
-  - 备注：GUI 优先扩展现有 Niko Table，不引入第二套表格体系。
+  - 测试：`neoview.folder.details-lazy`、`neoview.folder.details-niko-sparse`
+  - 备注：已扩展现有 Niko Table 虚拟体支持 totalCount + 全局索引到已加载 row ID 的稀疏远端模式；10K 总量测试只向 TanStack 提交 2 条实体，并提供名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分、标签十列。Niko 仅在切换 details 后二级动态加载。尺寸、页数与完整标签的后端批量 hydration、列设置持久化、真实 Chromium 滚动/定位和原版视觉证据仍待完成。
 - [ ] `folder.view.thumbnail-size` 缩略图宽度调节
   - 目标：连续调节缩略图宽度并持久化；调整时虚拟布局重测但不丢失锚点和选中项。
   - 源码：`components/FolderToolbar/ViewPanel.svelte`、`stores/folderTabStore/layoutSettings.svelte.ts`

@@ -243,6 +243,7 @@ interface VirtualizedBodyRowProps<TData> {
   isClickable: boolean
   measureRef: ((node: HTMLTableRowElement | null) => void) | undefined
   onClick: (event: React.MouseEvent<HTMLElement>) => void
+  onDoubleClick?: (event: React.MouseEvent<HTMLElement>) => void
   /** Column layout signature — invalidates React.memo on visibility/order/pinning change. */
   columnLayoutSignature: string
   /**
@@ -267,6 +268,7 @@ const VirtualizedBodyRowInner = function VirtualizedBodyRow<TData>({
   isClickable,
   measureRef,
   onClick,
+  onDoubleClick,
   columnLayoutSignature,
   rowMemoKey,
   renderRowContextMenu,
@@ -304,6 +306,7 @@ const VirtualizedBodyRowInner = function VirtualizedBodyRow<TData>({
       data-row-id={row.id}
       data-state={isSelected ? "selected" : undefined}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       className={cn(
         "group data-[context-menu-open]:bg-muted/50",
         isClickable && "cursor-pointer",
@@ -412,6 +415,21 @@ export interface DataTableVirtualizedBodyProps<TData> {
    * needing the row element can `event.target.closest("tr[data-row-id]")`.
    */
   onRowClick?: (row: TData, event: React.MouseEvent<HTMLElement>) => void
+  onRowDoubleClick?: (row: TData, event: React.MouseEvent<HTMLElement>) => void
+  /**
+   * Optional sparse/server-side row count. When provided, the virtual scroll
+   * range uses this count while TanStack only owns rows that are currently
+   * loaded. Pair with `getVirtualRowId` and `onRangeChange`.
+   */
+  totalCount?: number
+  /** Resolve a global virtual index to a loaded TanStack row id. */
+  getVirtualRowId?: (index: number) => string | undefined
+  /** Fires when the rendered virtual window changes. */
+  onRangeChange?: (range: { startIndex: number; endIndex: number }) => void
+  /** Global row index to reveal when the sparse body first mounts. */
+  initialIndex?: number
+  /** Stable first-render viewport height for SSR and layout-free hosts. */
+  initialViewportHeight?: number
   /**
    * Return a per-row memo invalidation key. When the returned string changes
    * for a specific row, React.memo re-renders that row even if TanStack Table
@@ -442,6 +460,7 @@ export function DataTableVirtualizedBody<TData>({
   className,
   onScroll,
   onRowClick,
+  onRowDoubleClick,
   onScrolledTop,
   onScrolledBottom,
   scrollThreshold = 50,
@@ -449,9 +468,16 @@ export function DataTableVirtualizedBody<TData>({
   prefetchThreshold = 10,
   getRowMemoKey,
   renderRowContextMenu,
+  totalCount,
+  getVirtualRowId,
+  onRangeChange,
+  initialIndex,
+  initialViewportHeight,
 }: DataTableVirtualizedBodyProps<TData>) {
   const { table, columns } = useDataTable()
-  const { rows } = table.getRowModel()
+  const rowModel = table.getRowModel()
+  const { rows } = rowModel
+  const virtualCount = totalCount ?? rows.length
 
   // Hoist expand-column lookup above the virtualizer loop (was O(virtual_rows × cols) per frame).
   const expandColumnId = React.useMemo(
@@ -597,12 +623,13 @@ export function DataTableVirtualizedBody<TData>({
   })
 
   const rowVirtualizer = useVirtualizer({
-    count: rows.length,
+    count: virtualCount,
     getScrollElement: () => scrollElement,
     estimateSize: () => estimateSize,
     overscan,
-    enabled: !!scrollElement,
+    enabled: !!scrollElement || initialViewportHeight !== undefined,
     measureElement,
+    initialRect: initialViewportHeight === undefined ? undefined : { width: 0, height: initialViewportHeight },
   })
 
   // Passive scroll listener — shared `createScrollHandler` across all body variants.
@@ -628,6 +655,24 @@ export function DataTableVirtualizedBody<TData>({
 
   const virtualItems = rowVirtualizer.getVirtualItems()
   const hasVirtualItems = virtualItems.length > 0
+  const firstVirtualIndex = hasVirtualItems ? virtualItems[0]!.index : -1
+  const lastVirtualIndex = hasVirtualItems ? virtualItems[virtualItems.length - 1]!.index : -1
+  const onRangeChangeRef = React.useRef(onRangeChange)
+  onRangeChangeRef.current = onRangeChange
+
+  React.useEffect(() => {
+    if (firstVirtualIndex < 0 || lastVirtualIndex < 0) return
+    onRangeChangeRef.current?.({ startIndex: firstVirtualIndex, endIndex: lastVirtualIndex })
+  }, [firstVirtualIndex, lastVirtualIndex])
+
+  const appliedInitialIndexRef = React.useRef<number | undefined>(undefined)
+  React.useEffect(() => {
+    if (!scrollElement || initialIndex === undefined || virtualCount <= 0) return
+    const normalized = Math.min(Math.max(0, initialIndex), virtualCount - 1)
+    if (appliedInitialIndexRef.current === normalized) return
+    appliedInitialIndexRef.current = normalized
+    rowVirtualizer.scrollToIndex(normalized, { align: "center" })
+  }, [initialIndex, rowVirtualizer, scrollElement, virtualCount])
 
   // Calculate spacer heights for virtual scrolling
   const topSpacerHeight = hasVirtualItems ? virtualItems[0].start : 0
@@ -643,9 +688,9 @@ export function DataTableVirtualizedBody<TData>({
   // scroll-event-based triggers miss.
   const isNearEnd =
     onNearEnd !== undefined &&
-    rows.length > 0 &&
+    virtualCount > 0 &&
     lastItem !== null &&
-    lastItem.index >= rows.length - 1 - prefetchThreshold
+    lastItem.index >= virtualCount - 1 - prefetchThreshold
 
   const wasNearEndRef = React.useRef(false)
   React.useEffect(() => {
@@ -675,6 +720,18 @@ export function DataTableVirtualizedBody<TData>({
     [onRowClick, table],
   )
 
+  const handleRowDoubleClick = React.useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if (!onRowDoubleClick) return
+      if (isInteractiveClickTarget(event.target as HTMLElement)) return
+      const rowId = event.currentTarget.dataset.rowId
+      if (rowId == null) return
+      const row = rowModel.rowsById[rowId]
+      if (row) onRowDoubleClick(row.original as TData, event)
+    },
+    [onRowDoubleClick, rowModel.rowsById],
+  )
+
   // Stable wrapper around the virtualizer's measure callback. The
   // virtualizer recreates its `measureElement` on every render, which
   // would invalidate `React.memo` on the row component if passed
@@ -689,7 +746,7 @@ export function DataTableVirtualizedBody<TData>({
     [],
   )
 
-  const isClickable = !!onRowClick
+  const isClickable = !!onRowClick || !!onRowDoubleClick
   const visibleColumnCount = table.getVisibleLeafColumns().length
 
   // Composable path: the per-row menu may come from the `renderRowContextMenu`
@@ -717,8 +774,17 @@ export function DataTableVirtualizedBody<TData>({
 
       {/* Render visible rows */}
       {virtualItems.map(virtualRow => {
-        const row = rows[virtualRow.index]
-        if (!row) return null
+        const rowId = getVirtualRowId?.(virtualRow.index)
+        const row = rowId === undefined ? rows[virtualRow.index] : rowModel.rowsById[rowId]
+        if (!row) {
+          return (
+            <TableRow key={`sparse-placeholder:${virtualRow.index}`} data-index={virtualRow.index} data-sparse-placeholder="true" aria-hidden>
+              <TableCell colSpan={visibleColumnCount} className="p-2" style={{ height: `${estimateSize}px` }}>
+                <Skeleton className="h-4 w-full" />
+              </TableCell>
+            </TableRow>
+          )
+        }
         const isExpanded = row.getIsExpanded()
 
         // Composite key forces a remount on expansion toggle so
@@ -736,6 +802,7 @@ export function DataTableVirtualizedBody<TData>({
             isClickable={isClickable}
             measureRef={columnsLocked ? stableMeasureElement : undefined}
             onClick={handleRowClick}
+            onDoubleClick={onRowDoubleClick ? handleRowDoubleClick : undefined}
             columnLayoutSignature={columnLayoutSignature}
             rowMemoKey={
               getRowMemoKey ? getRowMemoKey(row.original as TData) : ""

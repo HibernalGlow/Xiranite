@@ -105,6 +105,10 @@ export interface ReaderDirectoryEntryDto {
   size?: number
   rating?: number
   collectTagCount?: number
+  width?: number
+  height?: number
+  pageCount?: number
+  tags?: readonly string[]
 }
 
 export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "path" | "collectTagCount"
