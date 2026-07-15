@@ -61,6 +61,11 @@ test.beforeAll(async () => {
     "[nodes.neoview.reader]",
     "default_zoom_mode = \"fitHeight\"",
     "double_page_view = false",
+    "[nodes.neoview.slideshow]",
+    "interval_seconds = 7",
+    "loop = false",
+    "random = true",
+    "fade_transition = false",
     "[nodes.neoview.panels]",
     "left_sidebar_visible = true",
     "right_sidebar_visible = true",
@@ -446,6 +451,42 @@ test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide"
   await expect(leftSidebar).toBeVisible()
   await expect(leftEdge).toHaveAttribute("data-pinned", "false")
   await expect(leftSidebar.getByRole("button", { name: "固定左侧栏" })).toBeVisible()
+})
+
+test("[neoview.slideshow.config-e2e] loads and persists slideshow controls", async ({ page }) => {
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.__XIRANITE_BACKEND__ = { baseUrl, token }
+  }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+
+  const interval = page.getByRole("spinbutton", { name: "幻灯片间隔" })
+  await expect(interval).toHaveValue("7")
+  await expect(page.getByRole("button", { name: "随机播放" })).toHaveAttribute("aria-pressed", "true")
+  await expect(page.getByRole("button", { name: "循环播放" })).toHaveAttribute("aria-pressed", "false")
+
+  const intervalResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"intervalSeconds":9') === true
+  ))
+  await interval.fill("9")
+  expect((await intervalResponse).status()).toBe(200)
+
+  const loopResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"loop":true') === true
+  ))
+  await page.getByRole("button", { name: "循环播放" }).click()
+  expect((await loopResponse).status()).toBe(200)
+  const persisted = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+  expect(persisted).toContain("[nodes.neoview.slideshow]")
+  expect(persisted).toContain("interval_seconds = 9")
+  expect(persisted).toContain("loop = true")
+  expect(persisted).toContain("random = true")
+  expect(persisted).toContain("fade_transition = false")
 })
 
 const CURRENT_THUMBNAIL_SCHEMA = `

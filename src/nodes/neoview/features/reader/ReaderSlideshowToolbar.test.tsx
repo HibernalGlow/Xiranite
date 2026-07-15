@@ -17,7 +17,8 @@ describe("ReaderSlideshowToolbar", () => {
       nextPage: vi.fn(async () => true),
       goToPage: vi.fn(async () => true),
     })
-    render(<ReaderSlideshowToolbar slideshow={slideshow} />)
+    const onChange = vi.fn((patch) => slideshow.configure(patch))
+    render(<ReaderSlideshowToolbar slideshow={slideshow} onChange={onChange} />)
 
     fireEvent.click(screen.getByRole("button", { name: "播放幻灯片" }))
     expect(screen.getByRole("button", { name: "暂停幻灯片" }).getAttribute("aria-pressed")).toBe("true")
@@ -26,6 +27,11 @@ describe("ReaderSlideshowToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "循环播放" }))
     fireEvent.click(screen.getByRole("button", { name: "随机播放" }))
     expect(slideshow.getSnapshot()).toMatchObject({ loop: true, random: true })
+    expect(onChange.mock.calls).toEqual([
+      [{ intervalSeconds: 10 }],
+      [{ loop: true }],
+      [{ random: true }],
+    ])
     slideshow.dispose()
   })
 })

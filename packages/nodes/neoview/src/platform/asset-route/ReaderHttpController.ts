@@ -18,11 +18,15 @@ import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeli
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
+  DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewSidebarLayoutPatch,
+  parseNeoviewSlideshowPatch,
   parseNeoviewViewDefaultsPatch,
+  type NeoviewSlideshowConfig,
+  type NeoviewSlideshowPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -69,6 +73,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
   updateViewDefaults?: (patch: NeoviewViewDefaultsPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewViewDefaults>
+  slideshow?: NeoviewSlideshowConfig
+  updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -84,9 +90,11 @@ export class ReaderHttpController implements AsyncDisposable {
   #shellOptions: NeoviewShellConfig
   #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
+  #slideshow: NeoviewSlideshowConfig
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
+  readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
 
@@ -138,9 +146,11 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
     this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
+    this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
+    this.#updateSlideshow = options.updateSlideshow
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -159,7 +169,7 @@ export class ReaderHttpController implements AsyncDisposable {
       return this.#openSession(request)
     }
     if (url.pathname === "/reader/config" && request.method === "GET") {
-      return jsonResponse({ schemaVersion: 1, shell: { ...this.#shellOptions, revision: this.#shellRevision }, viewDefaults: this.#viewDefaults })
+      return jsonResponse(this.#configDto())
     }
     if (url.pathname === "/reader/config" && request.method === "PATCH") {
       return this.#patchShellConfig(request)
@@ -248,6 +258,27 @@ export class ReaderHttpController implements AsyncDisposable {
   async #patchShellConfig(request: Request): Promise<Response> {
     const body = await readControlJson(request)
     if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    if (Object.hasOwn(body, "slideshow")) {
+      if (!this.#updateSlideshow) return jsonResponse({ error: "Reader slideshow config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewSlideshowPatch>
+      try {
+        parsed = parseNeoviewSlideshowPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewSlideshowConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateSlideshow!(parsed.patch, parsed.tomlPatch)
+        this.#slideshow = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "viewDefaults")) {
       if (!this.#updateViewDefaults) return jsonResponse({ error: "Reader view defaults are read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewViewDefaultsPatch>
@@ -273,7 +304,7 @@ export class ReaderHttpController implements AsyncDisposable {
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
         await operation
-        return jsonResponse({ schemaVersion: 1, shell: { ...this.#shellOptions, revision: this.#shellRevision }, viewDefaults: updated })
+        return jsonResponse(this.#configDto())
       } catch (error) {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
@@ -301,16 +332,21 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#configUpdateQueue = operation.catch(() => undefined)
     try {
       await operation
-      return jsonResponse({ schemaVersion: 1, shell: { ...updated, revision: this.#shellRevision }, viewDefaults: this.#viewDefaults })
+      return jsonResponse(this.#configDto())
     } catch (error) {
       if (error instanceof ReaderShellRevisionConflict) {
-        return jsonResponse({
-          error: error.message,
-          shell: { ...this.#shellOptions, revision: this.#shellRevision },
-          viewDefaults: this.#viewDefaults,
-        }, 409)
+        return jsonResponse({ error: error.message, ...this.#configDto() }, 409)
       }
       return jsonResponse({ error: errorMessage(error) }, 500)
+    }
+  }
+
+  #configDto() {
+    return {
+      schemaVersion: 1 as const,
+      shell: { ...this.#shellOptions, revision: this.#shellRevision },
+      viewDefaults: this.#viewDefaults,
+      slideshow: this.#slideshow,
     }
   }
 

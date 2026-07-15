@@ -22,6 +22,8 @@ export interface ReaderSlideshowOptions {
   onError?(error: unknown): void
 }
 
+export type ReaderSlideshowConfig = Pick<ReaderSlideshowSnapshot, "intervalSeconds" | "loop" | "random">
+
 const MIN_INTERVAL_SECONDS = 1
 const MAX_INTERVAL_SECONDS = 60
 
@@ -33,7 +35,7 @@ export class ReaderSlideshow {
   #timer: ReturnType<typeof setTimeout> | undefined
   #generation = 0
 
-  constructor(options: ReaderSlideshowOptions, initial: Partial<Pick<ReaderSlideshowSnapshot, "intervalSeconds" | "loop" | "random">> = {}) {
+  constructor(options: ReaderSlideshowOptions, initial: Partial<ReaderSlideshowConfig> = {}) {
     this.#options = options
     const intervalSeconds = normalizeInterval(initial.intervalSeconds ?? 5)
     this.#snapshot = {
@@ -76,18 +78,28 @@ export class ReaderSlideshow {
   }
 
   setInterval(seconds: number): void {
-    const intervalSeconds = normalizeInterval(seconds)
-    if (intervalSeconds === this.#snapshot.intervalSeconds) return
-    this.#replace({ intervalSeconds })
-    if (this.#snapshot.state === "playing") this.#restartCountdown()
+    this.configure({ intervalSeconds: seconds })
   }
 
   setLoop(loop: boolean): void {
-    if (loop !== this.#snapshot.loop) this.#replace({ loop })
+    this.configure({ loop })
   }
 
   setRandom(random: boolean): void {
-    if (random !== this.#snapshot.random) this.#replace({ random })
+    this.configure({ random })
+  }
+
+  configure(config: Partial<ReaderSlideshowConfig>): void {
+    const patch: Partial<ReaderSlideshowSnapshot> = {}
+    if (config.intervalSeconds !== undefined) {
+      const intervalSeconds = normalizeInterval(config.intervalSeconds)
+      if (intervalSeconds !== this.#snapshot.intervalSeconds) patch.intervalSeconds = intervalSeconds
+    }
+    if (config.loop !== undefined && config.loop !== this.#snapshot.loop) patch.loop = config.loop
+    if (config.random !== undefined && config.random !== this.#snapshot.random) patch.random = config.random
+    if (!Object.keys(patch).length) return
+    this.#replace(patch)
+    if (patch.intervalSeconds !== undefined && this.#snapshot.state === "playing") this.#restartCountdown()
   }
 
   resetOnUserAction(): void {

@@ -54,6 +54,7 @@ function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {
     updateCardLayout: vi.fn(),
     updateBoardLayout: vi.fn(),
     updateViewDefaults: vi.fn(),
+    updateSlideshow: vi.fn(),
     open: vi.fn(),
     listPages: vi.fn(),
     navigate: vi.fn(),

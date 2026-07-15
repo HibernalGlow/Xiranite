@@ -47,10 +47,22 @@ export interface ReaderShellConfigDto {
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
   viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode }
+  slideshow: ReaderSlideshowConfig
 }
 
 export interface ReaderViewDefaultsPatch {
   viewDefaults: { fitMode?: ReaderFitMode; pageMode?: PageMode }
+}
+
+export interface ReaderSlideshowConfig {
+  intervalSeconds: number
+  loop: boolean
+  random: boolean
+  fadeTransition: boolean
+}
+
+export interface ReaderSlideshowPatch {
+  slideshow: Partial<ReaderSlideshowConfig>
 }
 
 export interface ReaderSidebarLayoutPatch {
@@ -86,6 +98,7 @@ export interface ReaderHttpClient {
   updateCardLayout(patch: ReaderCardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateBoardLayout(patch: ReaderBoardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
+  updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -141,6 +154,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.viewDefaults),
+    updateSlideshow: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.slideshow),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },

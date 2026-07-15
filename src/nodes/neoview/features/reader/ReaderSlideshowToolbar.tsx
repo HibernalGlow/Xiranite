@@ -11,8 +11,17 @@ import { useSyncExternalStore } from "react"
 import type { ReaderSlideshow } from "@xiranite/node-neoview/core"
 
 import { Button } from "@/components/ui/button"
+import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"
 
-export function ReaderSlideshowToolbar({ slideshow, disabled }: { slideshow: ReaderSlideshow; disabled?: boolean }) {
+export function ReaderSlideshowToolbar({
+  slideshow,
+  disabled,
+  onChange,
+}: {
+  slideshow: ReaderSlideshow
+  disabled?: boolean
+  onChange(patch: ReaderSlideshowPatch["slideshow"]): void | Promise<void>
+}) {
   const snapshot = useSyncExternalStore(slideshow.subscribe, slideshow.getSnapshot, slideshow.getSnapshot)
   const playing = snapshot.state === "playing"
   return (
@@ -38,10 +47,10 @@ export function ReaderSlideshowToolbar({ slideshow, disabled }: { slideshow: Rea
         max={60}
         step={1}
         value={snapshot.intervalSeconds}
-        onChange={(event) => slideshow.setInterval(Number(event.currentTarget.value))}
+        onChange={(event) => void onChange({ intervalSeconds: Number(event.currentTarget.value) })}
       />
-      <Button title="循环播放" aria-label="循环播放" aria-pressed={snapshot.loop} type="button" size="icon-xs" variant={snapshot.loop ? "default" : "ghost"} disabled={disabled} onClick={() => slideshow.setLoop(!snapshot.loop)}><Repeat2 /></Button>
-      <Button title="随机播放" aria-label="随机播放" aria-pressed={snapshot.random} type="button" size="icon-xs" variant={snapshot.random ? "default" : "ghost"} disabled={disabled} onClick={() => slideshow.setRandom(!snapshot.random)}><Shuffle /></Button>
+      <Button title="循环播放" aria-label="循环播放" aria-pressed={snapshot.loop} type="button" size="icon-xs" variant={snapshot.loop ? "default" : "ghost"} disabled={disabled} onClick={() => void onChange({ loop: !snapshot.loop })}><Repeat2 /></Button>
+      <Button title="随机播放" aria-label="随机播放" aria-pressed={snapshot.random} type="button" size="icon-xs" variant={snapshot.random ? "default" : "ghost"} disabled={disabled} onClick={() => void onChange({ random: !snapshot.random })}><Shuffle /></Button>
       {snapshot.state !== "stopped" ? <output className="w-6 text-center text-[10px] tabular-nums text-muted-foreground" aria-label="幻灯片剩余时间">{snapshot.remainingSeconds}s</output> : null}
     </div>
   )

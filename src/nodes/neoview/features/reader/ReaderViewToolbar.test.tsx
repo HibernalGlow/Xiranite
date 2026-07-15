@@ -11,7 +11,8 @@ describe("ReaderViewToolbar", () => {
     const changed = vi.fn()
     const pageModeChanged = vi.fn()
     const slideshow = createSlideshow()
-    const view = render(<ReaderViewToolbar pageMode="single" presentation={DEFAULT_READER_PRESENTATION} onChange={changed} onPageModeChange={pageModeChanged} slideshow={slideshow} />)
+    const slideshowChanged = vi.fn()
+    const view = render(<ReaderViewToolbar pageMode="single" presentation={DEFAULT_READER_PRESENTATION} onChange={changed} onPageModeChange={pageModeChanged} slideshow={slideshow} onSlideshowChange={slideshowChanged} />)
 
     fireEvent.change(screen.getByRole("combobox", { name: "缩放模式" }), { target: { value: "original" } })
     expect(changed).toHaveBeenLastCalledWith({ fitMode: "original", manualScale: 1, rotation: 0 })
@@ -23,7 +24,7 @@ describe("ReaderViewToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "双页模式" }))
     expect(pageModeChanged).toHaveBeenCalledWith("double")
 
-    view.rerender(<ReaderViewToolbar pageMode="double" presentation={{ fitMode: "original", manualScale: 2, rotation: 180 }} onChange={changed} onPageModeChange={pageModeChanged} slideshow={slideshow} />)
+    view.rerender(<ReaderViewToolbar pageMode="double" presentation={{ fitMode: "original", manualScale: 2, rotation: 180 }} onChange={changed} onPageModeChange={pageModeChanged} slideshow={slideshow} onSlideshowChange={slideshowChanged} />)
     expect(screen.getByRole("button", { name: "双页模式" }).getAttribute("aria-pressed")).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: "重置视图" }))
     expect(changed).toHaveBeenLastCalledWith(DEFAULT_READER_PRESENTATION)

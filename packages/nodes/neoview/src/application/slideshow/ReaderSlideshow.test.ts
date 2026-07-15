@@ -56,4 +56,20 @@ describe("ReaderSlideshow", () => {
     expect(goToPage).toHaveBeenCalledTimes(2)
     slideshow.dispose()
   })
+
+  it("[neoview.slideshow.runtime-config] applies a config snapshot atomically", () => {
+    const slideshow = new ReaderSlideshow({
+      readPosition: () => ({ pageCount: 1, currentPageIndex: 0, atEnd: true }),
+      nextPage: vi.fn(async () => true),
+      goToPage: vi.fn(async () => true),
+    })
+    const listener = vi.fn()
+    slideshow.subscribe(listener)
+    slideshow.configure({ intervalSeconds: 12, loop: true, random: true })
+    expect(slideshow.getSnapshot()).toMatchObject({ intervalSeconds: 12, loop: true, random: true })
+    expect(listener).toHaveBeenCalledTimes(1)
+    slideshow.configure({ intervalSeconds: 12, loop: true, random: true })
+    expect(listener).toHaveBeenCalledTimes(1)
+    slideshow.dispose()
+  })
 })

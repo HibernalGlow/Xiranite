@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -57,12 +57,32 @@ describe("parseNeoviewRuntimeConfig", () => {
       schemaVersion: 1,
       sessionOptions: {},
       viewDefaults: { fitMode: "fit", pageMode: "single" },
+      slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
       shellOptions: {
         showDelayMs: 0,
         edges: { left: { pinned: true, triggerSize: 32 }, right: { initialVisible: false } },
         sidebars: { left: { width: 320 }, right: { width: 280 } },
       },
     })
+  })
+
+  it("[neoview.slideshow.config] normalizes legacy settings and writes one canonical TOML shape", () => {
+    expect(parseNeoviewRuntimeConfig({
+      slideshow: { interval_seconds: 12, loop: true, fade_transition: false },
+      reader: {
+        slideshow: { default_interval: 7, loop: false, random: true, fade_transition: true },
+        book: { auto_page_turn_interval: 3 },
+      },
+    }).slideshow).toEqual({ intervalSeconds: 12, loop: true, random: true, fadeTransition: false })
+    expect(parseNeoviewRuntimeConfig({ reader: { slideshow: { defaultInterval: 99 } } }).slideshow.intervalSeconds).toBe(60)
+    expect(parseNeoviewRuntimeConfig({ reader: { book: { autoPageTurnInterval: 0 } } }).slideshow.intervalSeconds).toBe(1)
+    expect(parseNeoviewSlideshowPatch({ slideshow: { intervalSeconds: 9, loop: true, random: false, fadeTransition: false } })).toEqual({
+      patch: { slideshow: { intervalSeconds: 9, loop: true, random: false, fadeTransition: false } },
+      tomlPatch: { slideshow: { interval_seconds: 9, loop: true, random: false, fade_transition: false } },
+    })
+    expect(() => parseNeoviewSlideshowPatch({ slideshow: {} })).toThrow("at least one")
+    expect(() => parseNeoviewSlideshowPatch({ slideshow: { intervalSeconds: 61 } })).toThrow("between 1 and 60")
+    expect(() => parseNeoviewSlideshowPatch({ slideshow: { autoplay: true } })).toThrow("unsupported fields")
   })
 
   it("[neoview.settings.view-defaults] normalizes legacy zoom aliases and writes canonical TOML", () => {

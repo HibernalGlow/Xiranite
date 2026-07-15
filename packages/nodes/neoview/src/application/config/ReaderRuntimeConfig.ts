@@ -11,6 +11,7 @@ export interface NeoviewRuntimeConfig {
   sessionOptions: Partial<ReaderSessionOptions>
   shellOptions: NeoviewShellConfig
   viewDefaults: NeoviewViewDefaults
+  slideshow: NeoviewSlideshowConfig
 }
 
 export interface NeoviewViewDefaults {
@@ -20,6 +21,17 @@ export interface NeoviewViewDefaults {
 
 export interface NeoviewViewDefaultsPatch {
   viewDefaults: Partial<NeoviewViewDefaults>
+}
+
+export interface NeoviewSlideshowConfig {
+  intervalSeconds: number
+  loop: boolean
+  random: boolean
+  fadeTransition: boolean
+}
+
+export interface NeoviewSlideshowPatch {
+  slideshow: Partial<NeoviewSlideshowConfig>
 }
 
 export interface NeoviewShellEdgeConfig {
@@ -96,6 +108,13 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   pageMode: DEFAULT_READER_LAYOUT.pageMode,
 }
 
+export const DEFAULT_NEOVIEW_SLIDESHOW_CONFIG: NeoviewSlideshowConfig = {
+  intervalSeconds: 5,
+  loop: false,
+  random: false,
+  fadeTransition: true,
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -130,12 +149,16 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     sessionOptions: {},
     shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
     viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
+    slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
   }
   const config = requireRecord(value, "[nodes.neoview]")
   const schemaVersion = config.schema_version ?? 1
   if (schemaVersion !== 1) throw new Error(`[nodes.neoview].schema_version must be 1, received ${String(schemaVersion)}.`)
   const reader = optionalRecord(config.reader, "[nodes.neoview.reader]")
   const panels = optionalRecord(config.panels, "[nodes.neoview.panels]")
+  const slideshow = optionalRecord(config.slideshow, "[nodes.neoview.slideshow]")
+  const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
+  const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
 
   const direction = optionalEnum(
     reader?.reading_direction ?? nestedValue(reader, "book", "reading_direction"),
@@ -166,7 +189,40 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     },
     shellOptions: parseShellOptions(panels),
     viewDefaults: { fitMode, pageMode },
+    slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
   }
+}
+
+export function parseNeoviewSlideshowPatch(value: unknown): {
+  patch: NeoviewSlideshowPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader slideshow patch")
+  if (Object.keys(record).some((key) => key !== "slideshow")) throw new Error("reader slideshow patch contains unsupported fields.")
+  const slideshow = requireRecord(record.slideshow, "reader slideshow patch.slideshow")
+  const allowed = new Set(["intervalSeconds", "loop", "random", "fadeTransition"])
+  const unknown = Object.keys(slideshow).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader slideshow patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: NeoviewSlideshowPatch = { slideshow: {} }
+  const tomlPatch: Record<string, unknown> = {}
+  if (slideshow.intervalSeconds !== undefined) {
+    patch.slideshow.intervalSeconds = boundedInteger(slideshow.intervalSeconds, 1, 60, "reader slideshow patch.intervalSeconds")
+    tomlPatch.interval_seconds = patch.slideshow.intervalSeconds
+  }
+  if (slideshow.loop !== undefined) {
+    patch.slideshow.loop = requiredBoolean(slideshow.loop, "reader slideshow patch.loop")
+    tomlPatch.loop = patch.slideshow.loop
+  }
+  if (slideshow.random !== undefined) {
+    patch.slideshow.random = requiredBoolean(slideshow.random, "reader slideshow patch.random")
+    tomlPatch.random = patch.slideshow.random
+  }
+  if (slideshow.fadeTransition !== undefined) {
+    patch.slideshow.fadeTransition = requiredBoolean(slideshow.fadeTransition, "reader slideshow patch.fadeTransition")
+    tomlPatch.fade_transition = patch.slideshow.fadeTransition
+  }
+  if (!Object.keys(patch.slideshow).length) throw new Error("reader slideshow patch must change at least one field.")
+  return { patch, tomlPatch: { slideshow: tomlPatch } }
 }
 
 export function parseNeoviewViewDefaultsPatch(value: unknown): {
@@ -439,6 +495,36 @@ function sidebarHeight(value: unknown, path: string): NeoviewShellSidebarConfig[
 
 function secondsToMilliseconds(value: unknown, path: string): number {
   return Math.round(boundedNumber(value, 0, 5, 0, path) * 1000)
+}
+
+function parseSlideshowConfig(
+  canonical: Record<string, unknown> | undefined,
+  legacy: Record<string, unknown> | undefined,
+  legacyBook: Record<string, unknown> | undefined,
+): NeoviewSlideshowConfig {
+  const interval = canonical?.interval_seconds
+    ?? canonical?.default_interval
+    ?? canonical?.defaultInterval
+    ?? legacy?.interval_seconds
+    ?? legacy?.default_interval
+    ?? legacy?.defaultInterval
+    ?? legacyBook?.auto_page_turn_interval
+    ?? legacyBook?.autoPageTurnInterval
+  return {
+    intervalSeconds: normalizedSlideshowInterval(interval, "NeoView slideshow interval"),
+    loop: optionalBoolean(canonical?.loop ?? legacy?.loop, "NeoView slideshow loop") ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG.loop,
+    random: optionalBoolean(canonical?.random ?? legacy?.random, "NeoView slideshow random") ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG.random,
+    fadeTransition: optionalBoolean(
+      canonical?.fade_transition ?? canonical?.fadeTransition ?? legacy?.fade_transition ?? legacy?.fadeTransition,
+      "NeoView slideshow fade transition",
+    ) ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG.fadeTransition,
+  }
+}
+
+function normalizedSlideshowInterval(value: unknown, path: string): number {
+  if (value === undefined) return DEFAULT_NEOVIEW_SLIDESHOW_CONFIG.intervalSeconds
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${path} must be a finite number.`)
+  return Math.min(60, Math.max(1, Math.round(value)))
 }
 
 function boundedNumber(value: unknown, min: number, max: number, fallback: number, path: string): number {

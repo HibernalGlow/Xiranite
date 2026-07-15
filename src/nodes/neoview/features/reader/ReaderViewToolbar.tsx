@@ -17,6 +17,7 @@ import {
 } from "@xiranite/node-neoview/core"
 
 import { Button } from "@/components/ui/button"
+import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"
 import { ReaderSlideshowToolbar } from "./ReaderSlideshowToolbar"
 
 const FIT_MODES: Array<{ value: ReaderFitMode; label: string }> = [
@@ -34,6 +35,7 @@ export function ReaderViewToolbar({
   onChange,
   onPageModeChange,
   slideshow,
+  onSlideshowChange,
 }: {
   disabled?: boolean
   pageMode: "single" | "double"
@@ -41,6 +43,7 @@ export function ReaderViewToolbar({
   onChange(presentation: ReaderPresentation): void
   onPageModeChange(pageMode: "single" | "double"): void
   slideshow: ReaderSlideshow
+  onSlideshowChange(patch: ReaderSlideshowPatch["slideshow"]): void | Promise<void>
 }) {
   return (
     <div className="xiranite-app-region-no-drag flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-3 py-1.5" data-reader-view-toolbar="true">
@@ -68,7 +71,7 @@ export function ReaderViewToolbar({
         <Button title="双页模式" aria-label="双页模式" aria-pressed={pageMode === "double"} type="button" size="icon-xs" variant={pageMode === "double" ? "default" : "ghost"} disabled={disabled} onClick={() => onPageModeChange("double")}><Columns2 /></Button>
       </div>
       <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-      <ReaderSlideshowToolbar slideshow={slideshow} disabled={disabled} />
+      <ReaderSlideshowToolbar slideshow={slideshow} disabled={disabled} onChange={onSlideshowChange} />
     </div>
   )
 }

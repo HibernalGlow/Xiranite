@@ -25,6 +25,11 @@ describe("loadNeoviewSessionOptions", () => {
       "double_page_view = true",
       "default_zoom_mode = \"fitWidth\"",
       "tail_overflow_behavior = \"loop\"",
+      "[nodes.neoview.slideshow]",
+      "interval_seconds = 13",
+      "loop = true",
+      "random = false",
+      "fade_transition = false",
       "",
     ].join("\n"), "utf8")
 
@@ -35,6 +40,7 @@ describe("loadNeoviewSessionOptions", () => {
       tailOverflow: "loop",
     })
     expect((await loadNeoviewRuntimeConfig({ configPath })).viewDefaults).toEqual({ fitMode: "fit-width", pageMode: "double" })
+    expect((await loadNeoviewRuntimeConfig({ configPath })).slideshow).toEqual({ intervalSeconds: 13, loop: true, random: false, fadeTransition: false })
 
     const explicit = await loadNeoviewSessionOptions({
       configPath,
@@ -133,6 +139,7 @@ describe("loadNeoviewSessionOptions", () => {
         schemaVersion: 1,
         shell: { edges: { left: { triggerSize: 32 } } },
         viewDefaults: { fitMode: "fit-height", pageMode: "double" },
+        slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
       })
       const viewPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
@@ -142,6 +149,16 @@ describe("loadNeoviewSessionOptions", () => {
       expect(await viewPatched?.json()).toMatchObject({ viewDefaults: { fitMode: "original", pageMode: "single" } })
       expect(await readFile(configPath, "utf8")).toContain("default_zoom_mode = \"original\"")
       expect(await readFile(configPath, "utf8")).toContain("double_page_view = false")
+      const slideshowPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ slideshow: { intervalSeconds: 14, loop: true, random: true, fadeTransition: false } }),
+      }))
+      expect(await slideshowPatched?.json()).toMatchObject({ slideshow: { intervalSeconds: 14, loop: true, random: true, fadeTransition: false } })
+      const persistedConfig = await readFile(configPath, "utf8")
+      expect(persistedConfig).toContain("[nodes.neoview.slideshow]")
+      expect(persistedConfig).toContain("interval_seconds = 14")
+      expect(persistedConfig).toContain("fade_transition = false")
       const reopened = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },

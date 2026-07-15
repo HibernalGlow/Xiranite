@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto, ReaderShellConfigDto, ReaderSlideshowPatch, ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
 afterEach(cleanup)
@@ -15,6 +15,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
       updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(async () => ({
@@ -54,6 +55,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
       updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn((_path, signal) => new Promise((_resolve, reject) => {
         rejectOpen = reject
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
@@ -87,11 +89,12 @@ describe("ReaderApp", () => {
       visiblePages: [opened.visiblePages[0]!, secondPage],
     }))
     const client: ReaderHttpClient = {
-      config: vi.fn(async () => ({ shell: shellConfig(), viewDefaults: { fitMode: "fit-height", pageMode: "single" } })),
+      config: vi.fn(async () => ({ ...runtimeConfig(), viewDefaults: { fitMode: "fit-height", pageMode: "single" } })),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
       updateViewDefaults,
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: [opened.visiblePages[0]!, secondPage], total: 2 })),
       navigate: vi.fn(),
@@ -127,6 +130,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
       updateViewDefaults,
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 1 })),
       navigate: vi.fn(),
@@ -151,6 +155,45 @@ describe("ReaderApp", () => {
     expect(updateViewDefaults.mock.calls[1]?.[0]).toEqual({ viewDefaults: { pageMode: "double" } })
   })
 
+  it("[neoview.slideshow.config-react] loads and serializes slideshow settings", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    let finishFirstWrite!: (value: ReaderRuntimeConfigDto["slideshow"]) => void
+    const updateSlideshow = vi.fn((patch: ReaderSlideshowPatch) => updateSlideshow.mock.calls.length === 1
+      ? new Promise<ReaderRuntimeConfigDto["slideshow"]>((resolve) => { finishFirstWrite = resolve })
+      : Promise.resolve({ intervalSeconds: 10, loop: patch.slideshow.loop ?? false, random: false, fadeTransition: true }))
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), slideshow: { intervalSeconds: 9, loop: false, random: false, fadeTransition: true } })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow,
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 1 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    const interval = await screen.findByRole("spinbutton", { name: "幻灯片间隔" }) as HTMLInputElement
+    await waitFor(() => expect(interval.value).toBe("9"))
+    fireEvent.change(interval, { target: { value: "10" } })
+    await waitFor(() => expect(updateSlideshow).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("button", { name: "循环播放" }))
+    expect(updateSlideshow).toHaveBeenCalledTimes(1)
+
+    await act(async () => finishFirstWrite({ intervalSeconds: 10, loop: false, random: false, fadeTransition: true }))
+    await waitFor(() => expect(updateSlideshow).toHaveBeenCalledTimes(2))
+    expect(updateSlideshow.mock.calls[1]?.[0]).toEqual({ slideshow: { loop: true } })
+    await waitFor(() => expect(screen.getByRole("button", { name: "循环播放" }).getAttribute("aria-pressed")).toBe("true"))
+    fireEvent.change(interval, { target: { value: "" } })
+    await waitFor(() => expect(updateSlideshow).toHaveBeenCalledTimes(3))
+    expect(updateSlideshow.mock.calls[2]?.[0]).toEqual({ slideshow: { intervalSeconds: 1 } })
+  })
+
   it("[neoview.react.open-cancel] closes a session that resolves after the reader unmounts", async () => {
     let resolveOpen!: (value: ReaderSessionDto) => void
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
@@ -160,6 +203,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
       updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn(() => new Promise((resolve) => { resolveOpen = resolve })),
       listPages: vi.fn(),
       navigate: vi.fn(),
@@ -190,6 +234,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
       updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({
         pages: [{ ...opened.visiblePages[0]!, thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-1" }, secondPage],
@@ -219,6 +264,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
       updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),
@@ -263,6 +309,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(() => new Promise((resolve) => { finishUpdate = resolve })),
       updateBoardLayout: vi.fn(async () => config),
       updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),
@@ -294,6 +341,7 @@ describe("ReaderApp", () => {
       updateCardLayout: vi.fn(),
       updateBoardLayout: vi.fn(),
       updateViewDefaults: vi.fn(),
+      updateSlideshow: vi.fn(),
       open: vi.fn(),
       listPages: vi.fn(),
       navigate: vi.fn(),
@@ -364,5 +412,9 @@ function shellConfig(): ReaderShellConfigDto {
 }
 
 function runtimeConfig(): ReaderRuntimeConfigDto {
-  return { shell: shellConfig(), viewDefaults: { fitMode: "fit", pageMode: "single" } }
+  return {
+    shell: shellConfig(),
+    viewDefaults: { fitMode: "fit", pageMode: "single" },
+    slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
+  }
 }

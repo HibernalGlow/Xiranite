@@ -25,6 +25,12 @@ describe("ReaderHttpController", () => {
       fitMode: patch.viewDefaults.fitMode ?? "fit-height" as const,
       pageMode: patch.viewDefaults.pageMode ?? "single" as const,
     }))
+    const updateSlideshow = vi.fn(async (patch) => ({
+      intervalSeconds: patch.slideshow.intervalSeconds ?? 5,
+      loop: patch.slideshow.loop ?? false,
+      random: patch.slideshow.random ?? true,
+      fadeTransition: patch.slideshow.fadeTransition ?? true,
+    }))
     const updateShellOptions = vi.fn(async (patch) => ({
       showDelayMs: 50,
       hideDelayMs: 200,
@@ -67,6 +73,8 @@ describe("ReaderHttpController", () => {
       updateShellOptions,
       viewDefaults: { fitMode: "fit-height", pageMode: "single" },
       updateViewDefaults,
+      slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
+      updateSlideshow,
     })
     try {
       expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/config")))?.status).toBe(401)
@@ -77,6 +85,7 @@ describe("ReaderHttpController", () => {
         schemaVersion: 1,
         shell: { revision: 0, showDelayMs: 50, sidebars: { left: { width: 333 } } },
         viewDefaults: { fitMode: "fit-height", pageMode: "single" },
+        slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
       })
       expect(JSON.stringify(body)).not.toMatch(/path|token|password/i)
       const patched = (await controller.handle(jsonRequest("/reader/config", { side: "left", width: 401 }, true, "PATCH")))!
@@ -118,6 +127,14 @@ describe("ReaderHttpController", () => {
       expect(updateViewDefaults).toHaveBeenCalledWith(
         { viewDefaults: { fitMode: "original", pageMode: "double" } },
         { reader: { default_zoom_mode: "original", double_page_view: true } },
+      )
+      const slideshowPatched = (await controller.handle(jsonRequest("/reader/config", {
+        slideshow: { intervalSeconds: 11, loop: true },
+      }, true, "PATCH")))!
+      expect(await slideshowPatched.json()).toMatchObject({ slideshow: { intervalSeconds: 11, loop: true, random: true, fadeTransition: true } })
+      expect(updateSlideshow).toHaveBeenCalledWith(
+        { slideshow: { intervalSeconds: 11, loop: true } },
+        { slideshow: { interval_seconds: 11, loop: true } },
       )
     } finally {
       await controller[Symbol.asyncDispose]()

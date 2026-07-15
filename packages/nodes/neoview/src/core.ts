@@ -9,6 +9,7 @@ export { CoreReaderService } from "./application/reader/ReaderService.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
 export {
   ReaderSlideshow,
+  type ReaderSlideshowConfig,
   type ReaderSlideshowOptions,
   type ReaderSlideshowPosition,
   type ReaderSlideshowSnapshot,

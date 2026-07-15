@@ -27,6 +27,8 @@ import {
   type ReaderCardLayoutPatch,
   type ReaderBoardLayoutPatch,
   type ReaderViewDefaultsPatch,
+  type ReaderSlideshowConfig,
+  type ReaderSlideshowPatch,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -38,6 +40,12 @@ const INITIAL_VIEW_DEFAULTS = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: "single",
 } satisfies ReaderRuntimeConfigDto["viewDefaults"]
+const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
+  intervalSeconds: 5,
+  loop: false,
+  random: false,
+  fadeTransition: true,
+}
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {
   readerSidebarModule ??= import("../features/panels/ReaderSidebar")
@@ -112,6 +120,10 @@ export function ReaderApp({
   const confirmedViewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const viewDefaultsWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const viewDefaultsGenerationRef = useRef(0)
+  const slideshowConfigRef = useRef<ReaderSlideshowConfig>({ ...INITIAL_SLIDESHOW_CONFIG })
+  const confirmedSlideshowConfigRef = useRef<ReaderSlideshowConfig>({ ...INITIAL_SLIDESHOW_CONFIG })
+  const slideshowWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const slideshowGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
@@ -140,6 +152,11 @@ export function ReaderApp({
         setViewDefaults(config.viewDefaults)
       }
       setShell(config.shell)
+      if (slideshowGenerationRef.current === 0) {
+        slideshowConfigRef.current = config.slideshow
+        confirmedSlideshowConfigRef.current = config.slideshow
+        slideshow.configure(config.slideshow)
+      }
       if (!presentationTouchedRef.current) {
         setPresentation((current) => ({ ...current, fitMode: config.viewDefaults.fitMode }))
       }
@@ -279,6 +296,35 @@ export function ReaderApp({
     }
   }
 
+  async function persistSlideshow(patch: ReaderSlideshowPatch["slideshow"]) {
+    slideshow.configure(patch)
+    const normalizedPatch = patch.intervalSeconds === undefined
+      ? patch
+      : { ...patch, intervalSeconds: slideshow.getSnapshot().intervalSeconds }
+    const next = { ...slideshowConfigRef.current, ...normalizedPatch }
+    slideshowConfigRef.current = next
+    const generation = ++slideshowGenerationRef.current
+    const write = slideshowWriteQueueRef.current.then(async () => {
+      try {
+        const updated = await clientRef.current.updateSlideshow({ slideshow: normalizedPatch })
+        confirmedSlideshowConfigRef.current = updated
+        if (generation === slideshowGenerationRef.current) {
+          slideshowConfigRef.current = updated
+          slideshow.configure(updated)
+        }
+      } catch (cause) {
+        if (generation === slideshowGenerationRef.current) {
+          const confirmed = confirmedSlideshowConfigRef.current
+          slideshowConfigRef.current = confirmed
+          slideshow.configure(confirmed)
+        }
+        setError(errorMessage(cause))
+      }
+    })
+    slideshowWriteQueueRef.current = write
+    await write
+  }
+
   async function closeSession() {
     slideshow.stop()
     operationRef.current?.abort()
@@ -394,6 +440,7 @@ export function ReaderApp({
               onChange={updatePresentation}
               onPageModeChange={(pageMode) => void updatePageMode(pageMode)}
               slideshow={slideshow}
+              onSlideshowChange={persistSlideshow}
             />
           </Suspense>
         ) : null}
