@@ -78,6 +78,15 @@ test("floating component query params still render a popup window", async ({ pag
     await expect.poll(() => page.getByTestId("floating-window-fallback-drag-region").evaluate((element) => (
       getComputedStyle(element).getPropertyValue("--wails-draggable").trim()
     ))).toBe("drag")
+
+    await openApp(page, backend, "/?floatingComponent=comp-popup-kavvka&moduleId=kavvka&windowId=popup-kavvka")
+    const kavvkaTitlebar = page.getByTestId("kavvka-window-titlebar")
+    await expect(kavvkaTitlebar).toHaveAttribute("data-floating-window-titlebar", "true")
+    await expect(page.getByTestId("floating-window-fallback-controls")).toHaveCount(0)
+    await expect(kavvkaTitlebar.getByTestId("floating-window-integrated-controls").getByRole("button")).toHaveCount(3)
+    await expect.poll(() => page.getByTestId("kavvka-window-drag-region").evaluate((element) => (
+      getComputedStyle(element).getPropertyValue("--wails-draggable").trim()
+    ))).toBe("drag")
   } finally {
     backend.close()
   }

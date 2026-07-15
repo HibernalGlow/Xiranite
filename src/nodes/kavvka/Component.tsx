@@ -12,6 +12,7 @@ import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
@@ -412,15 +413,11 @@ function LegacyFullView(props: ViewProps) {
   return (
     <div data-testid="kavvka-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/kavvka:flex-row @4xl/kavvka:items-center @4xl/kavvka:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/kavvka:flex-row @4xl/kavvka:items-center">
-          <HeaderLine
-            status={props.status}
-            subtitle={props.data.progressText || props.tNode("headerSubtitle", "{{source}} 源 / {{roots}} 根 / {{mode}}", { source: props.sourcePaths.length, roots: props.scanRoots.length, mode: props.dryRun ? props.tNode("modeDryRun", "预演") : props.tNode("modeWrite", "真实") })}
-          />
-          <div data-testid="kavvka-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
-          </div>
-        </div>
+        <KavvkaWindowHeader
+          className="min-w-0 flex-1"
+          props={props}
+          subtitle={props.data.progressText || props.tNode("headerSubtitle", "{{source}} 源 / {{roots}} 根 / {{mode}}", { source: props.sourcePaths.length, roots: props.scanRoots.length, mode: props.dryRun ? props.tNode("modeDryRun", "预演") : props.tNode("modeWrite", "真实") })}
+        />
         <StatsPanel progress={props.progress} result={props.result} scanRoots={props.scanRoots} sourcePaths={props.sourcePaths} />
       </div>
 
@@ -519,10 +516,7 @@ function LegacyKavvkaWorkbench(props: ViewProps) {
   const resultPaths = props.result?.allCombinedPaths.length ? props.result.allCombinedPaths : props.result?.matchedPaths ?? []
   return (
     <div data-testid="kavvka-full-view" className="flex min-h-0 flex-1 flex-col p-3 @4xl/kavvka:p-4">
-      <div className="flex shrink-0 flex-col gap-3 border-b pb-3 @5xl/kavvka:flex-row @5xl/kavvka:items-center @5xl/kavvka:justify-between">
-        <HeaderLine status={props.status} subtitle={props.data.progressText || props.tNode("workbench.subtitle", "扫描、整理并处理重复路径组")} />
-        <div data-testid="kavvka-header-toolbar"><ToolbarActions {...props} /></div>
-      </div>
+      <KavvkaWindowHeader className="shrink-0 border-b pb-3" props={props} subtitle={props.data.progressText || props.tNode("workbench.subtitle", "扫描、整理并处理重复路径组")} />
       <StatsPanel progress={props.progress} result={props.result} scanRoots={props.scanRoots} sourcePaths={props.sourcePaths} />
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 pt-4 @5xl/kavvka:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col gap-4">
@@ -546,10 +540,7 @@ function KavvkaReferenceWorkbench(props: ViewProps) {
   const scanReady = props.scanRoots.length > 0
   return (
     <div data-testid="kavvka-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3 @4xl/kavvka:p-4">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 pb-2">
-        <HeaderLine status={props.status} subtitle={props.data.progressText || props.tNode("workbench.subtitle", "重复路径检测与归档处理")} />
-        <div data-testid="kavvka-header-toolbar"><ToolbarActions {...props} showPrimary={false} /></div>
-      </div>
+      <KavvkaWindowHeader className="shrink-0 border-b border-border/70 pb-2" props={props} showPrimary={false} subtitle={props.data.progressText || props.tNode("workbench.subtitle", "重复路径检测与归档处理")} />
       <section className="grid shrink-0 gap-2 @4xl/kavvka:grid-cols-4">
         <ReferenceMetric label={props.tNode("metrics.recovery", "待处理路径")} value={resultPaths.length || props.sourcePaths.length} detail={props.tNode("metrics.recoveryDetail", "来自当前扫描和处理计划")} />
         <ReferenceMetric label={props.tNode("metrics.groups", "冲突组")} value={Math.ceil(resultPaths.length / 2)} detail={props.tNode("metrics.groupsDetail", "按真实结果分组显示")} />
@@ -719,6 +710,36 @@ function HeaderLine({ status, subtitle }: {
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function KavvkaWindowHeader({ className, props, showPrimary, subtitle }: {
+  className?: string
+  props: ViewProps
+  showPrimary?: boolean
+  subtitle: string
+}) {
+  const floatingFrame = useFloatingWindowFrame()
+  return (
+    <div
+      data-testid="kavvka-window-titlebar"
+      data-floating-window-titlebar={floatingFrame ? "true" : undefined}
+      onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}
+      className={cn("flex min-w-0 items-stretch justify-between gap-3", className)}
+    >
+      <div
+        data-testid="kavvka-window-drag-region"
+        className={cn("flex min-w-0 flex-1 items-center", floatingFrame && "xiranite-app-region-drag select-none")}
+      >
+        <HeaderLine status={props.status} subtitle={subtitle} />
+      </div>
+      <div className="xiranite-app-region-no-drag flex shrink-0 items-stretch gap-1">
+        <div data-testid="kavvka-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+          <ToolbarActions {...props} showPrimary={showPrimary} />
+        </div>
+        <FloatingWindowCaptionControls integrated />
       </div>
     </div>
   )
