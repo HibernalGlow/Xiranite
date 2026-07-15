@@ -11,6 +11,8 @@
  * @migration-status adapted
  */
 import { Suspense, useState } from "react"
+import type { CSSProperties } from "react"
+import type { ReaderShellConfigDto } from "../../adapters/reader-http-client"
 
 import { cn } from "@/lib/utils"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
@@ -23,18 +25,30 @@ import {
   type ReaderPanelSide,
 } from "./registry"
 
-export function ReaderSidebar({ side, context }: { side: ReaderPanelSide; context: ReaderPanelContext }) {
+export function ReaderSidebar({ side, context, shell }: { side: ReaderPanelSide; context: ReaderPanelContext; shell?: ReaderShellConfigDto }) {
   const panels = availablePanels(side)
   const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
+  const layout = shell?.sidebars[side]
+  const height = sidebarHeight(layout)
+  const style = layout ? {
+    width: `min(${layout.width}px, calc(100vw - 2rem))`,
+    height,
+    top: height === "100%" ? 0 : `${(100 - Number.parseFloat(height)) * (layout.verticalAlign / 100)}%`,
+    left: side === "left" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
+    right: side === "right" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
+    backgroundColor: `color-mix(in oklch, var(--background) ${shell!.opacity.sidebar}%, transparent)`,
+    backdropFilter: `blur(${shell!.blur.sidebar}px)`,
+  } satisfies CSSProperties : undefined
 
   return (
     <aside
       className={cn(
-        "flex h-full max-h-full w-[min(23rem,calc(100vw-2rem))] overflow-hidden border-border/70 bg-background/92 shadow-xl backdrop-blur-md",
+        "relative flex max-h-full overflow-hidden border-border/70 bg-background/92 shadow-xl backdrop-blur-md",
         side === "left" ? "border-r" : "flex-row-reverse border-l",
       )}
       data-reader-sidebar={side}
+      style={style}
     >
       <nav className={cn("flex w-11 shrink-0 flex-col items-center gap-1 py-2", side === "left" ? "border-r" : "border-l")} aria-label={`${side === "left" ? "左" : "右"}侧面板`}>
         {panels.map((panel) => (
@@ -74,4 +88,12 @@ export function ReaderSidebar({ side, context }: { side: ReaderPanelSide; contex
       </div>
     </aside>
   )
+}
+
+function sidebarHeight(layout: ReaderShellConfigDto["sidebars"]["left"] | undefined): string {
+  if (!layout || layout.height === "full") return "100%"
+  if (layout.height === "two-thirds") return "66.6667%"
+  if (layout.height === "half") return "50%"
+  if (layout.height === "one-third") return "33.3333%"
+  return `${layout.customHeight}%`
 }

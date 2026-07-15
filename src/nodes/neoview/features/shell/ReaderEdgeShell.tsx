@@ -84,10 +84,12 @@ function ReaderEdgeSurface({
   callbackRef.current = onVisibilityChange
 
   useEffect(() => {
-    if (!pinned || visibleRef.current) return
-    setVisible(true)
-    callbackRef.current?.(edge, true)
-  }, [edge, pinned])
+    const next = pinned || (slot.initialVisible ?? false)
+    if (visibleRef.current === next) return
+    visibleRef.current = next
+    setVisible(next)
+    callbackRef.current?.(edge, next)
+  }, [edge, pinned, slot.initialVisible])
 
   useEffect(() => () => {
     clearTimer(showTimerRef)

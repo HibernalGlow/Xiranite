@@ -10,6 +10,7 @@ import {
   type ReaderHttpClient,
   type ReaderNavigationDto,
   type ReaderSessionDto,
+  type ReaderShellConfigDto,
 } from "../adapters/reader-http-client"
 import { PageImage } from "../features/reader/PageImage"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
@@ -49,12 +50,19 @@ export function ReaderApp({
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
 
   useEffect(() => () => {
     operationRef.current?.abort()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void clientRef.current.config(controller.signal).then(setShell).catch(() => undefined)
+    return () => controller.abort()
   }, [])
 
   async function openPath(nextPath = path) {
@@ -144,9 +152,13 @@ export function ReaderApp({
 
   const topEdge: ReaderEdgeSlot = {
     ariaLabel: "NeoView 顶部工具栏",
-    initialVisible: true,
+    initialVisible: shell?.edges.top.initialVisible ?? true,
+    pinned: shell?.edges.top.pinned,
+    triggerSize: shell?.edges.top.triggerSize,
+    showDelayMs: shell?.showDelayMs,
+    hideDelayMs: shell?.hideDelayMs,
     render: () => (
-      <div className="border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-md">
+      <div className="border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-md" style={edgeSurfaceStyle(shell, "top")}>
         <div className={cn("flex items-center gap-2", compact ? "p-2" : "px-3 py-2.5")}>
           <BookOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
@@ -174,11 +186,15 @@ export function ReaderApp({
     ),
   }
 
-  const bottomEdge: ReaderEdgeSlot | undefined = session ? {
+  const bottomEdge: ReaderEdgeSlot | undefined = session && (shell?.edges.bottom.enabled ?? true) ? {
     ariaLabel: "NeoView 底部缩略图与导航栏",
-    initialVisible: true,
+    initialVisible: shell?.edges.bottom.initialVisible ?? true,
+    pinned: shell?.edges.bottom.pinned,
+    triggerSize: shell?.edges.bottom.triggerSize,
+    showDelayMs: shell?.showDelayMs,
+    hideDelayMs: shell?.hideDelayMs,
     render: () => (
-      <div className="border-t border-border/70 bg-background/90 shadow-[0_-4px_16px_rgb(0_0_0/0.15)] backdrop-blur-md">
+      <div className="border-t border-border/70 bg-background/90 shadow-[0_-4px_16px_rgb(0_0_0/0.15)] backdrop-blur-md" style={edgeSurfaceStyle(shell, "bottom")}>
         <div className="flex items-center justify-between gap-2 px-3 py-2">
           <div className="min-w-0 truncate text-xs text-muted-foreground" title={session.book.displayName}>{session.book.displayName}</div>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -207,23 +223,31 @@ export function ReaderApp({
   } : undefined
 
   const panelContext = session ? { session, client, disabled: busy, onGoTo: goTo } : undefined
-  const leftEdge: ReaderEdgeSlot | undefined = panelContext ? {
+  const leftEdge: ReaderEdgeSlot | undefined = panelContext && (shell?.edges.left.enabled ?? true) ? {
     ariaLabel: "NeoView 左侧面板",
-    showDelayMs: 80,
+    showDelayMs: shell?.showDelayMs ?? 80,
+    hideDelayMs: shell?.hideDelayMs,
+    triggerSize: shell?.edges.left.triggerSize,
+    initialVisible: shell?.edges.left.initialVisible,
+    pinned: shell?.edges.left.pinned,
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
-        <LazyReaderSidebar side="left" context={panelContext} />
+        <LazyReaderSidebar side="left" context={panelContext} shell={shell} />
       </Suspense>
     ),
   } : undefined
-  const rightEdge: ReaderEdgeSlot | undefined = panelContext ? {
+  const rightEdge: ReaderEdgeSlot | undefined = panelContext && (shell?.edges.right.enabled ?? true) ? {
     ariaLabel: "NeoView 右侧面板",
-    showDelayMs: 80,
+    showDelayMs: shell?.showDelayMs ?? 80,
+    hideDelayMs: shell?.hideDelayMs,
+    triggerSize: shell?.edges.right.triggerSize,
+    initialVisible: shell?.edges.right.initialVisible,
+    pinned: shell?.edges.right.pinned,
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-l border-border/70 bg-background/85" aria-label="正在加载右侧面板" />}>
-        <LazyReaderSidebar side="right" context={panelContext} />
+        <LazyReaderSidebar side="right" context={panelContext} shell={shell} />
       </Suspense>
     ),
   } : undefined
@@ -261,6 +285,14 @@ export function ReaderApp({
       </ReaderEdgeShell>
     </div>
   )
+}
+
+function edgeSurfaceStyle(shell: ReaderShellConfigDto | undefined, edge: "top" | "bottom"): React.CSSProperties | undefined {
+  if (!shell) return undefined
+  return {
+    backgroundColor: `color-mix(in oklch, var(--background) ${shell.opacity[edge]}%, transparent)`,
+    backdropFilter: `blur(${shell.blur[edge]}px)`,
+  }
 }
 
 function applyNavigation(session: ReaderSessionDto, navigation: ReaderNavigationDto): ReaderSessionDto {

@@ -11,6 +11,7 @@ import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataPro
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
+import { DEFAULT_NEOVIEW_SHELL_CONFIG, type NeoviewShellConfig } from "../../application/config/ReaderRuntimeConfig.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
@@ -45,6 +46,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   sessionOptions?: Partial<ReaderSessionOptions>
   thumbnailStore?: ReaderThumbnailStore
   disposeThumbnailStore?: () => void | Promise<void>
+  shellOptions?: NeoviewShellConfig
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -54,6 +56,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
   readonly #disposeThumbnailStore?: () => void | Promise<void>
+  readonly #shellOptions: NeoviewShellConfig
 
   constructor(options: ReaderHttpControllerOptions) {
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -75,6 +78,7 @@ export class ReaderHttpController implements AsyncDisposable {
     })
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
+    this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -87,6 +91,9 @@ export class ReaderHttpController implements AsyncDisposable {
 
     if (url.pathname === "/reader/sessions" && request.method === "POST") {
       return this.#openSession(request)
+    }
+    if (url.pathname === "/reader/config" && request.method === "GET") {
+      return jsonResponse({ schemaVersion: 1, shell: this.#shellOptions })
     }
 
     const pagesMatch = SESSION_PAGES_PATH.exec(url.pathname)

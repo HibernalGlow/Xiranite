@@ -32,7 +32,17 @@ export interface ReaderPageListDto {
   total: number
 }
 
+export interface ReaderShellConfigDto {
+  showDelayMs: number
+  hideDelayMs: number
+  opacity: { top: number; bottom: number; sidebar: number }
+  blur: { top: number; bottom: number; sidebar: number }
+  edges: Record<"top" | "right" | "bottom" | "left", { enabled: boolean; initialVisible: boolean; pinned: boolean; triggerSize: number }>
+  sidebars: Record<"left" | "right", { width: number; height: "full" | "two-thirds" | "half" | "one-third" | "custom"; customHeight: number; verticalAlign: number; horizontalPosition: number }>
+}
+
 export interface ReaderHttpClient {
+  config(signal?: AbortSignal): Promise<ReaderShellConfigDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -55,6 +65,7 @@ export function createReaderHttpClient(
   }
 
   return {
+    config: (signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", { signal }).then((value) => value.shell),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },

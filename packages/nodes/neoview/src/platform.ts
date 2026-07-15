@@ -68,7 +68,8 @@ export async function createReaderHttpController(
   options: ReaderHttpCompositionOptions,
 ): Promise<ReaderHttpController> {
   const { ReaderHttpController } = await import("./platform/asset-route/ReaderHttpController.js")
-  const { loadNeoviewSessionOptions } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const runtimeConfig = await loadNeoviewRuntimeConfig(options)
   let thumbnailStore = options.thumbnailStore
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
@@ -82,7 +83,8 @@ export async function createReaderHttpController(
   }
   return new ReaderHttpController({
     ...options,
-    sessionOptions: await loadNeoviewSessionOptions(options),
+    sessionOptions: runtimeConfig.sessionOptions,
+    shellOptions: runtimeConfig.shellOptions,
     thumbnailStore,
     disposeThumbnailStore,
   })

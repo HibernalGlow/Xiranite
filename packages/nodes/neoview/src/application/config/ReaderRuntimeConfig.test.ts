@@ -47,6 +47,55 @@ describe("parseNeoviewRuntimeConfig", () => {
   })
 
   it("returns empty defaults when no NeoView section exists", () => {
-    expect(parseNeoviewRuntimeConfig(undefined)).toEqual({ schemaVersion: 1, sessionOptions: {} })
+    expect(parseNeoviewRuntimeConfig(undefined)).toMatchObject({
+      schemaVersion: 1,
+      sessionOptions: {},
+      shellOptions: {
+        showDelayMs: 0,
+        edges: { left: { pinned: true, triggerSize: 32 }, right: { initialVisible: false } },
+        sidebars: { left: { width: 320 }, right: { width: 280 } },
+      },
+    })
+  })
+
+  it("[neoview.settings.shell] normalizes legacy panel settings into bounded shell options", () => {
+    const { shellOptions } = parseNeoviewRuntimeConfig({
+      panels: {
+        left_sidebar_visible: true,
+        right_sidebar_visible: false,
+        bottom_panel_visible: true,
+        auto_hide_toolbar: false,
+        sidebar_opacity: 73,
+        sidebar_blur: 7,
+        hover_areas: { top_trigger_height: 4, bottom_trigger_height: 5, left_trigger_width: 6, right_trigger_width: 7 },
+        auto_hide_timing: { show_delay_sec: 0.125, hide_delay_sec: 0.75 },
+        sidebars: {
+          left: { width: 420, pinned: false, open: false, height: "custom", custom_height: 72, vertical_align: 40, horizontal_position: 15 },
+          right: { width: 260, height: "2/3" },
+        },
+      },
+    })
+    expect(shellOptions).toMatchObject({
+      showDelayMs: 125,
+      hideDelayMs: 750,
+      opacity: { sidebar: 73 },
+      blur: { sidebar: 7 },
+      edges: {
+        top: { initialVisible: true, pinned: true, triggerSize: 4 },
+        right: { enabled: false, triggerSize: 7 },
+        bottom: { enabled: true, initialVisible: true, triggerSize: 5 },
+        left: { enabled: true, initialVisible: false, pinned: false, triggerSize: 6 },
+      },
+      sidebars: {
+        left: { width: 420, height: "custom", customHeight: 72, verticalAlign: 40, horizontalPosition: 15 },
+        right: { width: 260, height: "two-thirds" },
+      },
+    })
+  })
+
+  it("rejects shell values outside safe rendering and timer limits", () => {
+    expect(() => parseNeoviewRuntimeConfig({ panels: { hover_areas: { top_trigger_height: 0 } } })).toThrow("top trigger")
+    expect(() => parseNeoviewRuntimeConfig({ panels: { auto_hide_timing: { hide_delay_sec: 6 } } })).toThrow("hide_delay_sec")
+    expect(() => parseNeoviewRuntimeConfig({ panels: { sidebars: { left: { width: 1000 } } } })).toThrow("left.width")
   })
 })

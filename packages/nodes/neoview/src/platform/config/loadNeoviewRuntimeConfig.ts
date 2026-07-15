@@ -1,5 +1,5 @@
 import type { ResolveConfigPathOptions } from "@xiranite/config"
-import { parseNeoviewRuntimeConfig } from "../../application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewRuntimeConfig, type NeoviewRuntimeConfig } from "../../application/config/ReaderRuntimeConfig.js"
 import type { ReaderSessionOptions } from "../../application/reader/contracts.js"
 
 export interface NeoviewRuntimeLoadOptions extends ResolveConfigPathOptions {
@@ -13,6 +13,15 @@ export async function loadNeoviewSessionOptions(
   const { config } = await loadNodeConfigWithHints("neoview", options)
   const configured = parseNeoviewRuntimeConfig(config).sessionOptions
   return mergeSessionOptions(configured, options.sessionOptions)
+}
+
+export async function loadNeoviewRuntimeConfig(
+  options: NeoviewRuntimeLoadOptions = {},
+): Promise<NeoviewRuntimeConfig> {
+  const { loadNodeConfigWithHints } = await import("@xiranite/config")
+  const { config } = await loadNodeConfigWithHints("neoview", options)
+  const parsed = parseNeoviewRuntimeConfig(config)
+  return { ...parsed, sessionOptions: mergeSessionOptions(parsed.sessionOptions, options.sessionOptions) }
 }
 
 function mergeSessionOptions(

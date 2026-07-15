@@ -19,6 +19,39 @@ afterEach(async () => {
 })
 
 describe("ReaderHttpController", () => {
+  it("[neoview.settings.shell-http] protects and returns only normalized shell settings", async () => {
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      shellOptions: {
+        showDelayMs: 50,
+        hideDelayMs: 200,
+        opacity: { top: 80, bottom: 70, sidebar: 60 },
+        blur: { top: 1, bottom: 2, sidebar: 3 },
+        edges: {
+          top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 4 },
+          right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5 },
+          bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 6 },
+          left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 7 },
+        },
+        sidebars: {
+          left: { width: 333, height: "half", customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
+          right: { width: 277, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+        },
+      },
+    })
+    try {
+      expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/config")))?.status).toBe(401)
+      const response = (await controller.handle(authorizedRequest("/reader/config")))!
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body).toMatchObject({ schemaVersion: 1, shell: { showDelayMs: 50, sidebars: { left: { width: 333 } } } })
+      expect(JSON.stringify(body)).not.toMatch(/path|token|password/i)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.thumbnail.http] publishes thumbnail DTOs and disposes its owned store", async () => {
     const directory = await createBookDirectory()
     const disposeThumbnailStore = vi.fn(async () => undefined)

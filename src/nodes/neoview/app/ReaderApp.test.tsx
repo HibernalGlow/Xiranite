@@ -1,13 +1,16 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, ReaderSessionDto } from "../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderSessionDto, ReaderShellConfigDto } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
+
+afterEach(cleanup)
 
 describe("ReaderApp", () => {
   it("[neoview.react.smoke] opens and navigates with DOM img elements over asset URLs", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
+      config: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(async () => ({
@@ -41,6 +44,7 @@ describe("ReaderApp", () => {
   it("[neoview.react.lifecycle] aborts superseded work and reports backend errors", async () => {
     let rejectOpen!: (error: Error) => void
     const client: ReaderHttpClient = {
+      config: vi.fn(async () => shellConfig()),
       open: vi.fn((_path, signal) => new Promise((_resolve, reject) => {
         rejectOpen = reject
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
@@ -68,6 +72,7 @@ describe("ReaderApp", () => {
       thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-2",
     }
     const client: ReaderHttpClient = {
+      config: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({
         pages: [{ ...opened.visiblePages[0]!, thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-1" }, secondPage],
@@ -85,6 +90,38 @@ describe("ReaderApp", () => {
     fireEvent.click(await screen.findByRole("button", { name: "转到第 2 页：002.jpg" }))
     await screen.findByRole("img", { name: "002.jpg" })
     expect(client.goTo).toHaveBeenCalledWith("reader-1", 1, expect.any(AbortSignal))
+  })
+
+  it("[neoview.settings.shell-react] applies late shell config without remounting the active image", async () => {
+    let resolveConfig!: (value: ReaderShellConfigDto) => void
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const client: ReaderHttpClient = {
+      config: vi.fn(() => new Promise((resolve) => { resolveConfig = resolve })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    const imageBeforeConfig = await screen.findByRole("img", { name: "001.jpg" })
+    await act(async () => resolveConfig({
+      ...shellConfig(),
+      showDelayMs: 125,
+      edges: {
+        ...shellConfig().edges,
+        top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5 },
+        left: { enabled: true, initialVisible: false, pinned: false, triggerSize: 9 },
+      },
+      sidebars: {
+        ...shellConfig().sidebars,
+        left: { width: 444, height: "half", customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
+      },
+    }))
+    expect(screen.queryByRole("textbox", { name: "漫画、图片或目录路径" })).toBeNull()
+    expect(document.querySelector<HTMLElement>('[data-reader-edge-trigger="top"]')?.style.height).toBe("5px")
+    expect(screen.getByRole("img", { name: "001.jpg" })).toBe(imageBeforeConfig)
   })
 })
 
@@ -112,5 +149,24 @@ function session(pageId: string, assetUrl: string, index: number): ReaderSession
       contentVersion: "v1",
       assetUrl,
     }],
+  }
+}
+
+function shellConfig(): ReaderShellConfigDto {
+  return {
+    showDelayMs: 0,
+    hideDelayMs: 0,
+    opacity: { top: 85, bottom: 85, sidebar: 85 },
+    blur: { top: 12, bottom: 12, sidebar: 12 },
+    edges: {
+      top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32 },
+      right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32 },
+      bottom: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32 },
+      left: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32 },
+    },
+    sidebars: {
+      left: { width: 320, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+      right: { width: 280, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+    },
   }
 }

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { loadNeoviewSessionOptions } from "./loadNeoviewRuntimeConfig.js"
+import { loadNeoviewRuntimeConfig, loadNeoviewSessionOptions } from "./loadNeoviewRuntimeConfig.js"
 import { createReaderHttpController } from "../../platform.js"
 
 describe("loadNeoviewSessionOptions", () => {
@@ -51,6 +51,27 @@ describe("loadNeoviewSessionOptions", () => {
     expect(await loadNeoviewSessionOptions({ configPath: join(root, "missing.toml") })).toEqual({})
   })
 
+  it("loads shell options from the same TOML snapshot as reader defaults", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-shell-config-"))
+    roots.push(root)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.neoview.panels]",
+      "left_sidebar_visible = true",
+      "sidebar_opacity = 70",
+      "[nodes.neoview.panels.hover_areas]",
+      "left_trigger_width = 9",
+      "[nodes.neoview.panels.sidebars.left]",
+      "width = 444",
+      "height = \"half\"",
+    ].join("\n"), "utf8")
+    expect((await loadNeoviewRuntimeConfig({ configPath })).shellOptions).toMatchObject({
+      opacity: { sidebar: 70 },
+      edges: { left: { enabled: true, triggerSize: 9 } },
+      sidebars: { left: { width: 444, height: "half" } },
+    })
+  })
+
   it("[neoview.settings.runtime-gui] applies the same TOML defaults in the HTTP composition", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-runtime-http-"))
     roots.push(root)
@@ -86,6 +107,10 @@ describe("loadNeoviewSessionOptions", () => {
         frame: { direction: "right-to-left", layout: { pageMode: "double" } },
         visiblePages: [{ index: 2 }, { index: 1 }],
       })
+      const shellResponse = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        headers: { "x-xiranite-token": "runtime-token" },
+      }))
+      expect(await shellResponse?.json()).toMatchObject({ schemaVersion: 1, shell: { edges: { left: { triggerSize: 32 } } } })
     } finally {
       await controller[Symbol.asyncDispose]()
     }
