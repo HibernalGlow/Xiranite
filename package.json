@@ -4,6 +4,9 @@
   "version": "0.1.2",
   "type": "module",
   "packageManager": "bun@1.3.0",
+  "overrides": {
+    "@img/sharp-win32-x64": "npm:@img-custom/sharp-win32-x64@0.35.3"
+  },
   "workspaces": [
     "packages/*",
     "packages/nodes/*"
@@ -62,6 +65,7 @@
     "benchmark:neoview-zip": "bun scripts/benchmark-neoview-zip.ts",
     "benchmark:neoview-cache": "bun scripts/benchmark-neoview-cache.ts",
     "benchmark:neoview-thumbnails": "bun scripts/benchmark-neoview-thumbnails.ts",
+    "benchmark:neoview-codecs": "bun scripts/benchmark-neoview-image-codecs.ts",
     "benchmark:neoview-sevenzip": "bun scripts/benchmark-neoview-sevenzip.ts",
     "benchmark:neoview-reader": "bun scripts/benchmark-neoview-reader.ts",
     "audit:neoview-performance": "bun scripts/verify-neoview-performance.ts",

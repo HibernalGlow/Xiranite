@@ -1,11 +1,12 @@
 import { Duplex } from "node:stream"
+import type sharp from "sharp"
 
 import { imageTransformContentType } from "../../../domain/image/image-transform.js"
 import type { ImageTransformer, ImageTransformExecution, ImageTransformResult } from "../../../ports/ImageTransformer.js"
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { defaultImageTransformScheduler } from "../../scheduler/PriorityResourceScheduler.js"
 
-type SharpFactory = typeof import("sharp")
+type SharpFactory = typeof sharp
 
 let sharpFactory: Promise<SharpFactory> | undefined
 

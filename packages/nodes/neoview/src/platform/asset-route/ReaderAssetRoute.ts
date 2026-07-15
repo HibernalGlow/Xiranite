@@ -289,7 +289,7 @@ export class ReaderAssetRoute {
     workSignal.throwIfAborted()
     const transformKey = imageTransformCacheKey(transform)
     const etag = pageEtag(page, transformKey)
-    const cacheKey = `${etag}:sharp-0.34.5`
+    const cacheKey = `${etag}:sharp-0.35.3-jxl`
     const headers = new Headers({
       "cache-control": "private, max-age=31536000, immutable",
       "content-type": imageTransformContentType(transform.format),

@@ -1167,7 +1167,7 @@ JXL 目前明确返回 unsupported，保留给后续惰性 native decoder/sharp 
 
 可选 sharp 变换现已接入同一 asset route。无变换参数时仍走原始 `PageSource`、Range、原始 `Content-Length` 和原图 ETag，且不会加载 sharp；只有 URL 明确携带有界的 `width`/`height`/`dpr`/`fit`/`format`/`quality` 时，才动态导入 `SharpImageTransformer`。参数先规范化并进入变体 ETag，重复参数、非法组合、超限尺寸在打开 page source 和 native 模块前返回 400。变换链为 `PageSource stream -> sharp Duplex -> Web ReadableStream -> HTTP`，不调用 `toBuffer()`，转换响应不谎报 Range 或预先物化以计算 `Content-Length`。当前支持 JPEG、PNG、WebP、AVIF 输出，默认缩放结果为 `inside` WebP，并通过 `AbortSignal` 将客户端断开传到输入流与 sharp pipeline。
 
-`sharp@0.34.5` 已被 CLI runtime 使用，NeoView 声明相同直接依赖，lockfile 仍只有一个版本；模块与 libvips 初始化保持二级懒加载。backend 现已拥有单例 `ResourceSchedulerService`，按 CPU/I/O/GPU 分池，并支持 interactive/view/ahead/background 优先级、交互保留槽、排队取消和状态快照；它通过 `ResourceScheduler` contract 注入懒加载的 NeoView controller，真实 loopback 转码测试会验证 sharp 从宿主 CPU 池取得 lease。独立 CLI/TUI 没有 backend 时使用相同 port 后面的本地 `PriorityResourceScheduler` fallback。宿主总配额基础设施已经唯一，但其他高负载节点、缩略图、归档和超分仍需逐个改为取得宿主 lease，接入完成前不能声称所有工具已受全局配额约束。
+`sharp@0.35.3` 已被 CLI runtime 与 NeoView 共用，lockfile 仍只有一个版本；Windows x64 平台包通过根级 flat override 固定为 OpenComic 同一维护者发布、带 npm provenance 的 `@img-custom/sharp-win32-x64@0.35.3`，真实编解码测试要求 `sharp.format.jxl.input/output.buffer` 均为 `true`。模块与 libvips 初始化保持二级懒加载。backend 现已拥有单例 `ResourceSchedulerService`，按 CPU/I/O/GPU 分池，并支持 interactive/view/ahead/background 优先级、交互保留槽、排队取消和状态快照；它通过 `ResourceScheduler` contract 注入懒加载的 NeoView controller，真实 loopback 转码测试会验证 sharp 从宿主 CPU 池取得 lease。独立 CLI/TUI 没有 backend 时使用相同 port 后面的本地 `PriorityResourceScheduler` fallback。宿主总配额基础设施已经唯一，但其他高负载节点、缩略图、归档和超分仍需逐个改为取得宿主 lease，接入完成前不能声称所有工具已受全局配额约束。
 
 ### 11.8 并发、缓存和背压
 
@@ -1864,6 +1864,217 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 这仍不是完整 thumbnail feature：React 页面列表尚未消费 `thumbnailUrl`，生成、写入、单写者协调、迁移锁、checkpoint/备份迁移、失败/缺失生成队列、统计/vacuum 和 V1/V3/V4 service 收口仍待后续纵切。
 
 `system.thumbnailDirectory`/TOML `nodes.neoview.paths.thumbnail_directory` 是用户配置的缩略图、超分或临时产物目录，不等于上述 SQLite 主库路径。导入时应保留这个设置，但它不能把主数据库从 `%APPDATA%\NeoView\thumbnails.db` 悄悄迁走。若检测到历史版本曾在自定义目录创建另一个 `thumbnails.db`，应作为一次性兼容源合并或挂载，并在报告中展示，不能恢复多主库运行模式。
+
+#### 18.5.1 完整缩略图目标架构
+
+缩略图不能继续被实现成一个只有 `get/put` 的同质缓存。冻结 NeoView V4 已经证明来源至少包含 `File`、`ArchiveEntry`、`DirectoryCover` 和 `BookPage`，NeeView 则证明 Page 与 Book/Library 缩略图需要独立寿命池；OpenComic 的 Worker、懒生成和容量清理说明生成任务必须与 UI 生命周期隔离。目标实现吸收三者优点，但只保留一个后端服务和一个持久数据库：
+
+```text
+Reader page strip / file browser / folder browser
+                      ↓ acquire lease
+             ThumbnailDemandRegistry
+                      ↓ 合并、排序、取消
+              ThumbnailCoordinator
+          ┌───────────┼────────────┐
+     weighted L1   Legacy SQLite   Generator
+         memory    thumbnails.db   sharp/ffmpeg
+          └───────────┼────────────┘
+                      ↓
+            opaque loopback HTTP URL
+```
+
+`ThumbnailCoordinator` 属于 Xiranite 宿主级后端服务，负责需求、singleflight、调度、内存预算、失败退避和观测；NeoView 提供 Page/Archive/Folder source adapter 以及旧库兼容 adapter。共享服务不得反向依赖 NeoView schema。普通 Reader、CLI、TUI 和其他节点通过同一 contract 请求缩略图，不分别维护生成器和队列。
+
+#### 18.5.2 Page、file、folder 是三个逻辑产品
+
+三者共享底层生成和存储，但来源、失效与优先级必须分开：
+
+| 逻辑类型 | 来源 | 主要消费者 | 失效依据 | 持久 category |
+| --- | --- | --- | --- | --- |
+| `PageThumbnail` | `ReaderSession -> PageSource`，包括目录页和归档 entry | 阅读器底部缩略图、页面列表 | 页面文件或 archive/entry fingerprint + profile | `file` |
+| `FileCover` | 图片本身、视频代表帧、archive 首个有效页面 | 文件浏览、最近书籍、历史/书签 | 文件 size/mtime + cover policy + profile | `file` |
+| `FolderCover` | 文件索引选出的稳定 representative | 目录浏览、文件夹卡片 | representative fingerprint + folder policy | `folder` |
+
+物理数据库仍兼容旧 schema，因此 Page 不新增 `page` category：
+
+- 目录/独立图片 Page 使用 `realpath` 后的绝对页面路径，`category=file`；
+- 根归档 Page 使用 `archivePath::innerPath#entryIndex`，`category=file`；
+- file/archive/video 封面使用绝对文件路径，`category=file`；
+- folder 封面使用绝对目录路径，`category=folder`；
+- 嵌套归档在旧 key 语义没有事实证据前，不用临时物化路径构造持久 key；可以使用 session L1，不能污染旧库。
+
+同一图片同时作为 Page 与 FileCover 时，应按规范化 `sourceFingerprint + profile` singleflight 并复用同一生成结果；不能因入口不同重复解码。FolderCover 优先复用已有子项缩略图，不重新打开原始图片。Folder representative 由共享目录索引确定，不允许每次请求临时递归扫描 12 层，也不在生成完成后无界复制给所有父目录；父目录更新应作为有界、可取消的独立需求。
+
+#### 18.5.3 需求驱动、lease 与优先级
+
+API 以“当前仍有消费者”为中心，而不是把任务丢进不可撤销队列：
+
+```ts
+interface ThumbnailDemand {
+  source: ThumbnailSource
+  profile: ThumbnailProfile
+  lane: "reader-visible" | "library-visible" | "prefetch" | "folder-preview" | "background"
+  contextId: string
+  generation: number
+  signal: AbortSignal
+}
+
+interface ThumbnailLease extends AsyncDisposable {
+  assetUrl: string
+  state: "ready" | "pending"
+}
+```
+
+多个消费者请求同一 fingerprint 时只允许一个生成 flight；每个消费者持有独立 lease。页面离开虚拟窗口、切书、目录切换、Panel 卸载或宿主关闭时释放 lease。最后一个消费者释放后，未开始任务直接移除，活动 PageSource/archive stream/sharp/ffmpeg 任务收到取消。旧 generation 的未开始任务必须丢弃，不能在用户快速滚动后继续生成过期窗口。
+
+默认优先级：
+
+```text
+reader-visible
+→ library-visible
+→ prefetch
+→ folder-preview
+→ background
+```
+
+所有生成任务接入宿主 `ResourceScheduler`：当前可见项取得交互 CPU/I/O lease；同一 HDD 默认一个 archive/thumbnail I/O，SSD/NVMe 再根据 benchmark 放宽；同一 solid archive 只允许一个顺序 extractor；sharp 生成槽初始为全局 1～2 个；视频缩略图使用独立 ffmpeg 进程槽。不得照搬 OpenComic “按全部 CPU 核心创建 Worker”的策略，也不得修改全局 sharp concurrency 影响其他节点。
+
+#### 18.5.4 生成管线与 WebP BLOB
+
+默认持久格式继续使用 WebP 编码字节直接写 SQLite BLOB。这是缩略图实时链在体积、编码速度、WebView 解码和透明度支持之间最稳的选择：
+
+| profile | 初始最大边 | WebP quality | effort | 用途 |
+| --- | ---: | ---: | ---: | --- |
+| `page-strip-v1` | 320 px | 78 | 1～2 | PageThumbnail |
+| `library-cover-v1` | 384～448 px | 82 | 2 | FileCover/FolderCover |
+
+数值是初始 profile，最终由真实漫画 corpus benchmark 调整；profile id 必须进入 generation fingerprint。生成时应用 EXIF orientation、转换到 sRGB、限制输入像素、只缩小不放大，并默认取动图/视频的稳定代表帧。PageSource 和 archive entry 直接以 stream 输入惰性加载的 `sharp/libvips`，不能先完整 `Buffer.concat()`、写临时 PNG 或转 JPEG Q85。
+
+允许一个受严格限制的响应快速路径：来源已经是浏览器支持的 JPEG/PNG/WebP，尺寸不超过目标且编码字节低于例如 256 KiB 时，可直接作为当前 HTTP asset 返回，不启动 sharp。持久化仍以规范化 WebP 为默认，避免数据库长期混入不可控的超大原图。FolderCover 复用已有 WebP blob 时不重新编码。
+
+Windows 生成链在同一个 `PlatformThumbnailPipeline` 中增加两级按需快速路径，不创建第二套缓存或服务：
+
+1. file、folder、video 和非 archive-entry page 先调用 Rust `windows` crate adapter，以 `SIIGBF_INCACHEONLY | SIIGBF_THUMBNAILONLY` 只读取 Windows Shell 已有缓存；命中后把 RGBA 编码为规范 WebP，未命中或 handler 不支持则无错误回退到现有生成器。archive entry 不能直接交给 Shell；根 archive 只有系统已安装对应 thumbnail handler 时才可能命中。
+2. 原始图片进入唯一 `ImageTransformer`。JPEG/PNG/WebP 等常规格式走 sharp；Windows AVIF/JXL 根据文件签名优先走 WIC 解码，解码后的 RGBA 仍由 sharp 完成尺寸适配和 WebP/JPEG/PNG/AVIF 输出。AVIF/JXL 的 WIC codec 缺失、失败或请求尺寸超过 WIC 上限时，都在释放 WIC 的 scheduler lease 后回退带 libjxl 的 custom sharp；JPEG/WebP 不进入 WIC 热路径。
+
+2026-07-15 在当前 Windows/Bun 环境的实测选择如下：
+
+| 能力 | 候选 | 结果与决策 |
+| --- | --- | --- |
+| Windows Shell cache | Rust `windows` crate | 100 次约 503.53 ms，event-loop 最大 gap 13.6 ms；保留 |
+| Windows Shell cache | Koffi | 100 次约 491 ms，但同步 FFI 令 event-loop 最大 gap 491.76 ms；删除 |
+| Windows Shell cache | `shell-image-win` | Bun 1.4 加载 native binding 即崩溃，且包长期未维护；删除 |
+| 4K JPEG → 416 WebP | sharp custom | p95 139.71 ms，RSS 峰值增量 197.75 MiB；优先 |
+| 4K JPEG → 416 WebP | WIC + sharp | p95 389.20 ms，RSS 峰值增量 10.73 MiB；不使用 |
+| 4K WebP → 416 WebP | sharp custom | p95 248.54 ms，RSS 峰值增量 5.29 MiB；优先 |
+| 4K WebP → 416 WebP | WIC + sharp | p95 369.92 ms，RSS 峰值增量 19.88 MiB；不使用 |
+| 4K AVIF → 416 WebP | sharp custom | p95 518.96 ms，RSS 峰值增量 227.82 MiB；仅作 WIC 回退 |
+| 4K AVIF → 416 WebP | WIC + sharp | p95 148.09 ms，RSS 峰值增量 23.46 MiB；Windows 优先 |
+| 4K JXL → 416 WebP | sharp custom | p95 477.89 ms，RSS 峰值增量 183.67 MiB；WIC 回退/非 Windows |
+| 4K JXL → 416 WebP | WIC + sharp | p95 501.72 ms，RSS 峰值增量 20.16 MiB；Windows 缩略图优先 |
+
+上述 2026-07-15 数据由 `bun run benchmark:neoview-codecs -- --iterations 10 --warmup 3` 产生。脚本生成同一张确定性 4K 高细节图，分别编码为 JPEG/WebP/AVIF/JXL；每个“格式 × 引擎”在独立 Bun 进程中预热并测试，统一输出 416 px、quality 82 的 WebP，避免 libvips/WIC cache 和 RSS 互相污染。单张合成图只能用于 adapter 选路基线，发布门禁仍需真实漫画 corpus 的多图冷/热数据。
+
+OpenComic 能读取 JXL 不是官方 sharp Windows 包的默认能力。其 `package.json` 将平台包 override 到 `ollm/sharp-custom` 发布的 `@img-custom/*`；该项目从上游 sharp/sharp-libvips 可复现构建并静态加入 JXL、JP2。XR 采用相同的公开预编译包而不复制 GPL OpenComic 源码：Windows x64 包压缩约 9.47 MiB、解压约 21.49 MiB，与官方单体 runtime 同一量级，避免 full dynamic libvips runtime 的插件部署和约 44 MiB DLL 集。依赖必须精确锁版本、保留 npm integrity/provenance，并由真实 JXL round-trip 测试防止 Bun lockfile 或 override 回退到官方无 JXL 包。
+
+Rust adapter、WIC binding、sharp 与 ffmpeg provider 全部在首次实际请求对应能力时动态加载。Shell cache miss 不进入失败黑名单；只有 WIC 与 sharp 最终生成都失败才按统一规则记录。WIC 输入设 256 MiB 上限、解码尺寸和 RGBA allocation 上限，N-API 工作在异步 worker，不能用同步 FFI 阻塞 Bun 后端事件循环。custom sharp 为跨平台能力和 Windows fallback，不意味着所有格式一律走 sharp；格式路由以隔离 benchmark 为准。未来官方 sharp 预构建若稳定启用 libjxl，可移除 override，但必须先用同一语料验证延迟、RSS、包体和维护性。
+
+禁止以下持久格式和中间链：
+
+- 不把 WebP 再用 LZ4 压缩；旧 LZ4 记录只保留兼容读取，已压缩图片通常不会因此有效缩小；
+- 不保存 Base64，避免约 33% 体积膨胀和额外编解码；
+- 不保存 BGRA/RGBA 原始像素；
+- 不以 AVIF/JXL 作为实时默认输出，二者编码成本或 WebView 支持不适合可见缩略图热路径；
+- 不创建成千上万个独立磁盘缩略图文件；现阶段没有第二个 CAS、临时文件缓存或新 SQLite 主库。
+
+生成输出对首个消费者采用“流式响应 + 有界旁路收集”：首个 HTTP 响应不等待 SQLite 事务完成；旁路仅在编码结果小于单条硬上限时收集并进入写队列。建议普通目标为 20～100 KiB，单条持久化硬上限初始为 512 KiB；超限结果可以完成当前显示，但不写入持久缓存。
+
+#### 18.5.5 单数据库、指纹和写入规则
+
+当前阶段不新增 SQLite 数据库、不新增 SQLite npm/native binding，也不修改旧 2.4 schema。运行时继续动态选择 `bun:sqlite` 或 `node:sqlite`：
+
+```text
+%APPDATA%/NeoView/thumbnails.db
+├─ thumbs
+├─ failed_thumbnails
+└─ metadata
+```
+
+DemandRegistry、singleflight、活动 lease、优先级队列和 L1 全部只存在内存。`thumbs.size/date/ghash/category/value` 足以承载首阶段的来源校验：
+
+- file/page 快速指纹使用规范化路径、source size、mtime 与 profile version；
+- archive page 使用 archive size/mtime、entry index、entry size、可用 CRC 与 profile version；
+- folder 使用 representative key/fingerprint 与 folder policy version；
+- 只有快速指纹冲突、元数据异常或外部语料要求时才计算完整内容 hash，不能为了扫描目录先读取所有文件内容；
+- `ghash` 存放稳定、有版本的生成指纹，`date` 记录成功生成/有界 touch 时间，`size` 记录来源大小。
+
+XR 内只允许一个 writable store 实例，读取继续使用独立 read-only/query-only 连接。写入按 key 合并，最多等待 200～500 ms 或累计 32～64 项后执行一次 `BEGIN IMMEDIATE` 批量事务；SQLite busy 时按有界退避重试。访问命中不逐次更新 `date`，最多按天采样 touch，避免滚动缩略图条持续写 WAL。
+
+写入必须使用 `INSERT ... ON CONFLICT DO UPDATE`，并且只更新 `size/date/ghash/category/value`。禁止 `INSERT OR REPLACE` 删除再插入，因为同一行还包含 `emm_json`、`rating_data`、`ai_translation` 和 `manual_tags`，缩略图更新不得清空这些业务数据。XR 与旧 NeoView 可能同时运行时，依赖 SQLite WAL/busy timeout 保持事务安全；此时禁止自动 schema migration、checkpoint truncate 和 vacuum。较新、较旧或不兼容 schema 继续只读，必须先备份并显式迁移才能获得写权限。
+
+如果未来真实规模证明需要内容寻址去重、多尺寸版本或持久任务队列，优先在同一个 `thumbnails.db` 中进行带备份、可回滚的 schema 升级；不得未经数据和性能证据创建第二个数据库或维持两套运行实现。
+
+#### 18.5.6 L1、批量命中与 HTTP
+
+缩略图只保留三层缓存：
+
+1. WebView HTTP/解码缓存；
+2. 按实际编码字节计费的宿主 L1 weighted LRU；
+3. 原版 SQLite 持久缓存。
+
+L1 初始硬预算为 32～64 MiB，可见项 pinned，刚离开视口的项进入 warm 区，background 结果不自动晋升为热缓存。淘汰权重综合实际字节、最后访问 lane 和重新生成成本；不能像 NeeView 仅按 Page 100、Book 200 的对象数量计费。
+
+页面列表和文件浏览器以 32～64 项对齐窗口提交 demand。后端先通过一次 `getMany()`/SQLite `IN` 查询把命中项预热到 L1，只给缺失项排生成任务；随后单个 `<img>` 的 opaque URL 主要命中内存，不能为 64 个可见项重复执行 64 次 statement 查询。
+
+Page 继续使用 session-scoped URL；library 使用独立 capability/opaque asset id，二者都不得包含真实路径、archive entry 或数据库 key。响应包含准确 `Content-Type`、`ETag`、`nosniff` 和取消传播。稳定记录优先使用带 `recordFingerprint` 的版本化 URL和 `private, immutable`；为兼容旧 NeoView 外部写 WAL，后端监听数据库/WAL 变化并使受影响批次或 epoch 失效。无法可靠检测外部更新时回退到当前 `private, no-cache` 条件重验证，不能用永久旧图换性能。
+
+#### 18.5.7 失败、清理和维护
+
+生成失败写入 `failed_thumbnails`，按规范化原因分类，例如 `unsupported-format`、`decode-error`、`archive-error`、`password-required`、`source-missing`、`cancelled`。用户取消和 generation 过期不计为可重试失败。真正失败记录包含 retry count、上次尝试和有上限的脱敏错误信息，采用指数退避；用户显式“重新生成”可以绕过退避但仍受 scheduler 限制。
+
+维护能力必须包括：
+
+- 按 source fingerprint 删除失效记录；
+- 按日期有界批次清理，不能一次事务删除整库；
+- orphan/failed 统计、按原因清除和重试；
+- WAL/SHM 状态、数据库大小、命中率、生成率、取消率和队列快照；
+- 手动/空闲时 checkpoint 与 vacuum，执行前确认没有外部 NeoView writer，并创建可验证备份；
+- 关闭宿主时停止接收 demand、取消可取消生成、等待当前批写事务、关闭 writer，再关闭 read-only 连接；
+- 严禁测试直接修改用户真实 `%APPDATA%/NeoView/thumbnails.db`。
+
+#### 18.5.8 完整测试与性能门槛
+
+实现必须覆盖三条独立语料链，而不是只用一张 PNG 证明 CRUD：
+
+| 测试域 | 最低真实样本与行为 |
+| --- | --- |
+| Page | 目录图片、Store/Deflate CBZ、non-solid/solid 7z、嵌套 archive、AES ZIP；可见窗口、快速滚动取消、切书、原始 entry index 与旧 key |
+| file | JPEG/PNG/WebP/AVIF/JXL、动图、视频、ZIP/RAR/7z 封面；小图快速路径、mtime/size 失效、错误恢复 |
+| folder | 空目录、超大目录、深层目录、代表图变化、子项删除/重命名、复用已有 file thumbnail、无界父目录传播防护 |
+
+SQLite fixture 覆盖 current 2.4、活动 WAL/SHM、旧版、较新版、损坏库、并发 reader/writer、批写中止、busy timeout、EMM/评分/AI/标签不被 upsert 清空、失败退避和维护备份恢复。真实用户库测试只允许只读聚合 benchmark，不输出 key 或 blob。
+
+初始阻断指标：
+
+- cache hit loopback first-byte p95 目标不高于 15 ms；
+- 无资源竞争时 visible demand queue wait p95 目标不高于 10 ms；
+- 4K JPEG PageThumbnail 的冷生成 p95 初始目标不高于 250 ms，AVIF/JXL、视频和 solid archive 分开报告，不能混合稀释；
+- 1,000 页快速滚动后，过期 generation 不得继续增长后台任务，取消延迟和活动任务数必须有硬上限；
+- L1 永远不超过配置字节预算，关闭最后一个消费者后 pinned/lease/flight 数归零；
+- 单次可见窗口最多一次批量 SQLite 查询，相同 fingerprint 同时请求只生成一次；
+- 批写事务频率、WAL 增量、命中率、生成 p50/p95、source read、sharp decode/resize/encode、HTTP first-byte 和 RSS 均进入 benchmark 输出；
+- 普通 Reader 冷启动和原图翻页不加载 sharp、ffmpeg 或 writable thumbnail store，缩略图能力仍需保持 capability 级懒加载。
+
+#### 18.5.9 实施顺序
+
+1. 在宿主服务层建立 `ThumbnailSource/Profile/Demand/Lease`、generation 取消与 singleflight，不接 UI；
+2. 接 Page 可见窗口：旧库批量命中 → L1 → opaque URL，miss 才走 `PageSource -> sharp -> WebP`；
+3. 接 file/image/archive/video cover，并验证与 Page 相同来源的生成复用；
+4. 接 folder representative、子项缩略图复用和有界父目录失效；
+5. 接当前 2.4 schema 的单 writer 批处理、failed queue 和只更新缩略图列的 upsert；
+6. 接 WAL 变化失效、版本化 immutable URL、统计、checkpoint/backup/vacuum；
+7. 删除旧 Thumbnail V1/V3/V4、PageManager 和临时生成链，只保留一个 Coordinator 与一个 legacy store adapter；
+8. 在真实 1,000 页漫画、10,000 文件目录、视频目录、HDD/SATA SSD/NVMe 上通过上述正确性、内存和性能门槛后，才能把 `thumbnail-system` 从 `pending` 改为完成。
 
 ### 18.6 兼容性验收
 

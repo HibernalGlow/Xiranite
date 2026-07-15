@@ -59,8 +59,7 @@ export class WindowsWicImageTransformer implements ImageTransformer {
     const bytes = await collectInput(peeked, MAX_WIC_INPUT_BYTES, signal)
     const maxDimension = transformedMaxDimension(request)
     if (maxDimension > MAX_WIC_DIMENSION) {
-      if (format === "avif") return this.#fallback.transform(byteStream(bytes), request, signal, execution)
-      throw new RangeError(`WIC JXL transforms are limited to ${MAX_WIC_DIMENSION}px.`)
+      return this.#fallback.transform(byteStream(bytes), request, signal, execution)
     }
 
     const lease = await this.#resourceScheduler.acquire({
@@ -84,8 +83,11 @@ export class WindowsWicImageTransformer implements ImageTransformer {
     } finally {
       lease.release()
     }
-    if (format === "avif") return this.#fallback.transform(byteStream(bytes), request, signal, execution)
-    throw failure
+    try {
+      return await this.#fallback.transform(byteStream(bytes), request, signal, execution)
+    } catch (fallbackError) {
+      throw new AggregateError([failure, fallbackError], `${format.toUpperCase()} failed in both WIC and sharp.`)
+    }
   }
 
   #getWic(): Promise<WicImageApi> {

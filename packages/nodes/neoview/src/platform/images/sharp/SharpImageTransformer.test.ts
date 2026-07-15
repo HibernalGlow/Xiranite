@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import type sharp from "sharp"
 
 import type { ImageTransformRequest } from "../../../domain/image/image-transform.js"
 import { SharpImageTransformer } from "./SharpImageTransformer.js"
@@ -13,6 +14,19 @@ const WEBP_REQUEST: ImageTransformRequest = {
 }
 
 describe("SharpImageTransformer", () => {
+  it("[neoview.image.sharp-jxl-runtime] ships a JXL-capable Windows runtime", async () => {
+    const sharp = await loadSharp()
+    if (process.platform !== "win32" || process.arch !== "x64") return
+    expect(sharp.format.jxl).toMatchObject({
+      input: { buffer: true },
+      output: { buffer: true },
+    })
+    const encoded = await sharp({
+      create: { width: 4, height: 3, channels: 3, background: "#c2410c" },
+    }).jxl().toBuffer()
+    await expect(sharp(encoded).metadata()).resolves.toMatchObject({ format: "jxl", width: 4, height: 3 })
+  })
+
   it("[neoview.image.transform-sharp] incrementally resizes and transcodes through Web streams", async () => {
     const sharp = await loadSharp()
     const source = await sharp(Uint8Array.of(
@@ -81,7 +95,7 @@ describe("SharpImageTransformer", () => {
   })
 })
 
-async function loadSharp(): Promise<typeof import("sharp")> {
+async function loadSharp(): Promise<typeof sharp> {
   const module = await import("sharp")
-  return ((module as unknown as { default?: typeof import("sharp") }).default ?? module) as typeof import("sharp")
+  return ((module as unknown as { default?: typeof sharp }).default ?? module) as typeof sharp
 }

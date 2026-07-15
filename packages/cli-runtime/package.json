@@ -52,7 +52,7 @@
     "cli-spinners": "^3.4.0",
     "i18next": "^26.3.4",
     "react": "^19.2.4",
-    "sharp": "0.34.5",
+    "sharp": "0.35.3",
     "sixel": "0.16.0",
     "string-width": "^8.1.0"
   },

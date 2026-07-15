@@ -84,15 +84,20 @@ describe("WindowsWicImageTransformer", () => {
   it.each([
     Uint8Array.of(0xff, 0x0a, 1, 2, 3),
     Uint8Array.of(0, 0, 0, 12, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a),
-  ])("[neoview.image.wic-jxl] detects JXL signatures and does not use the unsupported sharp fallback", async (jxl) => {
-    const fallback = vi.fn()
-    const transformer = new WindowsWicImageTransformer({ transform: fallback } as unknown as ImageTransformer, {
-      resourceScheduler: { acquire: async () => ({ release() {} }) },
+  ])("[neoview.image.wic-jxl-fallback] releases the WIC lease and replays JXL to custom sharp", async (jxl) => {
+    const release = vi.fn()
+    const fallback = vi.fn(async (input: ReadableStream<Uint8Array>) => {
+      expect(release).toHaveBeenCalledOnce()
+      return { contentType: "image/webp", stream: byteStream(await readAll(input)) }
+    })
+    const transformer = new WindowsWicImageTransformer({ transform: fallback } as ImageTransformer, {
+      resourceScheduler: { acquire: async () => ({ release }) },
       loadWic: async () => ({ createWicImageThumbnail: async () => { throw new Error("codec missing") } }),
     })
 
-    await expect(transformer.transform(byteStream(jxl), REQUEST)).rejects.toThrow("codec missing")
-    expect(fallback).not.toHaveBeenCalled()
+    const result = await transformer.transform(byteStream(jxl), REQUEST)
+    expect(await readAll(result.stream)).toEqual(jxl)
+    expect(fallback).toHaveBeenCalledOnce()
   })
 })
 
