@@ -6,10 +6,11 @@ import type {
   ReaderLibraryStore,
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
+import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
 
-export class SqliteReaderDataStore implements ReaderLibraryStore, ReaderProgressStore {
+export class SqliteReaderDataStore implements ReaderDataStore {
   #closed = false
 
   private constructor(private readonly database: WritableSqliteConnection) {}
@@ -54,6 +55,18 @@ export class SqliteReaderDataStore implements ReaderLibraryStore, ReaderProgress
         );
         CREATE INDEX IF NOT EXISTS xr_reader_bookmark_memberships_list_idx
           ON xr_reader_bookmark_memberships (list_id, bookmark_id);
+        CREATE TABLE IF NOT EXISTS xr_reader_path_stacks (
+          book_id TEXT PRIMARY KEY NOT NULL,
+          path_stack_json TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS xr_reader_media_progress (
+          book_id TEXT PRIMARY KEY NOT NULL,
+          position REAL NOT NULL,
+          duration REAL NOT NULL,
+          completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0, 1)),
+          updated_at INTEGER NOT NULL
+        );
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database)
@@ -232,6 +245,90 @@ export class SqliteReaderDataStore implements ReaderLibraryStore, ReaderProgress
       deleted = this.database.run("DELETE FROM xr_reader_bookmark_lists WHERE id = ?1", id).changes > 0
     })
     return deleted
+  }
+
+  async importData(batch: ReaderDataImportBatch, strategy: "merge" | "overwrite"): Promise<ReaderDataImportResult> {
+    this.#assertOpen()
+    const result: ReaderDataImportResult = { progress: 0, bookmarks: 0, bookmarkLists: 0, pathStacks: 0, mediaProgress: 0 }
+    await this.#transaction(() => {
+      if (strategy === "overwrite") {
+        this.database.run("DELETE FROM xr_reader_bookmark_memberships")
+        this.database.run("DELETE FROM xr_reader_bookmarks")
+        this.database.run("DELETE FROM xr_reader_bookmark_lists")
+        this.database.run("DELETE FROM xr_reader_path_stacks")
+        this.database.run("DELETE FROM xr_reader_media_progress")
+        this.database.run("DELETE FROM xr_reader_progress")
+      }
+      for (const list of batch.bookmarkLists) {
+        result.bookmarkLists += this.database.run(
+          `INSERT INTO xr_reader_bookmark_lists (id, name, is_favorite, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5)
+           ON CONFLICT(id) DO UPDATE SET name = excluded.name, is_favorite = excluded.is_favorite,
+             updated_at = excluded.updated_at WHERE excluded.updated_at > xr_reader_bookmark_lists.updated_at`,
+          list.id, list.name, list.isFavorite ? 1 : 0, list.createdAt, list.updatedAt,
+        ).changes
+      }
+      for (const progress of batch.progress) {
+        assertProgress(progress)
+        result.progress += this.database.run(
+          `INSERT INTO xr_reader_progress (book_id, source_json, display_name, page_index, page_count, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+           ON CONFLICT(book_id) DO UPDATE SET source_json = excluded.source_json,
+             display_name = excluded.display_name, page_index = excluded.page_index,
+             page_count = excluded.page_count, updated_at = excluded.updated_at
+           WHERE excluded.updated_at > xr_reader_progress.updated_at`,
+          progress.bookId, JSON.stringify(progress.source), progress.displayName,
+          progress.pageIndex, progress.pageCount, progress.updatedAt,
+        ).changes
+      }
+      for (const bookmark of batch.bookmarks) {
+        const bookmarkChanged = this.database.run(
+          `INSERT INTO xr_reader_bookmarks (id, source_json, name, kind, starred, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+           ON CONFLICT(id) DO UPDATE SET source_json = excluded.source_json, name = excluded.name,
+             kind = excluded.kind, starred = excluded.starred, updated_at = excluded.updated_at
+           WHERE excluded.updated_at > xr_reader_bookmarks.updated_at`,
+          bookmark.id, JSON.stringify(bookmark.source), bookmark.name, bookmark.kind,
+          bookmark.starred ? 1 : 0, bookmark.createdAt, bookmark.updatedAt,
+        ).changes
+        result.bookmarks += bookmarkChanged
+        if (!bookmarkChanged) continue
+        this.database.run("DELETE FROM xr_reader_bookmark_memberships WHERE bookmark_id = ?1", bookmark.id)
+        for (const listId of bookmark.listIds) {
+          if (listId === "default") {
+            this.database.run(
+              "INSERT OR IGNORE INTO xr_reader_bookmark_memberships (bookmark_id, list_id) VALUES (?1, 'default')",
+              bookmark.id,
+            )
+          } else {
+            this.database.run(
+              `INSERT OR IGNORE INTO xr_reader_bookmark_memberships (bookmark_id, list_id)
+               SELECT ?1, id FROM xr_reader_bookmark_lists WHERE id = ?2`,
+              bookmark.id, listId,
+            )
+          }
+        }
+      }
+      for (const item of batch.pathStacks) {
+        result.pathStacks += this.database.run(
+          `INSERT INTO xr_reader_path_stacks (book_id, path_stack_json, updated_at) VALUES (?1, ?2, ?3)
+           ON CONFLICT(book_id) DO UPDATE SET path_stack_json = excluded.path_stack_json,
+             updated_at = excluded.updated_at WHERE excluded.updated_at > xr_reader_path_stacks.updated_at`,
+          item.bookId, JSON.stringify(item.pathStack), item.updatedAt,
+        ).changes
+      }
+      for (const item of batch.mediaProgress) {
+        result.mediaProgress += this.database.run(
+          `INSERT INTO xr_reader_media_progress (book_id, position, duration, completed, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5)
+           ON CONFLICT(book_id) DO UPDATE SET position = excluded.position, duration = excluded.duration,
+             completed = excluded.completed, updated_at = excluded.updated_at
+           WHERE excluded.updated_at > xr_reader_media_progress.updated_at`,
+          item.bookId, item.position, item.duration, item.completed ? 1 : 0, item.updatedAt,
+        ).changes
+      }
+    })
+    return result
   }
 
   close(): Promise<void> {

@@ -8,8 +8,9 @@ import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
-import type { ReaderLibraryStore } from "./ports/ReaderLibraryStore.js"
+import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
 import type { ReaderLibraryService } from "./application/library/ReaderLibraryService.js"
+import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
@@ -214,6 +215,15 @@ export async function createReaderLibraryService(databasePath?: string): Promise
   )
 }
 
+export async function createLegacyReaderDataImporter(databasePath?: string): Promise<LegacyReaderDataImporter> {
+  const { LegacyReaderDataImporter } = await import("./migration/LegacyReaderDataImporter.js")
+  const { resolveLegacyReaderSource } = await import("./platform/migration/resolveLegacyReaderSource.js")
+  return new LegacyReaderDataImporter(
+    await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(databasePath)),
+    resolveLegacyReaderSource,
+  )
+}
+
 export async function createReaderHeadlessController(
   options: ReaderCompositionOptions = {},
 ): Promise<ReaderHeadlessController> {
@@ -243,7 +253,7 @@ export async function createReaderHeadlessController(
   )
 }
 
-async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderProgressStore & ReaderLibraryStore> {
+async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore> {
   const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
   return SqliteReaderDataStore.open(databasePath)
 }

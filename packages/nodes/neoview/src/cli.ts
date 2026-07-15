@@ -15,11 +15,13 @@ import type {
 } from "./ports/ReaderThumbnailStore.js"
 import { help } from "./help.js"
 import { createReaderHeadlessController } from "./platform.js"
+import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
+  "reader-data-inspect", "reader-data-import",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
 ])
 const VALUE_FLAGS = new Set([
@@ -37,9 +39,11 @@ const VALUE_FLAGS = new Set([
   "--days",
   "--scan-limit",
   "--reason",
+  "--database",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
+const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -50,6 +54,7 @@ export const cli: CliCommand = {
 export interface NeoviewCliDependencies {
   createController: (options?: ReaderCompositionOptions) => Promise<ReaderHeadlessController>
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
+  createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
 }
 
 interface CliThumbnailMaintenanceStore extends AsyncDisposable {
@@ -94,6 +99,11 @@ export async function runProgram(
   if (command.startsWith("thumbnail-db-")) {
     if (parsed.positionals.length > 1) throw usage(`${command} accepts at most one database path.`)
     await runThumbnailMaintenanceCommand(command, parsed.positionals[0], parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("reader-data-")) {
+    if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one legacy JSON path.`)
+    await runReaderDataCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
     return
   }
   const path = parsed.positionals[0]
@@ -146,6 +156,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--strategy", "--modules"]))
     return
   }
+  if (command === "reader-data-inspect") {
+    rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
+  if (command === "reader-data-import") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--database", "--config", "--strategy"] ))
+    return
+  }
   if (command === "thumbnail-db-inspect") {
     rejectOptions(parsed, new Set(["--json"]))
     return
@@ -180,6 +198,96 @@ async function runThumbnailDatabaseInspect(path: string | undefined, json: boole
   writeLine(host, `Version: metadata=${report.metadataVersion ?? "-"} user_version=${report.userVersion ?? "-"} journal=${report.journalMode ?? "-"}`)
   writeLine(host, `Sidecars: WAL=${report.sidecars.wal.exists ? report.sidecars.wal.bytes ?? 0 : "missing"} SHM=${report.sidecars.shm.exists ? report.sidecars.shm.bytes ?? 0 : "missing"}`)
   for (const issue of report.issues) writeLine(host, `- ${issue}`)
+}
+
+async function runReaderDataCommand(
+  command: string,
+  inputPath: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const inputStat = await stat(inputPath)
+  if (!inputStat.isFile()) throw usage(`Reader data input is not a file: ${inputPath}`)
+  if (inputStat.size > MAX_READER_DATA_BYTES) throw usage(`Reader data input exceeds ${MAX_READER_DATA_BYTES} bytes.`)
+  const { LegacyReaderDataCodec } = await import("./migration/LegacyReaderDataCodec.js")
+  const decoded = new LegacyReaderDataCodec().decode(await readFile(inputPath, "utf8"))
+  const preview = readerDataPreview(decoded)
+  if (command === "reader-data-inspect") {
+    if (parsed.booleans.has("--json")) writeJson(host, preview)
+    else printReaderDataPreview(preview, host)
+    return
+  }
+  if (!parsed.booleans.has("--yes")) throw usage("reader-data-import requires --yes after reviewing reader-data-inspect output.")
+  const strategy = oneValue(parsed, "--strategy") ?? "merge"
+  if (strategy !== "merge" && strategy !== "overwrite") throw usage("--strategy must be merge or overwrite.")
+  const databasePath = oneValue(parsed, "--database")
+    ? resolve(host.cwd, oneValue(parsed, "--database")!)
+    : undefined
+  const createImporter = dependencies.createDataImporter ?? (async (target?: string) => {
+    const { createLegacyReaderDataImporter } = await import("./platform.js")
+    return createLegacyReaderDataImporter(target)
+  })
+  const importer = await createImporter(databasePath)
+  let imported
+  try {
+    imported = await importer.import(decoded, strategy)
+  } finally {
+    await importer[Symbol.asyncDispose]()
+  }
+  const configPatch = readerDataConfigPatch(decoded)
+  let configChanged = false
+  if (Object.keys(configPatch).length) {
+    const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+    const committed = await commitNeoviewConfig(configPatch, {
+      configPath: oneValue(parsed, "--config"),
+      cwd: host.cwd,
+      env: host.env,
+      strategy: "merge",
+    })
+    configChanged = committed.changed
+  }
+  const result = { ...preview, strategy, imported, configChanged }
+  if (parsed.booleans.has("--json")) writeJson(host, result)
+  else {
+    printReaderDataPreview(preview, host)
+    writeLine(host, `Applied: history=${imported.applied.progress} bookmarks=${imported.applied.bookmarks} lists=${imported.applied.bookmarkLists}`)
+    writeLine(host, `Migration metadata: pathStacks=${imported.applied.pathStacks} mediaProgress=${imported.applied.mediaProgress} unresolved=${imported.unresolvedSources}`)
+  }
+}
+
+function readerDataPreview(decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData) {
+  return {
+    sourceKind: decoded.sourceKind,
+    counts: {
+      history: decoded.history.length,
+      bookmarks: decoded.bookmarks.length,
+      bookmarkLists: decoded.bookmarkLists.length,
+      videoProgress: decoded.history.filter((entry) => entry.videoProgress).length,
+      pathStacks: decoded.history.filter((entry) => entry.pathStack.length > 1 || entry.pathStack.some((ref) => ref.innerPath)).length,
+    },
+    report: decoded.report,
+    configPatch: readerDataConfigPatch(decoded),
+  }
+}
+
+function readerDataConfigPatch(decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData): Record<string, unknown> {
+  const settings = decoded.historySettings
+  const history = {
+    ...(settings?.syncFileTreeOnHistorySelect !== undefined ? { sync_file_tree_on_history_select: settings.syncFileTreeOnHistorySelect } : {}),
+    ...(settings?.syncFileTreeOnBookmarkSelect !== undefined ? { sync_file_tree_on_bookmark_select: settings.syncFileTreeOnBookmarkSelect } : {}),
+    ...(settings?.maxHistorySize !== undefined ? { max_history_size: settings.maxHistorySize } : {}),
+    ...(settings?.maxBookmarkSize !== undefined ? { max_bookmark_size: settings.maxBookmarkSize } : {}),
+    ...(decoded.activeBookmarkListId ? { active_bookmark_list_id: decoded.activeBookmarkListId } : {}),
+  }
+  return Object.keys(history).length ? { history } : {}
+}
+
+function printReaderDataPreview(preview: ReturnType<typeof readerDataPreview>, host: CliHost): void {
+  writeLine(host, `Legacy reader data: ${preview.sourceKind}`)
+  writeLine(host, `Rows: history=${preview.counts.history} bookmarks=${preview.counts.bookmarks} lists=${preview.counts.bookmarkLists}`)
+  writeLine(host, `Migration metadata: pathStacks=${preview.counts.pathStacks} videoProgress=${preview.counts.videoProgress}`)
+  writeLine(host, Object.entries(preview.report.summary).map(([key, count]) => `${key}=${count}`).join(" "))
 }
 
 async function runThumbnailMaintenanceCommand(
@@ -563,6 +671,8 @@ function formatCliHelp(): string {
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
+    "  reader-data-inspect <json>  Preview legacy history/bookmark migration",
+    "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
     "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
@@ -579,6 +689,7 @@ function formatCliHelp(): string {
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
     "  --config PATH        Xiranite TOML path for settings-import",
+    "  --database PATH      Override the legacy NeoView thumbnails.db path",
     "  --strategy MODE      Settings import mode: merge or overwrite",
     "  --modules LIST       Comma-separated settings modules:",
     "                       native-settings,keybindings,emm,file-browser,ui,panels,bookmarks,history,",

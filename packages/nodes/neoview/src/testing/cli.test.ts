@@ -231,6 +231,57 @@ describe("NeoView CLI", () => {
     }
   })
 
+  it("[neoview.reader-data.cli] previews safely and requires confirmation before shared-store import", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-reader-data-"))
+    const inputPath = join(directory, "backup.json")
+    const databasePath = join(directory, "thumbnails.db")
+    const configPath = join(directory, "xiranite.config.toml")
+    await writeFile(inputPath, JSON.stringify({
+      version: "2.0.0",
+      rawLocalStorage: {
+        "neoview-unified-history": JSON.stringify([{
+          pathStack: [{ path: "D:/private/book.cbz" }], displayName: "Book", currentIndex: 2, totalItems: 10, timestamp: 100,
+        }]),
+        "neoview-bookmarks": JSON.stringify([{ path: "D:/private/book.cbz", name: "Book", listIds: ["default"] }]),
+        "neoview-history-settings": JSON.stringify({ maxHistorySize: 250 }),
+      },
+    }))
+    const importData = vi.fn(async () => ({
+      applied: { progress: 1, bookmarks: 1, bookmarkLists: 0, pathStacks: 0, mediaProgress: 0 },
+      unresolvedSources: 0,
+      reportEntries: [],
+    }))
+    const dispose = vi.fn(async () => undefined)
+    const createDataImporter = vi.fn(async () => ({ import: importData, [Symbol.asyncDispose]: dispose }))
+    const dependencies = { createController: async () => fakeReader(), createDataImporter } as unknown as Parameters<typeof runProgram>[2]
+    try {
+      const previewOutput: unknown[] = []
+      await runProgram(["reader-data-inspect", inputPath, "--json"], host(previewOutput), dependencies)
+      const previewText = previewOutput.join("")
+      expect(previewText).not.toContain("D:/private")
+      expect(JSON.parse(previewText)).toMatchObject({
+        sourceKind: "backup",
+        counts: { history: 1, bookmarks: 1 },
+        configPatch: { history: { max_history_size: 250 } },
+      })
+
+      await expect(runProgram(["reader-data-import", inputPath], host([]), dependencies)).rejects.toThrow("requires --yes")
+      expect(createDataImporter).not.toHaveBeenCalled()
+
+      const importOutput: unknown[] = []
+      await runProgram([
+        "reader-data-import", inputPath, "--database", databasePath, "--config", configPath, "--strategy", "merge", "--yes", "--json",
+      ], host(importOutput), dependencies)
+      expect(createDataImporter).toHaveBeenCalledWith(databasePath)
+      expect(importData).toHaveBeenCalledWith(expect.objectContaining({ sourceKind: "backup" }), "merge")
+      expect(dispose).toHaveBeenCalledOnce()
+      expect(JSON.parse(importOutput.join(""))).toMatchObject({ imported: { applied: { progress: 1, bookmarks: 1 } }, configChanged: true })
+      expect(await readFile(configPath, "utf8")).toContain("max_history_size = 250")
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.thumbnail.inspect-cli] inspects the original app-data path without creating a database", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-thumbnail-inspect-"))
     try {

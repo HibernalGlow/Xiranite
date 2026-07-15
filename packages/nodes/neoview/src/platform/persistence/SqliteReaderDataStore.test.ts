@@ -79,6 +79,56 @@ describe("SqliteReaderDataStore", () => {
     await expect(store.deleteBookmark("one")).resolves.toBe(true)
     await store.close()
   })
+
+  it("[neoview.reader-data.sqlite-import] atomically merges newer rows and preserves migration-only data", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    const batch = {
+      progress: [{
+        bookId: "book-import",
+        source: { kind: "archive", path: "D:/outer.cbz", entryPaths: ["nested.cbz"] } as const,
+        displayName: "Nested",
+        pageIndex: 4,
+        pageCount: 10,
+        updatedAt: 200,
+      }],
+      bookmarkLists: [{ id: "reading", name: "Reading", isFavorite: true, createdAt: 100, updatedAt: 100 }],
+      bookmarks: [{
+        id: "bookmark-import",
+        source: { kind: "path", path: "D:/outer.cbz" } as const,
+        name: "Outer",
+        kind: "file" as const,
+        starred: false,
+        createdAt: 100,
+        updatedAt: 100,
+        listIds: ["default", "reading"],
+      }],
+      pathStacks: [{
+        bookId: "book-import",
+        pathStack: [{ path: "D:/outer.cbz" }, { path: "D:/outer.cbz", innerPath: "nested.cbz" }],
+        updatedAt: 200,
+      }],
+      mediaProgress: [{ bookId: "book-import", position: 12, duration: 30, completed: false, updatedAt: 200 }],
+    }
+    await expect(store.importData(batch, "merge")).resolves.toEqual({
+      progress: 1, bookmarks: 1, bookmarkLists: 1, pathStacks: 1, mediaProgress: 1,
+    })
+    await expect(store.importData(batch, "merge")).resolves.toEqual({
+      progress: 0, bookmarks: 0, bookmarkLists: 0, pathStacks: 0, mediaProgress: 0,
+    })
+    await store.close()
+
+    const database = await openFixtureDatabase(path)
+    expect(database.get("SELECT page_index, updated_at FROM xr_reader_progress WHERE book_id = 'book-import'"))
+      .toEqual({ page_index: 4, updated_at: 200 })
+    expect(database.get("SELECT path_stack_json FROM xr_reader_path_stacks WHERE book_id = 'book-import'"))
+      .toEqual({ path_stack_json: JSON.stringify(batch.pathStacks[0]!.pathStack) })
+    expect(database.get("SELECT position, duration, completed FROM xr_reader_media_progress WHERE book_id = 'book-import'"))
+      .toEqual({ position: 12, duration: 30, completed: 0 })
+    expect(database.get("SELECT COUNT(*) AS count FROM xr_reader_bookmark_memberships WHERE bookmark_id = 'bookmark-import'"))
+      .toEqual({ count: 2 })
+    database.close()
+  })
 })
 
 function bookmark(id: string, starred: boolean, listIds: readonly string[]) {

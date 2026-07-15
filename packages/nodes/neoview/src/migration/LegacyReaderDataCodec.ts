@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto"
 import { basename, extname } from "node:path"
+import { z } from "zod"
 
 import type { ViewSource } from "../domain/book/book.js"
 
@@ -82,6 +84,52 @@ const STORAGE_KEYS = {
   activeBookmarkList: "neoview-bookmark-active-list-v2",
   historySettings: "neoview-history-settings",
 } as const
+
+const objectSchema = z.record(z.string(), z.unknown())
+const pathRefSchema = z.object({ path: z.string().trim().min(1), innerPath: z.string().trim().min(1).optional() }).passthrough()
+const historyRowSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  path: z.string().trim().min(1).optional(),
+  pathStack: z.array(pathRefSchema).optional(),
+  displayName: z.string().trim().min(1).optional(),
+  name: z.string().trim().min(1).optional(),
+  currentIndex: z.number().int().nonnegative().optional(),
+  currentPage: z.number().int().nonnegative().optional(),
+  totalItems: z.number().int().nonnegative().optional(),
+  totalPages: z.number().int().nonnegative().optional(),
+  timestamp: z.union([z.number().nonnegative(), z.string().min(1)]).optional(),
+  contentType: z.string().optional(),
+  videoProgress: z.unknown().optional(),
+  videoPosition: z.number().finite().optional(),
+  videoDuration: z.number().finite().optional(),
+  videoCompleted: z.boolean().optional(),
+}).passthrough().refine((row) => Boolean(row.path?.trim() || row.pathStack?.length), { message: "history path is required" })
+const bookmarkRowSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  path: z.string().trim().min(1),
+  name: z.string().trim().min(1).optional(),
+  type: z.enum(["file", "folder"]).optional(),
+  createdAt: z.union([z.number().nonnegative(), z.string().min(1), z.date()]).optional(),
+  listIds: z.array(z.string().trim().min(1)).optional(),
+  starred: z.boolean().optional(),
+}).passthrough()
+const bookmarkListRowSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1).optional(),
+  isFavorite: z.boolean().optional(),
+  createdAt: z.union([z.number().nonnegative(), z.string().min(1), z.date()]).optional(),
+}).passthrough()
+const historySettingsSchema = z.object({
+  syncFileTreeOnHistorySelect: z.boolean().optional(),
+  syncFileTreeOnBookmarkSelect: z.boolean().optional(),
+  maxHistorySize: z.number().int().nonnegative().optional(),
+  maxBookmarkSize: z.number().int().nonnegative().optional(),
+}).passthrough()
+const videoProgressSchema = z.object({
+  position: z.number().finite().nonnegative(),
+  duration: z.number().finite().nonnegative(),
+  completed: z.boolean().optional().default(false),
+}).passthrough()
 
 export class LegacyReaderDataCodec {
   decode(input: string | unknown): DecodedLegacyReaderData {
@@ -170,8 +218,9 @@ function collectHistory(
 }
 
 function parseHistory(value: unknown, report: LegacyReaderDataReportEntry[]): DecodedLegacyHistoryRecord | undefined {
-  const raw = optionalRecord(value)
-  if (!raw) return undefined
+  const parsed = historyRowSchema.safeParse(value)
+  if (!parsed.success) return undefined
+  const raw = parsed.data
   const pathStack = parsePathStack(raw.pathStack, raw.path)
   if (!pathStack.length) return undefined
   const source = sourceFromLegacy(pathStack, raw.contentType)
@@ -219,9 +268,10 @@ function collectBookmarks(
 }
 
 function parseBookmark(value: unknown): DecodedLegacyBookmarkRecord | undefined {
-  const raw = optionalRecord(value)
-  const path = nonEmptyString(raw?.path)
-  if (!raw || !path) return undefined
+  const parsed = bookmarkRowSchema.safeParse(value)
+  if (!parsed.success) return undefined
+  const raw = parsed.data
+  const path = raw.path
   const kind = raw.type === "folder" ? "folder" : "file"
   const createdAt = timestampValue(raw.createdAt) ?? 0
   const rawListIds = Array.isArray(raw.listIds) ? raw.listIds.flatMap((id) => nonEmptyString(id) ?? []) : []
@@ -240,12 +290,13 @@ function parseBookmark(value: unknown): DecodedLegacyBookmarkRecord | undefined 
 function parseBookmarkLists(values: readonly unknown[], report: LegacyReaderDataReportEntry[]): DecodedLegacyBookmarkListRecord[] {
   const lists = new Map<string, DecodedLegacyBookmarkListRecord>()
   for (const [index, value] of values.entries()) {
-    const raw = optionalRecord(value)
-    const id = nonEmptyString(raw?.id)
-    if (!raw || !id) {
+    const parsed = bookmarkListRowSchema.safeParse(value)
+    if (!parsed.success) {
       report.push({ area: "bookmark-list", disposition: "skipped-invalid", message: `Skipped invalid bookmark list row ${index}.` })
       continue
     }
+    const raw = parsed.data
+    const id = raw.id
     if (isSystemListId(id)) continue
     lists.set(id, {
       id,
@@ -259,8 +310,9 @@ function parseBookmarkLists(values: readonly unknown[], report: LegacyReaderData
 }
 
 function parseHistorySettings(value: unknown, report: LegacyReaderDataReportEntry[]): DecodedLegacyReaderData["historySettings"] {
-  const raw = optionalRecord(value)
-  if (!raw) return undefined
+  const parsed = historySettingsSchema.safeParse(value)
+  if (!parsed.success) return undefined
+  const raw = parsed.data
   const result = {
     syncFileTreeOnHistorySelect: optionalBoolean(raw.syncFileTreeOnHistorySelect),
     syncFileTreeOnBookmarkSelect: optionalBoolean(raw.syncFileTreeOnBookmarkSelect),
@@ -275,16 +327,8 @@ function parseHistorySettings(value: unknown, report: LegacyReaderDataReportEntr
 }
 
 function parsePathStack(value: unknown, fallbackPath: unknown): LegacyReaderPathRef[] {
-  if (Array.isArray(value)) {
-    const stack = value.flatMap((item) => {
-      const record = optionalRecord(item)
-      const path = nonEmptyString(record?.path)
-      if (!record || !path) return []
-      const innerPath = nonEmptyString(record.innerPath)
-      return [{ path, ...(innerPath ? { innerPath } : {}) }]
-    })
-    if (stack.length) return stack
-  }
+  const parsed = z.array(pathRefSchema).safeParse(value)
+  if (parsed.success && parsed.data.length) return parsed.data
   const path = nonEmptyString(fallbackPath)
   return path ? [{ path }] : []
 }
@@ -305,12 +349,9 @@ function sourceFromLegacy(pathStack: readonly LegacyReaderPathRef[], contentType
 }
 
 function parseVideoProgress(value: unknown): LegacyReaderVideoProgress | undefined {
-  const raw = optionalRecord(value)
-  if (!raw) return undefined
-  const position = finiteNumber(raw.position)
-  const duration = finiteNumber(raw.duration)
-  if (position === undefined || duration === undefined || position < 0 || duration < 0) return undefined
-  return { position: Math.min(position, duration || position), duration, completed: Boolean(raw.completed) }
+  const parsed = videoProgressSchema.safeParse(value)
+  if (!parsed.success) return undefined
+  return { position: Math.min(parsed.data.position, parsed.data.duration || parsed.data.position), duration: parsed.data.duration, completed: parsed.data.completed }
 }
 
 function dedupe<T>(
@@ -356,12 +397,7 @@ function normalizePath(path: string): string {
 }
 
 function legacyStableId(prefix: string, input: string): string {
-  let hash = 2166136261
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return `${prefix}-legacy-${(hash >>> 0).toString(16).padStart(8, "0")}`
+  return `${prefix}-legacy-${createHash("sha256").update(input).digest("hex").slice(0, 16)}`
 }
 
 function summarize(entries: readonly LegacyReaderDataReportEntry[]): Record<LegacyReaderDataDisposition, number> {
@@ -381,13 +417,14 @@ function arrayValue(value: unknown): readonly unknown[] {
 }
 
 function optionalRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+  const parsed = objectSchema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
 }
 
 function asRecord(value: unknown, message: string): Record<string, unknown> {
-  const record = optionalRecord(value)
-  if (!record) throw new Error(message)
-  return record
+  const parsed = objectSchema.safeParse(value)
+  if (!parsed.success) throw new Error(message)
+  return parsed.data
 }
 
 function nonEmptyString(value: unknown): string | undefined {
@@ -405,10 +442,6 @@ function timestampValue(value: unknown): number | undefined {
     if (Number.isFinite(parsed) && parsed >= 0) return Math.trunc(parsed)
   }
   return undefined
-}
-
-function finiteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
 function optionalBoolean(value: unknown): boolean | undefined {

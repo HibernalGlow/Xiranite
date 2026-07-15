@@ -15,6 +15,7 @@ export const help = {
         "Run `xiranite neoview inspect <path> --json` for book and current-frame metadata.",
         "Run `xiranite neoview extract-page <path> --index 0 --output -` for binary stdout.",
         "Run `xiranite neoview thumbnail-db-stats --json` for aggregate thumbnail database health.",
+        "Run `xiranite neoview reader-data-inspect <backup.json> --json` before importing legacy history and bookmarks.",
       ],
     },
     {
@@ -42,6 +43,16 @@ export const help = {
       ],
     },
     {
+      title: "Migrate legacy reader data",
+      command: "xiranite neoview reader-data-inspect D:/backup/neoview-backup.json --json",
+      description: "Validate and summarize legacy history, bookmarks, lists and settings without exposing source paths.",
+      examples: [{
+        label: "Merge after preview",
+        command: "xiranite neoview reader-data-import D:/backup/neoview-backup.json --strategy merge --yes --json",
+        description: "Idempotently merge newer records into the original NeoView thumbnails database.",
+      }],
+    },
+    {
       title: "Maintain thumbnail data",
       command: "xiranite neoview thumbnail-db-stats --json",
       description: "Inspect aggregate row, failure, WAL and writer statistics without exposing thumbnail keys.",
@@ -59,6 +70,7 @@ export const help = {
       "Archive passwords are read from named environment variables and never accepted as argv values.",
       "Binary stdout never contains status or log text.",
       "Thumbnail cleanup is bounded and requires --yes; online cleanup never runs VACUUM or TRUNCATE checkpoint.",
+      "Reader data import requires --yes; overwrite only clears Xiranite-owned xr_ Reader tables and never modifies legacy thumbnail tables.",
     ],
   },
 } satisfies NodeHelp
