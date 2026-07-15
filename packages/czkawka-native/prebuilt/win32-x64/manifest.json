@@ -8,11 +8,11 @@
       "arch": "x64",
       "archive": "czkawka.win32-x64.zip",
       "binding": "xiranite-czkawka.win32-x64.node",
-      "sha256": "eff925579ea493a5cf518fb6effd19f336cb73ce6e3cf56b948ae71d5cd11cf0",
+      "sha256": "861d4ffa8a11e4f95b21c0fc5e5510fd7d815bce0b69c54e12196b361ca54fc3",
       "files": [
         {
           "name": "xiranite-czkawka.win32-x64.node",
-          "sha256": "4acae2a4475f2b844f3b409ce9097bb1fc28c353d4ae36d90b5387ddb5847035"
+          "sha256": "3424aecb8963c2707dd7fa252e9969284a0d6b420cf48e595e13ebc738749414"
         },
         {
           "name": "dav1d.dll",
