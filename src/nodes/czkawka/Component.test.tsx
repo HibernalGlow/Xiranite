@@ -45,7 +45,7 @@ describe("Czkawka node", () => {
 
   test("reacts to the Xiranite language and renders the shared English scanner copy", async () => {
     await i18n.changeLanguage("en")
-    render(<Component compId="czkawka-en" host={createHost({ tool: "duplicate-files" })} />)
+    render(<Component compId="czkawka-en" host={createHost({ tool: "duplicate-files", analysisPanelTab: "analysis" })} />)
     expect(screen.getByRole("combobox", { name: "Select scanner" }).textContent).toContain("Duplicate Files")
     expect(screen.getByRole("button", { name: "Start scan" })).toBeTruthy()
     expect(screen.getByText("Scan conditions")).toBeTruthy()
@@ -204,18 +204,19 @@ describe("Czkawka node", () => {
   })
 
   test("persists bounded scan and operation activity logs and clears them from the viewer", async () => {
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) }, resultFor)
-    render(<Component compId="czkawka" host={host} />)
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }), analysisPanelTab: "operations" }, resultFor)
+    const view = render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("button", { name: "开始扫描" }))
     await waitFor(() => expect(host.stateValue.activityLog?.map((entry) => entry.kind)).toEqual(["scan", "progress", "scan"]))
     expect(host.stateValue.activityLog?.at(-1)?.level).toBe("success")
-    expect(screen.getByText("Scanning")).toBeTruthy()
 
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }))
     fireEvent.click(screen.getByRole("button", { name: /删除已选/ }))
     fireEvent.click(screen.getByRole("button", { name: "确认删除" }))
     await waitFor(() => expect(host.stateValue.activityLog?.some((entry) => entry.action === "delete" && entry.level === "success")).toBe(true))
-
+    const logsTab = within(screen.getByTestId("czkawka-card-tabs-analysis")).getByRole("tab", { name: "活动日志" })
+    fireEvent.pointerDown(logsTab, { button: 0, ctrlKey: false }); fireEvent.mouseDown(logsTab, { button: 0 }); fireEvent.click(logsTab)
+    view.rerender(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("button", { name: "清空活动日志" }))
     expect(host.stateValue.activityLog).toEqual([])
     expect(screen.getByText("没有匹配的日志")).toBeTruthy()
@@ -224,7 +225,7 @@ describe("Czkawka node", () => {
   test("sends shared safe move options and renders detailed per-item results", async () => {
     const operationData: CzkawkaData = { action: "move", tool: "similar-images", groups: [{ id: 0, totalBytes: 0, reclaimableBytes: 0, entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }] }], entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }], messages: "", stopped: false, groupCount: 1, fileCount: 1, totalBytes: 0, reclaimableBytes: 0, affectedCount: 1, errorCount: 0 }
     const initialResult = resultFor({ tool: "similar-images" })
-    const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/album", result: initialResult, destinationDirectory: "E:/Review", copyMode: true, preserveStructure: true, conflictPolicy: "rename", dryRun: true }, (input) => input.action === "move" ? operationData : initialResult)
+    const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/album", result: initialResult, destinationDirectory: "E:/Review", copyMode: true, preserveStructure: true, conflictPolicy: "rename", dryRun: true, analysisPanelTab: "operations" }, (input) => input.action === "move" ? operationData : initialResult)
     const view = render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 similar-images-result.dat" }))
     fireEvent.click(screen.getByRole("button", { name: "move selected" }))
@@ -238,7 +239,7 @@ describe("Czkawka node", () => {
   test("expands a selected similar-image row into a shared multi-destination group plan", async () => {
     const entries = [{ id: "a", groupId: 7, path: "D:/photos/a.jpg", name: "a.jpg", size: 1, modifiedDate: 1 }, { id: "b", groupId: 7, path: "D:/photos/b.jpg", name: "b.jpg", size: 1, modifiedDate: 1 }]
     const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 7, entries, totalBytes: 2, reclaimableBytes: 1 }], entries, groupCount: 1, fileCount: 2, totalBytes: 2, reclaimableBytes: 1 }
-    const host = createHost({ tool: "similar-images", result, dryRun: true }, () => ({ ...sample, action: "move", tool: "similar-images" }))
+    const host = createHost({ tool: "similar-images", result, dryRun: true, analysisPanelTab: "operations" }, () => ({ ...sample, action: "move", tool: "similar-images" }))
     render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 a.jpg" }))
     fireEvent.click(screen.getByRole("button", { name: "整理相似组（2）" }))
@@ -249,7 +250,7 @@ describe("Czkawka node", () => {
   test("exports all full result rows independently from the current selection", async () => {
     const entries = [{ id: "a", groupId: 0, path: "D:/a.jpg", name: "a.jpg", size: 10, modifiedDate: 1, width: 100, height: 80 }, { id: "b", groupId: 0, path: "D:/b.jpg", name: "b.jpg", size: 11, modifiedDate: 2, similarity: "3" }]
     const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 0, entries, totalBytes: 21, reclaimableBytes: 10 }], entries, groupCount: 1, fileCount: 2, totalBytes: 21, reclaimableBytes: 10 }
-    const host = createHost({ tool: "similar-images", result, exportScope: "all", outputPath: "D:/result.json" })
+    const host = createHost({ tool: "similar-images", result, exportScope: "all", outputPath: "D:/result.json", analysisPanelTab: "operations" })
     render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("button", { name: "save selected" }))
     await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "save", exportScope: "all", selectedPaths: ["D:/a.jpg", "D:/b.jpg"], exportEntries: entries, outputPath: "D:/result.json", dryRun: false }))
@@ -258,7 +259,7 @@ describe("Czkawka node", () => {
   test("builds a selected bad-extension rename plan with an undo hint", async () => {
     const entry = { id: "bad", groupId: 0, path: "D:/photo.bin", name: "photo.bin", size: 10, modifiedDate: 1, properExtension: "jpg" }
     const result: CzkawkaData = { ...sample, tool: "bad-extensions", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
-    const host = createHost({ tool: "bad-extensions", result, dryRun: true })
+    const host = createHost({ tool: "bad-extensions", result, dryRun: true, analysisPanelTab: "operations" })
     render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 photo.bin" }))
     fireEvent.click(screen.getByRole("button", { name: "修正扩展名（1）" }))
@@ -373,25 +374,17 @@ describe("Czkawka node", () => {
     expect(screen.getByRole("switch", { name: "显示结果缩略图" }).getAttribute("data-state")).toBe("checked")
   })
 
-  test("persists card order, height, collapse, visibility, and cross-panel moves", () => {
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
+  test("renders left and right card collections as persistent tabs", () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }), analysisPanelTab: "selection" })
     render(<Component compId="czkawka" host={host} />)
-
-    fireEvent.click(screen.getByRole("button", { name: "下移统计分析" }))
-    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "analysis")?.order).toBe(2)
-    fireEvent.change(screen.getByRole("slider", { name: "调整活动日志高度" }), { target: { value: "416" } })
-    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "logs")?.height).toBe(416)
-    fireEvent.click(screen.getByRole("button", { name: "活动日志" }))
-    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "logs")?.collapsed).toBe(true)
-
-    const transfer = { value: "", effectAllowed: "none", setData: vi.fn((_type: string, value: string) => { transfer.value = value }), getData: vi.fn(() => transfer.value) }
-    fireEvent.dragStart(document.querySelector('[data-card-id="logs"]')!, { dataTransfer: transfer })
-    fireEvent.drop(screen.getByTestId("czkawka-card-stack-source"), { dataTransfer: transfer })
-    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "logs")?.panel).toBe("source")
-
-    fireEvent.click(screen.getByRole("button", { name: "管理卡片" }))
-    fireEvent.click(screen.getByRole("button", { name: "隐藏统计分析" }))
-    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "analysis")?.visible).toBe(false)
+    expect(screen.getByTestId("czkawka-card-tabs-source")).toBeTruthy()
+    const analysisTabs = screen.getByTestId("czkawka-card-tabs-analysis")
+    const logsTab = within(analysisTabs).getByRole("tab", { name: "活动日志" })
+    fireEvent.pointerDown(logsTab, { button: 0, ctrlKey: false }); fireEvent.mouseDown(logsTab, { button: 0 }); fireEvent.click(logsTab)
+    expect(host.stateValue.analysisPanelTab).toBe("logs")
+    const operationsTab = within(analysisTabs).getByRole("tab", { name: "文件操作" })
+    fireEvent.pointerDown(operationsTab, { button: 0, ctrlKey: false }); fireEvent.mouseDown(operationsTab, { button: 0 }); fireEvent.click(operationsTab)
+    expect(host.stateValue.analysisPanelTab).toBe("operations")
   })
 
   test("persists, minimizes, and resets the desktop workspace layout", () => {
@@ -441,7 +434,7 @@ describe("Czkawka node", () => {
   })
 
   test("keeps per-tool selection history synchronized with the result table", async () => {
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }), analysisPanelTab: "selection" })
     render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }))
     expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
@@ -453,7 +446,7 @@ describe("Czkawka node", () => {
   })
 
   test("persists selection assistant visibility and rule configuration", () => {
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }), analysisPanelTab: "selection" })
     render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("button", { name: /选择助手/ }))
     expect(host.stateValue.selectionAssistantOpen).toBe(true)

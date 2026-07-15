@@ -2,7 +2,7 @@ import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDel
 import type { CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import type { CzkawkaSelectionAssistantConfig } from "@xiranite/node-czkawka/selection-assistant"
 import type { CzkawkaActivityLogEntry } from "@xiranite/node-czkawka/activity-log"
-import type { CzkawkaCardLayout } from "@xiranite/node-czkawka/card-layout"
+import type { CzkawkaCardId, CzkawkaCardLayout } from "@xiranite/node-czkawka/card-layout"
 import type { CzkawkaFloatingPanelState } from "@xiranite/node-czkawka/floating-panel"
 import type { CzkawkaScanPreset } from "@xiranite/node-czkawka/scan-presets"
 import type { CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
@@ -77,6 +77,8 @@ export interface CzkawkaCardState {
   tableWrapText?: boolean
   activityLog?: CzkawkaActivityLogEntry[]
   cardLayout?: CzkawkaCardLayout
+  sourcePanelTab?: CzkawkaCardId
+  analysisPanelTab?: CzkawkaCardId
   workspaceLayout?: CzkawkaWorkspaceLayout
   floatingAnalysisPanel?: CzkawkaFloatingPanelState
   scanPresets?: CzkawkaScanPreset[]

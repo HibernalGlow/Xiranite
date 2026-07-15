@@ -28,7 +28,7 @@ import { CzkawkaAnalysisView } from "./analysis-panel"
 import { appendCzkawkaActivityLog, type CzkawkaActivityLogEntry, type CzkawkaActivityLogInput } from "@xiranite/node-czkawka/activity-log"
 import { CzkawkaActivityLogView } from "./activity-log"
 import { normalizeCzkawkaCardLayout, type CzkawkaCardId, type CzkawkaCardLayout } from "@xiranite/node-czkawka/card-layout"
-import { CzkawkaCardManager, CzkawkaCardStack } from "./card-layout"
+import { CzkawkaCardManager, CzkawkaCardStack, CzkawkaCardTabs } from "./card-layout"
 import { createDefaultCzkawkaFloatingPanel, normalizeCzkawkaFloatingPanel, type CzkawkaFloatingPanelState, type CzkawkaFloatingViewport } from "@xiranite/node-czkawka/floating-panel"
 import { CzkawkaFloatingAnalysisPanel } from "./floating-analysis-panel"
 import { buildCzkawkaGroupOrganizePlan } from "@xiranite/node-czkawka/operations"
@@ -772,11 +772,7 @@ function SourcePanel(props: View) {
           ) : null
         }
       />
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="p-2">
-          <CzkawkaCardStack layout={props.cardLayout} panel="source" onChange={props.setCardLayout} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} />
-        </div>
-      </ScrollArea>
+      <CzkawkaCardTabs activeId={props.data.sourcePanelTab} layout={props.cardLayout} panel="source" onActiveChange={(sourcePanelTab) => props.patch({ sourcePanelTab })} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} />
     </section>
   )
 }
@@ -867,11 +863,7 @@ function AnalysisPanel(props: View) {
         <Metric label={props.t("metrics.totalSize", "总大小")} value={formatBytes(stats?.totalBytes ?? 0)} />
         <Metric label={props.t("metrics.reclaimable", "可回收")} value={formatBytes(stats?.reclaimableBytes ?? 0)} accent />
       </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="p-2">
-          <CzkawkaCardStack layout={props.cardLayout} panel="analysis" onChange={props.setCardLayout} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} />
-        </div>
-      </ScrollArea>
+      <CzkawkaCardTabs activeId={props.data.analysisPanelTab} layout={props.cardLayout} panel="analysis" onActiveChange={(analysisPanelTab) => props.patch({ analysisPanelTab })} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} />
     </section>
   )
 }

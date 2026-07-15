@@ -5,6 +5,8 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Eye, EyeOff, GripVertica
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 
 type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
@@ -29,6 +31,17 @@ export function CzkawkaCardStack({ layout, panel, onChange, renderCard }: { layo
       {cards.length ? null : <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">{t("cards.empty", "该面板没有可见卡片")}</div>}
     </div>
   )
+}
+
+export function CzkawkaCardTabs({ activeId, layout, panel, onActiveChange, renderCard }: { activeId?: CzkawkaCardId; layout: CzkawkaCardLayout; panel: CzkawkaCardPanelId; onActiveChange: (id: CzkawkaCardId) => void; renderCard: (id: CzkawkaCardId) => ReactNode }) {
+  const { t } = useNodeI18n("czkawka")
+  const cards = cardsForPanel(layout, panel)
+  const active = cards.some((card) => card.id === activeId) ? activeId! : cards[0]?.id
+  if (!active) return <div className="grid min-h-32 place-items-center text-xs text-muted-foreground">{t("cards.empty", "该面板没有可见卡片")}</div>
+  return <Tabs value={active} className="flex min-h-0 flex-1 flex-col" data-testid={`czkawka-card-tabs-${panel}`} onValueChange={(value) => onActiveChange(value as CzkawkaCardId)}>
+    <TabsList layout="fill" className="mx-2 mt-2 shrink-0">{cards.map((card) => { const definition = CZKAWKA_CARD_REGISTRY.find((item) => item.id === card.id)!; return <TabsTrigger key={card.id} value={card.id} title={cardTitle(card.id, definition.title, t)}><span className="truncate">{cardTitle(card.id, definition.title, t)}</span></TabsTrigger> })}</TabsList>
+    {cards.map((card) => <TabsContent key={card.id} value={card.id} className="min-h-0 flex-1 overflow-hidden pt-1"><ScrollArea className="h-full"><div className="p-2 pt-0">{renderCard(card.id)}</div></ScrollArea></TabsContent>)}
+  </Tabs>
 }
 
 function CzkawkaLayoutCard({ card, first, last, layout, onChange, children, t }: { card: CzkawkaCardConfig; first: boolean; last: boolean; layout: CzkawkaCardLayout; onChange: (layout: CzkawkaCardLayout) => void; children: ReactNode; t: Translate }) {
