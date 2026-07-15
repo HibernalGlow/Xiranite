@@ -27,7 +27,8 @@
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@xiranite/repository": "workspace:*",
-    "@xiranite/shared": "workspace:*"
+    "@xiranite/shared": "workspace:*",
+    "p-queue": "9.3.1"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

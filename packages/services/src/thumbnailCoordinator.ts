@@ -1,4 +1,5 @@
 import type { ResourcePriority } from "@xiranite/contract"
+import PQueue from "p-queue"
 
 export type ThumbnailLane = "reader-visible" | "library-visible" | "prefetch" | "folder-preview" | "background"
 
@@ -29,6 +30,7 @@ export interface ThumbnailLease extends AsyncDisposable {
 
 export interface ThumbnailCoordinatorOptions<TSource = unknown> {
   resolver: ThumbnailResolver<TSource>
+  maxConcurrent?: number
   maxMemoryBytes?: number
   maxEntryBytes?: number
   now?: () => number
@@ -37,6 +39,8 @@ export interface ThumbnailCoordinatorOptions<TSource = unknown> {
 export interface ThumbnailCoordinatorSnapshot {
   demands: number
   activeFlights: number
+  queuedFlights: number
+  runningFlights: number
   cachedEntries: number
   cachedBytes: number
   demandsByLane: Readonly<Record<ThumbnailLane, number>>
@@ -58,6 +62,9 @@ interface Flight<TSource> {
   request: ThumbnailDemand<TSource>
   controller: AbortController
   demandIds: Set<number>
+  queueTaskId: string
+  priority: number
+  started: boolean
   completed?: ThumbnailAsset
   cached: boolean
 }
@@ -77,9 +84,11 @@ interface DemandRecord {
 
 const DEFAULT_MAX_MEMORY_BYTES = 32 * 1024 * 1024
 const DEFAULT_MAX_ENTRY_BYTES = 512 * 1024
+const DEFAULT_MAX_CONCURRENT = 8
 
 export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisposable {
   readonly #resolver: ThumbnailResolver<TSource>
+  readonly #queue: PQueue
   readonly #maxMemoryBytes: number
   readonly #maxEntryBytes: number
   readonly #now: () => number
@@ -89,10 +98,12 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
   readonly #contextGenerations = new Map<string, number>()
   #cachedBytes = 0
   #nextDemandId = 1
+  #nextQueueTaskId = 1
   #closed = false
 
   constructor(options: ThumbnailCoordinatorOptions<TSource>) {
     this.#resolver = options.resolver
+    this.#queue = new PQueue({ concurrency: boundedConcurrency(options.maxConcurrent ?? DEFAULT_MAX_CONCURRENT) })
     this.#maxMemoryBytes = boundedBytes(options.maxMemoryBytes ?? DEFAULT_MAX_MEMORY_BYTES, "maxMemoryBytes")
     this.#maxEntryBytes = boundedBytes(options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES, "maxEntryBytes")
     this.#now = options.now ?? Date.now
@@ -149,17 +160,29 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       record.resolve(cached.asset)
     } else {
       let flight = this.#flights.get(demand.cacheKey)
+      let created = false
       if (!flight) {
         flight = {
           request: { ...demand, signal: undefined },
           controller: new AbortController(),
           demandIds: new Set(),
+          queueTaskId: `thumbnail-${this.#nextQueueTaskId++}`,
+          priority: thumbnailQueuePriority(demand.lane),
+          started: false,
           cached: false,
         }
         this.#flights.set(demand.cacheKey, flight)
-        void this.#runFlight(demand.cacheKey, flight)
+        created = true
+      } else {
+        const priority = thumbnailQueuePriority(demand.lane)
+        if (!flight.started && priority > flight.priority) {
+          flight.request.lane = demand.lane
+          flight.priority = priority
+          this.#queue.setPriority(flight.queueTaskId, priority)
+        }
       }
       flight.demandIds.add(id)
+      if (created) this.#scheduleFlight(demand.cacheKey, flight)
       if (flight.completed) {
         record.settled = true
         record.resolve(flight.completed)
@@ -225,6 +248,8 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     return {
       demands: this.#demands.size,
       activeFlights: this.#flights.size,
+      queuedFlights: this.#queue.size,
+      runningFlights: this.#queue.pending,
       cachedEntries: this.#cache.size,
       cachedBytes: this.#cachedBytes,
       demandsByLane,
@@ -251,6 +276,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       this.#releaseDemand(record.id, abortError("Thumbnail coordinator disposed."))
     }
     for (const flight of this.#flights.values()) flight.controller.abort(abortError("Thumbnail coordinator disposed."))
+    await this.#queue.onIdle()
     this.#flights.clear()
     this.#cache.clear()
     this.#cachedBytes = 0
@@ -259,6 +285,20 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
 
   async [Symbol.asyncDispose](): Promise<void> {
     await this.dispose()
+  }
+
+  #scheduleFlight(cacheKey: string, flight: Flight<TSource>): void {
+    void this.#queue.add(
+      async () => {
+        flight.started = true
+        await this.#runFlight(cacheKey, flight)
+      },
+      {
+        id: flight.queueTaskId,
+        priority: flight.priority,
+        signal: flight.controller.signal,
+      },
+    ).catch(() => undefined)
   }
 
   async #runFlight(cacheKey: string, flight: Flight<TSource>): Promise<void> {
@@ -359,6 +399,16 @@ export function thumbnailLanePriority(lane: ThumbnailLane): ResourcePriority {
   }
 }
 
+export function thumbnailQueuePriority(lane: ThumbnailLane): number {
+  switch (lane) {
+    case "reader-visible": return 4
+    case "library-visible": return 3
+    case "prefetch": return 2
+    case "folder-preview": return 1
+    case "background": return 0
+  }
+}
+
 function validateDemand<TSource>(demand: ThumbnailDemand<TSource>): void {
   validateCacheKey(demand.cacheKey)
   if (!demand.contextId || demand.contextId.length > 1_024) throw new Error("Thumbnail contextId must be 1..1024 characters.")
@@ -378,6 +428,13 @@ function validateAsset(asset: ThumbnailAsset): void {
 function boundedBytes(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value < 1 || value > 2 * 1024 * 1024 * 1024) {
     throw new RangeError(`${name} must be an integer from 1 to 2147483648.`)
+  }
+  return value
+}
+
+function boundedConcurrency(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 64) {
+    throw new RangeError("maxConcurrent must be an integer from 1 to 64.")
   }
   return value
 }
