@@ -19,6 +19,14 @@ export interface CzkawkaSimilarityStat {
   percent: number
 }
 
+export type CzkawkaSimilarityHashSize = 8 | 16 | 32 | 64
+
+export interface CzkawkaSimilarityReferenceRow {
+  level: CzkawkaSimilarityLevel
+  label: string
+  ranges: Record<CzkawkaSimilarityHashSize, string>
+}
+
 export interface CzkawkaAnalysis {
   formats: CzkawkaFormatStat[]
   similarities: CzkawkaSimilarityStat[]
@@ -29,7 +37,16 @@ export interface CzkawkaAnalysis {
 
 const LEVELS: CzkawkaSimilarityLevel[] = ["original", "very-high", "high", "medium", "small", "very-small", "minimal"]
 const LEVEL_LABELS: Record<CzkawkaSimilarityLevel, string> = { original: "原始/相同", "very-high": "极高", high: "高", medium: "中等", small: "较小", "very-small": "很小", minimal: "最低" }
-const THRESHOLDS: Record<8 | 16 | 32 | 64, readonly number[]> = { 8: [1, 2, 5, 7, 14, 40], 16: [2, 5, 15, 30, 40, 40], 32: [4, 10, 20, 40, 40, 40], 64: [6, 20, 40, 40, 40, 40] }
+export const CZKAWKA_SIMILARITY_HASH_SIZES = [8, 16, 32, 64] as const satisfies readonly CzkawkaSimilarityHashSize[]
+const THRESHOLDS: Record<CzkawkaSimilarityHashSize, readonly number[]> = { 8: [1, 2, 5, 7, 14, 40], 16: [2, 5, 15, 30, 40, 40], 32: [4, 10, 20, 40, 40, 40], 64: [6, 20, 40, 40, 40, 40] }
+
+export function buildCzkawkaSimilarityReference(): CzkawkaSimilarityReferenceRow[] {
+  return LEVELS.map((level, index) => ({
+    level,
+    label: LEVEL_LABELS[level],
+    ranges: Object.fromEntries(CZKAWKA_SIMILARITY_HASH_SIZES.map((hashSize) => [hashSize, similarityRange(level, index, THRESHOLDS[hashSize])])) as Record<CzkawkaSimilarityHashSize, string>,
+  }))
+}
 
 export function buildCzkawkaAnalysis(groups: CzkawkaGroup[], selectedPaths: Iterable<string>, tool: CzkawkaTool, hashSize = 16): CzkawkaAnalysis {
   const entries = groups.flatMap((group) => group.entries)
@@ -55,7 +72,7 @@ export function buildFormatStats(entries: CzkawkaEntry[], tool?: CzkawkaTool): C
 }
 
 export function buildSimilarityStats(entries: CzkawkaEntry[], hashSize = 16, tool?: CzkawkaTool): CzkawkaSimilarityStat[] {
-  const normalizedHashSize = ([8, 16, 32, 64] as const).find((value) => value === hashSize) ?? 16
+  const normalizedHashSize = CZKAWKA_SIMILARITY_HASH_SIZES.find((value) => value === hashSize) ?? 16
   const thresholds = tool === "similar-videos" ? [2.5, 5, 10, 20, 30, 40] : THRESHOLDS[normalizedHashSize]
   const counts = new Map<CzkawkaSimilarityLevel, number>()
   let total = 0

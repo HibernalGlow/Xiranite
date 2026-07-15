@@ -38,6 +38,7 @@ import { CzkawkaDirectoryEditor, CzkawkaTokenEditor } from "./source-inputs"
 import { CZKAWKA_WORKSPACE_DEFAULTS, normalizeCzkawkaWorkspaceLayout, updateCzkawkaWorkspaceLayout, type CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
 import { czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
 import { CzkawkaSimilarFoldersView } from "./similar-folders-view"
+import { CzkawkaSimilarityReferenceDialog } from "./similarity-reference-dialog"
 
 const TOOLS: Array<{
   id: CzkawkaTool
@@ -669,6 +670,7 @@ function Header(props: View) {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {props.tool === "similar-images" || props.tool === "similar-videos" ? <CzkawkaSimilarityReferenceDialog t={props.t} /> : null}
         <Button
           aria-label={props.floatingAnalysisPanel.open ? props.t("actions.closeFloatingAnalysis", "关闭浮动分析面板") : props.t("actions.openFloatingAnalysis", "打开浮动分析面板")}
           disabled={!props.floatingAvailable}
@@ -716,6 +718,7 @@ function CompactHeader(props: View) {
           <h3 className="truncate text-sm font-semibold">Czkawka · {meta.label}</h3>
           <p className="truncate font-mono text-[10px] text-muted-foreground">11 SCANNERS / TS CONTROL PLANE</p>
         </div>
+        {props.tool === "similar-images" || props.tool === "similar-videos" ? <CzkawkaSimilarityReferenceDialog t={props.t} /> : null}
         <Button className="shrink-0" size="sm" variant={props.running ? "destructive" : "default"} onClick={props.running ? props.cancelScan : props.executeScan}>
           {props.running ? <X /> : <Play />}
           {props.running ? props.t("actions.stopScan", "停止扫描") : props.t("actions.startScan", "开始扫描")}
@@ -865,7 +868,7 @@ function SchemaOptionField({ data, definition, patch, language }: View & { defin
 }
 
 function ResultTable(props: View) {
-  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
+  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} reversePathDisplay={props.data.reversePathDisplay} wrapText={props.data.tableWrapText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
   if (props.tool !== "similar-images") return table
   return <div className="flex min-h-0 min-w-0 flex-col gap-1"><Tabs value={props.similarImagesViewMode} onValueChange={(value) => props.setSimilarImagesViewMode(value as CzkawkaSimilarImagesViewMode)}><TabsList className="grid w-52 grid-cols-2"><TabsTrigger value="images">{props.t("views.images", "图片")}</TabsTrigger><TabsTrigger value="folders">{props.t("views.folders", "文件夹")} <Badge variant="outline">{props.result?.similarFolders?.length ?? 0}</Badge></TabsTrigger></TabsList></Tabs><div className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.similarImagesViewMode === "folders" ? <CzkawkaSimilarFoldersView folders={props.result?.similarFolders ?? []} filterText={props.filterText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} /> : table}</div></div>
 }
@@ -946,6 +949,8 @@ function SourceSettingsCard(props: View) {
       </Field>
       <SwitchLine label={props.t("sources.recursive", "递归扫描")} checked={props.data.recursive ?? true} onChange={(recursive) => props.patch({ recursive })} />
       <SwitchLine label={props.t("sources.useCache", "使用缓存")} checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} />
+      <SwitchLine label={props.t("sources.reversePathDisplay", "反向显示路径")} checked={props.data.reversePathDisplay ?? false} onChange={(reversePathDisplay) => props.patch({ reversePathDisplay })} />
+      <SwitchLine label={props.t("sources.tableWrapText", "表格文字折行")} checked={props.data.tableWrapText ?? false} onChange={(tableWrapText) => props.patch({ tableWrapText })} />
       <AlgorithmFields {...props} />
     </div>
   )

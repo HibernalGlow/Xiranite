@@ -365,3 +365,12 @@ bun packages/tauri-migrate/src/cli.ts frontend ../ImageAll/czkawka-tauri/ui/src 
 ```
 
 2026-07-15 首次完整生成结果：224 个源文件、711 处 AST import/export 改写、16 个源文件包含 Tauri 边界、未映射 Tauri import 为 0、未解析 `~/` alias 为 0。生成树包含 fork 自带的 UI primitives，避免相对导入遗漏；已将 `framer-motion` AST 映射到宿主现有的 `motion/react`。`frontend-port.json` 用于机器审计，`REPORT.md` 用于人工检查；后续先完成 AST03/AST04，再把生成树接入编译，避免一边手改组件一边丢失 fork 功能。
+
+## 17. XR 分栏恢复与 AST 功能吸收
+
+2026-07-15 决定不再把 AST 生成树作为第二套运行时前端接入。Czkawka 节点继续以 Xiranite 的工具栏、扫描条件、结果表、分析/操作四栏为唯一 GUI；`migration/czkawka/frontend` 保留为 fork 功能审计快照。
+
+- `[x]` 相似度与 Hash Size 速查表：从共享 `analysis.ts` 阈值生成，GUI 不复制规则。
+- `[x]` 反向路径显示：仅改变表格展示，复制、打开、定位、筛选和选择仍使用真实路径。
+- `[x]` 表格文字折行：使用统一 72px 虚拟行高和两行截断，保留万级结果虚拟化性能。
+- `[x]` 显示偏好写入现有节点状态并提供中英文文案，不引入 fork Jotai 状态树或第二套组件库。

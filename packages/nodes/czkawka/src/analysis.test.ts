@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { CzkawkaEntry, CzkawkaGroup } from "./core.js"
-import { buildCzkawkaAnalysis, buildFormatStats, buildSimilarityStats } from "./analysis.js"
+import { buildCzkawkaAnalysis, buildCzkawkaSimilarityReference, buildFormatStats, buildSimilarityStats } from "./analysis.js"
 
 describe("Czkawka shared analysis", () => {
   test("groups formats by count and bytes with deterministic percentages", () => {
@@ -43,6 +43,19 @@ describe("Czkawka shared analysis", () => {
       { level: "original", count: 1, range: "= 0" },
       { level: "high", count: 1, range: "≤ 5" },
       { level: "small", count: 1, range: "≤ 20" },
+    ])
+  })
+
+  test("builds the fork-compatible similarity quick-reference table from shared thresholds", () => {
+    const reference = buildCzkawkaSimilarityReference()
+    expect(reference.map(({ level, ranges }) => [level, ranges[8], ranges[16], ranges[32], ranges[64]])).toEqual([
+      ["original", "= 0", "= 0", "= 0", "= 0"],
+      ["very-high", "≤ 1", "≤ 2", "≤ 4", "≤ 6"],
+      ["high", "≤ 2", "≤ 5", "≤ 10", "≤ 20"],
+      ["medium", "≤ 5", "≤ 15", "≤ 20", "≤ 40"],
+      ["small", "≤ 7", "≤ 30", "≤ 40", "≤ 40"],
+      ["very-small", "≤ 14", "≤ 40", "≤ 40", "≤ 40"],
+      ["minimal", "≤ 40", "≤ 40", "≤ 40", "≤ 40"],
     ])
   })
 })

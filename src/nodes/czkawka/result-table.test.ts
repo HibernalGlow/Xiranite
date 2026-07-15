@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { CzkawkaEntry, CzkawkaGroup } from "@xiranite/node-czkawka/core"
-import { applyBoxSelection, applyResultSelection, calculateVirtualWindow, CZKAWKA_RESULT_COLUMNS, filterAndSortResultGroups, flattenResultRows } from "./result-table"
+import { applyBoxSelection, applyResultSelection, calculateVirtualWindow, CZKAWKA_RESULT_COLUMNS, filterAndSortResultGroups, flattenResultRows, formatReversePath } from "./result-table"
 
 const entries = [entry("a", 30), entry("b", 10), entry("c", 20)]
 const group: CzkawkaGroup = { id: 0, entries, totalBytes: 60, reclaimableBytes: 30 }
@@ -35,6 +35,11 @@ describe("Czkawka result table model", () => {
   test("calculates a bounded overscanned window for ten thousand rows", () => {
     expect(calculateVirtualWindow(10_000, 0, 520, 52, 8)).toEqual({ start: 0, end: 18 })
     expect(calculateVirtualWindow(10_000, 4_236, 520, 52, 8)).toEqual({ start: 73, end: 100 })
+  })
+
+  test("reverses path segments for display without changing the source path", () => {
+    expect(formatReversePath("C:\\photos\\2026\\cover.jpg")).toBe("cover.jpg ‹ 2026 ‹ photos ‹ C:")
+    expect(formatReversePath("cover.jpg")).toBe("cover.jpg")
   })
 })
 

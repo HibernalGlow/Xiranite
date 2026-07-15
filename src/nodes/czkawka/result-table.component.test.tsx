@@ -72,6 +72,19 @@ describe("CzkawkaResultTable", () => {
     expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("52px")
   })
 
+  test("wraps table text at a fixed virtual height and only reverses the displayed path", () => {
+    const path = "C:\\photos\\2026\\cover.jpg"
+    const wrappedGroup: CzkawkaGroup = { id: 0, entries: [{ id: path, groupId: 0, path, name: "cover.jpg", size: 10, modifiedDate: 1 }], totalBytes: 10, reclaimableBytes: 0 }
+    const onCopyText = vi.fn().mockResolvedValue(undefined)
+    const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[wrappedGroup]} running={false} reversePathDisplay wrapText selectedPaths={[]} onCopyText={onCopyText} onSelectionChange={vi.fn()} />)
+    expect(screen.getByText("cover.jpg ‹ 2026 ‹ photos ‹ C:")).toBeTruthy()
+    const row = container.querySelector("[data-index]") as HTMLElement
+    expect(row.style.height).toBe("72px")
+    fireEvent.contextMenu(row)
+    fireEvent.click(screen.getByText("复制路径"))
+    expect(onCopyText).toHaveBeenCalledWith(path)
+  })
+
   test("resizes preview thumbnails and virtual row height per tool", () => {
     const props = { groups: [group], running: false, selectedPaths: [], onSelectionChange: vi.fn() }
     const view = render(<CzkawkaResultTable tool="empty-files" {...props} />)
