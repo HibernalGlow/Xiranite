@@ -4,7 +4,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ReaderPanelContext } from "../registry"
 
-export default function PageNavigationCard({ session, disabled, onGoTo }: ReaderPanelContext) {
+export default function PageNavigationCard(context: ReaderPanelContext) {
+  if (!context.session) return null
+  return <PageNavigationCardContent session={context.session} disabled={context.disabled} onGoTo={context.onGoTo} />
+}
+
+function PageNavigationCardContent({ session, disabled, onGoTo }: Required<Pick<ReaderPanelContext, "session">> & Pick<ReaderPanelContext, "disabled" | "onGoTo">) {
   const current = session.frame.anchorPageIndex + 1
   const [pageNumber, setPageNumber] = useState(String(current))
   useEffect(() => setPageNumber(String(current)), [current])

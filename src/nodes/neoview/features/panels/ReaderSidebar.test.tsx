@@ -72,6 +72,17 @@ describe("ReaderSidebar layout gestures", () => {
     expect(cardCommit).toHaveBeenCalledOnce()
     expect(cardCommit).toHaveBeenCalledWith({ cardId: "page-navigation", height: 220 })
   })
+
+  it("[neoview.settings.sessionless-card] exposes only docked setting cards when no book is open", () => {
+    const config = shell()
+    config.panelLayout.settings = { visible: true, order: 99, position: "left" }
+    config.cardLayout["panel-layout-settings"] = { panelId: "settings", visible: true, expanded: false, order: 0 }
+    render(<ReaderSidebar side="left" context={context(false)} shell={config} />)
+
+    expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()
+    expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
+  })
 })
 
 function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "full"): ReaderShellConfigDto {
@@ -101,7 +112,7 @@ function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "ful
   }
 }
 
-function context(): ReaderPanelContext {
+function context(hasSession = true): ReaderPanelContext {
   const session = {
     sessionId: "reader-1",
     book: { id: "book-1", displayName: "demo.cbz", pageCount: 1 },
@@ -130,5 +141,5 @@ function context(): ReaderPanelContext {
     updateSessionOptions: vi.fn(),
     close: vi.fn(),
   }
-  return { session, client, disabled: false, onGoTo: vi.fn() }
+  return { client, disabled: false, onGoTo: vi.fn(), ...(hasSession ? { session } : {}) }
 }

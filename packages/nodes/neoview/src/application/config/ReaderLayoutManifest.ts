@@ -20,6 +20,8 @@ export interface ReaderCardManifestEntry {
   defaultExpanded: boolean
   defaultOrder: number
   canHide: boolean
+  requiresSession: boolean
+  settingsSectionId?: "sidebar" | "cards"
 }
 
 export const READER_PANEL_MANIFEST = [
@@ -40,10 +42,10 @@ export const READER_PANEL_MANIFEST = [
 ] as const satisfies readonly ReaderPanelManifestEntry[]
 
 export const READER_CARD_MANIFEST = [
-  card("page-navigation", "页面导航", "pageList", true, true, 0, false),
-  card("book-information", "书籍信息", "info", true, true, 0, false),
-  card("panel-layout-settings", "面板布局设置", "settings", false, true, 0, true),
-  card("sidebar-management-settings", "边栏管理设置", "settings", false, true, 1, true),
+  card("page-navigation", "页面导航", "pageList", true, true, 0, false, true),
+  card("book-information", "书籍信息", "info", true, true, 0, false, true),
+  card("panel-layout-settings", "面板布局设置", "settings", false, true, 0, true, false, "cards"),
+  card("sidebar-management-settings", "边栏管理设置", "settings", false, true, 1, true, false, "sidebar"),
 ] as const satisfies readonly ReaderCardManifestEntry[]
 
 export type ReaderPanelId = typeof READER_PANEL_MANIFEST[number]["id"]
@@ -83,6 +85,18 @@ function card<const Id extends string, const PanelId extends string>(
   defaultExpanded: boolean,
   defaultOrder: number,
   canHide: boolean,
+  requiresSession: boolean,
+  settingsSectionId?: ReaderCardManifestEntry["settingsSectionId"],
 ): ReaderCardManifestEntry & { id: Id; defaultPanelId: PanelId } {
-  return { id, title, defaultPanelId, defaultVisible, defaultExpanded, defaultOrder, canHide }
+  return {
+    id,
+    title,
+    defaultPanelId,
+    defaultVisible,
+    defaultExpanded,
+    defaultOrder,
+    canHide,
+    requiresSession,
+    ...(settingsSectionId ? { settingsSectionId } : {}),
+  }
 }

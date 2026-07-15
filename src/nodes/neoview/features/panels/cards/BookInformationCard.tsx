@@ -1,6 +1,7 @@
 import type { ReaderPanelContext } from "../registry"
 
 export default function BookInformationCard({ session }: ReaderPanelContext) {
+  if (!session) return null
   const page = session.visiblePages[0]
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs">

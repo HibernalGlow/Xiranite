@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Settings2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
+  READER_CARD_MANIFEST,
+  READER_PANEL_MANIFEST,
   rotateReaderPresentation,
   stepReaderManualScale,
   type ReaderPresentation,
@@ -376,8 +378,8 @@ export function ReaderApp({
     ),
   } : undefined
 
-  const panelContext = session ? { session, client, disabled: busy, onGoTo: goTo, shell, onBoardLayout: commitBoardLayout } : undefined
-  const leftEdge: ReaderEdgeSlot | undefined = panelContext && (shell?.edges.left.enabled ?? true) ? {
+  const panelContext = { client, disabled: busy, onGoTo: goTo, shell, onBoardLayout: commitBoardLayout, ...(session ? { session } : {}) }
+  const leftEdge: ReaderEdgeSlot | undefined = (session || hasSessionlessPanel("left", shell)) && (shell?.edges.left.enabled ?? true) ? {
     ariaLabel: "NeoView 左侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
@@ -391,7 +393,7 @@ export function ReaderApp({
       </Suspense>
     ),
   } : undefined
-  const rightEdge: ReaderEdgeSlot | undefined = panelContext && (shell?.edges.right.enabled ?? true) ? {
+  const rightEdge: ReaderEdgeSlot | undefined = (session || hasSessionlessPanel("right", shell)) && (shell?.edges.right.enabled ?? true) ? {
     ariaLabel: "NeoView 右侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
@@ -444,6 +446,20 @@ export function ReaderApp({
       ) : null}
     </div>
   )
+}
+
+function hasSessionlessPanel(side: "left" | "right", shell: ReaderShellConfigDto | undefined): boolean {
+  if (!shell) return false
+  return READER_CARD_MANIFEST.some((card) => {
+    if (card.requiresSession) return false
+    const cardConfig = shell.cardLayout[card.id]
+    if (!(cardConfig?.visible ?? card.defaultVisible)) return false
+    const panelId = cardConfig?.panelId ?? card.defaultPanelId
+    const panelConfig = shell.panelLayout[panelId]
+    const panelManifest = READER_PANEL_MANIFEST.find((panel) => panel.id === panelId)
+    return (panelConfig?.visible ?? panelManifest?.defaultVisible ?? true)
+      && (panelConfig?.position ?? panelManifest?.defaultPosition ?? "left") === side
+  })
 }
 
 function edgeSurfaceStyle(shell: ReaderShellConfigDto | undefined, edge: "top" | "bottom"): React.CSSProperties | undefined {

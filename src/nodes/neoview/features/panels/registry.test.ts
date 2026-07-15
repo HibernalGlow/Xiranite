@@ -59,5 +59,15 @@ describe("NeoView panel and card registries", () => {
     expect(cardsForPanel("settings", {
       cardLayout: { "sidebar-management-settings": { panelId: "settings", visible: true, expanded: true, order: 1 } },
     } as never).map((card) => card.id)).toContain("sidebar-management-settings")
+    expect(availablePanels("left", {
+      panelLayout: {
+        pageList: { visible: true, order: 0, position: "left" },
+        settings: { visible: true, order: 99, position: "left" },
+      },
+      cardLayout: {
+        "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
+        "panel-layout-settings": { panelId: "settings", visible: true, expanded: true, order: 0 },
+      },
+    } as never, false).map((panel) => panel.id)).toEqual(["settings"])
   })
 })

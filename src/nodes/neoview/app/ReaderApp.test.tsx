@@ -246,6 +246,31 @@ describe("ReaderApp", () => {
       cardLayout: { ...config.cardLayout, "page-navigation": { ...config.cardLayout["page-navigation"]!, expanded: false } },
     }))
   })
+
+  it("[neoview.settings.sessionless-card] mounts an explicitly docked setting card without opening a book", async () => {
+    const config = shellConfig()
+    config.edges.left = { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 }
+    config.panelLayout.settings = { visible: true, order: 99, position: "left" }
+    config.cardLayout["panel-layout-settings"] = { panelId: "settings", visible: true, expanded: false, order: 0 }
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+      updateSidebarLayout: vi.fn(),
+      updateCardLayout: vi.fn(),
+      updateBoardLayout: vi.fn(),
+      updateViewDefaults: vi.fn(),
+      open: vi.fn(),
+      listPages: vi.fn(),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(),
+    }
+
+    render(<ReaderApp client={client} />)
+    expect(await screen.findByRole("heading", { name: "设置" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()
+    expect(client.open).not.toHaveBeenCalled()
+  })
 })
 
 function session(pageId: string, assetUrl: string, index: number): ReaderSessionDto {

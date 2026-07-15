@@ -38,7 +38,8 @@ export function ReaderSidebar({
   onLayoutCommit?(patch: ReaderSidebarLayoutPatch): void
   onCardLayoutCommit?(patch: ReaderCardLayoutPatch): void
 }) {
-  const panels = availablePanels(side, shell)
+  const hasSession = Boolean(context.session)
+  const panels = availablePanels(side, shell, hasSession)
   const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]
@@ -101,7 +102,7 @@ export function ReaderSidebar({
           ) : null}
         </div>
         <div className="grid gap-2">
-          {active ? cardsForPanel(active.id, shell).map((card) => {
+          {active ? cardsForPanel(active.id, shell, hasSession).map((card) => {
             const Card = lazyReaderCard(card.id)
             const cardLayout = shell?.cardLayout[card.id]
             return Card ? (

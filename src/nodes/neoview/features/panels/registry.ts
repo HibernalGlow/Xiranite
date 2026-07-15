@@ -20,7 +20,7 @@ export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
 
 export interface ReaderPanelContext {
-  session: ReaderSessionDto
+  session?: ReaderSessionDto
   client: ReaderHttpClient
   disabled: boolean
   onGoTo(pageIndex: number): void | Promise<void>
@@ -45,8 +45,16 @@ export interface ReaderCardDefinition {
   title: string
   defaultPanel: LegacyPanelId
   canHide: boolean
+  requiresSession: boolean
+  settingsSectionId?: "sidebar" | "cards"
   defaultSidebarVisible?: boolean
   load(): Promise<{ default: ComponentType<ReaderPanelContext> }>
+  loadSettings?(): Promise<{ default: ComponentType<ReaderSettingsCardContext> }>
+}
+
+export interface ReaderSettingsCardContext {
+  shell: ReaderShellConfigDto
+  onSave(patch: ReaderBoardLayoutPatch): Promise<void>
 }
 
 export interface LegacyPanelConfig {
@@ -80,41 +88,66 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
 }
 
+const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
+  "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
+  "sidebar-management-settings": async () => ({ default: (await import("../settings/cards/SidebarManagementSettingsCard")).SidebarManagementSettingsCard }),
+}
+
 export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = READER_CARD_MANIFEST.map((definition) => ({
   id: definition.id,
   title: definition.title,
   defaultPanel: definition.defaultPanelId as LegacyPanelId,
   canHide: definition.canHide,
+  requiresSession: definition.requiresSession,
   defaultSidebarVisible: definition.defaultVisible,
   load: CARD_LOADERS[definition.id],
+  ...(definition.settingsSectionId ? { settingsSectionId: definition.settingsSectionId } : {}),
+  ...(SETTINGS_CARD_LOADERS[definition.id] ? { loadSettings: SETTINGS_CARD_LOADERS[definition.id] } : {}),
 }))
 
 const panelById = new Map(PANEL_DEFINITIONS.map((definition) => [definition.id, definition]))
 const cardById = new Map(CARD_DEFINITIONS.map((definition) => [definition.id, definition]))
 const lazyCards = new Map<string, LazyExoticComponent<ComponentType<ReaderPanelContext>>>()
+const lazySettingsCards = new Map<string, LazyExoticComponent<ComponentType<ReaderSettingsCardContext>>>()
 
-export function availablePanels(side: ReaderPanelSide, shell?: ReaderShellConfigDto): ReaderPanelDefinition[] {
+export function availablePanels(side: ReaderPanelSide, shell?: ReaderShellConfigDto, hasSession = true): ReaderPanelDefinition[] {
   return PANEL_DEFINITIONS
     .filter((definition) => {
       const config = shell?.panelLayout[definition.id]
       return (config?.position ?? definition.defaultSide) === side
         && (config?.visible ?? definition.defaultVisible)
-        && cardsForPanel(definition.id, shell).length > 0
+        && cardsForPanel(definition.id, shell, hasSession).length > 0
     })
     .toSorted((left, right) => (shell?.panelLayout[left.id]?.order ?? left.defaultOrder) - (shell?.panelLayout[right.id]?.order ?? right.defaultOrder))
 }
 
-export function visiblePanelIds(side: ReaderPanelSide, shell?: ReaderShellConfigDto): readonly LegacyPanelId[] {
-  return availablePanels(side, shell).map((panel) => panel.id)
+export function visiblePanelIds(side: ReaderPanelSide, shell?: ReaderShellConfigDto, hasSession = true): readonly LegacyPanelId[] {
+  return availablePanels(side, shell, hasSession).map((panel) => panel.id)
 }
 
-export function cardsForPanel(panelId: LegacyPanelId, shell?: ReaderShellConfigDto): ReaderCardDefinition[] {
+export function cardsForPanel(panelId: LegacyPanelId, shell?: ReaderShellConfigDto, hasSession = true): ReaderCardDefinition[] {
   return CARD_DEFINITIONS
     .filter((definition) => {
       const config = shell?.cardLayout?.[definition.id]
-      return (config?.panelId ?? definition.defaultPanel) === panelId && (config?.visible ?? definition.defaultSidebarVisible ?? true)
+      return (!definition.requiresSession || hasSession)
+        && (config?.panelId ?? definition.defaultPanel) === panelId
+        && (config?.visible ?? definition.defaultSidebarVisible ?? true)
     })
     .toSorted((left, right) => (shell?.cardLayout?.[left.id]?.order ?? 0) - (shell?.cardLayout?.[right.id]?.order ?? 0))
+}
+
+export function settingsCardsForSection(sectionId: string): ReaderCardDefinition[] {
+  return CARD_DEFINITIONS.filter((definition) => definition.settingsSectionId === sectionId && definition.loadSettings)
+}
+
+export function lazyReaderSettingsCard(cardId: string): LazyExoticComponent<ComponentType<ReaderSettingsCardContext>> | undefined {
+  const existing = lazySettingsCards.get(cardId)
+  if (existing) return existing
+  const definition = cardById.get(cardId)
+  if (!definition?.loadSettings) return undefined
+  const component = lazy(definition.loadSettings)
+  lazySettingsCards.set(cardId, component)
+  return component
 }
 
 export function lazyReaderCard(cardId: string): LazyExoticComponent<ComponentType<ReaderPanelContext>> | undefined {

@@ -1,10 +1,9 @@
 import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Monitor, PanelLeft, Palette, Settings2, SlidersHorizontal } from "lucide-react"
-import { useState, type ComponentType } from "react"
+import { Suspense, useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../adapters/reader-http-client"
-import { PanelLayoutSettingsCard } from "./cards/PanelLayoutSettingsCard"
-import { SidebarManagementSettingsCard } from "./cards/SidebarManagementSettingsCard"
+import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
 
 export function ReaderSettingsWindow({
   shell,
@@ -43,14 +42,33 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            {active === "sidebar" ? <SidebarManagementSettingsCard shell={shell} onSave={onBoardLayout} /> : null}
-            {active === "cards" ? <PanelLayoutSettingsCard shell={shell} onSave={onBoardLayout} /> : null}
-            {active !== "sidebar" && active !== "cards" ? <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === active)?.label ?? "设置"} /> : null}
+            <SettingsSection sectionId={active} shell={shell} onSave={onBoardLayout} />
           </div>
         </div>
       </DialogContent>
     </Dialog>
   )
+}
+
+function SettingsSection({
+  sectionId,
+  shell,
+  onSave,
+}: {
+  sectionId: SettingsSectionId
+  shell: ReaderShellConfigDto
+  onSave(patch: ReaderBoardLayoutPatch): Promise<void>
+}) {
+  const definitions = settingsCardsForSection(sectionId)
+  if (!definitions.length) return <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} />
+  return definitions.map((definition) => {
+    const Card = lazyReaderSettingsCard(definition.id)
+    return Card ? (
+      <Suspense key={definition.id} fallback={<div className="h-24 animate-pulse rounded-md bg-muted/35" aria-label={`正在加载${definition.title}`} />}>
+        <Card shell={shell} onSave={onSave} />
+      </Suspense>
+    ) : null
+  })
 }
 
 type SettingsSectionId = "general" | "system" | "image" | "view" | "notifications" | "books" | "appearance" | "performance" | "sidebar" | "cards" | "bindings" | "data" | "about"

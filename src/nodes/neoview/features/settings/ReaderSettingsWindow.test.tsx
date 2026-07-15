@@ -16,7 +16,7 @@ describe("ReaderSettingsWindow", () => {
     expect(screen.getByRole("dialog")).toBeTruthy()
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
     expect(screen.getByRole("navigation", { name: "NeoView 设置分类" })).toBeTruthy()
-    expect(screen.getByRole("heading", { name: "边栏布局" })).toBeTruthy()
+    expect(await screen.findByRole("heading", { name: "边栏布局" })).toBeTruthy()
     expect(screen.queryByTestId("panel-layout-editor")).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "保存边栏布局" }))
     expect(save).toHaveBeenCalledOnce()
