@@ -41,6 +41,18 @@ describe("ReaderSidebar layout gestures", () => {
     fireEvent.pointerUp(corner, { pointerId: 9, clientX: 500, clientY: window.innerHeight })
     expect(commit).toHaveBeenLastCalledWith({ side: "left", width: 500, height: "custom", customHeight: 100 })
   })
+
+  it("[neoview.card.collapse] keeps collapsed card content out of the DOM and emits one discrete patch", () => {
+    const cardCommit = vi.fn()
+    const config = shell()
+    config.cardLayout["page-navigation"]!.expanded = false
+    render(<ReaderSidebar side="left" context={context()} shell={config} onCardLayoutCommit={cardCommit} />)
+
+    expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "展开页面导航" }))
+    expect(cardCommit).toHaveBeenCalledOnce()
+    expect(cardCommit).toHaveBeenCalledWith({ cardId: "page-navigation", expanded: true })
+  })
 })
 
 function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "full"): ReaderShellConfigDto {
@@ -62,6 +74,10 @@ function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "ful
     panelLayout: {
       pageList: { visible: true, order: 3, position: "left" },
       info: { visible: true, order: 0, position: "right" },
+    },
+    cardLayout: {
+      "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
+      "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
     },
   }
 }
@@ -85,6 +101,7 @@ function context(): ReaderPanelContext {
   const client: ReaderHttpClient = {
     config: vi.fn(),
     updateSidebarLayout: vi.fn(),
+    updateCardLayout: vi.fn(),
     open: vi.fn(),
     listPages: vi.fn(async () => ({ pages: [], total: 1 })),
     navigate: vi.fn(),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -134,5 +134,36 @@ describe("parseNeoviewRuntimeConfig", () => {
       futurePanel: { visible: true, order: 1, position: "floating" },
       info: { visible: true, position: "right" },
     })
+  })
+
+  it("[neoview.settings.card-layout] imports v14 card arrays and lets canonical state override them", () => {
+    const parsed = parseNeoviewRuntimeConfig({
+      panels: {
+        card_configs: {
+          key: "neoview_card_configs_v14",
+          data: {
+            pageList: [{ id: "page-navigation", visible: true, expanded: false, order: 4, height: 240 }],
+            future: [{ id: "future-card", visible: false, expanded: true, order: 2 }],
+          },
+        },
+        card_state: {
+          "page-navigation": { expanded: true, order: 1 },
+        },
+      },
+    })
+    expect(parsed.shellOptions.cardLayout).toMatchObject({
+      "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 1, height: 240 },
+      "future-card": { panelId: "future", visible: false, expanded: true, order: 2 },
+    })
+  })
+
+  it("[neoview.settings.card-patch] validates card state and writes canonical TOML", () => {
+    expect(parseNeoviewCardLayoutPatch({ cardId: "page-navigation", expanded: false, height: 320 })).toEqual({
+      patch: { cardId: "page-navigation", expanded: false, height: 320 },
+      tomlPatch: { panels: { card_state: { "page-navigation": { expanded: false, height: 320 } } } },
+    })
+    expect(() => parseNeoviewCardLayoutPatch({ cardId: "../bad", expanded: false })).toThrow("cardId")
+    expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation" })).toThrow("at least one")
+    expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation", height: 20 })).toThrow("height")
   })
 })

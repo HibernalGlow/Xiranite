@@ -124,6 +124,13 @@ describe("loadNeoviewSessionOptions", () => {
       }))
       expect(await patched?.json()).toMatchObject({ shell: { sidebars: { left: { width: 438, height: "half", verticalAlign: 25 } } } })
       expect(await readFile(configPath, "utf8")).toContain("width = 438")
+      const cardPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ cardId: "page-navigation", expanded: false }),
+      }))
+      expect(await cardPatched?.json()).toMatchObject({ shell: { cardLayout: { "page-navigation": { expanded: false } } } })
+      expect(await readFile(configPath, "utf8")).toContain("expanded = false")
     } finally {
       await controller[Symbol.asyncDispose]()
     }

@@ -4,13 +4,22 @@
  * @features card-windows-tabs
  * @migration-status adapted
  */
-import { useState, type ReactNode } from "react"
+import type { ReactNode } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
-export function CollapsibleReaderCard({ title, children }: { title: string; children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false)
+export function CollapsibleReaderCard({
+  title,
+  collapsed = false,
+  children,
+  onCollapsedChange,
+}: {
+  title: string
+  collapsed?: boolean
+  children: ReactNode
+  onCollapsedChange?(collapsed: boolean): void
+}) {
   return (
     <section className="overflow-hidden rounded-md border border-border/70 bg-card/80 shadow-sm" data-reader-card={title}>
       <header className="flex min-h-9 items-center justify-between gap-2 border-b border-border/60 px-2.5 py-1.5">
@@ -21,7 +30,7 @@ export function CollapsibleReaderCard({ title, children }: { title: string; chil
           variant="ghost"
           aria-label={collapsed ? `展开${title}` : `折叠${title}`}
           aria-expanded={!collapsed}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={() => onCollapsedChange?.(!collapsed)}
         >
           {collapsed ? <ChevronDown /> : <ChevronUp />}
         </Button>

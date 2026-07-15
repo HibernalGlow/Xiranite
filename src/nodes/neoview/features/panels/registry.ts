@@ -105,8 +105,13 @@ export function visiblePanelIds(side: ReaderPanelSide, shell?: ReaderShellConfig
   return availablePanels(side, shell).map((panel) => panel.id)
 }
 
-export function cardsForPanel(panelId: LegacyPanelId): ReaderCardDefinition[] {
-  return CARD_DEFINITIONS.filter((definition) => definition.defaultPanel === panelId)
+export function cardsForPanel(panelId: LegacyPanelId, shell?: ReaderShellConfigDto): ReaderCardDefinition[] {
+  return CARD_DEFINITIONS
+    .filter((definition) => {
+      const config = shell?.cardLayout[definition.id]
+      return (config?.panelId ?? definition.defaultPanel) === panelId && (config?.visible ?? true)
+    })
+    .toSorted((left, right) => (shell?.cardLayout[left.id]?.order ?? 0) - (shell?.cardLayout[right.id]?.order ?? 0))
 }
 
 export function lazyReaderCard(cardId: string): LazyExoticComponent<ComponentType<ReaderPanelContext>> | undefined {

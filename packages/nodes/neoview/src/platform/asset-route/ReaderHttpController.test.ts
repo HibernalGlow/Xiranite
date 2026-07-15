@@ -32,8 +32,12 @@ describe("ReaderHttpController", () => {
         left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 7 },
       },
       sidebars: {
-        left: { width: patch.side === "left" && patch.width ? patch.width : 333, height: "half" as const, customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
+        left: { width: "side" in patch && patch.side === "left" && patch.width ? patch.width : 333, height: "half" as const, customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
         right: { width: 277, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+      },
+      panelLayout: {},
+      cardLayout: {
+        "page-navigation": { panelId: "pageList", visible: true, expanded: "cardId" in patch ? patch.expanded ?? true : true, order: 0 },
       },
     }))
     const controller = new ReaderHttpController({
@@ -72,6 +76,12 @@ describe("ReaderHttpController", () => {
         { panels: { sidebars: { left: { width: 401 } } } },
       )
       expect((await controller.handle(jsonRequest("/reader/config", { side: "left", width: 999 }, true, "PATCH")))?.status).toBe(400)
+      const cardPatched = (await controller.handle(jsonRequest("/reader/config", { cardId: "page-navigation", expanded: false }, true, "PATCH")))!
+      expect(await cardPatched.json()).toMatchObject({ shell: { cardLayout: { "page-navigation": { expanded: false } } } })
+      expect(updateShellOptions).toHaveBeenLastCalledWith(
+        { cardId: "page-navigation", expanded: false },
+        { panels: { card_state: { "page-navigation": { expanded: false } } } },
+      )
     } finally {
       await controller[Symbol.asyncDispose]()
     }

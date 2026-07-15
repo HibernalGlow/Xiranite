@@ -119,6 +119,19 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
   await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('[data-reader-card="页面导航"]')).toBeVisible()
+  const collapseResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH"
+  ))
+  await page.getByRole("button", { name: "折叠页面导航" }).click()
+  expect((await collapseResponse).status()).toBe(200)
+  await expect(page.getByRole("spinbutton", { name: "跳转页码" })).toHaveCount(0)
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain("expanded = false")
+  const expandResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH"
+  ))
+  await page.getByRole("button", { name: "展开页面导航" }).click()
+  expect((await expandResponse).status()).toBe(200)
+  await expect(page.getByRole("spinbutton", { name: "跳转页码" })).toBeVisible()
   await first.evaluate((image) => image.setAttribute("data-neoview-image-instance", "before-sidebar-resize"))
   let shellPatchRequests = 0
   page.on("request", (request) => {

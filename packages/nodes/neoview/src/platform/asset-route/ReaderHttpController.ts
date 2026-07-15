@@ -13,9 +13,10 @@ import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
+  parseNeoviewCardLayoutPatch,
   parseNeoviewSidebarLayoutPatch,
   type NeoviewShellConfig,
-  type NeoviewSidebarLayoutPatch,
+  type NeoviewShellConfigPatch,
 } from "../../application/config/ReaderRuntimeConfig.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -52,7 +53,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   thumbnailStore?: ReaderThumbnailStore
   disposeThumbnailStore?: () => void | Promise<void>
   shellOptions?: NeoviewShellConfig
-  updateShellOptions?: (patch: NeoviewSidebarLayoutPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
+  updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -184,9 +185,11 @@ export class ReaderHttpController implements AsyncDisposable {
     if (!this.#updateShellOptions) return jsonResponse({ error: "Reader shell config is read-only" }, 405)
     const body = await readControlJson(request)
     if (!body) return jsonResponse({ error: "Reader shell patch must be a JSON object" }, 400)
-    let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch>
+    let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch> | ReturnType<typeof parseNeoviewCardLayoutPatch>
     try {
-      parsed = parseNeoviewSidebarLayoutPatch(body)
+      parsed = Object.hasOwn(body, "cardId")
+        ? parseNeoviewCardLayoutPatch(body)
+        : parseNeoviewSidebarLayoutPatch(body)
     } catch (error) {
       return jsonResponse({ error: errorMessage(error) }, 400)
     }

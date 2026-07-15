@@ -12,7 +12,7 @@
  */
 import { Suspense, useRef, useState } from "react"
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
-import type { ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
+import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
 
 import { cn } from "@/lib/utils"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
@@ -30,11 +30,13 @@ export function ReaderSidebar({
   context,
   shell,
   onLayoutCommit,
+  onCardLayoutCommit,
 }: {
   side: ReaderPanelSide
   context: ReaderPanelContext
   shell?: ReaderShellConfigDto
   onLayoutCommit?(patch: ReaderSidebarLayoutPatch): void
+  onCardLayoutCommit?(patch: ReaderCardLayoutPatch): void
 }) {
   const panels = availablePanels(side, shell)
   const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
@@ -99,10 +101,16 @@ export function ReaderSidebar({
           ) : null}
         </div>
         <div className="grid gap-2">
-          {active ? cardsForPanel(active.id).map((card) => {
+          {active ? cardsForPanel(active.id, shell).map((card) => {
             const Card = lazyReaderCard(card.id)
+            const cardLayout = shell?.cardLayout[card.id]
             return Card ? (
-              <CollapsibleReaderCard key={card.id} title={card.title}>
+              <CollapsibleReaderCard
+                key={card.id}
+                title={card.title}
+                collapsed={cardLayout ? !cardLayout.expanded : false}
+                onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
+              >
                 <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} />}>
                   <Card {...context} />
                 </Suspense>

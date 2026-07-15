@@ -40,6 +40,7 @@ export interface ReaderShellConfigDto {
   edges: Record<"top" | "right" | "bottom" | "left", { enabled: boolean; initialVisible: boolean; pinned: boolean; triggerSize: number }>
   sidebars: Record<"left" | "right", { width: number; height: "full" | "two-thirds" | "half" | "one-third" | "custom"; customHeight: number; verticalAlign: number; horizontalPosition: number }>
   panelLayout: Record<string, { visible: boolean; order: number; position: "left" | "right" | "bottom" | "floating" }>
+  cardLayout: Record<string, { panelId: string; visible: boolean; expanded: boolean; order: number; height?: number }>
 }
 
 export interface ReaderSidebarLayoutPatch {
@@ -51,9 +52,19 @@ export interface ReaderSidebarLayoutPatch {
   horizontalPosition?: number
 }
 
+export interface ReaderCardLayoutPatch {
+  cardId: string
+  panelId?: string
+  visible?: boolean
+  expanded?: boolean
+  order?: number
+  height?: number
+}
+
 export interface ReaderHttpClient {
   config(signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateSidebarLayout(patch: ReaderSidebarLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
+  updateCardLayout(patch: ReaderCardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -78,6 +89,12 @@ export function createReaderHttpClient(
   return {
     config: (signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", { signal }).then((value) => value.shell),
     updateSidebarLayout: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.shell),
+    updateCardLayout: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),

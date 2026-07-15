@@ -12,6 +12,7 @@ describe("ReaderApp", () => {
     const client: ReaderHttpClient = {
       config: vi.fn(async () => shellConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(async () => ({
@@ -47,6 +48,7 @@ describe("ReaderApp", () => {
     const client: ReaderHttpClient = {
       config: vi.fn(async () => shellConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn((_path, signal) => new Promise((_resolve, reject) => {
         rejectOpen = reject
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
@@ -76,6 +78,7 @@ describe("ReaderApp", () => {
     const client: ReaderHttpClient = {
       config: vi.fn(async () => shellConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({
         pages: [{ ...opened.visiblePages[0]!, thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-1" }, secondPage],
@@ -101,6 +104,7 @@ describe("ReaderApp", () => {
     const client: ReaderHttpClient = {
       config: vi.fn(() => new Promise((resolve) => { resolveConfig = resolve })),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),
@@ -126,6 +130,34 @@ describe("ReaderApp", () => {
     expect(screen.queryByRole("textbox", { name: "漫画、图片或目录路径" })).toBeNull()
     expect(document.querySelector<HTMLElement>('[data-reader-edge-trigger="top"]')?.style.height).toBe("5px")
     expect(screen.getByRole("img", { name: "001.jpg" })).toBe(imageBeforeConfig)
+  })
+
+  it("[neoview.card.persist-react] optimistically unmounts card content before persistence finishes", async () => {
+    let finishUpdate!: (value: ReaderShellConfigDto) => void
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const config = shellConfig()
+    config.edges.left = { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 }
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => config),
+      updateSidebarLayout: vi.fn(async () => config),
+      updateCardLayout: vi.fn(() => new Promise((resolve) => { finishUpdate = resolve })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("button", { name: "折叠页面导航" })
+    expect(screen.getByRole("spinbutton", { name: "跳转页码" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "折叠页面导航" }))
+    expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
+    expect(client.updateCardLayout).toHaveBeenCalledWith({ cardId: "page-navigation", expanded: false })
+    await act(async () => finishUpdate({
+      ...config,
+      cardLayout: { ...config.cardLayout, "page-navigation": { ...config.cardLayout["page-navigation"]!, expanded: false } },
+    }))
   })
 })
 
@@ -175,6 +207,10 @@ function shellConfig(): ReaderShellConfigDto {
     panelLayout: {
       pageList: { visible: true, order: 3, position: "left" },
       info: { visible: true, order: 0, position: "right" },
+    },
+    cardLayout: {
+      "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
+      "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
     },
   }
 }

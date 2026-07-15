@@ -31,12 +31,21 @@ export interface NeoviewShellConfig {
   edges: Record<"top" | "right" | "bottom" | "left", NeoviewShellEdgeConfig>
   sidebars: Record<"left" | "right", NeoviewShellSidebarConfig>
   panelLayout: Record<string, NeoviewPanelLayout>
+  cardLayout: Record<string, NeoviewCardLayout>
 }
 
 export interface NeoviewPanelLayout {
   visible: boolean
   order: number
   position: "left" | "right" | "bottom" | "floating"
+}
+
+export interface NeoviewCardLayout {
+  panelId: string
+  visible: boolean
+  expanded: boolean
+  order: number
+  height?: number
 }
 
 export interface NeoviewSidebarLayoutPatch {
@@ -47,6 +56,17 @@ export interface NeoviewSidebarLayoutPatch {
   verticalAlign?: number
   horizontalPosition?: number
 }
+
+export interface NeoviewCardLayoutPatch {
+  cardId: string
+  panelId?: string
+  visible?: boolean
+  expanded?: boolean
+  order?: number
+  height?: number
+}
+
+export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLayoutPatch
 
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
@@ -78,6 +98,10 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
     ai: { visible: true, order: 5, position: "right" },
     benchmark: { visible: false, order: 10, position: "right" },
     cardwindow: { visible: false, order: 100, position: "floating" },
+  },
+  cardLayout: {
+    "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
+    "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
   },
 }
 
@@ -141,6 +165,36 @@ export function parseNeoviewSidebarLayoutPatch(value: unknown): {
   return { patch, tomlPatch: { panels: { sidebars: { [side]: sidePatch } } } }
 }
 
+export function parseNeoviewCardLayoutPatch(value: unknown): {
+  patch: NeoviewCardLayoutPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader card patch")
+  const allowed = new Set(["cardId", "panelId", "visible", "expanded", "order", "height"])
+  const unknown = Object.keys(record).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader card patch contains unsupported fields: ${unknown.join(", ")}.`)
+  if (typeof record.cardId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(record.cardId)) {
+    throw new Error("reader card patch.cardId is invalid.")
+  }
+  const patch: NeoviewCardLayoutPatch = { cardId: record.cardId }
+  if (record.panelId !== undefined) {
+    if (typeof record.panelId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(record.panelId)) throw new Error("reader card patch.panelId is invalid.")
+    patch.panelId = record.panelId
+  }
+  if (record.visible !== undefined) patch.visible = optionalBoolean(record.visible, "reader card patch.visible")
+  if (record.expanded !== undefined) patch.expanded = optionalBoolean(record.expanded, "reader card patch.expanded")
+  if (record.order !== undefined) patch.order = boundedNumber(record.order, 0, 10_000, 0, "reader card patch.order")
+  if (record.height !== undefined) patch.height = boundedNumber(record.height, 50, 4_096, 50, "reader card patch.height")
+  if (Object.keys(patch).length === 1) throw new Error("reader card patch must change at least one field.")
+  const state: Record<string, unknown> = {}
+  if (patch.panelId !== undefined) state.panel_id = patch.panelId
+  if (patch.visible !== undefined) state.visible = patch.visible
+  if (patch.expanded !== undefined) state.expanded = patch.expanded
+  if (patch.order !== undefined) state.order = patch.order
+  if (patch.height !== undefined) state.height = patch.height
+  return { patch, tomlPatch: { panels: { card_state: { [patch.cardId]: state } } } }
+}
+
 function parseShellOptions(panels: Record<string, unknown> | undefined): NeoviewShellConfig {
   if (!panels) return DEFAULT_NEOVIEW_SHELL_CONFIG
   const hover = optionalRecord(panels.hover_areas, "[nodes.neoview.panels.hover_areas]")
@@ -170,6 +224,43 @@ function parseShellOptions(panels: Record<string, unknown> | undefined): Neoview
     },
     sidebars: { left: sidebarConfig("left", left), right: sidebarConfig("right", right) },
     panelLayout: parsePanelLayout(panels),
+    cardLayout: parseCardLayout(panels),
+  }
+}
+
+function parseCardLayout(panels: Record<string, unknown>): Record<string, NeoviewCardLayout> {
+  const result: Record<string, NeoviewCardLayout> = { ...DEFAULT_NEOVIEW_SHELL_CONFIG.cardLayout }
+  const legacy = optionalRecord(panels.card_configs, "[nodes.neoview.panels.card_configs]")
+  const legacyData = optionalRecord(legacy?.data, "[nodes.neoview.panels.card_configs.data]")
+  for (const [panelId, cards] of Object.entries(legacyData ?? {})) {
+    if (!Array.isArray(cards)) continue
+    for (const value of cards) {
+      if (!isRecord(value) || typeof value.id !== "string") continue
+      result[value.id] = parseCardValue(value.id, panelId, value, result[value.id])
+    }
+  }
+  const canonical = optionalRecord(panels.card_state, "[nodes.neoview.panels.card_state]")
+  for (const [cardId, value] of Object.entries(canonical ?? {})) {
+    if (!isRecord(value)) throw new Error(`[nodes.neoview.panels.card_state.${cardId}] must be a table.`)
+    result[cardId] = parseCardValue(cardId, undefined, value, result[cardId])
+  }
+  return result
+}
+
+function parseCardValue(
+  cardId: string,
+  legacyPanelId: string | undefined,
+  value: Record<string, unknown>,
+  fallback: NeoviewCardLayout | undefined,
+): NeoviewCardLayout {
+  const panelId = value.panel_id ?? value.panelId ?? legacyPanelId ?? fallback?.panelId
+  if (typeof panelId !== "string" || !panelId) throw new Error(`${cardId}.panelId must be a non-empty string.`)
+  return {
+    panelId,
+    visible: optionalBoolean(value.visible, `${cardId}.visible`) ?? fallback?.visible ?? true,
+    expanded: optionalBoolean(value.expanded, `${cardId}.expanded`) ?? fallback?.expanded ?? true,
+    order: boundedNumber(value.order, 0, 10_000, fallback?.order ?? 0, `${cardId}.order`),
+    height: value.height === undefined ? fallback?.height : boundedNumber(value.height, 50, 4_096, 50, `${cardId}.height`),
   }
 }
 

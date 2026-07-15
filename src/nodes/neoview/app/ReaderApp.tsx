@@ -12,6 +12,7 @@ import {
   type ReaderSessionDto,
   type ReaderShellConfigDto,
   type ReaderSidebarLayoutPatch,
+  type ReaderCardLayoutPatch,
 } from "../adapters/reader-http-client"
 import { PageImage } from "../features/reader/PageImage"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
@@ -143,6 +144,24 @@ export function ReaderApp({
     }
   }
 
+  async function commitCardLayout(patch: ReaderCardLayoutPatch) {
+    const previous = shell
+    const { cardId, ...changes } = patch
+    if (previous) {
+      const current = previous.cardLayout[cardId]
+      if (current) setShell({
+        ...previous,
+        cardLayout: { ...previous.cardLayout, [cardId]: { ...current, ...changes } },
+      })
+    }
+    try {
+      setShell(await clientRef.current.updateCardLayout(patch))
+    } catch (cause) {
+      setShell(previous)
+      setError(errorMessage(cause))
+    }
+  }
+
   async function choose(source: "file" | "directory") {
     const selected = source === "file" ? await pickFile?.() : await pickDirectory?.()
     if (selected) {
@@ -244,7 +263,7 @@ export function ReaderApp({
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
-        <LazyReaderSidebar side="left" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} />
+        <LazyReaderSidebar side="left" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
       </Suspense>
     ),
   } : undefined
@@ -258,7 +277,7 @@ export function ReaderApp({
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-l border-border/70 bg-background/85" aria-label="正在加载右侧面板" />}>
-        <LazyReaderSidebar side="right" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} />
+        <LazyReaderSidebar side="right" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
       </Suspense>
     ),
   } : undefined
