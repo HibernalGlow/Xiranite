@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./thumbnail-coordinator": {
+      "types": "./dist/thumbnailCoordinator.d.ts",
+      "default": "./dist/thumbnailCoordinator.js"
     }
   },
   "files": [

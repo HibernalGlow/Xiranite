@@ -572,6 +572,16 @@ export { ConfigService } from "./configService.js"
 export type { BackgroundImageResult, CustomThemesResult, NodePreset, NodePresetResult, NodePresetsResult, SerializableTheme } from "./configService.js"
 export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
 export { ResourceSchedulerService } from "./resourceScheduler.js"
+export { ThumbnailCoordinatorService, thumbnailLanePriority } from "./thumbnailCoordinator.js"
+export type {
+  ThumbnailAsset,
+  ThumbnailCoordinatorOptions,
+  ThumbnailCoordinatorSnapshot,
+  ThumbnailDemand,
+  ThumbnailLane,
+  ThumbnailLease,
+  ThumbnailResolver,
+} from "./thumbnailCoordinator.js"
 export type {
   ResourcePoolOptions,
   ResourcePoolSnapshot,

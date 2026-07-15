@@ -114,6 +114,59 @@ describe("ReaderAssetRoute", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.thumbnail.generate.singleflight] generates one WebP for concurrent misses and reuses the byte-budget cache", async () => {
+    const gate = deferred<void>()
+    const openSource = vi.fn(async () => new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Uint8Array.of(1, 2, 3, 4))
+        controller.close()
+      },
+    }))
+    const closeSource = vi.fn(async () => undefined)
+    const service = new CoreReaderService(async () => fixtureBook({
+      rangeSupported: false,
+      open: openSource,
+      close: closeSource,
+      [Symbol.asyncDispose]: closeSource,
+    }))
+    const session = await service.openViewSource({ kind: "path", path: "generated" })
+    const transform = vi.fn(async () => {
+      await gate.promise
+      return {
+        contentType: "image/webp",
+        stream: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(Uint8Array.of(0x52, 0x49, 0x46, 0x46, 9, 8, 7))
+            controller.close()
+          },
+        }),
+      }
+    })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { loadImageTransformer: async () => ({ transform }) },
+    )
+    const url = route.thumbnailUrl(session.id, "page-1")!
+    const firstPending = route.handle(new Request(url))
+    const secondPending = route.handle(new Request(url))
+    await vi.waitFor(() => expect(transform).toHaveBeenCalledTimes(1))
+    gate.resolve()
+    const [first, second] = await Promise.all([firstPending, secondPending])
+    expect(first?.status).toBe(200)
+    expect(second?.status).toBe(200)
+    expect(first?.headers.get("cache-control")).toContain("immutable")
+    expect(new Uint8Array(await first!.arrayBuffer())).toEqual(Uint8Array.of(0x52, 0x49, 0x46, 0x46, 9, 8, 7))
+    expect(new Uint8Array(await second!.arrayBuffer())).toEqual(Uint8Array.of(0x52, 0x49, 0x46, 0x46, 9, 8, 7))
+
+    const cached = (await route.handle(new Request(url)))!
+    expect(new Uint8Array(await cached.arrayBuffer())).toEqual(Uint8Array.of(0x52, 0x49, 0x46, 0x46, 9, 8, 7))
+    expect(transform).toHaveBeenCalledTimes(1)
+    expect(openSource).toHaveBeenCalledTimes(1)
+    route.close()
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.asset.archive-stream] sends ZIP entries without advertising decompressed ranges", async () => {
     const fixture = await createZipFixture()
     cleanupArchives.push(fixture)
@@ -401,6 +454,12 @@ describe("ReaderAssetRoute", () => {
     await service[Symbol.asyncDispose]()
   })
 })
+
+function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((current) => { resolve = current })
+  return { promise, resolve }
+}
 
 async function openDirectoryRoute(bytes: Uint8Array) {
   const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-asset-"))

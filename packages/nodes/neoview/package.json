@@ -48,6 +48,7 @@
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
+    "@xiranite/services": "workspace:*",
     "@zip.js/zip.js": "^2.8.26",
     "lz4-napi": "2.9.1",
     "sharp": "0.34.5"
