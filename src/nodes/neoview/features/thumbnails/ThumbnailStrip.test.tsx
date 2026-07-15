@@ -13,7 +13,6 @@ describe("ThumbnailStrip", () => {
     }))
     const client = clientWith({ listPages })
     const onSelect = vi.fn()
-    const onPrefetchPages = vi.fn()
     const view = render(
       <ThumbnailStrip
         sessionId="reader-1"
@@ -23,7 +22,6 @@ describe("ThumbnailStrip", () => {
         client={client}
         compact={false}
         onSelect={onSelect}
-        onPrefetchPages={onPrefetchPages}
       />,
     )
 
@@ -32,9 +30,6 @@ describe("ThumbnailStrip", () => {
     const renderedTiles = screen.getAllByRole("button", { name: /转到第/ })
     expect(renderedTiles.length).toBeLessThanOrEqual(24)
     expect(view.container.querySelectorAll("img").length).toBeLessThanOrEqual(24)
-    await waitFor(() => expect(onPrefetchPages).toHaveBeenCalledWith([
-      expect.objectContaining({ index: 1, assetUrl: expect.stringContaining("page-1") }),
-    ]))
     fireEvent.click(screen.getByRole("button", { name: "转到第 5 页：005.jpg" }))
     expect(onSelect).toHaveBeenCalledWith(4)
   })

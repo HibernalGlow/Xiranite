@@ -252,8 +252,8 @@
 - 设置：`panels`、`uiState`、`panelsLayout`、`panelViewModes`、`view.notification`、`view.switchToast`
 - 数据：panel layout、sidebar tabs、toast queue
 - 行为：顶部标题/工具栏自动隐藏；底部缩略图/进度栏自动隐藏；左右侧栏独立显隐/固定/浮动；四边 hover 触发区和显示/隐藏延迟；左右侧栏拖拽宽度/高度/位置/对齐；面板排序和跨左右边栏移动；关闭边栏不挂载重面板；通知样式/位置/占位；重启恢复
-- 测试：待补
-- 性能基准：`panel-render`
+- 测试：`neoview.shell.zero-mount`、`neoview.shell.hover-delay`、`neoview.shell.pinned`、`neoview.shell.input-protection`、`neoview.shell.escape`、`neoview.shell.floating-protection`、`neoview.shell.pointer-commit`、`neoview.shell.registry`、`neoview.shell.registry-lazy`、`neoview.shell.registry-compat`、`neoview.shell.e2e`
+- 性能基准：`panel-render`、`reader-hot-page-turn`、`build-chunk`
 - 已知差异：无
 
 ### 主题接管、阅读背景和空页面背景（`theme-background-empty-state`）

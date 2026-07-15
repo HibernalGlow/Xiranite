@@ -18,7 +18,6 @@ export interface ThumbnailStripProps {
   compact: boolean
   disabled?: boolean
   onSelect(pageIndex: number): void | Promise<void>
-  onPrefetchPages?(pages: readonly ReaderPageDto[]): void
 }
 
 interface RenderWindow {
@@ -35,7 +34,6 @@ export function ThumbnailStrip({
   compact,
   disabled = false,
   onSelect,
-  onPrefetchPages,
 }: ThumbnailStripProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<number | undefined>(undefined)
@@ -122,14 +120,6 @@ export function ThumbnailStrip({
       })
     }
   }, [client, renderWindow.end, renderWindow.start, sessionId, totalPages])
-
-  useEffect(() => {
-    if (!onPrefetchPages) return
-    const next = pages.get(activePageIndex + 1)
-    const previous = pages.get(activePageIndex - 1)
-    const candidates = [next, previous].filter((page): page is ReaderPageDto => Boolean(page))
-    if (candidates.length) onPrefetchPages(candidates)
-  }, [activePageIndex, onPrefetchPages, pages])
 
   const items: React.ReactNode[] = []
   for (let index = renderWindow.start; index < renderWindow.end; index += 1) {

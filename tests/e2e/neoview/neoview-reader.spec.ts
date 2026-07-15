@@ -66,7 +66,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
+test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
@@ -89,6 +89,32 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] decodes, virtualizes
     image.complete && image.naturalWidth === 2000
   ))).toBe(true)
   await expect(page.locator("canvas")).toHaveCount(0)
+
+  const topEdge = page.getByRole("region", { name: "NeoView 顶部工具栏" })
+  const bottomEdge = page.getByRole("region", { name: "NeoView 底部缩略图与导航栏" })
+  await expect(topEdge).toBeVisible()
+  await expect(bottomEdge).toBeVisible()
+  await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
+  await page.locator('[data-reader-edge-trigger="left"]').hover()
+  await expect(page.locator('[data-reader-sidebar="left"]')).toBeVisible()
+  await expect(page.locator('[data-reader-card="页面导航"]')).toBeVisible()
+  const viewport = page.viewportSize()!
+  await page.mouse.move(viewport.width - 1, viewport.height / 2)
+  await expect(page.locator('[data-reader-sidebar="left"]')).toHaveCount(0, { timeout: 1_500 })
+  await expect(page.locator('[data-reader-sidebar="right"]')).toBeVisible()
+  await expect(page.locator('[data-reader-card="书籍信息"]')).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
+  await page.locator('[data-reader-edge-trigger="bottom"]').hover()
+  await expect(bottomEdge).toBeVisible()
+  await page.mouse.move(viewport.width / 2, viewport.height / 2)
+  await expect(bottomEdge).toHaveCount(0, { timeout: 1_500 })
+  await expect(page.getByTestId("neoview-thumbnail-viewport")).toHaveCount(0)
+  await expect.poll(() => page.evaluate(({ mark, pageIndex }) => (
+    performance.getEntriesByName(mark).some((entry) => (entry as PerformanceMark).detail === pageIndex)
+  ), { mark: READER_PREFETCH_READY_MARK, pageIndex: 1 })).toBe(true)
+  await page.locator('[data-reader-edge-trigger="bottom"]').hover()
+  await expect(bottomEdge).toBeVisible()
 
   const thumbnailViewport = page.getByTestId("neoview-thumbnail-viewport")
   await expect(thumbnailViewport).toBeVisible()

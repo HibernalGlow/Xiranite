@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,8 +12,18 @@ import {
   type ReaderSessionDto,
 } from "../adapters/reader-http-client"
 import { PageImage } from "../features/reader/PageImage"
+import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
+import { ReaderEdgeShell, type ReaderEdgeSlot } from "../features/shell/ReaderEdgeShell"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
+
+type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
+let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
+function loadReaderSidebar(): Promise<ReaderSidebarModule> {
+  readerSidebarModule ??= import("../features/panels/ReaderSidebar")
+  return readerSidebarModule
+}
+const LazyReaderSidebar = lazy(async () => ({ default: (await loadReaderSidebar()).ReaderSidebar }))
 
 export interface ReaderAppProps {
   initialPath?: string
@@ -124,76 +134,52 @@ export function ReaderApp({
 
   const compact = surface.mode === "collapsed" || surface.mode === "compact" || surface.mode === "portrait"
   const frame = session?.frame
+  useReaderAdjacentPagePreloader({
+    client,
+    sessionId: session?.sessionId,
+    activePageIndex: frame?.anchorPageIndex,
+    totalPages: session?.book.pageCount,
+    preload: prefetchPages,
+  })
 
-  return (
-    <div
-      ref={surface.ref}
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground"
-      tabIndex={0}
-      onKeyDown={(event) => {
-        const target = event.target
-        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable) return
-        if (event.key === "ArrowLeft") void navigate("previous")
-        if (event.key === "ArrowRight") void navigate("next")
-      }}
-    >
-      <div className={cn("flex shrink-0 items-center gap-2 border-b border-border/70 bg-background/95", compact ? "p-2" : "px-3 py-2.5")}>
-        <BookOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <Input
-          aria-label="漫画、图片或目录路径"
-          className="min-w-0 flex-1"
-          value={path}
-          placeholder="选择 CBZ、ZIP、图片或目录"
-          onChange={(event) => setPath(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.stopPropagation()
-              void openPath()
-            }
-          }}
-        />
-        {pickFile && <Button aria-label="选择漫画或图片文件" type="button" size="sm" variant="outline" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button>}
-        {pickDirectory && <Button aria-label="选择图片目录" type="button" size="sm" variant="outline" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button>}
-        <Button aria-label="打开书籍" type="button" size="sm" onClick={() => void openPath()} disabled={!path.trim() || busy}>
-          {busy && !session ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
-          {compact ? null : "打开"}
-        </Button>
+  const topEdge: ReaderEdgeSlot = {
+    ariaLabel: "NeoView 顶部工具栏",
+    initialVisible: true,
+    render: () => (
+      <div className="border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-md">
+        <div className={cn("flex items-center gap-2", compact ? "p-2" : "px-3 py-2.5")}>
+          <BookOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <Input
+            aria-label="漫画、图片或目录路径"
+            className="min-w-0 flex-1"
+            value={path}
+            placeholder="选择 CBZ、ZIP、图片或目录"
+            onChange={(event) => setPath(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.stopPropagation()
+                void openPath()
+              }
+            }}
+          />
+          {pickFile ? <Button aria-label="选择漫画或图片文件" type="button" size="sm" variant="outline" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
+          {pickDirectory ? <Button aria-label="选择图片目录" type="button" size="sm" variant="outline" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
+          <Button aria-label="打开书籍" type="button" size="sm" onClick={() => void openPath()} disabled={!path.trim() || busy}>
+            {busy && !session ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
+            {compact ? null : "打开"}
+          </Button>
+        </div>
+        {error ? <div role="alert" className="border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}
       </div>
+    ),
+  }
 
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-black/95">
-        {!session ? (
-          <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
-            <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
-          </div>
-        ) : (
-          <div className={cn("flex h-full w-full items-center justify-center", session.visiblePages.length > 1 && "gap-1")}>
-            {session.visiblePages.map((page) => (
-              <PageImage
-                key={`${page.id}:${page.contentVersion}`}
-                page={page}
-              />
-            ))}
-          </div>
-        )}
-        {busy && session && <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div>}
-      </div>
-
-      {session && session.book.pageCount > 1 ? (
-        <ThumbnailStrip
-          sessionId={session.sessionId}
-          totalPages={session.book.pageCount}
-          activePageIndex={session.frame.anchorPageIndex}
-          currentPages={session.visiblePages}
-          client={client}
-          compact={compact}
-          disabled={busy}
-          onSelect={goTo}
-          onPrefetchPages={prefetchPages}
-        />
-      ) : null}
-
-      {session && (
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/70 px-3 py-2">
+  const bottomEdge: ReaderEdgeSlot | undefined = session ? {
+    ariaLabel: "NeoView 底部缩略图与导航栏",
+    initialVisible: true,
+    render: () => (
+      <div className="border-t border-border/70 bg-background/90 shadow-[0_-4px_16px_rgb(0_0_0/0.15)] backdrop-blur-md">
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
           <div className="min-w-0 truncate text-xs text-muted-foreground" title={session.book.displayName}>{session.book.displayName}</div>
           <div className="flex shrink-0 items-center gap-1.5">
             <Button aria-label="上一页" type="button" size="icon-sm" variant="outline" disabled={busy || frame?.atStart} onClick={() => void navigate("previous")}><ChevronLeft /></Button>
@@ -204,8 +190,75 @@ export function ReaderApp({
             <Button aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
           </div>
         </div>
-      )}
-      {error && <div role="alert" className="shrink-0 border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>}
+        {session.book.pageCount > 1 ? (
+          <ThumbnailStrip
+            sessionId={session.sessionId}
+            totalPages={session.book.pageCount}
+            activePageIndex={session.frame.anchorPageIndex}
+            currentPages={session.visiblePages}
+            client={client}
+            compact={compact}
+            disabled={busy}
+            onSelect={goTo}
+          />
+        ) : null}
+      </div>
+    ),
+  } : undefined
+
+  const panelContext = session ? { session, client, disabled: busy, onGoTo: goTo } : undefined
+  const leftEdge: ReaderEdgeSlot | undefined = panelContext ? {
+    ariaLabel: "NeoView 左侧面板",
+    showDelayMs: 80,
+    preload: () => void loadReaderSidebar(),
+    render: () => (
+      <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
+        <LazyReaderSidebar side="left" context={panelContext} />
+      </Suspense>
+    ),
+  } : undefined
+  const rightEdge: ReaderEdgeSlot | undefined = panelContext ? {
+    ariaLabel: "NeoView 右侧面板",
+    showDelayMs: 80,
+    preload: () => void loadReaderSidebar(),
+    render: () => (
+      <Suspense fallback={<div className="h-full w-80 animate-pulse border-l border-border/70 bg-background/85" aria-label="正在加载右侧面板" />}>
+        <LazyReaderSidebar side="right" context={panelContext} />
+      </Suspense>
+    ),
+  } : undefined
+
+  return (
+    <div
+      ref={surface.ref}
+      className="h-full min-h-0 w-full overflow-hidden bg-background text-foreground"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        const target = event.target
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable) return
+        if (event.key === "ArrowLeft") void navigate("previous")
+        if (event.key === "ArrowRight") void navigate("next")
+      }}
+    >
+      <ReaderEdgeShell edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
+        <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
+          {!session ? (
+            <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
+              <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
+            </div>
+          ) : (
+            <div className={cn("flex h-full w-full items-center justify-center", session.visiblePages.length > 1 && "gap-1")}>
+              {session.visiblePages.map((page) => (
+                <PageImage
+                  key={`${page.id}:${page.contentVersion}`}
+                  page={page}
+                />
+              ))}
+            </div>
+          )}
+          {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
+        </div>
+      </ReaderEdgeShell>
     </div>
   )
 }
