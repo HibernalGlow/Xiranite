@@ -240,6 +240,8 @@ export interface NodeLocalFilesCapability {
   revealPath?: (path: string) => Promise<void>
   pickFiles?: (options?: NodeFilePickerOptions) => Promise<string[]>
   pickDirectory?: () => Promise<string | undefined>
+  /** Pick one or more local directories when the desktop host supports multi-selection. */
+  pickDirectories?: () => Promise<string[]>
   list?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ name: string; path: string; isDirectory: boolean; sizeBytes: number; lastModified: number; type: string }>>
   /** Subscribe to native desktop file drops routed to one explicit DOM target. */
   subscribeDrops?: (targetId: string, handler: (paths: string[]) => void) => Promise<() => void>

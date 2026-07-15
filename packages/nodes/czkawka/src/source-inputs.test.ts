@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { addCzkawkaPaths, isValidCzkawkaExcludedItem, isValidCzkawkaExtensionToken, parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, removeCzkawkaPaths, serializeCzkawkaExtensionTokens, serializeCzkawkaPaths, setAllCzkawkaReferences, toggleCzkawkaReference } from "./source-inputs.js"
+import { addCzkawkaPaths, addCzkawkaPathsWithReferences, isValidCzkawkaExcludedItem, isValidCzkawkaExtensionToken, parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, removeCzkawkaPaths, serializeCzkawkaExtensionTokens, serializeCzkawkaPaths, setAllCzkawkaReferences, toggleCzkawkaReference } from "./source-inputs.js"
 
 describe("Czkawka source input model", () => {
   test("matches the fork list syntax and removes exact duplicates", () => {
@@ -19,6 +19,14 @@ describe("Czkawka source input model", () => {
     expect(toggleCzkawkaReference(included, ["D:/two"], "D:/one")).toEqual(["D:/one", "D:/two"])
     expect(toggleCzkawkaReference(included, ["D:/two"], "D:/two")).toEqual([])
     expect(setAllCzkawkaReferences(included, true)).toEqual(included)
+  })
+
+  test("automatically marks only newly added paths matching reference keywords", () => {
+    expect(addCzkawkaPathsWithReferences("D:/photos", [], ["E:/#compare/archive", "F:/normal"], "#compare; reference")).toEqual({
+      paths: ["E:/#compare/archive", "F:/normal", "D:/photos"],
+      references: ["E:/#compare/archive"],
+    })
+    expect(addCzkawkaPathsWithReferences("D:/#compare/existing", [], [], "#compare").references).toEqual([])
   })
 
   test("normalizes extension tokens without changing Czkawka macros", () => {

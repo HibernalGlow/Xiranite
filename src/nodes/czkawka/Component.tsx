@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
@@ -94,6 +94,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   const [cardLayout, setCardLayoutState] = useState<CzkawkaCardLayout>(() => normalizeCzkawkaCardLayout(data.cardLayout))
   const [workspaceLayout, setWorkspaceLayoutState] = useState<CzkawkaWorkspaceLayout>(() => normalizeCzkawkaWorkspaceLayout(data.workspaceLayout))
   const [previewPanelEnabledByTool, setPreviewPanelEnabledByTool] = useState<Partial<Record<CzkawkaTool, boolean>>>(() => data.previewPanelEnabledByTool ?? {})
+  const [thumbnailEnabledByTool, setThumbnailEnabledByTool] = useState<Partial<Record<CzkawkaTool, boolean>>>(() => data.thumbnailEnabledByTool ?? {})
   const floatingViewport = {
     width: Math.max(320, surface.width || 1200),
     height: Math.max(240, surface.height || 760)
@@ -156,6 +157,12 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     const next = { ...previewPanelEnabledByTool, [tool]: enabled }
     setPreviewPanelEnabledByTool(next)
     patch({ previewPanelEnabledByTool: next })
+  }
+
+  function setThumbnailEnabled(enabled: boolean) {
+    const next = { ...thumbnailEnabledByTool, [tool]: enabled }
+    setThumbnailEnabledByTool(next)
+    patch({ thumbnailEnabledByTool: next })
   }
 
   function setSimilarImagesViewMode(similarImagesViewMode: CzkawkaSimilarImagesViewMode) {
@@ -386,6 +393,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     workspaceLayout,
     similarImagesViewMode,
     previewPanelEnabled: previewPanelEnabledByTool[tool] ?? false,
+    thumbnailEnabled: thumbnailEnabledByTool[tool] ?? true,
     floatingAnalysisPanel,
     floatingViewport,
     floatingAvailable: !compact,
@@ -398,6 +406,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     language,
     getFileUrl: host.localFiles?.getUrl,
     pickDirectory: host.localFiles?.pickDirectory,
+    pickDirectories: host.localFiles?.pickDirectories,
     copyText: host.clipboard?.writeText,
     copyFiles: host.clipboard?.writeFiles,
     openPath: host.localFiles?.openPath,
@@ -408,6 +417,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     setWorkspaceLayout,
     setSimilarImagesViewMode,
     setPreviewPanelEnabled,
+    setThumbnailEnabled,
     setFloatingAnalysisPanel,
     setPanel,
     setSelectedPaths,
@@ -451,6 +461,7 @@ type View = {
   workspaceLayout: CzkawkaWorkspaceLayout
   similarImagesViewMode: CzkawkaSimilarImagesViewMode
   previewPanelEnabled: boolean
+  thumbnailEnabled: boolean
   floatingAnalysisPanel: CzkawkaFloatingPanelState
   floatingViewport: CzkawkaFloatingViewport
   floatingAvailable: boolean
@@ -463,6 +474,7 @@ type View = {
   language: "zh" | "en"
   getFileUrl?: (path: string) => string
   pickDirectory?: () => Promise<string | undefined>
+  pickDirectories?: () => Promise<string[]>
   copyText?: (text: string) => Promise<void>
   copyFiles?: (paths: string[]) => Promise<void>
   openPath?: (path: string) => Promise<void>
@@ -473,6 +485,7 @@ type View = {
   setWorkspaceLayout: (layout: CzkawkaWorkspaceLayout) => void
   setSimilarImagesViewMode: (mode: CzkawkaSimilarImagesViewMode) => void
   setPreviewPanelEnabled: (enabled: boolean) => void
+  setThumbnailEnabled: (enabled: boolean) => void
   setFloatingAnalysisPanel: (state: CzkawkaFloatingPanelState) => void
   setPanel: (panel: CzkawkaPanel) => void
   setSelectedPaths: (paths: string[]) => void
@@ -495,27 +508,11 @@ type View = {
 function Full(props: View) {
   const floatingOpen = props.floatingAvailable && props.floatingAnalysisPanel.open
   const layout = props.workspaceLayout
-  const columns = [layout.toolRailMinimized ? "28px" : `${layout.toolRailWidth}px`, "8px", layout.sourcePanelMinimized ? "28px" : `${layout.sourcePanelWidth}px`, "8px", "minmax(360px, 1fr)", ...(floatingOpen ? [] : ["8px", layout.analysisPanelMinimized ? "28px" : `${layout.analysisPanelWidth}px`])].join(" ")
+  const columns = [layout.sourcePanelMinimized ? "28px" : `${layout.sourcePanelWidth}px`, "8px", "minmax(360px, 1fr)", ...(floatingOpen ? [] : ["8px", layout.analysisPanelMinimized ? "28px" : `${layout.analysisPanelWidth}px`])].join(" ")
   return (
     <div data-testid="czkawka-full-view" className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
       <Header {...props} />
       <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: columns }}>
-        {layout.toolRailMinimized ? (
-          <MinimizedPanel
-            label={props.t("workspace.restoreTools", "恢复扫描工具")}
-            side="left"
-            onRestore={() =>
-              props.setWorkspaceLayout(
-                updateCzkawkaWorkspaceLayout(layout, {
-                  toolRailMinimized: false
-                })
-              )
-            }
-          />
-        ) : (
-          <ToolRail {...props} />
-        )}
-        <WorkspaceResizeHandle label={props.t("workspace.resizeTools", "调整扫描工具宽度")} value={layout.toolRailWidth} defaultValue={CZKAWKA_WORKSPACE_DEFAULTS.toolRailWidth} disabled={layout.toolRailMinimized} onChange={(toolRailWidth) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { toolRailWidth }))} />
         {layout.sourcePanelMinimized ? (
           <MinimizedPanel
             label={props.t("workspace.restoreConditions", "恢复扫描条件")}
@@ -624,10 +621,7 @@ function Compact(props: View) {
       </Tabs>
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {props.panel === "source" ? (
-          <div className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(92px,28%)_minmax(0,1fr)] gap-2">
-            <ToolRail {...props} />
-            <SourcePanel {...props} />
-          </div>
+          <SourcePanel {...props} />
         ) : props.panel === "results" ? (
           <ResultTable {...props} />
         ) : (
@@ -665,7 +659,7 @@ function Header(props: View) {
           <meta.icon className="size-5 text-primary" />
         </div>
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold tracking-tight">Czkawka · {meta.label}</h3>
+          <div className="flex items-center gap-2"><h3 className="shrink-0 text-base font-semibold tracking-tight">Czkawka</h3><ToolSelector props={props} /></div>
           <p className="truncate font-mono text-[11px] text-muted-foreground">FILE FORENSICS / 11 SCANNERS / TS CONTROL PLANE</p>
         </div>
       </div>
@@ -715,7 +709,7 @@ function CompactHeader(props: View) {
           <meta.icon className="size-4 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold">Czkawka · {meta.label}</h3>
+          <div className="flex items-center gap-1"><h3 className="shrink-0 text-sm font-semibold">Czkawka</h3><ToolSelector compact props={props} /></div>
           <p className="truncate font-mono text-[10px] text-muted-foreground">11 SCANNERS / TS CONTROL PLANE</p>
         </div>
         {props.tool === "similar-images" || props.tool === "similar-videos" ? <CzkawkaSimilarityReferenceDialog t={props.t} /> : null}
@@ -744,44 +738,12 @@ function CompactHeader(props: View) {
   )
 }
 
-function ToolRail(props: View) {
+function ToolSelector({ compact = false, props }: { compact?: boolean; props: View }) {
   return (
-    <aside className="flex min-h-0 flex-col rounded-md border bg-card">
-      <div className="flex items-center border-b px-2 py-1">
-        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase text-muted-foreground">{props.t("sections.scanners", "扫描工具")}</span>
-        {props.canResizeWorkspace ? (
-          <Button
-            aria-label={props.t("workspace.minimizeTools", "最小化扫描工具")}
-            size="icon-xs"
-            variant="ghost"
-            onClick={() =>
-              props.setWorkspaceLayout(
-                updateCzkawkaWorkspaceLayout(props.workspaceLayout, {
-                  toolRailMinimized: true
-                })
-              )
-            }
-          >
-            <PanelLeftClose />
-          </Button>
-        ) : null}
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-0.5 p-1">
-          {TOOLS.map((definition) => { const tool = toolMeta(definition.id, props.t); return (
-            <Tooltip key={tool.id}>
-              <TooltipTrigger asChild>
-                <button type="button" aria-label={tool.label} data-active={props.tool === tool.id} className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-primary data-[active=true]:text-primary-foreground" onClick={() => props.patch({ tool: tool.id })}>
-                  <tool.icon className="size-3.5 shrink-0" />
-                  <span className="truncate">{tool.short}</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">{tool.label}</TooltipContent>
-            </Tooltip>
-          ) })}
-        </div>
-      </ScrollArea>
-    </aside>
+    <Select value={props.tool} onValueChange={(tool) => props.patch({ tool: tool as CzkawkaTool })}>
+      <SelectTrigger aria-label={props.t("tools.select", "选择扫描工具")} className={cn("h-8 text-xs", compact ? "w-40" : "w-52")}><SelectValue /></SelectTrigger>
+      <SelectContent>{TOOLS.map((definition) => { const tool = toolMeta(definition.id, props.t); return <SelectItem key={tool.id} value={tool.id}><span className="flex items-center gap-2"><tool.icon className="size-3.5" />{tool.label}</span></SelectItem> })}</SelectContent>
+    </Select>
   )
 }
 
@@ -868,7 +830,7 @@ function SchemaOptionField({ data, definition, patch, language }: View & { defin
 }
 
 function ResultTable(props: View) {
-  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} reversePathDisplay={props.data.reversePathDisplay} wrapText={props.data.tableWrapText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
+  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} thumbnailEnabled={props.thumbnailEnabled} reversePathDisplay={props.data.reversePathDisplay} wrapText={props.data.tableWrapText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
   if (props.tool !== "similar-images") return table
   return <div className="flex min-h-0 min-w-0 flex-col gap-1"><Tabs value={props.similarImagesViewMode} onValueChange={(value) => props.setSimilarImagesViewMode(value as CzkawkaSimilarImagesViewMode)}><TabsList className="grid w-52 grid-cols-2"><TabsTrigger value="images">{props.t("views.images", "图片")}</TabsTrigger><TabsTrigger value="folders">{props.t("views.folders", "文件夹")} <Badge variant="outline">{props.result?.similarFolders?.length ?? 0}</Badge></TabsTrigger></TabsList></Tabs><div className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.similarImagesViewMode === "folders" ? <CzkawkaSimilarFoldersView folders={props.result?.similarFolders ?? []} filterText={props.filterText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} /> : table}</div></div>
 }
@@ -927,8 +889,8 @@ function SourceSettingsCard(props: View) {
   return (
     <div className="grid gap-3">
       <ScanPresetManager {...props} />
-      <CzkawkaDirectoryEditor kind="included" label={props.t("sources.included", "包含目录")} value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} pickDirectory={props.pickDirectory} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
-      <CzkawkaDirectoryEditor kind="excluded" label={props.t("sources.excluded", "排除目录")} value={props.data.excludedDirectoriesText} pickDirectory={props.pickDirectory} onChange={(excludedDirectoriesText) => props.patch({ excludedDirectoriesText })} />
+      <CzkawkaDirectoryEditor kind="included" label={props.t("sources.included", "包含目录")} value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} referenceKeywords={props.data.referencePathKeywords ?? "#compare"} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
+      <CzkawkaDirectoryEditor kind="excluded" label={props.t("sources.excluded", "排除目录")} value={props.data.excludedDirectoriesText} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(excludedDirectoriesText) => props.patch({ excludedDirectoriesText })} />
       <CzkawkaTokenEditor kind="rules" label={props.t("sources.excludedItems", "排除项目")} value={props.data.excludedItemsText} placeholder={props.t("sources.excludedItemsPlaceholder", "*/cache/*; *.part；每条规则需包含 *")} onChange={(excludedItemsText) => props.patch({ excludedItemsText })} />
       <div className="grid grid-cols-2 gap-2">
         <CzkawkaTokenEditor kind="extensions" label={props.t("sources.allowedExtensions", "允许扩展名")} value={props.data.allowedExtensions} placeholder="jpg,png,IMAGE" onChange={(allowedExtensions) => props.patch({ allowedExtensions })} />
@@ -949,6 +911,10 @@ function SourceSettingsCard(props: View) {
       </Field>
       <SwitchLine label={props.t("sources.recursive", "递归扫描")} checked={props.data.recursive ?? true} onChange={(recursive) => props.patch({ recursive })} />
       <SwitchLine label={props.t("sources.useCache", "使用缓存")} checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} />
+      <Field label={props.t("sources.referencePathKeywords", "参考路径关键词")}>
+        <Input value={props.data.referencePathKeywords ?? "#compare"} placeholder="#compare" onChange={(event) => props.patch({ referencePathKeywords: event.currentTarget.value })} />
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("sources.referencePathKeywordsHint", "新增目录包含任一关键词时自动标记为参考；多个关键词用逗号、分号或换行分隔。")}</p>
+      </Field>
       <SwitchLine label={props.t("sources.reversePathDisplay", "反向显示路径")} checked={props.data.reversePathDisplay ?? false} onChange={(reversePathDisplay) => props.patch({ reversePathDisplay })} />
       <SwitchLine label={props.t("sources.tableWrapText", "表格文字折行")} checked={props.data.tableWrapText ?? false} onChange={(tableWrapText) => props.patch({ tableWrapText })} />
       <AlgorithmFields {...props} />
@@ -1068,8 +1034,10 @@ function ScanPresetManager(props: View) {
 }
 
 function PreviewSettingsCard(props: View) {
+  const supportsThumbnailToggle = props.tool === "duplicate-files" || props.tool === "similar-images" || props.tool === "similar-videos"
   return (
     <div className="grid gap-2 text-xs">
+      {supportsThumbnailToggle ? <SwitchLine label={props.t("preview.thumbnails", "显示结果缩略图")} checked={props.thumbnailEnabled} onChange={props.setThumbnailEnabled} /> : null}
       <SwitchLine label={props.t("preview.fixed", "固定媒体预览")} checked={props.previewPanelEnabled} onChange={props.setPreviewPanelEnabled} />
       <div className="text-muted-foreground">
         {props.t("preview.currentTool", "当前工具：{{tool}}", { tool: toolMeta(props.tool, props.t).label })}

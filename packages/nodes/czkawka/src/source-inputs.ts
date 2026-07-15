@@ -13,6 +13,16 @@ export function addCzkawkaPaths(current: unknown, additions: unknown, prepend = 
   return unique(prepend ? [...added, ...existing] : [...existing, ...added])
 }
 
+export function addCzkawkaPathsWithReferences(current: unknown, references: unknown, additions: unknown, referenceKeywords: unknown): { paths: string[]; references: string[] } {
+  const existing = parseCzkawkaList(current)
+  const paths = addCzkawkaPaths(existing, additions)
+  const added = new Set(paths.filter((path) => !existing.includes(path)))
+  const keywords = parseCzkawkaList(referenceKeywords)
+  const nextReferences = new Set(reconcileCzkawkaReferences(paths, references))
+  for (const path of added) if (keywords.some((keyword) => path.includes(keyword))) nextReferences.add(path)
+  return { paths, references: paths.filter((path) => nextReferences.has(path)) }
+}
+
 export function removeCzkawkaPaths(current: unknown, removed: Iterable<string>): string[] {
   const rejected = new Set(removed)
   return parseCzkawkaList(current).filter((path) => !rejected.has(path))

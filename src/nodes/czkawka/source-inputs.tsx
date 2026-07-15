@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { NodeLocalFilesCapability } from "@xiranite/contract"
-import { addCzkawkaPaths, isValidCzkawkaExcludedItem, isValidCzkawkaExtensionToken, parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, removeCzkawkaPaths, serializeCzkawkaExtensionTokens, serializeCzkawkaPaths, setAllCzkawkaReferences, toggleCzkawkaReference } from "@xiranite/node-czkawka/source-inputs"
+import { addCzkawkaPaths, addCzkawkaPathsWithReferences, isValidCzkawkaExcludedItem, isValidCzkawkaExtensionToken, parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, removeCzkawkaPaths, serializeCzkawkaExtensionTokens, serializeCzkawkaPaths, setAllCzkawkaReferences, toggleCzkawkaReference } from "@xiranite/node-czkawka/source-inputs"
 import { CheckCheck, FolderMinus, FolderPlus, Plus, RotateCcw, Star, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,13 +14,15 @@ interface DirectoryEditorProps {
   kind: "included" | "excluded"
   label: string
   pickDirectory?: NodeLocalFilesCapability["pickDirectory"]
+  pickDirectories?: NodeLocalFilesCapability["pickDirectories"]
+  referenceKeywords?: string
   referenceValue?: string
   value?: string
   onChange: (value: string) => void
   onReferenceChange?: (value: string) => void
 }
 
-export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, referenceValue = "", value = "", onChange, onReferenceChange }: DirectoryEditorProps) {
+export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirectories, referenceKeywords = "", referenceValue = "", value = "", onChange, onReferenceChange }: DirectoryEditorProps) {
   const { t } = useNodeI18n("czkawka")
   const [manual, setManual] = useState("")
   const [selected, setSelected] = useState<string[]>([])
@@ -35,14 +37,17 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, referenceVa
   }
 
   function add(raw: unknown) {
-    const next = addCzkawkaPaths(paths, raw)
-    commit(next)
+    if (onReferenceChange) {
+      const next = addCzkawkaPathsWithReferences(paths, references, raw, referenceKeywords)
+      onChange(serializeCzkawkaPaths(next.paths))
+      onReferenceChange(serializeCzkawkaPaths(next.references))
+    } else commit(addCzkawkaPaths(paths, raw))
     setManual("")
   }
 
   async function browse() {
-    const path = await pickDirectory?.()
-    if (path) add(path)
+    const selected = pickDirectories ? await pickDirectories() : [await pickDirectory?.()].filter((path): path is string => Boolean(path))
+    if (selected.length) add(selected)
   }
 
   function remove(removed: Iterable<string>) {
@@ -54,7 +59,7 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, referenceVa
   return <section aria-label={label} data-kind={kind} className="grid gap-2 rounded-md border bg-background/40 p-2">
     <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-xs font-medium"><span>{label}</span><Badge variant="outline">{paths.length}</Badge></div><div className="flex items-center gap-1">
       {onReferenceChange ? <Button aria-label={allReferences ? t("sources.cancelAllReferences", "取消全部参考目录") : t("sources.setAllReferences", "全部设为参考目录")} size="icon-sm" variant={allReferences ? "secondary" : "ghost"} onClick={() => onReferenceChange(serializeCzkawkaPaths(setAllCzkawkaReferences(paths, !allReferences)))}><CheckCheck /></Button> : null}
-      <Button aria-label={t("sources.browseAdd", "浏览添加{{label}}", { label })} disabled={!pickDirectory} size="icon-sm" variant="outline" onClick={() => void browse()}><FolderPlus /></Button>
+      <Button aria-label={t("sources.browseAdd", "浏览添加{{label}}", { label })} disabled={!pickDirectories && !pickDirectory} size="icon-sm" variant="outline" onClick={() => void browse()}><FolderPlus /></Button>
       <Button aria-label={t("sources.removeSelected", "移除选中的{{label}}", { label })} disabled={!selectedSet.size} size="icon-sm" variant="outline" onClick={() => remove(selectedSet)}><Trash2 /></Button>
       <Button aria-label={t("sources.clear", "清空{{label}}", { label })} disabled={!paths.length} size="icon-sm" variant="ghost" onClick={() => remove(paths)}><FolderMinus /></Button>
     </div></div>

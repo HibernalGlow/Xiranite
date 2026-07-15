@@ -215,6 +215,13 @@ export function useNodeHostApi(
         }
         return (await pickLocalPaths("directory"))[0]
       },
+      pickDirectories: async () => {
+        if (typeof window !== "undefined" && window._wails) {
+          const { Dialogs } = await import("@wailsio/runtime")
+          return await Dialogs.OpenFile({ CanChooseFiles: false, CanChooseDirectories: true, AllowsMultipleSelection: true, Title: "选择一个或多个文件夹" })
+        }
+        return await pickLocalPaths("directory")
+      },
       subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
         const runtime = await getRuntime()
         return await runtime.fileDrops.subscribe((event) => {

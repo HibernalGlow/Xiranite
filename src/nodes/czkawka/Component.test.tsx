@@ -23,13 +23,12 @@ describe("Czkawka node", () => {
   test.each([
     ["regular", 1200, 760, "czkawka-full-view"],
     ["compact", 640, 480, "czkawka-compact-view"],
-  ] as const)("keeps all eleven scanners reachable in the %s tool rail", (mode, width, height, testId) => {
+  ] as const)("keeps all eleven scanners reachable from the %s title selector", (mode, width, height, testId) => {
     Object.assign(surface, { mode, width, height })
     render(<Component compId="czkawka-tools" host={createHost({ tool: "duplicate-files" })} />)
     expect(screen.getByTestId(testId)).toBeTruthy()
-    for (const label of ["重复文件", "空文件夹", "大文件", "空文件", "临时文件", "相似图片", "相似视频", "重复音频", "无效符号链接", "损坏文件", "不正确扩展名"]) {
-      expect(screen.getByRole("button", { name: label })).toBeTruthy()
-    }
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "选择扫描工具" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
+    for (const label of ["重复文件", "空文件夹", "大文件", "空文件", "临时文件", "相似图片", "相似视频", "重复音频", "无效符号链接", "损坏文件", "不正确扩展名"]) expect(screen.getByRole("option", { name: label })).toBeTruthy()
   })
 
   test("inherits host theme and background while leaving window controls to the desktop shell", () => {
@@ -47,7 +46,7 @@ describe("Czkawka node", () => {
   test("reacts to the Xiranite language and renders the shared English scanner copy", async () => {
     await i18n.changeLanguage("en")
     render(<Component compId="czkawka-en" host={createHost({ tool: "duplicate-files" })} />)
-    expect(screen.getByRole("button", { name: "Duplicate Files" })).toBeTruthy()
+    expect(screen.getByRole("combobox", { name: "Select scanner" }).textContent).toContain("Duplicate Files")
     expect(screen.getByRole("button", { name: "Start scan" })).toBeTruthy()
     expect(screen.getByText("Scan conditions")).toBeTruthy()
     expect(screen.getByText("Scan settings")).toBeTruthy()
@@ -68,9 +67,7 @@ describe("Czkawka node", () => {
   test("renders all scanners and sends scan input", async () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", hashType: "blake3", threadCount: "6" })
     render(<Component compId="czkawka" host={host} />)
-    expect(screen.getByText("Czkawka · 重复文件")).toBeTruthy()
-    expect(screen.getByRole("button", { name: "相似图片" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "不正确扩展名" })).toBeTruthy()
+    expect(screen.getByRole("combobox", { name: "选择扫描工具" }).textContent).toContain("重复文件")
     await screen.getByRole("button", { name: "开始扫描" }).click()
     await waitFor(() => expect(host.calls[0]).toEqual(expect.objectContaining({ nodeId: "czkawka", input: expect.objectContaining({ action: "scan", tool: "duplicate-files", includedDirectories: ["D:/media"], hashType: "blake3", threadCount: 6 }) })))
   })
@@ -166,12 +163,12 @@ describe("Czkawka node", () => {
     await screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).click()
     expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
 
-    await screen.getByRole("button", { name: "空文件" }).click()
+    chooseTool("空文件")
     view.rerender(<Component compId="czkawka" host={host} />)
     await screen.getByRole("button", { name: "开始扫描" }).click()
     await waitFor(() => expect(screen.getAllByText("empty-files-result.dat").length).toBeGreaterThan(0))
 
-    await screen.getByRole("button", { name: "重复文件" }).click()
+    chooseTool("重复文件")
     view.rerender(<Component compId="czkawka" host={host} />)
     expect(screen.getAllByText("duplicate-files-result.dat").length).toBeGreaterThan(0)
     expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
@@ -187,11 +184,11 @@ describe("Czkawka node", () => {
     expect(host.stateValue.filterStatesByTool?.["duplicate-files"]?.text.pattern).toBe("not-present")
     expect(screen.getByText("没有匹配当前筛选的结果。")).toBeTruthy()
 
-    fireEvent.click(screen.getByRole("button", { name: "空文件" }))
+    chooseTool("空文件")
     view.rerender(<Component compId="czkawka" host={host} />)
     expect((screen.getByRole("textbox", { name: "Czkawka 全局筛选" }) as HTMLInputElement).value).toBe("")
 
-    fireEvent.click(screen.getByRole("button", { name: "重复文件" }))
+    chooseTool("重复文件")
     view.rerender(<Component compId="czkawka" host={host} />)
     expect((screen.getByRole("textbox", { name: "Czkawka 全局筛选" }) as HTMLInputElement).value).toBe("not-present")
   })
@@ -312,13 +309,13 @@ describe("Czkawka node", () => {
     fireEvent.click(screen.getByRole("button", { name: "启用固定预览" }))
     expect(host.stateValue.previewPanelEnabledByTool).toEqual({ "duplicate-files": true })
 
-    fireEvent.click(screen.getByRole("button", { name: "空文件" }))
+    chooseTool("空文件")
     view.rerender(<Component compId="czkawka" host={host} />)
     expect(screen.getByRole("button", { name: "启用固定预览" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "启用固定预览" }))
     expect(host.stateValue.previewPanelEnabledByTool).toEqual({ "duplicate-files": true, "empty-files": true })
 
-    fireEvent.click(screen.getByRole("button", { name: "重复文件" }))
+    chooseTool("重复文件")
     view.rerender(<Component compId="czkawka" host={host} />)
     expect(screen.getByRole("button", { name: "禁用固定预览" })).toBeTruthy()
   })
@@ -341,6 +338,26 @@ describe("Czkawka node", () => {
     fireEvent.click(imagesTab)
     expect(host.stateValue.similarImagesViewMode).toBe("images")
     expect(screen.getByTestId("czkawka-result-table")).toBeTruthy()
+  })
+
+  test("adds multiple directories and automatically marks keyword matches as references", async () => {
+    const host = createHost({ tool: "duplicate-files", referencePathKeywords: "#compare;reference" })
+    host.pickedDirectories = ["D:/photos", "E:/#compare/archive", "F:/reference/library"]
+    render(<Component compId="czkawka-multi-directory" host={host} />)
+    const included = screen.getByRole("region", { name: "包含目录" })
+    fireEvent.click(within(included).getByRole("button", { name: "浏览添加包含目录" }))
+    await waitFor(() => expect(host.stateValue.includedDirectoriesText).toBe("D:/photos\nE:/#compare/archive\nF:/reference/library"))
+    expect(host.stateValue.includedDirectoriesReferencedText).toBe("E:/#compare/archive\nF:/reference/library")
+  })
+
+  test("persists thumbnail visibility independently for supported tools", () => {
+    const host = createHost({ tool: "duplicate-files" })
+    const view = render(<Component compId="czkawka-thumbnails" host={host} />)
+    fireEvent.click(screen.getByRole("switch", { name: "显示结果缩略图" }))
+    expect(host.stateValue.thumbnailEnabledByTool).toEqual({ "duplicate-files": false })
+    chooseTool("相似图片")
+    view.rerender(<Component compId="czkawka-thumbnails" host={host} />)
+    expect(screen.getByRole("switch", { name: "显示结果缩略图" }).getAttribute("data-state")).toBe("checked")
   })
 
   test("persists card order, height, collapse, visibility, and cross-panel moves", () => {
@@ -436,7 +453,7 @@ describe("Czkawka node", () => {
   })
 })
 
-type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }>; cancelCalls: number; pickedDirectory?: string }
+type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }>; cancelCalls: number; pickedDirectory?: string; pickedDirectories?: string[] }
 function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInput) => CzkawkaData = () => sample): TestHost {
   const host: TestHost = {
     stateValue: initial,
@@ -444,7 +461,7 @@ function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInp
     cancelCalls: 0,
     contract: { name: "xiranite.node-host", version: "1.0.0", supportedCapabilities: ["contract", "state", "runner"], hasCapability: () => true },
     env: { theme: "light", platform: "web" },
-    localFiles: { getUrl: (path) => `local://${path}`, pickDirectory: async () => host.pickedDirectory },
+    localFiles: { getUrl: (path) => `local://${path}`, pickDirectory: async () => host.pickedDirectory, pickDirectories: async () => host.pickedDirectories ?? (host.pickedDirectory ? [host.pickedDirectory] : []) },
     state: { getData: () => host.stateValue, patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } } },
     runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
     getData: <T,>() => host.stateValue as T,
@@ -453,6 +470,11 @@ function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInp
     updateComponent: () => undefined,
   }
   return host
+}
+
+function chooseTool(label: string) {
+  fireEvent.pointerDown(screen.getByRole("combobox", { name: /选择扫描工具|Select scanner/ }), { button: 0, ctrlKey: false, pointerType: "mouse" })
+  fireEvent.click(screen.getByRole("option", { name: label }))
 }
 
 const sample: CzkawkaData = { action: "scan", tool: "duplicate-files", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }

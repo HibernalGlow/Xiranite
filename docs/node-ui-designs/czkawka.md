@@ -42,15 +42,15 @@ Show the current scanner, phase/progress summary, result count, and one start/st
 
 ### Compact
 
-Use a three-tab workbench: conditions, results, and analysis. The tool rail remains visible beside the active tab, and the status bar stays reachable at the bottom.
+Use a three-tab workbench: conditions, results, and analysis. Scanner switching stays in the title selector, and the status bar remains reachable at the bottom.
 
 ### Portrait
 
-Use the compact tab model with a narrow tool rail and vertically scrollable condition cards. Avoid horizontal page scrolling; only the virtual result grid may scroll horizontally inside its own boundary.
+Use the compact tab model with the same title selector and vertically scrollable condition cards. Avoid horizontal page scrolling; only the virtual result grid may scroll horizontally inside its own boundary.
 
 ### Regular
 
-Use the full three-column workbench: scanner rail, source/operation cards, and grouped result grid, with an optional fixed preview panel. Keep the primary start/stop action in the header.
+Use the full three-column workbench: source cards, grouped result grid, and analysis/operation cards, with an optional fixed preview panel. Keep the scanner selector and primary start/stop action in the header.
 
 ### Expanded / Workspace
 

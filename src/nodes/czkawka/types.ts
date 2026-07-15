@@ -65,6 +65,8 @@ export interface CzkawkaCardState {
   selectionAssistantConfig?: CzkawkaSelectionAssistantConfig
   selectionAssistantOpen?: boolean
   previewPanelEnabledByTool?: Partial<Record<CzkawkaTool, boolean>>
+  thumbnailEnabledByTool?: Partial<Record<CzkawkaTool, boolean>>
+  referencePathKeywords?: string
   reversePathDisplay?: boolean
   tableWrapText?: boolean
   activityLog?: CzkawkaActivityLogEntry[]

@@ -101,6 +101,13 @@ describe("CzkawkaResultTable", () => {
     expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("132px")
   })
 
+  test("removes the thumbnail column without affecting result rows", () => {
+    const { container } = render(<CzkawkaResultTable tool="similar-images" groups={[group]} running={false} thumbnailEnabled={false} selectedPaths={[]} onSelectionChange={vi.fn()} />)
+    expect(screen.queryByRole("separator", { name: "调整预览列宽" })).toBeNull()
+    expect(container.querySelectorAll('[data-slot="table-body"] img')).toHaveLength(0)
+    expect((container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("52px")
+  })
+
   test("resolves media URLs only for the bounded virtual window", () => {
     const getFileUrl = vi.fn((path: string) => `http://local/${path}`)
     const manyEntries = Array.from({ length: 10_000 }, (_, index) => entry(`image-${String(index).padStart(5, "0")}.jpg`, `Image ${index}`))
