@@ -11,6 +11,7 @@ import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
+import type { ResourceScheduler } from "./ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "./ports/ReaderPresentationDiskCache.js"
 import type { ReaderFileTreeWatcher } from "./ports/ReaderFileTreeWatcher.js"
 import type { ReaderFileTreeScanner } from "./ports/ReaderFileTreeScanner.js"
@@ -66,6 +67,9 @@ export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & Neoview
   progressStore?: ReaderProgressStore | false
   legacyThumbnailDatabasePath?: string | false
 }
+export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
+  resourceScheduler?: ResourceScheduler
+}
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
   legacyThumbnailDatabasePath?: string | false
   loadLegacyThumbnailStore?: (databasePath?: string) => Promise<ReaderThumbnailStore>
@@ -100,7 +104,7 @@ export async function createReaderBookLoader(options: PlatformReaderBookLoaderOp
 
 export async function createReaderAssetRoute(
   readerService: ReaderService,
-  options: ReaderAssetRouteOptions,
+  options: ReaderAssetRouteCompositionOptions,
 ): Promise<ReaderAssetRoute> {
   const { ReaderAssetRoute } = await import("./platform/asset-route/ReaderAssetRoute.js")
   const { WeightedLruPresentationCache } = await import("./platform/cache/WeightedLruPresentationCache.js")
@@ -108,7 +112,7 @@ export async function createReaderAssetRoute(
     presentationCache: new WeightedLruPresentationCache(),
     loadImageTransformer: async () => {
       const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
-      return new SharpImageTransformer()
+      return new SharpImageTransformer(options.resourceScheduler)
     },
   })
 }

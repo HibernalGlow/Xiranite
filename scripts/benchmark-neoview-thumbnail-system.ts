@@ -4,6 +4,7 @@ import { join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 import pMap from "p-map"
 
+import { ResourceSchedulerService } from "../packages/services/src/resourceScheduler.js"
 import type { ReaderBook } from "../packages/nodes/neoview/src/domain/book/book.js"
 import type { ReaderPage } from "../packages/nodes/neoview/src/domain/page/page.js"
 import { CoreReaderDirectoryBrowser } from "../packages/nodes/neoview/src/application/browser/ReaderDirectoryBrowser.js"
@@ -57,6 +58,7 @@ const budgets = {
 let fixture: SyntheticFixture | undefined
 let book: ReaderBook | undefined
 let pipeline: PlatformThumbnailPipeline | undefined
+const resourceScheduler = new ResourceSchedulerService()
 try {
   const setupStarted = performance.now()
   if (!realCorpus) fixture = await createSyntheticFixture(
@@ -76,7 +78,8 @@ try {
   if (pages.length < pageCount) throw new Error(`Page corpus contains ${pages.length} image pages; ${pageCount} required.`)
 
   pipeline = new PlatformThumbnailPipeline({
-    loadImageTransformer: async () => new SharpImageTransformer(),
+    loadImageTransformer: async () => new SharpImageTransformer(resourceScheduler),
+    resourceScheduler,
     maxMemoryBytes: 64 * MIB,
     maxEntryBytes: 2 * MIB,
   })
@@ -121,7 +124,7 @@ try {
       warmGenerationMs: round(warmGenerationMs),
     },
     scroll,
-    lifecycle: { beforeDispose, afterDispose },
+    lifecycle: { beforeDispose, afterDispose, resourcesAfterDispose: resourceScheduler.snapshot() },
     memory: {
       rssBeforeMiB: round(rssBefore / MIB),
       peakRssMiB: round(peakRss / MIB),
@@ -329,7 +332,10 @@ function assertReport(report: {
     l1HitMs: Summary
     afterRelease: { demands: number; activeFlights: number; queuedFlights: number; runningFlights: number }
   }
-  lifecycle: { afterDispose: { demands: number; activeFlights: number; queuedFlights: number; runningFlights: number; cachedEntries: number; cachedBytes: number } }
+  lifecycle: {
+    afterDispose: { demands: number; activeFlights: number; queuedFlights: number; runningFlights: number; cachedEntries: number; cachedBytes: number }
+    resourcesAfterDispose: ReturnType<ResourceSchedulerService["snapshot"]>
+  }
   memory: { deltaMiB: number }
 }): void {
   const failures: string[] = []
@@ -346,6 +352,9 @@ function assertReport(report: {
   if (report.scroll.peakRunningFlights > 8) failures.push(`peak running flights ${report.scroll.peakRunningFlights} > 8`)
   if (!workStateIsZero(report.scroll.afterRelease)) failures.push("scroll demands/flights did not return to zero")
   if (!disposedStateIsZero(report.lifecycle.afterDispose)) failures.push("coordinator state did not return to zero after dispose")
+  for (const [resource, state] of Object.entries(report.lifecycle.resourcesAfterDispose)) {
+    if (state.active || state.queued) failures.push(`${resource} scheduler did not return to zero after dispose`)
+  }
   if (report.memory.deltaMiB > budgets.rssDeltaMiB) failures.push(`RSS delta ${report.memory.deltaMiB}MiB > ${budgets.rssDeltaMiB}MiB`)
   if (failures.length) throw new Error(`NeoView thumbnail system performance budget failed:\n- ${failures.join("\n- ")}`)
 }

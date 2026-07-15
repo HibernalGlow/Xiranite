@@ -159,6 +159,38 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     expect(await readdir(tempDirectory)).toEqual([])
   })
 
+  it("[neoview.thumbnail.scheduler-host-injection] routes CB7 thumbnail extraction through the host CPU pool", async () => {
+    const scheduler = new RecordingScheduler()
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+      resourceScheduler: scheduler,
+    })
+    try {
+      const opened = (await controller.handle(new Request("http://127.0.0.1:41000/reader/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "route-token" },
+        body: JSON.stringify({ path: archivePath }),
+      })))!
+      expect(opened.status).toBe(201)
+      const session = await opened.json() as ReaderSessionDto
+      const thumbnailUrl = session.visiblePages[0]?.thumbnailUrl
+      expect(thumbnailUrl).toBeTruthy()
+      const thumbnail = (await controller.handle(new Request(thumbnailUrl!)))!
+      expect(thumbnail.status).toBe(200)
+      expect(thumbnail.headers.get("content-type")).toBe("image/webp")
+      expect(Buffer.from(await thumbnail.arrayBuffer()).subarray(0, 4).toString("ascii")).toBe("RIFF")
+      expect(scheduler.requests).toContainEqual(expect.objectContaining({
+        resource: "cpu",
+        kind: "neoview.thumbnail.generate",
+        priority: "interactive",
+      }))
+      expect(scheduler.active.cpu).toBe(0)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.sevenzip.solid-nested-e2e] opens an inner CBZ through a borrowed solid materialization lease", async () => {
     const tempDirectory = join(directory, "nested-materialized")
     await mkdir(tempDirectory)

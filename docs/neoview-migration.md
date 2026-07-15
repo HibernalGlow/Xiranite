@@ -1270,7 +1270,7 @@ JXL 解码与转码已由带 libjxl 的 custom sharp 提供；尺寸探测对裸
 
 可选 sharp 变换现已接入同一 asset route。无变换参数时仍走原始 `PageSource`、Range、原始 `Content-Length` 和原图 ETag，且不会加载 sharp；只有 URL 明确携带有界的 `width`/`height`/`dpr`/`fit`/`format`/`quality` 时，才动态导入 `SharpImageTransformer`。参数先规范化并进入变体 ETag，重复参数、非法组合、超限尺寸在打开 page source 和 native 模块前返回 400。变换链为 `PageSource stream -> sharp Duplex -> Web ReadableStream -> HTTP`，不调用 `toBuffer()`，转换响应不谎报 Range 或预先物化以计算 `Content-Length`。当前支持 JPEG、PNG、WebP、AVIF 输出，默认缩放结果为 `inside` WebP，并通过 `AbortSignal` 将客户端断开传到输入流与 sharp pipeline。
 
-`sharp@0.35.3` 已被 CLI runtime 与 NeoView 共用，lockfile 仍只有一个版本；Windows x64 平台包通过根级 flat override 固定为 OpenComic 同一维护者发布、带 npm provenance 的 `@img-custom/sharp-win32-x64@0.35.3`，真实编解码测试要求 `sharp.format.jxl.input/output.buffer` 均为 `true`。模块与 libvips 初始化保持二级懒加载。backend 现已拥有单例 `ResourceSchedulerService`，按 CPU/I/O/GPU 分池，并支持 interactive/view/ahead/background 优先级、交互保留槽、排队取消和状态快照；它通过 `ResourceScheduler` contract 注入懒加载的 NeoView controller，真实 loopback 转码测试会验证 sharp 从宿主 CPU 池取得 lease。独立 CLI/TUI 没有 backend 时使用相同 port 后面的本地 `PriorityResourceScheduler` fallback。宿主总配额基础设施已经唯一，但其他高负载节点、缩略图、归档和超分仍需逐个改为取得宿主 lease，接入完成前不能声称所有工具已受全局配额约束。
+`sharp@0.35.3` 已被 CLI runtime 与 NeoView 共用，lockfile 仍只有一个版本；Windows x64 平台包通过根级 flat override 固定为 OpenComic 同一维护者发布、带 npm provenance 的 `@img-custom/sharp-win32-x64@0.35.3`，真实编解码测试要求 `sharp.format.jxl.input/output.buffer` 均为 `true`。模块与 libvips 初始化保持二级懒加载。backend 现已拥有单例 `ResourceSchedulerService`，按 CPU/I/O/GPU 分池，并支持 interactive/view/ahead/background 优先级、交互保留槽、排队取消和状态快照；它通过 `ResourceScheduler` contract 注入懒加载的 NeoView controller，真实 loopback 转码测试会验证 sharp 从宿主 CPU 池取得 lease。Reader 原图变换、page/file/folder 缩略图、Windows Shell/WIC 和 ffmpeg adapter 已复用该宿主实例，独立 `createReaderAssetRoute()` 工厂也接受同一 contract；真实 CB7 缩略图测试冻结 archive stream 与 sharp 共用宿主 lease 的路径。独立 CLI/TUI 没有 backend 时使用相同 port 后面的本地 `PriorityResourceScheduler` fallback。宿主总配额基础设施已经唯一，但其他高负载节点、完整归档物化和超分仍需逐个改为取得宿主 lease，接入完成前不能声称所有工具已受全局配额约束。
 
 归档页面变换不得先由 non-solid 7-Zip stdout 流持有 CPU lease，再由 sharp/WIC 申请同池 lease；在默认两槽并发下，这会形成两个请求各占一槽并永久等待第二槽的死锁。`PageSource`、`ArchiveProvider` 与 `ImageTransformer` 现通过显式 execution context 传递同一个外部 lease，`transformPageSource()` 是 HTTP 页面和 page/file/folder 单封面缩略图的唯一编排入口。最外层在输出流正常结束、取消、异常或 HTTP body 断开时幂等释放一次；7-Zip、sharp 与 WIC 复用外部 lease 时不得自行释放。solid provider 不声明 streaming resource，仍由完成物化后返回的文件流及其 materializer 独立管理 lease。单 CPU 槽、双并发、真实 non-solid 7-Zip 和 HTTP 取消均有回归测试。
 
@@ -2164,6 +2164,8 @@ reader-visible
 Coordinator 使用 `p-queue` 的稳定 priority/id/signal API 实现这一顺序：默认最多 admission 8 个不同 cache key，未开始的同键 background flight 后续被 `reader-visible` 消费者复用时会原位提升优先级；最后一个 lease 释放、context generation 前进或服务 dispose 会通过同一个 `AbortSignal` 把排队任务移除。旧 V4 的最多 6 worker 只作为历史行为证据，不照抄为 XR 常量；默认 8 必须继续由 HDD/SATA SSD/NVMe 与真实 page/file/folder corpus 的 queue-wait、句柄数、RSS 和吞吐 benchmark 校准。admission 只限制进入 resolver 的任务数，进入后仍必须取得宿主 `ResourceScheduler` 的 CPU/I/O/GPU lease，因此它不创建第二套资源预算。
 
 所有生成任务接入宿主 `ResourceScheduler`：当前可见项取得交互 CPU/I/O lease；同一 HDD 默认一个 archive/thumbnail I/O，SSD/NVMe 再根据 benchmark 放宽；同一 solid archive 只允许一个顺序 extractor；sharp 生成槽初始为全局 1～2 个；视频缩略图使用独立 ffmpeg 进程槽。不得照搬 OpenComic “按全部 CPU 核心创建 Worker”的策略，也不得修改全局 sharp concurrency 影响其他节点。
+
+生产组合层必须把同一个宿主 scheduler 同时传给 `PlatformThumbnailPipeline` 和实际 transformer/provider，不能只注入外层 controller。否则声明 `transformResource` 的 CB7/RAR/7z 页面会在 `transformPageSource()` 中悄悄回退到本地两槽 scheduler，绕过 XR 的全局预算。benchmark 也显式注入 `ResourceSchedulerService`，并把 dispose 后 CPU/I/O/GPU 的 active/queued 全归零列为断言。
 
 #### 18.5.4 生成管线与 WebP BLOB
 

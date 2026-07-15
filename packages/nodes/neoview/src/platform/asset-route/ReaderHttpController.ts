@@ -173,6 +173,7 @@ export class ReaderHttpController implements AsyncDisposable {
       thumbnailStore: options.thumbnailStore,
       maxMemoryBytes: 32 * 1024 * 1024,
       maxEntryBytes: 512 * 1024,
+      resourceScheduler: options.resourceScheduler,
     })
     this.#service = new CoreReaderService(
       bookLoader,

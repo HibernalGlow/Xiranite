@@ -514,7 +514,8 @@ describe("backend", () => {
       expect(folderThumbnail.headers.get("content-type")).toBe("image/webp")
       expect(folderBytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
       expect(folderBytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
-      expect(acquireResource).toHaveBeenCalledTimes(2)
+      expect(acquireResource.mock.calls.filter(([request]) => request.kind === "neoview.image-transform")).toHaveLength(1)
+      expect(acquireResource.mock.calls.filter(([request]) => request.kind === "neoview.thumbnail.generate")).toHaveLength(1)
       expect(acquireResource).toHaveBeenCalledWith(expect.objectContaining({
         resource: "cpu",
         kind: "neoview.thumbnail.generate",

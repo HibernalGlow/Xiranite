@@ -13,6 +13,8 @@ This benchmark validates the complete backend thumbnail path rather than only SQ
 
 It never opens or writes `%APPDATA%\NeoView\thumbnails.db`.
 
+The benchmark injects the production `ResourceSchedulerService` into both `PlatformThumbnailPipeline` and `SharpImageTransformer`. It therefore verifies the same global CPU-pool path used by the backend rather than the CLI/TUI fallback scheduler, and reports CPU/I/O/GPU pool state after disposal.
+
 Cold and warm generation measure the same page. The pipeline evicts its encoded L1 entry between samples, so the warm result still performs archive/file access, decode, resize, and WebP encode while allowing operating-system and archive-source caches to remain warm.
 
 ## Synthetic structural smoke
@@ -68,21 +70,22 @@ On 2026-07-16, a 1,008,450,309-byte ZIP containing 2,259 AVIF image entries was 
 
 | Metric | Result |
 | --- | ---: |
-| 1,000-entry provider read | 5.60 ms |
-| Browser open and sort | 4.54 ms |
-| 2,259-page ZIP open | 55.34 ms |
-| Cold AVIF generation | 106.19 ms |
-| Warm AVIF generation after L1 eviction | 46.40 ms |
+| 1,000-entry provider read | 6.25 ms |
+| Browser open and sort | 4.21 ms |
+| 2,259-page ZIP open | 65.62 ms |
+| Cold AVIF generation | 118.97 ms |
+| Warm AVIF generation after L1 eviction | 51.66 ms |
 | Demands / cancelled / failed | 1,024 / 992 / 0 |
 | Peak active / queued / running | 32 / 24 / 8 |
 | Final visible completed | 32/32 |
-| Final visible ready P95 | 2,430.83 ms |
+| Final visible ready P95 | 2,311.13 ms |
 | L1 hit P95 | 0.02 ms |
-| RSS delta | 278.07 MiB |
+| RSS delta | 165.01 MiB |
 | Work after release | 0 demands / 0 flights |
 | State after dispose | 0 demands / 0 flights / 0 cache bytes |
+| Host pools after dispose | CPU/I/O/GPU all 0 active / 0 queued |
 
-Generation and queue-lifecycle budgets passed, but this run exceeded the 256 MiB RSS-delta budget by 22.07 MiB. Mixed smoke does not execute `--assert`; the memory result remains an explicit optimization and real-corpus acceptance item rather than being hidden by the otherwise successful run.
+This production-scheduler run passed generation, queue-lifecycle, and 256 MiB RSS-delta budgets. An immediately preceding run without the explicit benchmark scheduler report reached 278.07 MiB, so one passing sample is not sufficient to claim stable memory acceptance. Mixed smoke does not execute `--assert`; repeated real-corpus runs across the required storage classes remain mandatory.
 
 ## Real-corpus acceptance
 
