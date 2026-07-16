@@ -64,6 +64,13 @@ if (!bookInformationChunk || bookInformationChunk === readerSidebarChunk) {
 if (bookInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView BookInformationCard chunk ${bookInformationChunk.fileName} is ${bookInformationChunk.bytes} bytes, above 8 KiB.`)
 }
+const storageInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]StorageInformationCard\.tsx$/i.test(module)))
+if (!storageInformationChunk || storageInformationChunk === readerSidebarChunk) {
+  throw new Error("NeoView StorageInformationCard did not produce an independent deferred production chunk.")
+}
+if (storageInformationChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView StorageInformationCard chunk ${storageInformationChunk.fileName} is ${storageInformationChunk.bytes} bytes, above 8 KiB.`)
+}
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
@@ -128,6 +135,7 @@ console.log(JSON.stringify({
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   timeInformationChunk: { fileName: timeInformationChunk.fileName, bytes: timeInformationChunk.bytes },
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
+  storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },

@@ -1,12 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, ReaderMetadataDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderMetadataDto, ReaderSessionDto, ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
 import BookInformationCard from "./BookInformationCard"
 import ImageInformationCard from "./ImageInformationCard"
 import StorageInformationCard from "./StorageInformationCard"
 import TimeInformationCard from "./TimeInformationCard"
 import { InfoPanelActions } from "../InfoPanelActions"
+import { formatStorageBytes } from "./reader-metadata-format"
 
 afterEach(cleanup)
 
@@ -28,6 +29,18 @@ describe("Reader metadata cards", () => {
 
     const inactive = render(<TimeInformationCard {...panelContext(clientWith(metadata), undefined)} />)
     expect(inactive.container.innerHTML).toBe("")
+  })
+
+  it("[neoview.storage-information.states] performs zero work without a session and exposes the active loading state", () => {
+    const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
+    const diagnostics = vi.fn(() => new Promise<ReaderStorageDiagnosticsDto>(() => undefined))
+    const client = clientWith(metadata, diagnostics)
+    const inactive = render(<StorageInformationCard {...panelContext(client, undefined)} />)
+    expect(inactive.container.innerHTML).toBe("")
+    expect(metadata).not.toHaveBeenCalled()
+    expect(diagnostics).not.toHaveBeenCalled()
+    inactive.rerender(<StorageInformationCard {...panelContext(client, session())} />)
+    expect(screen.getByLabelText("正在加载存储信息")).toBeTruthy()
   })
 
   it("[neoview.metadata.cards] shares one lazy metadata request across four independently dockable cards", async () => {
@@ -61,6 +74,75 @@ describe("Reader metadata cards", () => {
     const context = panelContext(clientWith(metadata), session())
     const view = render(<><BookInformationCard {...context} /><ImageInformationCard {...context} /></>)
     await waitFor(() => expect(metadata).toHaveBeenCalledOnce())
+    view.unmount()
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it("[neoview.storage-information.legacy-fields] preserves path and size while separating bounded resource metrics", async () => {
+    const value = metadataDto()
+    value.page = { ...value.page!, byteLength: 1_024 }
+    value.book.byteLength = 0
+    const diagnostics = vi.fn(async () => diagnosticsDto())
+    render(<StorageInformationCard {...panelContext(clientWith(vi.fn(async () => value), diagnostics), session())} />)
+
+    expect(await screen.findByText("D:/books/pages/001.jpg")).toBeTruthy()
+    expect(screen.getByText("1.00 KB")).toBeTruthy()
+    expect(screen.getByText("0 B")).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "资源占用" })).toBeTruthy()
+    expect(screen.getByText("64.00 KB")).toBeTruthy()
+    expect(screen.getByText("32.00 KB")).toBeTruthy()
+    expect(screen.getByText("16.00 KB")).toBeTruthy()
+    expect(screen.getByText("8.00 KB")).toBeTruthy()
+    expect(diagnostics).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.storage-information.format] freezes legacy byte boundaries and invalid-value degradation", () => {
+    expect(formatStorageBytes(undefined)).toBe("—")
+    expect(formatStorageBytes(-1)).toBe("—")
+    expect(formatStorageBytes(0)).toBe("0 B")
+    expect(formatStorageBytes(1_023)).toBe("1023 B")
+    expect(formatStorageBytes(1_024)).toBe("1.00 KB")
+    expect(formatStorageBytes(1_048_576)).toBe("1.00 MB")
+    expect(formatStorageBytes(1_073_741_824)).toBe("1.00 GB")
+  })
+
+  it("[neoview.storage-information.diagnostics-retry] keeps legacy data visible and retries only failed resource diagnostics", async () => {
+    const diagnostics = vi.fn()
+      .mockRejectedValueOnce(new Error("diagnostics unavailable"))
+      .mockResolvedValueOnce(diagnosticsDto())
+    const metadata = vi.fn(async () => metadataDto())
+    render(<StorageInformationCard {...panelContext(clientWith(metadata, diagnostics), session())} />)
+
+    expect(await screen.findByText("D:/books/pages/001.jpg")).toBeTruthy()
+    expect(screen.getByRole("alert").textContent).toContain("diagnostics unavailable")
+    fireEvent.click(screen.getByRole("button", { name: "重试" }))
+    expect(await screen.findByText("64.00 KB")).toBeTruthy()
+    expect(metadata).toHaveBeenCalledOnce()
+    expect(diagnostics).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.storage-information.partial-metrics] renders unavailable cache metrics as em dashes without hiding zero bytes", async () => {
+    const diagnostics = vi.fn(async (): Promise<ReaderStorageDiagnosticsDto> => ({
+      schemaVersion: 1,
+      assets: { presentation: null, thumbnails: null },
+      presentationDiskCache: { enabled: false },
+      solidArchiveCache: { retainedBytes: 0 },
+    }))
+    render(<StorageInformationCard {...panelContext(clientWith(vi.fn(async () => metadataDto()), diagnostics), session())} />)
+
+    await screen.findByText("D:/books/pages/001.jpg")
+    expect(screen.getAllByText("—")).toHaveLength(3)
+    expect(screen.getByText("0 B")).toBeTruthy()
+  })
+
+  it("[neoview.storage-information.diagnostics-cancel] aborts the one-shot diagnostics request on unmount", async () => {
+    let signal: AbortSignal | undefined
+    const diagnostics = vi.fn((requestSignal?: AbortSignal) => {
+      signal = requestSignal
+      return new Promise<ReaderStorageDiagnosticsDto>(() => undefined)
+    })
+    const view = render(<StorageInformationCard {...panelContext(clientWith(vi.fn(async () => metadataDto()), diagnostics), session())} />)
+    await waitFor(() => expect(diagnostics).toHaveBeenCalledOnce())
     view.unmount()
     expect(signal?.aborted).toBe(true)
   })
@@ -176,10 +258,13 @@ function panelContext(client: ReaderHttpClient, currentSession: ReaderSessionDto
   return { client, session: currentSession, disabled: false, onGoTo: vi.fn() }
 }
 
-function clientWith(metadata: NonNullable<ReaderHttpClient["metadata"]>): ReaderHttpClient {
+function clientWith(
+  metadata: NonNullable<ReaderHttpClient["metadata"]>,
+  diagnostics: NonNullable<ReaderHttpClient["diagnostics"]> = vi.fn(async () => diagnosticsDto()),
+): ReaderHttpClient {
   return {
     config: vi.fn(), updateSidebarLayout: vi.fn(), updateCardLayout: vi.fn(), updateBoardLayout: vi.fn(), updateViewDefaults: vi.fn(),
-    updateSlideshow: vi.fn(), open: vi.fn(), listPages: vi.fn(), navigate: vi.fn(), goTo: vi.fn(), updateSessionOptions: vi.fn(), close: vi.fn(), metadata,
+    updateSlideshow: vi.fn(), open: vi.fn(), listPages: vi.fn(), navigate: vi.fn(), goTo: vi.fn(), updateSessionOptions: vi.fn(), close: vi.fn(), metadata, diagnostics,
   }
 }
 
@@ -229,5 +314,17 @@ function metadataDto(): ReaderMetadataDto {
       modifiedAtMs: 1_700_000_100_000,
       accessedAtMs: 1_700_000_200_000,
     },
+  }
+}
+
+function diagnosticsDto(): ReaderStorageDiagnosticsDto {
+  return {
+    schemaVersion: 1,
+    assets: {
+      presentation: { bytes: 64 * 1_024 },
+      thumbnails: { cachedBytes: 32 * 1_024 },
+    },
+    presentationDiskCache: { enabled: true, bytes: 8 * 1_024 },
+    solidArchiveCache: { retainedBytes: 16 * 1_024 },
   }
 }

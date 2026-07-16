@@ -246,7 +246,7 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "partial",
+      "status": "migrated",
       "currentCardId": "storage-information",
       "sourceComponent": "src/lib/cards/info/StorageCard.svelte",
       "sourceDisposition": "component"

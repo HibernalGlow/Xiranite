@@ -96,6 +96,17 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ path: "D:/books/demo.cbz" })
   })
 
+  it("[neoview.storage-information.diagnostics-client] reads the authenticated shared diagnostics snapshot", async () => {
+    const snapshot = { schemaVersion: 1, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
+    const fetchMock = vi.fn(async () => Response.json(snapshot))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.diagnostics!()).resolves.toEqual(snapshot)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/diagnostics")
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request)

@@ -6,6 +6,14 @@ export function formatBytes(bytes?: number): string {
   return `${(bytes / 1_073_741_824).toFixed(2)} GB`
 }
 
+export function formatStorageBytes(bytes?: number): string {
+  if (bytes === undefined || !Number.isSafeInteger(bytes) || bytes < 0) return "—"
+  if (bytes < 1_024) return `${bytes} B`
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(2)} KB`
+  if (bytes < 1_073_741_824) return `${(bytes / 1_048_576).toFixed(2)} MB`
+  return `${(bytes / 1_073_741_824).toFixed(2)} GB`
+}
+
 export function formatDate(timestamp?: number): string {
   if (timestamp === undefined || !Number.isFinite(timestamp)) return "—"
   const date = new Date(timestamp)
