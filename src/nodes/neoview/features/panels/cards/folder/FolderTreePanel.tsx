@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Folder, FolderOpen, HardDrive, LoaderCircle, RefreshCw } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,8 @@ interface TreeRow {
 }
 
 export default function FolderTreePanel({ client, sessionId, currentPath, disabled, onNavigate }: FolderTreePanelProps) {
+  const treeId = useId().replaceAll(":", "")
+  const treeHostRef = useRef<HTMLDivElement>(null)
   const treeRef = useRef<VirtuosoHandle>(null)
   const controllersRef = useRef(new Map<string, AbortController>())
   const generationRef = useRef<number | undefined>(undefined)
@@ -38,6 +40,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
   const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set())
   const [errors, setErrors] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const [focusedPath, setFocusedPath] = useState(currentPath)
   const [generationEpoch, setGenerationEpoch] = useState(0)
   const rootPath = useMemo(() => directoryRoot(currentPath), [currentPath])
 
@@ -126,14 +129,18 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
     [rootPath, pages, expanded, loading, errors],
   )
   const currentIndex = useMemo(() => rows.findIndex((row) => samePath(row.path, currentPath)), [rows, currentPath])
+  const requestedFocusedIndex = useMemo(() => rows.findIndex((row) => samePath(row.path, focusedPath)), [rows, focusedPath])
+  const focusedIndex = requestedFocusedIndex >= 0 ? requestedFocusedIndex : currentIndex >= 0 ? currentIndex : rows.length ? 0 : -1
+
+  useEffect(() => setFocusedPath(currentPath), [currentPath])
 
   useEffect(() => {
-    if (currentIndex < 0) return
+    if (focusedIndex < 0) return
     const frame = requestAnimationFrame(() => {
-      treeRef.current?.scrollToIndex({ index: currentIndex, align: "center" })
+      treeRef.current?.scrollIntoView({ index: focusedIndex, behavior: "auto" })
     })
     return () => cancelAnimationFrame(frame)
-  }, [currentIndex])
+  }, [focusedIndex])
 
   async function toggle(row: TreeRow) {
     const key = directoryPathKey(row.path)
@@ -145,27 +152,80 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
     if (!row.loaded || row.error) await loadPage(row.path, Boolean(row.error))
   }
 
+  function focusRow(index: number) {
+    const row = rows[index]
+    if (row) setFocusedPath(row.path)
+  }
+
+  function handleTreeKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || disabled) return
+    const row = rows[focusedIndex]
+    if (!row) return
+    let nextIndex = focusedIndex
+    let handled = true
+    if (event.key === "ArrowDown") nextIndex = Math.min(focusedIndex + 1, rows.length - 1)
+    else if (event.key === "ArrowUp") nextIndex = Math.max(focusedIndex - 1, 0)
+    else if (event.key === "Home") nextIndex = 0
+    else if (event.key === "End") nextIndex = rows.length - 1
+    else if (event.key === "ArrowRight") {
+      if (!row.expanded) void toggle(row)
+      else if (rows[focusedIndex + 1]?.depth === row.depth + 1) nextIndex = focusedIndex + 1
+    } else if (event.key === "ArrowLeft") {
+      if (row.expanded) void toggle(row)
+      else {
+        for (let index = focusedIndex - 1; index >= 0; index -= 1) {
+          if (rows[index]!.depth < row.depth) {
+            nextIndex = index
+            break
+          }
+        }
+      }
+    } else if (event.key === "Enter" || event.key === " ") {
+      onNavigate(row.path)
+    } else {
+      handled = false
+    }
+    if (!handled) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (nextIndex !== focusedIndex) focusRow(nextIndex)
+  }
+
   if (!client.treeDirectoryBrowser) {
     return <div className="grid h-72 place-items-center text-xs text-muted-foreground">文件树不可用</div>
   }
 
   return (
-    <div className="h-72" data-neoview-folder-tree="true" data-current-index={currentIndex >= 0 ? currentIndex : undefined} role="tree" aria-label="文件树" tabIndex={0}>
+    <div
+      ref={treeHostRef}
+      className="h-72 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-neoview-folder-tree="true"
+      data-current-index={currentIndex >= 0 ? currentIndex : undefined}
+      data-focused-index={focusedIndex >= 0 ? focusedIndex : undefined}
+      role="tree"
+      aria-label="文件树"
+      aria-activedescendant={focusedIndex >= 0 ? `${treeId}-row-${focusedIndex}` : undefined}
+      tabIndex={0}
+      onKeyDown={handleTreeKeyDown}
+    >
       <Virtuoso
         ref={treeRef}
         style={{ height: TREE_HEIGHT }}
         data={rows}
         fixedItemHeight={TREE_ROW_HEIGHT}
         computeItemKey={(_index, row) => `${sessionId}:${directoryPathKey(row.path)}`}
-        itemContent={(_index, row) => {
+        itemContent={(index, row) => {
           const current = samePath(row.path, currentPath)
+          const focused = index === focusedIndex
           const ancestor = !current && isPathAncestor(row.path, currentPath)
           return (
             <div
-              className={`group flex h-[30px] min-w-0 items-center border-b border-border/30 pr-1 text-xs hover:bg-accent/50 ${current ? "bg-accent" : ""} ${ancestor ? "font-medium" : ""}`}
+              id={`${treeId}-row-${index}`}
+              className={`group flex h-[30px] min-w-0 items-center border-b border-border/30 pr-1 text-xs hover:bg-accent/50 ${current ? "bg-accent" : focused ? "bg-muted/70" : ""} ${ancestor ? "font-medium" : ""}`}
               style={{ paddingLeft: `${4 + row.depth * 14}px` }}
               data-tree-path={row.path}
               data-current={current || undefined}
+              data-focused={focused || undefined}
               data-ancestor={ancestor || undefined}
               role="treeitem"
               aria-level={row.depth + 1}
@@ -180,7 +240,12 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
                 aria-label={`${row.expanded ? "折叠" : "展开"}${row.name}`}
                 aria-expanded={row.expanded}
                 disabled={disabled || row.loading}
-                onClick={() => { void toggle(row) }}
+                tabIndex={-1}
+                onClick={() => {
+                  setFocusedPath(row.path)
+                  treeHostRef.current?.focus()
+                  void toggle(row)
+                }}
               >
                 {row.loading ? <LoaderCircle className="animate-spin" /> : row.expanded ? <ChevronDown /> : <ChevronRight />}
               </Button>
@@ -191,7 +256,12 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
                 title={row.path}
                 aria-current={current ? "page" : undefined}
                 disabled={disabled}
-                onClick={() => onNavigate(row.path)}
+                tabIndex={-1}
+                onClick={() => {
+                  setFocusedPath(row.path)
+                  treeHostRef.current?.focus()
+                  onNavigate(row.path)
+                }}
               >
                 {row.name}
               </button>

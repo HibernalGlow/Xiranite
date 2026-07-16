@@ -57,6 +57,46 @@ describe("FolderTreePanel", () => {
     expect(treeDirectoryBrowser).toHaveBeenLastCalledWith("tree-1", "C:\\broken", true, expect.any(AbortSignal))
   })
 
+  it("[neoview.folder.tree-keyboard] follows the ARIA tree navigation model without materializing hidden rows", async () => {
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string): Promise<ReaderDirectoryTreePageDto> => treePage(
+      path ?? "C:\\",
+      path === "C:\\"
+        ? [directory("books", "C:\\books"), directory("other", "C:\\other")]
+        : path === "C:\\books"
+          ? [directory("series", "C:\\books\\series"), directory("empty", "C:\\books\\empty")]
+          : path === "C:\\books\\series"
+            ? [directory("volume", "C:\\books\\series\\volume")]
+            : [],
+    ))
+    const onNavigate = vi.fn()
+    const view = renderTree({ treeDirectoryBrowser } as unknown as ReaderHttpClient, "C:\\books\\series", onNavigate)
+    const ui = within(view.container)
+    const tree = ui.getByRole("tree", { name: "文件树" })
+
+    await waitFor(() => expect(ui.getByTitle("C:\\books\\series").parentElement?.dataset.focused).toBe("true"))
+    expect(tree.getAttribute("aria-activedescendant")).toBe(ui.getByTitle("C:\\books\\series").parentElement?.id)
+
+    fireEvent.focus(tree)
+    fireEvent.keyDown(tree, { key: "ArrowRight" })
+    await waitFor(() => expect(ui.getByTitle("C:\\books\\series\\volume").parentElement?.dataset.focused).toBe("true"))
+    fireEvent.keyDown(tree, { key: "Enter" })
+    expect(onNavigate).toHaveBeenLastCalledWith("C:\\books\\series\\volume")
+
+    fireEvent.keyDown(tree, { key: "ArrowUp" })
+    fireEvent.keyDown(tree, { key: "ArrowLeft" })
+    await waitFor(() => expect(ui.queryByTitle("C:\\books\\series\\volume")).toBeNull())
+    expect(ui.getByTitle("C:\\books\\series").parentElement?.dataset.focused).toBe("true")
+    fireEvent.keyDown(tree, { key: "ArrowLeft" })
+    expect(ui.getByTitle("C:\\books").parentElement?.dataset.focused).toBe("true")
+
+    fireEvent.keyDown(tree, { key: "Home" })
+    expect(ui.getByTitle("C:\\").parentElement?.dataset.focused).toBe("true")
+    fireEvent.keyDown(tree, { key: "End" })
+    expect(ui.getByTitle("C:\\other").parentElement?.dataset.focused).toBe("true")
+    fireEvent.keyDown(tree, { key: " " })
+    expect(onNavigate).toHaveBeenLastCalledWith("C:\\other")
+  })
+
   it("[neoview.folder.tree-lifecycle] aborts in-flight node reads on unmount", async () => {
     let signal!: AbortSignal
     const treeDirectoryBrowser = vi.fn((_sessionId: string, _path?: string, _refresh?: boolean, nextSignal?: AbortSignal) => {

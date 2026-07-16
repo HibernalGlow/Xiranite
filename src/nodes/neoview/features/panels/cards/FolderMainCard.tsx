@@ -658,7 +658,6 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           event.preventDefault()
           event.stopPropagation()
           setSearchOpen(true)
-          setTreeOpen(false)
         }
       }}
     >
@@ -692,8 +691,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           >
             <CheckSquare />
           </BrowserButton>
-          <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={() => { setTreeOpen((current) => !current); setSearchOpen(false) }}><ListTree /></BrowserButton>
-          <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => { setSearchOpen((current) => !current); setTreeOpen(false) }}><Search /></BrowserButton>
+          <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={() => setTreeOpen((current) => !current)}><ListTree /></BrowserButton>
+          <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search /></BrowserButton>
           <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
         </div>
         <div className="flex min-w-0 items-center gap-1">
@@ -883,16 +882,33 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       ) : null}
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div
-        ref={listHostRef}
-        className="min-h-32 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        style={{ "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
-        data-neoview-folder-list="true"
-        data-focused-index={focusedIndex}
-        role={searchOpen || treeOpen ? undefined : "listbox"}
-        aria-label={searchOpen || treeOpen ? undefined : "文件项目"}
-        tabIndex={0}
-        onKeyDown={handleDirectoryKeyDown}
+        className="grid min-h-0 gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(18rem,100%),1fr))]"
+        data-neoview-folder-browser="true"
       >
+        {treeOpen && sessionIdRef.current && catalog ? (
+          <div className="min-w-0 overflow-hidden rounded border bg-background/60" data-neoview-folder-tree-pane="true">
+            <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载文件树" />}>
+              <FolderTreePanel
+                client={client}
+                sessionId={sessionIdRef.current}
+                currentPath={catalog.path}
+                disabled={disabled || loading}
+                onNavigate={(path) => { void navigate({ action: "path", path }, { keepTree: true }) }}
+              />
+            </Suspense>
+          </div>
+        ) : null}
+        <div
+          ref={listHostRef}
+          className="min-h-32 min-w-0 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{ "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
+          data-neoview-folder-list="true"
+          data-focused-index={focusedIndex}
+          role={searchOpen ? undefined : "listbox"}
+          aria-label={searchOpen ? undefined : "文件项目"}
+          tabIndex={0}
+          onKeyDown={handleDirectoryKeyDown}
+        >
         {searchOpen && sessionIdRef.current ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
             <FolderSearchPanel
@@ -906,18 +922,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             />
           </Suspense>
         ) : null}
-        {treeOpen && sessionIdRef.current && catalog ? (
-          <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载文件树" />}>
-            <FolderTreePanel
-              client={client}
-              sessionId={sessionIdRef.current}
-              currentPath={catalog.path}
-              disabled={disabled || loading}
-              onNavigate={(path) => { void navigate({ action: "path", path }, { keepTree: true }) }}
-            />
-          </Suspense>
-        ) : null}
-        {!searchOpen && !treeOpen && catalog && viewUsesVirtuosoList(viewMode) ? (
+        {!searchOpen && catalog && viewUsesVirtuosoList(viewMode) ? (
           <Virtuoso
             key={virtualKey}
             ref={listRef}
@@ -948,7 +953,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             }}
           />
         ) : null}
-        {!searchOpen && !treeOpen && catalog && viewMode === "details" ? (
+        {!searchOpen && catalog && viewMode === "details" ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
             <FolderDetailsView
               key={virtualKey}
@@ -964,7 +969,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             />
           </Suspense>
         ) : null}
-        {!searchOpen && !treeOpen && catalog && viewUsesGrid(viewMode) ? (
+        {!searchOpen && catalog && viewUsesGrid(viewMode) ? (
           <VirtuosoGrid
             key={virtualKey}
             ref={gridRef}
@@ -1016,6 +1021,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           />
         ) : null}
         {!catalog ? <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div> : null}
+        </div>
       </div>
     </div>
   )
