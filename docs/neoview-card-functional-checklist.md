@@ -1012,7 +1012,7 @@
 | `bookInfo` | 书籍信息 | core | migrated | `src/lib/cards/info/BookInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `book-information` |
 | `infoOverlay` | 信息悬浮窗 | deferred | pending | `src/lib/cards/info/InfoOverlayCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
 | `imageInfo` | 图像信息 | core | partial | `src/lib/cards/info/ImageInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `image-information` |
-| `storage` | 存储信息 | core | partial | `src/lib/cards/info/StorageCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `storage-information` |
+| `storage` | 存储信息 | core | migrated | `src/lib/cards/info/StorageCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `storage-information` |
 | `time` | 时间信息 | core | migrated | `src/lib/cards/info/TimeCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `time-information` |
 
 #### `preloadStatus` 预加载状态
@@ -1225,9 +1225,9 @@
 #### `storage` 存储信息
 
 - 细项清单：`migration/neoview/storage-information-compatibility.json`
-- [ ] 显示当前书籍/页面的压缩与实际字节大小
-- [ ] 显示缓存、缩略图或解码资源占用
-- [ ] 对缺失或不可统计字段稳定降级
+- [x] 显示当前书籍/页面的压缩与实际字节大小
+- [x] 显示缓存、缩略图或解码资源占用
+- [x] 对缺失或不可统计字段稳定降级
 - UI 基线：`src/lib/cards/info/StorageCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ##### 专用逐控件库存（6 组，55 项）
@@ -1308,76 +1308,76 @@
 
 ##### 专用源码级验收项
 
-- [ ] `storage.path` 显示当前页面规范存储路径
+- [x] `storage.path` 显示当前页面规范存储路径
   - 目标：The Card renders the current page display path, preserving an archive entry identity instead of substituting an editable input or unrelated book source.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.metadata.http`、`neoview.metadata.cards`
-  - 备注：The current DTO already separates page.displayPath from book.sourcePath; responsive and headless evidence remain.
-- [ ] `storage.page-size` 显示当前页面实际字节大小
+  - 测试：`neoview.metadata.http`、`neoview.metadata.cards`、`neoview.storage-information.legacy-fields`、`neoview.storage-information.e2e`
+  - 备注：page.displayPath remains distinct from book.sourcePath; archive entries and filesystem pages retain their canonical display identity.
+- [x] `storage.page-size` 显示当前页面实际字节大小
   - 目标：The current page byte length uses entry metadata or filesystem stat fallback without decoding image content.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.metadata.http`、`neoview.metadata.cards`
-  - 备注：Archive entry size and filesystem page size must not be conflated with the outer book source.
-- [ ] `storage.book-size` 单独显示书源文件大小
+  - 测试：`neoview.metadata.http`、`neoview.metadata.cards`、`neoview.headless.page-stream`、`neoview.storage-information.legacy-fields`、`neoview.storage-information.e2e`
+  - 备注：Archive entry and filesystem page sizes use the shared page byteLength and never substitute the outer book source size.
+- [x] `storage.book-size` 单独显示书源文件大小
   - 目标：XR separately exposes the opened archive/document/media source file size while directory-backed books remain unknown.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.metadata.http`、`neoview.metadata.cards`
-  - 备注：Intentional XR extension required by the frozen functional scope and Book/Storage ownership decision.
-- [ ] `storage.resource-usage` 显示有界缓存与资源占用
+  - 测试：`neoview.metadata.http`、`neoview.storage-information.legacy-fields`、`neoview.storage-information.e2e`
+  - 备注：The HTTP metadata contract stats file-backed book sources; directory books degrade to unknown and headless surfaces keep local source paths redacted.
+- [x] `storage.resource-usage` 显示有界缓存与资源占用
   - 目标：The Card exposes bounded presentation-memory, thumbnail-memory, solid-archive and presentation-disk cache bytes from the shared diagnostics snapshot without starting a second sampler.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：待补
-  - 备注：This is a frozen XR scope extension, visually separated from the two legacy fields.
-- [ ] `storage.format` 保持 1024 进制字节格式
+  - 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.cli`、`neoview.storage-information.diagnostics-client`、`neoview.storage-information.legacy-fields`、`neoview.storage-information.partial-metrics`、`neoview.storage-information.e2e`
+  - 备注：The four metrics come from the existing versioned diagnostics service and are visually separated from the legacy fields.
+- [x] `storage.format` 保持 1024 进制字节格式
   - 目标：Missing values render an em dash, zero renders 0 B, bytes remain integral and KiB-range labels preserve the legacy KB/MB/GB labels with two decimals.
   - 源码：`src/lib/cards/info/StorageCard.svelte`
-  - 测试：`neoview.metadata.format`
-  - 备注：Dedicated boundary tests still need to freeze zero and exact threshold behavior.
-- [ ] `storage.states` 加载、空、错误与重试
+  - 测试：`neoview.storage-information.format`、`neoview.storage-information.partial-metrics`、`neoview.storage-information.e2e`
+  - 备注：Dedicated boundaries cover invalid, zero, 1023, 1024, MiB and GiB values.
+- [x] `storage.states` 加载、空、错误与重试
   - 目标：The Card has stable loading, empty, partial-metric, error and retry states and never shows stale page storage data as current.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`
-  - 备注：Loading/error/retry are accessible XR extensions over the legacy silent path.
-- [ ] `storage.shell` 共享 Card 外壳行为
+  - 测试：`neoview.storage-information.states`、`neoview.storage-information.diagnostics-retry`、`neoview.storage-information.partial-metrics`、`neoview.metadata.cancel`
+  - 备注：Diagnostics failure leaves legacy metadata visible; loading/error/retry are accessible target extensions.
+- [x] `storage.shell` 共享 Card 外壳行为
   - 目标：The Storage Card remains independently lazy, dockable, hideable, collapsible, movable, resizable and window-capable through the shared shell.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
-  - 测试：`neoview.card.collapse`、`neoview.card.resize-patch`、`neoview.settings.card-layout`
-  - 备注：A Storage-specific deferred chunk gate remains required.
-- [ ] `storage.data-contract` 共享有界存储与诊断 DTO
+  - 测试：`neoview.card.collapse`、`neoview.card.resize-patch`、`neoview.settings.card-layout`、`neoview.storage-information.lazy-chunk`
+  - 备注：Storage builds as an independent 3557-byte deferred chunk and keeps the shared shell contract.
+- [x] `storage.data-contract` 共享有界存储与诊断 DTO
   - 目标：GUI, CLI and TUI share bounded page/book byte identities and a versioned diagnostics snapshot with cancellation and unavailable-field semantics.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/services/metadataService.ts`
-  - 测试：`neoview.metadata.http`、`neoview.book-information.headless-contract`
-  - 备注：The resource subset must not expose local paths through headless diagnostics or read thumbnail blobs.
-- [ ] `storage.lifecycle` 懒加载、去重、取消与释放
+  - 测试：`neoview.metadata.http`、`neoview.headless.page-stream`、`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.cli`、`neoview.storage-information.diagnostics-client`
+  - 备注：The shared diagnostics DTO is path-free and metric-only; page bytes remain on the existing bounded reader snapshot.
+- [x] `storage.lifecycle` 懒加载、去重、取消与释放
   - 目标：Hidden or collapsed Cards do no work; metadata is shared per generation; diagnostics are fetched once on activation and cancellation/disposal prevents stale publication.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.metadata.cancel`、`neoview.card.zero-mount`
-  - 备注：No Storage-specific polling loop is permitted.
-- [ ] `storage.persistence` 仅持久化共享 Card 布局
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.card.zero-mount`、`neoview.storage-information.states`、`neoview.storage-information.diagnostics-cancel`、`neoview.storage-information.e2e`
+  - 备注：Storage has no polling loop; the single activation request aborts on unmount and E2E observes exactly one diagnostics request.
+- [x] `storage.persistence` 仅持久化共享 Card 布局
   - 目标：Storage content has no settings; panel/order/visible/expanded/height persist only through canonical [nodes.neoview] layout.
   - 源码：`src/lib/stores/cardConfig.svelte.ts`
-  - 测试：`neoview.settings.card-layout`、`neoview.card.persist-react`
-  - 备注：No storage samples are written to xiranite.db or a second NeoView database.
-- [ ] `storage.accessibility` 语义字段与键盘等价操作
+  - 测试：`neoview.settings.card-layout`、`neoview.card.persist-react`、`neoview.card.resize-patch`
+  - 备注：No storage sample or resource snapshot is persisted to xiranite.db or a second NeoView database.
+- [x] `storage.accessibility` 语义字段与键盘等价操作
   - 目标：The Card uses grouped semantic description data; shell and retry controls have keyboard operation and accessible names.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
-  - 测试：`neoview.card.collapse`
-  - 备注：Legacy had no Storage-specific shortcut.
-- [ ] `storage.ui-parity` 桌面与窄 Card 视觉几何
+  - 测试：`neoview.card.collapse`、`neoview.storage-information.diagnostics-retry`、`neoview.storage-information.legacy-fields`
+  - 备注：Description groups, named resource heading and a native retry button provide the target keyboard and screen-reader contract.
+- [x] `storage.ui-parity` 桌面与窄 Card 视觉几何
   - 目标：Legacy two-row density, labels, monospace wrapping and the separated XR resource group remain readable at desktop and 420x360 Card widths.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
-  - 测试：待补
-  - 备注：Both viewports require zero horizontal overflow and screenshot evidence.
-- [ ] `storage.performance` 常量 DOM、共享请求与独立 chunk
+  - 测试：`neoview.storage-information.legacy-fields`、`neoview.storage-information.e2e`
+  - 备注：Desktop and 420x360 Chromium assert zero Card overflow and capture the rendered Card.
+- [x] `storage.performance` 常量 DOM、共享请求与独立 chunk
   - 目标：O(1) DOM, one metadata request per session generation, one activation diagnostics request, zero hidden work and a deferred Storage Card chunk under 8 KiB.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/services/metadataService.ts`
-  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`
-  - 备注：Storage must not decode pages, scan directories or read thumbnail blobs.
-- [ ] `storage.deviations` 记录书源大小与资源占用扩展
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.storage-information.diagnostics-cancel`、`neoview.storage-information.e2e`、`neoview.storage-information.lazy-chunk`
+  - 备注：Storage chunk is 3557 bytes; the Card performs no decode, directory scan, thumbnail blob read or polling.
+- [x] `storage.deviations` 记录书源大小与资源占用扩展
   - 目标：Document that separate book size, diagnostics metrics, loading/error/retry and semantic groups are intentional additions while the legacy path/size rows remain intact.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：待补
-  - 备注：No legacy Storage field is removed or silently repurposed.
+  - 测试：`neoview.storage-information.legacy-fields`、`neoview.storage-information.diagnostics-retry`、`neoview.storage-information.partial-metrics`、`neoview.storage-information.e2e`
+  - 备注：Legacy path and size remain the first group; book size and shared resource diagnostics are explicitly labeled target extensions.
 
 #### `time` 时间信息
 
