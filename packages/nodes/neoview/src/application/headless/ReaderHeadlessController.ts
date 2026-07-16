@@ -4,6 +4,8 @@ import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
+import type { ReaderMediaProgressService, ReaderMediaProgressUpdate } from "../reader/ReaderMediaProgressService.js"
+import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderService, ReaderSession } from "../reader/contracts.js"
 
 export interface OpenHeadlessReaderInput {
@@ -49,13 +51,19 @@ export interface HeadlessPageStream extends AsyncDisposable {
 export class ReaderHeadlessController implements AsyncDisposable {
   readonly #service: ReaderService
   readonly #disposeDependencies?: () => Promise<void>
+  readonly #mediaProgress?: ReaderMediaProgressService
   #session: ReaderSession | undefined
   #closed = false
   #disposing: Promise<void> | undefined
 
-  constructor(service: ReaderService, disposeDependencies?: () => Promise<void>) {
+  constructor(
+    service: ReaderService,
+    disposeDependencies?: () => Promise<void>,
+    mediaProgress?: ReaderMediaProgressService,
+  ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
+    this.#mediaProgress = mediaProgress
   }
 
   get isOpen(): boolean {
@@ -85,6 +93,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
       const previous = this.#session
       this.#session = next
       adopted = true
+      if (previous) await this.#mediaProgress?.flush(previous.book.id)
       await previous?.close()
       return snapshotOf(next)
     } catch (error) {
@@ -138,9 +147,27 @@ export class ReaderHeadlessController implements AsyncDisposable {
     }
   }
 
+  async getMediaProgress(): Promise<ReaderMediaProgressRecord | undefined> {
+    const session = this.#requireVideoSession()
+    if (!this.#mediaProgress) return undefined
+    return this.#mediaProgress.get(session.book.id)
+  }
+
+  async updateMediaProgress(
+    update: ReaderMediaProgressUpdate,
+    options: { flush?: boolean } = {},
+  ): Promise<ReaderMediaProgressRecord> {
+    const session = this.#requireVideoSession()
+    if (!this.#mediaProgress) throw new Error("Reader media progress is unavailable.")
+    const progress = this.#mediaProgress.record(session.book.id, update)
+    if (options.flush) await this.#mediaProgress.flush(session.book.id)
+    return progress
+  }
+
   async closeBook(): Promise<void> {
     const session = this.#session
     this.#session = undefined
+    if (session) await this.#mediaProgress?.flush(session.book.id)
     await session?.close()
   }
 
@@ -152,6 +179,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
       this.#session = undefined
       const errors: unknown[] = []
       for (const dispose of [
+        this.#mediaProgress ? () => this.#mediaProgress!.close() : undefined,
         session ? () => session.close() : undefined,
         () => this.#service[Symbol.asyncDispose](),
         this.#disposeDependencies,
@@ -172,6 +200,14 @@ export class ReaderHeadlessController implements AsyncDisposable {
     this.#assertOpen()
     if (!this.#session) throw new Error("No reader book is open.")
     return this.#session
+  }
+
+  #requireVideoSession(): ReaderSession {
+    const session = this.#requireSession()
+    if (!session.book.pages.some((page) => page.mediaKind === "video")) {
+      throw new Error("The open Reader book does not contain video media.")
+    }
+    return session
   }
 
   #assertOpen(): void {

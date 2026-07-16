@@ -53,6 +53,8 @@ export {
   type ReaderPreloadTier,
 } from "./application/preloading/PreloadCoordinator.js"
 export type { ReaderProgressRecord, ReaderProgressStore } from "./ports/ReaderProgressStore.js"
+export type { ReaderMediaProgressRecord, ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
+export { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "./application/reader/ReaderMediaProgressService.js"
 export type {
   ReaderThumbnailDatabaseBackupResult,
   ReaderThumbnailDatabaseCompatibility,

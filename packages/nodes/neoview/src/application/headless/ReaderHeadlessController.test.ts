@@ -3,6 +3,7 @@ import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
 import { CoreReaderService } from "../reader/ReaderService.js"
+import { ReaderMediaProgressService } from "../reader/ReaderMediaProgressService.js"
 import { ReaderHeadlessController } from "./ReaderHeadlessController.js"
 
 describe("ReaderHeadlessController", () => {
@@ -63,6 +64,34 @@ describe("ReaderHeadlessController", () => {
       await output.close()
       expect(close).toHaveBeenCalledTimes(1)
       await expect(controller.openPageStream(3)).rejects.toThrow("out of range")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.headless.media-progress] shares restore and durable updates with CLI/TUI", async () => {
+    const saved = vi.fn(async () => undefined)
+    const mediaProgress = new ReaderMediaProgressService({
+      getMediaProgress: vi.fn(async () => ({
+        bookId: "opaque-book",
+        position: 5,
+        duration: 20,
+        completed: false,
+        updatedAt: 1,
+      })),
+      saveMediaProgress: saved,
+    }, () => 2, 60_000)
+    const service = new CoreReaderService(async () => videoBook("D:/clip.mp4"))
+    const controller = new ReaderHeadlessController(service, undefined, mediaProgress)
+    try {
+      await controller.open({ path: "D:/clip.mp4" })
+      await expect(controller.getMediaProgress()).resolves.toMatchObject({ position: 5, duration: 20 })
+      await expect(controller.updateMediaProgress({
+        position: 10,
+        duration: 20,
+        completed: false,
+      }, { flush: true })).resolves.toMatchObject({ position: 10, updatedAt: 2 })
+      expect(saved).toHaveBeenCalledOnce()
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -133,5 +162,19 @@ function book(path: string, closed: string[], onSourceClose = vi.fn(async () => 
     async [Symbol.asyncDispose]() {
       await this.close()
     },
+  }
+}
+
+function videoBook(path: string): ReaderBook {
+  const value = book(path, [])
+  return {
+    ...value,
+    pages: [{
+      ...value.pages[0]!,
+      name: "clip.mp4",
+      entryPath: undefined,
+      mediaKind: "video",
+      mimeType: "video/mp4",
+    }],
   }
 }

@@ -10,6 +10,8 @@ import type { ReaderSession, ReaderSessionOptions } from "../../application/read
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import type { ReaderMediaProgressStore } from "../../ports/ReaderMediaProgressStore.js"
+import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
@@ -56,6 +58,7 @@ const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
+const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
 const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
 const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
@@ -92,6 +95,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
   progressStore?: ReaderProgressStore | false
+  mediaProgressStore?: ReaderMediaProgressStore
   libraryService?: ReaderLibraryService
   directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
   directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
@@ -119,6 +123,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #libraryService?: ReaderLibraryService
   readonly #disposeLibraryService: boolean
   readonly #cacheService: ReaderCacheService
+  readonly #mediaProgress?: ReaderMediaProgressService
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -201,6 +206,9 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#cacheService = new ReaderCacheService(options.presentationDiskCache, {
       ownsPresentationCache: options.disposePresentationDiskCache,
     })
+    this.#mediaProgress = options.mediaProgressStore
+      ? new ReaderMediaProgressService(options.mediaProgressStore)
+      : undefined
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
@@ -259,6 +267,10 @@ export class ReaderHttpController implements AsyncDisposable {
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
     const metadataMatch = SESSION_METADATA_PATH.exec(url.pathname)
     if (metadataMatch && request.method === "GET") return this.#metadata(metadataMatch[1]!, request.signal)
+    const mediaProgressMatch = SESSION_MEDIA_PROGRESS_PATH.exec(url.pathname)
+    if (mediaProgressMatch && (request.method === "GET" || request.method === "PATCH")) {
+      return this.#handleMediaProgress(mediaProgressMatch[1]!, request)
+    }
     const navigateMatch = SESSION_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
@@ -280,6 +292,11 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     try {
       await this.#thumbnailPipeline.dispose()
+    } catch (error) {
+      errors.push(error)
+    }
+    try {
+      await this.#mediaProgress?.close()
     } catch (error) {
       errors.push(error)
     }
@@ -584,9 +601,48 @@ export class ReaderHttpController implements AsyncDisposable {
   async #closeSession(encodedSessionId: string): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    await this.#mediaProgress?.flush(session.book.id)
     await this.#service.closeSession(session.id)
     await this.#hibernateIfIdle()
     return new Response(null, { status: 204 })
+  }
+
+  async #handleMediaProgress(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (!this.#mediaProgress) return jsonResponse({ error: "Reader media progress is unavailable" }, 501)
+    if (!session.book.pages.some((page) => page.mediaKind === "video")) {
+      return jsonResponse({ error: "Reader session does not contain video media" }, 409)
+    }
+    if (request.method === "GET") {
+      try {
+        return jsonResponse({ progress: await this.#mediaProgress.get(session.book.id) ?? null })
+      } catch (error) {
+        if (request.signal.aborted) throw error
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    const body = await readControlJson(request)
+    if (!body) return jsonResponse({ error: "Media progress patch must be a JSON object" }, 400)
+    if (body.flush !== undefined && typeof body.flush !== "boolean") {
+      return jsonResponse({ error: "Media progress flush must be a boolean" }, 400)
+    }
+    const { flush, ...update } = body
+    let progress
+    try {
+      progress = this.#mediaProgress.record(session.book.id, update as ReaderMediaProgressUpdate)
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+    if (flush) {
+      try {
+        await this.#mediaProgress.flush(session.book.id)
+      } catch (error) {
+        if (request.signal.aborted) throw error
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    return jsonResponse({ progress, durable: Boolean(flush) }, flush ? 200 : 202)
   }
 
   #hibernateIfIdle(): Promise<void> {

@@ -80,6 +80,43 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.media-progress.sqlite] persists runtime playback state without modifying legacy schema metadata", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.saveMediaProgress({
+      bookId: "video-book",
+      position: 12.5,
+      duration: 100,
+      completed: false,
+      updatedAt: 200,
+    })
+    await store.saveMediaProgress({
+      bookId: "video-book",
+      position: 1,
+      duration: 100,
+      completed: false,
+      updatedAt: 100,
+    })
+    await expect(store.getMediaProgress("video-book")).resolves.toEqual({
+      bookId: "video-book",
+      position: 12.5,
+      duration: 100,
+      completed: false,
+      updatedAt: 200,
+    })
+    await expect(store.saveMediaProgress({
+      bookId: "video-book",
+      position: 101,
+      duration: 100,
+      completed: false,
+      updatedAt: 300,
+    })).rejects.toThrow("position/duration")
+    await store.close()
+
+    const report = await inspectLegacyThumbnailDatabase(path)
+    expect(report).toMatchObject({ compatibility: "current", metadataVersion: "2.4", userVersion: 7 })
+  })
+
   it("[neoview.reader-data.sqlite-import] atomically merges newer rows and preserves migration-only data", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)

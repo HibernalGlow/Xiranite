@@ -142,9 +142,9 @@
 - 设置：`image.autoPlayAnimatedImages`、`image.videoFormats`、`image.videoMinPlaybackRate`、`image.videoMaxPlaybackRate`、`image.videoPlaybackRateStep`
 - 数据：video playback state、subtitle tracks
 - 行为：动图自动播放与暂停；视频进度/音量/倍速；字幕轨道；切页停止与恢复；FFmpeg 缺失诊断；视频缩略图
-- 测试：待补
+- 测试：`neoview.media-progress.coalesce`、`neoview.media-progress.validation`、`neoview.media-progress.close-flush`、`neoview.media-progress.read-your-write`、`neoview.media-progress.sqlite`、`neoview.media-progress.http`、`neoview.media-progress.composition`、`neoview.headless.media-progress`
 - 性能基准：`video-startup`
-- 已知差异：无
+- 已知差异：播放器、音量、倍速和字幕 UI 尚未迁移；当前纵切只完成共享运行时进度恢复与写回
 
 ### 预读、渐进加载、流传输和全局调度（`preload-stream-scheduler`）
 

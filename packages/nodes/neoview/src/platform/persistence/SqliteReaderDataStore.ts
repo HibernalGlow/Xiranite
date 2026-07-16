@@ -10,6 +10,7 @@ import type {
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
@@ -142,6 +143,36 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         progress.displayName,
         progress.pageIndex,
         progress.pageCount,
+        progress.updatedAt,
+      )
+    })
+  }
+
+  async getMediaProgress(bookId: string): Promise<ReaderMediaProgressRecord | undefined> {
+    this.#assertOpen()
+    assertText(bookId, "media progress bookId")
+    const row = this.database.get(
+      `SELECT book_id, position, duration, completed, updated_at
+       FROM xr_reader_media_progress WHERE book_id = ?1`,
+      bookId,
+    )
+    return row ? parseMediaProgress(row) : undefined
+  }
+
+  async saveMediaProgress(progress: ReaderMediaProgressRecord): Promise<void> {
+    this.#assertOpen()
+    assertMediaProgress(progress)
+    await this.#write(() => {
+      this.database.run(
+        `INSERT INTO xr_reader_media_progress (book_id, position, duration, completed, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(book_id) DO UPDATE SET position = excluded.position, duration = excluded.duration,
+           completed = excluded.completed, updated_at = excluded.updated_at
+         WHERE excluded.updated_at >= xr_reader_media_progress.updated_at`,
+        progress.bookId,
+        progress.position,
+        progress.duration,
+        progress.completed ? 1 : 0,
         progress.updatedAt,
       )
     })
@@ -586,6 +617,28 @@ function assertProgress(progress: ReaderProgressRecord): void {
   if (!Number.isSafeInteger(progress.updatedAt) || progress.updatedAt < 0) throw new Error("Reader progress updatedAt is invalid.")
 }
 
+function parseMediaProgress(row: Record<string, unknown>): ReaderMediaProgressRecord {
+  const progress = {
+    bookId: requireString(row.book_id, "media progress book id"),
+    position: requireFiniteNumber(row.position, "media progress position"),
+    duration: requireFiniteNumber(row.duration, "media progress duration"),
+    completed: requireBooleanInteger(row.completed, "media progress completed"),
+    updatedAt: requireInteger(row.updated_at, "media progress updated time"),
+  }
+  assertMediaProgress(progress)
+  return progress
+}
+
+function assertMediaProgress(progress: ReaderMediaProgressRecord): void {
+  assertText(progress.bookId, "media progress bookId")
+  if (progress.position < 0 || progress.duration < 0 || progress.position > progress.duration) {
+    throw new Error("Reader media progress position/duration is invalid.")
+  }
+  if (!Number.isSafeInteger(progress.updatedAt) || progress.updatedAt < 0) {
+    throw new Error("Reader media progress updatedAt is invalid.")
+  }
+}
+
 function parseDirectorySort(row: Record<string, unknown> | undefined): ReaderDirectorySortRule | undefined {
   if (!row) return undefined
   const field = row.sort_field
@@ -665,6 +718,15 @@ function requireInteger(value: unknown, name: string): number {
   if (typeof value === "bigint") value = Number(value)
   if (typeof value !== "number" || !Number.isSafeInteger(value)) throw new Error(`Stored reader ${name} is invalid.`)
   return value
+}
+
+function requireFiniteNumber(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`Stored reader ${name} is invalid.`)
+  return value
+}
+
+function assertText(value: string, name: string): void {
+  if (!value.trim() || value.length > 512) throw new Error(`Reader ${name} is invalid.`)
 }
 
 function requireBooleanInteger(value: unknown, name: string): boolean {

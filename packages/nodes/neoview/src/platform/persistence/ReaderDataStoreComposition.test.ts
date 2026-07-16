@@ -54,6 +54,42 @@ describe("Reader data store composition", () => {
     expect(database.get("SELECT COUNT(*) AS count FROM xr_reader_bookmarks")).toEqual({ count: 0 })
     database.close()
   })
+
+  it("[neoview.media-progress.composition] shares the Reader SQLite store with runtime video progress", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-reader-media-composition-"))
+    roots.push(root)
+    const videoPath = join(root, "clip.mp4")
+    const databasePath = join(root, "thumbnails.db")
+    await writeFile(videoPath, Uint8Array.of(0, 1, 2, 3))
+
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:43127",
+      token: "runtime-token",
+      configPath: join(root, "missing.toml"),
+      legacyThumbnailDatabasePath: databasePath,
+    })
+    let bookId = ""
+    try {
+      const opened = await controller.handle(jsonRequest("/reader/sessions", { path: videoPath }))
+      expect(opened?.status).toBe(201)
+      const session = await opened!.json() as { sessionId: string; book: { id: string } }
+      bookId = session.book.id
+      const progress = await controller.handle(authorized(`/reader/s/${session.sessionId}/media-progress`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ position: 45.5, duration: 90, completed: false, flush: true }),
+      }))
+      expect(progress?.status).toBe(200)
+      expect(await progress!.json()).toMatchObject({ durable: true, progress: { position: 45.5, duration: 90 } })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+
+    const database = await openDatabase(databasePath)
+    expect(database.get(`SELECT position, duration, completed FROM xr_reader_media_progress WHERE book_id = '${bookId}'`))
+      .toEqual({ position: 45.5, duration: 90, completed: 0 })
+    database.close()
+  })
 })
 
 function authorized(path: string, init: RequestInit = {}): Request {

@@ -316,6 +316,64 @@ describe("ReaderHttpController", () => {
     }
   })
 
+  it("[neoview.media-progress.http] restores, coalesces and durably flushes video playback state", async () => {
+    const directory = await createBookDirectory()
+    const videoPath = join(directory, "clip.mp4")
+    await writeFile(videoPath, Uint8Array.of(0, 1, 2, 3))
+    const getMediaProgress = vi.fn(async () => undefined)
+    const saveMediaProgress = vi.fn(async () => undefined)
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      mediaProgressStore: { getMediaProgress, saveMediaProgress },
+    })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: videoPath })))!
+      const session = await opened.json() as ReaderSessionDto
+      const endpoint = `/reader/s/${session.sessionId}/media-progress`
+      expect(await (await controller.handle(authorizedRequest(endpoint)))!.json()).toEqual({ progress: null })
+      expect((await controller.handle(jsonRequest(endpoint, {
+        position: 11,
+        duration: 10,
+        completed: false,
+      }, true, "PATCH")))?.status).toBe(400)
+
+      const queued = (await controller.handle(jsonRequest(endpoint, {
+        position: 4,
+        duration: 10,
+        completed: false,
+      }, true, "PATCH")))!
+      expect(queued.status).toBe(202)
+      expect(await queued.json()).toMatchObject({
+        durable: false,
+        progress: { bookId: session.book.id, position: 4, duration: 10, completed: false },
+      })
+      expect(await (await controller.handle(authorizedRequest(endpoint)))!.json()).toMatchObject({
+        progress: { position: 4, duration: 10, completed: false },
+      })
+      expect(saveMediaProgress).not.toHaveBeenCalled()
+
+      const durable = (await controller.handle(jsonRequest(endpoint, {
+        position: 10,
+        duration: 10,
+        completed: true,
+        flush: true,
+      }, true, "PATCH")))!
+      expect(durable.status).toBe(200)
+      expect(await durable.json()).toMatchObject({ durable: true, progress: { position: 10, completed: true } })
+      expect(saveMediaProgress).toHaveBeenCalledOnce()
+      expect(saveMediaProgress).toHaveBeenCalledWith(expect.objectContaining({
+        bookId: session.book.id,
+        position: 10,
+        duration: 10,
+        completed: true,
+      }))
+      expect((await controller.handle(authorizedRequest(endpoint, { method: "DELETE" })))?.status).toBe(404)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.control.session] [neoview.page-list.catalog] [neoview.metadata.http] opens, filters pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
     const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })

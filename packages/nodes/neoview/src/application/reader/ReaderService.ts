@@ -2,6 +2,7 @@ import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import { LatestRecordWriteCoordinator } from "../persistence/LatestRecordWriteCoordinator.js"
 import { CoreReaderSession } from "./ReaderSession.js"
 import type { OpenViewSourceOptions, ReaderService, ReaderSession, ReaderSessionId, ReaderSessionOptions } from "./contracts.js"
 
@@ -119,12 +120,16 @@ export class CoreReaderService implements ReaderService {
 }
 
 class ReaderProgressCoordinator {
-  readonly #pending = new Map<string, ReaderProgressRecord>()
-  readonly #timers = new Map<string, ReturnType<typeof setTimeout>>()
-  readonly #running = new Map<string, Promise<void>>()
+  readonly #writes: LatestRecordWriteCoordinator<string, ReaderProgressRecord>
   #closed = false
 
-  constructor(private readonly store: ReaderProgressStore) {}
+  constructor(private readonly store: ReaderProgressStore) {
+    this.#writes = new LatestRecordWriteCoordinator(
+      (record) => record.bookId,
+      (record) => this.store.save(record),
+      250,
+    )
+  }
 
   async restore(bookId: string): Promise<number | undefined> {
     if (this.#closed) return undefined
@@ -137,40 +142,17 @@ class ReaderProgressCoordinator {
 
   record(progress: ReaderProgressRecord): void {
     if (this.#closed) return
-    this.#pending.set(progress.bookId, progress)
-    if (this.#timers.has(progress.bookId)) return
-    const timer = setTimeout(() => {
-      this.#timers.delete(progress.bookId)
-      void this.flush(progress.bookId).catch(() => undefined)
-    }, 250)
-    timer.unref?.()
-    this.#timers.set(progress.bookId, timer)
+    this.#writes.record(progress)
   }
 
-  async flush(bookId: string): Promise<void> {
-    const timer = this.#timers.get(bookId)
-    if (timer) clearTimeout(timer)
-    this.#timers.delete(bookId)
-    while (true) {
-      await this.#running.get(bookId)?.catch(() => undefined)
-      const progress = this.#pending.get(bookId)
-      if (!progress) return
-      this.#pending.delete(bookId)
-      const write = this.store.save(progress)
-      this.#running.set(bookId, write)
-      try {
-        await write
-      } finally {
-        if (this.#running.get(bookId) === write) this.#running.delete(bookId)
-      }
-    }
+  flush(bookId: string): Promise<void> {
+    return this.#writes.flush(bookId)
   }
 
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
-    const bookIds = new Set([...this.#pending.keys(), ...this.#running.keys(), ...this.#timers.keys()])
-    const writes = await Promise.allSettled([...bookIds].map((bookId) => this.flush(bookId)))
+    const writes = await Promise.allSettled([this.#writes.close()])
     await this.store.close()
     const errors = writes.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
     if (errors.length) throw new AggregateError(errors, "Failed to persist reader progress.")

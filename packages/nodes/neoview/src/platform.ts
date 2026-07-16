@@ -8,6 +8,7 @@ import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
+import type { ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
@@ -65,6 +66,7 @@ export type {
 
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions & {
   progressStore?: ReaderProgressStore | false
+  mediaProgressStore?: ReaderMediaProgressStore | false
   legacyThumbnailDatabasePath?: string | false
 }
 export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
@@ -155,6 +157,7 @@ export async function createReaderHttpController(
   return new ReaderHttpController({
     ...options,
     progressStore,
+    mediaProgressStore: dataStore,
     libraryService,
     directorySortPreferenceStore: dataStore,
     directoryEmmRecordStore: dataStore,
@@ -312,6 +315,12 @@ export async function createReaderHeadlessController(
     : options.progressStore ?? (options.legacyThumbnailDatabasePath === false
       ? undefined
       : await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(options.legacyThumbnailDatabasePath)))
+  const mediaProgressStore = options.mediaProgressStore === false
+    ? undefined
+    : options.mediaProgressStore ?? (isReaderMediaProgressStore(progressStore) ? progressStore : undefined)
+  const mediaProgress = mediaProgressStore
+    ? new (await import("./application/reader/ReaderMediaProgressService.js")).ReaderMediaProgressService(mediaProgressStore)
+    : undefined
   const ownsCache = !options.solidArchiveCache
   const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
     maxBytes: options.maxSolidArchiveCacheBytes,
@@ -324,7 +333,14 @@ export async function createReaderHeadlessController(
       progressStore,
     ),
     ownsCache ? () => solidArchiveCache.close() : undefined,
+    mediaProgress,
   )
+}
+
+function isReaderMediaProgressStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderMediaProgressStore {
+  return Boolean(store
+    && typeof (store as Partial<ReaderMediaProgressStore>).getMediaProgress === "function"
+    && typeof (store as Partial<ReaderMediaProgressStore>).saveMediaProgress === "function")
 }
 
 async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore> {
