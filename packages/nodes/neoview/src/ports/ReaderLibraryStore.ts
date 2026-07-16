@@ -29,6 +29,12 @@ export interface ReaderBookmarkListRecord {
   updatedAt: number
 }
 
+export interface ReaderBookmarkUpdate {
+  starred?: boolean
+  listIds?: readonly string[]
+  updatedAt: number
+}
+
 export interface ReaderLibraryStore extends AsyncDisposable {
   listRecent(query: ReaderRecentQuery): Promise<readonly ReaderProgressRecord[]>
   deleteRecent(bookId: string): Promise<boolean>
@@ -36,6 +42,7 @@ export interface ReaderLibraryStore extends AsyncDisposable {
   listBookmarks(query: ReaderBookmarkQuery): Promise<readonly ReaderBookmarkRecord[]>
   findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined>
   upsertBookmark(bookmark: ReaderBookmarkRecord): Promise<void>
+  updateBookmark(id: string, update: ReaderBookmarkUpdate): Promise<ReaderBookmarkRecord | undefined>
   deleteBookmark(id: string): Promise<boolean>
   listBookmarkLists(): Promise<readonly ReaderBookmarkListRecord[]>
   upsertBookmarkList(list: ReaderBookmarkListRecord): Promise<void>

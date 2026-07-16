@@ -118,9 +118,13 @@ describe("reader-http-client", () => {
     await client.listRecent!(40, 20)
     await client.listBookmarks!(0, 100, "favorites")
     await client.listBookmarkLists!()
+    await client.updateBookmark!("bookmark/1", { starred: false, listIds: ["default"] })
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/library/recents?offset=40&limit=20")
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/reader/library/bookmarks?offset=0&limit=100&listId=favorites")
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/reader/library/bookmark-lists")
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/reader/library/bookmarks/bookmark%2F1")
+    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "PATCH" })
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ starred: false, listIds: ["default"] })
     for (const call of fetchMock.mock.calls) {
       expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
     }

@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
-import PageNavigationCard from "./PageNavigationCard"
+import PageNavigationCard, { PageThumbnail } from "./PageNavigationCard"
 
 afterEach(cleanup)
 
@@ -64,6 +64,12 @@ describe("PageNavigationCard", () => {
       { query: "", thumbnails: true },
       expect.any(AbortSignal),
     ))
+  })
+
+  it("[neoview.page-list.shared-thumbnail] uses the shared contain-fit page surface", () => {
+    const view = render(<PageThumbnail page={page(0)} className="h-16 w-12" />)
+    expect(view.container.querySelector("img")?.className).toContain("object-contain")
+    expect(view.container.querySelector('[data-reader-thumbnail-surface="true"]')?.getAttribute("data-thumbnail-fit")).toBe("contain")
   })
 
   it("[neoview.page-list.retry] exposes a bounded retry instead of leaving a failed catalog in loading state", async () => {

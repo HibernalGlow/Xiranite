@@ -72,6 +72,49 @@ describe("ReaderLibraryService", () => {
       listIds: ["default", "reading"],
     })
   })
+
+  it("[neoview.library.bookmark-update] explicitly clears starred and replaces list memberships", async () => {
+    const store = createStore()
+    store.listBookmarkLists.mockResolvedValue([customList])
+    store.updateBookmark.mockResolvedValue({
+      id: "bookmark-1",
+      source: { kind: "archive", path: "D:/books/demo.cbz" },
+      name: "Demo",
+      kind: "file",
+      starred: false,
+      createdAt: 100,
+      updatedAt: 200,
+      listIds: ["custom"],
+    })
+    const service = new ReaderLibraryService(store, () => 200)
+
+    await expect(service.updateBookmark("bookmark-1", {
+      starred: false,
+      listIds: [" custom ", "custom"],
+    })).resolves.toMatchObject({ starred: false, listIds: ["custom"] })
+    expect(store.updateBookmark).toHaveBeenCalledWith("bookmark-1", {
+      starred: false,
+      listIds: ["custom"],
+      updatedAt: 200,
+    })
+    await expect(service.updateBookmark("bookmark-1", { listIds: [] })).resolves.toBeDefined()
+    expect(store.updateBookmark).toHaveBeenLastCalledWith("bookmark-1", {
+      listIds: ["default"],
+      updatedAt: 200,
+    })
+    await expect(service.updateBookmark("bookmark-1", { listIds: ["favorites"] })).rejects.toThrow("cannot be persisted")
+    await expect(service.updateBookmark("bookmark-1", { listIds: ["missing"] })).rejects.toThrow("unknown lists")
+    await expect(service.updateBookmark("bookmark-1", {})).rejects.toThrow("must change")
+  })
+
+  it("[neoview.library.bookmark-update-abort] rejects an aborted waiter before touching persistence", async () => {
+    const store = createStore()
+    const service = new ReaderLibraryService(store, () => 200)
+    const controller = new AbortController()
+    controller.abort()
+    await expect(service.updateBookmark("bookmark-1", { starred: false }, controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+    expect(store.updateBookmark).not.toHaveBeenCalled()
+  })
 })
 
 const customList: ReaderBookmarkListRecord = {
@@ -90,6 +133,7 @@ function createStore() {
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<(bookmark: ReaderBookmarkRecord) => Promise<void>>(async () => undefined),
+    updateBookmark: vi.fn<ReaderLibraryStore["updateBookmark"]>(),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(),

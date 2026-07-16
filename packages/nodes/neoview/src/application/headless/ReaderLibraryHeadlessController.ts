@@ -1,4 +1,4 @@
-import type { ReaderLibraryService, SaveReaderBookmarkListInput } from "../library/ReaderLibraryService.js"
+import type { ReaderLibraryService, SaveReaderBookmarkListInput, UpdateReaderBookmarkInput } from "../library/ReaderLibraryService.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderLibraryCleanupRequest, ReaderLibraryCleanupService } from "../library/ReaderLibraryCleanupService.js"
 
@@ -61,6 +61,11 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
   removeBookmark(id: string) {
     this.#assertOpen()
     return this.library.removeBookmark(id)
+  }
+
+  updateBookmark(id: string, update: UpdateReaderBookmarkInput, signal?: AbortSignal) {
+    this.#assertOpen()
+    return this.library.updateBookmark(id, update, signal)
   }
 
   listBookmarkLists() {

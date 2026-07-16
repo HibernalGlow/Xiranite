@@ -6,6 +6,7 @@ import type {
   ReaderBookmarkListRecord,
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
+  ReaderBookmarkUpdate,
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
@@ -306,6 +307,53 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
           )
         }
       }
+    })
+  }
+
+  async updateBookmark(id: string, update: ReaderBookmarkUpdate): Promise<ReaderBookmarkRecord | undefined> {
+    this.#assertOpen()
+    if (!id || !Number.isSafeInteger(update.updatedAt) || update.updatedAt < 0) {
+      throw new Error("Reader bookmark update is invalid.")
+    }
+    return this.#transaction(() => {
+      const row = this.database.get(
+        `SELECT id, source_json, name, kind, starred, created_at, updated_at
+         FROM xr_reader_bookmarks WHERE id = ?1`,
+        id,
+      )
+      if (!row) return undefined
+      if (update.listIds !== undefined) {
+        for (const listId of update.listIds) {
+          if (listId === "default") continue
+          if (!this.database.get("SELECT id FROM xr_reader_bookmark_lists WHERE id = ?1", listId)) {
+            throw new Error(`Reader bookmark update references unknown list '${listId}'.`)
+          }
+        }
+        this.database.run("DELETE FROM xr_reader_bookmark_memberships WHERE bookmark_id = ?1", id)
+        for (const listId of update.listIds) {
+          this.database.run(
+            "INSERT INTO xr_reader_bookmark_memberships (bookmark_id, list_id) VALUES (?1, ?2)",
+            id,
+            listId,
+          )
+        }
+      }
+      this.database.run(
+        `UPDATE xr_reader_bookmarks SET starred = COALESCE(?2, starred), updated_at = ?3 WHERE id = ?1`,
+        id,
+        update.starred === undefined ? null : update.starred ? 1 : 0,
+        update.updatedAt,
+      )
+      const updatedRow = this.database.get(
+        `SELECT id, source_json, name, kind, starred, created_at, updated_at
+         FROM xr_reader_bookmarks WHERE id = ?1`,
+        id,
+      )!
+      const memberships = this.database.all(
+        "SELECT list_id FROM xr_reader_bookmark_memberships WHERE bookmark_id = ?1 ORDER BY list_id ASC",
+        id,
+      ).map((entry) => requireString(entry.list_id, "membership list id"))
+      return parseBookmark(updatedRow, memberships)
     })
   }
 

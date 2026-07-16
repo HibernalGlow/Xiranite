@@ -13,6 +13,9 @@ export function ReaderLibraryList<T>({
   emptyLabel,
   refreshLabel,
   revision = 0,
+  itemSize = 58,
+  getItemKey,
+  onVisibleItemsChange,
 }: {
   queryKey: string
   loadPage(offset: number, limit: number, signal: AbortSignal): Promise<readonly T[]>
@@ -20,6 +23,9 @@ export function ReaderLibraryList<T>({
   emptyLabel: string
   refreshLabel: string
   revision?: number
+  itemSize?: number
+  getItemKey?(item: T): string
+  onVisibleItemsChange?(items: readonly T[]): void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | undefined>(undefined)
@@ -34,12 +40,21 @@ export function ReaderLibraryList<T>({
   const virtualizer = useVirtualizer({
     count: items.length + (hasMore ? 1 : 0),
     getScrollElement: () => viewportRef.current,
-    estimateSize: () => 58,
+    estimateSize: () => itemSize,
     initialRect: { width: 320, height: 288 },
     overscan: 8,
   })
   const virtualItems = virtualizer.getVirtualItems()
   const lastVirtualIndex = virtualItems.at(-1)?.index
+  const firstVirtualIndex = virtualItems[0]?.index
+  const visibleStart = firstVirtualIndex === undefined ? 0 : Math.min(firstVirtualIndex, items.length)
+  const visibleEnd = lastVirtualIndex === undefined ? 0 : Math.min(lastVirtualIndex + 1, items.length)
+
+  useEffect(() => {
+    onVisibleItemsChange?.(items.slice(visibleStart, visibleEnd))
+  }, [items, onVisibleItemsChange, visibleEnd, visibleStart])
+
+  useEffect(() => () => onVisibleItemsChange?.([]), [onVisibleItemsChange])
 
   useEffect(() => {
     generationRef.current += 1
@@ -115,7 +130,7 @@ export function ReaderLibraryList<T>({
               const item = items[virtualItem.index]
               return (
                 <div
-                  key={virtualItem.key}
+                  key={item && getItemKey ? getItemKey(item) : virtualItem.key}
                   className="absolute left-0 w-full border-b"
                   style={{ height: virtualItem.size, transform: `translateY(${virtualItem.start}px)` }}
                 >

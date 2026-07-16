@@ -58,6 +58,7 @@ function fakeStore() {
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(async () => []),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(async () => undefined),
     upsertBookmark: vi.fn<ReaderLibraryStore["upsertBookmark"]>(async () => undefined),
+    updateBookmark: vi.fn<ReaderLibraryStore["updateBookmark"]>(async () => undefined),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(async () => false),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(async () => []),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(async () => undefined),

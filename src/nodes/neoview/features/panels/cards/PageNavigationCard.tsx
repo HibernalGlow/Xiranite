@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../../adapters/reader-http-client"
+import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../registry"
 
 const BATCH_SIZE = 64
 const THUMB_COLUMNS = 3
+const THUMBNAIL_ROW_HEIGHT = 148
 
 type PageListViewMode = "list" | "details" | "thumbnails"
 
@@ -66,7 +68,7 @@ function PageListCard({
   const virtualizer = useVirtualizer({
     count: virtualCount,
     getScrollElement: () => viewportRef.current,
-    estimateSize: () => viewMode === "list" ? 34 : viewMode === "details" ? 78 : 122,
+    estimateSize: () => viewMode === "list" ? 34 : viewMode === "details" ? 76 : THUMBNAIL_ROW_HEIGHT,
     overscan: viewMode === "thumbnails" ? 2 : 8,
   })
   const virtualItems = virtualizer.getVirtualItems()
@@ -158,7 +160,7 @@ function PageListCard({
   }
 
   return (
-    <div className="flex h-[clamp(20rem,60vh,36rem)] min-h-0 flex-col gap-2" data-neoview-page-list="true">
+    <div className="flex h-[clamp(20rem,60vh,36rem)] min-h-0 flex-col gap-2" data-neoview-page-list="true" data-page-list-mode={viewMode}>
       <div className="flex items-center gap-1">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -270,15 +272,16 @@ function PageRow({ start, size, position, page, activePageIndex, details, disabl
       aria-current={active ? "page" : undefined}
       aria-label={page ? `转到第 ${page.index + 1} 页：${page.name}` : `正在加载第 ${position + 1} 项`}
       className={cn(
-        "absolute left-0 flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted disabled:opacity-50",
-        active && "bg-primary/12 text-primary",
+        "absolute left-0 flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent disabled:opacity-50",
+        active && "text-primary",
       )}
+      aria-selected={active}
       style={{ height: size, transform: `translateY(${start}px)` }}
       disabled={disabled || !page}
       onClick={() => { if (page) void onGoTo(page.index) }}
     >
-      {details ? <PageThumbnail page={page} className="h-16 w-12" /> : <span className="w-8 shrink-0 text-right tabular-nums text-muted-foreground">{page ? page.index + 1 : position + 1}</span>}
-      <span className="min-w-0 flex-1 truncate">{page?.name ?? "加载中"}</span>
+      {details ? <PageThumbnail page={page} className="h-16 w-12" /> : null}
+      <PageIdentity page={page} position={position} active={active} />
     </button>
   )
 }
@@ -292,7 +295,7 @@ function ThumbnailRow({ start, rowIndex, pages, activePageIndex, disabled, onGoT
   onGoTo(pageIndex: number): void | Promise<void>
 }) {
   return (
-    <div className="absolute left-0 grid h-[122px] w-full grid-cols-3 gap-1 p-1" style={{ transform: `translateY(${start}px)` }}>
+    <div className="absolute left-0 grid h-[148px] w-full grid-cols-3 gap-1 p-1" data-page-thumbnail-grid-row={rowIndex} style={{ transform: `translateY(${start}px)` }}>
       {Array.from({ length: THUMB_COLUMNS }, (_, column) => {
         const position = rowIndex * THUMB_COLUMNS + column
         const page = pages.get(position)
@@ -302,14 +305,19 @@ function ThumbnailRow({ start, rowIndex, pages, activePageIndex, disabled, onGoT
           <button
             key={page.id}
             type="button"
+            data-page-thumbnail-tile={page.index}
             aria-label={`转到第 ${page.index + 1} 页：${page.name}`}
             aria-current={active ? "page" : undefined}
-            className={cn("grid min-w-0 grid-rows-[1fr_auto] overflow-hidden rounded border bg-muted/45", active ? "border-primary ring-1 ring-primary" : "border-border hover:border-foreground/50")}
+            className={cn("grid h-36 min-w-0 grid-rows-[1fr_auto] overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted", active ? "border-primary bg-accent ring-1 ring-primary" : "border-border")}
             disabled={disabled}
             onClick={() => void onGoTo(page.index)}
           >
             <PageThumbnail page={page} className="h-full w-full" />
-            <span className="truncate px-1 py-0.5 text-[10px] tabular-nums">{page.index + 1}</span>
+            <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
+              <span className="shrink-0 font-mono text-[10px] font-semibold text-primary">#{page.index + 1}</span>
+              <span className="min-w-0 flex-1 truncate">{page.name}</span>
+              {active ? <span className="shrink-0 rounded bg-primary/15 px-1 text-[9px] text-primary">当前</span> : null}
+            </span>
           </button>
         )
       })}
@@ -317,12 +325,16 @@ function ThumbnailRow({ start, rowIndex, pages, activePageIndex, disabled, onGoT
   )
 }
 
-function PageThumbnail({ page, className }: { page?: ReaderPageDto; className: string }) {
-  const [failedUrl, setFailedUrl] = useState<string | undefined>(undefined)
-  const url = page?.thumbnailUrl
+export function PageThumbnail({ page, className }: { page?: ReaderPageDto; className: string }) {
+  return <ReaderThumbnailSurface url={page?.thumbnailUrl} kind="page" fit="contain" loading={!page} className={className} />
+}
+
+function PageIdentity({ page, position, active }: { page?: ReaderPageDto; position: number; active: boolean }) {
   return (
-    <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded bg-black/80", className)}>
-      {url && url !== failedUrl ? <img src={url} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-contain" onError={() => setFailedUrl(url)} /> : <ImageIcon className="size-4 text-white/35" aria-hidden="true" />}
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="w-9 shrink-0 font-mono text-[10px] font-semibold text-primary">#{page ? page.index + 1 : position + 1}</span>
+      <span className="min-w-0 flex-1 truncate">{page?.name ?? "加载中"}</span>
+      {active ? <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[9px] text-primary">当前</span> : null}
     </span>
   )
 }

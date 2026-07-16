@@ -1,4 +1,4 @@
-import type { SaveReaderBookmarkInput, SaveReaderBookmarkListInput } from "../../application/library/ReaderLibraryService.js"
+import type { SaveReaderBookmarkInput, SaveReaderBookmarkListInput, UpdateReaderBookmarkInput } from "../../application/library/ReaderLibraryService.js"
 import { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
@@ -67,6 +67,15 @@ export class ReaderLibraryHttpController {
         return jsonResponse(await this.library.saveBookmark(input), 201)
       }
       const bookmarkMatch = BOOKMARK_ITEM_PATH.exec(url.pathname)
+      if (bookmarkMatch && request.method === "PATCH") {
+        const id = safeDecode(bookmarkMatch[1]!)
+        if (!id) return jsonResponse({ error: "Invalid bookmark id" }, 400)
+        const body = await readJson(request)
+        const input = body && parseBookmarkUpdate(body)
+        if (!input) return jsonResponse({ error: "Invalid reader bookmark update" }, 400)
+        const updated = await this.library.updateBookmark(id, input, request.signal)
+        return updated ? jsonResponse(updated) : jsonResponse({ error: "Bookmark not found" }, 404)
+      }
       if (bookmarkMatch && request.method === "DELETE") {
         const id = safeDecode(bookmarkMatch[1]!)
         if (!id) return jsonResponse({ error: "Invalid bookmark id" }, 400)
@@ -123,6 +132,21 @@ function parseBookmark(body: Record<string, unknown>): SaveReaderBookmarkInput |
     starred: body.starred as boolean | undefined,
     createdAt: body.createdAt as number | undefined,
     listIds: body.listIds as string[] | undefined,
+  }
+}
+
+function parseBookmarkUpdate(body: Record<string, unknown>): UpdateReaderBookmarkInput | undefined {
+  const keys = Object.keys(body)
+  if (!keys.length || keys.some((key) => key !== "starred" && key !== "listIds")) return undefined
+  if (body.starred !== undefined && typeof body.starred !== "boolean") return undefined
+  if (body.listIds !== undefined && (
+    !Array.isArray(body.listIds)
+    || body.listIds.length > 128
+    || !body.listIds.every((id) => typeof id === "string")
+  )) return undefined
+  return {
+    ...(body.starred !== undefined ? { starred: body.starred as boolean } : {}),
+    ...(body.listIds !== undefined ? { listIds: body.listIds as string[] } : {}),
   }
 }
 

@@ -1,8 +1,8 @@
 import { startTransition, useEffect, useRef, useState } from "react"
-import { ImageIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
+import { ReaderThumbnailSurface } from "./ReaderThumbnailSurface"
 
 const BATCH_SIZE = 64
 const ITEM_SIZE = 68
@@ -165,9 +165,7 @@ function ThumbnailTile({
   disabled: boolean
   onSelect(pageIndex: number): void | Promise<void>
 }) {
-  const [failedUrl, setFailedUrl] = useState<string | undefined>(undefined)
   const thumbnailUrl = page?.thumbnailUrl
-  const showImage = thumbnailUrl && thumbnailUrl !== failedUrl
   return (
     <button
       type="button"
@@ -182,19 +180,7 @@ function ThumbnailTile({
       )}
       style={{ transform: `translateX(${index * ITEM_SIZE + 2}px)` }}
     >
-      {showImage ? (
-        <img
-          src={thumbnailUrl}
-          alt=""
-          draggable={false}
-          loading="lazy"
-          decoding="async"
-          className="h-full w-full select-none object-cover"
-          onError={() => setFailedUrl(thumbnailUrl)}
-        />
-      ) : (
-        <ImageIcon className="m-auto size-4 text-white/35" aria-hidden="true" />
-      )}
+      <ReaderThumbnailSurface url={thumbnailUrl} kind="page" fit="contain" className="size-full rounded-none bg-black/90" />
       <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-0.5 text-center text-[10px] tabular-nums">
         {index + 1}
       </span>

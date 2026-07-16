@@ -50,6 +50,28 @@ if (!deferredPanelChunks.some((chunk) => chunk.modules.some((module) => /[/\\]fe
 for (const chunk of deferredPanelChunks) {
   if (chunk.bytes > 32 * 1024) throw new Error(`NeoView deferred panel chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 32 KiB.`)
 }
+// [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk]
+const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
+const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
+const thumbnailSurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]thumbnails[/\\]ReaderThumbnailSurface\.tsx$/i.test(module)))
+if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
+  throw new Error("NeoView BookmarkListCard did not produce an independent deferred production chunk.")
+}
+if (!pageNavigationChunk || pageNavigationChunk === readerSidebarChunk) {
+  throw new Error("NeoView PageNavigationCard did not produce an independent deferred production chunk.")
+}
+if (!thumbnailSurfaceChunk || thumbnailSurfaceChunk === neoViewChunk || thumbnailSurfaceChunk === readerSidebarChunk || thumbnailSurfaceChunk === initialChunk) {
+  throw new Error("NeoView shared thumbnail surface leaked into an eager reader/sidebar/initial chunk.")
+}
+if (bookmarkListChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView BookmarkListCard chunk ${bookmarkListChunk.fileName} is ${bookmarkListChunk.bytes} bytes, above 16 KiB.`)
+}
+if (pageNavigationChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView PageNavigationCard chunk ${pageNavigationChunk.fileName} is ${pageNavigationChunk.bytes} bytes, above 16 KiB.`)
+}
+if (thumbnailSurfaceChunk.bytes > 4 * 1024) {
+  throw new Error(`NeoView shared thumbnail surface chunk ${thumbnailSurfaceChunk.fileName} is ${thumbnailSurfaceChunk.bytes} bytes, above 4 KiB.`)
+}
 const timeInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]TimeInformationCard\.tsx$/i.test(module)))
 if (!timeInformationChunk || timeInformationChunk === readerSidebarChunk) {
   throw new Error("NeoView TimeInformationCard did not produce an independent deferred production chunk.")
@@ -147,6 +169,9 @@ console.log(JSON.stringify({
   neoviewChunk: { fileName: neoViewChunk.fileName, bytes: neoViewChunk.bytes },
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
+  bookmarkListChunk: { fileName: bookmarkListChunk.fileName, bytes: bookmarkListChunk.bytes },
+  pageNavigationChunk: { fileName: pageNavigationChunk.fileName, bytes: pageNavigationChunk.bytes },
+  thumbnailSurfaceChunk: { fileName: thumbnailSurfaceChunk.fileName, bytes: thumbnailSurfaceChunk.bytes },
   timeInformationChunk: { fileName: timeInformationChunk.fileName, bytes: timeInformationChunk.bytes },
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
   storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },

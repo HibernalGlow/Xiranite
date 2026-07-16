@@ -81,6 +81,26 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.library.bookmark-update-sqlite] atomically clears starred and replaces memberships", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.upsertBookmark({ ...bookmark("one", true, ["default", "reading"]), updatedAt: 10 })
+
+    await expect(store.updateBookmark("one", { starred: false, listIds: ["reading"], updatedAt: 20 })).resolves.toMatchObject({
+      id: "one",
+      starred: false,
+      updatedAt: 20,
+      listIds: ["reading"],
+    })
+    await expect(store.listBookmarks({ listId: "default", limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toHaveLength(1)
+    await expect(store.updateBookmark("missing", { starred: false, updatedAt: 30 })).resolves.toBeUndefined()
+    await expect(store.updateBookmark("one", { listIds: ["unknown"], updatedAt: 30 })).rejects.toThrow("unknown list")
+    await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toHaveLength(1)
+    await store.close()
+  })
+
   it("[neoview.file-operations.undo-sqlite] persists and bounds guarded receipts without changing legacy metadata", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)

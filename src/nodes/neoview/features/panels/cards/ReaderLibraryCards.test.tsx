@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, SaveReaderBookmarkDto } from "../../../adapters/reader-http-client"
+import type { ReaderBookmarkDto, ReaderHttpClient, SaveReaderBookmarkDto } from "../../../adapters/reader-http-client"
 import BookmarkListCard from "./BookmarkListCard"
 import HistoryListCard from "./HistoryListCard"
 
@@ -72,6 +72,54 @@ describe("Reader library cards", () => {
       source: { kind: "path", path: "D:/books/demo.cbz" },
       name: "demo.cbz",
     })))
+  })
+
+  it("[neoview.bookmark.thumbnail-visible] registers only the virtual bookmark window and releases its thumbnail context", async () => {
+    const bookmark: ReaderBookmarkDto = {
+      id: "bookmark-1",
+      source: { kind: "archive", path: "D:/books/demo.cbz" },
+      name: "demo.cbz",
+      kind: "file",
+      starred: false,
+      createdAt: 1_700_000_000_000,
+      updatedAt: 1_700_000_100_000,
+      listIds: [],
+    }
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number) => ({
+      contextId,
+      generation,
+      items: [{ id: bookmark.id, thumbnailUrl: "/reader/library/bookmark-1", contentVersion: "v1" }],
+    }))
+    const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
+    const updateBookmark = vi.fn(async () => ({ ...bookmark, starred: true }))
+    const view = render(
+      <BookmarkListCard
+        client={{
+          listBookmarkLists: vi.fn(async () => [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }]),
+          listBookmarks: vi.fn(async () => [bookmark]),
+          registerLibraryThumbnails,
+          releaseLibraryThumbnailContext,
+          updateBookmark,
+        } as ReaderHttpClient}
+        disabled={false}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
+      expect.stringMatching(/^bookmark:/),
+      1,
+      [{ id: "bookmark-1", path: "D:/books/demo.cbz", kind: "file", previewCount: 1 }],
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(view.container.querySelector("img")?.getAttribute("src")).toBe("/reader/library/bookmark-1"))
+    expect(screen.getByText("D:/books/demo.cbz")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "收藏：demo.cbz" }))
+    await waitFor(() => expect(updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: true }))
+
+    view.unmount()
+    await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(expect.stringMatching(/^bookmark:/)))
   })
 
   it("[neoview.library.lifecycle] aborts an unfinished library request when the card unmounts", async () => {

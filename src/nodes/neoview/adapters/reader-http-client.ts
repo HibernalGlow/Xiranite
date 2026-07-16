@@ -112,6 +112,11 @@ export interface SaveReaderBookmarkDto {
   listIds?: readonly string[]
 }
 
+export interface UpdateReaderBookmarkDto {
+  starred?: boolean
+  listIds?: readonly string[]
+}
+
 export interface ReaderDirectoryEntryDto {
   name: string
   path: string
@@ -464,6 +469,7 @@ export interface ReaderHttpClient {
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
   saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
+  updateBookmark?(id: string, patch: UpdateReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
   removeBookmark?(id: string, signal?: AbortSignal): Promise<void>
   listBookmarkLists?(signal?: AbortSignal): Promise<readonly ReaderBookmarkListDto[]>
   saveBookmarkList?(list: { id?: string; name: string; isFavorite?: boolean }, signal?: AbortSignal): Promise<ReaderBookmarkListDto>
@@ -699,6 +705,12 @@ export function createReaderHttpClient(
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(bookmark),
+      signal,
+    }),
+    updateBookmark: (id, patch, signal) => request<ReaderBookmarkDto>(`/reader/library/bookmarks/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
       signal,
     }),
     removeBookmark: (id, signal) => request<void>(`/reader/library/bookmarks/${encodeURIComponent(id)}`, {

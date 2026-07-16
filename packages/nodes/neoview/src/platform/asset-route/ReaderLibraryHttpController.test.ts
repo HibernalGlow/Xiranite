@@ -11,6 +11,16 @@ describe("ReaderLibraryHttpController", () => {
     store.listRecent.mockResolvedValue([])
     store.listBookmarks.mockResolvedValue([])
     store.listBookmarkLists.mockResolvedValue([])
+    store.updateBookmark.mockResolvedValue({
+      id: "generated",
+      source: { kind: "archive", path: "D:/demo.cbz" },
+      name: "Demo",
+      kind: "file",
+      starred: false,
+      createdAt: 200,
+      updatedAt: 200,
+      listIds: ["default"],
+    })
     store.deleteRecent.mockResolvedValue(true)
     store.clearRecentBefore.mockResolvedValue(3)
     store.findBookmarkByPath
@@ -50,6 +60,25 @@ describe("ReaderLibraryHttpController", () => {
       listIds: ["reading"],
     })))!
     await expect(repeated.json()).resolves.toMatchObject({ id: "generated", name: "Renamed", listIds: ["default", "reading"] })
+    const updated = (await controller.handle(jsonRequest("/reader/library/bookmarks/generated", {
+      starred: false,
+      listIds: ["default"],
+    }, "PATCH")))!
+    expect(updated.status).toBe(200)
+    await expect(updated.json()).resolves.toMatchObject({ id: "generated", starred: false, listIds: ["default"] })
+    expect(store.updateBookmark).toHaveBeenCalledWith("generated", { starred: false, listIds: ["default"], updatedAt: 200 })
+    expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { starred: false, future: true }, "PATCH")))?.status).toBe(400)
+    expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { listIds: ["favorites"] }, "PATCH")))?.status).toBe(400)
+    store.updateBookmark.mockResolvedValueOnce(undefined)
+    expect((await controller.handle(jsonRequest("/reader/library/bookmarks/missing", { starred: false }, "PATCH")))?.status).toBe(404)
+    const aborted = new AbortController()
+    aborted.abort()
+    await expect(controller.handle(request("/reader/library/bookmarks/generated", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ starred: false }),
+      signal: aborted.signal,
+    }))).rejects.toMatchObject({ name: "AbortError" })
     expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites")))?.status).toBe(200)
     expect((await controller.handle(request("/reader/library/bookmark-lists")))?.status).toBe(200)
     store.listRecent.mockResolvedValueOnce([{ bookId: "missing", source: { kind: "archive", path: "D:/missing.cbz" }, displayName: "Missing", pageIndex: 0, pageCount: 1, updatedAt: 1 }])
@@ -70,6 +99,7 @@ function createStore() {
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<ReaderLibraryStore["upsertBookmark"]>(async () => undefined),
+    updateBookmark: vi.fn<ReaderLibraryStore["updateBookmark"]>(),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(async () => undefined),
@@ -83,9 +113,9 @@ function request(path: string, init?: RequestInit): Request {
   return new Request(`http://127.0.0.1:41000${path}`, init)
 }
 
-function jsonRequest(path: string, body: unknown): Request {
+function jsonRequest(path: string, body: unknown, method = "POST"): Request {
   return request(path, {
-    method: "POST",
+    method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   })

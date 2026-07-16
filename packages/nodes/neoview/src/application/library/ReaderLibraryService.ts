@@ -27,6 +27,11 @@ export interface SaveReaderBookmarkListInput {
   createdAt?: number
 }
 
+export interface UpdateReaderBookmarkInput {
+  starred?: boolean
+  listIds?: readonly string[]
+}
+
 export class ReaderLibraryService implements AsyncDisposable {
   #closed = false
 
@@ -84,6 +89,35 @@ export class ReaderLibraryService implements AsyncDisposable {
     return bookmark
   }
 
+  async updateBookmark(
+    id: string,
+    input: UpdateReaderBookmarkInput,
+    signal?: AbortSignal,
+  ): Promise<ReaderBookmarkRecord | undefined> {
+    this.#assertOpen()
+    assertId(id, "bookmark id")
+    if (input.starred === undefined && input.listIds === undefined) {
+      throw new Error("Reader bookmark update must change starred or listIds.")
+    }
+    if (input.starred !== undefined && typeof input.starred !== "boolean") {
+      throw new Error("Reader bookmark starred update must be a boolean.")
+    }
+    signal?.throwIfAborted()
+    const listIds = input.listIds === undefined
+      ? undefined
+      : await this.#replacementBookmarkListIds(input.listIds, signal)
+    const updatedAt = this.clock()
+    assertTimestamp(updatedAt, "clock")
+    signal?.throwIfAborted()
+    const updated = await this.store.updateBookmark(id.trim(), {
+      ...(input.starred !== undefined ? { starred: input.starred } : {}),
+      ...(listIds ? { listIds } : {}),
+      updatedAt,
+    })
+    signal?.throwIfAborted()
+    return updated
+  }
+
   removeBookmark(id: string): Promise<boolean> {
     this.#assertOpen()
     assertId(id, "bookmark id")
@@ -132,6 +166,30 @@ export class ReaderLibraryService implements AsyncDisposable {
 
   [Symbol.asyncDispose](): Promise<void> {
     return this.close()
+  }
+
+  async #replacementBookmarkListIds(listIds: readonly string[], signal?: AbortSignal): Promise<string[]> {
+    if (!Array.isArray(listIds) || listIds.length > 128) {
+      throw new Error("Reader bookmark listIds update must contain at most 128 list ids.")
+    }
+    const normalized = [...new Set(listIds.map((value) => {
+      if (typeof value !== "string") throw new Error("Reader bookmark listIds update must contain strings.")
+      const id = value.trim()
+      assertId(id, "bookmark list id")
+      if (id === "all" || id === "favorites") {
+        throw new Error(`Reader bookmark synthetic list '${id}' cannot be persisted as a membership.`)
+      }
+      return id
+    }))].sort()
+    const replacement = normalized.length ? normalized : ["default"]
+    const customIds = replacement.filter((listId) => listId !== "default")
+    if (!customIds.length) return replacement
+    signal?.throwIfAborted()
+    const known = new Set((await this.store.listBookmarkLists()).map((list) => list.id))
+    signal?.throwIfAborted()
+    const unknown = customIds.filter((listId) => !known.has(listId))
+    if (unknown.length) throw new Error(`Reader bookmark update references unknown lists: ${unknown.join(", ")}.`)
+    return replacement
   }
 
   #assertOpen(): void {

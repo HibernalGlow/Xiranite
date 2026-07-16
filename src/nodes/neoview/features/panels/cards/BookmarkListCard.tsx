@@ -1,9 +1,10 @@
-import { BookmarkPlus, FolderOpen, ListPlus, Star, Trash2 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { BookmarkPlus, ListPlus, Star, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { ReaderBookmarkDto, ReaderBookmarkListDto } from "../../../adapters/reader-http-client"
+import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
+import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
 import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 
@@ -12,6 +13,14 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
   const [activeListId, setActiveListId] = useState("all")
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string | undefined>(undefined)
+  const [visibleBookmarks, setVisibleBookmarks] = useState<readonly ReaderBookmarkDto[]>([])
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => visibleBookmarks.map((item) => ({
+    id: item.id,
+    path: item.source.path,
+    kind: item.kind,
+    previewCount: item.kind === "folder" ? 4 : 1,
+  })), [visibleBookmarks])
+  const thumbnails = useReaderLibraryThumbnails(client, "bookmark", thumbnailItems)
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
     if (!client.listBookmarks) return Promise.reject(new Error("当前后端不支持书签"))
     return client.listBookmarks(offset, limit, activeListId, signal)
@@ -57,8 +66,11 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
   }
 
   async function toggleStar(item: ReaderBookmarkDto) {
-    if (!client.saveBookmark) return
-    await mutate(() => client.saveBookmark!({ ...item, starred: !item.starred }).then(() => undefined))
+    if (!client.updateBookmark) {
+      setActionError("当前后端不支持更新书签")
+      return
+    }
+    await mutate(() => client.updateBookmark!(item.id, { starred: !item.starred }).then(() => undefined))
   }
 
   async function remove(item: ReaderBookmarkDto) {
@@ -79,12 +91,21 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
   return (
     <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true">
       <div className="flex items-center gap-1">
-        <Select value={activeListId} onValueChange={setActiveListId}>
-          <SelectTrigger size="sm" className="min-w-0 flex-1" aria-label="书签列表"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {lists.map((list) => <SelectItem key={list.id} value={list.id}>{list.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" aria-label="书签列表">
+          {lists.map((list) => (
+            <button
+              key={list.id}
+              type="button"
+              className={list.id === activeListId
+                ? "h-7 shrink-0 rounded-full border border-primary/60 bg-primary/15 px-3 text-xs text-primary"
+                : "h-7 shrink-0 rounded-full border border-border bg-background/80 px-3 text-xs hover:bg-accent"}
+              aria-pressed={list.id === activeListId}
+              onClick={() => setActiveListId(list.id)}
+            >
+              {list.name}
+            </button>
+          ))}
+        </div>
         <Button type="button" size="icon-sm" variant="ghost" aria-label="新建书签列表" title="新建书签列表" disabled={disabled} onClick={() => void createList()}><ListPlus /></Button>
         {!isSystemList(activeListId) ? <Button type="button" size="icon-sm" variant="ghost" aria-label="删除当前书签列表" title="删除当前书签列表" disabled={disabled} onClick={() => void removeActiveList()}><Trash2 /></Button> : null}
         <Button type="button" size="icon-sm" variant="ghost" aria-label="收藏当前书籍" title="收藏当前书籍" disabled={disabled || !sourcePath} onClick={() => void addCurrent()}><BookmarkPlus /></Button>
@@ -96,19 +117,23 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
         loadPage={loadPage}
         emptyLabel="当前列表没有书签"
         refreshLabel="刷新书签"
+        itemSize={76}
+        getItemKey={(item) => item.id}
+        onVisibleItemsChange={setVisibleBookmarks}
         renderRow={(item) => (
-          <div className="flex h-full min-w-0 items-center gap-1 px-1">
+          <div className="flex h-full min-w-0 items-center gap-1 px-1 hover:bg-muted/70" data-bookmark-id={item.id}>
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left hover:bg-muted disabled:opacity-50"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left disabled:opacity-50"
               title={item.source.path}
               disabled={disabled || !onOpen}
               onClick={() => void onOpen?.(item.source.path)}
             >
-              <FolderOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="min-w-0 flex-1">
+              <ReaderThumbnailSurface url={thumbnails.urls.get(item.id)} kind={item.kind} fit="cover" loading={thumbnails.loading} className="size-16" />
+              <span className="grid min-w-0 flex-1 gap-1">
                 <span className="block truncate text-xs">{item.name}</span>
-                <span className="block truncate text-[10px] text-muted-foreground">{item.kind === "folder" ? "文件夹" : "文件"} · {formatLibraryTime(item.updatedAt)}</span>
+                <span className="block truncate text-[10px] text-muted-foreground" title={item.source.path}>{item.source.path}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">{item.kind === "folder" ? "文件夹" : "文件"} · {formatLibraryTime(item.createdAt)}</span>
               </span>
             </button>
             <Button type="button" size="icon-sm" variant="ghost" aria-label={`${item.starred ? "取消收藏" : "收藏"}：${item.name}`} title={item.starred ? "取消收藏" : "收藏"} disabled={disabled} onClick={() => void toggleStar(item)}>
