@@ -64,6 +64,17 @@ export class SolidArchiveCache implements AsyncDisposable {
     return { entries: this.entryCount, retainedBytes: this.retainedBytes, maxBytes: this.#maxBytes }
   }
 
+  async trimTo(maxBytes: number): Promise<{ evictedEntries: number; retainedBytes: number; activeEntries: number }> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new RangeError(`Invalid solid archive cache trim target: ${maxBytes}`)
+    const evictedEntries = await this.#evictToBudget(maxBytes)
+    return {
+      evictedEntries,
+      retainedBytes: this.retainedBytes,
+      activeEntries: [...this.#entries.values()].filter((entry) => entry.references > 0).length,
+    }
+  }
+
   async acquire(options: SolidArchiveCacheAcquireOptions): Promise<SolidArchiveCacheLease> {
     this.#assertOpen()
     assertAcquireOptions(options)
@@ -159,18 +170,21 @@ export class SolidArchiveCache implements AsyncDisposable {
     await this.#evictToBudget()
   }
 
-  async #evictToBudget(): Promise<void> {
+  async #evictToBudget(maxBytes = this.#maxBytes): Promise<number> {
     let retainedBytes = this.retainedBytes
-    if (retainedBytes <= this.#maxBytes) return
+    if (retainedBytes <= maxBytes) return 0
     const candidates = [...this.#entries.values()]
       .filter((entry) => entry.references === 0)
       .sort((left, right) => left.lastUsed - right.lastUsed)
+    let evictedEntries = 0
     for (const entry of candidates) {
-      if (retainedBytes <= this.#maxBytes) break
+      if (retainedBytes <= maxBytes) break
       this.#entries.delete(entry.fingerprint)
       retainedBytes -= entry.materializedBytes
+      evictedEntries += 1
       await this.#closeEntry(entry)
     }
+    return evictedEntries
   }
 
   #closeEntry(entry: CacheEntry): Promise<void> {

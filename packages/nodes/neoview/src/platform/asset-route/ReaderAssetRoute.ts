@@ -28,7 +28,7 @@ import {
 } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { buildPresentationCacheKey, SHARP_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import { transformPageSource } from "../images/transform-page-source.js"
-import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
+import { ReaderMemoryPressureMonitor, type ReaderMemoryPressureLevel } from "../memory/ReaderMemoryPressureMonitor.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -47,6 +47,7 @@ export interface ReaderAssetRouteDependencies {
   thumbnailPipeline?: PlatformThumbnailPipeline
   resourceScheduler?: ResourceScheduler
   memoryPressureMonitor?: ReaderMemoryPressureMonitor
+  relieveHostMemoryPressure?: (level: Exclude<ReaderMemoryPressureLevel, "normal">) => void | Promise<void>
 }
 
 export class ReaderAssetRoute {
@@ -60,6 +61,7 @@ export class ReaderAssetRoute {
   readonly #thumbnailPipeline?: PlatformThumbnailPipeline
   readonly #resourceScheduler?: ResourceScheduler
   readonly #memoryPressure: ReaderMemoryPressureMonitor
+  readonly #relieveHostMemoryPressure?: ReaderAssetRouteDependencies["relieveHostMemoryPressure"]
   readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   #imageTransformer?: Promise<ImageTransformer>
@@ -81,6 +83,7 @@ export class ReaderAssetRoute {
     this.#presentationProducerVersion = dependencies.presentationProducerVersion ?? SHARP_PRESENTATION_PRODUCER_VERSION
     this.#resourceScheduler = dependencies.resourceScheduler
     this.#memoryPressure = dependencies.memoryPressureMonitor ?? new ReaderMemoryPressureMonitor()
+    this.#relieveHostMemoryPressure = dependencies.relieveHostMemoryPressure
     this.#ownsThumbnailPipeline = !dependencies.thumbnailPipeline
       && Boolean(dependencies.thumbnailStore || dependencies.loadImageTransformer)
     this.#thumbnailPipeline = dependencies.thumbnailPipeline ?? (
@@ -122,6 +125,7 @@ export class ReaderAssetRoute {
   }
 
   prewarmThumbnails(pages: readonly ReaderPage[], signal?: AbortSignal): Promise<ThumbnailPrewarmResult> {
+    this.#relieveMemoryPressure()
     if (this.#memoryPressure.sample().level !== "normal") {
       this.#memoryPressure.recordAdmissionRejection()
       return Promise.resolve({ requested: pages.length, databaseHits: 0, primed: 0 })
@@ -447,6 +451,11 @@ export class ReaderAssetRoute {
       if (snapshot) this.#presentationCache?.trimTo?.(Math.floor(snapshot.maxBytes * 0.25))
     }
     this.#thumbnailPipeline?.hibernateReader()
+    if (this.#relieveHostMemoryPressure) {
+      try {
+        void Promise.resolve(this.#relieveHostMemoryPressure(pressure.level)).catch(() => undefined)
+      } catch {}
+    }
     this.#memoryPressure.recordRelief(pressure.level)
   }
 

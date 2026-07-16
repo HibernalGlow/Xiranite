@@ -43,6 +43,7 @@ import { ReaderLibraryCleanupService } from "../../application/library/ReaderLib
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
+import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 import {
   parseNeoviewFolderViewPatch,
   DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
@@ -102,6 +103,7 @@ export interface ReaderSessionDto {
 }
 
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
+  memoryPressureMonitor?: ReaderMemoryPressureMonitor
   sessionOptions?: Partial<ReaderSessionOptions>
   thumbnailStore?: ReaderThumbnailStore
   loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
@@ -214,12 +216,18 @@ export class ReaderHttpController implements AsyncDisposable {
         resourceScheduler: options.resourceScheduler,
       }),
     )
+    const memoryPressureMonitor = options.memoryPressureMonitor ?? new ReaderMemoryPressureMonitor()
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),
       presentationDiskCache: options.presentationDiskCache,
       presentationProducerVersion: process.platform === "win32" ? WINDOWS_PRESENTATION_PRODUCER_VERSION : undefined,
       loadImageTransformer,
       thumbnailPipeline: this.#thumbnailPipeline,
+      memoryPressureMonitor,
+      relieveHostMemoryPressure: async (level) => {
+        const snapshot = this.#solidArchiveCache.snapshot()
+        await this.#solidArchiveCache.trimTo(level === "critical" ? 0 : Math.floor(snapshot.maxBytes * 0.25))
+      },
     })
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
     this.#thumbnailMaintenance = new ThumbnailMaintenanceRoute({ token: options.token, thumbnailStore: options.thumbnailStore })

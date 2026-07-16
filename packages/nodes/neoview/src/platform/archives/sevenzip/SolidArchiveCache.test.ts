@@ -76,6 +76,25 @@ describe("SolidArchiveCache", () => {
     await cache.close()
   })
 
+  it("[neoview.memory-pressure.solid-trim] evicts idle LRU materializations without deleting active leases", async () => {
+    const cache = new SolidArchiveCache({ maxBytes: 100 })
+    const idle = new FakeMaterializer()
+    idle.isComplete = true
+    const idleLease = await cache.acquire(input("idle", "idle.7z", 30, () => idle))
+    await idleLease.release()
+    const active = new FakeMaterializer()
+    active.isComplete = true
+    const activeLease = await cache.acquire(input("active", "active.7z", 40, () => active))
+
+    await expect(cache.trimTo(0)).resolves.toEqual({ evictedEntries: 1, retainedBytes: 40, activeEntries: 1 })
+    expect(idle.close).toHaveBeenCalledOnce()
+    expect(active.close).not.toHaveBeenCalled()
+    await activeLease.release()
+    await expect(cache.trimTo(0)).resolves.toEqual({ evictedEntries: 1, retainedBytes: 0, activeEntries: 0 })
+    expect(active.close).toHaveBeenCalledOnce()
+    await cache.close()
+  })
+
   it("removes a failed shared materializer when its lease invalidates", async () => {
     const cache = new SolidArchiveCache({ maxBytes: 100 })
     const failed = new FakeMaterializer()
