@@ -318,9 +318,9 @@
 - 设置：`performance`
 - 数据：benchmark reports、pipeline latency
 - 行为：冷/热基准；算法对照；系统 CPU/RSS/GPU 观测；任务队列状态；报告导出；基准不污染用户缓存
-- 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.runtime-http`、`neoview.diagnostics.backend`、`neoview.diagnostics.cli`、`neoview.diagnostics.cli-connect`、`neoview.diagnostics.scheduler-telemetry-cli`、`xiranite.scheduler.telemetry`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-http`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
+- 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.wire-schema`、`neoview.diagnostics.http`、`neoview.diagnostics.runtime-http`、`neoview.diagnostics.backend`、`neoview.diagnostics.cli`、`neoview.diagnostics.cli-connect`、`neoview.diagnostics.scheduler-telemetry-cli`、`xiranite.scheduler.telemetry`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-http`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
 - 性能基准：`neoview-full-suite`、`reader-loopback-pipeline`、`presentation-retention-real-image`、`reader-hot-page-turn`、`build-chunk`
-- 已知差异：当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；真实 JPEG→WebP retention 冷/热/释放链路已进入 required reader benchmark，GPU 利用率、时间序列采样、算法对照和报告导出仍待迁移
+- 已知差异：当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；core 导出的 Zod passthrough wire schema 已用于远程 CLI/TUI，React 窄 diagnostics DTO 尚待切换；GPU 利用率、时间序列采样、算法对照和报告导出仍待迁移
 
 ### 图片裁边、颜色滤镜、页面过渡和悬停滚动（`image-effects-transitions`）
 
@@ -362,9 +362,9 @@
 - 设置：`performance.protocolDirectEnabled`、`performance.directUrlThresholdMB`
 - 数据：blob registry、stream handles
 - 行为：控制面只传小对象；图片字节走 loopback HTTP；无 Base64/大 JSON 主链；批处理有界；取消和背压；旧协议设置可导入但不保留双实现
-- 测试：`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.headless.page-stream`、`neoview.cli.extract-page`、`neoview.cli.reader-e2e`
+- 测试：`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.headless.page-stream`、`neoview.cli.extract-page`、`neoview.cli.reader-e2e`、`neoview.diagnostics.wire-schema`
 - 性能基准：`image-transport`、`ipc-batch`
-- 已知差异：Tauri custom protocol/IPC 被 loopback HTTP 和 TS service 替代
+- 已知差异：Tauri custom protocol/IPC 被 loopback HTTP 和 TS service 替代；远程 diagnostics 使用 core Zod wire schema，不再手写浅层 truthy 校验
 
 ### 剪贴板和系统集成能力（`platform-clipboard-shell`）
 

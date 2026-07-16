@@ -5,6 +5,7 @@ import type {
   OpenHeadlessReaderInput,
 } from "../../application/headless/ReaderHeadlessController.js"
 import type { ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
+import { parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
 
 interface ReaderFrameDto {
@@ -32,17 +33,7 @@ export async function fetchRemoteReaderDiagnostics(options: RemoteReaderHeadless
     headers: { "x-xiranite-token": token },
   })
   if (!response.ok) throw await responseError(response, "Reader diagnostics")
-  const snapshot = await response.json() as ReaderDiagnosticsSnapshot
-  if (
-    !snapshot
-    || snapshot.schemaVersion !== 1
-    || !snapshot.process
-    || !snapshot.reader
-    || !snapshot.assets
-    || !snapshot.presentationDiskCache
-    || !snapshot.solidArchiveCache
-  ) throw new Error("Xiranite Reader returned an invalid diagnostics response.")
-  return snapshot
+  return parseReaderDiagnosticsSnapshot(await response.json())
 }
 
 /** Headless adapter over the running XR Reader controller. It owns only sessions it creates. */

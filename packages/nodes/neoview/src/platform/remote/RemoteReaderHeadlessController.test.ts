@@ -84,14 +84,28 @@ describe("RemoteReaderHeadlessController", () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(diagnosticsSnapshot()), {
       headers: { "content-type": "application/json" },
     }))
+    const snapshot = await fetchRemoteReaderDiagnostics({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "diagnostics-token",
+      fetch: fetchMock,
+    })
+    expect(snapshot).toMatchObject({ reader: { activeSessions: 3 }, scheduler: { cpu: { active: 2 } }, future: { metric: 7 } })
+    const request = new Request(fetchMock.mock.calls[0]![0], fetchMock.mock.calls[0]![1])
+    expect(request.url).toBe("http://127.0.0.1:41000/reader/diagnostics")
+    expect(request.headers.get("x-xiranite-token")).toBe("diagnostics-token")
+  })
+
+  it("[neoview.diagnostics.wire-schema] rejects malformed nested metrics without rejecting compatible optional fields", async () => {
+    const malformed = diagnosticsSnapshot()
+    malformed.process.rssBytes = -1
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(malformed), {
+      headers: { "content-type": "application/json" },
+    }))
     await expect(fetchRemoteReaderDiagnostics({
       baseUrl: "http://127.0.0.1:41000",
       token: "diagnostics-token",
       fetch: fetchMock,
-    })).resolves.toMatchObject({ reader: { activeSessions: 3 }, scheduler: { cpu: { active: 2 } } })
-    const request = new Request(fetchMock.mock.calls[0]![0], fetchMock.mock.calls[0]![1])
-    expect(request.url).toBe("http://127.0.0.1:41000/reader/diagnostics")
-    expect(request.headers.get("x-xiranite-token")).toBe("diagnostics-token")
+    })).rejects.toThrow("invalid diagnostics response")
   })
 })
 
@@ -139,5 +153,6 @@ function diagnosticsSnapshot() {
     presentationDiskCache: { enabled: false },
     solidArchiveCache: { entries: 0, retainedBytes: 0, maxBytes: 0 },
     scheduler: { cpu: pool, io: pool, gpu: pool },
+    future: { metric: 7 },
   }
 }

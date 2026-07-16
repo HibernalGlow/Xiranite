@@ -79,6 +79,10 @@ export {
   type ReaderSchedulerPoolDiagnostics,
 } from "./application/diagnostics/ReaderDiagnosticsService.js"
 export {
+  ReaderDiagnosticsWireSchema,
+  parseReaderDiagnosticsSnapshot,
+} from "./application/diagnostics/ReaderDiagnosticsWireSchema.js"
+export {
   ReaderThumbnailMaintenanceService,
   type ReaderThumbnailCleanupCommand,
   type ReaderThumbnailCleanupResult,

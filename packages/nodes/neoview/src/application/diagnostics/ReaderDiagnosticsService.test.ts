@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { ReaderDiagnosticsService } from "./ReaderDiagnosticsService.js"
+import { parseReaderDiagnosticsSnapshot } from "./ReaderDiagnosticsWireSchema.js"
 
 describe("ReaderDiagnosticsService", () => {
   it("[neoview.diagnostics.snapshot] aggregates bounded runtime sources without paths or persistent writes", async () => {
@@ -30,7 +31,8 @@ describe("ReaderDiagnosticsService", () => {
       close,
     })
 
-    await expect(service.snapshot()).resolves.toEqual(expect.objectContaining({
+    const snapshot = await service.snapshot()
+    expect(snapshot).toEqual(expect.objectContaining({
       schemaVersion: 1,
       sampledAtMs: 123,
       uptimeSeconds: 4.5,
@@ -45,6 +47,7 @@ describe("ReaderDiagnosticsService", () => {
       solidArchiveCache: { entries: 1, retainedBytes: 80, maxBytes: 200, activeEntries: 1, activeLeases: 4 },
       scheduler: expect.objectContaining({ cpu: expect.objectContaining({ active: 1, queued: 2 }) }),
     }))
+    expect(parseReaderDiagnosticsSnapshot(snapshot)).toEqual(snapshot)
     await service.close()
     await service.close()
     expect(close).toHaveBeenCalledOnce()
