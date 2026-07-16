@@ -29,6 +29,34 @@ export function invertDirectorySelection(
   return { ...current, allSelected: !current.allSelected }
 }
 
+export function chainDirectorySelection(
+  selection: DirectorySelectionModel,
+  generation: number,
+  endIndex: number,
+  options: { anchorIndex?: number; anchorPath?: string; endPath: string },
+): DirectorySelectionModel {
+  const current = selection.generation === generation
+    ? selection
+    : rebaseDirectorySelection(selection, generation)
+  if (options.anchorIndex === undefined || options.anchorIndex === endIndex) {
+    return toggleDirectorySelection(current, generation, options.endPath, endIndex)
+  }
+  return {
+    ...extendDirectorySelection(
+      { ...current, anchorIndex: options.anchorIndex },
+      generation,
+      endIndex,
+      {
+        additive: true,
+        fallbackAnchor: options.anchorIndex,
+        anchorPath: options.anchorPath,
+        endPath: options.endPath,
+      },
+    ),
+    anchorIndex: endIndex,
+  }
+}
+
 export function selectDirectorySingle(
   generation: number,
   path: string,

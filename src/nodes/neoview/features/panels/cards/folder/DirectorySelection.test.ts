@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  chainDirectorySelection,
   createDirectorySelection,
   directorySelectionCount,
   extendDirectorySelection,
@@ -33,6 +34,33 @@ describe("DirectorySelection", () => {
     expect(selected.ranges).toEqual([{ start: 10, end: 20 }, { start: 30, end: 34 }, { start: 36, end: 40 }])
     expect(directorySelectionCount(selected, 100)).toBe(21)
     expect(isDirectoryIndexSelected(selected, 35, "D:/library/item-35")).toBe(false)
+  })
+
+  it("[neoview.folder.selection-chain-mode] advances an independent chain anchor with sparse ranges", () => {
+    let selected = selectDirectorySingle(15, "item-10", 10)
+    selected = chainDirectorySelection(selected, 15, 20, {
+      anchorIndex: 10,
+      anchorPath: "item-10",
+      endPath: "item-20",
+    })
+    selected = chainDirectorySelection(selected, 15, 30, {
+      anchorIndex: 20,
+      anchorPath: "item-20",
+      endPath: "item-30",
+    })
+
+    expect(selected.ranges).toEqual([{ start: 10, end: 30 }])
+    expect(selected.anchorIndex).toBe(30)
+    expect(directorySelectionCount(selected, 100_000)).toBe(21)
+  })
+
+  it("toggles the first chain item and establishes its anchor", () => {
+    const selected = chainDirectorySelection(createDirectorySelection(16), 16, 40, {
+      endPath: "item-40",
+    })
+
+    expect(selected.anchorIndex).toBe(40)
+    expect(isDirectoryIndexSelected(selected, 40, "item-40")).toBe(true)
   })
 
   it("removes an explicit Shift endpoint when Ctrl toggles it off", () => {
