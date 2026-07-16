@@ -473,6 +473,60 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(onFolderView).toHaveBeenCalledTimes(1))
     expect(onFolderView).toHaveBeenCalledWith({ viewMode: "cover-list" })
   })
+
+  it("[neoview.folder.view-size] reflows thumbnail and banner grids while committing only settled widths", async () => {
+    const onFolderView = vi.fn(async () => undefined)
+    const opened = page({
+      total: 1,
+      entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }],
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 144 }}>
+        <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+          <FolderMainCard
+            client={client}
+            disabled={false}
+            sourcePath="C:/books"
+            onOpen={vi.fn()}
+            onGoTo={vi.fn()}
+            folderView={{
+              viewMode: "cover-grid",
+              previewCount: 4,
+              thumbnailWidthPercent: 20,
+              bannerWidthPercent: 50,
+              details: {
+                columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+                hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
+              },
+              search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
+            }}
+            onFolderView={onFolderView}
+          />
+        </VirtuosoGridMockContext.Provider>
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const host = await ui.findByRole("listbox", { name: "文件项目" })
+    const thumbnailSlider = ui.getByRole("slider", { name: "缩略图宽度" })
+    expect(thumbnailSlider.getAttribute("aria-valuenow")).toBe("20")
+    expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("20%")
+
+    fireEvent.keyDown(thumbnailSlider, { key: "ArrowRight" })
+    expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("21%")
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ thumbnailWidthPercent: 21 }))
+    fireEvent.keyUp(thumbnailSlider, { key: "ArrowRight" })
+    expect(onFolderView).toHaveBeenCalledTimes(1)
+
+    onFolderView.mockClear()
+    fireEvent.click(ui.getByRole("radio", { name: "多图列表" }))
+    await waitFor(() => expect(ui.getByRole("slider", { name: "横幅宽度" }).getAttribute("aria-valuenow")).toBe("50"))
+    expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("50%")
+    expect(view.container.querySelector('[data-preview-mode="mosaic-list"]')).toBeTruthy()
+  })
 })
 
 function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDto {

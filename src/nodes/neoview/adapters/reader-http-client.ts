@@ -276,6 +276,8 @@ export interface ReaderFolderSearchConfig {
 export interface ReaderFolderViewConfig {
   viewMode: ReaderFolderViewMode
   previewCount: 4 | 9 | 16
+  thumbnailWidthPercent: number
+  bannerWidthPercent: number
   details: ReaderFolderDetailsConfig
   search: ReaderFolderSearchConfig
 }
@@ -292,6 +294,8 @@ export interface ReaderFolderViewPatch {
   folderView: {
     viewMode?: ReaderFolderViewMode
     previewCount?: 4 | 9 | 16
+    thumbnailWidthPercent?: number
+    bannerWidthPercent?: number
     details?: ReaderFolderDetailsPatch
     search?: Partial<ReaderFolderSearchConfig>
   }

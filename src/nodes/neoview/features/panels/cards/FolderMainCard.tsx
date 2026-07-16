@@ -8,7 +8,7 @@ import {
   type VirtuosoHandle,
 } from "react-virtuoso"
 import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Link, List, ListTree, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Search, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type {
   ReaderDirectoryEntryDto,
@@ -92,6 +93,8 @@ type FolderPreviewCount = 4 | 9 | 16
 const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   viewMode: "compact",
   previewCount: 4,
+  thumbnailWidthPercent: 20,
+  bannerWidthPercent: 50,
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
     hiddenColumns: [],
@@ -148,6 +151,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const [treeOpen, setTreeOpen] = useState(false)
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
+  const [thumbnailWidthPercent, setThumbnailWidthPercent] = useState(folderView.thumbnailWidthPercent)
+  const [bannerWidthPercent, setBannerWidthPercent] = useState(folderView.bannerWidthPercent)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [chainSelectMode, setChainSelectMode] = useState(false)
   const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
@@ -172,6 +177,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
 
   useEffect(() => setViewMode(folderView.viewMode), [folderView.viewMode])
   useEffect(() => setPreviewCount(folderView.previewCount), [folderView.previewCount])
+  useEffect(() => setThumbnailWidthPercent(folderView.thumbnailWidthPercent), [folderView.thumbnailWidthPercent])
+  useEffect(() => setBannerWidthPercent(folderView.bannerWidthPercent), [folderView.bannerWidthPercent])
 
   useEffect(() => {
     if (!catalog || !viewUsesThumbnails(viewMode)) return
@@ -474,6 +481,14 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     void onFolderView?.({ previewCount: next })
   }
 
+  function commitThumbnailWidth(value: number) {
+    if (value !== folderView.thumbnailWidthPercent) void onFolderView?.({ thumbnailWidthPercent: value })
+  }
+
+  function commitBannerWidth(value: number) {
+    if (value !== folderView.bannerWidthPercent) void onFolderView?.({ bannerWidthPercent: value })
+  }
+
   function selectEntry(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent) {
     const previousFocusIndex = focusedIndexRef.current
     focusedIndexRef.current = index
@@ -707,6 +722,38 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             </Select>
           ) : null}
         </div>
+        {viewUsesThumbnailGrid(viewMode) ? (
+          <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2 px-1" data-folder-size-control="thumbnail">
+            <Grid2X2 className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            <Slider
+              aria-label="缩略图宽度"
+              min={10}
+              max={90}
+              step={1}
+              value={[thumbnailWidthPercent]}
+              disabled={disabled}
+              onValueChange={(value) => setThumbnailWidthPercent(value[0] ?? 20)}
+              onValueCommit={(value) => commitThumbnailWidth(value[0] ?? 20)}
+            />
+            <span className="text-right text-[10px] tabular-nums text-muted-foreground">{thumbnailPixelSize(thumbnailWidthPercent)}px</span>
+          </div>
+        ) : null}
+        {viewUsesBanner(viewMode) ? (
+          <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2 px-1" data-folder-size-control="banner">
+            <GalleryHorizontalEnd className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            <Slider
+              aria-label="横幅宽度"
+              min={20}
+              max={100}
+              step={10}
+              value={[bannerWidthPercent]}
+              disabled={disabled}
+              onValueChange={(value) => setBannerWidthPercent(value[0] ?? 50)}
+              onValueCommit={(value) => commitBannerWidth(value[0] ?? 50)}
+            />
+            <span className="text-right text-[10px] tabular-nums text-muted-foreground">{Math.max(1, Math.floor(100 / bannerWidthPercent))} 列</span>
+          </div>
+        ) : null}
         {catalog ? (
           <div className="grid grid-cols-[minmax(6rem,1fr)_2rem_2rem_2rem] items-center gap-1">
             <Select
@@ -838,6 +885,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       <div
         ref={listHostRef}
         className="min-h-32 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
         data-neoview-folder-list="true"
         data-focused-index={focusedIndex}
         role={searchOpen || treeOpen ? undefined : "listbox"}
@@ -922,7 +970,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             ref={gridRef}
             style={{ height: LIST_HEIGHT }}
             totalCount={catalog.total}
-            listClassName="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-1 p-1"
+            listClassName={viewUsesBanner(viewMode)
+              ? "grid gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
+              : "grid gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),5.5rem),1fr))]"}
             itemClassName="min-w-0"
             increaseViewportBy={{ top: 144, bottom: 288 }}
             computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
@@ -932,19 +982,35 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)
               return (
-                <DirectoryGridItem
-                  entry={entry}
-                  index={index}
-                  disabled={disabled}
-                  selected={Boolean(entry && selectedPaths.has(entry.path))}
-                  focused={index === focusedIndex}
-                  showRating={catalog.metadataFields.includes("rating")}
-                  showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
-                  visualMode={viewMode}
-                  thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
-                  onSelect={selectEntry}
-                  onActivate={activate}
-                />
+                viewUsesBanner(viewMode) ? (
+                  <DirectoryBannerItem
+                    entry={entry}
+                    index={index}
+                    disabled={disabled}
+                    selected={Boolean(entry && selectedPaths.has(entry.path))}
+                    focused={index === focusedIndex}
+                    showRating={catalog.metadataFields.includes("rating")}
+                    showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
+                    visualMode={viewMode}
+                    thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
+                    onSelect={selectEntry}
+                    onActivate={activate}
+                  />
+                ) : (
+                  <DirectoryGridItem
+                    entry={entry}
+                    index={index}
+                    disabled={disabled}
+                    selected={Boolean(entry && selectedPaths.has(entry.path))}
+                    focused={index === focusedIndex}
+                    showRating={catalog.metadataFields.includes("rating")}
+                    showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
+                    visualMode={viewMode}
+                    thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
+                    onSelect={selectEntry}
+                    onActivate={activate}
+                  />
+                )
               )
             }}
           />
@@ -981,6 +1047,35 @@ function DirectoryListItem({ entry, index, disabled, selected, focused, showRati
         {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
       </span>
       <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
+    </button>
+  )
+}
+
+function DirectoryBannerItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
+  if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
+  return (
+    <button
+      type="button"
+      className="grid h-24 w-full grid-cols-[5rem_minmax(0,1fr)] overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary"
+      aria-selected={selected}
+      data-focused={focused || undefined}
+      disabled={disabled}
+      title={entry.path}
+      onClick={(event) => onSelect(entry, index, event)}
+      onDoubleClick={() => onActivate(entry)}
+      tabIndex={-1}
+      data-preview-mode={visualMode}
+    >
+      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
+        {thumbnailUrl
+          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+          : <EntryIcon entry={entry} className="size-8" />}
+      </span>
+      <span className="grid min-w-0 content-center gap-1 px-2 py-1.5">
+        <span className="truncate font-medium">{entry.name}</span>
+        <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span>
+        <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
+      </span>
     </button>
   )
 }
@@ -1076,6 +1171,14 @@ function errorMessage(error: unknown): string {
 }
 
 function viewUsesGrid(mode: FolderViewMode): boolean {
+  return viewUsesBanner(mode) || viewUsesThumbnailGrid(mode)
+}
+
+function viewUsesBanner(mode: FolderViewMode): boolean {
+  return mode === "mosaic-list"
+}
+
+function viewUsesThumbnailGrid(mode: FolderViewMode): boolean {
   return mode === "cover-grid" || mode === "mosaic-grid"
 }
 
@@ -1100,5 +1203,9 @@ function viewUsesThumbnails(mode: FolderViewMode): boolean {
 }
 
 function viewUsesVirtuosoList(mode: FolderViewMode): boolean {
-  return mode === "compact" || mode === "cover-list" || mode === "mosaic-list"
+  return mode === "compact" || mode === "cover-list"
+}
+
+function thumbnailPixelSize(percent: number): number {
+  return Math.round(48 + (percent - 10) * 3)
 }

@@ -43,6 +43,8 @@ export interface NeoviewFolderSearchConfig {
 export interface NeoviewFolderViewConfig {
   viewMode: NeoviewFolderViewMode
   previewCount: 4 | 9 | 16
+  thumbnailWidthPercent: number
+  bannerWidthPercent: number
   details: NeoviewFolderDetailsConfig
   search: NeoviewFolderSearchConfig
 }
@@ -59,6 +61,8 @@ export interface NeoviewFolderViewPatch {
   folderView: {
     viewMode?: NeoviewFolderViewMode
     previewCount?: 4 | 9 | 16
+    thumbnailWidthPercent?: number
+    bannerWidthPercent?: number
     details?: NeoviewFolderDetailsPatch
     search?: Partial<NeoviewFolderSearchConfig>
   }
@@ -171,6 +175,8 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
 export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   viewMode: "compact",
   previewCount: 4,
+  thumbnailWidthPercent: 20,
+  bannerWidthPercent: 50,
   details: {
     columnOrder: [...NEOVIEW_FOLDER_DETAIL_COLUMNS],
     hiddenColumns: [],
@@ -330,7 +336,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["viewMode", "previewCount", "details", "search"])
+  const allowed = new Set(["viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -344,6 +350,16 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     if (count !== 4 && count !== 9 && count !== 16) throw new Error("reader folder view patch.previewCount must be 4, 9 or 16.")
     patch.folderView.previewCount = count
     toml.preview_count = count
+  }
+  if (folder.thumbnailWidthPercent !== undefined) {
+    const percent = boundedInteger(folder.thumbnailWidthPercent, 10, 90, "reader folder view patch.thumbnailWidthPercent")
+    patch.folderView.thumbnailWidthPercent = percent
+    toml.thumbnail_width_percent = percent
+  }
+  if (folder.bannerWidthPercent !== undefined) {
+    const percent = boundedInteger(folder.bannerWidthPercent, 20, 100, "reader folder view patch.bannerWidthPercent")
+    patch.folderView.bannerWidthPercent = percent
+    toml.banner_width_percent = percent
   }
   if (folder.details !== undefined) {
     const details = requireRecord(folder.details, "reader folder view patch.details")
@@ -423,6 +439,12 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
   return {
     viewMode: optionalEnum(value.view_mode, "[nodes.neoview.folder].view_mode", NEOVIEW_FOLDER_VIEW_MODES) ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.viewMode,
     previewCount,
+    thumbnailWidthPercent: value.thumbnail_width_percent === undefined
+      ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.thumbnailWidthPercent
+      : boundedInteger(value.thumbnail_width_percent, 10, 90, "[nodes.neoview.folder].thumbnail_width_percent"),
+    bannerWidthPercent: value.banner_width_percent === undefined
+      ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.bannerWidthPercent
+      : boundedInteger(value.banner_width_percent, 20, 100, "[nodes.neoview.folder].banner_width_percent"),
     details: {
       columnOrder: normalizedDetailColumns(details?.column_order ?? NEOVIEW_FOLDER_DETAIL_COLUMNS, "[nodes.neoview.folder.details].column_order", true, false),
       hiddenColumns,

@@ -125,6 +125,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewRuntimeConfig({ folder: {
       view_mode: "details",
       preview_count: 9,
+      thumbnail_width_percent: 34,
+      banner_width_percent: 70,
       details: {
         column_order: ["name", "rating", "path"],
         hidden_columns: ["tags", "future-column"],
@@ -135,6 +137,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     } }).folderView).toEqual({
       viewMode: "details",
       previewCount: 9,
+      thumbnailWidthPercent: 34,
+      bannerWidthPercent: 70,
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
         hiddenColumns: ["tags"],
@@ -150,12 +154,16 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewFolderViewPatch({ folderView: {
       viewMode: "mosaic-grid",
       previewCount: 16,
+      thumbnailWidthPercent: 42,
+      bannerWidthPercent: 80,
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
       search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
     } })).toEqual({
       patch: { folderView: {
         viewMode: "mosaic-grid",
         previewCount: 16,
+        thumbnailWidthPercent: 42,
+        bannerWidthPercent: 80,
         details: {
           columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hiddenColumns: ["tags"],
@@ -168,6 +176,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       tomlPatch: { folder: {
         view_mode: "mosaic-grid",
         preview_count: 16,
+        thumbnail_width_percent: 42,
+        banner_width_percent: 80,
         details: {
           column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hidden_columns: ["tags"],
@@ -184,6 +194,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       search_in_path: true,
     } } }).folderView.search).toEqual({ includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true })
     expect(() => parseNeoviewFolderViewPatch({ folderView: { previewCount: 8 } })).toThrow("4, 9 or 16")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { thumbnailWidthPercent: 9 } })).toThrow("between 10 and 90")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { bannerWidthPercent: 101 } })).toThrow("between 20 and 100")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { hiddenColumns: ["name"] } } })).toThrow("cannot hide name")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnOrder: ["unknown"] } } })).toThrow("unknown column")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnWidths: { name: 47 } } } })).toThrow("between 48 and 800")

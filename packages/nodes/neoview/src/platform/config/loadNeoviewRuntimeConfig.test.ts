@@ -196,6 +196,8 @@ describe("loadNeoviewSessionOptions", () => {
         body: JSON.stringify({ folderView: {
           viewMode: "details",
           previewCount: 9,
+          thumbnailWidthPercent: 36,
+          bannerWidthPercent: 70,
           details: { columnOrder: ["name", "rating", "path"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
         } }),
@@ -204,6 +206,8 @@ describe("loadNeoviewSessionOptions", () => {
         folderView: {
           viewMode: "details",
           previewCount: 9,
+          thumbnailWidthPercent: 36,
+          bannerWidthPercent: 70,
           details: { hiddenColumns: ["tags"], pinnedRight: ["rating"] },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
         },
@@ -212,6 +216,8 @@ describe("loadNeoviewSessionOptions", () => {
       expect(folderConfig).toContain("[nodes.neoview.folder]")
       expect(folderConfig).toContain("view_mode = \"details\"")
       expect(folderConfig).toContain("preview_count = 9")
+      expect(folderConfig).toContain("thumbnail_width_percent = 36")
+      expect(folderConfig).toContain("banner_width_percent = 70")
       expect(folderConfig).toContain("[nodes.neoview.folder.details]")
       expect(folderConfig).toContain("[nodes.neoview.folder.details.column_widths]")
       expect(folderConfig).toContain("[nodes.neoview.folder.search]")
@@ -222,6 +228,8 @@ describe("loadNeoviewSessionOptions", () => {
       expect((await loadNeoviewRuntimeConfig({ configPath })).folderView).toMatchObject({
         viewMode: "details",
         previewCount: 9,
+        thumbnailWidthPercent: 36,
+        bannerWidthPercent: 70,
         details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
       })

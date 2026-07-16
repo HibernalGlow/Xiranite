@@ -52,6 +52,8 @@ const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
 const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   viewMode: "compact",
   previewCount: 4,
+  thumbnailWidthPercent: 20,
+  bannerWidthPercent: 50,
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
     hiddenColumns: [],

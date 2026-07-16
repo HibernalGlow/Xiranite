@@ -13,7 +13,7 @@ describe("reader-http-client", () => {
       if (url.endsWith("/reader/config")) return Response.json({
         shell: { showDelayMs: 0, panelLayout: {}, cardLayout: {} },
         viewDefaults: { fitMode: "fit", pageMode: "single" },
-        folderView: { viewMode: "compact", previewCount: 4, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false } },
+        folderView: { viewMode: "compact", previewCount: 4, thumbnailWidthPercent: 20, bannerWidthPercent: 50, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false } },
         slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
       })
       if (url.endsWith("/reader/sessions")) return Response.json({ sessionId: "reader-1" })
@@ -27,7 +27,7 @@ describe("reader-http-client", () => {
     expect(await client.config()).toEqual({
       shell: { showDelayMs: 0, panelLayout: {}, cardLayout: {} },
       viewDefaults: { fitMode: "fit", pageMode: "single" },
-      folderView: { viewMode: "compact", previewCount: 4, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false } },
+      folderView: { viewMode: "compact", previewCount: 4, thumbnailWidthPercent: 20, bannerWidthPercent: 50, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false } },
       slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
     })
     expect(await client.updateSidebarLayout({ side: "left", pinned: false, width: 360 })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })

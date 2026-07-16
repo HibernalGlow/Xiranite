@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=41`，`pending=33`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=43`，`pending=31`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -554,13 +554,13 @@
 - [ ] `folder.view.thumbnail-size` 缩略图宽度调节
   - 目标：连续调节缩略图宽度并持久化；调整时虚拟布局重测但不丢失锚点和选中项。
   - 源码：`components/FolderToolbar/ViewPanel.svelte`、`stores/folderTabStore/layoutSettings.svelte.ts`
-  - 测试：待补
-  - 备注：需覆盖窄栏和高 DPI。
+  - 测试：`neoview.folder.view-size`、`neoview.folder.settings`、`neoview.folder.settings-toml`
+  - 备注：cover-grid/mosaic-grid 已按旧版 10..90%、默认 20% 契约使用连续 Slider 和继承 CSS 变量重排 VirtuosoGrid；拖动不改变 virtualKey，键盘步进只提交一次最小 PATCH，并持久化 thumbnail_width_percent。真实两视口 pointer 拖动、滚动锚点与高 DPI characterization 仍待完成。
 - [ ] `folder.view.banner-width` 横幅列宽调节
   - 目标：banner 宽度百分比可调且持久化，文本列与预览列不重叠。
   - 源码：`components/FolderToolbar/ViewPanel.svelte`、`stores/folderTabStore/layoutSettings.svelte.ts`
-  - 测试：待补
-  - 备注：纳入几何回归。
+  - 测试：`neoview.folder.view-size`、`neoview.folder.settings`、`neoview.folder.settings-toml`
+  - 备注：mosaic-list 已映射为旧 banner 语义的响应式虚拟网格，支持 20..100%、默认 50%、10% 步进、列数反馈和 banner_width_percent 持久化；最小 10rem 卡宽防止窄栏文本/预览重叠。真实两视口 pointer 拖动和原版截图几何仍待完成。
 
 ### preview（3）
 
