@@ -19,7 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -121,6 +120,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
+const FolderBreadcrumb = lazy(() => import("./folder/FolderBreadcrumb"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
 const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
@@ -137,7 +137,7 @@ interface SavedDirectoryState {
   gridSnapshot?: GridStateSnapshot
 }
 
-export default function FolderMainCard({ client, disabled, sourcePath, onOpen, folderView = DEFAULT_FOLDER_VIEW, onFolderView }: ReaderPanelContext) {
+export default function FolderMainCard({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView }: ReaderPanelContext) {
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
@@ -157,7 +157,6 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const focusedIndexRef = useRef<number | undefined>(undefined)
   const chainAnchorIndexRef = useRef<number | undefined>(undefined)
   const historyStatesRef = useRef(new Map<string, SavedDirectoryState>())
-  const [draftPath, setDraftPath] = useState(sourcePath ?? "")
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [searchOpen, setSearchOpen] = useState(false)
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
@@ -184,7 +183,6 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
 
   useEffect(() => {
     if (!sourcePath) return
-    setDraftPath(sourcePath)
     void openBrowser(sourcePath)
     return disposeBrowser
   }, [sourcePath])
@@ -314,7 +312,6 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const next = createDirectoryCatalog(page)
     chainAnchorIndexRef.current = undefined
     commitCatalog(next)
-    setDraftPath(page.path)
     if (preserveViewport) {
       setSelection((value) => rebaseDirectorySelection(value, page.generation))
       focusedIndexRef.current = page.suggestedSelection?.index
@@ -697,7 +694,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       data-selection-ranges={selection.ranges.length}
       data-selection-all={selection.allSelected || undefined}
       onKeyDownCapture={(event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && !event.nativeEvent.isComposing) {
+        if (isEditableKeyboardEvent(event)) return
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
           event.preventDefault()
           event.stopPropagation()
           setSearchOpen(true)
@@ -716,16 +714,19 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           />
         </Suspense>
       ) : null}
-      <form
-        className="flex gap-1"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void navigate({ action: "path", path: draftPath })
-        }}
-      >
-        <Input aria-label="浏览路径" value={draftPath} onChange={(event) => setDraftPath(event.currentTarget.value)} />
-        <Button type="submit" size="sm" variant="outline" disabled={disabled || loading || !draftPath.trim()}>转到</Button>
-      </form>
+      <Suspense fallback={<div className="h-8 rounded-md border bg-background" aria-label="正在加载路径导航" />}>
+        <FolderBreadcrumb
+          path={catalog?.path ?? sourcePath ?? ""}
+          disabled={disabled}
+          loading={loading}
+          canGoBack={catalog?.canGoBack}
+          canGoForward={catalog?.canGoForward}
+          canGoUp={Boolean(catalog?.parentPath)}
+          onNavigate={(path) => { void navigate({ action: "path", path }) }}
+          onNavigateAction={(action) => { void navigate({ action }) }}
+          onCopyPath={systemActions?.copyText}
+        />
+      </Suspense>
       <div className="grid gap-1">
         <div className="flex min-w-0 items-center gap-1">
           <BrowserButton label="后退" disabled={!catalog?.canGoBack || loading} onClick={() => void navigate({ action: "back" })}><ArrowLeft /></BrowserButton>

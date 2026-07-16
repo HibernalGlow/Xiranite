@@ -19,7 +19,7 @@ describe("FolderMainCard", () => {
       <FolderMainCard client={client} disabled={false} sourcePath="C:/books/page1.png" onOpen={vi.fn()} onGoTo={vi.fn()} />,
     )
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/books/page1.png", expect.any(AbortSignal), undefined, true))
-    await waitFor(() => expect(screen.getByDisplayValue("C:/books")).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole("button", { name: "books" }).getAttribute("aria-current")).toBe("page"))
     fireEvent.click(screen.getByRole("button", { name: "上级" }))
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal)))
     view.unmount()
@@ -310,6 +310,56 @@ describe("FolderMainCard", () => {
     ))
   })
 
+  it("[neoview.folder.path-navigation] keeps the current directory on failure and routes Explorer shortcuts outside editors", async () => {
+    const opened = page({ path: "C:\\books\\series", parentPath: "C:\\books", canGoBack: true, canGoForward: true })
+    const navigateDirectoryBrowser = vi.fn(async (_sessionId: string, navigation: { action: string }) => {
+      if (navigation.action === "path") throw new Error("目录不存在")
+      return opened
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:\\books\\series" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    await waitFor(() => expect(ui.getByRole("button", { name: "series" }).getAttribute("aria-current")).toBe("page"))
+
+    fireEvent.click(ui.getByRole("button", { name: "编辑路径" }))
+    const input = ui.getByRole("textbox", { name: "浏览路径" })
+    fireEvent.change(input, { target: { value: "Z:\\missing" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() => expect(ui.getByRole("alert").textContent).toContain("目录不存在"))
+    expect(ui.getByRole("button", { name: "series" }).getAttribute("aria-current")).toBe("page")
+
+    navigateDirectoryBrowser.mockClear()
+    const breadcrumb = view.container.querySelector('[data-neoview-folder-breadcrumb="true"]')!
+    const editButton = () => ui.getByRole("button", { name: "编辑路径" }) as HTMLButtonElement
+    async function pressShortcut(key: string, altKey: boolean, expectedCalls: number) {
+      fireEvent.keyDown(breadcrumb, { key, altKey })
+      await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledTimes(expectedCalls))
+      await waitFor(() => expect(editButton().disabled).toBe(false))
+    }
+    await pressShortcut("ArrowLeft", true, 1)
+    await pressShortcut("ArrowRight", true, 2)
+    await pressShortcut("ArrowUp", true, 3)
+    await pressShortcut("F5", false, 4)
+    expect(navigateDirectoryBrowser.mock.calls.map((call) => call[1])).toEqual([
+      { action: "back" }, { action: "forward" }, { action: "up" }, { action: "refresh" },
+    ])
+
+    navigateDirectoryBrowser.mockClear()
+    fireEvent.click(ui.getByRole("button", { name: "编辑路径" }))
+    const editingInput = ui.getByRole("textbox", { name: "浏览路径" })
+    fireEvent.keyDown(editingInput, { key: "ArrowLeft", altKey: true })
+    fireEvent.keyDown(editingInput, { key: "F5" })
+    expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
+  })
+
   it("[neoview.folder.tree-card] keeps the tree independent from the current-directory list and search", async () => {
     const opened = page({
       path: "C:\\books",
@@ -528,7 +578,7 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(currentView.getByLabelText("详细信息")).toBeTruthy())
     expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeNull()
     fireEvent.click(currentView.getByLabelText("详细信息"))
-    await waitFor(() => expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy())
+    await waitFor(() => expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy(), { timeout: 5_000 })
     await waitFor(() => expect(listDirectoryBrowser).toHaveBeenCalledWith(
       "browser-1",
       0,

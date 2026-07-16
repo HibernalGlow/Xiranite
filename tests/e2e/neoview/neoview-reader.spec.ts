@@ -737,6 +737,72 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   })).status).toBe(404)
 })
 
+test("[neoview.folder.path-navigation] keeps breadcrumb navigation scoped to the current directory", async ({ page }) => {
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.__XIRANITE_BACKEND__ = { baseUrl, token }
+  }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect(page.locator('img[alt="001.jpg"]')).toBeVisible()
+
+  const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+  if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+  await expect(leftSidebar).toBeVisible()
+  const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+  const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+  const currentBreadcrumb = breadcrumb.locator('[aria-current="page"]')
+  await expect(currentBreadcrumb).toHaveAttribute("title", fixture.directory)
+  const startPathEdit = async () => {
+    const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
+    await edit.focus()
+    await edit.press("Enter")
+  }
+
+  await startPathEdit()
+  const pathInput = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+  await expect(pathInput).toHaveValue(fixture.directory)
+  await pathInput.fill(join(fixture.directory, "cancelled"))
+  await pathInput.press("Escape")
+  await expect(currentBreadcrumb).toHaveAttribute("title", fixture.directory)
+
+  const nestedPath = join(fixture.directory, "nested-search")
+  await startPathEdit()
+  await breadcrumb.getByRole("textbox", { name: "浏览路径" }).fill(nestedPath)
+  await breadcrumb.getByRole("textbox", { name: "浏览路径" }).press("Enter")
+  await expect(currentBreadcrumb).toHaveAttribute("title", nestedPath)
+  const folderList = folderCard.getByRole("listbox", { name: "文件项目" })
+  await expect(folderList.getByText("recursive-result.png", { exact: true })).toBeVisible()
+  await expect(folderList.getByText("xiranite.config.toml", { exact: true })).toHaveCount(0)
+
+  const parentName = fixture.directory.split(/[\\/]/).at(-1)!
+  const parentSegment = breadcrumb.getByRole("button", { name: parentName })
+  if (await parentSegment.count()) {
+    await parentSegment.focus()
+    await parentSegment.press("Enter")
+  } else {
+    const collapsed = breadcrumb.getByRole("button", { name: "显示折叠路径" })
+    await collapsed.focus()
+    await collapsed.press("Enter")
+    const parentMenuItem = page.getByRole("menuitem", { name: parentName })
+    await parentMenuItem.focus()
+    await parentMenuItem.press("Enter")
+  }
+  await expect(currentBreadcrumb).toHaveAttribute("title", fixture.directory)
+  await startPathEdit()
+  await breadcrumb.getByRole("textbox", { name: "浏览路径" }).fill(nestedPath)
+  await breadcrumb.getByRole("textbox", { name: "浏览路径" }).press("Enter")
+  await expect(currentBreadcrumb).toHaveAttribute("title", nestedPath)
+  await currentBreadcrumb.focus()
+  await page.keyboard.press("Alt+ArrowLeft")
+  await expect(currentBreadcrumb).toHaveAttribute("title", fixture.directory)
+
+  await startPathEdit()
+  await breadcrumb.getByRole("textbox", { name: "浏览路径" }).fill(join(fixture.directory, "missing-breadcrumb"))
+  await breadcrumb.getByRole("textbox", { name: "浏览路径" }).press("Enter")
+  await expect(folderCard.getByRole("alert")).toBeVisible()
+  await expect(currentBreadcrumb).toHaveAttribute("title", fixture.directory)
+})
+
 test("[neoview.time-information.e2e] renders source-aware archive times in the real Reader", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
