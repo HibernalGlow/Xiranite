@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/book-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/book-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -1589,10 +1589,280 @@
 
 #### `sidebarControl` 边栏控制
 
+- 细项清单：`migration/neoview/sidebar-control-compatibility.json`
 - [ ] 控制 top/right/bottom/left 边栏显示与 pin
 - [ ] 切换自动隐藏、触发区和展开行为
 - [ ] 恢复布局默认值且不重挂活动阅读图像
 - UI 基线：`src/lib/cards/info/SidebarControlCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（7 组，137 项）
+
+- `sidebar-control-ui.card-controller` Card 浮动控制器设置
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/settings/settingsManager.ts`
+  - 映射：`sidebar-control.enabled`、`sidebar-control.position-reset`、`sidebar-control.states`、`sidebar-control.accessibility`、`sidebar-control.ui-parity`
+  - [ ] 启用浮动控制器标签
+  - [ ] 启用 Switch
+  - [ ] Switch checked 状态
+  - [ ] Switch disabled 状态
+  - [ ] 重置控制器位置 icon button
+  - [ ] RotateCcw 图标
+  - [ ] 重置按钮 title
+  - [ ] 重置到 x=100
+  - [ ] 重置到 y=100
+  - [ ] 说明文本
+  - [ ] 控件行 justify-between
+  - [ ] Switch scale 0.75
+  - [ ] 按钮 24x24
+  - [ ] Card 内操作不触发阅读快捷键
+- `sidebar-control-ui.card-edges` Card 四边状态概览
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stores/ui.svelte.ts`
+  - 映射：`sidebar-control.card-edges`、`sidebar-control.open`、`sidebar-control.pin`、`sidebar-control.states`、`sidebar-control.accessibility`、`sidebar-control.ui-parity`
+  - [ ] 边栏状态 2x2 网格
+  - [ ] 上按钮
+  - [ ] PanelTop 图标
+  - [ ] 上按钮单击切换 pinned
+  - [ ] 下按钮
+  - [ ] PanelBottom 图标
+  - [ ] 下按钮单击切换 pinned
+  - [ ] 左按钮
+  - [ ] PanelLeft 图标
+  - [ ] 左按钮单击切换 open
+  - [ ] 左按钮右键切换 pinned
+  - [ ] 右按钮
+  - [ ] PanelRight 图标
+  - [ ] 右按钮单击切换 open
+  - [ ] 右按钮右键切换 pinned
+  - [ ] pinned 使用 default variant
+  - [ ] open 未 pinned 使用 secondary variant
+  - [ ] 关闭未 pinned 使用 outline variant
+  - [ ] pinned 显示 Pin
+  - [ ] open 显示开
+  - [ ] 关闭显示 PinOff
+  - [ ] 按钮高度 32px
+  - [ ] 左右右键 preventDefault
+  - [ ] 说明点击/右键语义
+  - [ ] 锁定后不会自动隐藏说明
+- `sidebar-control-ui.floating-shell` 浮动控制器外壳与四边按钮
+  - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
+  - 映射：`sidebar-control.floating-layer`、`sidebar-control.open`、`sidebar-control.lock-cycle`、`sidebar-control.states`、`sidebar-control.accessibility`、`sidebar-control.ui-parity`
+  - [ ] enabled=false 时零 DOM
+  - [ ] role=group
+  - [ ] 侧栏控制器 aria-label
+  - [ ] data-layer SidebarControlLayer
+  - [ ] data-layer-id sidebar-control
+  - [ ] z-index 85
+  - [ ] 绝对定位 left/top
+  - [ ] 半透明背景
+  - [ ] 边框与阴影
+  - [ ] backdrop blur
+  - [ ] 拖动控制器按钮
+  - [ ] GripVertical 图标
+  - [ ] 四个无文字图标按钮
+  - [ ] PanelTop
+  - [ ] PanelBottom
+  - [ ] PanelLeft
+  - [ ] PanelRight
+  - [ ] 单击切换 open
+  - [ ] 右键循环 lock
+  - [ ] 锁定时 Lock 角标
+  - [ ] 每个按钮动态 title
+  - [ ] pointer-events-auto
+  - [ ] 控制器 mousedown 不冒泡
+- `sidebar-control-ui.lock-cycle` 四边三态锁定与视觉状态
+  - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`、`src/lib/components/layout/HoverWrapper.svelte`
+  - 映射：`sidebar-control.open`、`sidebar-control.pin`、`sidebar-control.lock-cycle`、`sidebar-control.auto-hide`、`sidebar-control.states`、`sidebar-control.deviations`
+  - [ ] null 自动状态
+  - [ ] true 锁定展开
+  - [ ] false 锁定隐藏
+  - [ ] 右键 null->true
+  - [ ] 右键 true->false
+  - [ ] 右键 false->null
+  - [ ] 锁定展开同步 pinned=true
+  - [ ] 锁定隐藏同步 pinned=false
+  - [ ] 左右锁定展开同步 open=true
+  - [ ] 左右锁定隐藏同步 open=false
+  - [ ] 单击解除 false 锁定再切 open
+  - [ ] 锁定展开 primary 色
+  - [ ] 锁定隐藏 destructive 色
+  - [ ] 自动展开 secondary 色
+  - [ ] 自动隐藏 muted 色
+  - [ ] 状态文本隐藏
+  - [ ] 状态文本展开
+  - [ ] 状态文本锁定展开
+  - [ ] 状态文本锁定隐藏
+- `sidebar-control-ui.drag` 浮动控制器拖动与位置持久化
+  - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/settings/settingsManager.ts`
+  - 映射：`sidebar-control.drag`、`sidebar-control.persistence`、`sidebar-control.lifecycle`、`sidebar-control.accessibility`、`sidebar-control.performance`、`sidebar-control.deviations`
+  - [ ] mousedown 开始拖动
+  - [ ] 记录起始鼠标 x/y
+  - [ ] 记录起始位置 x/y
+  - [ ] mousemove 仅更新瞬态位置
+  - [ ] x 下限 0
+  - [ ] x 上限 viewport width-200
+  - [ ] y 下限 0
+  - [ ] y 上限 viewport height-50
+  - [ ] mouseup 结束拖动
+  - [ ] mouseup 单次保存
+  - [ ] mouseup 移除 window listeners
+  - [ ] 拖动期间零设置写入
+  - [ ] 卸载移除遗留 listeners
+  - [ ] 窗口尺寸变化后位置重新钳制
+  - [ ] 触摸 PointerEvent 等价拖动
+  - [ ] 键盘位置调整等价入口
+- `sidebar-control-ui.config` 设置默认值、同步与 Shell 扩展
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/settings/settingsManager.ts`、`src/lib/stores/sidebarConfig.svelte.ts`、`src/lib/components/layout/HoverWrapper.svelte`
+  - 映射：`sidebar-control.enabled`、`sidebar-control.auto-hide`、`sidebar-control.trigger`、`sidebar-control.reset-layout`、`sidebar-control.data-contract`、`sidebar-control.persistence`、`sidebar-control.lifecycle`
+  - [ ] view.sidebarControl.enabled
+  - [ ] view.sidebarControl.position.x
+  - [ ] view.sidebarControl.position.y
+  - [ ] enabled 默认 true
+  - [ ] position 默认 100,100
+  - [ ] Card 与 Layer 监听同一设置
+  - [ ] 外部设置更新实时同步
+  - [ ] Card 卸载取消 listener
+  - [ ] Layer 卸载取消 12 个 store subscriptions
+  - [ ] top enabled
+  - [ ] right enabled
+  - [ ] bottom enabled
+  - [ ] left enabled
+  - [ ] 四边 initialVisible
+  - [ ] 四边 pinned
+  - [ ] 四边 triggerSize
+  - [ ] showDelay
+  - [ ] hideDelay
+  - [ ] 自动隐藏切换
+  - [ ] 触发区数值边界
+  - [ ] 恢复四边默认布局
+  - [ ] 未知未来 Shell 配置保留
+  - [ ] 单次规范配置 PATCH
+  - [ ] TOML 原子写入
+  - [ ] 旧 view.sidebarControl 导入
+- `sidebar-control-ui.card-shell` 通用 Card 外壳与迁移边界
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 映射：`sidebar-control.shell`、`sidebar-control.lifecycle`、`sidebar-control.persistence`、`sidebar-control.performance`、`sidebar-control.image-stability`、`sidebar-control.deviations`
+  - [ ] PanelLeft 图标与边栏控制标题
+  - [ ] 默认 control Panel
+  - [ ] 默认显示并展开
+  - [ ] 允许隐藏
+  - [ ] 标题折叠
+  - [ ] 上移与下移
+  - [ ] 独立窗口
+  - [ ] 高度拖动与恢复自动
+  - [ ] 折叠时 Card 内容零挂载
+  - [ ] 浮动 Layer 不随 Card 折叠卸载
+  - [ ] Card 动态 import
+  - [ ] Layer 与 Reader 打开路径延迟边界
+  - [ ] visible/expanded/order/height 持久化
+  - [ ] 活动阅读图像零重挂
+  - [ ] Reader 热翻页预算不回退
+
+##### 专用源码级验收项
+
+- [ ] `sidebar-control.enabled` 启停浮动边栏控制器
+  - 目标：The Card switch and floating layer share one enabled state; disabling removes the controller DOM without changing edge state.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：`neoview.card.sidebar-control.floating`
+  - 备注：The present component proves only the isolated callback shape; runtime composition is pending.
+- [ ] `sidebar-control.position-reset` 恢复浮动控制器默认位置
+  - 目标：Reset restores the canonical bounded default position x=100,y=100 and persists it once without remounting the reader image.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：`neoview.card.sidebar-control.floating`
+  - 备注：Runtime persistence and image identity evidence remain.
+- [ ] `sidebar-control.card-edges` Card 显示四边 open/pin 状态
+  - 目标：The 2x2 Card grid displays and controls top/right/bottom/left edge state from the active Reader Shell.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stores/ui.svelte.ts`
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`
+  - 备注：Formal ReaderPanelContext and Shell composition are pending.
+- [ ] `sidebar-control.floating-layer` 渲染可拖动浮动控制层
+  - 目标：An enabled, deferred floating controller renders above the Reader viewport with one drag handle and four edge controls.
+  - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：待补
+  - 备注：The target currently has no floating layer.
+- [ ] `sidebar-control.open` 切换四边瞬态展开状态
+  - 目标：Top, right, bottom and left controls open or close the same ReaderEdgeShell surface without mutating unrelated configuration.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.shell.hover-delay`
+  - 备注：ReaderEdgeShell currently owns transient visibility internally and needs a controlled bridge.
+- [ ] `sidebar-control.pin` 切换四边固定状态
+  - 目标：All four edges update canonical pinned configuration; keyboard/touch users receive an explicit equivalent to legacy right click.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`、`neoview.shell.pinned`
+  - 备注：Top/bottom callbacks exist only in the isolated Card and left/right runtime persistence is pending.
+- [ ] `sidebar-control.lock-cycle` 保持自动/锁定展开/锁定隐藏三态
+  - 目标：Each floating edge action cycles auto, locked-open and locked-hidden with stable color, icon, title and pinned/open effects.
+  - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
+  - 测试：待补
+  - 备注：XR may use an explicit menu instead of right-click-only cycling but must preserve all three states.
+- [ ] `sidebar-control.auto-hide` 配置自动隐藏与展开行为
+  - 目标：The Card can return each edge to automatic hover behavior and expose current open/initial-visible semantics without duplicating ReaderEdgeShell state.
+  - 源码：`src/lib/components/layout/HoverWrapper.svelte`、`src/lib/stores/sidebarConfig.svelte.ts`、`src/lib/cards/info/SidebarControlCard.svelte`
+  - 测试：待补
+  - 备注：Frozen target extension beyond the legacy Card controls.
+- [ ] `sidebar-control.trigger` 配置四边触发区
+  - 目标：Four bounded trigger sizes use the canonical Shell configuration and update ReaderEdgeShell without reload.
+  - 源码：`src/lib/components/layout/HoverWrapper.svelte`、`src/lib/stores/sidebarConfig.svelte.ts`
+  - 测试：待补
+  - 备注：Frozen target extension; numeric bounds and reset behavior require characterization.
+- [ ] `sidebar-control.reset-layout` 恢复边栏控制默认布局
+  - 目标：One explicit reset restores controller position and known edge defaults while preserving unknown future Shell/Card configuration.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/components/layout/HoverWrapper.svelte`、`src/lib/stores/sidebarConfig.svelte.ts`
+  - 测试：待补
+  - 备注：Frozen target extension; reset must be one atomic configuration PATCH.
+- [ ] `sidebar-control.drag` 有界拖动浮动控制器
+  - 目标：Pointer, touch and keyboard movement remain within the viewport, update only transient DOM during movement and persist once on completion.
+  - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：待补
+  - 备注：The legacy mouse-only implementation is expanded to PointerEvent and keyboard equivalence.
+- [ ] `sidebar-control.states` 默认、open、pinned、disabled 与错误状态
+  - 目标：Card and layer expose coherent default, hover, focus, open, pinned, locked, disabled, pending, error and rollback states.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`
+  - 备注：Pending/error/rollback and runtime states remain.
+- [ ] `sidebar-control.shell` 共享 Card 与 Shell 外壳行为
+  - 目标：Sidebar Control is an independently lazy, hideable, collapsible, movable, resizable and window-capable control-panel Card.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：待补
+  - 备注：The component exists but is not registered in the formal Card manifest.
+- [ ] `sidebar-control.data-contract` 共享规范 Shell 控制契约
+  - 目标：GUI, CLI and TUI share enabled, position, edge enabled/visible/pinned/trigger and lock semantics through one bounded application configuration contract.
+  - 源码：`src/lib/stores/ui.svelte.ts`、`src/lib/stores/sidebarConfig.svelte.ts`、`src/lib/settings/settingsManager.ts`
+  - 测试：待补
+  - 备注：Runtime Shell DTO lacks floating-controller and controlled-visibility fields.
+- [ ] `sidebar-control.persistence` 导入并原子持久化到 nodes.neoview
+  - 目标：Legacy view.sidebarControl imports once; canonical enabled/position/edge state lives under [nodes.neoview], with pointer completion and reset producing one atomic PATCH.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/settings/settingsManager.ts`
+  - 测试：待补
+  - 备注：No second runtime settings version or xiranite.db business table is allowed.
+- [ ] `sidebar-control.lifecycle` 懒加载、监听释放与取消
+  - 目标：Hidden Card content is unmounted, disabled layer is zero DOM, all global pointer/listener work is released and stale configuration responses cannot overwrite newer interaction.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
+  - 测试：待补
+  - 备注：The target must not keep window pointer listeners after cancel/unmount.
+- [ ] `sidebar-control.accessibility` 键盘、触摸与语义等价操作
+  - 目标：Every icon has an accessible name; open/pin/lock expose state; touch and keyboard can invoke legacy context actions and move the controller with focus preserved.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：`neoview.card.sidebar-control.context-pin`
+  - 备注：The isolated Card has labels but the floating layer and explicit lock menu are pending.
+- [ ] `sidebar-control.ui-parity` Card 与浮动层响应式几何
+  - 目标：The legacy 2x2 Card density and compact horizontal floating controller remain readable and operable on desktop and 420x360 Card viewports without overlap.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：待补
+  - 备注：Both viewports require screenshots and zero overflow/occlusion assertions.
+- [ ] `sidebar-control.image-stability` 边栏控制不重挂活动阅读图像
+  - 目标：Enable, drag, open, pin, lock, trigger and reset operations preserve the active Reader image node and asset URL.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
+  - 测试：待补
+  - 备注：Required by the frozen functional scope.
+- [ ] `sidebar-control.performance` DOM、写入与 chunk 边界
+  - 目标：O(1) Card/layer DOM, zero hidden work, DOM-only pointermove, one completion PATCH and independent deferred Card/layer chunks within explicit budgets.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：待补
+  - 备注：Reader entry and hot page-turn budgets must remain green.
+- [ ] `sidebar-control.deviations` 记录受控 Shell 与可访问性扩展
+  - 目标：Document controlled ReaderEdgeShell state, PointerEvent/keyboard movement, explicit lock actions, canonical TOML and trigger/reset controls as target improvements without removing legacy states.
+  - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/components/layout/HoverWrapper.svelte`
+  - 测试：待补
+  - 备注：Legacy right click remains supported but is not the only lock path.
 
 #### `colorFilter` 颜色滤镜
 
