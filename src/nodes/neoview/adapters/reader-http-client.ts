@@ -201,11 +201,25 @@ export interface ReaderRuntimeConfigDto {
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
 export type ReaderFolderDetailColumn = "name" | "path" | "type" | "extension" | "size" | "modifiedAt" | "dimensions" | "pageCount" | "rating" | "tags"
 
+export const READER_FOLDER_DETAIL_DEFAULT_WIDTHS: Record<ReaderFolderDetailColumn, number> = {
+  name: 220,
+  path: 280,
+  type: 80,
+  extension: 80,
+  size: 96,
+  modifiedAt: 152,
+  dimensions: 96,
+  pageCount: 72,
+  rating: 72,
+  tags: 180,
+}
+
 export interface ReaderFolderDetailsConfig {
   columnOrder: ReaderFolderDetailColumn[]
   hiddenColumns: ReaderFolderDetailColumn[]
   pinnedLeft: ReaderFolderDetailColumn[]
   pinnedRight: ReaderFolderDetailColumn[]
+  columnWidths: Record<ReaderFolderDetailColumn, number>
 }
 
 export interface ReaderFolderViewConfig {
@@ -214,11 +228,19 @@ export interface ReaderFolderViewConfig {
   details: ReaderFolderDetailsConfig
 }
 
+export interface ReaderFolderDetailsPatch {
+  columnOrder?: ReaderFolderDetailColumn[]
+  hiddenColumns?: ReaderFolderDetailColumn[]
+  pinnedLeft?: ReaderFolderDetailColumn[]
+  pinnedRight?: ReaderFolderDetailColumn[]
+  columnWidths?: Partial<Record<ReaderFolderDetailColumn, number>>
+}
+
 export interface ReaderFolderViewPatch {
   folderView: {
     viewMode?: ReaderFolderViewMode
     previewCount?: 4 | 9 | 16
-    details?: Partial<ReaderFolderDetailsConfig>
+    details?: ReaderFolderDetailsPatch
   }
 }
 

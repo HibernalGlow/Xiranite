@@ -26,6 +26,7 @@ export interface NeoviewFolderDetailsConfig {
   hiddenColumns: NeoviewFolderDetailColumn[]
   pinnedLeft: NeoviewFolderDetailColumn[]
   pinnedRight: NeoviewFolderDetailColumn[]
+  columnWidths: Record<NeoviewFolderDetailColumn, number>
 }
 
 export interface NeoviewFolderViewConfig {
@@ -34,11 +35,19 @@ export interface NeoviewFolderViewConfig {
   details: NeoviewFolderDetailsConfig
 }
 
+export interface NeoviewFolderDetailsPatch {
+  columnOrder?: NeoviewFolderDetailColumn[]
+  hiddenColumns?: NeoviewFolderDetailColumn[]
+  pinnedLeft?: NeoviewFolderDetailColumn[]
+  pinnedRight?: NeoviewFolderDetailColumn[]
+  columnWidths?: Partial<Record<NeoviewFolderDetailColumn, number>>
+}
+
 export interface NeoviewFolderViewPatch {
   folderView: {
     viewMode?: NeoviewFolderViewMode
     previewCount?: 4 | 9 | 16
-    details?: Partial<NeoviewFolderDetailsConfig>
+    details?: NeoviewFolderDetailsPatch
   }
 }
 
@@ -154,6 +163,18 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     hiddenColumns: [],
     pinnedLeft: ["name"],
     pinnedRight: [],
+    columnWidths: {
+      name: 220,
+      path: 280,
+      type: 80,
+      extension: 80,
+      size: 96,
+      modifiedAt: 152,
+      dimensions: 96,
+      pageCount: 72,
+      rating: 72,
+      tags: 180,
+    },
   },
 }
 
@@ -285,10 +306,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.details !== undefined) {
     const details = requireRecord(folder.details, "reader folder view patch.details")
-    const detailKeys = new Set(["columnOrder", "hiddenColumns", "pinnedLeft", "pinnedRight"])
+    const detailKeys = new Set(["columnOrder", "hiddenColumns", "pinnedLeft", "pinnedRight", "columnWidths"])
     const unknownDetails = Object.keys(details).filter((key) => !detailKeys.has(key))
     if (unknownDetails.length) throw new Error(`reader folder view patch.details contains unsupported fields: ${unknownDetails.join(", ")}.`)
-    const detailPatch: Partial<NeoviewFolderDetailsConfig> = {}
+    const detailPatch: NeoviewFolderDetailsPatch = {}
     const detailToml: Record<string, unknown> = {}
     if (details.columnOrder !== undefined) {
       detailPatch.columnOrder = normalizedDetailColumns(details.columnOrder, "columnOrder", true)
@@ -306,6 +327,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     if (details.pinnedRight !== undefined) {
       detailPatch.pinnedRight = normalizedDetailColumns(details.pinnedRight, "pinnedRight", false)
       detailToml.pinned_right = detailPatch.pinnedRight
+    }
+    if (details.columnWidths !== undefined) {
+      detailPatch.columnWidths = normalizedDetailWidths(details.columnWidths, "reader folder view patch.details.columnWidths", true)
+      detailToml.column_widths = detailPatch.columnWidths
     }
     if (!Object.keys(detailPatch).length) throw new Error("reader folder view patch.details must change at least one field.")
     if (detailPatch.pinnedLeft && detailPatch.pinnedRight && detailPatch.pinnedLeft.some((id) => detailPatch.pinnedRight!.includes(id))) {
@@ -338,6 +363,10 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
       hiddenColumns,
       pinnedLeft,
       pinnedRight,
+      columnWidths: {
+        ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.details.columnWidths,
+        ...normalizedDetailWidths(details?.column_widths ?? {}, "[nodes.neoview.folder.details].column_widths", false),
+      },
     },
   }
 }
@@ -355,6 +384,25 @@ function normalizedDetailColumns(value: unknown, path: string, appendMissing: bo
     if (!result.includes(column)) result.push(column)
   }
   if (appendMissing) for (const column of NEOVIEW_FOLDER_DETAIL_COLUMNS) if (!result.includes(column)) result.push(column)
+  return result
+}
+
+function normalizedDetailWidths(
+  value: unknown,
+  path: string,
+  strict: boolean,
+): Partial<Record<NeoviewFolderDetailColumn, number>> {
+  const record = requireRecord(value, path)
+  const known = new Set<string>(NEOVIEW_FOLDER_DETAIL_COLUMNS)
+  const result: Partial<Record<NeoviewFolderDetailColumn, number>> = {}
+  for (const [id, width] of Object.entries(record)) {
+    if (!known.has(id)) {
+      if (strict) throw new Error(`${path} contains unknown column ${id}.`)
+      continue
+    }
+    result[id as NeoviewFolderDetailColumn] = boundedInteger(width, 48, 800, `${path}.${id}`)
+  }
+  if (strict && !Object.keys(result).length) throw new Error(`${path} must change at least one known column.`)
   return result
 }
 

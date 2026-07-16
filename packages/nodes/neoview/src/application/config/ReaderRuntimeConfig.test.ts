@@ -130,6 +130,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hidden_columns: ["tags", "future-column"],
         pinned_left: ["name", "rating"],
         pinned_right: ["rating", "tags"],
+        column_widths: { name: 260, path: 420, "future-column": 999 },
       },
     } }).folderView).toEqual({
       viewMode: "details",
@@ -139,12 +140,16 @@ describe("parseNeoviewRuntimeConfig", () => {
         hiddenColumns: ["tags"],
         pinnedLeft: ["name", "rating"],
         pinnedRight: ["tags"],
+        columnWidths: {
+          name: 260, path: 420, type: 80, extension: 80, size: 96,
+          modifiedAt: 152, dimensions: 96, pageCount: 72, rating: 72, tags: 180,
+        },
       },
     })
     expect(parseNeoviewFolderViewPatch({ folderView: {
       viewMode: "mosaic-grid",
       previewCount: 16,
-      details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"] },
+      details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
     } })).toEqual({
       patch: { folderView: {
         viewMode: "mosaic-grid",
@@ -154,6 +159,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           hiddenColumns: ["tags"],
           pinnedLeft: ["name"],
           pinnedRight: ["rating"],
+          columnWidths: { name: 300, rating: 84 },
         },
       } },
       tomlPatch: { folder: {
@@ -164,12 +170,15 @@ describe("parseNeoviewRuntimeConfig", () => {
           hidden_columns: ["tags"],
           pinned_left: ["name"],
           pinned_right: ["rating"],
+          column_widths: { name: 300, rating: 84 },
         },
       } },
     })
     expect(() => parseNeoviewFolderViewPatch({ folderView: { previewCount: 8 } })).toThrow("4, 9 or 16")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { hiddenColumns: ["name"] } } })).toThrow("cannot hide name")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnOrder: ["unknown"] } } })).toThrow("unknown column")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnWidths: { name: 47 } } } })).toThrow("between 48 and 800")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnWidths: { future: 200 } } } })).toThrow("unknown column")
   })
 
   it("[neoview.settings.shell] normalizes legacy panel settings into bounded shell options", () => {

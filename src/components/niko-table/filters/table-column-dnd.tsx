@@ -115,6 +115,7 @@ export function TableDraggableHeader<TData, TValue>({
     whiteSpace: "nowrap",
     zIndex: isDragging ? 1 : 0,
     cursor: "grab",
+    width: `${header.getSize()}px`,
     ...externalStyle,
   }
 
@@ -163,6 +164,7 @@ export function TableDragAlongCell<TData, TValue>({
     transform: CSS.Translate.toString(transform),
     transition: "width transform 0.2s ease-in-out",
     zIndex: isDragging ? 1 : 0,
+    width: `${cell.column.getSize()}px`,
     ...externalStyle,
   }
 

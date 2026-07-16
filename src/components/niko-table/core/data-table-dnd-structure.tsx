@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table"
 import { flexRender, type Row } from "@tanstack/react-table"
 import { DataTableColumnHeaderRoot } from "../components/data-table-column-header"
+import { DataTableColumnResizeHandle } from "../components/data-table-column-resize"
 import { resolveRowFromClick } from "../lib/row-click"
 import { getCommonPinningStyles } from "../lib/styles"
 import {
@@ -301,6 +302,8 @@ DataTableDndBody.displayName = "DataTableDndBody"
 
 export interface DataTableDndHeaderProps {
   className?: string
+  /** Uses TanStack Table's built-in column sizing handlers. */
+  resizable?: boolean
   /**
    * Makes the header sticky at the top when scrolling.
    * @default true
@@ -324,6 +327,7 @@ export interface DataTableDndHeaderProps {
  */
 export const DataTableDndHeader = React.memo(function DataTableDndHeader({
   className,
+  resizable = false,
   sticky = true,
 }: DataTableDndHeaderProps) {
   const { table } = useDataTable()
@@ -355,6 +359,7 @@ export const DataTableDndHeader = React.memo(function DataTableDndHeader({
                   )}
                 </DataTableColumnHeaderRoot>
               )}
+              {resizable ? <DataTableColumnResizeHandle header={header} /> : null}
             </TableDraggableHeader>
           ))}
         </TableRow>

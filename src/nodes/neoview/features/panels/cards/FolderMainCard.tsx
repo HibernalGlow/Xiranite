@@ -34,6 +34,7 @@ import type {
   ReaderFolderViewMode,
   ReaderFolderViewConfig,
 } from "../../../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
 import {
   createDirectoryCatalog,
@@ -82,6 +83,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     hiddenColumns: [],
     pinnedLeft: ["name"],
     pinnedRight: [],
+    columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
   },
 }
 

@@ -19,6 +19,7 @@ import {
   type ExpandedState,
   type ColumnOrderState,
   type ColumnPinningState,
+  type ColumnSizingState,
   type Updater,
   type FilterFn,
   type FilterFnOption,
@@ -91,6 +92,7 @@ interface TableRootProps<TData, TValue> extends Partial<TableOptions<TData>> {
   onRowSelectionChange?: (updater: Updater<RowSelectionState>) => void
   onExpandedChange?: (updater: Updater<ExpandedState>) => void
   onColumnOrderChange?: (updater: Updater<ColumnOrderState>) => void
+  onColumnSizingChange?: (updater: Updater<ColumnSizingState>) => void
   onRowSelection?: (selectedRows: TData[]) => void
 }
 
@@ -111,6 +113,7 @@ function DataTableRootInternal<TData, TValue>({
   onRowSelectionChange,
   onExpandedChange,
   onColumnOrderChange,
+  onColumnSizingChange,
   onColumnPinningChange,
   onRowSelection,
   // Destructured by name so the `tableOptions` memo depends on stable values
@@ -271,6 +274,9 @@ function DataTableRootInternal<TData, TValue>({
   const [columnOrder, setColumnOrder] = React.useState<ColumnOrderState>(
     restInitialState?.columnOrder ?? [],
   )
+  const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>(
+    restInitialState?.columnSizing ?? {},
+  )
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex:
       finalConfig.initialPageIndex ??
@@ -401,6 +407,13 @@ function DataTableRootInternal<TData, TValue>({
     [],
   )
 
+  const handleColumnSizingChange = React.useCallback(
+    (u: Updater<ColumnSizingState>) => {
+      if (isMountedRef.current) setColumnSizing(u)
+    },
+    [],
+  )
+
   const handleExpandedChange = React.useCallback(
     (u: Updater<ExpandedState>) => {
       if (isMountedRef.current) setExpanded(u)
@@ -481,6 +494,7 @@ function DataTableRootInternal<TData, TValue>({
       : globalFilter
   const controlledColumnPinning = restState?.columnPinning ?? columnPinning
   const controlledColumnOrder = restState?.columnOrder ?? columnOrder
+  const controlledColumnSizing = restState?.columnSizing ?? columnSizing
   const controlledExpanded = restState?.expanded ?? expanded
   const controlledPagination = restState?.pagination ?? pagination
 
@@ -572,6 +586,7 @@ function DataTableRootInternal<TData, TValue>({
         columnVisibility: controlledColumnVisibility,
         columnPinning: finalColumnPinning,
         columnOrder: controlledColumnOrder,
+        columnSizing: controlledColumnSizing,
         rowSelection: controlledRowSelection,
         columnFilters: controlledColumnFilters,
         globalFilter: controlledGlobalFilter,
@@ -602,6 +617,7 @@ function DataTableRootInternal<TData, TValue>({
         onColumnVisibilityChange ?? handleColumnVisibilityChange,
       onColumnPinningChange: onColumnPinningChange ?? handleColumnPinningChange,
       onColumnOrderChange: onColumnOrderChange ?? handleColumnOrderChange,
+      onColumnSizingChange: onColumnSizingChange ?? handleColumnSizingChange,
       onExpandedChange: onExpandedChange ?? handleExpandedChange,
       onPaginationChange: onPaginationChange ?? handlePaginationChange,
       getCoreRowModel: getCoreRowModel(),
@@ -681,6 +697,8 @@ function DataTableRootInternal<TData, TValue>({
       handleColumnPinningChange,
       onColumnOrderChange,
       handleColumnOrderChange,
+      onColumnSizingChange,
+      handleColumnSizingChange,
       onExpandedChange,
       handleExpandedChange,
       onPaginationChange,
@@ -693,6 +711,7 @@ function DataTableRootInternal<TData, TValue>({
       controlledColumnFilters,
       controlledGlobalFilter,
       controlledColumnOrder,
+      controlledColumnSizing,
       controlledExpanded,
       controlledPagination,
       // Add column pinning state to dependencies so the table updates when it changes

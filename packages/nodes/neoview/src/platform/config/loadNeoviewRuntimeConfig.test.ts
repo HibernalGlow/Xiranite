@@ -196,7 +196,7 @@ describe("loadNeoviewSessionOptions", () => {
         body: JSON.stringify({ folderView: {
           viewMode: "details",
           previewCount: 9,
-          details: { columnOrder: ["name", "rating", "path"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"] },
+          details: { columnOrder: ["name", "rating", "path"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
         } }),
       }))
       expect(await folderPatched?.json()).toMatchObject({
@@ -207,10 +207,12 @@ describe("loadNeoviewSessionOptions", () => {
       expect(folderConfig).toContain("view_mode = \"details\"")
       expect(folderConfig).toContain("preview_count = 9")
       expect(folderConfig).toContain("[nodes.neoview.folder.details]")
+      expect(folderConfig).toContain("[nodes.neoview.folder.details.column_widths]")
+      expect(folderConfig).toContain("name = 264")
       expect((await loadNeoviewRuntimeConfig({ configPath })).folderView).toMatchObject({
         viewMode: "details",
         previewCount: 9,
-        details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"] },
+        details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
       })
       const reopened = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
         method: "POST",

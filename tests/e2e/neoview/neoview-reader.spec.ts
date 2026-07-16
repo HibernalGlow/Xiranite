@@ -270,14 +270,33 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await leftSidebar.getByRole("combobox", { name: "管理详细信息列" }).click()
   await page.locator('[cmdk-item]').filter({ hasText: /^标签$/ }).click()
   expect((await folderColumnsResponse).status()).toBe(200)
+  const nameResizeHandle = leftSidebar.getByRole("separator", { name: "调整 name 列宽" })
+  const nameResizeBox = await nameResizeHandle.boundingBox()
+  expect(nameResizeBox).not.toBeNull()
+  const folderWidthResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"columnWidths"') === true
+  ))
+  await page.mouse.move(nameResizeBox!.x + nameResizeBox!.width / 2, nameResizeBox!.y + nameResizeBox!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(nameResizeBox!.x + nameResizeBox!.width / 2 + 48, nameResizeBox!.y + nameResizeBox!.height / 2, { steps: 4 })
+  await page.mouse.up()
+  const savedFolderWidth = await folderWidthResponse
+  expect(savedFolderWidth.status()).toBe(200)
+  expect((savedFolderWidth.request().postDataJSON() as { folderView: { details: { columnWidths: { name: number } } } }).folderView.details.columnWidths.name).toBeGreaterThan(220)
   const folderToml = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
   expect(folderToml).toContain("[nodes.neoview.folder]")
   expect(folderToml).toContain('view_mode = "details"')
   expect(folderToml).toContain("[nodes.neoview.folder.details]")
   expect(folderToml).toMatch(/hidden_columns\s*=\s*\[\s*"tags"\s*\]/)
+  expect(folderToml).toContain("[nodes.neoview.folder.details.column_widths]")
+  expect(folderToml).toMatch(/name\s*=\s*2[5-9]\d/)
   expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
   await page.keyboard.press("Escape")
   await expect(page.locator('[cmdk-item]')).toHaveCount(0)
+  if (!await leftSidebar.isVisible()) await page.locator('[data-reader-edge-trigger="left"]').hover()
+  await expect(leftSidebar).toBeVisible()
   await leftSidebar.getByRole("button", { name: "设置", exact: true }).click()
   await expect(page.locator('[data-reader-card="面板布局设置"]')).toBeVisible()
   await expect(page.locator('[data-reader-card="边栏管理设置"]')).toBeVisible()

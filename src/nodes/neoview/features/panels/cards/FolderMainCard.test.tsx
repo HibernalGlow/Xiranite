@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { VirtuosoGridMockContext, VirtuosoMockContext } from "react-virtuoso"
 import { describe, expect, it, vi } from "vitest"
 
-import type { ReaderDirectoryPageDto, ReaderHttpClient } from "../../../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import FolderMainCard from "./FolderMainCard"
 
 describe("FolderMainCard", () => {
@@ -244,6 +244,7 @@ describe("FolderMainCard", () => {
               hiddenColumns: ["tags"],
               pinnedLeft: ["name"],
               pinnedRight: ["rating"],
+              columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
             },
           }}
           onFolderView={onFolderView}

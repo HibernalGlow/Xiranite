@@ -549,8 +549,8 @@
 - [ ] `folder.view.details` 详细信息视图与列
   - 目标：显示名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分和标签信息；列宽/截断/tooltip 与原版一致。
   - 源码：`components/FolderListItem.svelte`、`stores/folderPanelStore/types.ts`
-  - 测试：`neoview.folder.details-lazy`、`neoview.folder.details-niko-sparse`、`neoview.folder.details-columns`、`neoview.folder.details-on-demand`、`neoview.folder.details-metadata`、`neoview.folder.media-metadata-batch`、`neoview.folder.media-metadata-fallback`、`neoview.folder.media-metadata-emm-hit`
-  - 备注：已扩展现有 Niko Table 虚拟体支持 totalCount + 全局索引到已加载 row ID 的稀疏远端模式；10K 总量测试只向 TanStack 提交 2 条实体，并提供十列。Niko 仅在切换 details 后二级动态加载；显式 details 分页才按需请求昂贵 metadata，媒体并发固定为 2，单项失败保留基础行。列显隐复用 Niko ViewMenu、顺序复用 Niko/dnd-kit、固定复用 TanStack pinning，完整布局规范化写入 [nodes.neoview.folder.details]；名称列不可隐藏、未知未来列只在 DTO 中忽略而不破坏 TOML。列宽、真实 Chromium 滚动/定位和原版视觉证据仍待完成。
+  - 测试：`neoview.folder.details-lazy`、`neoview.folder.details-niko-sparse`、`neoview.folder.details-columns`、`neoview.folder.details-column-width`、`neoview.folder.details-on-demand`、`neoview.folder.details-metadata`、`neoview.folder.media-metadata-batch`、`neoview.folder.media-metadata-fallback`、`neoview.folder.media-metadata-emm-hit`
+  - 备注：已扩展现有 Niko Table 虚拟体支持 totalCount + 全局索引到已加载 row ID 的稀疏远端模式；10K 总量测试只向 TanStack 提交 2 条实体，并提供十列。Niko 仅在切换 details 后二级动态加载；显式 details 分页才按需请求昂贵 metadata，媒体并发固定为 2，单项失败保留基础行。列显隐复用 Niko ViewMenu、顺序复用 Niko/dnd-kit、固定复用 TanStack pinning；列宽复用 TanStack column sizing/getResizeHandler/resetSize，onEnd 后只提交一次现有串行配置 PATCH，并以 48..800px 边界规范化写入 [nodes.neoview.folder.details.column_widths]。名称列不可隐藏，未知未来列和列宽只在 DTO 中忽略且 TOML merge 不破坏。真实 Chromium 10K/100K 滚动/定位和原版视觉证据仍待完成。
 - [ ] `folder.view.thumbnail-size` 缩略图宽度调节
   - 目标：连续调节缩略图宽度并持久化；调整时虚拟布局重测但不丢失锚点和选中项。
   - 源码：`components/FolderToolbar/ViewPanel.svelte`、`stores/folderTabStore/layoutSettings.svelte.ts`

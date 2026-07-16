@@ -1,4 +1,4 @@
-import type { ColumnOrderState, RowSelectionState, Updater, VisibilityState } from "@tanstack/react-table"
+import type { ColumnOrderState, ColumnSizingState, RowSelectionState, Updater, VisibilityState } from "@tanstack/react-table"
 import { File, Folder } from "lucide-react"
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react"
 
@@ -15,7 +15,7 @@ import {
 } from "@/components/niko-table/core/data-table-virtualized-structure"
 import type { DataTableColumnDef } from "@/components/niko-table/types"
 
-import type { ReaderDirectoryEntryDto, ReaderFolderDetailColumn, ReaderFolderDetailsConfig } from "../../../../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryEntryDto, type ReaderFolderDetailColumn, type ReaderFolderDetailsConfig } from "../../../../adapters/reader-http-client"
 import type { DirectoryCatalog } from "./DirectoryCatalog"
 import { directoryEntryAt } from "./DirectoryCatalog"
 
@@ -37,12 +37,11 @@ interface FolderDetailsViewProps {
 }
 
 const DETAIL_COLUMN_IDS: readonly ReaderFolderDetailColumn[] = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"]
-
 const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
   {
     id: "name",
     accessorFn: (row) => row.entry.name,
-    size: 220,
+    size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.name,
     header: () => <DetailColumnHeader label="名称" />,
     enableHiding: false,
     cell: ({ row }) => {
@@ -58,16 +57,16 @@ const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
     },
     meta: { label: "名称" },
   },
-  { id: "path", accessorFn: (row) => row.entry.path, size: 280, header: () => <DetailColumnHeader label="路径" />, cell: ({ row }) => <DetailText value={row.original.entry.path} mono />, meta: { label: "路径" } },
-  { id: "type", accessorFn: (row) => entryType(row.entry), size: 80, header: () => <DetailColumnHeader label="类型" />, cell: ({ row }) => <DetailText value={entryType(row.original.entry)} />, meta: { label: "类型" } },
-  { id: "extension", accessorFn: (row) => fileExtension(row.entry), size: 80, header: () => <DetailColumnHeader label="扩展名" />, cell: ({ row }) => <DetailText value={fileExtension(row.original.entry)} mono />, meta: { label: "扩展名" } },
-  { id: "size", accessorFn: (row) => row.entry.size, size: 96, header: () => <DetailColumnHeader label="大小" />, cell: ({ row }) => <DetailText value={formatBytes(row.original.entry.size)} align="right" mono />, meta: { label: "大小" } },
-  { id: "modifiedAt", accessorFn: (row) => row.entry.modifiedAt, size: 152, header: () => <DetailColumnHeader label="修改时间" />, cell: ({ row }) => <DetailText value={formatDate(row.original.entry.modifiedAt)} mono />, meta: { label: "修改时间" } },
-  { id: "dimensions", accessorFn: (row) => formatDimensions(row.entry), size: 96, header: () => <DetailColumnHeader label="尺寸" />, cell: ({ row }) => <DetailText value={formatDimensions(row.original.entry)} align="right" mono />, meta: { label: "尺寸" } },
-  { id: "pageCount", accessorFn: (row) => row.entry.pageCount, size: 72, header: () => <DetailColumnHeader label="页数" />, cell: ({ row }) => <DetailText value={formatNumber(row.original.entry.pageCount)} align="right" mono />, meta: { label: "页数" } },
-  { id: "rating", accessorFn: (row) => row.entry.rating, size: 72, header: () => <DetailColumnHeader label="评分" />, cell: ({ row }) => <DetailText value={formatRating(row.original.entry.rating)} align="right" mono />, meta: { label: "评分" } },
-  { id: "tags", accessorFn: (row) => formatTags(row.entry), size: 180, header: () => <DetailColumnHeader label="标签" />, cell: ({ row }) => <DetailText value={formatTags(row.original.entry)} />, meta: { label: "标签" } },
-]
+  { id: "path", accessorFn: (row) => row.entry.path, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.path, header: () => <DetailColumnHeader label="路径" />, cell: ({ row }) => <DetailText value={row.original.entry.path} mono />, meta: { label: "路径" } },
+  { id: "type", accessorFn: (row) => entryType(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.type, header: () => <DetailColumnHeader label="类型" />, cell: ({ row }) => <DetailText value={entryType(row.original.entry)} />, meta: { label: "类型" } },
+  { id: "extension", accessorFn: (row) => fileExtension(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.extension, header: () => <DetailColumnHeader label="扩展名" />, cell: ({ row }) => <DetailText value={fileExtension(row.original.entry)} mono />, meta: { label: "扩展名" } },
+  { id: "size", accessorFn: (row) => row.entry.size, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.size, header: () => <DetailColumnHeader label="大小" />, cell: ({ row }) => <DetailText value={formatBytes(row.original.entry.size)} align="right" mono />, meta: { label: "大小" } },
+  { id: "modifiedAt", accessorFn: (row) => row.entry.modifiedAt, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.modifiedAt, header: () => <DetailColumnHeader label="修改时间" />, cell: ({ row }) => <DetailText value={formatDate(row.original.entry.modifiedAt)} mono />, meta: { label: "修改时间" } },
+  { id: "dimensions", accessorFn: (row) => formatDimensions(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.dimensions, header: () => <DetailColumnHeader label="尺寸" />, cell: ({ row }) => <DetailText value={formatDimensions(row.original.entry)} align="right" mono />, meta: { label: "尺寸" } },
+  { id: "pageCount", accessorFn: (row) => row.entry.pageCount, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.pageCount, header: () => <DetailColumnHeader label="页数" />, cell: ({ row }) => <DetailText value={formatNumber(row.original.entry.pageCount)} align="right" mono />, meta: { label: "页数" } },
+  { id: "rating", accessorFn: (row) => row.entry.rating, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.rating, header: () => <DetailColumnHeader label="评分" />, cell: ({ row }) => <DetailText value={formatRating(row.original.entry.rating)} align="right" mono />, meta: { label: "评分" } },
+  { id: "tags", accessorFn: (row) => formatTags(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.tags, header: () => <DetailColumnHeader label="标签" />, cell: ({ row }) => <DetailText value={formatTags(row.original.entry)} />, meta: { label: "标签" } },
+].map((column) => ({ ...column, minSize: 48, maxSize: 800 }))
 
 export default function FolderDetailsView({
   catalog,
@@ -89,10 +88,12 @@ export default function FolderDetailsView({
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(layout.columnOrder)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => visibilityFromLayout(layout))
   const [columnPinning, setColumnPinning] = useState(() => ({ left: layout.pinnedLeft, right: layout.pinnedRight }))
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(layout.columnWidths)
 
   useEffect(() => setColumnOrder(layout.columnOrder), [layout.columnOrder])
   useEffect(() => setColumnVisibility(visibilityFromLayout(layout)), [layout.hiddenColumns])
   useEffect(() => setColumnPinning({ left: layout.pinnedLeft, right: layout.pinnedRight }), [layout.pinnedLeft, layout.pinnedRight])
+  useEffect(() => setColumnSizing(layout.columnWidths), [layout.columnWidths])
 
   function updateColumnOrder(updater: Updater<ColumnOrderState>) {
     const next = resolveUpdater(updater, columnOrder)
@@ -112,6 +113,16 @@ export default function FolderDetailsView({
     const right = DETAIL_COLUMN_IDS.filter((id) => next.right.includes(id) && !left.includes(id))
     setColumnPinning({ left, right })
     onLayoutChange({ pinnedLeft: left, pinnedRight: right })
+  }
+
+  function updateColumnSizing(updater: Updater<ColumnSizingState>) {
+    const next = resolveUpdater(updater, columnSizing)
+    const bounded = Object.fromEntries(DETAIL_COLUMN_IDS.map((id) => [
+      id,
+      Math.min(800, Math.max(48, Math.round(next[id] ?? READER_FOLDER_DETAIL_DEFAULT_WIDTHS[id]))),
+    ])) as Record<ReaderFolderDetailColumn, number>
+    setColumnSizing(bounded)
+    onLayoutChange({ columnWidths: bounded })
   }
 
   return (
@@ -136,10 +147,12 @@ export default function FolderDetailsView({
           manualFiltering: true,
           manualSorting: true,
         }}
-        state={{ rowSelection, columnOrder, columnVisibility, columnPinning }}
+        state={{ rowSelection, columnOrder, columnVisibility, columnPinning, columnSizing }}
         onColumnOrderChange={updateColumnOrder}
         onColumnVisibilityChange={updateColumnVisibility}
         onColumnPinningChange={updateColumnPinning}
+        onColumnSizingChange={updateColumnSizing}
+        columnResizeMode="onEnd"
       >
         <div className="flex h-8 items-center border-b px-1">
           <DataTableViewMenu
@@ -154,17 +167,19 @@ export default function FolderDetailsView({
               setColumnOrder([...DETAIL_COLUMN_IDS])
               setColumnVisibility({ name: true })
               setColumnPinning({ left: ["name"], right: [] })
-              onLayoutChange({ columnOrder: [...DETAIL_COLUMN_IDS], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [] })
+              setColumnSizing(READER_FOLDER_DETAIL_DEFAULT_WIDTHS)
+              onLayoutChange({ columnOrder: [...DETAIL_COLUMN_IDS], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS })
             }}
           />
         </div>
         <DataTableColumnDndProvider columnOrder={columnOrder} onColumnOrderChange={updateColumnOrder}>
           <DataTable height="calc(100% - 2rem)" className="h-[calc(100%_-_2rem)] rounded-none border-0">
-            <DataTableDndHeader />
+            <DataTableDndHeader resizable />
             <DataTableVirtualizedBody
               estimateSize={36}
               overscan={12}
               initialViewportHeight={256}
+              useColumnSizing
               totalCount={catalog.total}
               initialIndex={initialIndex}
               getVirtualRowId={(index) => directoryEntryAt(catalog, index)?.path}

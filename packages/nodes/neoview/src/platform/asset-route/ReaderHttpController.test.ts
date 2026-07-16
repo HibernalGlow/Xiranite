@@ -7,6 +7,7 @@ import { createZipFixture, type ZipFixture } from "../../../test/fixture-builder
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
+import { DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG } from "../../application/config/ReaderRuntimeConfig.js"
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
@@ -89,6 +90,10 @@ describe("ReaderHttpController", () => {
         hiddenColumns: patch.folderView.details?.hiddenColumns ?? [],
         pinnedLeft: patch.folderView.details?.pinnedLeft ?? ["name"],
         pinnedRight: patch.folderView.details?.pinnedRight ?? [],
+        columnWidths: {
+          ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.details.columnWidths,
+          ...patch.folderView.details?.columnWidths,
+        },
       },
     }))
     const updateShellOptions = vi.fn(async (patch) => ({
@@ -136,7 +141,7 @@ describe("ReaderHttpController", () => {
       folderView: {
         viewMode: "compact",
         previewCount: 4,
-        details: { columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [] },
+        details: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.details },
       },
       updateFolderView,
       slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
@@ -197,12 +202,12 @@ describe("ReaderHttpController", () => {
         { reader: { default_zoom_mode: "original", double_page_view: true } },
       )
       const folderPatched = (await controller.handle(jsonRequest("/reader/config", {
-        folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"] } },
+        folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } } },
       }, true, "PATCH")))!
-      expect(await folderPatched.json()).toMatchObject({ folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"] } } })
+      expect(await folderPatched.json()).toMatchObject({ folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } } } })
       expect(updateFolderView).toHaveBeenCalledWith(
-        { folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"] } } },
-        { folder: { view_mode: "details", preview_count: 9, details: { hidden_columns: ["tags"] } } },
+        { folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } } } },
+        { folder: { view_mode: "details", preview_count: 9, details: { hidden_columns: ["tags"], column_widths: { name: 310 } } } },
       )
       const slideshowPatched = (await controller.handle(jsonRequest("/reader/config", {
         slideshow: { intervalSeconds: 11, loop: true },

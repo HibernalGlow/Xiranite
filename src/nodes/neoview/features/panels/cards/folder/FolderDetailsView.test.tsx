@@ -1,8 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { DirectoryCatalog } from "./DirectoryCatalog"
 import FolderDetailsView from "./FolderDetailsView"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader-http-client"
+
+afterEach(cleanup)
 
 describe("FolderDetailsView", () => {
   it("[neoview.folder.details-niko-sparse] renders complete columns without materializing the remote directory", async () => {
@@ -19,6 +22,7 @@ describe("FolderDetailsView", () => {
           hiddenColumns: [],
           pinnedLeft: ["name"],
           pinnedRight: [],
+          columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
         }}
         onRangeChange={onRangeChange}
         onSelect={onSelect}
@@ -50,6 +54,7 @@ describe("FolderDetailsView", () => {
           hiddenColumns: [],
           pinnedLeft: ["name"],
           pinnedRight: [],
+          columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
         }}
         onRangeChange={vi.fn()}
         onSelect={vi.fn()}
@@ -63,6 +68,37 @@ describe("FolderDetailsView", () => {
     fireEvent.click(tagMenuItem!)
     await waitFor(() => expect(onLayoutChange).toHaveBeenCalledTimes(1))
     expect(onLayoutChange).toHaveBeenCalledWith({ hiddenColumns: ["tags"] })
+  })
+
+  it("[neoview.folder.details-column-width] applies persisted TanStack widths and resets one column on double click", async () => {
+    const onLayoutChange = vi.fn()
+    render(
+      <FolderDetailsView
+        catalog={catalog()}
+        disabled={false}
+        selectedPaths={new Set()}
+        layout={{
+          columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+          hiddenColumns: [],
+          pinnedLeft: ["name"],
+          pinnedRight: [],
+          columnWidths: { ...READER_FOLDER_DETAIL_DEFAULT_WIDTHS, name: 320 },
+        }}
+        onRangeChange={vi.fn()}
+        onSelect={vi.fn()}
+        onActivate={vi.fn()}
+        onLayoutChange={onLayoutChange}
+      />,
+    )
+
+    const handle = screen.getByRole("separator", { name: "调整 name 列宽" })
+    expect(handle.getAttribute("aria-valuenow")).toBe("320")
+    expect(handle.closest("th")?.style.width).toBe("320px")
+    fireEvent.doubleClick(handle)
+    await waitFor(() => expect(onLayoutChange).toHaveBeenCalledTimes(1))
+    expect(onLayoutChange).toHaveBeenCalledWith({
+      columnWidths: { ...READER_FOLDER_DETAIL_DEFAULT_WIDTHS, name: 220 },
+    })
   })
 })
 

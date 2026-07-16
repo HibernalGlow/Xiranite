@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto, ReaderShellConfigDto, ReaderSlideshowPatch, ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
 afterEach(cleanup)
@@ -425,6 +425,7 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
         hiddenColumns: [],
         pinnedLeft: ["name"],
         pinnedRight: [],
+        columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
       },
     },
     slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },

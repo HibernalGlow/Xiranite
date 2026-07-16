@@ -17,6 +17,7 @@ import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFl
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import {
   createReaderHttpClient,
+  READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
   ReaderHttpError,
   type ReaderHttpClient,
   type ReaderNavigationDto,
@@ -56,6 +57,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
     hiddenColumns: [],
     pinnedLeft: ["name"],
     pinnedRight: [],
+    columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
   },
 }
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
@@ -351,7 +353,14 @@ export function ReaderApp({
     const next: ReaderFolderViewConfig = {
       ...folderViewRef.current,
       ...patch,
-      details: { ...folderViewRef.current.details, ...patch.details },
+      details: {
+        ...folderViewRef.current.details,
+        ...patch.details,
+        columnWidths: {
+          ...folderViewRef.current.details.columnWidths,
+          ...patch.details?.columnWidths,
+        },
+      },
     }
     folderViewRef.current = next
     setFolderView(next)

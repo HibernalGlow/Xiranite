@@ -313,9 +313,9 @@ const VirtualizedBodyRowInner = function VirtualizedBodyRow<TData>({
       )}
     >
       {visibleCells.map(cell => {
-        const size = cell.column.columnDef.size
+        const size = cell.column.getSize()
         const cellStyle = {
-          width: size ? `${size}px` : undefined,
+          width: `${size}px`,
           ...getCommonPinningStyles(cell.column, false),
         }
 
@@ -379,6 +379,8 @@ export interface DataTableVirtualizedBodyProps<TData> {
   estimateSize?: number
   overscan?: number
   className?: string
+  /** Use controlled TanStack column widths instead of content auto-sizing. */
+  useColumnSizing?: boolean
   onScroll?: (event: ScrollEvent) => void
   onScrolledTop?: () => void
   onScrolledBottom?: () => void
@@ -458,6 +460,7 @@ export function DataTableVirtualizedBody<TData>({
   estimateSize = 34,
   overscan = 20,
   className,
+  useColumnSizing = false,
   onScroll,
   onRowClick,
   onRowDoubleClick,
@@ -490,18 +493,19 @@ export function DataTableVirtualizedBody<TData>({
   // String signature of the visible column layout. Memoized rows compare it
   // to invalidate on column toggle / reorder / pin. For external row state
   // (inline edits, optimistic overlays), pass `getRowMemoKey`.
-  const { columnVisibility, columnOrder, columnPinning } = table.getState()
+  const { columnVisibility, columnOrder, columnPinning, columnSizing } = table.getState()
   const columnLayoutSignature = React.useMemo(
     () =>
       table
         .getVisibleLeafColumns()
         .map(c => {
           const pinned = c.getIsPinned()
-          return pinned ? `${c.id}:${pinned}` : c.id
+          const identity = pinned ? `${c.id}:${pinned}` : c.id
+          return `${identity}:${c.getSize()}`
         })
         .join(","),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [table, columnVisibility, columnOrder, columnPinning],
+    [table, columnVisibility, columnOrder, columnPinning, columnSizing],
   )
 
   const [scrollElement, setScrollElement] =
@@ -530,11 +534,27 @@ export function DataTableVirtualizedBody<TData>({
   // Mirrored as state so row-render can gate `measureElement` on it. Attaching
   // the ResizeObserver before the lock would read inflated wrapped-text heights
   // and bake huge spacer gaps into the virtualizer.
-  const [columnsLocked, setColumnsLocked] = React.useState(false)
+  const [columnsLocked, setColumnsLocked] = React.useState(useColumnSizing)
 
   React.useLayoutEffect(() => {
     const leafColumns = table.getVisibleLeafColumns()
     const currentColCount = leafColumns.length
+
+    if (useColumnSizing) {
+      const tbody = tbodyRef.current
+      const tableEl = tbody?.closest<HTMLTableElement>('[data-slot="table"]')
+      if (!tableEl) return
+      const totalWidth = leafColumns.reduce((sum, column) => sum + column.getSize(), 0)
+      tableEl.style.minWidth = `${totalWidth}px`
+      tableEl.style.tableLayout = "fixed"
+      tableEl
+        .querySelectorAll<HTMLTableCellElement>("thead [data-slot='table-head']")
+        .forEach((cell, index) => {
+          cell.style.width = `${leafColumns[index]?.getSize() ?? 0}px`
+        })
+      if (!columnsLocked) setColumnsLocked(true)
+      return
+    }
 
     // Reset lock when column visibility changes (toggle columns on/off)
     if (
