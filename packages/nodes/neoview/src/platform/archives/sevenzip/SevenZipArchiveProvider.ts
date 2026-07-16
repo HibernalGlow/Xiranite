@@ -8,6 +8,7 @@ import type {
   ArchiveCapabilities,
   ArchiveEntry,
   ArchiveProvider,
+  ArchiveProviderSnapshot,
   MaterializedEntryLease,
   OpenArchiveEntryOptions,
 } from "../../../ports/ArchiveProvider.js"
@@ -23,6 +24,7 @@ import {
   type SevenZipExecutable,
 } from "./SevenZipExecutable.js"
 import { parseSevenZipSlt } from "./sevenzip-slt.js"
+import { archiveIndexPayloadBytes } from "../ArchiveIndexMetrics.js"
 
 const MAX_STDERR_BYTES = 256 * 1024
 type SevenZipChild = ChildProcessByStdio<null, Readable, Readable>
@@ -174,6 +176,15 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     })
   }
 
+  snapshot(): ArchiveProviderSnapshot {
+    return {
+      initialized: this.#initialized,
+      indexEntries: this.#entries.length,
+      indexPayloadBytes: archiveIndexPayloadBytes(this.#entries),
+      activeExtractions: this.#active.size + this.#activeFileReads.size,
+    }
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
@@ -189,6 +200,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     await this.#initializing?.catch(() => undefined)
     this.#entries = []
     this.#entriesById.clear()
+    this.#initialized = false
   }
 
   async [Symbol.asyncDispose](): Promise<void> {

@@ -47,6 +47,16 @@ afterAll(async () => {
 })
 
 describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () => {
+  it("[neoview.archive.sevenzip-index-snapshot] reports index payload and releases it on close", async () => {
+    const provider = createProvider(nonSolidPath, new RecordingScheduler())
+    expect(provider.snapshot()).toEqual({ initialized: false, indexEntries: 0, indexPayloadBytes: 0, activeExtractions: 0 })
+    const entries = await provider.list()
+    expect(provider.snapshot()).toMatchObject({ initialized: true, indexEntries: entries.length, activeExtractions: 0 })
+    expect(provider.snapshot().indexPayloadBytes).toBeGreaterThan(0)
+    await provider.close()
+    expect(provider.snapshot()).toEqual({ initialized: false, indexEntries: 0, indexPayloadBytes: 0, activeExtractions: 0 })
+  })
+
   it("[neoview.sevenzip.provider] [neoview.sevenzip.scheduler] indexes and stdout-streams exact non-solid entries", async () => {
     const scheduler = new RecordingScheduler()
     const provider = createProvider(nonSolidPath, scheduler)

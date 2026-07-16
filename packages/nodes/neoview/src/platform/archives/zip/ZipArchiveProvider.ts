@@ -5,9 +5,11 @@ import type {
   ArchiveCapabilities,
   ArchiveEntry,
   ArchiveProvider,
+  ArchiveProviderSnapshot,
   OpenArchiveEntryOptions,
 } from "../../../ports/ArchiveProvider.js"
 import { NodeFileReader, type NodeFileReaderOptions } from "./NodeFileReader.js"
+import { archiveIndexPayloadBytes } from "../ArchiveIndexMetrics.js"
 
 export interface ZipArchiveProviderOptions extends NodeFileReaderOptions {
   checkSignature?: boolean
@@ -72,6 +74,16 @@ export class ZipArchiveProvider implements ArchiveProvider {
     if (!stored) throw new Error(`Archive entry not found: ${entryId}`)
     if (stored.entry.directory) throw new Error(`Archive entry is not a file: ${stored.descriptor.path}`)
     return this.#streamEntry(stored.entry, options)
+  }
+
+  snapshot(): ArchiveProviderSnapshot {
+    const descriptors = this.#entries.map((entry) => entry.descriptor)
+    return {
+      initialized: this.#zipReader !== null,
+      indexEntries: descriptors.length,
+      indexPayloadBytes: archiveIndexPayloadBytes(descriptors),
+      activeExtractions: this.#active.size,
+    }
   }
 
   async close(): Promise<void> {

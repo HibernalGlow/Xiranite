@@ -19,6 +19,16 @@ afterAll(async () => {
 defineArchiveProviderConformance("ZIP", () => new ZipArchiveProvider(fixture.path))
 
 describe("ZipArchiveProvider", () => {
+  it("[neoview.archive.zip-index-snapshot] reports index payload and releases it on close", async () => {
+    const provider = new ZipArchiveProvider(fixture.path)
+    expect(provider.snapshot()).toEqual({ initialized: false, indexEntries: 0, indexPayloadBytes: 0, activeExtractions: 0 })
+    const entries = await provider.list()
+    expect(provider.snapshot()).toMatchObject({ initialized: true, indexEntries: entries.length, activeExtractions: 0 })
+    expect(provider.snapshot().indexPayloadBytes).toBeGreaterThan(0)
+    await provider.close()
+    expect(provider.snapshot()).toEqual({ initialized: false, indexEntries: 0, indexPayloadBytes: 0, activeExtractions: 0 })
+  })
+
   it("[neoview.archive.zip-metadata] reports Store/Deflate metadata without reading entry bodies", async () => {
     const reads: Array<{ length: number; bytesRead: number }> = []
     const provider = new ZipArchiveProvider(fixture.path, {
@@ -65,12 +75,14 @@ describe("ZipArchiveProvider", () => {
       expect(bytesRead).toBeLessThan(archiveSize / 4)
       bytesRead = 0
       const reader = (await provider.openEntry(entry!.id)).getReader()
+      expect(provider.snapshot().activeExtractions).toBe(1)
       const first = await reader.read()
       expect(first.done).toBe(false)
       expect(first.value!.byteLength).toBeLessThanOrEqual(64 * 1024)
       expect(bytesRead).toBeLessThan(archiveSize / 4)
       expect(maxRead).toBeLessThanOrEqual(64 * 1024)
       await reader.cancel()
+      await expect.poll(() => provider.snapshot().activeExtractions).toBe(0)
     } finally {
       await provider.close()
       await large.cleanup()

@@ -39,6 +39,13 @@ export interface MaterializedEntryLease extends AsyncDisposable {
   release(): Promise<void>
 }
 
+export interface ArchiveProviderSnapshot {
+  initialized: boolean
+  indexEntries: number
+  indexPayloadBytes: number
+  activeExtractions: number
+}
+
 export interface ArchiveProvider extends AsyncDisposable {
   readonly sourcePath: string
   readonly capabilities: ArchiveCapabilities
@@ -49,5 +56,6 @@ export interface ArchiveProvider extends AsyncDisposable {
     entryId: string,
     options?: Pick<OpenArchiveEntryOptions, "signal" | "password" | "rawPassword">,
   ): Promise<MaterializedEntryLease>
+  snapshot?(): ArchiveProviderSnapshot
   close(): Promise<void>
 }
