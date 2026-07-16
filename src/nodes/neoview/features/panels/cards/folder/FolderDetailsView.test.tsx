@@ -2,13 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { DirectoryCatalog } from "./DirectoryCatalog"
-import FolderDetailsView from "./FolderDetailsView"
+import FolderDetailsView, { folderDetailsRowSelection } from "./FolderDetailsView"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader-http-client"
 
 afterEach(cleanup)
 
 describe("FolderDetailsView", () => {
-  it("[neoview.folder.details-niko-sparse] renders complete columns without materializing the remote directory", async () => {
+  it("[neoview.folder.details-niko-sparse] renders complete columns without materializing the remote directory", () => {
     const onRangeChange = vi.fn()
     const onSelect = vi.fn()
     const onActivate = vi.fn()
@@ -39,6 +39,10 @@ describe("FolderDetailsView", () => {
     expect(tableHost.getAttribute("data-loaded-rows")).toBe("2")
     expect(tableHost.getAttribute("data-total-rows")).toBe("10000")
     expect(tableHost.querySelectorAll("tbody tr").length).toBeLessThan(80)
+    expect(folderDetailsRowSelection(
+      [...catalog().pages.values()].flat().map((entry) => ({ entry })),
+      new Set(["C:/books/book.cbz"]),
+    )).toEqual({ "C:/books/book.cbz": true })
     view.unmount()
   })
 

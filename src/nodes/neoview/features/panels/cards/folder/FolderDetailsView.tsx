@@ -80,11 +80,7 @@ export default function FolderDetailsView({
   onLayoutChange,
 }: FolderDetailsViewProps) {
   const rows = useMemo(() => loadedRows(catalog), [catalog.pages])
-  const rowSelection = useMemo<RowSelectionState>(() => {
-    const selected: RowSelectionState = {}
-    for (const row of rows) if (selectedPaths.has(row.entry.path)) selected[row.entry.path] = true
-    return selected
-  }, [rows, selectedPaths])
+  const rowSelection = useMemo(() => folderDetailsRowSelection(rows, selectedPaths), [rows, selectedPaths])
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(layout.columnOrder)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => visibilityFromLayout(layout))
   const [columnPinning, setColumnPinning] = useState(() => ({ left: layout.pinnedLeft, right: layout.pinnedRight }))
@@ -192,6 +188,15 @@ export default function FolderDetailsView({
       </DataTableRoot>
     </div>
   )
+}
+
+export function folderDetailsRowSelection(
+  rows: readonly { entry: ReaderDirectoryEntryDto }[],
+  selectedPaths: ReadonlySet<string>,
+): RowSelectionState {
+  const selected: RowSelectionState = {}
+  for (const row of rows) if (selectedPaths.has(row.entry.path)) selected[row.entry.path] = true
+  return selected
 }
 
 function DetailColumnHeader({ label }: { label: string }) {

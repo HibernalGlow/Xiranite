@@ -252,7 +252,15 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await page.locator('[data-reader-edge-trigger="left"]').hover()
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
   await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
-  await expect(leftSidebar.locator('[data-neoview-folder-card="true"]')).toBeVisible()
+  const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+  await expect(folderCard).toBeVisible()
+  const folderEntries = folderCard.locator('button[aria-selected]')
+  await expect.poll(() => folderEntries.count()).toBeGreaterThanOrEqual(3)
+  await folderEntries.nth(0).click()
+  await folderEntries.nth(2).click({ modifiers: ["Shift"] })
+  await expect(folderCard).toHaveAttribute("data-selection-count", "3")
+  await folderEntries.nth(1).click({ modifiers: ["Control"] })
+  await expect(folderCard).toHaveAttribute("data-selection-count", "2")
   const folderViewResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"

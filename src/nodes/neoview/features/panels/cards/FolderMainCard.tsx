@@ -8,7 +8,7 @@ import {
   type VirtuosoHandle,
 } from "react-virtuoso"
 import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, List, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Star, TableProperties, Unlock } from "lucide-react"
-import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -46,11 +46,22 @@ import {
   trimDirectoryPages,
   type DirectoryCatalog,
 } from "./folder/DirectoryCatalog"
+import {
+  createDirectorySelection,
+  directorySelectionCount,
+  extendDirectorySelection,
+  rebaseDirectorySelection,
+  selectedLoadedDirectoryPaths,
+  selectDirectorySingle,
+  toggleDirectorySelection,
+  type DirectorySelectionModel,
+} from "./folder/DirectorySelection"
 
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
 const MAX_HISTORY_STATES = 64
 const MAX_THUMBNAILS = 64
+const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const LIST_HEIGHT = 288
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
   "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
@@ -92,7 +103,7 @@ const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 interface SavedDirectoryState {
   viewMode: FolderViewMode
   previewCount: FolderPreviewCount
-  selectedPaths: readonly string[]
+  selection: DirectorySelectionModel
   focusedPath?: string
   focusedIndex?: number
   anchorIndex: number
@@ -123,11 +134,15 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
-  const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set())
+  const [selection, setSelection] = useState<DirectorySelectionModel>(() => createDirectorySelection(0))
   const [focusedPath, setFocusedPath] = useState<string>()
   const [thumbnailUrls, setThumbnailUrls] = useState<ReadonlyMap<string, string>>(() => new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
+  const selectedPaths = useMemo(
+    () => catalog ? selectedLoadedDirectoryPaths(selection, catalog.pages) : EMPTY_SELECTED_PATHS,
+    [catalog, selection],
+  )
 
   useEffect(() => {
     if (!sourcePath) return
@@ -258,16 +273,21 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const restored: SavedDirectoryState = preferredState ?? saved ?? {
       viewMode,
       previewCount,
-      selectedPaths: suggested ? [suggested.path] : [],
+      selection: suggested
+        ? selectDirectorySingle(page.generation, suggested.path, suggested.index)
+        : createDirectorySelection(page.generation),
       focusedPath: suggested?.path,
       focusedIndex: suggested?.index,
       anchorIndex: suggested?.index ?? 0,
     }
+    const restoredSelection = restored.selection.generation === page.generation
+      ? restored.selection
+      : rebaseDirectorySelection(restored.selection, page.generation)
     focusedIndexRef.current = restored.focusedIndex
     setViewMode(restored.viewMode)
     setPreviewCount(restored.previewCount)
-    setRestoreState(restored)
-    setSelectedPaths(new Set(restored.selectedPaths))
+    setRestoreState({ ...restored, selection: restoredSelection })
+    setSelection(restoredSelection)
     setFocusedPath(restored.focusedPath)
   }
 
@@ -286,7 +306,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       applyPage(result, {
         viewMode,
         previewCount,
-        selectedPaths: [...selectedPaths],
+        selection: rebaseDirectorySelection(selection, result.generation),
         focusedPath,
         focusedIndex: focusIndex,
         anchorIndex: focusIndex ?? 0,
@@ -318,7 +338,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       applyPage(result, {
         viewMode,
         previewCount,
-        selectedPaths: [...selectedPaths],
+        selection: rebaseDirectorySelection(selection, result.generation),
         focusedPath,
         focusedIndex: focusIndex,
         anchorIndex: focusIndex ?? 0,
@@ -375,7 +395,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const state: SavedDirectoryState = {
       viewMode,
       previewCount,
-      selectedPaths: [...selectedPaths],
+      selection,
       focusedPath,
       focusedIndex: focusedIndexRef.current,
       anchorIndex: range.startIndex,
@@ -398,7 +418,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const nextState: SavedDirectoryState = {
       viewMode: next,
       previewCount,
-      selectedPaths: [...selectedPaths],
+      selection,
       focusedPath,
       focusedIndex: focusedIndexRef.current,
       anchorIndex,
@@ -424,17 +444,20 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   }
 
   function selectEntry(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent) {
+    const previousFocusIndex = focusedIndexRef.current
     focusedIndexRef.current = index
     setFocusedPath(entry.path)
-    if (event.ctrlKey || event.metaKey) {
-      setSelectedPaths((current) => {
-        const next = new Set(current)
-        if (next.has(entry.path)) next.delete(entry.path)
-        else next.add(entry.path)
-        return next
-      })
+    const generation = catalogRef.current?.generation ?? selection.generation
+    if (event.shiftKey) {
+      setSelection((current) => extendDirectorySelection(current, generation, index, {
+        additive: event.ctrlKey || event.metaKey,
+        fallbackAnchor: previousFocusIndex ?? 0,
+        endPath: entry.path,
+      }))
+    } else if (event.ctrlKey || event.metaKey) {
+      setSelection((current) => toggleDirectorySelection(current, generation, entry.path, index))
     } else {
-      setSelectedPaths(new Set([entry.path]))
+      setSelection(selectDirectorySingle(generation, entry.path, index))
     }
   }
 
@@ -492,7 +515,12 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const virtualKey = catalog ? `${catalog.sessionId}:${catalog.generation}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
 
   return (
-    <div className="grid min-h-0 gap-2" data-neoview-folder-card="true">
+    <div
+      className="grid min-h-0 gap-2"
+      data-neoview-folder-card="true"
+      data-selection-count={directorySelectionCount(selection)}
+      data-selection-ranges={selection.ranges.length}
+    >
       <form
         className="flex gap-1"
         onSubmit={(event) => {

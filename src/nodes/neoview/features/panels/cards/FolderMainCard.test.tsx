@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { VirtuosoGridMockContext, VirtuosoMockContext } from "react-virtuoso"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import FolderMainCard from "./FolderMainCard"
+
+afterEach(cleanup)
 
 describe("FolderMainCard", () => {
   it("[neoview.browser.card] lazily opens, navigates, and disposes its shared browser session", async () => {
@@ -95,6 +97,50 @@ describe("FolderMainCard", () => {
     view.unmount()
     expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(contextId)
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
+  })
+
+  it("[neoview.folder.selection-range-ui] shares Shift and toggle selection across list and grid renderers", async () => {
+    const opened = page({
+      total: 4,
+      entries: Array.from({ length: 4 }, (_, index) => ({
+        name: `item-${index}.cbz`,
+        path: `C:/books/item-${index}.cbz`,
+        kind: "file" as const,
+        readerSupported: true,
+      })),
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoGridMockContext.Provider>
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    const item = (index: number) => currentView.getByTitle(`C:/books/item-${index}.cbz`)
+
+    await waitFor(() => expect(item(1)).toBeTruthy())
+    fireEvent.click(item(1))
+    fireEvent.click(item(3), { shiftKey: true })
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
+    expect(item(0).getAttribute("aria-selected")).toBe("false")
+    for (const index of [1, 2, 3]) expect(item(index).getAttribute("aria-selected")).toBe("true")
+
+    fireEvent.click(item(2), { ctrlKey: true })
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("2")
+    expect(item(2).getAttribute("aria-selected")).toBe("false")
+
+    fireEvent.click(currentView.getByLabelText("封面网格"))
+    await waitFor(() => expect(item(1).getAttribute("data-preview-mode")).toBe("cover-grid"))
+    expect(item(1).getAttribute("aria-selected")).toBe("true")
+    expect(item(2).getAttribute("aria-selected")).toBe("false")
+    expect(item(3).getAttribute("aria-selected")).toBe("true")
+
+    view.unmount()
   })
 
   it("[neoview.folder.sort-ui] reorders the backend snapshot and preserves the focused path", async () => {
