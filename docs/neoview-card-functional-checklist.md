@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=33`，`pending=41`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=34`，`pending=40`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -651,8 +651,8 @@
 - [ ] `folder.select.range` Shift 范围与链式选择
   - 目标：Shift 以稳定 anchor index 范围选择；链式选择按标签隔离，跨未加载分页也正确。
   - 源码：`stores/chainSelectStore.svelte.ts`、`components/FolderStack/FolderSelectionHandler.ts`
-  - 测试：待补
-  - 备注：不得只对当前 DOM 范围操作。
+  - 测试：`neoview.folder.selection-range-sparse`、`neoview.folder.selection-range-ui`、`neoview.folder.selection-chain`
+  - 备注：当前使用索引区间 + 少量显式路径表达 Shift/Ctrl+Shift 选择；100K 范围不物化路径，list/grid/details 共用同一 selection model。原版按标签隔离的链式选择仍待完成。
 - [ ] `folder.select.bulk` 全选、反选、取消与选择栏
   - 目标：全选/反选/取消作用于稳定 catalog，SelectionBar 显示数量与批量动作；大目录避免物化百万路径。
   - 源码：`components/SelectionBar.svelte`、`stores/folderPanelStore/selectionState.svelte.ts`
@@ -1008,7 +1008,7 @@
 
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|
-| `preloadStatus` | 预加载状态 | core | pending | `src/lib/cards/info/PreloadStatusCard.svelte` | 预读、渐进加载、流传输和全局调度 |
+| `preloadStatus` | 预加载状态 | core | partial | `src/lib/cards/info/PreloadStatusCard.svelte` | 预读、渐进加载、流传输和全局调度；XR `preload-status` |
 | `bookInfo` | 书籍信息 | core | partial | `src/lib/cards/info/BookInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `book-information` |
 | `infoOverlay` | 信息悬浮窗 | deferred | pending | `src/lib/cards/info/InfoOverlayCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
 | `imageInfo` | 图像信息 | core | partial | `src/lib/cards/info/ImageInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `image-information` |
@@ -1200,7 +1200,7 @@
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|
 | `emmTags` | EMM 标签 | integration | pending | `src/lib/cards/properties/EmmTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
-| `bookSettings` | 本书设置 | core | pending | `src/lib/cards/properties/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+| `bookSettings` | 本书设置 | core | partial | `src/lib/cards/properties/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `book-settings` |
 | `folderRatings` | 文件夹平均评分 | integration | pending | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `favoriteTags` | 收藏标签快选 | integration | pending | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `emmSync` | EMM 同步 | integration | pending | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |

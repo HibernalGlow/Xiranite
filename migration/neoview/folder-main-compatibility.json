@@ -550,9 +550,9 @@
       "sourceEvidence": ["stores/chainSelectStore.svelte.ts", "components/FolderStack/FolderSelectionHandler.ts"],
       "targetContract": "Shift 以稳定 anchor index 范围选择；链式选择按标签隔离，跨未加载分页也正确。",
       "surfaces": ["GUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "不得只对当前 DOM 范围操作。"
+      "status": "partial",
+      "testIds": ["neoview.folder.selection-range-sparse", "neoview.folder.selection-range-ui", "neoview.folder.selection-chain"],
+      "notes": "当前使用索引区间 + 少量显式路径表达 Shift/Ctrl+Shift 选择；100K 范围不物化路径，list/grid/details 共用同一 selection model。原版按标签隔离的链式选择仍待完成。"
     },
     {
       "id": "folder.select.bulk",
