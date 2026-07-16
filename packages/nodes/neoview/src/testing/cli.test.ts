@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import type { CliHost } from "@xiranite/cli-runtime"
 import type {
@@ -10,6 +10,7 @@ import type {
   OpenHeadlessReaderInput,
   ReaderHeadlessController,
   ReaderFileTreeHeadlessController,
+  ReaderFileOperationService,
   ReaderLibraryHeadlessController,
 } from "../core.js"
 import { runProgram } from "../cli.js"
@@ -23,6 +24,31 @@ const testPlatformDependencies = {
 }
 
 describe("NeoView CLI", () => {
+  it("[neoview.file-operations.cli] adapts shared operations and confirms destructive commands", async () => {
+    const execute = vi.fn(async ({ operations }: Parameters<ReaderFileOperationService["execute"]>[0]) => ({
+      results: operations.map((operation, index) => ({ index, operation, status: "succeeded" as const })),
+      succeeded: operations.length,
+      failed: 0,
+      cancelled: 0,
+    }))
+    const service = { execute } as ReaderFileOperationService
+    const dependencies = { createController: async () => fakeReader(), createFileOperationService: async () => service }
+
+    await runProgram(["file-copy", "source.jpg", "target.jpg", "--overwrite", "--concurrency", "1"], host([]), dependencies)
+    expect(execute).toHaveBeenLastCalledWith({ operations: [{
+      kind: "copy",
+      sourcePath: resolve("source.jpg"),
+      destinationPath: resolve("target.jpg"),
+      overwrite: true,
+    }], concurrency: 1 })
+    await expect(runProgram(["file-delete", "source.jpg"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["file-delete", "source.jpg", "target.jpg", "--yes"], host([]), dependencies)
+    expect(execute).toHaveBeenLastCalledWith({ operations: [
+      { kind: "delete", sourcePath: resolve("source.jpg") },
+      { kind: "delete", sourcePath: resolve("target.jpg") },
+    ], concurrency: 4 })
+  })
+
   it("[neoview.library.cli] adapts shared library operations and confirms destructive commands", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {

@@ -1,9 +1,10 @@
 import type { InteractionValues, TerminalInteractionDefinition, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
-import { dirname } from "node:path"
+import { dirname, resolve } from "node:path"
 import type { HeadlessReaderSnapshot } from "./core.js"
 import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
-import { createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
+import type { ReaderFileMutation, ReaderFileOperationService } from "./core.js"
+import { createReaderFileOperationService, createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
 
 export interface NeoviewTuiInput {
   path: string
@@ -58,6 +59,21 @@ export interface NeoviewLibraryTuiInput {
 }
 
 export interface NeoviewLibraryTuiResult {
+  success: boolean
+  message: string
+  lines?: readonly string[]
+}
+
+export type NeoviewFileOperationTuiAction = "copy" | "move" | "rename" | "delete" | "trash" | "create-directory"
+
+export interface NeoviewFileOperationTuiInput {
+  action: NeoviewFileOperationTuiAction
+  sourcePath?: string
+  destinationPath?: string
+  overwrite?: boolean
+}
+
+export interface NeoviewFileOperationTuiResult {
   success: boolean
   message: string
   lines?: readonly string[]
@@ -209,6 +225,29 @@ export function createNeoviewLibraryTuiDefinition(
   }
 }
 
+export function createNeoviewFileOperationTuiDefinition(
+  language: "zh" | "en" = "zh",
+  createService: () => Promise<ReaderFileOperationService> = createReaderFileOperationService,
+): TerminalInteractionDefinition<NeoviewFileOperationTuiInput, NeoviewFileOperationTuiResult> {
+  return {
+    schema: createNeoviewFileOperationTuiSchema(language),
+    async run(input) {
+      try {
+        const operation = fileOperationFromInput(input)
+        const result = await (await createService()).execute({ operations: [operation], concurrency: 1 })
+        const item = result.results[0]!
+        return {
+          success: item.status === "succeeded",
+          message: item.status === "succeeded" ? `${operation.kind} completed.` : item.error ?? `${operation.kind} ${item.status}.`,
+          lines: [JSON.stringify(item)],
+        }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      }
+    },
+  }
+}
+
 function createNeoviewTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewTuiInput, NeoviewTuiResult> {
   const zh = language === "zh"
   return {
@@ -351,6 +390,66 @@ function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteracti
     isDangerous: (input) => destructive.has(input.action),
     dangerPrompt: () => ({ title: zh ? "确认删除" : "Confirm deletion", body: zh ? "该操作会修改 NeoView 主数据库。" : "This operation modifies the NeoView primary database.", confirmLabel: zh ? "确认" : "Confirm" }),
     result: (result) => ({ success: result.success, message: result.message, lines: result.lines }),
+  }
+}
+
+function createNeoviewFileOperationTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewFileOperationTuiInput, NeoviewFileOperationTuiResult> {
+  const zh = language === "zh"
+  const needsSource = (values: Readonly<InteractionValues>) => values.action !== "create-directory"
+  const needsDestination = (values: Readonly<InteractionValues>) => values.action === "copy" || values.action === "move" || values.action === "rename" || values.action === "create-directory"
+  const supportsOverwrite = (values: Readonly<InteractionValues>) => values.action === "copy" || values.action === "move" || values.action === "rename"
+  return {
+    id: "neoview-file-operations",
+    title: "NeoView File Operations",
+    description: zh ? "复制、移动、重命名、删除与新建目录" : "Copy, move, rename, delete and create directories",
+    initialValues: { action: "copy", sourcePath: "", destinationPath: "", overwrite: false },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: FILE_OPERATION_ACTIONS.map(([value, en, cn]) => ({ value, label: zh ? cn : en })) },
+      { id: "sourcePath", label: zh ? "源路径" : "Source path", kind: "text", visibleWhen: needsSource },
+      { id: "destinationPath", label: zh ? "目标路径" : "Destination path", kind: "text", visibleWhen: needsDestination },
+      { id: "overwrite", label: zh ? "允许覆盖" : "Allow overwrite", kind: "boolean", visibleWhen: supportsOverwrite },
+    ],
+    toInput: (values) => ({
+      action: isFileOperationAction(values.action) ? values.action : "copy",
+      sourcePath: String(values.sourcePath ?? "").trim(),
+      destinationPath: String(values.destinationPath ?? "").trim(),
+      overwrite: values.overwrite === true,
+    }),
+    validate: (_values, input) => input.action !== "create-directory" && !input.sourcePath
+      ? (zh ? "请输入源路径。" : "Enter a source path.")
+      : (input.action === "copy" || input.action === "move" || input.action === "rename" || input.action === "create-directory") && !input.destinationPath
+        ? (zh ? "请输入目标路径。" : "Enter a destination path.")
+        : null,
+    preview: (input) => [input.action, input.sourcePath ?? "", input.destinationPath ?? ""].filter(Boolean),
+    isDangerous: (input) => input.action === "delete" || input.action === "trash",
+    dangerPrompt: (input) => ({
+      title: zh ? "确认文件操作" : "Confirm file operation",
+      body: input.action === "delete"
+        ? (zh ? "该路径将被永久删除。" : "The path will be permanently deleted.")
+        : (zh ? "该路径将移动到系统回收站。" : "The path will be moved to the system trash."),
+      confirmLabel: zh ? "确认" : "Confirm",
+    }),
+    result: (result) => ({ success: result.success, message: result.message, lines: result.lines }),
+  }
+}
+
+const FILE_OPERATION_ACTIONS: ReadonlyArray<readonly [NeoviewFileOperationTuiAction, string, string]> = [
+  ["copy", "Copy", "复制"], ["move", "Move", "移动"], ["rename", "Rename", "重命名"],
+  ["trash", "Move to trash", "移到回收站"], ["delete", "Delete permanently", "永久删除"], ["create-directory", "Create directory", "新建目录"],
+]
+
+function isFileOperationAction(value: unknown): value is NeoviewFileOperationTuiAction {
+  return FILE_OPERATION_ACTIONS.some(([action]) => action === value)
+}
+
+function fileOperationFromInput(input: NeoviewFileOperationTuiInput): ReaderFileMutation {
+  if (input.action === "create-directory") return { kind: input.action, destinationPath: resolve(input.destinationPath ?? "") }
+  if (input.action === "delete" || input.action === "trash") return { kind: input.action, sourcePath: resolve(input.sourcePath ?? "") }
+  return {
+    kind: input.action,
+    sourcePath: resolve(input.sourcePath ?? ""),
+    destinationPath: resolve(input.destinationPath ?? ""),
+    overwrite: input.overwrite === true,
   }
 }
 

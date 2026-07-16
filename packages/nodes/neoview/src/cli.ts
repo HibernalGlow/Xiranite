@@ -8,6 +8,8 @@ import type {
   HeadlessReaderSnapshot,
   ReaderCacheService,
   ReaderFileTreeHeadlessController,
+  ReaderFileOperationService,
+  ReaderFileMutation,
   ReaderLibraryHeadlessController,
   ReaderHeadlessController,
 } from "./core.js"
@@ -39,6 +41,7 @@ const COMMANDS = new Set([
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
+  "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "directory-create",
 ])
 const VALUE_FLAGS = new Set([
   "--entry",
@@ -70,7 +73,7 @@ const VALUE_FLAGS = new Set([
   "--before",
   "--concurrency",
 ])
-const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite"])
+const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 
@@ -87,6 +90,7 @@ export interface NeoviewCliDependencies {
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
   createSearchHistoryImporter?: (databasePath?: string) => Promise<LegacySearchHistoryImporter>
   createLibraryController?: (databasePath?: string) => Promise<ReaderLibraryHeadlessController>
+  createFileOperationService?: () => Promise<ReaderFileOperationService>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
@@ -125,6 +129,10 @@ export async function runProgram(
     await runLibraryUi(args.slice(1), host)
     return
   }
+  if (command === "file-ui") {
+    await runFileOperationUi(args.slice(1), host)
+    return
+  }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
   const parsed = parseArguments(args.slice(1))
@@ -161,6 +169,10 @@ export async function runProgram(
   }
   if (command.startsWith("library-")) {
     await runLibraryCommand(command, parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("file-") || command === "directory-create") {
+    await runFileOperationCommand(command, parsed, host, dependencies)
     return
   }
   if (command.startsWith("folder-search-history")) {
@@ -265,6 +277,18 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "library-invalid-cleanup") {
     rejectOptions(parsed, new Set(["--json", "--database", "--kind", "--scan-limit", "--limit", "--concurrency", "--yes"]))
+    return
+  }
+  if (command === "file-copy" || command === "file-move" || command === "file-rename") {
+    rejectOptions(parsed, new Set(["--json", "--concurrency", "--overwrite"]))
+    return
+  }
+  if (command === "file-delete" || command === "file-trash") {
+    rejectOptions(parsed, new Set(["--json", "--concurrency", "--yes"]))
+    return
+  }
+  if (command === "directory-create") {
+    rejectOptions(parsed, new Set(["--json", "--concurrency"]))
     return
   }
   if (command === "thumbnail-db-inspect") {
@@ -731,6 +755,46 @@ async function runLibraryCommand(
   } finally {
     await controller[Symbol.asyncDispose]()
   }
+}
+
+async function runFileOperationCommand(
+  command: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const pair = command === "file-copy" || command === "file-move" || command === "file-rename"
+  if (pair && parsed.positionals.length !== 2) throw usage(`${command} requires source and destination paths.`)
+  if (!pair && parsed.positionals.length === 0) throw usage(`${command} requires at least one path.`)
+  if ((command === "file-delete" || command === "file-trash") && !parsed.booleans.has("--yes")) {
+    throw usage(`${command} requires --yes.`)
+  }
+  const paths = parsed.positionals.map((path) => resolve(host.cwd, path))
+  const overwrite = parsed.booleans.has("--overwrite")
+  let operations: ReaderFileMutation[]
+  if (command === "file-copy" || command === "file-move" || command === "file-rename") {
+    operations = [{ kind: command.slice(5) as "copy" | "move" | "rename", sourcePath: paths[0]!, destinationPath: paths[1]!, overwrite }]
+  } else if (command === "directory-create") {
+    operations = paths.map((destinationPath) => ({ kind: "create-directory", destinationPath }))
+  } else {
+    const kind = command === "file-trash" ? "trash" : "delete"
+    operations = paths.map((sourcePath) => ({ kind, sourcePath }))
+  }
+  const createService = dependencies.createFileOperationService ?? (async () => {
+    const { createReaderFileOperationService } = await import("./platform.js")
+    return createReaderFileOperationService()
+  })
+  const result = await (await createService()).execute({
+    operations,
+    concurrency: integerOption(parsed, "--concurrency", 1, 8, 4),
+  })
+  if (parsed.booleans.has("--json")) return writeJson(host, result)
+  for (const item of result.results) {
+    const source = "sourcePath" in item.operation ? item.operation.sourcePath : item.operation.destinationPath
+    const destination = "destinationPath" in item.operation && "sourcePath" in item.operation ? ` -> ${item.operation.destinationPath}` : ""
+    writeLine(host, `${item.status}: ${item.operation.kind} ${source}${destination}${item.error ? ` (${item.error})` : ""}`)
+  }
+  writeLine(host, `Completed: ${result.succeeded}; failed=${result.failed}; cancelled=${result.cancelled}`)
 }
 
 function requiredValue(parsed: ParsedArguments, option: string, command: string): string {
@@ -1244,6 +1308,27 @@ async function runLibraryUi(args: readonly string[], host: CliHost): Promise<voi
   })
 }
 
+async function runFileOperationUi(args: readonly string[], host: CliHost): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView file-ui requires an interactive terminal.")
+  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
+  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+    throw usage(flags.error ?? `Unknown file-ui argument: ${flags.args[0]}`)
+  }
+  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+    throw usage(`Unknown terminal theme: ${flags.theme}.`)
+  }
+  const { createNeoviewFileOperationTuiDefinition } = await import("./interaction.js")
+  await runTerminalUi(createNeoviewFileOperationTuiDefinition(flags.language), {
+    host,
+    language: flags.language,
+    renderer: flags.renderer,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["file-ui", ...args] } : undefined,
+  })
+}
+
 function usage(message: string): CliUsageError {
   return new CliUsageError(`${message}\n\n${formatCliHelp()}`)
 }
@@ -1273,6 +1358,12 @@ function formatCliHelp(): string {
     "  library-bookmark-lists          List system and custom bookmark lists",
     "  library-bookmark-list-add       Create a custom bookmark list (--name)",
     "  library-bookmark-list-delete    Delete a custom list (--id, --yes)",
+    "  file-copy <source> <destination> Copy a file or directory",
+    "  file-move <source> <destination> Move across directories or volumes",
+    "  file-rename <source> <destination> Rename within one directory",
+    "  file-trash <path...>             Move paths to system trash (--yes)",
+    "  file-delete <path...>            Permanently delete paths (--yes)",
+    "  directory-create <path...>       Create directories",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
     "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
@@ -1293,6 +1384,7 @@ function formatCliHelp(): string {
     "  folder-tree-cache-clear <path>  Clear the bounded file-tree cache",
     "  folder-ui                        Open the shared file-tree terminal workbench",
     "  library-ui                       Open recent/bookmark terminal management",
+    "  file-ui                          Open shared file-operation terminal controls",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",
@@ -1320,6 +1412,8 @@ function formatCliHelp(): string {
     "                       search-history,upscale,performance,folder-ratings,voice-control",
     "  --yes                Confirm settings-import after preview",
     "                       Also required for thumbnail database mutations",
+    "  --overwrite          Allow copy/move/rename to replace a destination",
+    "  --concurrency N      File-operation concurrency (1..8)",
     "  --kind KIND          Thumbnail cleanup kind: empty, expired or invalid",
     "  --days N             Expiration age in days (default 30)",
     "  --scan-limit N       Invalid-path scan batch (default 500)",

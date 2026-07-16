@@ -76,9 +76,9 @@
 - 设置：`archive.allowFileOperations`、`archive.confirmBeforeDelete`
 - 数据：operation undo log
 - 行为：批量与单项操作结果逐项报告；冲突和只读失败；回收站与永久删除；取消和撤销；系统资源管理器定位
-- 测试：`neoview.file-operations.results`、`neoview.file-operations.cancel`、`neoview.file-operations.validation`、`neoview.file-operations.platform`、`neoview.file-operations.trash-adapter`、`neoview.file-operations.scheduler`、`neoview.file-operations.http`、`neoview.file-operations.confirmation`、`neoview.file-operations.http-validation`
+- 测试：`neoview.file-operations.results`、`neoview.file-operations.cancel`、`neoview.file-operations.validation`、`neoview.file-operations.platform`、`neoview.file-operations.trash-adapter`、`neoview.file-operations.scheduler`、`neoview.file-operations.http`、`neoview.file-operations.confirmation`、`neoview.file-operations.http-validation`、`neoview.file-operations.cli`、`neoview.file-operations.tui`
 - 性能基准：无专项
-- 已知差异：当前纵切尚未实现安全 undo journal、回收站恢复、Explorer/open-with 与 CLI/TUI 命令面；已启动的系统文件操作不可强制中断，取消只阻止尚未 admission 的项
+- 已知差异：当前纵切尚未实现安全 undo journal、回收站恢复与 Explorer/open-with；已启动的系统文件操作不可强制中断，取消只阻止尚未 admission 的项
 
 ### 压缩包索引、流式读取、预热、提取与条目删除（`archive-index-stream-mutate`）
 
