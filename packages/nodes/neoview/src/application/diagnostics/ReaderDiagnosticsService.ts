@@ -8,6 +8,12 @@ export interface ReaderSchedulerPoolDiagnostics {
   active: number
   queued: number
   queuedByPriority: Readonly<Record<ResourcePriority, number>>
+  granted?: number
+  released?: number
+  cancelled?: number
+  queueWaitSamples?: number
+  totalQueueWaitMs?: number
+  maxQueueWaitMs?: number
 }
 
 export interface ReaderAssetDiagnostics {

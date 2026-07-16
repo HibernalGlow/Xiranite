@@ -16,6 +16,7 @@ import type {
   ReaderLibraryHeadlessController,
   ReaderDiagnosticsService,
   ReaderDiagnosticsSnapshot,
+  ReaderSchedulerPoolDiagnostics,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -651,7 +652,14 @@ function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArgum
     ? `Preload: sessions=${preload.sessions} candidates=${preload.candidates.near}/${preload.candidates.ahead}/${preload.candidates.background} active=${preload.active} ready=${preload.ready} failed=${preload.failed} cancelled=${preload.cancelled} stale=${preload.staleReports}`
     : "Preload: unavailable")
   writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes}`)
-  writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${result.scheduler.cpu.active}/${result.scheduler.cpu.queued} io=${result.scheduler.io.active}/${result.scheduler.io.queued} gpu=${result.scheduler.gpu.active}/${result.scheduler.gpu.queued}` : "unavailable in standalone CLI"}`)
+  writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${schedulerPoolText(result.scheduler.cpu)} io=${schedulerPoolText(result.scheduler.io)} gpu=${schedulerPoolText(result.scheduler.gpu)}` : "unavailable in standalone CLI"}`)
+}
+
+function schedulerPoolText(pool: ReaderSchedulerPoolDiagnostics): string {
+  const wait = pool.queueWaitSamples && pool.totalQueueWaitMs !== undefined && pool.maxQueueWaitMs !== undefined
+    ? ` waitAvg=${(pool.totalQueueWaitMs / pool.queueWaitSamples).toFixed(1)}ms waitMax=${pool.maxQueueWaitMs.toFixed(1)}ms`
+    : ""
+  return `${pool.active}/${pool.queued}${wait}`
 }
 
 function cacheMaintenanceReason(value: string | undefined): "age" | "budget" | "explicit" {

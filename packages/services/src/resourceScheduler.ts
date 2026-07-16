@@ -8,6 +8,7 @@ import type {
 
 interface WaitingTask {
   request: ResourceTaskRequest
+  enqueuedAtMs: number
   resolve: (lease: ResourceLease) => void
   reject: (error: unknown) => void
   signal?: AbortSignal
@@ -21,12 +22,19 @@ export interface ResourcePoolOptions {
 
 export interface ResourceSchedulerServiceOptions {
   pools?: Partial<Record<ResourceClass, ResourcePoolOptions>>
+  now?: () => number
 }
 
 export interface ResourcePoolSnapshot {
   active: number
   queued: number
   queuedByPriority: Readonly<Record<ResourcePriority, number>>
+  granted: number
+  released: number
+  cancelled: number
+  queueWaitSamples: number
+  totalQueueWaitMs: number
+  maxQueueWaitMs: number
 }
 
 const DEFAULT_POOLS: Record<ResourceClass, ResourcePoolOptions> = {
@@ -39,10 +47,11 @@ export class ResourceSchedulerService implements ResourceScheduler {
   readonly #pools: Record<ResourceClass, PriorityResourcePool>
 
   constructor(options: ResourceSchedulerServiceOptions = {}) {
+    const now = options.now ?? performance.now.bind(performance)
     this.#pools = {
-      cpu: new PriorityResourcePool(options.pools?.cpu ?? DEFAULT_POOLS.cpu),
-      io: new PriorityResourcePool(options.pools?.io ?? DEFAULT_POOLS.io),
-      gpu: new PriorityResourcePool(options.pools?.gpu ?? DEFAULT_POOLS.gpu),
+      cpu: new PriorityResourcePool(options.pools?.cpu ?? DEFAULT_POOLS.cpu, now),
+      io: new PriorityResourcePool(options.pools?.io ?? DEFAULT_POOLS.io, now),
+      gpu: new PriorityResourcePool(options.pools?.gpu ?? DEFAULT_POOLS.gpu, now),
     }
   }
 
@@ -69,8 +78,14 @@ class PriorityResourcePool {
     background: [],
   }
   #active = 0
+  #granted = 0
+  #released = 0
+  #cancelled = 0
+  #queueWaitSamples = 0
+  #totalQueueWaitMs = 0
+  #maxQueueWaitMs = 0
 
-  constructor(options: ResourcePoolOptions) {
+  constructor(options: ResourcePoolOptions, private readonly now: () => number) {
     this.#maxConcurrent = boundedInteger(options.maxConcurrent, "maxConcurrent", 1, 64)
     this.#reservedInteractive = boundedInteger(
       options.reservedInteractive ?? Math.min(1, this.#maxConcurrent - 1),
@@ -83,12 +98,13 @@ class PriorityResourcePool {
   acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease> {
     signal?.throwIfAborted()
     return new Promise<ResourceLease>((resolve, reject) => {
-      const waiting: WaitingTask = { request, resolve, reject, signal }
+      const waiting: WaitingTask = { request, enqueuedAtMs: this.now(), resolve, reject, signal }
       if (signal) {
         waiting.abort = () => {
           const queue = this.#queues[request.priority]
           const index = queue.indexOf(waiting)
           if (index >= 0) queue.splice(index, 1)
+          this.#cancelled += 1
           reject(signal.reason)
         }
         signal.addEventListener("abort", waiting.abort, { once: true })
@@ -109,6 +125,12 @@ class PriorityResourcePool {
         ahead: this.#queues.ahead.length,
         background: this.#queues.background.length,
       },
+      granted: this.#granted,
+      released: this.#released,
+      cancelled: this.#cancelled,
+      queueWaitSamples: this.#queueWaitSamples,
+      totalQueueWaitMs: this.#totalQueueWaitMs,
+      maxQueueWaitMs: this.#maxQueueWaitMs,
     }
   }
 
@@ -129,16 +151,23 @@ class PriorityResourcePool {
   #start(waiting: WaitingTask): void {
     waiting.signal?.removeEventListener("abort", waiting.abort!)
     if (waiting.signal?.aborted) {
+      this.#cancelled += 1
       waiting.reject(waiting.signal.reason)
       return
     }
+    const queueWaitMs = Math.max(0, this.now() - waiting.enqueuedAtMs)
     this.#active += 1
+    this.#granted += 1
+    this.#queueWaitSamples += 1
+    this.#totalQueueWaitMs += queueWaitMs
+    this.#maxQueueWaitMs = Math.max(this.#maxQueueWaitMs, queueWaitMs)
     let released = false
     waiting.resolve({
       release: () => {
         if (released) return
         released = true
         this.#active -= 1
+        this.#released += 1
         this.#drain()
       },
     })

@@ -61,4 +61,31 @@ describe("ResourceSchedulerService", () => {
     io.release()
     gpu.release()
   })
+
+  it("[xiranite.scheduler.telemetry] reports lease lifecycle and monotonic queue wait without retaining tasks", async () => {
+    let now = 100
+    const scheduler = new ResourceSchedulerService({
+      pools: { cpu: { maxConcurrent: 1, reservedInteractive: 0 } },
+      now: () => now,
+    })
+    const active = await scheduler.acquire({ resource: "cpu", kind: "active", priority: "interactive" })
+    now = 125
+    const nextPromise = scheduler.acquire({ resource: "cpu", kind: "next", priority: "view" })
+    now = 165
+    active.release()
+    active.release()
+    const next = await nextPromise
+    expect(scheduler.snapshot().cpu).toMatchObject({
+      active: 1,
+      queued: 0,
+      granted: 2,
+      released: 1,
+      cancelled: 0,
+      queueWaitSamples: 2,
+      totalQueueWaitMs: 40,
+      maxQueueWaitMs: 40,
+    })
+    next.release()
+    expect(scheduler.snapshot().cpu).toMatchObject({ active: 0, released: 2 })
+  })
 })

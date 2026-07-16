@@ -691,6 +691,33 @@ describe("NeoView CLI", () => {
     expect(createDiagnosticsService).toHaveBeenCalledWith(expect.objectContaining({ configPath: "private/xiranite.config.toml" }))
     expect(close).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.diagnostics.scheduler-telemetry-cli] prints scheduler wait telemetry when the host provides it", async () => {
+    const output: unknown[] = []
+    const pool = {
+      active: 1,
+      queued: 2,
+      queuedByPriority: { interactive: 0, view: 1, ahead: 0, background: 1 },
+      granted: 4,
+      released: 3,
+      cancelled: 1,
+      queueWaitSamples: 4,
+      totalQueueWaitMs: 10,
+      maxQueueWaitMs: 6,
+    }
+    const service = new ReaderDiagnosticsService({
+      activeSessions: () => 0,
+      assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
+      presentationDiskCache: async () => ({ enabled: false }),
+      solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
+      scheduler: () => ({ cpu: pool, io: pool, gpu: pool }),
+    })
+    await runProgram(["diagnostics"], host(output), {
+      createController: async () => fakeReader(),
+      createDiagnosticsService: async () => service,
+    })
+    expect(output.join("")).toContain("cpu=1/2 waitAvg=2.5ms waitMax=6.0ms")
+  })
 })
 
 const pages: readonly HeadlessReaderPageSnapshot[] = [0, 1, 2].map((index) => ({
