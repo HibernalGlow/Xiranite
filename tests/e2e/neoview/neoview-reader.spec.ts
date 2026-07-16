@@ -971,6 +971,96 @@ test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory vi
   }
 })
 
+test("[neoview.folder.home-refresh-e2e] persists Home and refreshes only the current directory", async ({ page }) => {
+  const homeRoot = join(fixture.directory, "zz-home-refresh")
+  const homePath = join(homeRoot, "A")
+  const otherPath = join(homeRoot, "B")
+  const nestedPath = join(homePath, "nested")
+  await mkdir(nestedPath, { recursive: true })
+  await mkdir(otherPath, { recursive: true })
+  await Promise.all([
+    ...Array.from({ length: 96 }, (_, index) => writeFile(join(homePath, `home-${String(index).padStart(3, "0")}.cbz`), "")),
+    writeFile(join(otherPath, "other.cbz"), ""),
+    writeFile(join(nestedPath, "nested-only.cbz"), ""),
+  ])
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const image = page.locator('img[alt="001.jpg"]')
+    await expect(image).toBeVisible()
+    await image.evaluate((element) => element.setAttribute("data-home-refresh-image-instance", "stable"))
+
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const currentBreadcrumb = breadcrumb.locator('[aria-current="page"]')
+    const navigatePath = async (path: string) => {
+      const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
+      await edit.focus()
+      await edit.press("Enter")
+      const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+      await input.fill(path)
+      await input.press("Enter")
+      await expect(currentBreadcrumb).toHaveAttribute("title", path)
+    }
+
+    await navigatePath(homePath)
+    const homeButton = folderCard.getByRole("button", { name: "主页（单击返回主页，右键设置当前路径为主页）" })
+    const savedHome = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+      && response.request().method() === "PATCH"
+      && response.request().postData()?.includes('"homePath"') === true)
+    await homeButton.click({ button: "right", force: true })
+    expect((await savedHome).status()).toBe(200)
+    await expect(homeButton).toHaveAttribute("aria-pressed", "true")
+    const config = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+    expect(config).toContain("home_path")
+    expect(config).toContain("zz-home-refresh")
+
+    await navigatePath(otherPath)
+    await homeButton.focus()
+    await homeButton.press("Enter")
+    await expect(currentBreadcrumb).toHaveAttribute("title", homePath)
+    await expect(folderCard.getByRole("button", { name: "后退" })).toBeEnabled()
+
+    const list = folderCard.getByRole("listbox", { name: "文件项目" })
+    await list.focus()
+    await page.keyboard.press("End")
+    const selected = folderCard.getByTitle(join(homePath, "home-095.cbz"), { exact: true })
+    await expect(selected).toBeVisible()
+    await expect(selected).toHaveAttribute("aria-selected", "true")
+    await writeFile(join(homePath, "new-direct.cbz"), "")
+
+    await page.route("**/reader/browser/s/*/navigate", async (route) => {
+      const body = route.request().postDataJSON() as { action?: string }
+      if (body.action === "refresh") await new Promise((resolve) => setTimeout(resolve, 150))
+      await route.continue()
+    })
+    await list.focus()
+    await page.keyboard.press("F5")
+    await expect(folderCard.getByRole("button", { name: "刷新" })).toBeDisabled()
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+    await expect(list).toHaveAttribute("data-focused-index", "96")
+    await expect(folderCard.getByTitle(join(homePath, "home-095.cbz"), { exact: true })).toHaveAttribute("aria-selected", "true")
+    await expect(folderCard.getByText("new-direct.cbz", { exact: true })).toHaveCount(1)
+    await expect(folderCard.getByText("nested-only.cbz", { exact: true })).toHaveCount(0)
+    expect(await image.getAttribute("data-home-refresh-image-instance")).toBe("stable")
+    expect(await folderCard.getByRole("tree").count()).toBe(0)
+  } finally {
+    await fetch(`${backend.url}/reader/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+      body: JSON.stringify({ folderView: { homePath: "" } }),
+    }).catch(() => undefined)
+    await rm(homeRoot, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.time-information.e2e] renders source-aware archive times in the real Reader", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }

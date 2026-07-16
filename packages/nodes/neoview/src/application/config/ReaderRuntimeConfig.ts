@@ -50,6 +50,7 @@ export interface NeoviewFolderTreeViewConfig {
 }
 
 export interface NeoviewFolderViewConfig {
+  homePath: string
   viewMode: NeoviewFolderViewMode
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
@@ -69,6 +70,7 @@ export interface NeoviewFolderDetailsPatch {
 
 export interface NeoviewFolderViewPatch {
   folderView: {
+    homePath?: string
     viewMode?: NeoviewFolderViewMode
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number
@@ -205,6 +207,7 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
 }
 
 export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
+  homePath: "",
   viewMode: "compact",
   previewCount: 4,
   thumbnailWidthPercent: 20,
@@ -375,11 +378,15 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search", "tree"])
+  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search", "tree"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
   const toml: Record<string, unknown> = {}
+  if (folder.homePath !== undefined) {
+    patch.folderView.homePath = normalizedFolderHomePath(folder.homePath, "reader folder view patch.homePath")
+    toml.home_path = patch.folderView.homePath
+  }
   if (folder.viewMode !== undefined) {
     patch.folderView.viewMode = optionalEnum(folder.viewMode, "reader folder view patch.viewMode", NEOVIEW_FOLDER_VIEW_MODES)
     toml.view_mode = patch.folderView.viewMode
@@ -504,6 +511,9 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     : boundedInteger(value.preview_count, 4, 16, "[nodes.neoview.folder].preview_count")
   if (previewCount !== 4 && previewCount !== 9 && previewCount !== 16) throw new Error("[nodes.neoview.folder].preview_count must be 4, 9 or 16.")
   return {
+    homePath: value.home_path === undefined
+      ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.homePath
+      : normalizedFolderHomePath(value.home_path, "[nodes.neoview.folder].home_path"),
     viewMode: optionalEnum(value.view_mode, "[nodes.neoview.folder].view_mode", NEOVIEW_FOLDER_VIEW_MODES) ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.viewMode,
     previewCount,
     thumbnailWidthPercent: value.thumbnail_width_percent === undefined
@@ -541,6 +551,13 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
       pinnedPaths: normalizedTreePinnedPaths(tree?.pinned_paths ?? [], "[nodes.neoview.folder.tree_view].pinned_paths"),
     },
   }
+}
+
+function normalizedFolderHomePath(value: unknown, path: string): string {
+  if (typeof value !== "string") throw new Error(`${path} must be a string.`)
+  const normalized = value.trim()
+  if (normalized.length > 4096 || normalized.includes("\0")) throw new Error(`${path} must be at most 4096 characters without NUL.`)
+  return normalized
 }
 
 function normalizedTreePinnedPaths(value: unknown, path: string): string[] {

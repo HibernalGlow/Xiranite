@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { VirtuosoGridMockContext, VirtuosoMockContext } from "react-virtuoso"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderHttpClient } from "../../../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderFolderViewConfig, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import FolderMainCard from "./FolderMainCard"
 
 afterEach(cleanup)
@@ -24,6 +24,50 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal)))
     view.unmount()
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
+  })
+
+  it("[neoview.folder.home-refresh-ui] keeps Home navigation separate from the tree and preserves selection on refresh", async () => {
+    const entries = [
+      { name: "folder", path: "C:/current/folder", kind: "directory" as const, readerSupported: false },
+      { name: "book.cbz", path: "C:/current/book.cbz", kind: "file" as const, readerSupported: true },
+    ]
+    const opened = page({ path: "C:/current", entries, total: entries.length })
+    const refreshed = page({ path: "C:/current", entries, total: entries.length, generation: 2 })
+    const home = page({ navigationEntryId: 2, path: "C:/home", canGoBack: true, generation: 3 })
+    const navigateDirectoryBrowser = vi.fn(async (_sessionId: string, navigation: { action: string }) => (
+      navigation.action === "refresh" ? refreshed : home
+    ))
+    const onFolderView = vi.fn(async () => undefined)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const renderCard = (folderView: ReaderFolderViewConfig) => (
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/current" onOpen={vi.fn()} onGoTo={vi.fn()} folderView={folderView} onFolderView={onFolderView} />
+      </VirtuosoMockContext.Provider>
+    )
+    const view = render(renderCard(folderViewConfig({ homePath: "C:/home" })))
+    const ui = within(view.container)
+    const homeButton = await ui.findByRole("button", { name: "主页（单击返回主页，右键设置当前路径为主页）" })
+
+    fireEvent.contextMenu(homeButton)
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ homePath: "C:/current" }))
+    view.rerender(renderCard(folderViewConfig({ homePath: "C:/current" })))
+    onFolderView.mockClear()
+    fireEvent.contextMenu(ui.getByRole("button", { name: "主页（单击返回主页，右键设置当前路径为主页）" }))
+    expect(onFolderView).not.toHaveBeenCalled()
+
+    view.rerender(renderCard(folderViewConfig({ homePath: "C:/home" })))
+    fireEvent.click(ui.getByTitle("C:/current/book.cbz"))
+    fireEvent.click(ui.getByRole("button", { name: "刷新" }))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "refresh" }, expect.any(AbortSignal)))
+    await waitFor(() => expect(ui.getByTitle("C:/current/book.cbz").getAttribute("aria-selected")).toBe("true"))
+
+    fireEvent.click(ui.getByRole("button", { name: "主页（单击返回主页，右键设置当前路径为主页）" }))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "path", path: "C:/home" }, expect.any(AbortSignal)))
+    expect(ui.queryByRole("tree")).toBeNull()
   })
 
   it("[neoview.browser.restore-index] requests the sparse page containing the parent selection", async () => {
@@ -694,6 +738,7 @@ describe("FolderMainCard", () => {
           onOpen={vi.fn()}
           onGoTo={vi.fn()}
           folderView={{
+            homePath: "",
             viewMode: "details",
             previewCount: 9,
             thumbnailWidthPercent: 20,
@@ -739,6 +784,7 @@ describe("FolderMainCard", () => {
             onOpen={vi.fn()}
             onGoTo={vi.fn()}
             folderView={{
+              homePath: "",
               viewMode: "cover-grid",
               previewCount: 4,
               thumbnailWidthPercent: 20,
@@ -794,6 +840,26 @@ function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDt
     globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
     tabDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
     watching: false,
+    ...overrides,
+  }
+}
+
+function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): ReaderFolderViewConfig {
+  return {
+    homePath: "",
+    viewMode: "compact",
+    previewCount: 4,
+    thumbnailWidthPercent: 20,
+    bannerWidthPercent: 50,
+    details: {
+      columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+      hiddenColumns: [],
+      pinnedLeft: ["name"],
+      pinnedRight: [],
+      columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
+    },
+    search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
+    tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
     ...overrides,
   }
 }

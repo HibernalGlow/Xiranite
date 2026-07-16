@@ -418,6 +418,7 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
     shell: shellConfig(),
     viewDefaults: { fitMode: "fit", pageMode: "single" },
     folderView: {
+      homePath: "",
       viewMode: "compact",
       previewCount: 4,
       details: {

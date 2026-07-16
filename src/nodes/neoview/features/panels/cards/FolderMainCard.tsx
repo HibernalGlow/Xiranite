@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Link, List, ListTree, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Search, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Home, Link, List, ListTree, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Search, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -101,6 +101,7 @@ type FolderViewMode = ReaderFolderViewMode
 type FolderPreviewCount = 4 | 9 | 16
 
 const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
+  homePath: "",
   viewMode: "compact",
   previewCount: 4,
   thumbnailWidthPercent: 20,
@@ -127,6 +128,7 @@ const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
 const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
 
 interface SavedDirectoryState {
+  total?: number
   viewMode: FolderViewMode
   previewCount: FolderPreviewCount
   multiSelectMode: boolean
@@ -249,12 +251,18 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
   const restoreIndex = catalog && restoreState
     ? Math.min(Math.max(restoreState.focusedIndex ?? restoreState.anchorIndex, 0), Math.max(0, catalog.total - 1))
     : undefined
-  const shouldLocateRestore = restoreState?.focusedIndex !== undefined || (restoreState?.anchorIndex ?? 0) > 0
+  const shouldLocateRestore = (restoreState?.focusedIndex ?? restoreState?.anchorIndex ?? 0) > 0
 
   useEffect(() => {
     if (restoreIndex === undefined) return
     requestRange({ startIndex: restoreIndex, endIndex: restoreIndex })
-  }, [catalog?.sessionId, catalog?.generation, restoreIndex, viewMode])
+    if (restoreState?.viewMode !== viewMode) return
+    if (viewUsesVirtuosoList(viewMode) && !restoreState.listSnapshot) {
+      listRef.current?.scrollToIndex({ index: restoreIndex, align: "center" })
+    } else if (viewUsesGrid(viewMode) && !restoreState.gridSnapshot) {
+      gridRef.current?.scrollToIndex({ index: restoreIndex, align: "center" })
+    }
+  }, [catalog?.sessionId, catalog?.generation, restoreIndex, restoreState, viewMode])
 
   async function openBrowser(path: string) {
     const normalized = path.trim()
@@ -291,13 +299,17 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
     if (!client.navigateDirectoryBrowser) return
     setSearchOpen(false)
     if (!options.keepTree) setTreeOpen(false)
-    captureCurrentState()
+    const preferredState = navigation.action === "refresh"
+      ? await captureRefreshState()
+      : captureCurrentState()
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
     try {
       const result = await client.navigateDirectoryBrowser(sessionId, navigation, navigationRequestRef.current?.signal)
-      if (generation === navigationGenerationRef.current) applyPage(result)
+      if (generation === navigationGenerationRef.current) {
+        applyPage(result, navigation.action === "refresh" ? preferredState : undefined)
+      }
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(errorMessage(cause))
     } finally {
@@ -316,15 +328,18 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
     commitCatalog(next)
     if (preserveViewport) {
       setSelection((value) => rebaseDirectorySelection(value, page.generation))
-      focusedIndexRef.current = page.suggestedSelection?.index
-      setFocusedIndex(page.suggestedSelection?.index)
-      setFocusedPath(page.suggestedSelection?.path)
+      if (page.suggestedSelection) {
+        focusedIndexRef.current = page.suggestedSelection.index
+        setFocusedIndex(page.suggestedSelection.index)
+        setFocusedPath(page.suggestedSelection.path)
+      }
       queueMicrotask(() => requestRange(visibleRangeRef.current))
       return
     }
     visibleRangeRef.current = { startIndex: 0, endIndex: 0 }
     const suggested = page.suggestedSelection
-    const restored = restoreDirectoryVisitState(page, preferredState, navigationStatesRef.current, {
+    let restored = restoreDirectoryVisitState(page, preferredState, navigationStatesRef.current, {
+      total: page.total,
       viewMode,
       previewCount,
       multiSelectMode: false,
@@ -335,6 +350,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       focusedIndex: suggested?.index,
       anchorIndex: suggested?.index ?? 0,
     })
+    if (restored.total !== undefined && restored.total !== page.total) {
+      restored = { ...restored, total: page.total, listSnapshot: undefined, gridSnapshot: undefined }
+    }
     gridSnapshotRef.current = restored.gridSnapshot
     detailsScrollTopRef.current = restored.detailsScrollTop ?? 0
     focusedIndexRef.current = restored.focusedIndex
@@ -360,6 +378,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       if (generation !== navigationGenerationRef.current) return
       const focusIndex = result.suggestedSelection?.index
       applyPage(result, {
+        total: result.total,
         viewMode,
         previewCount,
         multiSelectMode,
@@ -393,6 +412,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       if (generation !== navigationGenerationRef.current) return
       const focusIndex = result.suggestedSelection?.index
       applyPage(result, {
+        total: result.total,
         viewMode,
         previewCount,
         multiSelectMode,
@@ -446,11 +466,12 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
     queueMicrotask(registerVisibleThumbnails)
   }
 
-  function captureCurrentState() {
+  function currentSavedState(): { current: DirectoryCatalog; state: SavedDirectoryState } | undefined {
     const current = catalogRef.current
-    if (!current) return
+    if (!current) return undefined
     const range = visibleRangeRef.current
     const state: SavedDirectoryState = {
+      total: current.total,
       viewMode,
       previewCount,
       multiSelectMode,
@@ -461,6 +482,13 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       gridSnapshot: viewUsesGrid(viewMode) ? gridSnapshotRef.current : undefined,
       detailsScrollTop: viewMode === "details" ? detailsScrollTopRef.current : undefined,
     }
+    return { current, state }
+  }
+
+  function captureCurrentState(): SavedDirectoryState | undefined {
+    const saved = currentSavedState()
+    if (!saved) return undefined
+    const { current, state } = saved
     rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, state)
     if (viewUsesVirtuosoList(viewMode)) {
       listRef.current?.getState((snapshot) => {
@@ -468,6 +496,32 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
         if (latest) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, { ...latest, listSnapshot: snapshot })
       })
     }
+    return state
+  }
+
+  async function captureRefreshState(): Promise<SavedDirectoryState | undefined> {
+    const saved = currentSavedState()
+    if (!saved) return undefined
+    const { current, state } = saved
+    rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, state)
+    const list = viewUsesVirtuosoList(state.viewMode) ? listRef.current : null
+    if (!list) return state
+    return new Promise((resolve) => {
+      list.getState((snapshot) => {
+        const next = { ...state, listSnapshot: snapshot }
+        rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, next)
+        resolve(next)
+      })
+    })
+  }
+
+  async function applyWatchedPage(page: ReaderDirectoryPageDto) {
+    const current = catalogRef.current
+    if (!current || current.sessionId !== page.sessionId || current.generation >= page.generation) return
+    const preferredState = await captureRefreshState()
+    const latest = catalogRef.current
+    if (!latest || latest.sessionId !== page.sessionId || latest.generation >= page.generation) return
+    applyPage(page, preferredState)
   }
 
   function switchView(next: FolderViewMode) {
@@ -476,6 +530,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
     const current = catalogRef.current
     const anchorIndex = focusedIndexRef.current ?? visibleRangeRef.current.startIndex
     const nextState: SavedDirectoryState = {
+      total: current?.total,
       viewMode: next,
       previewCount,
       multiSelectMode,
@@ -563,7 +618,14 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
   function handleDirectoryKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (searchOpen || isEditableKeyboardEvent(event)) return
     const currentCatalog = catalogRef.current
-    if (!currentCatalog || currentCatalog.total <= 0 || disabled || loading) return
+    if (!currentCatalog || disabled || loading) return
+    if (event.key === "F5") {
+      event.preventDefault()
+      event.stopPropagation()
+      void navigate({ action: "refresh" })
+      return
+    }
+    if (currentCatalog.total <= 0) return
     const currentIndex = Math.min(
       Math.max(focusedIndexRef.current ?? visibleRangeRef.current.startIndex, 0),
       currentCatalog.total - 1,
@@ -598,8 +660,6 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
     } else if (event.key === "Backspace") {
       if (currentCatalog.canGoBack) void navigate({ action: "back" })
       else if (currentCatalog.parentPath) void navigate({ action: "up" })
-    } else if (event.key === "F5") {
-      void navigate({ action: "refresh" })
     } else {
       return
     }
@@ -703,7 +763,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
             sessionId={catalog.sessionId}
             generation={catalog.generation}
             focusPath={focusedPath}
-            onPage={(page) => applyPage(page, undefined, true)}
+            onPage={(page) => { void applyWatchedPage(page) }}
             onError={(cause) => setError(`目录监听失败：${errorMessage(cause)}`)}
           />
         </Suspense>
@@ -726,6 +786,21 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
           <BrowserButton label="后退" disabled={!catalog?.canGoBack || loading} onClick={() => void navigate({ action: "back" })}><ArrowLeft /></BrowserButton>
           <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
           <BrowserButton label="上级" disabled={!catalog?.parentPath || loading} onClick={() => void navigate({ action: "up" })}><ArrowUp /></BrowserButton>
+          <BrowserButton
+            label="主页（单击返回主页，右键设置当前路径为主页）"
+            disabled={!catalog || loading}
+            clickDisabled={!folderView.homePath}
+            active={Boolean(catalog && folderView.homePath && catalog.path === folderView.homePath)}
+            onClick={() => {
+              if (folderView.homePath && catalog?.path !== folderView.homePath) void navigate({ action: "path", path: folderView.homePath })
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              if (catalog && !loading && catalog.path !== folderView.homePath) void onFolderView?.({ homePath: catalog.path })
+            }}
+          >
+            <Home />
+          </BrowserButton>
           <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
           <BrowserButton
             label={multiSelectMode ? "退出多选" : "多选模式"}
@@ -1225,8 +1300,8 @@ function EntryIcon({ entry, className = "size-4" }: { entry: ReaderDirectoryEntr
     : <File className={`${className} shrink-0 text-muted-foreground`} />
 }
 
-function BrowserButton({ label, disabled = false, active = false, onClick, children }: { label: string; disabled?: boolean; active?: boolean; onClick(): void; children: ReactNode }) {
-  return <Button type="button" size="icon-sm" variant={active ? "default" : "ghost"} aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</Button>
+function BrowserButton({ label, disabled = false, clickDisabled = false, active = false, onClick, onContextMenu, children }: { label: string; disabled?: boolean; clickDisabled?: boolean; active?: boolean; onClick(): void; onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void; children: ReactNode }) {
+  return <Button type="button" size="icon-sm" variant={active ? "default" : "ghost"} aria-label={label} title={label} aria-disabled={disabled || clickDisabled} aria-pressed={active || undefined} disabled={disabled} onClick={() => { if (!clickDisabled) onClick() }} onContextMenu={onContextMenu}>{children}</Button>
 }
 
 function isEditableKeyboardEvent(event: ReactKeyboardEvent<HTMLElement>): boolean {

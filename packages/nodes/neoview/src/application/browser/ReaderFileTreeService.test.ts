@@ -329,6 +329,50 @@ describe("ReaderFileTreeService", () => {
     await browser[Symbol.asyncDispose]()
   })
 
+  it("[neoview.folder.refresh] refreshes the current directory without changing its visit or temporary sort", async () => {
+    let names = ["book2.cbz", "book10.cbz"]
+    let failRefresh = false
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        if (failRefresh && path === "C:/B") throw new Error("refresh failed")
+        return {
+          path,
+          parentPath: "C:/",
+          entries: names.map((name) => ({ name, path: `${path}/${name}`, kind: "file" as const, readerSupported: true })),
+        }
+      },
+    })
+    const opened = await browser.open("C:/A")
+    const atB = await browser.navigate(opened.sessionId, { action: "path", path: "C:/B" })
+    await browser.updateSortPreference(opened.sessionId, { action: "temporary", enabled: true })
+    const sorted = await browser.sort(opened.sessionId, { field: "name", order: "desc", directoriesFirst: true })
+    names = ["book2.cbz", "book10.cbz", "new.cbz"]
+
+    const refreshed = await browser.navigate(opened.sessionId, { action: "refresh" })
+    expect(refreshed).toMatchObject({
+      navigationEntryId: atB?.navigationEntryId,
+      path: "C:/B",
+      total: 3,
+      canGoBack: true,
+      canGoForward: false,
+      sortSource: "temporary",
+      sortTemporary: true,
+      sort: sorted?.sort,
+    })
+    expect(refreshed?.entries.map((entry) => entry.name)).toEqual(["new.cbz", "book10.cbz", "book2.cbz"])
+
+    failRefresh = true
+    await expect(browser.navigate(opened.sessionId, { action: "refresh" })).rejects.toThrow("refresh failed")
+    await expect(browser.list(opened.sessionId)).resolves.toMatchObject({
+      navigationEntryId: atB?.navigationEntryId,
+      path: "C:/B",
+      total: 3,
+      canGoBack: true,
+      sortSource: "temporary",
+    })
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.folder.emm-visible-batch] hydrates only the requested page with supported display metadata", async () => {
     const hydrate = vi.fn(async (entries) => entries.map((entry) => ({ ...entry, rating: 4.5, collectTagCount: 2 })))
     const browser = new ReaderFileTreeService({

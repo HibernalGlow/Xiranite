@@ -123,6 +123,7 @@ describe("parseNeoviewRuntimeConfig", () => {
 
   it("[neoview.folder.settings] [neoview.folder.search-settings] normalizes folder view and legacy search settings", () => {
     expect(parseNeoviewRuntimeConfig({ folder: {
+      home_path: " D:/Books ",
       view_mode: "details",
       preview_count: 9,
       thumbnail_width_percent: 34,
@@ -136,6 +137,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         column_widths: { name: 260, path: 420, "future-column": 999 },
       },
     } }).folderView).toEqual({
+      homePath: "D:/Books",
       viewMode: "details",
       previewCount: 9,
       thumbnailWidthPercent: 34,
@@ -154,6 +156,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       tree: { visible: true, layout: "right", size: 260, pinnedPaths: ["D:\\Pinned"] },
     })
     expect(parseNeoviewFolderViewPatch({ folderView: {
+      homePath: " E:/Library ",
       viewMode: "mosaic-grid",
       previewCount: 16,
       thumbnailWidthPercent: 42,
@@ -163,6 +166,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
     } })).toEqual({
       patch: { folderView: {
+        homePath: "E:/Library",
         viewMode: "mosaic-grid",
         previewCount: 16,
         thumbnailWidthPercent: 42,
@@ -178,6 +182,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       } },
       tomlPatch: { folder: {
+        home_path: "E:/Library",
         view_mode: "mosaic-grid",
         preview_count: 16,
         thumbnail_width_percent: 42,
@@ -198,6 +203,14 @@ describe("parseNeoviewRuntimeConfig", () => {
       show_history_on_focus: false,
       search_in_path: true,
     } } }).folderView.search).toEqual({ includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true })
+    expect(parseNeoviewRuntimeConfig(undefined).folderView.homePath).toBe("")
+    expect(parseNeoviewFolderViewPatch({ folderView: { homePath: "" } })).toEqual({
+      patch: { folderView: { homePath: "" } },
+      tomlPatch: { folder: { home_path: "" } },
+    })
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: "bad\0path" } })).toThrow("without NUL")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: "x".repeat(4097) } })).toThrow("at most 4096")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: 1 } })).toThrow("must be a string")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { previewCount: 8 } })).toThrow("4, 9 or 16")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { thumbnailWidthPercent: 9 } })).toThrow("between 10 and 90")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { bannerWidthPercent: 101 } })).toThrow("between 20 and 100")
