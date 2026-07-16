@@ -417,6 +417,21 @@ export class ReaderFileTreeService implements AsyncDisposable {
     return this.#tree.snapshot()
   }
 
+  releaseMemoryPressure(): { clearedTreeEntries: number; cancelledDirectorySizes: number; clearedRandomSeeds: number } {
+    this.#assertOpen()
+    const clearedTreeEntries = this.#tree.snapshot().size
+    this.#tree.clear()
+    let cancelledDirectorySizes = 0
+    let clearedRandomSeeds = 0
+    for (const session of this.#sessions.values()) {
+      cancelledDirectorySizes += session.directorySizeOperations.size
+      abortDirectorySizeOperations(session)
+      clearedRandomSeeds += session.randomSeeds.size
+      session.randomSeeds.clear()
+    }
+    return { clearedTreeEntries, cancelledDirectorySizes, clearedRandomSeeds }
+  }
+
   async directorySizes(
     sessionId: string,
     generation: number,

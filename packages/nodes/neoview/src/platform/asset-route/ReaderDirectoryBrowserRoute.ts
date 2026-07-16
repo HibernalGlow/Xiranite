@@ -138,6 +138,10 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     await this.#browser[Symbol.asyncDispose]()
   }
 
+  releaseMemoryPressure(): { clearedTreeEntries: number; cancelledDirectorySizes: number; clearedRandomSeeds: number } {
+    return this.#browser.releaseMemoryPressure()
+  }
+
   async #open(request: Request): Promise<Response> {
     const body = await request.json().catch(() => undefined) as { path?: unknown; scopeId?: unknown; watch?: unknown } | undefined
     if (typeof body?.path !== "string" || !body.path.trim()) return errorResponse("path must be a non-empty string", 400)

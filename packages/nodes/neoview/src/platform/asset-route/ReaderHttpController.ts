@@ -227,6 +227,7 @@ export class ReaderHttpController implements AsyncDisposable {
       relieveHostMemoryPressure: async (level) => {
         const snapshot = this.#solidArchiveCache.snapshot()
         await this.#solidArchiveCache.trimTo(level === "critical" ? 0 : Math.floor(snapshot.maxBytes * 0.25))
+        this.#directoryBrowser.releaseMemoryPressure()
       },
     })
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)

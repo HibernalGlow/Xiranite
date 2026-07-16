@@ -59,6 +59,33 @@ describe("ReaderFileTreeService", () => {
     await browser[Symbol.asyncDispose]()
   })
 
+  it("[neoview.memory-pressure.file-tree] clears rebuildable tree metadata and background sizes without losing the current listing", async () => {
+    let scanning = false
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: [{ name: "nested", path: `${path}/nested`, kind: "directory", readerSupported: true }] }
+      },
+    }, undefined, undefined, {
+      directorySizeProvider: {
+        measure(_path, signal) {
+          scanning = true
+          return new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason), { once: true }))
+        },
+      },
+    })
+    const opened = await browser.open("C:/books")
+    expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: false })
+    expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: true })
+    const sizes = browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/nested"])
+    await vi.waitFor(() => expect(scanning).toBe(true))
+
+    expect(browser.releaseMemoryPressure()).toEqual({ clearedTreeEntries: 1, cancelledDirectorySizes: 1, clearedRandomSeeds: 0 })
+    await expect(sizes).rejects.toMatchObject({ name: "AbortError" })
+    await expect(browser.list(opened.sessionId)).resolves.toMatchObject({ generation: 1, total: 1, entries: [{ name: "nested" }] })
+    expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: false })
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.browser.navigation] pages stable snapshots and maintains navigation history", async () => {
     const provider: ReaderDirectoryListingProvider = {
       async read(path) {
