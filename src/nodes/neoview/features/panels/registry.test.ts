@@ -13,7 +13,7 @@ describe("NeoView panel and card registries", () => {
   it("[neoview.shell.registry-lazy] reads metadata without invoking any card loader", () => {
     const loaders = CARD_DEFINITIONS.map((card) => vi.spyOn(card, "load"))
     expect(availablePanels("left").map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
-    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info"])
+    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties"])
     for (const loader of loaders) expect(loader).not.toHaveBeenCalled()
     for (const loader of loaders) loader.mockRestore()
   })
@@ -40,13 +40,19 @@ describe("NeoView panel and card registries", () => {
         info: { visible: true, order: 10, position: "right" },
         properties: { visible: true, order: 1, position: "right" },
       },
-    } as never).map((panel) => panel.id)).toEqual(["info"])
+    } as never).map((panel) => panel.id)).toEqual(["properties", "info"])
     expect(availablePanels("left", {
       panelLayout: {
         pageList: { visible: false, order: 20, position: "left" },
         info: { visible: true, order: 0, position: "left" },
       },
     } as never).map((panel) => panel.id)).toEqual(["folder", "info", "history", "bookmark"])
+  })
+
+  it("[neoview.card.parallel-core] exposes preload and current-book settings without eager loading", () => {
+    expect(cardsForPanel("info").map((card) => card.id)).toContain("preload-status")
+    expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["book-settings"])
+    expect(cardsForPanel("properties", undefined, false)).toEqual([])
   })
 
   it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {

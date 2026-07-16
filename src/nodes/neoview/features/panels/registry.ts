@@ -32,6 +32,7 @@ export interface ReaderPanelContext {
   client: ReaderHttpClient
   disabled: boolean
   onGoTo(pageIndex: number): void | Promise<void>
+  onPageModeChange?(pageMode: "single" | "double"): void | Promise<void>
   sourcePath?: string
   onOpen?(path: string): void | Promise<void>
   shell?: ReaderShellConfigDto
@@ -106,6 +107,8 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "image-information": () => import("./cards/ImageInformationCard"),
   "storage-information": () => import("./cards/StorageInformationCard"),
   "time-information": () => import("./cards/TimeInformationCard"),
+  "preload-status": () => import("./cards/PreloadStatusCard"),
+  "book-settings": () => import("./cards/BookSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),

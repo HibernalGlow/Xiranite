@@ -183,7 +183,8 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "preload-stream-scheduler",
-      "status": "pending",
+      "status": "partial",
+      "currentCardId": "preload-status",
       "sourceComponent": "src/lib/cards/info/PreloadStatusCard.svelte",
       "sourceDisposition": "component"
     },
@@ -347,7 +348,8 @@
       "panelId": "properties",
       "priority": "core",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "status": "partial",
+      "currentCardId": "book-settings",
       "sourceComponent": "src/lib/cards/properties/BookSettingsCard.svelte",
       "sourceDisposition": "component"
     },

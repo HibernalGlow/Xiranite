@@ -281,6 +281,15 @@ export function ReaderApp({
     if (updated) void persistViewDefaults({ pageMode })
   }
 
+  async function updateCurrentBookPageMode(pageMode: "single" | "double") {
+    if (pageMode === session?.frame.layout.pageMode) return
+    await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
+      sessionId,
+      { layout: { pageMode } },
+      signal,
+    ))
+  }
+
   async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
     const next = { ...viewDefaultsRef.current, ...patch }
     viewDefaultsRef.current = next
@@ -554,6 +563,7 @@ export function ReaderApp({
     client,
     disabled: busy,
     onGoTo: goTo,
+    onPageModeChange: updateCurrentBookPageMode,
     sourcePath: path,
     onOpen: openPath,
     shell,
