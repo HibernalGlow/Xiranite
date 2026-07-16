@@ -83,6 +83,11 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
+      // Keep the browser entry on the source-level UI boundary. The NeoView
+      // package build replaces dist non-atomically, and a stale Vite optimized
+      // dependency can otherwise retain the Node-only core module graph.
+      { find: "@xiranite/node-neoview/ui-core", replacement: path.resolve(__dirname, "packages/nodes/neoview/src/ui-core.ts") },
+      { find: "@xiranite/node-neoview/definition", replacement: path.resolve(__dirname, "packages/nodes/neoview/src/definition.ts") },
       { find: "@hibernalglow/ocean-dataview/styles.css", replacement: path.resolve(oceanSrc, "styles.css") },
       { find: "@hibernalglow/ocean-dataview/validators", replacement: path.resolve(oceanSrc, "validators/index.ts") },
       { find: "@hibernalglow/ocean-dataview/parsers", replacement: path.resolve(oceanSrc, "parsers/index.ts") },
@@ -142,7 +147,7 @@ export default defineConfig({
     // "Multiple adapter contexts detected" (NUQS-303) + context provider 失效。
     // nuqs 是纯 ESM（type: module），浏览器原生 ESM 按 URL 去重模块，
     // exclude 后所有入口共享同一份 context 模块。
-    exclude: ["nuqs"],
+    exclude: ["nuqs", "@xiranite/node-neoview"],
     rolldownOptions: {
       transform: {
         define: {
