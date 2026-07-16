@@ -355,6 +355,12 @@ export async function createReaderLibraryService(databasePath?: string): Promise
   )
 }
 
+export async function createReaderFileOperationService(resourceScheduler?: ResourceScheduler) {
+  const { ReaderFileOperationService } = await import("./application/files/ReaderFileOperationService.js")
+  const { PlatformReaderFileMutationProvider } = await import("./platform/filesystem/PlatformReaderFileMutationProvider.js")
+  return new ReaderFileOperationService(new PlatformReaderFileMutationProvider({ scheduler: resourceScheduler }))
+}
+
 export async function createReaderLibraryHeadlessController(
   databasePath?: string,
   resourceScheduler?: ResourceScheduler,

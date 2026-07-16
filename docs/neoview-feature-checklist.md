@@ -76,9 +76,9 @@
 - 设置：`archive.allowFileOperations`、`archive.confirmBeforeDelete`
 - 数据：operation undo log
 - 行为：批量与单项操作结果逐项报告；冲突和只读失败；回收站与永久删除；取消和撤销；系统资源管理器定位
-- 测试：待补
+- 测试：`neoview.file-operations.results`、`neoview.file-operations.cancel`、`neoview.file-operations.validation`、`neoview.file-operations.platform`、`neoview.file-operations.trash-adapter`、`neoview.file-operations.scheduler`、`neoview.file-operations.http`、`neoview.file-operations.confirmation`、`neoview.file-operations.http-validation`
 - 性能基准：无专项
-- 已知差异：无
+- 已知差异：当前纵切尚未实现安全 undo journal、回收站恢复、Explorer/open-with 与 CLI/TUI 命令面；已启动的系统文件操作不可强制中断，取消只阻止尚未 admission 的项
 
 ### 压缩包索引、流式读取、预热、提取与条目删除（`archive-index-stream-mutate`）
 
@@ -219,7 +219,7 @@
 - 设置：`history`、`book.rememberProgress`、`historySettings`
 - 数据：history、bookmarks、reading heatmap、streak
 - 行为：记录和恢复进度；历史大小与自动清理；书签排序/搜索；历史与文件树联动；热力图和连续阅读统计
-- 测试：`neoview.progress.restore`、`neoview.progress.flush`、`neoview.progress.sqlite`、`neoview.library.contract`、`neoview.library.bookmark`、`neoview.library.bookmark-dedupe`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`
+- 测试：`neoview.progress.restore`、`neoview.progress.flush`、`neoview.progress.sqlite`、`neoview.library.contract`、`neoview.library.bookmark`、`neoview.library.bookmark-dedupe`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`、`neoview.library.cleanup-invalid`、`neoview.library.cleanup-cancel`、`neoview.library.path-status`
 - 性能基准：无专项
 - 已知差异：无
 
