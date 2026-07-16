@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises"
+import { dirname, resolve } from "node:path"
 import { parseSync } from "oxc-parser"
 import type {
   ArrayExpression,
@@ -34,6 +35,12 @@ export interface NodeDefLiteral {
  * scripts do not depend on `typescript` and remain compatible with tsgo/TS7.
  */
 export async function readNodeDef(indexPath: string): Promise<NodeDefLiteral> {
+  return readNodeDefFile(indexPath, new Set())
+}
+
+async function readNodeDefFile(indexPath: string, visited: Set<string>): Promise<NodeDefLiteral> {
+  if (visited.has(indexPath)) throw new Error(`Circular NodeEntry def import from ${indexPath}.`)
+  visited.add(indexPath)
   const sourceText = await readFile(indexPath, "utf8")
   const result = parseSync(indexPath, sourceText, {
     lang: "ts",
@@ -43,7 +50,34 @@ export async function readNodeDef(indexPath: string): Promise<NodeDefLiteral> {
   })
 
   const found = findDefLiteral(result.program)
-  if (!found) throw new Error(`Unable to find NodeEntry def literal in ${indexPath}.`)
+  if (found) return found
+  const imported = findLocalDefImport(result.program)
+  if (imported) {
+    const sourcePath = resolve(dirname(indexPath), imported.replace(/\.js$/, ".ts"))
+    return readNodeDefFile(sourcePath, visited)
+  }
+  throw new Error(`Unable to find NodeEntry def literal in ${indexPath}.`)
+}
+
+function findLocalDefImport(root: Node): string | undefined {
+  let found: string | undefined
+  function visit(node: Node | undefined | null): void {
+    if (!node || found) return
+    if (node.type === "ImportDeclaration") {
+      const declaration = node as unknown as {
+        source?: { value?: unknown }
+        specifiers?: Array<{ local?: { name?: string } }>
+      }
+      const source = declaration.source?.value
+      if (
+        typeof source === "string"
+        && source.startsWith(".")
+        && declaration.specifiers?.some((specifier) => specifier.local?.name === "def")
+      ) found = source
+    }
+    walkChildren(node, visit)
+  }
+  visit(root)
   return found
 }
 
