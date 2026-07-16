@@ -227,9 +227,9 @@
       "sourceEvidence": ["components/FolderStack/folderStackNavigation.ts", "components/FolderToolbar/NavigationButtons.svelte"],
       "targetContract": "返回上级后自动选中并滚动到刚离开的子目录；远端批次尚未加载时先定位索引再取页。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.folder.parent-suggested-selection"],
-      "notes": "后端 suggestedSelection 与前端远端定位已接入。"
+      "status": "complete",
+      "testIds": ["neoview.folder.parent-suggested-selection", "neoview.browser.restore-index", "neoview.folder.parent-locate-e2e"],
+      "notes": "ReaderFileTreeService 在返回上级时基于排序后的父目录快照返回离开子目录的稳定 path/index，10K 父目录测试确认目标不必进入首批 128 项。FolderMainCard 先按全局索引请求对应稀疏页；compact 与 grid 在无历史 snapshot 时使用 Virtuoso initialTopMostItemIndex，details 使用 Niko initialIndex，避免 ref 尚未挂载时的一次性滚动丢失。真实 Chromium desktop/420x360 验证索引 400 的目录在三种 renderer 中进入视口、保持焦点与选中；父目录普通列表只显示直接子项，不显示该目录内部文件，Folder Tree 继续保持独立。"
     },
     {
       "id": "folder.nav.home-refresh",

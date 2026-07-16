@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=41`，`complete=3`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=40`，`complete=4`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -480,11 +480,11 @@
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderToolbar/NavigationButtons.svelte`
   - 测试：`neoview.folder.nav-history`、`neoview.folder.nav-history-ui`、`neoview.folder.nav-history-e2e`
   - 备注：ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot，details 保存原始 scrollTop 并在虚拟行测量后保持同一行锚点。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖，普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。
-- [ ] `folder.nav.parent` 返回上级并定位原目录
+- [x] `folder.nav.parent` 返回上级并定位原目录
   - 目标：返回上级后自动选中并滚动到刚离开的子目录；远端批次尚未加载时先定位索引再取页。
   - 源码：`components/FolderStack/folderStackNavigation.ts`、`components/FolderToolbar/NavigationButtons.svelte`
-  - 测试：`neoview.folder.parent-suggested-selection`
-  - 备注：后端 suggestedSelection 与前端远端定位已接入。
+  - 测试：`neoview.folder.parent-suggested-selection`、`neoview.browser.restore-index`、`neoview.folder.parent-locate-e2e`
+  - 备注：ReaderFileTreeService 在返回上级时基于排序后的父目录快照返回离开子目录的稳定 path/index，10K 父目录测试确认目标不必进入首批 128 项。FolderMainCard 先按全局索引请求对应稀疏页；compact 与 grid 在无历史 snapshot 时使用 Virtuoso initialTopMostItemIndex，details 使用 Niko initialIndex，避免 ref 尚未挂载时的一次性滚动丢失。真实 Chromium desktop/420x360 验证索引 400 的目录在三种 renderer 中进入视口、保持焦点与选中；父目录普通列表只显示直接子项，不显示该目录内部文件，Folder Tree 继续保持独立。
 - [ ] `folder.nav.home-refresh` 主页、设为主页与刷新
   - 目标：主页跳转、修饰键设为主页、F5/按钮刷新均保留当前位置策略并给出加载状态。
   - 源码：`components/FolderToolbar/NavigationButtons.svelte`、`components/FolderToolbar/FolderToolbar.svelte`
