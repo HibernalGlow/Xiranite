@@ -804,6 +804,82 @@ test("[neoview.folder.path-navigation] keeps breadcrumb navigation scoped to the
   await expect(currentBreadcrumb).toHaveAttribute("title", fixture.directory)
 })
 
+test("[neoview.folder.parent-locate-e2e] selects the departed child across sparse virtual renderers", async ({ page }) => {
+  const parentPath = join(fixture.directory, "zz-parent-locate")
+  const childName = "zz-selected-child"
+  const childPath = join(parentPath, childName)
+  const nestedMarker = "nested-only.png"
+  await mkdir(childPath, { recursive: true })
+  await writeFile(join(childPath, nestedMarker), ONE_PIXEL_PNG)
+  await Promise.all(Array.from({ length: 400 }, (_, index) => (
+    mkdir(join(parentPath, `item-${String(index).padStart(3, "0")}`))
+  )))
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    await expect(page.locator('img[alt="001.jpg"]')).toBeVisible()
+
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const currentBreadcrumb = breadcrumb.locator('[aria-current="page"]')
+    const navigatePath = async (path: string) => {
+      const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
+      await edit.focus()
+      await edit.press("Enter")
+      const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+      await input.fill(path)
+      await input.press("Enter")
+      await expect(currentBreadcrumb).toHaveAttribute("title", path)
+    }
+    const goUp = async () => {
+      await currentBreadcrumb.focus()
+      await page.keyboard.press("Alt+ArrowUp")
+      await expect(currentBreadcrumb).toHaveAttribute("title", parentPath)
+      await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+      await expect(folderCard.getByRole("listbox", { name: "文件项目" })).toHaveAttribute("data-focused-index", "400")
+    }
+
+    await navigatePath(childPath)
+    await expect(folderCard.getByText(nestedMarker, { exact: true })).toBeVisible()
+    await folderCard.getByRole("radio", { name: "紧凑列表" }).click()
+    const sparsePage = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return url.pathname.endsWith("/entries") && url.searchParams.get("cursor") === "384"
+    })
+    await goUp()
+    expect((await sparsePage).status()).toBe(200)
+    const compactChild = folderCard.getByTitle(childPath, { exact: true })
+    await expect(compactChild).toBeVisible()
+    await expect(compactChild).toHaveAttribute("aria-selected", "true")
+    await expect(folderCard.getByText(nestedMarker, { exact: true })).toHaveCount(0)
+
+    await navigatePath(childPath)
+    await folderCard.getByRole("radio", { name: "封面网格" }).click()
+    await goUp()
+    const gridChild = folderCard.getByTitle(childPath, { exact: true })
+    await expect(gridChild).toBeVisible()
+    await expect(gridChild).toHaveAttribute("aria-selected", "true")
+    await expect(gridChild).toHaveAttribute("data-preview-mode", "cover-grid")
+
+    await navigatePath(childPath)
+    await folderCard.getByRole("radio", { name: "详细信息" }).click()
+    await goUp()
+    const detailsHost = folderCard.getByTestId("folder-details-host")
+    const detailsChild = detailsHost.getByText(childName, { exact: true }).locator("xpath=ancestor::tr")
+    await expect(detailsChild).toBeVisible()
+    await expect(detailsChild).toHaveAttribute("data-state", "selected")
+  } finally {
+    await rm(parentPath, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory visit independently", async ({ page }) => {
   const historyRoot = join(fixture.directory, "zz-history")
   const firstPath = join(historyRoot, "A")

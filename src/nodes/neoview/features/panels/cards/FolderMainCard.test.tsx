@@ -36,17 +36,35 @@ describe("FolderMainCard", () => {
       total: 1_000,
       suggestedSelection: { path: "C:/books", index: 900 },
     })
-    const listDirectoryBrowser = vi.fn(async () => page({ ...parent, cursor: 896 }))
+    const listDirectoryBrowser = vi.fn(async () => page({
+      ...parent,
+      cursor: 896,
+      entries: [
+        ...Array.from({ length: 4 }, (_, index) => ({
+          name: `before-${index}`,
+          path: `C:/before-${index}`,
+          kind: "directory" as const,
+          readerSupported: true,
+        })),
+        { name: "books", path: "C:/books", kind: "directory", readerSupported: true },
+      ],
+    }))
     const client = {
       openDirectoryBrowser: vi.fn(async () => opened),
       navigateDirectoryBrowser: vi.fn(async () => parent),
       listDirectoryBrowser,
       closeDirectoryBrowser: vi.fn(async () => undefined),
     } as unknown as ReaderHttpClient
-    render(<FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />)
+    render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
     await waitFor(() => expect((screen.getByRole("button", { name: "上级" }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole("button", { name: "上级" }))
     await waitFor(() => expect(listDirectoryBrowser).toHaveBeenCalledWith("browser-1", 896, 128, expect.any(AbortSignal)))
+    await waitFor(() => expect(screen.getByRole("listbox", { name: "文件项目" }).getAttribute("data-focused-index")).toBe("900"))
+    expect(document.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
   })
 
   it("[neoview.folder.nav-history-ui] restores state by visit instead of merging repeated paths", async () => {

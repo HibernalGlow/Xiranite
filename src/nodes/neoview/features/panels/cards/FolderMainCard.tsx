@@ -246,16 +246,15 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
     })
   }
 
+  const restoreIndex = catalog && restoreState
+    ? Math.min(Math.max(restoreState.focusedIndex ?? restoreState.anchorIndex, 0), Math.max(0, catalog.total - 1))
+    : undefined
+  const shouldLocateRestore = restoreState?.focusedIndex !== undefined || (restoreState?.anchorIndex ?? 0) > 0
+
   useEffect(() => {
-    if (!catalog || !restoreState) return
-    const index = Math.min(Math.max(restoreState.focusedIndex ?? restoreState.anchorIndex, 0), Math.max(0, catalog.total - 1))
-    requestRange({ startIndex: index, endIndex: index })
-    if (viewUsesVirtuosoList(viewMode) && !restoreState.listSnapshot) {
-      queueMicrotask(() => listRef.current?.scrollToIndex({ index, align: "center" }))
-    } else if (viewUsesGrid(viewMode) && !restoreState.gridSnapshot) {
-      queueMicrotask(() => gridRef.current?.scrollToIndex({ index, align: "center" }))
-    }
-  }, [catalog?.sessionId, catalog?.generation, restoreState, viewMode])
+    if (restoreIndex === undefined) return
+    requestRange({ startIndex: restoreIndex, endIndex: restoreIndex })
+  }, [catalog?.sessionId, catalog?.generation, restoreIndex, viewMode])
 
   async function openBrowser(path: string) {
     const normalized = path.trim()
@@ -994,6 +993,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
             computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
             rangeChanged={requestRange}
             restoreStateFrom={restoreState?.viewMode === viewMode ? restoreState.listSnapshot : undefined}
+            initialTopMostItemIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.listSnapshot && restoreIndex !== undefined
+              ? { index: restoreIndex, align: "center" }
+              : undefined}
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)
               return (
@@ -1046,6 +1048,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
             computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
             rangeChanged={requestRange}
             restoreStateFrom={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
+            initialTopMostItemIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.gridSnapshot && restoreIndex !== undefined
+              ? { index: restoreIndex, align: "center" }
+              : undefined}
             stateChanged={(snapshot) => { gridSnapshotRef.current = snapshot }}
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)

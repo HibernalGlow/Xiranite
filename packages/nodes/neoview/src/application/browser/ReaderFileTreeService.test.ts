@@ -237,6 +237,44 @@ describe("ReaderFileTreeService", () => {
     await browser[Symbol.asyncDispose]()
   })
 
+  it("[neoview.folder.parent-suggested-selection] locates the departed child in a sorted 10K parent without returning its page eagerly", async () => {
+    const parentPath = "C:/library"
+    const childPath = `${parentPath}/selected-child`
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        if (path === childPath) return { path, parentPath, entries: [] }
+        return {
+          path,
+          parentPath: "C:/",
+          entries: [
+            ...Array.from({ length: 10_000 }, (_, index) => ({
+              name: `item-${String(index).padStart(5, "0")}`,
+              path: `${parentPath}/item-${String(index).padStart(5, "0")}`,
+              kind: "directory" as const,
+              readerSupported: true,
+            })),
+            { name: "selected-child", path: childPath, kind: "directory" as const, readerSupported: true },
+          ],
+        }
+      },
+    })
+    const opened = await browser.open(childPath)
+    const parent = await browser.navigate(opened.sessionId, { action: "up" })
+
+    expect(parent).toMatchObject({
+      path: parentPath,
+      cursor: 0,
+      total: 10_001,
+      suggestedSelection: { path: childPath, index: 10_000 },
+    })
+    expect(parent?.entries.some((entry) => entry.path === childPath)).toBe(false)
+    await expect(browser.list(opened.sessionId, 9_984, 128)).resolves.toMatchObject({
+      cursor: 9_984,
+      entries: expect.arrayContaining([expect.objectContaining({ path: childPath })]),
+    })
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.folder.nav-history] restores distinct visits, branches, temporary sort, and a bounded history", async () => {
     const browser = new ReaderFileTreeService({
       async read(path) {
