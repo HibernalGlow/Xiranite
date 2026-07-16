@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/book-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -1217,10 +1217,162 @@
 
 #### `imageInfo` 图像信息
 
+- 细项清单：`migration/neoview/image-information-compatibility.json`
 - [ ] 显示当前页文件名、路径、格式、MIME 与尺寸
 - [ ] 显示帧/动画/视频等媒体属性
 - [ ] 显示旋转、裁剪、解码或超分后的有效信息
 - UI 基线：`src/lib/cards/info/ImageInfoCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（4 组，53 项）
+
+- `image-information-ui.base` 媒体类型、名称与尺寸
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`image-information.states`、`image-information.base-fields`、`image-information.ui-parity`、`image-information.accessibility`
+  - [ ] imageInfo 非空分支
+  - [ ] imageInfo 空态
+  - [ ] space-y-2 text-sm
+  - [ ] 类型标签
+  - [ ] 图片图标
+  - [ ] 视频图标
+  - [ ] 图片文本
+  - [ ] 视频文本
+  - [ ] 文件名标签
+  - [ ] 文件名 max-width 150px
+  - [ ] 文件名 truncate
+  - [ ] 文件名 title
+  - [ ] 文件名 monospace
+  - [ ] 尺寸标签
+  - [ ] 宽 x 高
+  - [ ] 缺失尺寸破折号
+- `image-information-ui.image` 图片格式与文件大小
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 映射：`image-information.image-fields`、`image-information.formatting`、`image-information.states`
+  - [ ] 非视频分支
+  - [ ] 格式标签
+  - [ ] 格式缺失破折号
+  - [ ] fileSize 大于零才显示大小行
+  - [ ] B 格式
+  - [ ] KB 一位小数
+  - [ ] MB 两位小数
+  - [ ] GB 两位小数
+  - [ ] 1024/1048576/1073741824 边界
+- `image-information-ui.video` 视频时长、帧率、码率与编码
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 映射：`image-information.video-fields`、`image-information.formatting`、`image-information.media-probe`、`image-information.degradation`
+  - [ ] 视频分支
+  - [ ] 时长始终显示
+  - [ ] 无效时长破折号
+  - [ ] 分钟 mm:ss
+  - [ ] 小时 h:mm:ss
+  - [ ] 帧率存在才显示
+  - [ ] 帧率四舍五入为整数 fps
+  - [ ] 码率存在才显示
+  - [ ] bps 格式
+  - [ ] Kbps 整数
+  - [ ] Mbps 一位小数
+  - [ ] 视频编码存在才显示
+  - [ ] 音频编码存在才显示
+- `image-information-ui.target-extension` XR 共享契约与呈现有效信息
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`image-information.data-contract`、`image-information.presentation`、`image-information.lifecycle`、`image-information.performance`、`image-information.image-stability`、`image-information.deviations`
+  - [ ] displayPath
+  - [ ] MIME
+  - [ ] 当前页索引
+  - [ ] 媒体 kind
+  - [ ] source dimensions
+  - [ ] CSS rotation 后有效尺寸
+  - [ ] fit/manual scale 状态
+  - [ ] probe loading
+  - [ ] probe retry
+  - [ ] probe cancellation
+  - [ ] 迟到 generation 忽略
+  - [ ] Card 无 session 零 DOM
+  - [ ] 独立 lazy chunk
+  - [ ] 活动图片节点稳定
+  - [ ] 未知字段稳定降级
+
+##### 专用源码级验收项
+
+- [ ] `image-information.states` 空、加载、成功、失败与重试状态
+  - 目标：No session is zero DOM; unavailable media is a stable empty state; base metadata and optional probe failures remain independently visible and retryable.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：`neoview.metadata.cards`
+  - 备注：Current Card lacks retry and independent media-probe degradation.
+- [ ] `image-information.base-fields` 显示类型、名称和源尺寸
+  - 目标：The active page exposes image/video/animated type, name and source dimensions with legacy labels and compact density.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：`neoview.metadata.cards`
+  - 备注：Basic fields exist, but type labels and UTF-8 UI need completion.
+- [ ] `image-information.image-fields` 显示图片格式与文件大小
+  - 目标：Non-video pages display normalized format and conditionally display positive source bytes using frozen boundaries.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：`neoview.metadata.cards`
+  - 备注：MIME and bytes exist but format and conditional legacy presentation are incomplete.
+- [ ] `image-information.video-fields` 显示完整视频媒体字段
+  - 目标：Video pages display duration and conditionally display frame rate, bitrate, video codec and audio codec from a shared probe contract.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：待补
+  - 备注：No target media-probe contract currently exists.
+- [ ] `image-information.formatting` 保持旧时长、码率与大小格式
+  - 目标：Duration, bitrate and byte formatters preserve all legacy thresholds, precision and invalid-value degradation.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：待补
+  - 备注：Requires frozen pure formatter tests.
+- [ ] `image-information.media-probe` 按需探测视频容器与流
+  - 目标：A proven ffprobe-based platform adapter supplies bounded normalized media metadata only when requested for a video page.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：待补
+  - 备注：Must not execute during Reader open, navigation or image-only metadata requests.
+- [ ] `image-information.data-contract` 共享规范媒体信息 DTO
+  - 目标：GUI, CLI and TUI share one path-safe DTO for kind, dimensions, bytes, MIME, duration, frame rate, bitrate and codecs.
+  - 源码：`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：待补
+  - 备注：The current metadata DTO contains only base page fields.
+- [ ] `image-information.presentation` 显示当前呈现的有效尺寸与旋转
+  - 目标：The Card distinguishes immutable source dimensions from CSS presentation rotation/fit/manual scale without generating a second asset.
+  - 源码：`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：待补
+  - 备注：Frozen XR extension; presentation state is not yet passed to the Card context.
+- [ ] `image-information.degradation` 缺少 ffprobe 或字段时稳定降级
+  - 目标：Base metadata remains visible when probing is unsupported or fails; optional video rows remain absent and duration uses an em dash.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：待补
+  - 备注：Probe errors must not fail the shared base metadata route.
+- [ ] `image-information.lifecycle` 取消探测并忽略迟到页面结果
+  - 目标：Unmount, navigation and session close abort active probing; obsolete generation results never replace the current page.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：待补
+  - 备注：Requires AbortSignal coverage on client, route and platform process.
+- [ ] `image-information.shell` 复用通用 Card 外壳
+  - 目标：Image Information remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the info Panel.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.shell.registry-lazy`
+  - 备注：The Card is registered but its dedicated chunk and full lifecycle are not frozen.
+- [ ] `image-information.accessibility` 字段、错误与重试具有可访问语义
+  - 目标：Labels use semantic description lists, truncated values retain titles, and retry is keyboard/touch operable.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：`neoview.metadata.cards`
+  - 备注：Current labels are mojibake and errors lack retry.
+- [ ] `image-information.ui-parity` 保持旧版紧凑字段层级
+  - 目标：Legacy field order, conditional rows, label hierarchy and compact geometry remain readable on desktop and 420x360 viewports.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：待补
+  - 备注：Requires real Chromium screenshots and overflow assertions.
+- [ ] `image-information.image-stability` 信息探测不重挂活动媒体
+  - 目标：Opening, retrying and navigating the Card preserve the active image/video node and asset URL.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：待补
+  - 备注：Required by the frozen Card acceptance contract.
+- [ ] `image-information.performance` 独立 chunk 与零热路径探测
+  - 目标：The Card remains below 8 KiB in an independent deferred chunk; image paths make no probe request and pointer/page-turn budgets remain green.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：待补
+  - 备注：Requires production chunk and request-count gates.
+- [ ] `image-information.deviations` 记录 ffprobe 与呈现扩展
+  - 目标：Document the separate cancellable media endpoint and truthful presentation fields as XR extensions without removing legacy rows.
+  - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
+  - 测试：待补
+  - 备注：No intentional legacy behavior is removed.
 
 #### `storage` 存储信息
 
@@ -2064,10 +2216,382 @@
 
 #### `bookmarkList` 书签列表
 
+- 细项清单：`migration/neoview/bookmark-list-compatibility.json`
 - [ ] 虚拟化显示书签和自定义列表
 - [ ] 搜索、排序、筛选、打开和定位源
 - [ ] 创建/重命名/删除列表并单项/批量编辑书签
 - UI 基线：`src/lib/cards/bookmark/BookmarkListCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（17 组，224 项）
+
+- `bookmark-ui.shared-folder-surface` 共享文件浏览器外观与条目 renderer
+  - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 映射：`bookmark.shared-renderer`、`bookmark.thumbnails`、`bookmark.selection`、`bookmark.ui-parity`
+  - [ ] virtual://bookmark 初始源
+  - [ ] 复用 FileListPanel
+  - [ ] 复用 FileListCard
+  - [ ] 列表/内容/横幅/缩略图视觉语义
+  - [ ] 文件与文件夹图标
+  - [ ] 可见条目缩略图
+  - [ ] 名称与路径层级
+  - [ ] 选中背景
+  - [ ] 键盘焦点 ring
+  - [ ] hover 状态
+  - [ ] 缩略图失败占位
+  - [ ] 窄 Card 响应式密度
+- `bookmark-ui.lists` 书签列表切换与管理
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
+  - 映射：`bookmark.lists`、`bookmark.list-management`、`bookmark.persistence`、`bookmark.accessibility`
+  - [ ] 全部列表 chip
+  - [ ] 默认列表
+  - [ ] 收藏列表
+  - [ ] 自定义列表 chip
+  - [ ] 活动列表强调
+  - [ ] 横向滚动
+  - [ ] + 新建列表
+  - [ ] 列表名称输入
+  - [ ] 收藏夹列表标记
+  - [ ] 重命名自定义列表
+  - [ ] 删除自定义列表
+  - [ ] 删除列表后移除成员关系
+  - [ ] 持久化活动列表
+- `bookmark-ui.navigation-selection` 虚拟浏览、选择与键盘
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 映射：`bookmark.virtualization`、`bookmark.selection`、`bookmark.actions`、`bookmark.accessibility`
+  - [ ] 虚拟列表分页
+  - [ ] 单选
+  - [ ] Ctrl/Meta 切换
+  - [ ] Shift 范围选择
+  - [ ] 全选
+  - [ ] 取消选择
+  - [ ] Enter 打开
+  - [ ] 双击打开
+  - [ ] 方向键移动焦点
+  - [ ] Home/End
+  - [ ] Delete
+  - [ ] Ctrl/Cmd+F
+  - [ ] 右键菜单
+  - [ ] Shift+F10
+  - [ ] 打开文件夹/书籍
+- `bookmark-ui.actions` 书签与文件操作
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`、`src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte`
+  - 映射：`bookmark.actions`、`bookmark.batch-edit`、`bookmark.thumbnails`、`bookmark.deviations`
+  - [ ] 添加当前书籍
+  - [ ] 添加单项到列表
+  - [ ] 批量添加到多个列表
+  - [ ] 收藏/取消收藏
+  - [ ] 移除书签
+  - [ ] 复制路径
+  - [ ] 复制名称
+  - [ ] 系统定位
+  - [ ] 系统打开
+  - [ ] 重命名
+  - [ ] 删除与确认
+  - [ ] 撤销删除
+  - [ ] 重载缩略图
+  - [ ] 编辑标签
+  - [ ] 打开新标签页
+- `bookmark-ui.states-lifecycle` 状态、持久化与生命周期
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`、`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 映射：`bookmark.states`、`bookmark.data-contract`、`bookmark.lifecycle`、`bookmark.shell`、`bookmark.performance`、`bookmark.deviations`
+  - [ ] 加载状态
+  - [ ] 空列表状态
+  - [ ] 分页错误
+  - [ ] 操作错误
+  - [ ] 刷新
+  - [ ] 路径失效降级
+  - [ ] Card 折叠零缩略图工作
+  - [ ] 切列表取消旧请求
+  - [ ] 卸载释放 thumbnail context
+  - [ ] 书签去重
+  - [ ] 旧 localStorage 导入
+  - [ ] NeoView 主数据库持久化
+  - [ ] 独立 lazy chunk
+  - [ ] 大列表有界 DOM
+- `bookmark-ui.shell` Bookmark Panel 与无标题 full-height Card shell
+  - 源码：`src/lib/components/panels/BookmarkPanel.svelte`、`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 映射：`bookmark.shell`、`bookmark.ui-parity`、`bookmark.deviations`
+  - [ ] Bookmark 图标
+  - [ ] 书签列表标题
+  - [ ] bookmark Panel
+  - [ ] defaultVisible
+  - [ ] defaultExpanded
+  - [ ] canHide=false
+  - [ ] fullHeight=true
+  - [ ] hideHeader=true
+  - [ ] 动态 loader
+  - [ ] Panel 折叠
+  - [ ] Card Window
+  - [ ] 失败边界
+- `bookmark-ui.virtual-toolbar` 书签虚拟源工具栏与清理
+  - 源码：`src/lib/cards/folder/cards/ToolbarCard.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/ActionButtons.svelte`
+  - 映射：`bookmark.actions`、`bookmark.states`、`bookmark.lifecycle`、`bookmark.deviations`
+  - [ ] 重新加载书签
+  - [ ] 同步文件夹开关
+  - [ ] 清理下拉菜单
+  - [ ] 清理失效书签
+  - [ ] 最近清理数量
+  - [ ] 高级清理
+  - [ ] 清空全部确认
+  - [ ] 操作 pending
+  - [ ] disabled 状态
+  - [ ] 成功/错误反馈
+- `bookmark-ui.search-sort-filter` 搜索、八字段排序与类型筛选
+  - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte`
+  - 映射：`bookmark.shared-renderer`、`bookmark.virtualization`、`bookmark.persistence`、`bookmark.ui-parity`
+  - [ ] 搜索书签
+  - [ ] 名称排序
+  - [ ] 路径排序
+  - [ ] 添加时间排序
+  - [ ] 大小排序
+  - [ ] 类型排序
+  - [ ] 随机排序
+  - [ ] 评分排序
+  - [ ] 收藏标签数排序
+  - [ ] 升序
+  - [ ] 降序
+  - [ ] 全部类型
+  - [ ] 压缩包
+  - [ ] 文件夹
+  - [ ] 视频
+  - [ ] 独立书签设置
+- `bookmark-ui.views` 四种文件视图与尺寸设置
+  - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 映射：`bookmark.shared-renderer`、`bookmark.thumbnails`、`bookmark.persistence`、`bookmark.ui-parity`
+  - [ ] list
+  - [ ] content
+  - [ ] banner
+  - [ ] thumbnail
+  - [ ] 活动视图图标
+  - [ ] 紧凑网格
+  - [ ] 缩略图宽度 10..90
+  - [ ] 响应式列数
+  - [ ] 列表尺寸 Slider
+  - [ ] 书签视图独立持久化
+- `bookmark-ui.thumbnail-detail` 可见缩略图与文件夹多图预览
+  - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/components/panels/file/components/FolderPreviewGrid.svelte`、`src/lib/components/panels/file/components/folderPreviewLoader.ts`
+  - 映射：`bookmark.thumbnails`、`bookmark.lifecycle`、`bookmark.performance`、`bookmark.image-stability`
+  - [ ] 32ms 可见范围 debounce
+  - [ ] 中心优先
+  - [ ] 有限预取
+  - [ ] 鉴权 opaque URL
+  - [ ] 稳定 bookmark id
+  - [ ] folder 1/4/9/16 preview
+  - [ ] 单图
+  - [ ] 多格
+  - [ ] skeleton
+  - [ ] 失败 fallback
+  - [ ] lazy
+  - [ ] async decode
+  - [ ] 切换取消
+  - [ ] context release
+- `bookmark-ui.item-renderer` 文件条目字段、徽章与状态
+  - 源码：`src/lib/components/panels/file/components/FileItemCard.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/components/panels/file/components/FileItemGridView.svelte`
+  - 映射：`bookmark.shared-renderer`、`bookmark.selection`、`bookmark.ui-parity`、`bookmark.deviations`
+  - [ ] 名称
+  - [ ] 完整路径
+  - [ ] 文件/文件夹图标
+  - [ ] 译名
+  - [ ] 评分
+  - [ ] 收藏标签
+  - [ ] 手工标签
+  - [ ] EMM 标签
+  - [ ] 书签标记
+  - [ ] 已读标记
+  - [ ] 创建时间
+  - [ ] 大小
+  - [ ] 进度
+  - [ ] 视频元数据
+  - [ ] selected
+  - [ ] focused
+  - [ ] delete
+  - [ ] check
+- `bookmark-ui.selection-toolbar` 多选、链选与批量操作栏
+  - 源码：`src/lib/components/panels/folderPanel/components/SelectionBar.svelte`、`src/lib/cards/shared/FileListPanel.svelte`
+  - 映射：`bookmark.selection`、`bookmark.batch-edit`、`bookmark.accessibility`、`bookmark.performance`
+  - [ ] checkbox
+  - [ ] 点选
+  - [ ] 点开
+  - [ ] Ctrl/Meta 切换
+  - [ ] Shift 链选
+  - [ ] 全选
+  - [ ] 反选
+  - [ ] 取消
+  - [ ] 选择计数
+  - [ ] 批量删除
+  - [ ] 批量添加到列表
+  - [ ] 焦点与选择分离
+- `bookmark-ui.context-actions` 文件上下文菜单
+  - 源码：`src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte`、`src/lib/cards/shared/useFileActions.ts`
+  - 映射：`bookmark.actions`、`bookmark.batch-edit`、`bookmark.accessibility`、`bookmark.deviations`
+  - [ ] 打开为书籍
+  - [ ] 浏览
+  - [ ] 新标签页
+  - [ ] 系统打开
+  - [ ] 资源管理器定位
+  - [ ] 复制
+  - [ ] 剪切
+  - [ ] 粘贴
+  - [ ] 复制路径
+  - [ ] 复制名称
+  - [ ] 重命名
+  - [ ] 删除
+  - [ ] 撤销
+  - [ ] 重载缩略图
+  - [ ] 编辑标签
+  - [ ] 添加到列表
+  - [ ] 按类型禁用
+- `bookmark-ui.add-dialog` 批量添加到书签列表对话框
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`
+  - 映射：`bookmark.list-management`、`bookmark.batch-edit`、`bookmark.states`、`bookmark.accessibility`
+  - [ ] 目标项目清单
+  - [ ] 多列表 checkbox
+  - [ ] 内嵌新列表名称
+  - [ ] 收藏夹 toggle
+  - [ ] 新建并选中
+  - [ ] 无目标状态
+  - [ ] 未选列表校验
+  - [ ] 取消
+  - [ ] 确认
+  - [ ] 成功反馈
+  - [ ] 错误反馈
+- `bookmark-ui.keyboard` 键盘命令与输入保护
+  - 源码：`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`、`src/lib/cards/shared/FileListPanel.svelte`
+  - 映射：`bookmark.selection`、`bookmark.actions`、`bookmark.accessibility`、`bookmark.deviations`
+  - [ ] input/contenteditable guard
+  - [ ] Enter
+  - [ ] Backspace
+  - [ ] F5
+  - [ ] Delete
+  - [ ] Ctrl/Cmd+A
+  - [ ] Ctrl/Cmd+F
+  - [ ] Escape
+  - [ ] Arrow
+  - [ ] Home/End
+  - [ ] context menu keyboard equivalent
+  - [ ] 焦点恢复
+- `bookmark-ui.persistence` 书签业务数据与视图设置持久化
+  - 源码：`src/lib/stores/bookmark.svelte.ts`、`src/lib/stores/virtualPanelSettings.svelte.ts`
+  - 映射：`bookmark.data-contract`、`bookmark.persistence`、`bookmark.lifecycle`、`bookmark.deviations`
+  - [ ] legacy bookmarks key
+  - [ ] legacy lists key
+  - [ ] legacy active-list key
+  - [ ] bookmark panel settings
+  - [ ] createdAt
+  - [ ] path normalize
+  - [ ] dedupe
+  - [ ] 最大数量
+  - [ ] list membership
+  - [ ] 旧数据导入
+  - [ ] xr_ 业务表
+  - [ ] [nodes.neoview] UI 设置
+- `bookmark-ui.accessibility-parity` 可访问性、响应式与视觉 characterization
+  - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 映射：`bookmark.accessibility`、`bookmark.ui-parity`、`bookmark.image-stability`、`bookmark.performance`
+  - [ ] 命名 icon button
+  - [ ] pressed 状态
+  - [ ] destructive confirmation
+  - [ ] live feedback
+  - [ ] 焦点可见
+  - [ ] 触摸可达操作
+  - [ ] desktop screenshot
+  - [ ] 420x360 screenshot
+  - [ ] 无重叠
+  - [ ] 旧信息密度
+  - [ ] 缩略图不重挂 Reader 图像
+
+##### 专用源码级验收项
+
+- [ ] `bookmark.shared-renderer` 复用文件浏览器条目视觉契约
+  - 目标：Bookmark rows use a shared folder-entry visual primitive for compact/rich list and thumbnail surfaces instead of a divergent icon-only list.
+  - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：The React Card now uses the shared thumbnail surface and a 76px folder-style title/path/type row; shared selection and alternate folder renderers remain pending.
+- [ ] `bookmark.thumbnails` 显示可见书签缩略图
+  - 目标：Only the virtual visible bookmark window registers authenticated file/folder thumbnails; stale batches cancel and contexts release on list change or unmount.
+  - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
+  - 备注：The visible virtual window now registers authenticated cover thumbnails and releases its owner; full folder-mode and invalid-path parity remain pending.
+- [ ] `bookmark.lists` 切换系统与自定义书签列表
+  - 目标：All, default, favorites and custom lists remain distinguishable and the active list filters the virtual source.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
+  - 测试：`neoview.bookmark.card`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：React now preserves the legacy horizontal chip hierarchy; active-list persistence and the full management surface remain incomplete.
+- [ ] `bookmark.list-management` 创建、重命名、收藏与删除列表
+  - 目标：Custom lists support create, rename, favorite and delete with protected system lists and membership cleanup.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
+  - 测试：`neoview.library.bookmarks`
+  - 备注：Create/delete exist; rename and favorite management remain incomplete in GUI.
+- [ ] `bookmark.virtualization` 虚拟化大书签列表
+  - 目标：List rendering, pagination and thumbnail demand remain bounded by the visible window at 10K items.
+  - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 测试：`neoview.library.lifecycle`
+  - 备注：Rows are virtualized but visible-thumbnail batching is absent.
+- [ ] `bookmark.selection` 共享选择与焦点语义
+  - 目标：Single, toggle, range and keyboard focus selection match the folder Card without materializing unbounded DOM.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
+  - 测试：待补
+  - 备注：Current React bookmark rows have no selection model.
+- [ ] `bookmark.actions` 打开、定位、收藏与移除书签
+  - 目标：Single bookmark actions preserve legacy file commands and authenticated host capabilities.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`
+  - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`
+  - 备注：Open, star and remove exist; the shared file action surface is incomplete.
+- [ ] `bookmark.batch-edit` 批量编辑书签与列表成员关系
+  - 目标：Selected bookmarks can be added to multiple lists or removed through one bounded operation.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
+  - 测试：待补
+  - 备注：Requires the shared selection model.
+- [ ] `bookmark.data-contract` GUI/CLI/TUI 共用书签契约
+  - 目标：All surfaces share canonical source identity, list membership, favorite state and timestamps without a second bookmark store.
+  - 源码：`src/lib/stores/bookmark.svelte.ts`
+  - 测试：`neoview.library.contract`、`neoview.library.bookmarks`、`neoview.library.cli`、`neoview.library.tui`
+  - 备注：Core persistence is shared; remaining UI commands must use it.
+- [ ] `bookmark.states` 加载、空、错误、刷新与失效路径
+  - 目标：Stable loading, empty, request error, action error, retry and invalid-path states retain existing rows when optional thumbnails fail.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`
+  - 测试：`neoview.library.lifecycle`
+  - 备注：Thumbnail failure must degrade independently.
+- [ ] `bookmark.persistence` 持久化列表、活动筛选与 Card 布局
+  - 目标：Bookmark business data remains in the compatible NeoView database while Card layout uses canonical [nodes.neoview].
+  - 源码：`src/lib/stores/bookmark.svelte.ts`、`src/lib/stores/cardConfig.svelte.ts`
+  - 测试：`neoview.library.bookmarks`、`neoview.settings.card-layout`
+  - 备注：Active-list persistence and legacy import still require evidence.
+- [ ] `bookmark.lifecycle` 取消分页和缩略图并释放上下文
+  - 目标：List switches, collapse, unmount and backend disposal abort stale loads and release thumbnail contexts.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
+  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`
+  - 备注：Visible-thumbnail batches abort when replaced and the owner releases on unmount; backend disposal and every list transition still need integrated proof.
+- [ ] `bookmark.shell` 保持共享 Card shell 行为
+  - 目标：Bookmark remains independently lazy, hideable, collapsible, movable, resizable and window-capable.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.shell.registry-lazy`
+  - 备注：Dedicated chunk budget is not frozen.
+- [ ] `bookmark.accessibility` 键盘选择、命名动作与焦点恢复
+  - 目标：List tabs, rows, selection, menus and destructive confirmations are keyboard/touch operable with stable accessible names.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
+  - 测试：`neoview.bookmark.card`
+  - 备注：Row actions are named; selection and context actions remain incomplete.
+- [ ] `bookmark.ui-parity` 保持旧版文件条目信息密度
+  - 目标：Folder-style thumbnails, title/path hierarchy, action density and selection states fit desktop and 420x360 Cards without overlap.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 测试：`neoview.bookmark.thumbnail-e2e`
+  - 备注：Desktop and 420x360 Chromium prove the folder-style thumbnail hierarchy and action density without overflow; shared selection states remain pending.
+- [ ] `bookmark.performance` 有界 DOM、可见缩略图与独立 chunk
+  - 目标：The Card renders a bounded virtual window, registers only visible thumbnails, performs zero hidden work and stays in an independent deferred chunk.
+  - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.chunk`
+  - 备注：Visible registration and the deferred chunk are gated; a 10K Chromium request-count run and explicit collapsed-state proof remain pending.
+- [ ] `bookmark.image-stability` 缩略图工作不重挂活动阅读图像
+  - 目标：Opening the Card, scrolling thumbnails and switching lists preserve the active Reader media node and asset URL.
+  - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/shared/FileListPanel.svelte`
+  - 测试：`neoview.bookmark.thumbnail-e2e`
+  - 备注：Real Chromium proves opening and thumbnail mutation preserve the active image; scrolling and list-switch identity checks remain pending.
+- [ ] `bookmark.deviations` 记录共享后端与视觉 primitive 扩展
+  - 目标：Document authenticated thumbnail batching and the shared React entry visual as XR implementations of the legacy FileListPanel reuse contract.
+  - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`
+  - 测试：待补
+  - 备注：No legacy bookmark field is intentionally removed.
 
 ### Panel: `pageList`（1）
 
@@ -2077,10 +2601,337 @@
 
 #### `pageListMain` 页面列表
 
+- 细项清单：`migration/neoview/page-list-compatibility.json`
 - [ ] list/grid/thumb 三种虚拟化页面视图
 - [ ] 搜索、当前页跟随、页码输入和 Slider 跳转
 - [ ] 可见批次缩略图预热、超分状态与页面上下文删除
 - UI 基线：`src/lib/cards/pageList/PageListCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（14 组，173 项）
+
+- `page-list-ui.toolbar` 搜索、跟随、视图与预热工具栏
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 映射：`page-list.search`、`page-list.modes`、`page-list.follow`、`page-list.prewarm`、`page-list.states`
+  - [ ] 搜索输入
+  - [ ] 名称/页码过滤
+  - [ ] 跟随进度 toggle
+  - [ ] list 按钮
+  - [ ] grid 按钮
+  - [ ] thumb 按钮
+  - [ ] 活动模式强调
+  - [ ] 预热全部缩略图按钮
+  - [ ] 预热中禁用
+  - [ ] 页数统计
+  - [ ] 过滤结果统计
+  - [ ] 预热中/完成/失败状态
+- `page-list-ui.renderers` 文本、带图列表与缩略图网格
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
+  - 映射：`page-list.modes`、`page-list.shared-thumbnail`、`page-list.current-state`、`page-list.ui-parity`
+  - [ ] 纯文本列表
+  - [ ] 页码 badge
+  - [ ] 页面名称
+  - [ ] 带图列表
+  - [ ] 12x16 缩略图比例
+  - [ ] object-contain
+  - [ ] 缩略图加载 spinner
+  - [ ] 缩略图失败占位
+  - [ ] 三列 thumb 网格
+  - [ ] 3:4 比例
+  - [ ] 当前页背景
+  - [ ] 当前页 ring
+  - [ ] 超分 glow
+  - [ ] hover 状态
+  - [ ] data-page-index
+- `page-list-ui.navigation` 当前页跟随、Slider 与页码跳转
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/book/pageNavigation.svelte.ts`
+  - 映射：`page-list.follow`、`page-list.navigation`、`page-list.current-state`、`page-list.accessibility`
+  - [ ] 跟随当前页自动滚动
+  - [ ] 关闭跟随后保持预览索引
+  - [ ] Slider 最小 0
+  - [ ] Slider 最大 total-1
+  - [ ] Slider 两侧页码
+  - [ ] 跟随模式拖动即时跳转
+  - [ ] 预览模式拖动不翻页
+  - [ ] 页码输入
+  - [ ] Enter 跳转
+  - [ ] 范围校验
+  - [ ] 当前页更新同步
+- `page-list-ui.thumbnail-pipeline` 可见批次缩略图与全部预热
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/unifiedThumbnailStore.svelte.ts`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
+  - 映射：`page-list.shared-thumbnail`、`page-list.prewarm`、`page-list.lifecycle`、`page-list.performance`
+  - [ ] list 模式零缩略图请求
+  - [ ] grid/thumb 可见批次请求
+  - [ ] 本地页面 source
+  - [ ] archive entry source
+  - [ ] EPUB entry source
+  - [ ] 统一 256px key
+  - [ ] 请求去重
+  - [ ] loading 状态
+  - [ ] 失败降级
+  - [ ] 后台全部预热
+  - [ ] 切模式取消过期请求
+  - [ ] 卸载释放 owner
+- `page-list-ui.context` 页面右键菜单与删除
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
+  - 映射：`page-list.context-actions`、`page-list.lifecycle`、`page-list.accessibility`、`page-list.deviations`
+  - [ ] 列表右键
+  - [ ] 网格右键
+  - [ ] 跳转到页面
+  - [ ] 删除页面
+  - [ ] 目录页移入回收站
+  - [ ] 归档 entry 删除
+  - [ ] 删除后夹紧当前索引
+  - [ ] 释放资源
+  - [ ] 成功提示
+  - [ ] 失败提示
+  - [ ] 菜单外部/Escape 关闭
+  - [ ] 键盘菜单位置
+- `page-list-ui.states-shell` 空、加载、错误、shell 与有界渲染
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/core/virtualPageList.ts`
+  - 映射：`page-list.states`、`page-list.shell`、`page-list.lifecycle`、`page-list.performance`、`page-list.ui-parity`
+  - [ ] 未加载书籍空状态
+  - [ ] 无匹配结果
+  - [ ] catalog 加载
+  - [ ] catalog 错误与重试
+  - [ ] Card 无 session 零 DOM
+  - [ ] 标题折叠
+  - [ ] 不可隐藏
+  - [ ] 上下移动
+  - [ ] 独立窗口
+  - [ ] 高度调整
+  - [ ] 独立 lazy chunk
+  - [ ] 10K/100K 有界 DOM
+  - [ ] 切书取消
+  - [ ] 关闭 session 释放
+- `page-list-ui.card-shell` Page List Panel 与无标题 full-height Card
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 映射：`page-list.shell`、`page-list.ui-parity`、`page-list.deviations`
+  - [ ] List 图标
+  - [ ] 页面列表标题
+  - [ ] pageList Panel
+  - [ ] canHide=false
+  - [ ] fullHeight=true
+  - [ ] hideHeader=true
+  - [ ] 动态 loader
+  - [ ] Card Window
+  - [ ] 统一 shell 偏离记录
+- `page-list-ui.toolbar-controls` 跟随、三视图与预热 icon controls
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 映射：`page-list.follow`、`page-list.modes`、`page-list.prewarm`、`page-list.accessibility`、`page-list.settings`
+  - [ ] Navigation toggle
+  - [ ] 动态开关 title
+  - [ ] 默认跟随
+  - [ ] 外部设置同步
+  - [ ] List icon
+  - [ ] Grid3x3 icon
+  - [ ] Image icon
+  - [ ] active variant
+  - [ ] Sparkles 预热
+  - [ ] 预热禁用
+  - [ ] aria-label
+  - [ ] tooltip
+- `page-list-ui.summary-prefetch` 总数、过滤数与预热三态
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 映射：`page-list.prewarm`、`page-list.states`、`page-list.lifecycle`
+  - [ ] 共 N 页
+  - [ ] 显示 M
+  - [ ] 预加载中
+  - [ ] 全部完成
+  - [ ] 预加载失败
+  - [ ] 切书重置
+  - [ ] 防重复预热
+  - [ ] 错误不隐藏 catalog
+- `page-list-ui.list-renderer` 纯文本页列表与 PageIndexBadge
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
+  - 映射：`page-list.modes`、`page-list.current-state`、`page-list.upscale`、`page-list.context-actions`、`page-list.ui-parity`
+  - [ ] 34px 文本行
+  - [ ] data-page-index
+  - [ ] #N monospace
+  - [ ] 页面名称
+  - [ ] 当前 badge
+  - [ ] 条件 badge
+  - [ ] 超分 badge
+  - [ ] 当前背景
+  - [ ] 超分 glow
+  - [ ] 单击跳转
+  - [ ] 右键菜单
+- `page-list-ui.detail-renderer` 48x64 带图列表
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
+  - 映射：`page-list.modes`、`page-list.shared-thumbnail`、`page-list.current-state`、`page-list.context-actions`、`page-list.ui-parity`
+  - [ ] 48x64
+  - [ ] contain
+  - [ ] loading spinner
+  - [ ] Image fallback
+  - [ ] 页码 badge
+  - [ ] 名称
+  - [ ] hover visible request
+  - [ ] 当前背景
+  - [ ] 超分 glow
+  - [ ] click
+  - [ ] context menu
+- `page-list-ui.page-badge-upscale` 页码、当前页、条件与超分状态
+  - 源码：`src/lib/cards/pageList/PageIndexBadge.svelte`、`src/lib/cards/pageList/PageListCard.svelte`
+  - 映射：`page-list.current-state`、`page-list.upscale`、`page-list.ui-parity`、`page-list.deviations`
+  - [ ] none
+  - [ ] pending
+  - [ ] checking
+  - [ ] processing
+  - [ ] completed
+  - [ ] skipped
+  - [ ] failed
+  - [ ] 队列中
+  - [ ] 超分中
+  - [ ] 已超分
+  - [ ] 已跳过
+  - [ ] 失败
+  - [ ] conditionName
+  - [ ] 当前
+  - [ ] sm/md
+  - [ ] pulse/glow
+- `page-list-ui.page-file-actions` 复制、定位、系统打开与删除页面
+  - 源码：`src/lib/cards/pageList/PageContextMenu.svelte`、`src/lib/cards/pageList/PageListCard.svelte`
+  - 映射：`page-list.file-actions`、`page-list.context-actions`、`page-list.lifecycle`、`page-list.deviations`
+  - [ ] 复制普通页面
+  - [ ] 提取并复制 archive entry
+  - [ ] 定位普通页面
+  - [ ] 定位 archive
+  - [ ] 系统打开普通页
+  - [ ] 提取后打开 archive entry
+  - [ ] 删除目录页
+  - [ ] 删除 archive entry
+  - [ ] 释放资源
+  - [ ] 重开书籍
+  - [ ] 夹紧索引
+  - [ ] 最后一页
+  - [ ] 成功/失败提示
+- `page-list-ui.keyboard-performance-parity` 键盘、稀疏虚拟化与两视口验收
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/core/virtualPageList.ts`
+  - 映射：`page-list.accessibility`、`page-list.performance`、`page-list.chunk`、`page-list.image-stability`、`page-list.ui-parity`
+  - [ ] Ctrl/Cmd+F
+  - [ ] roving focus
+  - [ ] Arrow
+  - [ ] Home/End
+  - [ ] PageUp/PageDown
+  - [ ] Enter
+  - [ ] context keyboard
+  - [ ] Slider keyboard
+  - [ ] Input keyboard
+  - [ ] 10K/100K O(viewport)
+  - [ ] 稳定 page id key
+  - [ ] 搜索取消
+  - [ ] 隐藏零工作
+  - [ ] active image identity
+  - [ ] desktop
+  - [ ] 420x360
+  - [ ] 独立 chunk
+
+##### 专用源码级验收项
+
+- [ ] `page-list.modes` list/grid/thumb 三种虚拟视图
+  - 目标：Text list, thumbnail list and three-column thumbnail grid preserve legacy hierarchy and use one sparse page catalog.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：`neoview.page-list.virtual`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.thumbnail-e2e`
+  - 备注：All three sparse virtual modes use the shared thumbnail surface; remaining legacy context and upscale states keep this item partial.
+- [x] `page-list.shared-thumbnail` 复用文件条目缩略图表面
+  - 目标：Page list and bookmark/folder entries share one accessible thumbnail surface while preserving page-specific contain fit and 3:4 geometry.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 测试：`neoview.page-list.shared-thumbnail`、`neoview.page-list.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
+  - 备注：Page, bookmark and bottom-strip media reuse ReaderThumbnailSurface while page thumbnails retain contain fit and page-specific geometry.
+- [ ] `page-list.search` 搜索页面名称与页码
+  - 目标：Search is cancellable, generation-safe and returns a sparse virtual result set with totals.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：`neoview.page-list.search`
+  - 备注：Server-side GUI search exists; headless parity remains incomplete.
+- [ ] `page-list.follow` 跟随进度与独立预览索引
+  - 目标：Follow mode centers and navigates with the active page; preview mode changes only the local preview position until commit.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：待补
+  - 备注：State exists but persistence and exact Slider semantics need coverage.
+- [ ] `page-list.navigation` Slider、页码输入与页面跳转
+  - 目标：Slider, numeric entry, Enter and row activation use the shared session navigation contract with strict bounds.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/book/pageNavigation.svelte.ts`
+  - 测试：`neoview.session.navigation`、`neoview.cli.pages`、`neoview.tui.navigation`
+  - 备注：GUI interaction details need focused tests.
+- [ ] `page-list.current-state` 当前页与超分状态
+  - 目标：All renderers expose the active page consistently and show truthful upscale state only when backed by the current pipeline.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
+  - 测试：待补
+  - 备注：Active state exists; upscale state is not wired in React.
+- [ ] `page-list.prewarm` 可取消的全部缩略图预热
+  - 目标：An explicit background action prewarms the complete page catalog with progress/error state and cancellation without delaying navigation.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/unifiedThumbnailStore.svelte.ts`
+  - 测试：待补
+  - 备注：Visible thumbnails exist; explicit all-page prewarm is absent.
+- [ ] `page-list.context-actions` 页面上下文跳转与删除
+  - 目标：Directory and archive pages expose shared, confirmable, resource-safe delete behavior and clamp navigation afterward.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
+  - 测试：待补
+  - 备注：No React page context menu exists.
+- [ ] `page-list.data-contract` GUI/CLI/TUI 共用稀疏页面目录
+  - 目标：All surfaces share bounded page identity, index, name, media kind and thumbnail availability without materializing page content.
+  - 源码：`src/lib/core/virtualPageList.ts`、`src/lib/stores/book/pageNavigation.svelte.ts`
+  - 测试：`neoview.page-list.catalog`、`neoview.cli.pages`、`neoview.tui.navigation`
+  - 备注：Core catalog exists; context and prewarm commands remain incomplete.
+- [ ] `page-list.states` 加载、空、错误、重试与预热状态
+  - 目标：Catalog and optional thumbnail/prewarm failures degrade independently with stable loading, empty and retry states.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：`neoview.page-list.retry`
+  - 备注：Catalog states exist; thumbnail and prewarm states are incomplete.
+- [ ] `page-list.lifecycle` 取消目录与缩略图并忽略迟到结果
+  - 目标：Search, mode, session, collapse and unmount changes cancel obsolete catalog/thumbnail work and release owners.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
+  - 测试：`neoview.page-list.search`
+  - 备注：Catalog generation is safe; thumbnail owner release needs explicit proof.
+- [ ] `page-list.shell` 保持页面列表 Card shell
+  - 目标：Page List remains independently lazy, non-hideable, collapsible, movable, resizable and window-capable.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.shell.registry-lazy`
+  - 备注：Dedicated chunk budget is not frozen.
+- [ ] `page-list.accessibility` 命名视图、页面与上下文动作
+  - 目标：Mode toggles, page rows, Slider, numeric jump and context actions have accessible names and full keyboard operation.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
+  - 测试：`neoview.page-list.virtual`
+  - 备注：Primary controls are named; context and focus restoration remain incomplete.
+- [x] `page-list.ui-parity` 保持缩略图比例、密度与当前页状态
+  - 目标：Legacy contain-fit thumbnails, page badges, current-page emphasis and responsive three-column geometry remain readable at desktop and 420x360.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
+  - 测试：`neoview.page-list.shared-thumbnail`、`neoview.page-list.thumbnail-e2e`
+  - 备注：Desktop and 420x360 Chromium screenshots prove contain fit, three-column geometry, page badges, current state and zero horizontal overflow.
+- [ ] `page-list.performance` 稀疏分页、可见缩略图与独立 chunk
+  - 目标：10K/100K books retain bounded DOM and requests, list mode performs zero thumbnail work, and the Card remains a deferred chunk.
+  - 源码：`src/lib/core/virtualPageList.ts`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.page-list.virtual`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.thumbnail-e2e`、`neoview.page-list.chunk`
+  - 备注：Text mode remains thumbnail-free and the Card chunk is gated; 10K/100K Chromium evidence remains pending.
+- [ ] `page-list.upscale` 共享页面超分与条件状态
+  - 目标：The Card consumes one shared upscale snapshot for pending, processing, completed, skipped and failed states without starting another sampler.
+  - 源码：`src/lib/cards/pageList/PageIndexBadge.svelte`、`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：待补
+  - 备注：No React upscale snapshot is currently exposed.
+- [ ] `page-list.file-actions` 平台安全的页面文件动作
+  - 目标：Copy, reveal, system-open and directory/archive deletion run through authenticated application commands and atomically update the session catalog.
+  - 源码：`src/lib/cards/pageList/PageContextMenu.svelte`、`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：待补
+  - 备注：Must not expose Tauri invokes or raw archive mutations in React.
+- [ ] `page-list.settings` 持久化跟随与页面列表视图
+  - 目标：Follow state and page-list-specific view preferences persist through canonical [nodes.neoview] settings.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：待补
+  - 备注：Current React state resets per mount.
+- [x] `page-list.chunk` 独立延迟 Page List chunk
+  - 目标：PageNavigationCard and its shared thumbnail primitive stay deferred and outside Reader entry/sidebar base chunks.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.page-list.chunk`、`neoview.shared-thumbnail.chunk`
+  - 备注：Production audit requires independent deferred PageNavigationCard and ReaderThumbnailSurface chunks with 16 KiB and 4 KiB budgets.
+- [ ] `page-list.image-stability` 列表交互不重挂活动媒体
+  - 目标：Mode switches, scrolling, search and thumbnail loading preserve the active Reader media node and asset URL.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`
+  - 测试：`neoview.page-list.thumbnail-e2e`
+  - 备注：Real Chromium proves thumbnail loading and mode switches preserve the active image; scrolling and search identity checks remain pending.
+- [ ] `page-list.deviations` 记录 HTTP catalog 与共享 React 缩略图扩展
+  - 目标：Document sparse authenticated HTTP catalog and shared thumbnail primitives as XR implementations without removing legacy modes or actions.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/core/virtualPageList.ts`
+  - 测试：待补
+  - 备注：No intentional legacy view is removed.
 
 ### Panel: `folder`（1）
 

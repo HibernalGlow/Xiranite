@@ -26,7 +26,7 @@
     { "legacyId": "bookInfo", "checklistRef": "migration/neoview/book-information-compatibility.json", "capabilities": ["显示书名、EMM 译名、条件原名、源路径、类型、页数和阅读进度", "由 Storage Card 独占展示文件/归档大小，Book Card 不重复该字段", "Info Panel 共享复制路径与系统定位动作并处理缺失源"] },
     { "legacyId": "infoOverlay", "capabilities": ["配置阅读画面信息悬浮层的字段与位置", "控制可见性、透明度和自动隐藏", "实时预览页码、尺寸、文件名等叠加信息"] },
     { "legacyId": "switchToast", "capabilities": ["逐类开关阅读模式切换提示", "配置提示内容/持续时间/位置等旧选项", "提供测试提示与恢复默认值"] },
-    { "legacyId": "imageInfo", "capabilities": ["显示当前页文件名、路径、格式、MIME 与尺寸", "显示帧/动画/视频等媒体属性", "显示旋转、裁剪、解码或超分后的有效信息"] },
+    { "legacyId": "imageInfo", "checklistRef": "migration/neoview/image-information-compatibility.json", "capabilities": ["显示当前页文件名、路径、格式、MIME 与尺寸", "显示帧/动画/视频等媒体属性", "显示旋转、裁剪、解码或超分后的有效信息"] },
     { "legacyId": "storage", "checklistRef": "migration/neoview/storage-information-compatibility.json", "capabilities": ["显示当前书籍/页面的压缩与实际字节大小", "显示缓存、缩略图或解码资源占用", "对缺失或不可统计字段稳定降级"] },
     { "legacyId": "time", "checklistRef": "migration/neoview/time-information-compatibility.json", "capabilities": ["显示文件创建、修改和访问相关时间", "显示归档条目与书籍记录时间语义", "按本地时区格式化并处理未知时间"] },
     { "legacyId": "sidebarControl", "checklistRef": "migration/neoview/sidebar-control-compatibility.json", "capabilities": ["控制 top/right/bottom/left 边栏显示与 pin", "切换自动隐藏、触发区和展开行为", "恢复布局默认值且不重挂活动阅读图像"] },
@@ -56,8 +56,8 @@
     { "legacyId": "progressiveUpscale", "capabilities": ["配置相邻页/整书预超分范围和优先级", "启动、暂停、取消并显示进度", "服从阅读任务优先级、资源预算和缓存限制"] },
 
     { "legacyId": "historyList", "capabilities": ["虚拟化显示最近阅读记录与进度", "搜索、排序、筛选、恢复阅读和定位源", "单项/批量删除、清空、缩略图/评分与上下文操作"] },
-    { "legacyId": "bookmarkList", "capabilities": ["虚拟化显示书签和自定义列表", "搜索、排序、筛选、打开和定位源", "创建/重命名/删除列表并单项/批量编辑书签"] },
-    { "legacyId": "pageListMain", "capabilities": ["list/grid/thumb 三种虚拟化页面视图", "搜索、当前页跟随、页码输入和 Slider 跳转", "可见批次缩略图预热、超分状态与页面上下文删除"] },
+    { "legacyId": "bookmarkList", "checklistRef": "migration/neoview/bookmark-list-compatibility.json", "capabilities": ["虚拟化显示书签和自定义列表", "搜索、排序、筛选、打开和定位源", "创建/重命名/删除列表并单项/批量编辑书签"] },
+    { "legacyId": "pageListMain", "checklistRef": "migration/neoview/page-list-compatibility.json", "capabilities": ["list/grid/thumb 三种虚拟化页面视图", "搜索、当前页跟随、页码输入和 Slider 跳转", "可见批次缩略图预热、超分状态与页面上下文删除"] },
 
     { "legacyId": "dailyTrend", "capabilities": ["统计并展示最近 7 日阅读量趋势", "切换统计口径并显示每日详情", "处理空数据、时区和增量刷新"] },
     { "legacyId": "readingStreak", "capabilities": ["展示当前/最长连续阅读天数", "显示达成状态、今日进度和历史摘要", "按本地日期边界稳定计算"] },
