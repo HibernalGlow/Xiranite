@@ -325,6 +325,53 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-neoview-folder-tree="true"]')).toBeTruthy()
   })
 
+  it("[neoview.folder.tree-layout] persists visibility, direction and one settled tree size", async () => {
+    const opened = page({ path: "C:\\books", total: 0, entries: [] })
+    const onFolderView = vi.fn(async () => undefined)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      treeDirectoryBrowser: vi.fn(async (_sessionId: string, path?: string) => ({
+        sessionId: "browser-1", path: path ?? "C:\\", entries: [], generation: 1, cacheHit: false, excludedPaths: [],
+      })),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 30 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:\\books" onOpen={vi.fn()} onGoTo={vi.fn()} onFolderView={onFolderView} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    fireEvent.click(await ui.findByRole("button", { name: "文件树" }))
+    await waitFor(() => expect(onFolderView).toHaveBeenLastCalledWith({ tree: { visible: true } }))
+    for (const [name, layout] of [["文件树位于右侧", "right"], ["文件树位于底部", "bottom"], ["文件树位于左侧", "left"], ["文件树位于顶部", "top"]] as const) {
+      fireEvent.click(ui.getByRole("radio", { name }))
+      await waitFor(() => expect(onFolderView).toHaveBeenLastCalledWith({ tree: { layout } }))
+    }
+    const browser = view.container.querySelector('[data-neoview-folder-tree-pane="true"]')?.parentElement as HTMLElement
+    expect(browser.getAttribute("data-tree-layout")).toBe("top")
+
+    onFolderView.mockClear()
+    const handle = ui.getByRole("separator", { name: "调整文件树大小" })
+    fireEvent.pointerDown(handle, { pointerId: 9, clientY: 100 })
+    for (let offset = 1; offset <= 40; offset += 1) fireEvent.pointerMove(handle, { pointerId: 9, clientY: 100 + offset })
+    expect(onFolderView).not.toHaveBeenCalled()
+    fireEvent.pointerUp(handle, { pointerId: 9, clientY: 140 })
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledTimes(1))
+    expect(onFolderView).toHaveBeenCalledWith({ tree: { size: 240 } })
+
+    onFolderView.mockClear()
+    fireEvent.pointerDown(handle, { pointerId: 10, clientY: 100 })
+    fireEvent.pointerMove(handle, { pointerId: 10, clientY: 180 })
+    fireEvent.pointerCancel(handle, { pointerId: 10 })
+    expect(onFolderView).not.toHaveBeenCalled()
+    expect(browser.style.getPropertyValue("--folder-tree-size")).toBe("240px")
+
+    fireEvent.keyDown(handle, { key: "ArrowDown" })
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ tree: { size: 250 } }))
+    expect(handle.getAttribute("aria-valuenow")).toBe("250")
+  })
+
   it("[neoview.folder.sort-ui] reorders the backend snapshot and preserves the focused path", async () => {
     const opened = page({
       total: 1,
@@ -467,6 +514,8 @@ describe("FolderMainCard", () => {
           folderView={{
             viewMode: "details",
             previewCount: 9,
+            thumbnailWidthPercent: 20,
+            bannerWidthPercent: 50,
             details: {
               columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
               hiddenColumns: ["tags"],
@@ -474,6 +523,8 @@ describe("FolderMainCard", () => {
               pinnedRight: ["rating"],
               columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
             },
+            search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
+            tree: { visible: false, layout: "left", size: 200 },
           }}
           onFolderView={onFolderView}
         />
@@ -515,6 +566,7 @@ describe("FolderMainCard", () => {
                 hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
               },
               search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
+              tree: { visible: false, layout: "left", size: 200 },
             }}
             onFolderView={onFolderView}
           />

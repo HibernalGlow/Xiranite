@@ -34,6 +34,7 @@ import type {
   ReaderDirectorySortSourceDto,
   ReaderFolderViewMode,
   ReaderFolderViewConfig,
+  ReaderFolderTreeLayout,
 } from "../../../adapters/reader-http-client"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
@@ -107,11 +108,12 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     showHistoryOnFocus: true,
     searchInPath: false,
   },
+  tree: { visible: false, layout: "left", size: 200 },
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
-const FolderTreePanel = lazy(() => import("./folder/FolderTreePanel"))
+const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
 
 interface SavedDirectoryState {
   viewMode: FolderViewMode
@@ -148,7 +150,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const [draftPath, setDraftPath] = useState(sourcePath ?? "")
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [searchOpen, setSearchOpen] = useState(false)
-  const [treeOpen, setTreeOpen] = useState(false)
+  const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
+  const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
+  const [treeSize, setTreeSize] = useState(folderView.tree.size)
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [thumbnailWidthPercent, setThumbnailWidthPercent] = useState(folderView.thumbnailWidthPercent)
@@ -179,6 +183,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   useEffect(() => setPreviewCount(folderView.previewCount), [folderView.previewCount])
   useEffect(() => setThumbnailWidthPercent(folderView.thumbnailWidthPercent), [folderView.thumbnailWidthPercent])
   useEffect(() => setBannerWidthPercent(folderView.bannerWidthPercent), [folderView.bannerWidthPercent])
+  useEffect(() => setTreeOpen(folderView.tree.visible), [folderView.tree.visible])
+  useEffect(() => setTreeLayout(folderView.tree.layout), [folderView.tree.layout])
+  useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
 
   useEffect(() => {
     if (!catalog || !viewUsesThumbnails(viewMode)) return
@@ -489,6 +496,24 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     if (value !== folderView.bannerWidthPercent) void onFolderView?.({ bannerWidthPercent: value })
   }
 
+  function toggleTree() {
+    const visible = !treeOpen
+    setTreeOpen(visible)
+    void onFolderView?.({ tree: { visible } })
+  }
+
+  function switchTreeLayout(layout: ReaderFolderTreeLayout) {
+    if (layout === treeLayout) return
+    setTreeLayout(layout)
+    void onFolderView?.({ tree: { layout } })
+  }
+
+  function commitTreeSize(size: number) {
+    if (size === treeSize) return
+    setTreeSize(size)
+    void onFolderView?.({ tree: { size } })
+  }
+
   function selectEntry(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent) {
     const previousFocusIndex = focusedIndexRef.current
     focusedIndexRef.current = index
@@ -691,7 +716,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           >
             <CheckSquare />
           </BrowserButton>
-          <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={() => setTreeOpen((current) => !current)}><ListTree /></BrowserButton>
+          <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={toggleTree}><ListTree /></BrowserButton>
           <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search /></BrowserButton>
           <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
         </div>
@@ -882,32 +907,35 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       ) : null}
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div
-        className="grid min-h-0 gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(18rem,100%),1fr))]"
-        data-neoview-folder-browser="true"
+        className="grid min-h-0 overflow-hidden"
+        style={treeBrowserStyle(treeOpen, treeLayout, treeSize)}
+        data-tree-layout={treeOpen ? treeLayout : undefined}
       >
         {treeOpen && sessionIdRef.current && catalog ? (
-          <div className="min-w-0 overflow-hidden rounded border bg-background/60" data-neoview-folder-tree-pane="true">
-            <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载文件树" />}>
-              <FolderTreePanel
+          <Suspense fallback={<div className="min-h-0 min-w-0 animate-pulse rounded border bg-muted/30" style={{ order: treeLayout === "left" || treeLayout === "top" ? 0 : 1 }} aria-label="正在加载文件树" />}>
+              <FolderTreeWorkspace
                 client={client}
                 sessionId={sessionIdRef.current}
                 currentPath={catalog.path}
                 disabled={disabled || loading}
+                layout={treeLayout}
+                size={treeSize}
                 onNavigate={(path) => { void navigate({ action: "path", path }, { keepTree: true }) }}
+                onLayoutChange={switchTreeLayout}
+                onSizeChange={commitTreeSize}
               />
-            </Suspense>
-          </div>
+          </Suspense>
         ) : null}
         <div
           ref={listHostRef}
           className="min-h-32 min-w-0 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          style={{ "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
           data-neoview-folder-list="true"
           data-focused-index={focusedIndex}
           role={searchOpen ? undefined : "listbox"}
           aria-label={searchOpen ? undefined : "文件项目"}
           tabIndex={0}
           onKeyDown={handleDirectoryKeyDown}
+          style={{ order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1, "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
         >
         {searchOpen && sessionIdRef.current ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
@@ -1214,4 +1242,30 @@ function viewUsesVirtuosoList(mode: FolderViewMode): boolean {
 
 function thumbnailPixelSize(percent: number): number {
   return Math.round(48 + (percent - 10) * 3)
+}
+
+function treeBrowserStyle(visible: boolean, layout: ReaderFolderTreeLayout, size: number): CSSProperties {
+  const style = { "--folder-tree-size": `${size}px` } as CSSProperties
+  if (!visible) return { ...style, gridTemplateColumns: "minmax(0, 1fr)" }
+  if (layout === "left") {
+    return {
+      ...style,
+      gridTemplateColumns: "min(var(--folder-tree-size), 50%) 1fr",
+      gridTemplateRows: `${LIST_HEIGHT}px`,
+    }
+  }
+  if (layout === "right") {
+    return {
+      ...style,
+      gridTemplateColumns: "1fr min(var(--folder-tree-size), 50%)",
+      gridTemplateRows: `${LIST_HEIGHT}px`,
+    }
+  }
+  return {
+    ...style,
+    gridTemplateColumns: "1fr",
+    gridTemplateRows: layout === "top"
+      ? `var(--folder-tree-size) ${LIST_HEIGHT}px`
+      : `${LIST_HEIGHT}px var(--folder-tree-size)`,
+  }
 }

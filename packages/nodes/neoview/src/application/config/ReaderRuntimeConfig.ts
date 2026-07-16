@@ -22,8 +22,10 @@ export interface NeoviewFileTreeConfig {
 }
 
 export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
+export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
 export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
 export type NeoviewFolderViewMode = typeof NEOVIEW_FOLDER_VIEW_MODES[number]
+export type NeoviewFolderTreeLayout = typeof NEOVIEW_FOLDER_TREE_LAYOUTS[number]
 export type NeoviewFolderDetailColumn = typeof NEOVIEW_FOLDER_DETAIL_COLUMNS[number]
 
 export interface NeoviewFolderDetailsConfig {
@@ -40,6 +42,12 @@ export interface NeoviewFolderSearchConfig {
   searchInPath: boolean
 }
 
+export interface NeoviewFolderTreeViewConfig {
+  visible: boolean
+  layout: NeoviewFolderTreeLayout
+  size: number
+}
+
 export interface NeoviewFolderViewConfig {
   viewMode: NeoviewFolderViewMode
   previewCount: 4 | 9 | 16
@@ -47,6 +55,7 @@ export interface NeoviewFolderViewConfig {
   bannerWidthPercent: number
   details: NeoviewFolderDetailsConfig
   search: NeoviewFolderSearchConfig
+  tree: NeoviewFolderTreeViewConfig
 }
 
 export interface NeoviewFolderDetailsPatch {
@@ -65,6 +74,7 @@ export interface NeoviewFolderViewPatch {
     bannerWidthPercent?: number
     details?: NeoviewFolderDetailsPatch
     search?: Partial<NeoviewFolderSearchConfig>
+    tree?: Partial<NeoviewFolderTreeViewConfig>
   }
 }
 
@@ -199,6 +209,11 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     includeSubfolders: true,
     showHistoryOnFocus: true,
     searchInPath: false,
+  },
+  tree: {
+    visible: false,
+    layout: "left",
+    size: 200,
   },
 }
 
@@ -336,7 +351,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search"])
+  const allowed = new Set(["viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search", "tree"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -419,6 +434,29 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     patch.folderView.search = searchPatch
     toml.search = searchToml
   }
+  if (folder.tree !== undefined) {
+    const tree = requireRecord(folder.tree, "reader folder view patch.tree")
+    const treeKeys = new Set(["visible", "layout", "size"])
+    const unknownTree = Object.keys(tree).filter((key) => !treeKeys.has(key))
+    if (unknownTree.length) throw new Error(`reader folder view patch.tree contains unsupported fields: ${unknownTree.join(", ")}.`)
+    const treePatch: Partial<NeoviewFolderTreeViewConfig> = {}
+    const treeToml: Record<string, unknown> = {}
+    if (tree.visible !== undefined) {
+      treePatch.visible = optionalBoolean(tree.visible, "reader folder view patch.tree.visible")
+      treeToml.visible = treePatch.visible
+    }
+    if (tree.layout !== undefined) {
+      treePatch.layout = optionalEnum(tree.layout, "reader folder view patch.tree.layout", NEOVIEW_FOLDER_TREE_LAYOUTS)
+      treeToml.layout = treePatch.layout
+    }
+    if (tree.size !== undefined) {
+      treePatch.size = boundedInteger(tree.size, 100, 500, "reader folder view patch.tree.size")
+      treeToml.size = treePatch.size
+    }
+    if (!Object.keys(treePatch).length) throw new Error("reader folder view patch.tree must change at least one field.")
+    patch.folderView.tree = treePatch
+    toml.tree_view = treeToml
+  }
   if (!Object.keys(patch.folderView).length) throw new Error("reader folder view patch must change at least one field.")
   return { patch, tomlPatch: { folder: toml } }
 }
@@ -427,6 +465,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
   if (!value) return DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
   const details = optionalRecord(value.details, "[nodes.neoview.folder.details]")
   const search = optionalRecord(value.search, "[nodes.neoview.folder.search]")
+  const tree = optionalRecord(value.tree_view, "[nodes.neoview.folder.tree_view]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false)
     .filter((id) => id !== "name")
   const pinnedLeft = normalizedDetailColumns(details?.pinned_left ?? ["name"], "[nodes.neoview.folder.details].pinned_left", false, false)
@@ -462,6 +501,15 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
         ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search.showHistoryOnFocus,
       searchInPath: optionalBoolean(search?.search_in_path, "[nodes.neoview.folder.search].search_in_path")
         ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search.searchInPath,
+    },
+    tree: {
+      visible: optionalBoolean(tree?.visible, "[nodes.neoview.folder.tree_view].visible")
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tree.visible,
+      layout: optionalEnum(tree?.layout, "[nodes.neoview.folder.tree_view].layout", NEOVIEW_FOLDER_TREE_LAYOUTS)
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tree.layout,
+      size: tree?.size === undefined
+        ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tree.size
+        : boundedInteger(tree.size, 100, 500, "[nodes.neoview.folder.tree_view].size"),
     },
   }
 }

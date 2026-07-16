@@ -43,6 +43,7 @@ export interface ReaderMetadataDto {
     byteLength?: number
     createdAtMs?: number
     modifiedAtMs?: number
+    accessedAtMs?: number
   }
   page?: {
     index: number
@@ -52,8 +53,10 @@ export interface ReaderMetadataDto {
     mimeType?: string
     byteLength?: number
     dimensions?: PageDimensions
+    timeSource?: "filesystem" | "archive-entry" | "book-source"
     createdAtMs?: number
     modifiedAtMs?: number
+    accessedAtMs?: number
   }
 }
 
@@ -244,6 +247,7 @@ export interface ReaderRuntimeConfigDto {
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
+export type ReaderFolderTreeLayout = "left" | "right" | "top" | "bottom"
 export type ReaderFolderDetailColumn = "name" | "path" | "type" | "extension" | "size" | "modifiedAt" | "dimensions" | "pageCount" | "rating" | "tags"
 
 export const READER_FOLDER_DETAIL_DEFAULT_WIDTHS: Record<ReaderFolderDetailColumn, number> = {
@@ -273,6 +277,12 @@ export interface ReaderFolderSearchConfig {
   searchInPath: boolean
 }
 
+export interface ReaderFolderTreeViewConfig {
+  visible: boolean
+  layout: ReaderFolderTreeLayout
+  size: number
+}
+
 export interface ReaderFolderViewConfig {
   viewMode: ReaderFolderViewMode
   previewCount: 4 | 9 | 16
@@ -280,6 +290,7 @@ export interface ReaderFolderViewConfig {
   bannerWidthPercent: number
   details: ReaderFolderDetailsConfig
   search: ReaderFolderSearchConfig
+  tree: ReaderFolderTreeViewConfig
 }
 
 export interface ReaderFolderDetailsPatch {
@@ -298,6 +309,7 @@ export interface ReaderFolderViewPatch {
     bannerWidthPercent?: number
     details?: ReaderFolderDetailsPatch
     search?: Partial<ReaderFolderSearchConfig>
+    tree?: Partial<ReaderFolderTreeViewConfig>
   }
 }
 

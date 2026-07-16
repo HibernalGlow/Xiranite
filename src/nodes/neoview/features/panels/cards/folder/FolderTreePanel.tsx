@@ -5,7 +5,6 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import type { ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 
-const TREE_HEIGHT = 288
 const TREE_ROW_HEIGHT = 30
 const MAXIMUM_TREE_PAGES = 512
 const MAXIMUM_TREE_EXPANDED_PATHS = 4_096
@@ -198,7 +197,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
   return (
     <div
       ref={treeHostRef}
-      className="h-72 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="h-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
       data-neoview-folder-tree="true"
       data-current-index={currentIndex >= 0 ? currentIndex : undefined}
       data-focused-index={focusedIndex >= 0 ? focusedIndex : undefined}
@@ -210,7 +209,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
     >
       <Virtuoso
         ref={treeRef}
-        style={{ height: TREE_HEIGHT }}
+        style={{ height: "100%" }}
         data={rows}
         fixedItemHeight={TREE_ROW_HEIGHT}
         computeItemKey={(_index, row) => `${sessionId}:${directoryPathKey(row.path)}`}

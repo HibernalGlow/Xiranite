@@ -66,6 +66,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
     showHistoryOnFocus: true,
     searchInPath: false,
   },
+  tree: { visible: false, layout: "left", size: 200 },
 }
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {
@@ -380,6 +381,10 @@ export function ReaderApp({
       search: {
         ...folderViewRef.current.search,
         ...patch.search,
+      },
+      tree: {
+        ...folderViewRef.current.tree,
+        ...patch.tree,
       },
     }
     folderViewRef.current = next
