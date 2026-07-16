@@ -20,6 +20,7 @@ interface FolderTabDescriptor {
   viewMode: ReaderFolderViewMode
   previewCount: FolderPreviewCount
   viewDirty: boolean
+  pinned: boolean
 }
 
 export type FolderBrowserPaneProps = ReaderPanelContext & {
@@ -70,6 +71,8 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     if (tabs.length <= 1) return
     const index = tabs.findIndex((tab) => tab.id === id)
     if (index < 0) return
+    const tab = tabs[index]!
+    if (!tab.pinned && tabs.filter((candidate) => !candidate.pinned).length <= 1) return
     const nextTabs = tabs.filter((tab) => tab.id !== id)
     const nextTabIds = new Set(nextTabs.map((tab) => tab.id))
     tabAccessHistoryRef.current = tabAccessHistoryRef.current.filter((visitedId) => visitedId !== id)
@@ -79,6 +82,30 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         ?? nextTabs[Math.min(index, nextTabs.length - 1)]!.id
       tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, nextActiveId)
       setActiveTabId(nextActiveId)
+    }
+  }
+
+  function togglePinned(id: string) {
+    setTabs((current) => current.map((tab) => tab.id === id ? { ...tab, pinned: !tab.pinned } : tab))
+  }
+
+  function closeTabs(id: string, scope: "others" | "left" | "right") {
+    const targetIndex = tabs.findIndex((tab) => tab.id === id)
+    if (targetIndex < 0) return
+    const closeIds = new Set(tabs.flatMap((tab, index) => {
+      if (tab.pinned || tab.id === id) return []
+      if (scope === "others") return [tab.id]
+      if (scope === "left" && index < targetIndex) return [tab.id]
+      if (scope === "right" && index > targetIndex) return [tab.id]
+      return []
+    }))
+    if (!closeIds.size) return
+    const nextTabs = tabs.filter((tab) => !closeIds.has(tab.id))
+    tabAccessHistoryRef.current = tabAccessHistoryRef.current.filter((visitedId) => !closeIds.has(visitedId))
+    setTabs(nextTabs)
+    if (closeIds.has(activeTabId)) {
+      tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
+      setActiveTabId(id)
     }
   }
 
@@ -110,6 +137,10 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         onActivate={activateTab}
         onCreate={createTab}
         onClose={closeTab}
+        onTogglePinned={togglePinned}
+        onCloseOthers={(id) => closeTabs(id, "others")}
+        onCloseLeft={(id) => closeTabs(id, "left")}
+        onCloseRight={(id) => closeTabs(id, "right")}
       />
     </Suspense>
   )
@@ -145,6 +176,7 @@ function createFolderTab(id: string, path: string, folderView: ReaderFolderViewC
     viewMode: folderView.viewMode,
     previewCount: folderView.previewCount,
     viewDirty: false,
+    pinned: false,
   }
 }
 

@@ -1064,14 +1064,20 @@ test("[neoview.folder.home-refresh-e2e] persists Home and refreshes only the cur
   }
 })
 
-test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
+test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] [neoview.folder.tabs-bulk-close-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
   const tabsRoot = join(fixture.directory, "zz-folder-tabs")
   const firstPath = join(tabsRoot, "A")
   const secondPath = join(tabsRoot, "B")
   const thirdPath = join(tabsRoot, "C")
+  const fourthPath = join(tabsRoot, "D")
+  const fifthPath = join(tabsRoot, "E")
+  const sixthPath = join(tabsRoot, "F")
   await mkdir(firstPath, { recursive: true })
   await mkdir(secondPath, { recursive: true })
   await mkdir(thirdPath, { recursive: true })
+  await mkdir(fourthPath, { recursive: true })
+  await mkdir(fifthPath, { recursive: true })
+  await mkdir(sixthPath, { recursive: true })
   await writeFile(join(firstPath, "a.cbz"), "")
   await writeFile(join(secondPath, "b.cbz"), "")
   await writeFile(join(thirdPath, "c.cbz"), "")
@@ -1084,8 +1090,10 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
 
   try {
     let browserOpens = 0
+    let browserCloses = 0
     page.on("request", (request) => {
       if (request.url() === `${backend.url}/reader/browser/sessions` && request.method() === "POST") browserOpens += 1
+      if (request.url().includes("/reader/browser/s/") && request.method() === "DELETE") browserCloses += 1
     })
     await page.addInitScript(({ baseUrl, token }) => {
       window.__XIRANITE_BACKEND__ = { baseUrl, token }
@@ -1100,8 +1108,14 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
     await expect(leftSidebar).toBeVisible()
     const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const revealFolderSidebar = async () => {
+      await page.mouse.move(1, page.viewportSize()!.height / 2)
+      await expect(leftSidebar).toBeVisible()
+      await expect(folderCard).toBeVisible()
+    }
     const currentBreadcrumb = () => folderCard.locator('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')
     const navigatePath = async (path: string) => {
+      await revealFolderSidebar()
       const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
       const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
       await edit.focus()
@@ -1162,6 +1176,50 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await expect(folderCard.locator('[data-folder-tab-bar="true"]')).toBeVisible()
     expect(await image.getAttribute("data-folder-tabs-image-instance")).toBe("stable")
     expect(browserOpens).toBe(3)
+
+    await revealFolderSidebar()
+    await folderCard.getByRole("button", { name: "标签操作 B" }).focus()
+    await folderCard.getByRole("button", { name: "标签操作 B" }).press("Enter")
+    await page.getByRole("menuitem", { name: "固定标签" }).click()
+    await expect(folderCard.getByRole("tab", { name: "B" }).locator("..")).toHaveAttribute("data-pinned", "true")
+
+    await navigatePath(thirdPath)
+    await newTabButton.focus()
+    await newTabButton.press("Enter")
+    await expect(currentBreadcrumb()).toHaveAttribute("title", secondPath)
+    const activeTabMenu = folderCard.locator('[data-folder-tab-bar="true"] [data-active="true"]').getByRole("button", { name: /^标签操作/ })
+    await activeTabMenu.focus()
+    await activeTabMenu.press("Enter")
+    await page.getByRole("menuitem", { name: "关闭左侧标签" }).click()
+    await expect.poll(() => browserCloses).toBe(2)
+    await expect(folderCard.getByRole("tab", { name: "B" })).toHaveCount(2)
+
+    await navigatePath(fifthPath)
+    await newTabButton.focus()
+    await newTabButton.press("Enter")
+    await navigatePath(fourthPath)
+    await revealFolderSidebar()
+    await folderCard.getByRole("button", { name: "标签操作 E" }).focus()
+    await folderCard.getByRole("button", { name: "标签操作 E" }).press("Enter")
+    await page.getByRole("menuitem", { name: "关闭右侧标签" }).click()
+    await expect.poll(() => browserCloses).toBe(3)
+    await expect(currentBreadcrumb()).toHaveAttribute("title", fifthPath)
+
+    await newTabButton.focus()
+    await newTabButton.press("Enter")
+    await navigatePath(sixthPath)
+    await newTabButton.focus()
+    await newTabButton.press("Enter")
+    await revealFolderSidebar()
+    await folderCard.getByRole("button", { name: "标签操作 F" }).focus()
+    await folderCard.getByRole("button", { name: "标签操作 F" }).press("Enter")
+    await page.getByRole("menuitem", { name: "关闭其他标签" }).click()
+    await expect.poll(() => browserCloses).toBe(5)
+    await expect(folderCard.getByRole("tab", { name: "B" })).toHaveCount(1)
+    await expect(folderCard.getByRole("tab", { name: "F" })).toHaveAttribute("aria-selected", "true")
+    await expect(leftSidebar.locator('[data-folder-tab-count="2"]')).toBeVisible()
+    expect(await image.getAttribute("data-folder-tabs-image-instance")).toBe("stable")
+    expect(browserOpens).toBe(7)
   } finally {
     await fetch(`${backend.url}/reader/config`, {
       method: "PATCH",

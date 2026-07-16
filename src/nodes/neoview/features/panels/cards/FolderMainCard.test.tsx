@@ -88,6 +88,62 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-c")
   })
 
+  it("[neoview.folder.tabs-bulk-close] protects pinned tabs and disposes every bulk-closed browser pane", async () => {
+    const paths = ["A", "B", "C", "D", "E", "F"]
+    const pages = new Map(paths.map((name) => [
+      `C:/${name}`,
+      page({ sessionId: `browser-${name.toLowerCase()}`, path: `C:/${name}`, entries: [{ name: `${name.toLowerCase()}.cbz`, path: `C:/${name}/${name.toLowerCase()}.cbz`, kind: "file", readerSupported: true }], total: 1 }),
+    ]))
+    const openDirectoryBrowser = vi.fn(async (path: string) => pages.get(path)!)
+    const closeDirectoryBrowser = vi.fn(async () => undefined)
+    const client = { openDirectoryBrowser, closeDirectoryBrowser } as unknown as ReaderHttpClient
+    const renderCard = (homePath: string) => (
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/A" onOpen={vi.fn()} onGoTo={vi.fn()} folderView={folderViewConfig({ homePath })} onFolderView={vi.fn(async () => undefined)} />
+      </VirtuosoMockContext.Provider>
+    )
+    const view = render(renderCard("C:/B"))
+    const ui = within(view.container)
+    const createTab = async (path: string) => {
+      view.rerender(renderCard(path))
+      fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
+      await waitFor(() => expect(ui.getByRole("tab", { name: path.at(-1)! }).getAttribute("aria-selected")).toBe("true"))
+    }
+    const selectMenuItem = async (tab: string, item: string) => {
+      fireEvent.pointerDown(ui.getByRole("button", { name: `标签操作 ${tab}` }), { button: 0, ctrlKey: false, pointerType: "mouse" })
+      fireEvent.click(await screen.findByRole("menuitem", { name: item }))
+    }
+
+    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/A", expect.any(AbortSignal), undefined, true))
+    await createTab("C:/B")
+    await createTab("C:/C")
+    await createTab("C:/D")
+    await selectMenuItem("B", "固定标签")
+    expect(ui.getByRole("tab", { name: "B" }).closest('[data-pinned="true"]')).toBeTruthy()
+
+    await selectMenuItem("C", "关闭左侧标签")
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-a"))
+    expect(ui.queryByRole("tab", { name: "A" })).toBeNull()
+    expect(ui.getByRole("tab", { name: "B" })).toBeTruthy()
+
+    await selectMenuItem("C", "关闭右侧标签")
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-d"))
+    expect(ui.getByRole("tab", { name: "C" }).getAttribute("aria-selected")).toBe("true")
+
+    await createTab("C:/E")
+    await createTab("C:/F")
+    await selectMenuItem("E", "关闭其他标签")
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-c"))
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-f"))
+    expect(ui.getByRole("tab", { name: "B" })).toBeTruthy()
+    expect(ui.getByRole("tab", { name: "E" }).getAttribute("aria-selected")).toBe("true")
+    expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy()
+
+    view.unmount()
+    expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b")
+    expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-e")
+  })
+
   it("[neoview.folder.home-refresh-ui] keeps Home navigation separate from the tree and preserves selection on refresh", async () => {
     const entries = [
       { name: "folder", path: "C:/current/folder", kind: "directory" as const, readerSupported: false },

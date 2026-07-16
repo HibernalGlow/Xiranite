@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=39`，`complete=7`，`pending=28`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=39`，`complete=8`，`pending=27`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -513,16 +513,16 @@
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
   - 测试：`neoview.folder.tabs-lifecycle`、`neoview.folder.tabs-lifecycle-e2e`
   - 备注：GUI 使用最多 8 个标签的有界宿主，与 backend browser session 上限一致；新标签打开共享 Home，最后一个标签不可关闭。每个标签独立保存当前目录、browser session、导航历史、renderer、选择、焦点与 Virtuoso 视口，切换不重复 POST，关闭会卸载 pane 并释放 watcher、缩略图 context 与 browser session。普通 list/grid/details 始终只显示各标签当前目录的直接子项；Folder Tree 是独立 companion view，不把树层级或磁盘根注入普通列表。标签宿主与标签栏保持 2,291/1,818-byte 二级延迟 chunk，desktop/420x360 Chromium 已验证状态隔离、关闭 DELETE 与活动阅读图片身份稳定。
-- [ ] `folder.tabs.bulk-close` 关闭其他/左侧/右侧标签
+- [x] `folder.tabs.bulk-close` 关闭其他/左侧/右侧标签
   - 目标：上下文菜单支持关闭其他、左侧和右侧标签，固定标签保护规则与原版一致。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
-  - 测试：待补
-  - 备注：批量关闭必须释放对应会话资源。
+  - 测试：`neoview.folder.tabs-bulk-close`、`neoview.folder.tabs-bulk-close-e2e`
+  - 备注：二级延迟 FolderTabBar 使用旧版同层级图标菜单提供关闭标签、关闭其他、关闭左侧与关闭右侧；批量命令只移除未固定标签，目标与全部固定标签保持原顺序，活动标签被移除时切换到命令目标。FolderTabsHost 同步清理 MRU 并通过 pane 卸载释放 Abort、watcher、缩略图 context 和 browser session；直接关闭仍保护最后一个未固定工作标签。单元覆盖六个 pane 的三个命令，desktop/420x360 Chromium 覆盖 7 次 browser POST、5 次 DELETE、固定标签与活动阅读图片稳定。主 Card 保持 32,137 bytes，二级 host/menu chunk 为 3,207/3,149 bytes；普通 list/grid/details 仍仅显示当前目录直接子项，Folder Tree 保持独立。
 - [ ] `folder.tabs.pin-duplicate` 固定与复制标签
   - 目标：标签可固定/取消固定并复制完整浏览状态；固定状态持久化。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
   - 测试：待补
-  - 备注：与侧栏 pin 是不同能力。
+  - 备注：当前已有与侧栏/Folder Tree pin 明确分离的运行时固定状态和菜单，用于批量关闭保护；固定列表 TOML 恢复、失败回滚，以及复制 backend 导航历史、选择、焦点和 Virtuoso 视口到独立 session 仍待完成，因此保持 pending。
 - [ ] `folder.tabs.reopen` 最近关闭与恢复标签
   - 目标：持有最近关闭 10 项，支持菜单和快捷动作恢复，恢复路径、历史、视图和排序状态。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`

@@ -294,9 +294,9 @@
       "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/tabManagement.svelte.ts"],
       "targetContract": "上下文菜单支持关闭其他、左侧和右侧标签，固定标签保护规则与原版一致。",
       "surfaces": ["GUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "批量关闭必须释放对应会话资源。"
+      "status": "complete",
+      "testIds": ["neoview.folder.tabs-bulk-close", "neoview.folder.tabs-bulk-close-e2e"],
+      "notes": "二级延迟 FolderTabBar 使用旧版同层级图标菜单提供关闭标签、关闭其他、关闭左侧与关闭右侧；批量命令只移除未固定标签，目标与全部固定标签保持原顺序，活动标签被移除时切换到命令目标。FolderTabsHost 同步清理 MRU 并通过 pane 卸载释放 Abort、watcher、缩略图 context 和 browser session；直接关闭仍保护最后一个未固定工作标签。单元覆盖六个 pane 的三个命令，desktop/420x360 Chromium 覆盖 7 次 browser POST、5 次 DELETE、固定标签与活动阅读图片稳定。主 Card 保持 32,137 bytes，二级 host/menu chunk 为 3,207/3,149 bytes；普通 list/grid/details 仍仅显示当前目录直接子项，Folder Tree 保持独立。"
     },
     {
       "id": "folder.tabs.pin-duplicate",
@@ -307,7 +307,7 @@
       "surfaces": ["GUI"],
       "status": "pending",
       "testIds": [],
-      "notes": "与侧栏 pin 是不同能力。"
+      "notes": "当前已有与侧栏/Folder Tree pin 明确分离的运行时固定状态和菜单，用于批量关闭保护；固定列表 TOML 恢复、失败回滚，以及复制 backend 导航历史、选择、焦点和 Virtuoso 视口到独立 session 仍待完成，因此保持 pending。"
     },
     {
       "id": "folder.tabs.reopen",
