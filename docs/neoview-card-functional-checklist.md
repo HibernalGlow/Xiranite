@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=35`，`pending=39`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=38`，`pending=36`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -651,13 +651,13 @@
 - [ ] `folder.select.range` Shift 范围与链式选择
   - 目标：Shift 以稳定 anchor index 范围选择；链式选择按标签隔离，跨未加载分页也正确。
   - 源码：`stores/chainSelectStore.svelte.ts`、`components/FolderStack/FolderSelectionHandler.ts`
-  - 测试：`neoview.folder.selection-range-sparse`、`neoview.folder.selection-range-ui`、`neoview.folder.selection-chain`
-  - 备注：当前使用索引区间 + 少量显式路径表达 Shift/Ctrl+Shift 选择；100K 范围不物化路径，list/grid/details 共用同一 selection model。原版按标签隔离的链式选择仍待完成。
+  - 测试：`neoview.folder.selection-range-sparse`、`neoview.folder.selection-range-ui`、`neoview.folder.selection-chain`、`neoview.folder.selection-chain-mode`、`neoview.folder.selection-chain-ui`
+  - 备注：当前使用索引区间 + 少量显式路径表达 Shift/Ctrl+Shift 选择；100K 范围不物化路径，list/grid/details 共用同一 selection model。SelectionBar 已支持独立链选开关和逐次推进 anchor；真正多标签隔离仍待标签宿主迁移。
 - [ ] `folder.select.bulk` 全选、反选、取消与选择栏
   - 目标：全选/反选/取消作用于稳定 catalog，SelectionBar 显示数量与批量动作；大目录避免物化百万路径。
   - 源码：`components/SelectionBar.svelte`、`stores/folderPanelStore/selectionState.svelte.ts`
-  - 测试：待补
-  - 备注：需要 all-except selection 表达或服务端 selection token。
+  - 测试：`neoview.folder.selection-bulk-sparse`、`neoview.folder.selection-bulk-rebase`、`neoview.folder.selection-bulk-ui`、`neoview.folder.selection-click-behavior`
+  - 备注：当前使用 allSelected + 稀疏例外表达全选/反选/取消，100K 项不物化路径；选择栏显示数量并支持多选模式、点开/点选切换，排序 generation 变化后按路径保留例外。批量打开/复制/移动/删除等动作和 CLI/TUI 命令仍待迁移。
 - [ ] `folder.select.restore` 导航状态恢复与自动定位
   - 目标：保存 scrollTop/snapshot、selectedItemPath、focused path/index 和 pendingFocusPath；前进后退/标签切换后自动定位。
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderStack/FolderStackState.svelte.ts`
@@ -669,26 +669,26 @@
 - [ ] `folder.keyboard.navigation` 键盘焦点与方向导航
   - 目标：ArrowUp/Down/Left/Right、Home/End、PageUp/PageDown 根据 list/grid 几何移动焦点并滚入视口；补齐原版未完成的上下箭头遗留。
   - 源码：`utils/keyboardHandler.ts`、`components/FolderList.svelte`
-  - 测试：待补
-  - 备注：原源码的 ArrowUp/ArrowDown TODO 也属于目标兼容范围。
+  - 测试：`neoview.folder.keyboard-navigation`
+  - 备注：list/details 使用单行步进，响应式 grid 根据当前容器列数处理四方向；Home/End 可直接定位稀疏全局索引并按需请求目标页。PageUp/PageDown、真实 100K Chromium 滚动和 TUI 对等命令仍待迁移。
 - [ ] `folder.keyboard.commands` 打开、返回、刷新、搜索、删除快捷键
   - 目标：Enter 打开、Backspace 后退、F5 刷新、Delete 按删除策略、Ctrl/Cmd+A 全选、Ctrl/Cmd+F 搜索、Escape 取消多选。
   - 源码：`utils/keyboardHandler.ts`
-  - 测试：待补
-  - 备注：输入框、菜单和 IME 激活时不得误触发。
+  - 测试：`neoview.folder.keyboard-navigation`
+  - 备注：Card 列表焦点面已支持 Enter、Backspace、F5、Ctrl/Cmd+A 和 Escape，事件不会从路径输入框触发。Delete 策略、Ctrl/Cmd+F 搜索、IME/菜单真实浏览器证据与 TUI 对等命令仍待迁移。
 
 ### search（3）
 
 - [ ] `folder.search.current` 当前目录搜索
   - 目标：按名称或路径搜索当前目录，支持清除、空态、加载态、错误态和搜索历史。
   - 源码：`components/SearchResultList.svelte`、`stores/folderTabStore/sortingFiltering.svelte.ts`
-  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`
-  - 备注：后端 depth=0 已提供同一 text/path NDJSON 契约；前端虚拟结果、搜索历史、清除和完整状态仍待迁移。
+  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`
+  - 备注：后端 depth=0 已提供同一 text/path 契约，CLI 与通用 OpenTUI folder-ui 均复用 ReaderFileTreeHeadlessController；前端虚拟结果、搜索历史、清除和完整状态仍待迁移。
 - [ ] `folder.search.recursive` 包含子目录的流式搜索
   - 目标：递归搜索通过 readdirp stream 分批返回、可取消、可限制并发；不阻塞 Bun 事件循环。
   - 源码：`components/SearchResultList.svelte`、`components/FolderToolbar/ActionButtons.svelte`
-  - 测试：`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.file-tree.ignore`、`neoview.file-tree.scheduler`、`neoview.folder.search-stream`、`neoview.folder.search-glob`、`neoview.folder.search-validation`、`neoview.folder.search-http`、`neoview.folder.search-http-cancellation`、`neoview.folder.search-session-close`
-  - 备注：ReaderFileTreeService 已提供 session-scoped text/glob NDJSON 搜索、硬预算、背压、宿主 I/O lease 与四条取消/释放路径；GUI/CLI/TUI 命令和搜索历史仍待完成。
+  - 测试：`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.file-tree.ignore`、`neoview.file-tree.scheduler`、`neoview.folder.search-stream`、`neoview.folder.search-glob`、`neoview.folder.search-validation`、`neoview.folder.search-http`、`neoview.folder.search-http-cancellation`、`neoview.folder.search-session-close`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`
+  - 备注：ReaderFileTreeService 已提供 session-scoped text/glob NDJSON 搜索、硬预算、背压、宿主 I/O lease 与四条取消/释放路径；CLI 文本流/有界 JSON 与通用 OpenTUI folder-ui 已复用同一 headless controller，GUI 搜索和搜索历史仍待完成。
 - [ ] `folder.search.emm-tags` EMM 标签、收藏标签与随机标签搜索
   - 目标：支持 EMM 标签条件、收藏标签快捷筛选和随机标签；标签组合修饰键行为与原版一致。
   - 源码：`components/FavoriteTagPanel.svelte`、`components/SearchResultList.svelte`
@@ -723,8 +723,8 @@
 - [ ] `folder.tree.cache` 树缓存清理与排除目录
   - 目标：支持清理树缓存、排除目录、取消排除和重新加载；排除规则持久化并应用于扫描/搜索/树。
   - 源码：`utils/directoryTreeCache.ts`、`components/FolderToolbar/CleanupOptionsDialog.svelte`
-  - 测试：`neoview.file-tree.ignore`、`neoview.folder.search-http`、`neoview.folder.tree-lazy`、`neoview.folder.tree-exclusions`、`neoview.folder.tree-http`、`neoview.folder.tree-config`
-  - 备注：树节点缓存复用 lru-cache；清理、刷新和 watcher 失效共用一个 generation。排除目录经 realpath/stat 规范化后原子写入 [nodes.neoview.folder.tree].excluded_paths，并同时剪枝树与 readdirp 搜索；GUI/CLI/TUI 命令呈现尚未完成。
+  - 测试：`neoview.file-tree.ignore`、`neoview.folder.search-http`、`neoview.folder.tree-lazy`、`neoview.folder.tree-exclusions`、`neoview.folder.tree-http`、`neoview.folder.tree-config`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`
+  - 备注：树节点缓存复用 lru-cache；清理、刷新和 watcher 失效共用一个 generation。排除目录经 realpath/stat 规范化后原子写入 [nodes.neoview.folder.tree].excluded_paths，并同时剪枝树与 readdirp 搜索；CLI 与通用 OpenTUI folder-ui 已共用相同更新/确认契约，GUI 呈现尚未完成。
 
 ### virtual-sources（2）
 
