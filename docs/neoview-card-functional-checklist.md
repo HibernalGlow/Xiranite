@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=43`，`complete=1`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=42`，`complete=2`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -470,11 +470,11 @@
 
 ### navigation（7）
 
-- [ ] `folder.nav.path` 路径输入与直接跳转
+- [x] `folder.nav.path` 路径输入与直接跳转
   - 目标：面包屑与可编辑路径输入可互换；Enter 确认、Escape 取消、blur 行为及无效路径反馈与原版一致。
   - 源码：`components/BreadcrumbBar.svelte`
   - 测试：`neoview.folder.path-navigation`
-  - 备注：当前只有路径输入和转到按钮，尚无原版面包屑编辑体验。
+  - 备注：共享 FolderBreadcrumb 解析 Windows 盘符、UNC 与 POSIX 根路径，按宽度保留根和末段并将中间段折叠到菜单；面包屑与完整路径输入互换，Enter 确认、Escape/blur 取消，失败导航保留当前 catalog，支持复制路径及 Alt+Left/Right/Up、F5。真实 Chromium 验证进入子目录后 list/grid/details 仍只消费当前目录 direct children，Folder Tree 保持独立层级导航；新建标签仍归 folder.tabs.lifecycle。
 - [ ] `folder.nav.history` 前进、后退与导航历史
   - 目标：每标签维护分支正确的前进/后退历史，并恢复目录、滚动、焦点、选择和临时排序。
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderToolbar/NavigationButtons.svelte`
