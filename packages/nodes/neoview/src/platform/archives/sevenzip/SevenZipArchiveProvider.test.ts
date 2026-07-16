@@ -6,6 +6,11 @@ import { promisify } from "node:util"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { deterministicBytes } from "../../../../test/fixture-builders/create-zip-fixture.js"
+import {
+  createRarFixture,
+  resolveRarFixtureExecutable,
+  type RarFixture,
+} from "../../../../test/fixture-builders/create-rar-fixture.js"
 import type { ResourceClass, ResourceScheduler, ResourceTaskRequest } from "../../../ports/ResourceScheduler.js"
 import { SolidArchiveMaterializer } from "./SolidArchiveMaterializer.js"
 import { SolidArchiveCache } from "./SolidArchiveCache.js"
@@ -14,6 +19,7 @@ import { resolveSevenZipExecutable } from "./SevenZipExecutable.js"
 
 const execFileAsync = promisify(execFile)
 const executable = await resolveSevenZipExecutable().catch(() => undefined)
+const rarExecutable = await resolveRarFixtureExecutable()
 let directory = ""
 let nonSolidPath = ""
 let solidPath = ""
@@ -22,6 +28,7 @@ let solidLargePath = ""
 let encryptedPath = ""
 let encryptedSolidPath = ""
 let encryptedHeaderPath = ""
+let encryptedRarFixture: RarFixture | undefined
 
 beforeAll(async () => {
   if (!executable) return
@@ -46,10 +53,19 @@ beforeAll(async () => {
   await createArchive(encryptedPath, false, ["pages/001.jpg"], "fixture-secret")
   await createArchive(encryptedSolidPath, true, ["pages/001.jpg", "pages/002.jpg"], "fixture-secret")
   await createArchive(encryptedHeaderPath, false, ["pages/001.jpg"], "fixture-secret", true)
+  if (rarExecutable) {
+    encryptedRarFixture = await createRarFixture({
+      executablePath: rarExecutable,
+      password: "fixture-secret",
+      encryptHeaders: true,
+      entries: [{ path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) }],
+    })
+  }
 })
 
 afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true })
+  await encryptedRarFixture?.cleanup()
 })
 
 describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () => {
@@ -294,6 +310,27 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
       expect(first.encrypted).toBe(true)
       expect(await collect(await provider.openEntry(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
       expect(password).toEqual(new TextEncoder().encode("fixture-secret"))
+    } finally {
+      await provider.close()
+      password.fill(0)
+    }
+  })
+
+  it.skipIf(!rarExecutable)("[neoview.sevenzip.encrypted-rar] indexes and streams a real header-encrypted non-solid RAR", async () => {
+    const wrong = new TextEncoder().encode("wrong-password")
+    const unavailable = createProvider(encryptedRarFixture!.path, undefined, { rawPassword: wrong })
+    await expect(unavailable.list()).rejects.toThrow(/password|data error/i)
+    await unavailable.close()
+    wrong.fill(0)
+
+    const password = new TextEncoder().encode("fixture-secret")
+    const provider = createProvider(encryptedRarFixture!.path, undefined, { rawPassword: password })
+    try {
+      const entries = await provider.list()
+      expect(provider.capabilities).toMatchObject({ solid: false, randomAccess: true })
+      const first = entries.find((entry) => entry.path === "pages/001.jpg")!
+      expect(first).toMatchObject({ encrypted: true, uncompressedSize: 5 })
+      expect(await collect(await provider.openEntry(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
     } finally {
       await provider.close()
       password.fill(0)

@@ -7,6 +7,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { CoreReaderService } from "../../../application/reader/ReaderService.js"
 import { createZipFixture, type ZipFixture } from "../../../../test/fixture-builders/create-zip-fixture.js"
+import {
+  createRarFixture,
+  resolveRarFixtureExecutable,
+  type RarFixture,
+} from "../../../../test/fixture-builders/create-rar-fixture.js"
 import { ReaderAssetRoute } from "../../asset-route/ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "../../asset-route/ReaderHttpController.js"
 import { createPlatformReaderBookLoader } from "../../books/PlatformReaderBookLoader.js"
@@ -17,6 +22,7 @@ import type { ResourceClass, ResourceScheduler, ResourceTaskRequest } from "../.
 
 const execFileAsync = promisify(execFile)
 const executable = await resolveSevenZipExecutable().catch(() => undefined)
+const rarExecutable = await resolveRarFixtureExecutable()
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
   "base64",
@@ -27,6 +33,7 @@ let solidArchivePath = ""
 let solidNestedArchivePath = ""
 let encryptedSolidArchivePath = ""
 let innerFixture: ZipFixture | undefined
+let encryptedSolidRarFixture: RarFixture | undefined
 
 beforeAll(async () => {
   if (!executable) return
@@ -42,6 +49,19 @@ beforeAll(async () => {
   await execFileAsync(executable.path, [
     "a", "-t7z", "-mx=1", "-ms=off", "-bd", "-bb0", "--", archivePath, "pages",
   ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
+  if (rarExecutable) {
+    encryptedSolidRarFixture = await createRarFixture({
+      executablePath: rarExecutable,
+      password: "fixture-secret",
+      solid: true,
+      encryptHeaders: true,
+      entries: [
+        { path: "pages/2.png", bytes: ONE_PIXEL_PNG },
+        { path: "pages/10.png", bytes: ONE_PIXEL_PNG },
+        { path: "pages/readme.txt", bytes: new TextEncoder().encode("not a page") },
+      ],
+    })
+  }
   await execFileAsync(executable.path, [
     "a", "-t7z", "-mx=1", "-ms=on", "-bd", "-bb0", "--", solidArchivePath, "pages",
   ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
@@ -62,6 +82,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true })
   await innerFixture?.cleanup()
+  await encryptedSolidRarFixture?.cleanup()
 })
 
 describe.skipIf(!executable)("CB7 reader system integration", () => {
@@ -147,6 +168,34 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
       const pageUrl = route.pageUrl(session.id, page.id)
       expect(pageUrl).not.toContain("fixture-secret")
       const response = (await route.handle(new Request(pageUrl)))!
+      expect(response.status).toBe(200)
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+    } finally {
+      route.close()
+      await service[Symbol.asyncDispose]()
+    }
+  })
+
+  it.skipIf(!rarExecutable)("[neoview.sevenzip.encrypted-rar-reader-e2e] reads a real header-encrypted solid CBR through Reader Core", async () => {
+    const service = new CoreReaderService(
+      createPlatformReaderBookLoader(),
+      new StreamingImageMetadataProbe(),
+    )
+    const route = new ReaderAssetRoute(service, {
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+    })
+    try {
+      await expect(service.openViewSource(
+        { kind: "path", path: encryptedSolidRarFixture!.path },
+        { archivePasswords: [{ password: "wrong-password" }] },
+      )).rejects.toThrow(/password|encrypted|data error/i)
+      const session = await service.openViewSource(
+        { kind: "path", path: encryptedSolidRarFixture!.path },
+        { archivePasswords: [{ password: "fixture-secret" }] },
+      )
+      expect(session.book.pages.map((page) => page.entryPath)).toEqual(["pages/2.png", "pages/10.png"])
+      const response = (await route.handle(new Request(route.pageUrl(session.id, session.book.pages[1]!.id))))!
       expect(response.status).toBe(200)
       expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
     } finally {
