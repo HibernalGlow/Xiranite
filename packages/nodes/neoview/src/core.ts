@@ -63,6 +63,13 @@ export {
   type ReaderCacheStatus,
 } from "./application/cache/ReaderCacheService.js"
 export {
+  ReaderDiagnosticsService,
+  type ReaderAssetDiagnostics,
+  type ReaderDiagnosticsSnapshot,
+  type ReaderDiagnosticsSources,
+  type ReaderSchedulerPoolDiagnostics,
+} from "./application/diagnostics/ReaderDiagnosticsService.js"
+export {
   ReaderThumbnailMaintenanceService,
   type ReaderThumbnailCleanupCommand,
   type ReaderThumbnailCleanupResult,

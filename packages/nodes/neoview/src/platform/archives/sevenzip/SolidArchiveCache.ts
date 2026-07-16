@@ -60,6 +60,10 @@ export class SolidArchiveCache implements AsyncDisposable {
     return total
   }
 
+  snapshot(): { entries: number; retainedBytes: number; maxBytes: number } {
+    return { entries: this.entryCount, retainedBytes: this.retainedBytes, maxBytes: this.#maxBytes }
+  }
+
   async acquire(options: SolidArchiveCacheAcquireOptions): Promise<SolidArchiveCacheLease> {
     this.#assertOpen()
     assertAcquireOptions(options)

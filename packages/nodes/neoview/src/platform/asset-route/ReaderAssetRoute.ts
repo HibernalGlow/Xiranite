@@ -18,6 +18,7 @@ import type { ImageTransformer, ImageTransformerLoader } from "../../ports/Image
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
+import type { ReaderAssetDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import {
   PlatformThumbnailPipeline,
@@ -119,6 +120,14 @@ export class ReaderAssetRoute {
   prewarmThumbnails(pages: readonly ReaderPage[], signal?: AbortSignal): Promise<ThumbnailPrewarmResult> {
     return this.#thumbnailPipeline?.prewarmPages(pages, { signal })
       ?? Promise.resolve({ requested: pages.length, databaseHits: 0, primed: 0 })
+  }
+
+  snapshot(): ReaderAssetDiagnostics {
+    return {
+      activeTransformFlights: this.#transformFlights.size,
+      presentation: this.#presentationCache?.snapshot() ?? null,
+      thumbnails: this.#thumbnailPipeline?.snapshot() ?? null,
+    }
   }
 
   async handle(request: Request): Promise<Response | undefined> {

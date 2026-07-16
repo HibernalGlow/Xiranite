@@ -13,6 +13,7 @@ import type {
   ReaderFileMutation,
   ReaderLibraryHeadlessController,
   ReaderHeadlessController,
+  ReaderDiagnosticsService,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -40,6 +41,7 @@ const COMMANDS = new Set([
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
+  "diagnostics",
   "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
   "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-open", "file-reveal", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
@@ -94,6 +96,7 @@ export interface NeoviewCliDependencies {
   createFileOperationService?: (databasePath?: string) => Promise<ReaderFileOperationService>
   createSystemIntegrationService?: () => Promise<ReaderSystemIntegrationService>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
+  createDiagnosticsService?: (options: ReaderCompositionOptions) => Promise<ReaderDiagnosticsService>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
 
@@ -157,6 +160,11 @@ export async function runProgram(
   if (command.startsWith("presentation-cache-")) {
     if (parsed.positionals.length) throw usage(`${command} does not accept a path.`)
     await runPresentationCacheCommand(command, parsed, host, dependencies)
+    return
+  }
+  if (command === "diagnostics") {
+    if (parsed.positionals.length) throw usage("diagnostics does not accept a path.")
+    await runDiagnostics(parsed, host, dependencies)
     return
   }
   if (command.startsWith("reader-data-")) {
@@ -558,6 +566,33 @@ async function runPresentationCacheCommand(
     printPresentationCacheResult(result, parsed.booleans.has("--json"), host)
   } finally {
     await service[Symbol.asyncDispose]()
+  }
+}
+
+async function runDiagnostics(
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const createService = dependencies.createDiagnosticsService ?? (async (options: ReaderCompositionOptions) => {
+    const { createReaderDiagnosticsService } = await import("./platform.js")
+    return createReaderDiagnosticsService(options)
+  })
+  const service = await createService({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+  })
+  try {
+    const result = await service.snapshot()
+    if (parsed.booleans.has("--json")) return writeJson(host, result)
+    writeLine(host, `Reader diagnostics: sessions=${result.reader.activeSessions} uptime=${result.uptimeSeconds.toFixed(1)}s`)
+    writeLine(host, `Process: rss=${result.process.rssBytes} heap=${result.process.heapUsedBytes}/${result.process.heapTotalBytes} external=${result.process.externalBytes}`)
+    writeLine(host, `Assets: transforms=${result.assets.activeTransformFlights} L2=${result.assets.presentation?.bytes ?? 0} bytes thumbnails=${result.assets.thumbnails?.cachedBytes ?? 0} bytes`)
+    writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes}`)
+    writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${result.scheduler.cpu.active}/${result.scheduler.cpu.queued} io=${result.scheduler.io.active}/${result.scheduler.io.queued} gpu=${result.scheduler.gpu.active}/${result.scheduler.gpu.queued}` : "unavailable in standalone CLI"}`)
+  } finally {
+    await service.close()
   }
 }
 
@@ -1436,6 +1471,7 @@ function formatCliHelp(): string {
     "  presentation-cache-stats       Show L3 content-cache statistics",
     "  presentation-cache-cleanup     Run age/budget maintenance for L3",
     "  presentation-cache-clear       Clear unleased L3 entries",
+    "  diagnostics                    Show process, scheduler, cache and queue diagnostics",
     "  folder-tree <path>              List one lazily loaded directory-tree node",
     "  folder-search <path>            Stream a bounded recursive directory search",
     "  folder-search-history            List persisted scoped search history",

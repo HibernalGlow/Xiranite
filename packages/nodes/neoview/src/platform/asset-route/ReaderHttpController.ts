@@ -16,6 +16,8 @@ import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJourn
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
+import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
@@ -142,6 +144,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #cacheService: ReaderCacheService
   readonly #mediaProgress?: ReaderMediaProgressService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
+  readonly #diagnostics: ReaderDiagnosticsService
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -252,6 +255,13 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#cacheService = new ReaderCacheService(options.presentationDiskCache, {
       ownsPresentationCache: options.disposePresentationDiskCache,
     })
+    this.#diagnostics = new ReaderDiagnosticsService({
+      activeSessions: () => this.#service.sessionCount,
+      assets: () => this.#assets.snapshot(),
+      presentationDiskCache: () => this.#cacheService.status(),
+      solidArchiveCache: () => this.#solidArchiveCache.snapshot(),
+      scheduler: schedulerSnapshot(options.resourceScheduler),
+    })
     this.#mediaProgress = options.mediaProgressStore
       ? new ReaderMediaProgressService(options.mediaProgressStore)
       : undefined
@@ -290,6 +300,9 @@ export class ReaderHttpController implements AsyncDisposable {
 
     if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "GET") {
       return jsonResponse(await this.#cacheService.status())
+    }
+    if (url.pathname === "/reader/diagnostics" && request.method === "GET") {
+      return jsonResponse(await this.#diagnostics.snapshot())
     }
     if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "DELETE") {
       return jsonResponse(await this.#cacheService.clear())
@@ -387,6 +400,11 @@ export class ReaderHttpController implements AsyncDisposable {
       } catch (error) {
         errors.push(error)
       }
+    }
+    try {
+      await this.#diagnostics.close()
+    } catch (error) {
+      errors.push(error)
     }
     try {
       await this.#cacheService.close()
@@ -893,4 +911,13 @@ function jsonResponse(data: unknown, status = 200): Response {
       "x-content-type-options": "nosniff",
     },
   })
+}
+
+function schedulerSnapshot(
+  scheduler: ResourceScheduler | undefined,
+): (() => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>) | undefined {
+  const source = scheduler as (ResourceScheduler & {
+    snapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
+  }) | undefined
+  return typeof source?.snapshot === "function" ? () => source.snapshot!() : undefined
 }

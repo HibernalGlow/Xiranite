@@ -427,7 +427,7 @@ describe("backend", () => {
     }
   })
 
-  test("[neoview.http.e2e] [neoview.scheduler.host-injection] [neoview.settings.runtime-backend] lazily mounts the configured reader routes", async () => {
+  test("[neoview.http.e2e] [neoview.scheduler.host-injection] [neoview.settings.runtime-backend] [neoview.diagnostics.backend] lazily mounts the configured reader routes", async () => {
     const dataDir = await createTempDataDir()
     const configPath = join(dataDir, "xiranite.config.toml")
     const bookDir = await mkdtemp(join(RUN_ROOT, "neoview-book-"))
@@ -522,6 +522,22 @@ describe("backend", () => {
         priority: "background",
         ownerId: "library:backend-library",
       }), expect.any(AbortSignal))
+
+      const diagnosticsResponse = await fetch(`${backend.url}/reader/diagnostics`, {
+        headers: { "x-xiranite-token": "test-token" },
+      })
+      const diagnostics = await diagnosticsResponse.json() as {
+        reader: { activeSessions: number }
+        assets: { presentation: { entries: number; bytes: number } }
+        scheduler: { cpu: { active: number; queued: number } }
+      }
+      expect(diagnosticsResponse.status).toBe(200)
+      expect(diagnostics).toMatchObject({
+        reader: { activeSessions: 1 },
+        assets: { presentation: { entries: 1 } },
+        scheduler: { cpu: { active: 0, queued: 0 } },
+      })
+      expect(diagnostics.assets.presentation.bytes).toBeGreaterThan(0)
 
       const closed = await fetch(`${backend.url}/reader/s/${session.sessionId}`, {
         method: "DELETE",

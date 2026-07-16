@@ -17,6 +17,7 @@ import type {
 import { runProgram } from "../cli.js"
 import { createReaderFileTreeController, createReaderHeadlessController } from "../platform.js"
 import { ReaderCacheService } from "../application/cache/ReaderCacheService.js"
+import { ReaderDiagnosticsService } from "../application/diagnostics/ReaderDiagnosticsService.js"
 import type { ReaderPresentationDiskCache } from "../ports/ReaderPresentationDiskCache.js"
 
 const testPlatformDependencies = {
@@ -664,6 +665,31 @@ describe("NeoView CLI", () => {
     expect(JSON.parse(clearOutput.join(""))).toMatchObject({ enabled: true, entries: 0, removedEntries: 2 })
     expect(created[2]?.cache.clear).toHaveBeenCalledOnce()
     expect(created.every(({ cache }) => cache.close.mock.calls.length === 1)).toBe(true)
+  })
+
+  it("[neoview.diagnostics.cli] prints the shared diagnostics DTO and closes owned resources", async () => {
+    const output: unknown[] = []
+    const close = vi.fn(async () => undefined)
+    const service = new ReaderDiagnosticsService({
+      activeSessions: () => 0,
+      assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
+      presentationDiskCache: async () => ({ enabled: false }),
+      solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
+      now: () => 10,
+      uptime: () => 1,
+      memoryUsage: () => ({ rss: 8, heapTotal: 7, heapUsed: 6, external: 5, arrayBuffers: 4 }),
+      cpuUsage: () => ({ user: 3, system: 2 }),
+      close,
+    })
+    const createDiagnosticsService = vi.fn(async () => service)
+    await runProgram(["diagnostics", "--config", "private/xiranite.config.toml", "--json"], host(output), {
+      createController: async () => fakeReader(),
+      createDiagnosticsService,
+    })
+    expect(JSON.parse(output.join(""))).toMatchObject({ schemaVersion: 1, process: { rssBytes: 8 }, reader: { activeSessions: 0 } })
+    expect(output.join("")).not.toContain("private")
+    expect(createDiagnosticsService).toHaveBeenCalledWith(expect.objectContaining({ configPath: "private/xiranite.config.toml" }))
+    expect(close).toHaveBeenCalledOnce()
   })
 })
 

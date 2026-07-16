@@ -1485,6 +1485,8 @@ ReaderService 应支持多个 session，但不能让 session 数量线性乘以 
 
 当前宿主实现位于 `packages/services/src/resourceScheduler.ts`，契约位于 `@xiranite/contract`。backend 为每个进程只创建一个实例并注入 NeoView；CPU 默认 2、I/O 默认 4、GPU 默认 1 个并发槽，各池可独立配置。默认值只是安全起点，后续必须由 `scheduler-contention` 基准按硬件修订。服务快照公开 active、queued 和各优先级排队数，后续诊断页面与 benchmark 直接读取该状态，节点不得另建不可观测的全局队列。
 
+`ReaderDiagnosticsService` 现已把上述宿主 scheduler snapshot 与 Reader 自有的 session 数、transform singleflight、L2 字节 LRU、thumbnail coordinator、L3 `cacache`、solid archive cache 和 Node 原生进程指标聚合成 schema v1 DTO。它不创建采样线程、不自行测 CPU 百分比、不写 benchmark report、SQLite 或 TOML，也不包含 source path、HTTP token、cache key 或密码。鉴权 `GET /reader/diagnostics` 读取常驻 GUI backend 的真实状态；`xneoview diagnostics [--json]` 复用同一 application service，在独立 CLI 进程中显示该进程与其显式打开的 L3 状态，并明确 scheduler 可能不可用。快照使用 `process.memoryUsage()`、`process.cpuUsage()`、`availableMemory()` 和 `constrainedMemory()`，scheduler/thumbnail/cache 则直接复用各 owner 的成熟 `snapshot()`，禁止复制计数器。GPU 实际利用率、时间序列、pipeline latency、算法对照、报告导出及 CLI `--connect` 仍待迁移，所以 performance feature 保持 `pending`。
+
 ### 13.1 `PreloadCoordinator`：按 frame 和方向管理猜测，不按页号盲跑
 
 OpenComic 的 renderer 会围绕当前索引排入前后 render queue，并在重新渲染时清掉旧队列；这一点值得保留。它的局限也必须避开：预读范围、Blob/Object URL、解码与 DOM 生命周期混在 renderer 中，快速拖动或切书时很难审计谁仍拥有工作。Xiranite 的 `PreloadCoordinator` 放在 application 层，只输出带 lease 的需求，绝不返回 `Buffer`、`Blob` 或 DOM 节点。

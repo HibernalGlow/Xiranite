@@ -2,6 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { ResourceSchedulerService } from "@xiranite/services"
 
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
@@ -22,6 +23,37 @@ afterEach(async () => {
 })
 
 describe("ReaderHttpController", () => {
+  it("[neoview.diagnostics.http] exposes an authenticated, path-free runtime snapshot", async () => {
+    const scheduler = new ResourceSchedulerService()
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      resourceScheduler: scheduler,
+    })
+    try {
+      expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/diagnostics")))?.status).toBe(401)
+      const response = (await controller.handle(authorizedRequest("/reader/diagnostics")))!
+      expect(response.status).toBe(200)
+      const snapshot = await response.json()
+      expect(snapshot).toMatchObject({
+        schemaVersion: 1,
+        reader: { activeSessions: 0 },
+        assets: {
+          activeTransformFlights: 0,
+          presentation: { entries: 0, bytes: 0 },
+          thumbnails: { activeFlights: 0, queuedFlights: 0, runningFlights: 0 },
+        },
+        presentationDiskCache: { enabled: false },
+        solidArchiveCache: { entries: 0, retainedBytes: 0 },
+        scheduler: { cpu: { active: 0, queued: 0 }, io: { active: 0, queued: 0 }, gpu: { active: 0, queued: 0 } },
+      })
+      expect(JSON.stringify(snapshot)).not.toContain("D:/")
+      expect(JSON.stringify(snapshot)).not.toContain("reader-token")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.cache.l3-maintenance-http] exposes authenticated stats, cleanup and clear operations", async () => {
     const base = {
       entries: 3, bytes: 30, maxBytes: 100, maxEntryBytes: 20, activeLeases: 0,

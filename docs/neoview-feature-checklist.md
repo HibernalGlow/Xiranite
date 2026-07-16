@@ -318,9 +318,9 @@
 - 设置：`performance`
 - 数据：benchmark reports、pipeline latency
 - 行为：冷/热基准；算法对照；系统 CPU/RSS/GPU 观测；任务队列状态；报告导出；基准不污染用户缓存
-- 测试：`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
+- 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.backend`、`neoview.diagnostics.cli`、`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
 - 性能基准：`neoview-full-suite`、`reader-loopback-pipeline`、`reader-hot-page-turn`、`build-chunk`
-- 已知差异：无
+- 已知差异：当前提供无副作用瞬时快照；GPU 利用率、时间序列采样、算法对照和报告导出仍待迁移；standalone CLI 只观测自身进程；连接常驻 GUI backend 的 --connect 模式仍待迁移
 
 ### 图片裁边、颜色滤镜、页面过渡和悬停滚动（`image-effects-transitions`）
 

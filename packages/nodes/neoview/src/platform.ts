@@ -294,6 +294,22 @@ export async function createReaderCacheService(
   )
 }
 
+export async function createReaderDiagnosticsService(
+  options: NeoviewRuntimeLoadOptions & { resourceScheduler?: ResourceScheduler } = {},
+) {
+  const { ReaderDiagnosticsService } = await import("./application/diagnostics/ReaderDiagnosticsService.js")
+  const cache = await createReaderCacheService(options)
+  const scheduler = options.resourceScheduler as (ResourceScheduler & { snapshot?: () => never }) | undefined
+  return new ReaderDiagnosticsService({
+    activeSessions: () => 0,
+    assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
+    presentationDiskCache: () => cache.status(),
+    solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
+    scheduler: typeof scheduler?.snapshot === "function" ? () => scheduler.snapshot!() : undefined,
+    close: () => cache.close(),
+  })
+}
+
 async function disposeLoadedThumbnailStore(store: ReaderThumbnailStore): Promise<void> {
   const disposable = store as ReaderThumbnailStore & Partial<AsyncDisposable> & { close?: () => void | Promise<void> }
   const asyncDispose = disposable[Symbol.asyncDispose]

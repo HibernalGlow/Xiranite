@@ -16,6 +16,7 @@ export const help = {
         "Run `xiranite neoview extract-page <path> --index 0 --output -` for binary stdout.",
         "Run `xiranite neoview thumbnail-db-stats --json` for aggregate thumbnail database health.",
         "Run `xiranite neoview presentation-cache-stats --json` for the shared L3 cache budget and hit counters.",
+        "Run `xiranite neoview diagnostics --json` for a path-free process, scheduler, cache and queue snapshot.",
         "Run `xiranite neoview reader-data-inspect <backup.json> --json` before importing legacy history and bookmarks.",
       ],
     },
@@ -62,6 +63,12 @@ export const help = {
         command: "xiranite neoview thumbnail-db-cleanup --kind expired --days 30 --limit 500 --yes --json",
         description: "Delete at most 500 expired file thumbnails while preserving every folder thumbnail.",
       }],
+    },
+    {
+      title: "Inspect runtime diagnostics",
+      command: "xiranite neoview diagnostics --json",
+      description: "Read a side-effect-free process, scheduler, cache and queue snapshot without exposing source paths.",
+      examples: [],
     },
     {
       title: "Maintain presentation cache",
