@@ -3,10 +3,7 @@ import type {
   ReaderPresentationCache,
   ReaderPresentationCacheSnapshot,
 } from "../../ports/ReaderPresentationCache.js"
-
-interface CacheEntry extends CachedPresentation {
-  readonly weight: number
-}
+import { LRUCache } from "lru-cache"
 
 export interface WeightedLruPresentationCacheOptions {
   maxBytes?: number
@@ -18,8 +15,7 @@ export class WeightedLruPresentationCache implements ReaderPresentationCache {
   readonly maxEntryBytes: number
   readonly #maxBytes: number
   readonly #trimTargetBytes: number
-  readonly #entries = new Map<string, CacheEntry>()
-  #bytes = 0
+  readonly #entries: LRUCache<string, CachedPresentation>
   #hits = 0
   #misses = 0
   #evictions = 0
@@ -33,6 +29,14 @@ export class WeightedLruPresentationCache implements ReaderPresentationCache {
       throw new RangeError("trimRatio must be greater than 0 and at most 1")
     }
     this.#trimTargetBytes = Math.max(1, Math.floor(this.#maxBytes * trimRatio))
+    this.#entries = new LRUCache({
+      maxSize: this.#maxBytes,
+      maxEntrySize: this.maxEntryBytes,
+      sizeCalculation: (entry) => entry.bytes.byteLength,
+      dispose: (_entry, _key, reason) => {
+        if (reason === "evict") this.#evictions += 1
+      },
+    })
   }
 
   get(key: string): CachedPresentation | undefined {
@@ -42,35 +46,29 @@ export class WeightedLruPresentationCache implements ReaderPresentationCache {
       return undefined
     }
     this.#hits += 1
-    this.#entries.delete(key)
-    this.#entries.set(key, entry)
     return entry
   }
 
   set(key: string, value: CachedPresentation): boolean {
-    const weight = value.bytes.byteLength
-    if (weight <= 0 || weight > this.maxEntryBytes || weight > this.#maxBytes) return false
-    const previous = this.#entries.get(key)
-    if (previous) {
-      this.#entries.delete(key)
-      this.#bytes -= previous.weight
+    const size = value.bytes.byteLength
+    if (size <= 0 || size > this.maxEntryBytes || size > this.#maxBytes) return false
+    const previousSize = this.#entries.peek(key)?.bytes.byteLength ?? 0
+    const exceedsHardLimit = this.#entries.calculatedSize - previousSize + size > this.#maxBytes
+    this.#entries.set(key, { bytes: value.bytes, contentType: value.contentType })
+    if (exceedsHardLimit) {
+      while (this.#entries.calculatedSize > this.#trimTargetBytes) this.#entries.pop()
     }
-    const entry: CacheEntry = { bytes: value.bytes, contentType: value.contentType, weight }
-    this.#entries.set(key, entry)
-    this.#bytes += weight
-    if (this.#bytes > this.#maxBytes) this.#trim()
     return this.#entries.has(key)
   }
 
   clear(): void {
     this.#entries.clear()
-    this.#bytes = 0
   }
 
   snapshot(): ReaderPresentationCacheSnapshot {
     return {
       entries: this.#entries.size,
-      bytes: this.#bytes,
+      bytes: this.#entries.calculatedSize,
       maxBytes: this.#maxBytes,
       maxEntryBytes: this.maxEntryBytes,
       hits: this.#hits,
@@ -79,14 +77,6 @@ export class WeightedLruPresentationCache implements ReaderPresentationCache {
     }
   }
 
-  #trim(): void {
-    for (const [key, entry] of this.#entries) {
-      if (this.#bytes <= this.#trimTargetBytes) break
-      this.#entries.delete(key)
-      this.#bytes -= entry.weight
-      this.#evictions += 1
-    }
-  }
 }
 
 function positiveInteger(value: number, name: string): number {

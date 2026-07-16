@@ -25,6 +25,18 @@ describe("WeightedLruPresentationCache", () => {
     cache.clear()
     expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0 })
   })
+
+  it("[neoview.cache.soft-trim] delegates LRU eviction to lru-cache and continues to the configured soft target", () => {
+    const cache = new WeightedLruPresentationCache({ maxBytes: 10, maxEntryBytes: 4, trimRatio: 0.8 })
+    for (const key of ["a", "b", "c", "d"]) expect(cache.set(key, value(2))).toBe(true)
+    expect(cache.set("e", value(3))).toBe(true)
+
+    expect(cache.snapshot()).toMatchObject({ entries: 3, bytes: 7, evictions: 2 })
+    expect(cache.get("a")).toBeUndefined()
+    expect(cache.get("b")).toBeUndefined()
+    expect(cache.get("c")).toBeDefined()
+    expect(cache.get("e")).toBeDefined()
+  })
 })
 
 function value(size: number) {
