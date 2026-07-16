@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=44`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=43`，`complete=1`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -457,11 +457,11 @@
   - 源码：`utils/directoryTreeCache.ts`、`components/FolderTree.svelte`
   - 测试：`neoview.file-tree.opendir`、`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.folder.file-tree-service`
   - 备注：单层 opendir provider 与 readdirp scanner 已由 ReaderFileTreeService 按 session 根统一编排；流式 HTTP 搜索 surface 与排除规则仍待完成。
-- [ ] `folder.arch.watch` 文件树增量监听
+- [x] `folder.arch.watch` 文件树增量监听
   - 目标：按需动态加载 @parcel/watcher，仅监听活动根；事件合并后增量修补 generation，最后消费者关闭即 unsubscribe。
   - 源码：`utils/directoryTreeCache.ts`、`components/FolderTree.svelte`
-  - 测试：`neoview.file-tree.watcher`、`neoview.file-tree.watcher-native`、`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`、`neoview.folder.watch-long-poll`、`neoview.folder.watch-client`、`neoview.folder.watch-gui`、`neoview.folder.watch-live-e2e`
-  - 备注：File Card 默认以 watch:true 打开唯一 browser session；@parcel/watcher 仍只监听活动当前目录，事件使 Tree cache 失效并唤醒可取消的 /changes 长轮询，已有 service 单飞重读后递增 generation。list/grid/details 保持当前 Virtuoso 视口，显式 path selection 与 focus identity 重基，旧索引区间安全清除；外部 create/delete 无需手动刷新即可呈现。25 秒无变化返回 204，不重读 listing、不 hydrate metadata，错误停止续订避免自旋；关闭、导航和卸载均 Abort waiter 并 unsubscribe。前端 watcher bridge 是 774-byte 二级 lazy chunk，@parcel/watcher 零浏览器模块。已展开 Tree 行的主动推送/增量修补仍待完成，因此保持 partial。
+  - 测试：`neoview.file-tree.watcher`、`neoview.file-tree.watcher-native`、`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`、`neoview.folder.watch-long-poll`、`neoview.folder.watch-client`、`neoview.folder.watch-gui`、`neoview.folder.tree-watch-stream`、`neoview.folder.tree-watch-http`、`neoview.folder.tree-watch-client`、`neoview.folder.tree-watch-gui`、`neoview.folder.watch-live-e2e`
+  - 备注：File Card 默认以 watch:true 打开唯一 browser session，@parcel/watcher 仅监听活动当前目录且仍为 Node 端动态 import。当前目录直接子项事件进入 /changes：已有 service 单飞重读后递增 listing generation，list/grid/details 保持 Virtuoso 视口、path selection 与 focus identity，旧索引区间安全清除。递归子目录事件只进入独立 /tree/changes revision：32 个父路径有界 ring 仅让已加载展开节点重读，折叠节点按需失效，落后消费者才安全 reset 当前祖先链；Folder Tree 层级从不混入普通列表。两路 25 秒无变化均返回 204，错误停止续订；关闭 Tree、导航、关闭 session 和卸载会 Abort waiter，最后消费者关闭即 unsubscribe。desktop/420x360 已验证外部目录 create/delete 同时更新独立 Tree 和当前目录列表且焦点、选择、阅读图片稳定。DirectoryWatch 为 774-byte 二级 lazy chunk，FolderTreeWorkspace 为 13,837 bytes，@parcel/watcher 零浏览器模块。
 - [ ] `folder.arch.dispose` 取消、释放与休眠
   - 目标：折叠、切目录、关闭标签和卸载 Card 时取消过期分页/扫描/缩略图，释放 watcher、thumbnail context、browser session 和 Worker。
   - 源码：`components/FolderStack.svelte`、`utils/directoryTreeCache.ts`
