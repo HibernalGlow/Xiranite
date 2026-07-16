@@ -115,6 +115,41 @@ describe("ReaderLibraryService", () => {
     await expect(service.updateBookmark("bookmark-1", { starred: false }, controller.signal)).rejects.toMatchObject({ name: "AbortError" })
     expect(store.updateBookmark).not.toHaveBeenCalled()
   })
+
+  it("[neoview.bookmark.batch-contract] updates list memberships through one bounded shared command", async () => {
+    const store = createStore()
+    store.listBookmarkLists.mockResolvedValue([customList])
+    store.updateBookmark.mockImplementation(async (id, update) => id === "missing" ? undefined : bookmark(id, update.listIds ?? ["default"], update.starred ?? false))
+    const service = new ReaderLibraryService(store, () => 300)
+
+    await expect(service.updateBookmarks([
+      { id: "one", listIds: ["custom", "default"] },
+      { id: "two", listIds: ["custom"], starred: true },
+      { id: "missing", starred: false },
+    ])).resolves.toMatchObject({
+      items: [{ id: "one" }, { id: "two", starred: true }],
+      missingIds: ["missing"],
+    })
+    expect(store.listBookmarkLists).toHaveBeenCalledOnce()
+    expect(store.updateBookmark).toHaveBeenCalledTimes(3)
+    expect(store.updateBookmark).toHaveBeenNthCalledWith(2, "two", { starred: true, listIds: ["custom"], updatedAt: 300 })
+    await expect(service.updateBookmarks([{ id: "one", starred: true }, { id: "one", starred: false }])).rejects.toThrow("duplicate")
+    await expect(service.updateBookmarks([{ id: "one", listIds: ["favorites"] }])).rejects.toThrow("cannot be persisted")
+    await expect(service.updateBookmarks([])).rejects.toThrow("1 to 500")
+  })
+
+  it("[neoview.bookmark.batch-delete] deletes a bounded identity batch and reports missing rows", async () => {
+    const store = createStore()
+    store.deleteBookmark.mockImplementation(async (id) => id !== "missing")
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.removeBookmarks(["one", "missing", "two"])).resolves.toEqual({ deleted: 2, missingIds: ["missing"] })
+    expect(store.deleteBookmark).toHaveBeenCalledTimes(3)
+    await expect(service.removeBookmarks(["one", "one"])).rejects.toThrow("duplicate")
+    const controller = new AbortController()
+    controller.abort()
+    await expect(service.removeBookmarks(["one"], controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+  })
 })
 
 const customList: ReaderBookmarkListRecord = {
@@ -140,5 +175,18 @@ function createStore() {
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(),
     close: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function bookmark(id: string, listIds: readonly string[], starred: boolean): ReaderBookmarkRecord {
+  return {
+    id,
+    source: { kind: "archive", path: `D:/books/${id}.cbz` },
+    name: id,
+    kind: "file",
+    starred,
+    createdAt: 100,
+    updatedAt: 300,
+    listIds,
   }
 }

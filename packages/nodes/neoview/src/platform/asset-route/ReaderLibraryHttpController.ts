@@ -1,4 +1,4 @@
-import type { SaveReaderBookmarkInput, SaveReaderBookmarkListInput, UpdateReaderBookmarkInput } from "../../application/library/ReaderLibraryService.js"
+import type { ReaderBookmarkBatchUpdate, SaveReaderBookmarkInput, SaveReaderBookmarkListInput, UpdateReaderBookmarkInput } from "../../application/library/ReaderLibraryService.js"
 import { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
@@ -65,6 +65,18 @@ export class ReaderLibraryHttpController {
         const input = body && parseBookmark(body)
         if (!input) return jsonResponse({ error: "Invalid reader bookmark" }, 400)
         return jsonResponse(await this.library.saveBookmark(input), 201)
+      }
+      if (url.pathname === "/reader/library/bookmarks/batch" && request.method === "PATCH") {
+        const body = await readJson(request)
+        const updates = body && parseBookmarkBatchUpdates(body.updates)
+        if (!updates) return jsonResponse({ error: "Invalid reader bookmark batch update" }, 400)
+        return jsonResponse(await this.library.updateBookmarks(updates, request.signal))
+      }
+      if (url.pathname === "/reader/library/bookmarks/batch" && request.method === "DELETE") {
+        const body = await readJson(request)
+        const ids = body && parseBookmarkBatchIds(body.ids)
+        if (!ids) return jsonResponse({ error: "Invalid reader bookmark batch delete" }, 400)
+        return jsonResponse(await this.library.removeBookmarks(ids, request.signal))
       }
       const bookmarkMatch = BOOKMARK_ITEM_PATH.exec(url.pathname)
       if (bookmarkMatch && request.method === "PATCH") {
@@ -148,6 +160,26 @@ function parseBookmarkUpdate(body: Record<string, unknown>): UpdateReaderBookmar
     ...(body.starred !== undefined ? { starred: body.starred as boolean } : {}),
     ...(body.listIds !== undefined ? { listIds: body.listIds as string[] } : {}),
   }
+}
+
+function parseBookmarkBatchUpdates(value: unknown): ReaderBookmarkBatchUpdate[] | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 500) return undefined
+  const updates: ReaderBookmarkBatchUpdate[] = []
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return undefined
+    const body = item as Record<string, unknown>
+    if (typeof body.id !== "string") return undefined
+    const update = parseBookmarkUpdate(Object.fromEntries(Object.entries(body).filter(([key]) => key !== "id")))
+    if (!update) return undefined
+    updates.push({ id: body.id, ...update })
+  }
+  return updates
+}
+
+function parseBookmarkBatchIds(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every((id) => typeof id === "string")
+    ? value
+    : undefined
 }
 
 function parseBookmarkList(body: Record<string, unknown>): SaveReaderBookmarkListInput | undefined {

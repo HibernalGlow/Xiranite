@@ -147,6 +147,20 @@ export interface UpdateReaderBookmarkDto {
   listIds?: readonly string[]
 }
 
+export interface ReaderBookmarkBatchUpdateDto extends UpdateReaderBookmarkDto {
+  id: string
+}
+
+export interface ReaderBookmarkBatchResultDto {
+  items: readonly ReaderBookmarkDto[]
+  missingIds: readonly string[]
+}
+
+export interface ReaderBookmarkBatchRemoveResultDto {
+  deleted: number
+  missingIds: readonly string[]
+}
+
 export interface ReaderDirectoryEntryDto {
   name: string
   path: string
@@ -503,9 +517,11 @@ export interface ReaderHttpClient {
   listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
   saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
   updateBookmark?(id: string, patch: UpdateReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
+  updateBookmarks?(updates: readonly ReaderBookmarkBatchUpdateDto[], signal?: AbortSignal): Promise<ReaderBookmarkBatchResultDto>
   removeBookmark?(id: string, signal?: AbortSignal): Promise<void>
+  removeBookmarks?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderBookmarkBatchRemoveResultDto>
   listBookmarkLists?(signal?: AbortSignal): Promise<readonly ReaderBookmarkListDto[]>
-  saveBookmarkList?(list: { id?: string; name: string; isFavorite?: boolean }, signal?: AbortSignal): Promise<ReaderBookmarkListDto>
+  saveBookmarkList?(list: { id?: string; name: string; isFavorite?: boolean; createdAt?: number }, signal?: AbortSignal): Promise<ReaderBookmarkListDto>
   removeBookmarkList?(id: string, signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -747,8 +763,20 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }),
+    updateBookmarks: (updates, signal) => request<ReaderBookmarkBatchResultDto>("/reader/library/bookmarks/batch", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ updates }),
+      signal,
+    }),
     removeBookmark: (id, signal) => request<void>(`/reader/library/bookmarks/${encodeURIComponent(id)}`, {
       method: "DELETE",
+      signal,
+    }),
+    removeBookmarks: (ids, signal) => request<ReaderBookmarkBatchRemoveResultDto>("/reader/library/bookmarks/batch", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
       signal,
     }),
     listBookmarkLists: (signal) => request<{ items: ReaderBookmarkListDto[] }>(

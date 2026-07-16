@@ -84,6 +84,7 @@ test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neovie
   await expect(sidebar).toBeVisible()
   await sidebar.getByRole("button", { name: "书签", exact: true }).click()
   const bookmarkCard = sidebar.locator('[data-reader-card="书签列表"]')
+  const bookmarkContent = bookmarkCard.locator('[data-neoview-bookmark-card="true"]')
   await expect(bookmarkCard).toBeVisible()
   await bookmarkCard.getByRole("button", { name: "收藏当前书籍" }).click()
   const bookmarkRow = bookmarkCard.locator('[data-bookmark-id]').filter({ hasText: "fixture.cbz" }).first()
@@ -100,6 +101,59 @@ test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neovie
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   expect(await bookmarkCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await bookmarkCard.screenshot({ path: testInfo.outputPath(`neoview-bookmark-thumbnails-${testInfo.project.name}.png`) })
+
+  const seededBookmarks = await Promise.all([
+    seedBookmark(page, "alpha.cbz", "D:/library/alpha.cbz"),
+    seedBookmark(page, "beta.cbz", "D:/library/beta.cbz"),
+  ])
+  await bookmarkCard.getByRole("button", { name: "刷新书签" }).click()
+
+  await bookmarkCard.getByRole("button", { name: "新建书签列表" }).click()
+  await page.getByRole("textbox", { name: "列表名称" }).fill("待读")
+  await page.getByText("收藏夹列表", { exact: true }).click()
+  const createListResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmark-lists") && response.request().method() === "POST")
+  await page.getByRole("button", { name: "保存", exact: true }).click()
+  expect((await createListResponse).status()).toBe(201)
+  await bookmarkCard.getByRole("button", { name: "全部", exact: true }).click()
+
+  const firstSeededRow = bookmarkCard.locator(`[data-bookmark-id="${seededBookmarks[0].id}"]`)
+  const secondSeededRow = bookmarkCard.locator(`[data-bookmark-id="${seededBookmarks[1].id}"]`)
+  await expect(firstSeededRow).toBeVisible()
+  await firstSeededRow.locator("[data-bookmark-row-button]").click()
+  await secondSeededRow.locator("[data-bookmark-row-button]").click({ modifiers: ["Control"] })
+  await expect(bookmarkContent).toHaveAttribute("data-selection-count", "2")
+  await bookmarkCard.screenshot({ path: testInfo.outputPath(`neoview-bookmark-selection-${testInfo.project.name}.png`) })
+  await bookmarkCard.getByRole("button", { name: "添加所选书签到列表" }).click()
+  await page.getByRole("checkbox", { name: "待读" }).click()
+  const batchUpdateResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmarks/batch") && response.request().method() === "PATCH")
+  await page.getByRole("button", { name: "添加", exact: true }).click()
+  expect((await batchUpdateResponse).status()).toBe(200)
+  await bookmarkCard.getByRole("button", { name: /^待读/ }).click()
+  await expect(firstSeededRow).toBeVisible()
+  await expect(secondSeededRow).toBeVisible()
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+
+  await firstSeededRow.locator("[data-bookmark-row-button]").click()
+  await secondSeededRow.locator("[data-bookmark-row-button]").click({ modifiers: ["Control"] })
+  await bookmarkCard.getByRole("button", { name: "删除所选书签" }).click()
+  const batchDeleteResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmarks/batch") && response.request().method() === "DELETE")
+  await page.getByRole("button", { name: "删除书签", exact: true }).click()
+  expect((await batchDeleteResponse).status()).toBe(200)
+  await expect(firstSeededRow).toHaveCount(0)
+  await expect(secondSeededRow).toHaveCount(0)
+
+  await bookmarkCard.getByRole("button", { name: "编辑当前书签列表" }).click()
+  await page.getByRole("textbox", { name: "列表名称" }).fill("稍后阅读")
+  const updateListResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmark-lists") && response.request().method() === "POST")
+  await page.getByRole("button", { name: "保存", exact: true }).click()
+  expect((await updateListResponse).status()).toBe(201)
+  await expect(bookmarkCard.getByRole("button", { name: /稍后阅读/ })).toBeVisible()
+  await bookmarkCard.getByRole("button", { name: "编辑当前书签列表" }).click()
+  await page.getByRole("button", { name: "删除", exact: true }).click()
+  const deleteListResponse = page.waitForResponse((response) => response.url().includes("/reader/library/bookmark-lists/") && response.request().method() === "DELETE")
+  await page.getByRole("button", { name: "删除列表", exact: true }).click()
+  expect((await deleteListResponse).status()).toBe(204)
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 
   await sidebar.getByRole("button", { name: "页面列表", exact: true }).click()
   const pageListCard = sidebar.locator('[data-reader-card="页面导航"]')
@@ -154,6 +208,15 @@ test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neovie
   await expect.poll(() => diagnosticsRequests).toBe(requestsBeforeCollapse + 1)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 })
+
+async function seedBookmark(page: import("@playwright/test").Page, name: string, path: string): Promise<{ id: string }> {
+  const response = await page.request.post(`${backend.url}/reader/library/bookmarks`, {
+    headers: { "x-xiranite-token": backend.token },
+    data: { source: { kind: "path", path }, name, listIds: ["default"] },
+  })
+  expect(response.status()).toBe(201)
+  return response.json() as Promise<{ id: string }>
+}
 
 const CURRENT_THUMBNAIL_SCHEMA = `
   PRAGMA journal_mode = WAL;

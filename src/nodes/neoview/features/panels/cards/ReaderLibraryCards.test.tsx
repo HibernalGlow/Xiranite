@@ -122,6 +122,101 @@ describe("Reader library cards", () => {
     await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(expect.stringMatching(/^bookmark:/)))
   })
 
+  it("[neoview.bookmark.list-management] creates, renames, favorites and deletes custom lists without prompt state", async () => {
+    const custom = { id: "reading", name: "待读", isFavorite: false, createdAt: 10, updatedAt: 10 }
+    const saveBookmarkList = vi.fn(async (input: { id?: string; name: string; isFavorite?: boolean; createdAt?: number }) => ({
+      ...custom,
+      ...input,
+      id: input.id ?? "created",
+      updatedAt: 20,
+    }))
+    const removeBookmarkList = vi.fn(async () => undefined)
+    render(
+      <BookmarkListCard
+        client={{
+          listBookmarkLists: vi.fn(async () => [
+            { id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
+            { id: "default", name: "默认", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
+            custom,
+          ]),
+          listBookmarks: vi.fn(async () => []),
+          saveBookmarkList,
+          removeBookmarkList,
+        } as ReaderHttpClient}
+        disabled={false}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole("button", { name: "待读" })
+    fireEvent.click(screen.getByRole("button", { name: "新建书签列表" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "列表名称" }), { target: { value: "新列表" } })
+    fireEvent.click(screen.getByText("收藏夹列表"))
+    fireEvent.click(screen.getByRole("button", { name: "保存" }))
+    await waitFor(() => expect(saveBookmarkList).toHaveBeenCalledWith({ name: "新列表", isFavorite: true }))
+
+    fireEvent.click(screen.getByRole("button", { name: "待读" }))
+    fireEvent.click(screen.getByRole("button", { name: "编辑当前书签列表" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "列表名称" }), { target: { value: "稍后阅读" } })
+    fireEvent.click(screen.getByRole("button", { name: "保存" }))
+    await waitFor(() => expect(saveBookmarkList).toHaveBeenLastCalledWith({ id: "reading", createdAt: 10, name: "稍后阅读", isFavorite: false }))
+
+    fireEvent.click(screen.getByRole("button", { name: "待读" }))
+    fireEvent.click(screen.getByRole("button", { name: "编辑当前书签列表" }))
+    fireEvent.click(screen.getByRole("button", { name: "删除" }))
+    fireEvent.click(screen.getByRole("button", { name: "删除列表" }))
+    await waitFor(() => expect(removeBookmarkList).toHaveBeenCalledWith("reading"))
+  })
+
+  it("[neoview.bookmark.selection] [neoview.bookmark.batch-edit] selects a range and sends one bounded batch command", async () => {
+    const bookmarks = [bookmark("one"), bookmark("two"), bookmark("three")]
+    const updateBookmarks = vi.fn(async () => ({ items: bookmarks, missingIds: [] }))
+    const removeBookmarks = vi.fn(async () => ({ deleted: 3, missingIds: [] }))
+    const onOpen = vi.fn()
+    const view = render(
+      <BookmarkListCard
+        client={{
+          listBookmarkLists: vi.fn(async () => [
+            { id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
+            { id: "default", name: "默认", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
+            { id: "reading", name: "待读", isFavorite: false, createdAt: 1, updatedAt: 1 },
+          ]),
+          listBookmarks: vi.fn(async () => bookmarks),
+          updateBookmarks,
+          removeBookmarks,
+        } as ReaderHttpClient}
+        disabled={false}
+        onOpen={onOpen}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await screen.findByText("one")
+    fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!)
+    fireEvent.click(view.container.querySelector('[data-bookmark-row-button="2"]')!, { shiftKey: true })
+    expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
+    const firstRow = view.container.querySelector<HTMLButtonElement>('[data-bookmark-row-button="0"]')!
+    const secondRow = view.container.querySelector<HTMLButtonElement>('[data-bookmark-row-button="1"]')!
+    firstRow.focus()
+    fireEvent.keyDown(firstRow, { key: "ArrowDown" })
+    expect(document.activeElement).toBe(secondRow)
+    fireEvent.keyDown(secondRow, { key: "Enter" })
+    expect(onOpen).toHaveBeenCalledWith("D:/books/two.cbz")
+    fireEvent.click(screen.getByRole("button", { name: "添加所选书签到列表" }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "待读" }))
+    fireEvent.click(screen.getByRole("button", { name: "添加" }))
+    await waitFor(() => expect(updateBookmarks).toHaveBeenCalledOnce())
+    expect(updateBookmarks).toHaveBeenCalledWith(bookmarks.map((item) => ({ id: item.id, listIds: ["default", "reading"] })))
+
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-selection-count")).toBe("0"))
+    fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!)
+    fireEvent.click(view.container.querySelector('[data-bookmark-row-button="2"]')!, { shiftKey: true })
+    fireEvent.click(screen.getByRole("button", { name: "删除所选书签" }))
+    fireEvent.click(screen.getByRole("button", { name: "删除书签" }))
+    await waitFor(() => expect(removeBookmarks).toHaveBeenCalledWith(["one", "two", "three"]))
+  })
+
   it("[neoview.library.lifecycle] aborts an unfinished library request when the card unmounts", async () => {
     let signal: AbortSignal | undefined
     const listRecent = vi.fn((_offset: number, _limit: number, requestSignal?: AbortSignal) => {
@@ -134,3 +229,16 @@ describe("Reader library cards", () => {
     expect(signal?.aborted).toBe(true)
   })
 })
+
+function bookmark(id: string): ReaderBookmarkDto {
+  return {
+    id,
+    source: { kind: "archive", path: `D:/books/${id}.cbz` },
+    name: id,
+    kind: "file",
+    starred: false,
+    createdAt: 1_700_000_000_000,
+    updatedAt: 1_700_000_100_000,
+    listIds: ["default"],
+  }
+}

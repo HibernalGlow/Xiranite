@@ -16,16 +16,18 @@ export function ReaderLibraryList<T>({
   itemSize = 58,
   getItemKey,
   onVisibleItemsChange,
+  onItemsChange,
 }: {
   queryKey: string
   loadPage(offset: number, limit: number, signal: AbortSignal): Promise<readonly T[]>
-  renderRow(item: T): ReactNode
+  renderRow(item: T, index: number): ReactNode
   emptyLabel: string
   refreshLabel: string
   revision?: number
   itemSize?: number
   getItemKey?(item: T): string
   onVisibleItemsChange?(items: readonly T[]): void
+  onItemsChange?(items: readonly T[]): void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | undefined>(undefined)
@@ -53,6 +55,10 @@ export function ReaderLibraryList<T>({
   useEffect(() => {
     onVisibleItemsChange?.(items.slice(visibleStart, visibleEnd))
   }, [items, onVisibleItemsChange, visibleEnd, visibleStart])
+
+  useEffect(() => {
+    onItemsChange?.(items)
+  }, [items, onItemsChange])
 
   useEffect(() => () => onVisibleItemsChange?.([]), [onVisibleItemsChange])
 
@@ -134,7 +140,7 @@ export function ReaderLibraryList<T>({
                   className="absolute left-0 w-full border-b"
                   style={{ height: virtualItem.size, transform: `translateY(${virtualItem.start}px)` }}
                 >
-                  {item ? renderRow(item) : <div className="h-full animate-pulse bg-muted/35" aria-label="正在加载更多" />}
+                  {item ? renderRow(item, virtualItem.index) : <div className="h-full animate-pulse bg-muted/35" aria-label="正在加载更多" />}
                 </div>
               )
             })}

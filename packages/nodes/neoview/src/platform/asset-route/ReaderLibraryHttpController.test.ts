@@ -67,6 +67,24 @@ describe("ReaderLibraryHttpController", () => {
     expect(updated.status).toBe(200)
     await expect(updated.json()).resolves.toMatchObject({ id: "generated", starred: false, listIds: ["default"] })
     expect(store.updateBookmark).toHaveBeenCalledWith("generated", { starred: false, listIds: ["default"], updatedAt: 200 })
+    store.updateBookmark.mockImplementation(async (id, update) => id === "missing" ? undefined : ({
+      id,
+      source: { kind: "archive", path: `D:/${id}.cbz` },
+      name: id,
+      kind: "file",
+      starred: update.starred ?? false,
+      createdAt: 1,
+      updatedAt: update.updatedAt,
+      listIds: update.listIds ?? ["default"],
+    }))
+    const batch = (await controller.handle(jsonRequest("/reader/library/bookmarks/batch", {
+      updates: [{ id: "one", listIds: ["default"] }, { id: "missing", starred: false }],
+    }, "PATCH")))!
+    await expect(batch.json()).resolves.toMatchObject({ items: [{ id: "one" }], missingIds: ["missing"] })
+    store.deleteBookmark.mockImplementation(async (id) => id !== "missing")
+    const deleted = (await controller.handle(jsonRequest("/reader/library/bookmarks/batch", { ids: ["one", "missing"] }, "DELETE")))!
+    await expect(deleted.json()).resolves.toEqual({ deleted: 1, missingIds: ["missing"] })
+    expect((await controller.handle(jsonRequest("/reader/library/bookmarks/batch", { updates: [] }, "PATCH")))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { starred: false, future: true }, "PATCH")))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { listIds: ["favorites"] }, "PATCH")))?.status).toBe(400)
     store.updateBookmark.mockResolvedValueOnce(undefined)

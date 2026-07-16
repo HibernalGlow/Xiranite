@@ -1,19 +1,41 @@
-import { BookmarkPlus, ListPlus, Star, Trash2 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { BookmarkPlus, FolderOpen, ListPlus, Pencil, Star, Trash2, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import type { ReaderBookmarkDto, ReaderBookmarkListDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
 import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 
+type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
+
 export default function BookmarkListCard({ client, disabled, onOpen, session, sourcePath }: ReaderPanelContext) {
   const [lists, setLists] = useState<readonly ReaderBookmarkListDto[]>([])
   const [activeListId, setActiveListId] = useState("all")
   const [revision, setRevision] = useState(0)
-  const [actionError, setActionError] = useState<string | undefined>(undefined)
+  const [actionError, setActionError] = useState<string>()
   const [visibleBookmarks, setVisibleBookmarks] = useState<readonly ReaderBookmarkDto[]>([])
+  const [loadedBookmarks, setLoadedBookmarks] = useState<readonly ReaderBookmarkDto[]>([])
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [listEditor, setListEditor] = useState<ListEditorState>()
+  const [listName, setListName] = useState("")
+  const [listFavorite, setListFavorite] = useState(false)
+  const [deleteList, setDeleteList] = useState<ReaderBookmarkListDto>()
+  const [batchListsOpen, setBatchListsOpen] = useState(false)
+  const [batchListIds, setBatchListIds] = useState<ReadonlySet<string>>(() => new Set(["default"]))
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
+  const anchorIndexRef = useRef<number>()
+  const selectedBookmarks = useMemo(
+    () => loadedBookmarks.filter((item) => selectedIds.has(item.id)),
+    [loadedBookmarks, selectedIds],
+  )
+  const activeList = lists.find((list) => list.id === activeListId)
+  const editableLists = lists.filter((list) => list.id !== "all" && list.id !== "favorites")
   const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => visibleBookmarks.map((item) => ({
     id: item.id,
     path: item.source.path,
@@ -30,10 +52,25 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     if (!client.listBookmarkLists) return
     const controller = new AbortController()
     void client.listBookmarkLists(controller.signal).then(setLists).catch((error) => {
-      if (!controller.signal.aborted) setActionError(error instanceof Error ? error.message : String(error))
+      if (!controller.signal.aborted) setActionError(errorMessage(error))
     })
     return () => controller.abort()
   }, [client, revision])
+
+  const handleLoadedItems = useCallback((items: readonly ReaderBookmarkDto[]) => {
+    setLoadedBookmarks(items)
+    const available = new Set(items.map((item) => item.id))
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((id) => available.has(id)))
+      return sameSet(current, next) ? current : next
+    })
+  }, [])
+
+  function switchList(listId: string) {
+    setActiveListId(listId)
+    setSelectedIds(new Set())
+    anchorIndexRef.current = undefined
+  }
 
   async function addCurrent() {
     if (!client.saveBookmark || !sourcePath) return
@@ -47,29 +84,43 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     })
   }
 
-  async function createList() {
-    if (!client.saveBookmarkList) return
-    const name = globalThis.prompt?.("书签列表名称")?.trim()
-    if (!name) return
-    await mutate(async () => {
-      const list = await client.saveBookmarkList!({ name })
-      setActiveListId(list.id)
-    })
+  function openCreateList() {
+    setListName("")
+    setListFavorite(false)
+    setListEditor({ mode: "create" })
   }
 
-  async function removeActiveList() {
-    if (!client.removeBookmarkList || isSystemList(activeListId)) return
-    await mutate(async () => {
-      await client.removeBookmarkList!(activeListId)
-      setActiveListId("all")
+  function openEditList(list: ReaderBookmarkListDto) {
+    setListName(list.name)
+    setListFavorite(list.isFavorite)
+    setListEditor({ mode: "edit", list })
+  }
+
+  async function saveListEditor() {
+    if (!client.saveBookmarkList || !listEditor || !listName.trim()) return
+    const editing = listEditor.mode === "edit" ? listEditor.list : undefined
+    const saved = await mutate(async () => {
+      const list = await client.saveBookmarkList!({
+        ...(editing ? { id: editing.id, createdAt: editing.createdAt } : {}),
+        name: listName.trim(),
+        isFavorite: listFavorite,
+      })
+      setActiveListId(list.id)
     })
+    if (saved) setListEditor(undefined)
+  }
+
+  async function confirmDeleteList() {
+    if (!client.removeBookmarkList || !deleteList || deleteList.system) return
+    const deleted = await mutate(async () => {
+      await client.removeBookmarkList!(deleteList.id)
+      if (activeListId === deleteList.id) setActiveListId("all")
+    })
+    if (deleted) setDeleteList(undefined)
   }
 
   async function toggleStar(item: ReaderBookmarkDto) {
-    if (!client.updateBookmark) {
-      setActionError("当前后端不支持更新书签")
-      return
-    }
+    if (!client.updateBookmark) return setActionError("当前后端不支持更新书签")
     await mutate(() => client.updateBookmark!(item.id, { starred: !item.starred }).then(() => undefined))
   }
 
@@ -78,18 +129,70 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     await mutate(() => client.removeBookmark!(item.id))
   }
 
-  async function mutate(operation: () => Promise<void>) {
+  function selectBookmark(item: ReaderBookmarkDto, index: number, event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">) {
+    setSelectedIds((current) => {
+      if (event.shiftKey && anchorIndexRef.current !== undefined) {
+        const start = Math.min(anchorIndexRef.current, index)
+        const end = Math.max(anchorIndexRef.current, index)
+        const next = event.ctrlKey || event.metaKey ? new Set(current) : new Set<string>()
+        for (let cursor = start; cursor <= end; cursor += 1) {
+          const candidate = loadedBookmarks[cursor]
+          if (candidate) next.add(candidate.id)
+        }
+        return next
+      }
+      if (event.ctrlKey || event.metaKey) {
+        const next = new Set(current)
+        if (next.has(item.id)) next.delete(item.id)
+        else next.add(item.id)
+        return next
+      }
+      return new Set([item.id])
+    })
+    anchorIndexRef.current = index
+  }
+
+  function openBatchLists() {
+    const defaultList = !isSystemList(activeListId) ? activeListId : "default"
+    setBatchListIds(new Set([defaultList]))
+    setBatchListsOpen(true)
+  }
+
+  async function addSelectionToLists() {
+    if (!client.updateBookmarks || !selectedBookmarks.length || !batchListIds.size) return
+    const updated = await mutate(async () => {
+      await client.updateBookmarks!(selectedBookmarks.map((item) => ({
+        id: item.id,
+        listIds: [...new Set([...item.listIds, ...batchListIds])],
+      })))
+      setSelectedIds(new Set())
+    })
+    if (updated) setBatchListsOpen(false)
+  }
+
+  async function deleteSelection() {
+    if (!client.removeBookmarks || !selectedIds.size) return
+    const deleted = await mutate(async () => {
+      await client.removeBookmarks!([...selectedIds])
+      setSelectedIds(new Set())
+    })
+    if (deleted) setBatchDeleteOpen(false)
+  }
+
+  async function mutate(operation: () => Promise<void>): Promise<boolean> {
     try {
       setActionError(undefined)
       await operation()
       setRevision((value) => value + 1)
+      return true
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : String(error))
+      setActionError(errorMessage(error))
+      return false
     }
   }
 
   return (
-    <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true">
+    <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true" data-selection-count={selectedIds.size}>
       <div className="flex items-center gap-1">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" aria-label="书签列表">
           {lists.map((list) => (
@@ -100,16 +203,26 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
                 ? "h-7 shrink-0 rounded-full border border-primary/60 bg-primary/15 px-3 text-xs text-primary"
                 : "h-7 shrink-0 rounded-full border border-border bg-background/80 px-3 text-xs hover:bg-accent"}
               aria-pressed={list.id === activeListId}
-              onClick={() => setActiveListId(list.id)}
+              onClick={() => switchList(list.id)}
             >
-              {list.name}
+              {list.name}{list.isFavorite && !list.system ? <Star className="ml-1 inline size-3 fill-current" aria-label="收藏夹列表" /> : null}
             </button>
           ))}
         </div>
-        <Button type="button" size="icon-sm" variant="ghost" aria-label="新建书签列表" title="新建书签列表" disabled={disabled} onClick={() => void createList()}><ListPlus /></Button>
-        {!isSystemList(activeListId) ? <Button type="button" size="icon-sm" variant="ghost" aria-label="删除当前书签列表" title="删除当前书签列表" disabled={disabled} onClick={() => void removeActiveList()}><Trash2 /></Button> : null}
+        <Button type="button" size="icon-sm" variant="ghost" aria-label="新建书签列表" title="新建书签列表" disabled={disabled} onClick={openCreateList}><ListPlus /></Button>
+        {activeList && !activeList.system ? <Button type="button" size="icon-sm" variant="ghost" aria-label="编辑当前书签列表" title="编辑当前书签列表" disabled={disabled} onClick={() => openEditList(activeList)}><Pencil /></Button> : null}
         <Button type="button" size="icon-sm" variant="ghost" aria-label="收藏当前书籍" title="收藏当前书籍" disabled={disabled || !sourcePath} onClick={() => void addCurrent()}><BookmarkPlus /></Button>
       </div>
+
+      {selectedIds.size ? (
+        <div className="flex min-w-0 items-center gap-1 rounded border bg-muted/30 px-2 py-1" aria-label="书签选择操作">
+          <span className="mr-auto text-xs tabular-nums">已选 {selectedIds.size} 项</span>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label="添加所选书签到列表" title="添加到列表" disabled={disabled || !client.updateBookmarks} onClick={openBatchLists}><ListPlus /></Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label="删除所选书签" title="删除所选" disabled={disabled || !client.removeBookmarks} onClick={() => setBatchDeleteOpen(true)}><Trash2 /></Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label="取消书签选择" title="取消选择" onClick={() => setSelectedIds(new Set())}><X /></Button>
+        </div>
+      ) : null}
+
       {actionError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{actionError}</div> : null}
       <ReaderLibraryList
         queryKey={`bookmarks:${activeListId}`}
@@ -120,31 +233,210 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
         itemSize={76}
         getItemKey={(item) => item.id}
         onVisibleItemsChange={setVisibleBookmarks}
-        renderRow={(item) => (
-          <div className="flex h-full min-w-0 items-center gap-1 px-1 hover:bg-muted/70" data-bookmark-id={item.id}>
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left disabled:opacity-50"
-              title={item.source.path}
-              disabled={disabled || !onOpen}
-              onClick={() => void onOpen?.(item.source.path)}
-            >
-              <ReaderThumbnailSurface url={thumbnails.urls.get(item.id)} kind={item.kind} fit="cover" loading={thumbnails.loading} className="size-16" />
-              <span className="grid min-w-0 flex-1 gap-1">
-                <span className="block truncate text-xs">{item.name}</span>
-                <span className="block truncate text-[10px] text-muted-foreground" title={item.source.path}>{item.source.path}</span>
-                <span className="block truncate text-[10px] text-muted-foreground">{item.kind === "folder" ? "文件夹" : "文件"} · {formatLibraryTime(item.createdAt)}</span>
-              </span>
-            </button>
-            <Button type="button" size="icon-sm" variant="ghost" aria-label={`${item.starred ? "取消收藏" : "收藏"}：${item.name}`} title={item.starred ? "取消收藏" : "收藏"} disabled={disabled} onClick={() => void toggleStar(item)}>
-              <Star className={item.starred ? "fill-current text-amber-500" : undefined} />
-            </Button>
-            <Button type="button" size="icon-sm" variant="ghost" aria-label={`删除书签：${item.name}`} title="删除书签" disabled={disabled} onClick={() => void remove(item)}><Trash2 /></Button>
-          </div>
+        onItemsChange={handleLoadedItems}
+        renderRow={(item, index) => (
+          <BookmarkRow
+            item={item}
+            index={index}
+            selected={selectedIds.has(item.id)}
+            disabled={disabled}
+            canOpen={Boolean(onOpen)}
+            thumbnailUrl={thumbnails.urls.get(item.id)}
+            thumbnailLoading={thumbnails.loading}
+            onSelect={selectBookmark}
+            onOpen={() => void onOpen?.(item.source.path)}
+            onToggleStar={() => void toggleStar(item)}
+            onRemove={() => void remove(item)}
+          />
         )}
+      />
+
+      <ListEditorDialog
+        state={listEditor}
+        name={listName}
+        favorite={listFavorite}
+        pending={disabled}
+        onNameChange={setListName}
+        onFavoriteChange={setListFavorite}
+        onOpenChange={(open) => { if (!open) setListEditor(undefined) }}
+        onSave={() => void saveListEditor()}
+        onDelete={listEditor?.mode === "edit" ? () => { setDeleteList(listEditor.list); setListEditor(undefined) } : undefined}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteList)}
+        title="删除书签列表"
+        description={deleteList ? `删除“${deleteList.name}”并移除其成员关系？书签本身会保留。` : ""}
+        confirmLabel="删除列表"
+        onOpenChange={(open) => { if (!open) setDeleteList(undefined) }}
+        onConfirm={() => void confirmDeleteList()}
+      />
+
+      <Dialog open={batchListsOpen} onOpenChange={setBatchListsOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>添加到书签列表</DialogTitle><DialogDescription>将 {selectedIds.size} 个所选项目加入一个或多个列表。</DialogDescription></DialogHeader>
+          <div className="grid max-h-64 gap-2 overflow-auto" aria-label="目标书签列表">
+            {editableLists.map((list) => (
+              <label key={list.id} className="flex items-center gap-2 rounded border px-3 py-2 text-sm">
+                <Checkbox checked={batchListIds.has(list.id)} onCheckedChange={(checked) => setBatchListIds((current) => toggleSet(current, list.id, checked === true))} />
+                <span>{list.name}</span>
+                {list.isFavorite ? <Star className="ml-auto size-3 fill-current text-amber-500" aria-label="收藏夹列表" /> : null}
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBatchListsOpen(false)}>取消</Button>
+            <Button type="button" disabled={!batchListIds.size || disabled} onClick={() => void addSelectionToLists()}>添加</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={batchDeleteOpen}
+        title="删除所选书签"
+        description={`从书签库删除 ${selectedIds.size} 个项目？此操作不会删除源文件。`}
+        confirmLabel="删除书签"
+        onOpenChange={setBatchDeleteOpen}
+        onConfirm={() => void deleteSelection()}
       />
     </div>
   )
+}
+
+function BookmarkRow({
+  item,
+  index,
+  selected,
+  disabled,
+  canOpen,
+  thumbnailUrl,
+  thumbnailLoading,
+  onSelect,
+  onOpen,
+  onToggleStar,
+  onRemove,
+}: {
+  item: ReaderBookmarkDto
+  index: number
+  selected: boolean
+  disabled: boolean
+  canOpen: boolean
+  thumbnailUrl?: string
+  thumbnailLoading: boolean
+  onSelect(item: ReaderBookmarkDto, index: number, event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">): void
+  onOpen(): void
+  onToggleStar(): void
+  onRemove(): void
+}) {
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "Enter" && canOpen) {
+      event.preventDefault()
+      onOpen()
+      return
+    }
+    if (event.key === " ") {
+      event.preventDefault()
+      onSelect(item, index, event)
+      return
+    }
+    const targetIndex = event.key === "ArrowDown" ? index + 1
+      : event.key === "ArrowUp" ? index - 1
+        : event.key === "Home" ? 0
+          : event.key === "End" ? Number.MAX_SAFE_INTEGER
+            : undefined
+    if (targetIndex === undefined) return
+    event.preventDefault()
+    const root = event.currentTarget.closest("[data-neoview-bookmark-card]")
+    const rows = root?.querySelectorAll<HTMLButtonElement>("[data-bookmark-row-button]")
+    if (!rows?.length) return
+    rows[Math.min(Math.max(targetIndex, 0), rows.length - 1)]?.focus()
+  }
+
+  return (
+    <div className={cn("flex h-full min-w-0 items-center gap-1 px-1 hover:bg-muted/70", selected && "bg-primary/10")} data-bookmark-id={item.id} data-selected={selected}>
+      <Checkbox checked={selected} aria-label={`选择书签：${item.name}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} />
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        title={item.source.path}
+        aria-pressed={selected}
+        disabled={disabled}
+        data-bookmark-row-button={index}
+        onClick={(event) => onSelect(item, index, event)}
+        onDoubleClick={canOpen ? onOpen : undefined}
+        onKeyDown={handleKeyDown}
+      >
+        <ReaderThumbnailSurface url={thumbnailUrl} kind={item.kind} fit="cover" loading={thumbnailLoading} className="size-16" />
+        <span className="grid min-w-0 flex-1 gap-1">
+          <span className="block truncate text-xs">{item.name}</span>
+          <span className="block truncate text-[10px] text-muted-foreground" title={item.source.path}>{item.source.path}</span>
+          <span className="block truncate text-[10px] text-muted-foreground">{item.kind === "folder" ? "文件夹" : "文件"} · {formatLibraryTime(item.createdAt)}</span>
+        </span>
+      </button>
+      <Button type="button" size="icon-sm" variant="ghost" aria-label={`打开书签：${item.name}`} title="打开" disabled={disabled || !canOpen} onClick={onOpen}><FolderOpen /></Button>
+      <Button type="button" size="icon-sm" variant="ghost" aria-label={`${item.starred ? "取消收藏" : "收藏"}：${item.name}`} title={item.starred ? "取消收藏" : "收藏"} disabled={disabled} onClick={onToggleStar}>
+        <Star className={item.starred ? "fill-current text-amber-500" : undefined} />
+      </Button>
+      <Button type="button" size="icon-sm" variant="ghost" aria-label={`删除书签：${item.name}`} title="删除书签" disabled={disabled} onClick={onRemove}><Trash2 /></Button>
+    </div>
+  )
+}
+
+function ListEditorDialog({ state, name, favorite, pending, onNameChange, onFavoriteChange, onOpenChange, onSave, onDelete }: {
+  state?: ListEditorState
+  name: string
+  favorite: boolean
+  pending: boolean
+  onNameChange(value: string): void
+  onFavoriteChange(value: boolean): void
+  onOpenChange(open: boolean): void
+  onSave(): void
+  onDelete?: () => void
+}) {
+  const editing = state?.mode === "edit"
+  return (
+    <Dialog open={Boolean(state)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>{editing ? "编辑书签列表" : "新建书签列表"}</DialogTitle><DialogDescription>名称和收藏夹标记会在所有 Reader 界面中共享。</DialogDescription></DialogHeader>
+        <label className="grid gap-1 text-sm"><span>列表名称</span><Input value={name} autoFocus onChange={(event) => onNameChange(event.target.value)} /></label>
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={favorite} onCheckedChange={(checked) => onFavoriteChange(checked === true)} /><span>收藏夹列表</span></label>
+        <DialogFooter>
+          {onDelete ? <Button type="button" variant="destructive" className="mr-auto" onClick={onDelete}>删除</Button> : null}
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button type="button" disabled={!name.trim() || pending} onClick={onSave}>保存</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ConfirmDialog({ open, title, description, confirmLabel, onOpenChange, onConfirm }: {
+  open: boolean
+  title: string
+  description: string
+  confirmLabel: string
+  onOpenChange(open: boolean): void
+  onConfirm(): void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
+        <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button><Button type="button" variant="destructive" onClick={onConfirm}>{confirmLabel}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function toggleSet(current: ReadonlySet<string>, value: string, enabled: boolean): ReadonlySet<string> {
+  const next = new Set(current)
+  if (enabled) next.add(value)
+  else next.delete(value)
+  return next
+}
+
+function sameSet(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  return left.size === right.size && [...left].every((value) => right.has(value))
 }
 
 function isSystemList(id: string): boolean {
@@ -153,4 +445,8 @@ function isSystemList(id: string): boolean {
 
 function fileName(path: string): string {
   return path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1) || path
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

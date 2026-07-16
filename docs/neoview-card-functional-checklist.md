@@ -2765,31 +2765,31 @@
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
   - 测试：`neoview.bookmark.card`、`neoview.bookmark.thumbnail-e2e`
   - 备注：React now preserves the legacy horizontal chip hierarchy; active-list persistence and the full management surface remain incomplete.
-- [ ] `bookmark.list-management` 创建、重命名、收藏与删除列表
+- [x] `bookmark.list-management` 创建、重命名、收藏与删除列表
   - 目标：Custom lists support create, rename, favorite and delete with protected system lists and membership cleanup.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
-  - 测试：`neoview.library.bookmarks`
-  - 备注：Create/delete exist; rename and favorite management remain incomplete in GUI.
+  - 测试：`neoview.library.bookmarks`、`neoview.bookmark.list-management`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：GUI uses controlled dialogs for create/rename/favorite/delete, system lists stay protected, and all mutations reuse the shared service used by CLI/TUI.
 - [ ] `bookmark.virtualization` 虚拟化大书签列表
   - 目标：List rendering, pagination and thumbnail demand remain bounded by the visible window at 10K items.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.library.lifecycle`
-  - 备注：Rows are virtualized but visible-thumbnail batching is absent.
-- [ ] `bookmark.selection` 共享选择与焦点语义
+  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`
+  - 备注：Rows and thumbnail registration are bounded by the virtual window; the dedicated 10K Chromium request-count corpus remains pending.
+- [x] `bookmark.selection` 共享选择与焦点语义
   - 目标：Single, toggle, range and keyboard focus selection match the folder Card without materializing unbounded DOM.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
-  - 测试：待补
-  - 备注：Current React bookmark rows have no selection model.
+  - 测试：`neoview.bookmark.selection`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：Stable bookmark IDs back single, Ctrl/Meta toggle and Shift range selection; Arrow/Home/End move visible focus, Space selects and Enter opens without adding DOM rows.
 - [ ] `bookmark.actions` 打开、定位、收藏与移除书签
   - 目标：Single bookmark actions preserve legacy file commands and authenticated host capabilities.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`
-  - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`
-  - 备注：Open, star and remove exist; the shared file action surface is incomplete.
+  - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; copy, reveal, system-open, rename, tags and new-tab actions remain pending.
 - [ ] `bookmark.batch-edit` 批量编辑书签与列表成员关系
   - 目标：Selected bookmarks can be added to multiple lists or removed through one bounded operation.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
-  - 测试：待补
-  - 备注：Requires the shared selection model.
+  - 测试：`neoview.bookmark.batch-contract`、`neoview.bookmark.batch-delete`、`neoview.bookmark.batch-edit`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：GUI sends one bounded authenticated request for multi-list membership and one for confirmed delete; explicit CLI/TUI batch commands remain pending.
 - [ ] `bookmark.data-contract` GUI/CLI/TUI 共用书签契约
   - 目标：All surfaces share canonical source identity, list membership, favorite state and timestamps without a second bookmark store.
   - 源码：`src/lib/stores/bookmark.svelte.ts`
@@ -2808,23 +2808,23 @@
 - [ ] `bookmark.lifecycle` 取消分页和缩略图并释放上下文
   - 目标：List switches, collapse, unmount and backend disposal abort stale loads and release thumbnail contexts.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`
-  - 备注：Visible-thumbnail batches abort when replaced and the owner releases on unmount; backend disposal and every list transition still need integrated proof.
-- [ ] `bookmark.shell` 保持共享 Card shell 行为
+  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：Visible batches abort and release on replacement/unmount, while real Chromium covers list switches; backend disposal and collapsed request-count evidence remain pending.
+- [x] `bookmark.shell` 保持共享 Card shell 行为
   - 目标：Bookmark remains independently lazy, hideable, collapsible, movable, resizable and window-capable.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.shell.registry-lazy`
-  - 备注：Dedicated chunk budget is not frozen.
+  - 测试：`neoview.shell.registry-lazy`、`neoview.bookmark.chunk`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：The shared shell and independent 12,535-byte deferred production chunk are gated in desktop and constrained Card flows.
 - [ ] `bookmark.accessibility` 键盘选择、命名动作与焦点恢复
   - 目标：List tabs, rows, selection, menus and destructive confirmations are keyboard/touch operable with stable accessible names.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
   - 测试：`neoview.bookmark.card`
   - 备注：Row actions are named; selection and context actions remain incomplete.
-- [ ] `bookmark.ui-parity` 保持旧版文件条目信息密度
+- [x] `bookmark.ui-parity` 保持旧版文件条目信息密度
   - 目标：Folder-style thumbnails, title/path hierarchy, action density and selection states fit desktop and 420x360 Cards without overlap.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.bookmark.thumbnail-e2e`
-  - 备注：Desktop and 420x360 Chromium prove the folder-style thumbnail hierarchy and action density without overflow; shared selection states remain pending.
+  - 测试：`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.selection`
+  - 备注：Desktop and 420x360 Chromium capture both the folder-style thumbnail hierarchy and selected-row action density without overflow.
 - [ ] `bookmark.performance` 有界 DOM、可见缩略图与独立 chunk
   - 目标：The Card renders a bounded virtual window, registers only visible thumbnails, performs zero hidden work and stays in an independent deferred chunk.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/cards/CardRenderer.svelte`
@@ -2835,11 +2835,11 @@
   - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/shared/FileListPanel.svelte`
   - 测试：`neoview.bookmark.thumbnail-e2e`
   - 备注：Real Chromium proves opening and thumbnail mutation preserve the active image; scrolling and list-switch identity checks remain pending.
-- [ ] `bookmark.deviations` 记录共享后端与视觉 primitive 扩展
+- [x] `bookmark.deviations` 记录共享后端与视觉 primitive 扩展
   - 目标：Document authenticated thumbnail batching and the shared React entry visual as XR implementations of the legacy FileListPanel reuse contract.
   - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`
-  - 测试：待补
-  - 备注：No legacy bookmark field is intentionally removed.
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.batch-contract`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：Authenticated visible-window thumbnails, stable ID selection and bounded batch routes replace the legacy in-process store wiring without removing bookmark fields or creating a second business store.
 
 ### Panel: `pageList`（1）
 
