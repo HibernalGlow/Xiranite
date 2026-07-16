@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=38`，`pending=36`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=41`，`pending=33`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -731,13 +731,13 @@
 - [ ] `folder.virtual.sources` Folder/Bookmark/History/Search 虚拟数据源
   - 目标：统一数据源接口承载真实目录、书签、历史和搜索，保留各自日期/删除/同步语义与面包屑图标。
   - 源码：`utils/virtualPathLoader.ts`、`components/BreadcrumbBar.svelte`、`components/SearchResultList.svelte`
-  - 测试：待补
-  - 备注：不能把虚拟路径伪造成可 stat 的真实目录。
+  - 测试：`neoview.library.contract`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`
+  - 备注：ReaderLibraryService 已统一 History/Bookmark 的分页、日期与删除语义，HTTP、CLI 和通用 OpenTUI library-ui 复用同一 Headless controller；真实路径仅在添加书签时通过 detectViewSource 解析，不把虚拟路径交给 stat。FolderMain 的 virtual:// 面包屑、独立视图/排序和点击同步仍待迁移。
 - [ ] `folder.virtual.cleanup` 无效书签/历史清理与同步
   - 目标：首次使用时有界清理无效项；支持 History/Bookmark 同步文件夹变化、单项删除和清空历史。
   - 源码：`utils/virtualPathLoader.ts`
-  - 测试：待补
-  - 备注：清理失败不能阻断列表首屏。
+  - 测试：`neoview.library.http`、`neoview.library.cli`、`neoview.library.tui`
+  - 备注：共享 service 已支持单项删除和按时间、数量有界的历史清理，CLI 删除/清理与 TUI destructive action 都需显式确认。首次使用无效路径探测、批量清空和 GUI 同步仍待完成；清理失败不能阻断列表首屏。
 
 ### operations（10）
 
@@ -779,8 +779,8 @@
 - [ ] `folder.op.bookmark` 添加/移除书签
   - 目标：单项/批量加入书签列表，重复项、列表选择、移除和虚拟源实时同步。
   - 源码：`components/FolderContextMenu.svelte`、`utils/virtualPathLoader.ts`
-  - 测试：待补
-  - 备注：与 bookmarkList Card 共用应用服务。
+  - 测试：`neoview.library.bookmark`、`neoview.library.bookmark-dedupe`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`
+  - 备注：Folder、historyList、bookmarkList、HTTP、CLI 与 TUI 共用 ReaderLibraryService；重复规范化路径会合并列表、收藏状态和原创建时间，不再生成重复 UUID。单项添加/删除和自定义列表完整，GUI 文件夹上下文菜单、批量操作与虚拟源实时同步仍待完成。
 - [ ] `folder.op.thumbnail` 重生成、预热和取消缩略图
   - 目标：支持选中/全部重生成、当前目录预热、取消和进度；任务低优先级、可取消、去重且不阻塞当前页。
   - 源码：`components/FolderContextMenu.svelte`、`components/FolderToolbar/ActionButtons.svelte`

@@ -696,9 +696,9 @@
       "sourceEvidence": ["utils/virtualPathLoader.ts", "components/BreadcrumbBar.svelte", "components/SearchResultList.svelte"],
       "targetContract": "统一数据源接口承载真实目录、书签、历史和搜索，保留各自日期/删除/同步语义与面包屑图标。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "不能把虚拟路径伪造成可 stat 的真实目录。"
+      "status": "partial",
+      "testIds": ["neoview.library.contract", "neoview.library.bookmarks", "neoview.library.http", "neoview.library.headless", "neoview.library.headless-composition", "neoview.library.cli", "neoview.library.tui"],
+      "notes": "ReaderLibraryService 已统一 History/Bookmark 的分页、日期与删除语义，HTTP、CLI 和通用 OpenTUI library-ui 复用同一 Headless controller；真实路径仅在添加书签时通过 detectViewSource 解析，不把虚拟路径交给 stat。FolderMain 的 virtual:// 面包屑、独立视图/排序和点击同步仍待迁移。"
     },
     {
       "id": "folder.virtual.cleanup",
@@ -707,9 +707,9 @@
       "sourceEvidence": ["utils/virtualPathLoader.ts"],
       "targetContract": "首次使用时有界清理无效项；支持 History/Bookmark 同步文件夹变化、单项删除和清空历史。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "清理失败不能阻断列表首屏。"
+      "status": "partial",
+      "testIds": ["neoview.library.http", "neoview.library.cli", "neoview.library.tui"],
+      "notes": "共享 service 已支持单项删除和按时间、数量有界的历史清理，CLI 删除/清理与 TUI destructive action 都需显式确认。首次使用无效路径探测、批量清空和 GUI 同步仍待完成；清理失败不能阻断列表首屏。"
     },
 
     {
@@ -796,9 +796,9 @@
       "sourceEvidence": ["components/FolderContextMenu.svelte", "utils/virtualPathLoader.ts"],
       "targetContract": "单项/批量加入书签列表，重复项、列表选择、移除和虚拟源实时同步。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "与 bookmarkList Card 共用应用服务。"
+      "status": "partial",
+      "testIds": ["neoview.library.bookmark", "neoview.library.bookmark-dedupe", "neoview.library.bookmarks", "neoview.library.http", "neoview.library.headless", "neoview.library.headless-composition", "neoview.library.cli", "neoview.library.tui"],
+      "notes": "Folder、historyList、bookmarkList、HTTP、CLI 与 TUI 共用 ReaderLibraryService；重复规范化路径会合并列表、收藏状态和原创建时间，不再生成重复 UUID。单项添加/删除和自定义列表完整，GUI 文件夹上下文菜单、批量操作与虚拟源实时同步仍待完成。"
     },
     {
       "id": "folder.op.thumbnail",
