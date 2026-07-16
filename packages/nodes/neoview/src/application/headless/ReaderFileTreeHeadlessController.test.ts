@@ -25,11 +25,16 @@ describe("ReaderFileTreeHeadlessController", () => {
           yield { name: "book.cbz", path: `${rootPath}/nested/book.cbz`, relativePath: "nested/book.cbz", depth: 1, kind: "file" }
         },
       },
+      directorySizeProvider: {
+        async measure(path) { return { path, bytes: 42, fileCount: 3 } },
+      },
     })
     const close = vi.spyOn(service, "close")
     const controller = new ReaderFileTreeHeadlessController(service)
 
     const opened = await controller.open({ path: "/library" })
+    await expect(controller.directorySizes(opened.generation, ["/library/nested"]))
+      .resolves.toMatchObject({ generation: opened.generation, results: [{ path: "/library/nested", status: "ok", bytes: 42, fileCount: 3 }] })
     await expect(controller.tree()).resolves.toMatchObject({ sessionId: opened.sessionId, entries: [{ name: "nested" }] })
     const search = controller.search("book")
     const events = []

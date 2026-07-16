@@ -79,7 +79,7 @@ export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & Neoview
 }
 export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
   ReaderFileTreeServiceOptions,
-  "scanner" | "watcher" | "maximumCacheEntries" | "cacheTtlMs"
+  "scanner" | "watcher" | "directorySizeProvider" | "directorySizeConcurrency" | "maximumCacheEntries" | "cacheTtlMs"
 > & {
   resourceScheduler?: ResourceScheduler
   searchHistoryStore?: ReaderSearchHistoryStore | false
@@ -129,6 +129,7 @@ export async function createReaderFileTreeController(
   const { PlatformDirectoryListingProvider } = await import("./platform/filesystem/PlatformDirectoryListingProvider.js")
   const { PlatformFileTreeScanner } = await import("./platform/filesystem/PlatformFileTreeScanner.js")
   const { PlatformFileTreeWatcher } = await import("./platform/filesystem/PlatformFileTreeWatcher.js")
+  const { PlatformReaderDirectorySizeProvider } = await import("./platform/filesystem/PlatformReaderDirectorySizeProvider.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
   const updateExcludedPaths = async (paths: readonly string[]) => {
@@ -142,6 +143,7 @@ export async function createReaderFileTreeController(
     {
       scanner: options.scanner ?? new PlatformFileTreeScanner(options.resourceScheduler, "neoview:file-tree-headless"),
       watcher: options.watcher ?? new PlatformFileTreeWatcher(),
+      directorySizeProvider: options.directorySizeProvider ?? new PlatformReaderDirectorySizeProvider({ resourceScheduler: options.resourceScheduler }),
       maximumCacheEntries: options.maximumCacheEntries,
       cacheTtlMs: options.cacheTtlMs,
       excludedPaths: runtimeConfig.fileTree.excludedPaths,

@@ -197,9 +197,9 @@
 - 设置：无
 - 数据：dimension cache、folder size cache
 - 行为：尺寸/格式/大小/时间；批量尺寸扫描；归档 entry 属性；取消扫描；系统 shell 元数据 fallback
-- 测试：`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.metadata.http`、`neoview.metadata.client`、`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.cli.inspect`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
+- 测试：`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.metadata.http`、`neoview.metadata.client`、`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.folder.size-platform`、`neoview.folder.size-budget`、`neoview.folder.size-batch`、`neoview.folder.size-cancellation`、`neoview.folder.size-http`、`neoview.cli.inspect`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
 - 性能基准：`dimension-scan`
-- 已知差异：无
+- 已知差异：目录递归大小已提供 generation-bound 后台批量 service/HTTP/Headless 契约；前端合并重排和滚动锚点仍待接入
 
 ### EMM 数据库、评分、标签、收藏和翻译（`emm-ratings-tags-translation`）
 

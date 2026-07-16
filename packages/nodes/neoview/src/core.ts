@@ -10,9 +10,12 @@ export {
   ReaderFileTreeService,
   type ReaderDirectoryNavigation,
   type ReaderDirectoryPage,
+  type ReaderDirectorySizeBatch,
+  type ReaderDirectorySizeBatchItem,
   type ReaderDirectorySortPreferenceCommand,
   type ReaderFileTreeServiceOptions,
 } from "./application/browser/ReaderFileTreeService.js"
+export type { ReaderDirectorySize, ReaderDirectorySizeProvider } from "./ports/ReaderDirectorySizeProvider.js"
 export {
   ReaderFileTreeIndex,
   type ReaderFileTreeExclusionCommand,

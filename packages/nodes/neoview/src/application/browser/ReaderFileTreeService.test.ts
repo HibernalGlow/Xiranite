@@ -5,6 +5,60 @@ import { ReaderFileTreeService } from "./ReaderFileTreeService.js"
 import { CoreReaderDirectorySortPreferences } from "./ReaderDirectorySortPreferences.js"
 
 describe("ReaderFileTreeService", () => {
+  it("[neoview.folder.size-batch] measures only current-generation directories with bounded shared results", async () => {
+    const measure = vi.fn(async (path: string) => {
+      if (path.endsWith("broken")) throw new Error("offline volume")
+      return { path, bytes: path.endsWith("large") ? 9 : 4, fileCount: 2 }
+    })
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: [
+          { name: "small", path: `${path}/small`, kind: "directory", readerSupported: true },
+          { name: "large", path: `${path}/large`, kind: "directory", readerSupported: true },
+          { name: "broken", path: `${path}/broken`, kind: "directory", readerSupported: true },
+          { name: "file", path: `${path}/file.cbz`, kind: "file", readerSupported: true },
+        ] }
+      },
+    }, undefined, undefined, { directorySizeProvider: { measure }, directorySizeConcurrency: 2 })
+    const opened = await browser.open("C:/books")
+
+    await expect(browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/small", "C:/books/large", "C:/books/broken"]))
+      .resolves.toEqual({
+        sessionId: opened.sessionId,
+        generation: opened.generation,
+        results: [
+          { path: "C:/books/small", status: "ok", bytes: 4, fileCount: 2 },
+          { path: "C:/books/large", status: "ok", bytes: 9, fileCount: 2 },
+          { path: "C:/books/broken", status: "failed", error: "offline volume" },
+        ],
+      })
+    await expect(browser.directorySizes(opened.sessionId, opened.generation - 1, ["C:/books/small"])).rejects.toThrow("stale")
+    await expect(browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/file.cbz"])).rejects.toThrow("current browser listing")
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.folder.size-cancellation] cancels old directory scans when navigation changes generation", async () => {
+    let scanning = false
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: [{ name: "nested", path: `${path}/nested`, kind: "directory", readerSupported: true }] }
+      },
+    }, undefined, undefined, {
+      directorySizeProvider: {
+        measure(_path, signal) {
+          scanning = true
+          return new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason), { once: true }))
+        },
+      },
+    })
+    const opened = await browser.open("C:/books")
+    const sizes = browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/nested"])
+    await vi.waitFor(() => expect(scanning).toBe(true))
+    await expect(browser.navigate(opened.sessionId, { action: "path", path: "C:/other" })).resolves.toMatchObject({ generation: 2 })
+    await expect(sizes).rejects.toMatchObject({ name: "AbortError" })
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.browser.navigation] pages stable snapshots and maintains navigation history", async () => {
     const provider: ReaderDirectoryListingProvider = {
       async read(path) {

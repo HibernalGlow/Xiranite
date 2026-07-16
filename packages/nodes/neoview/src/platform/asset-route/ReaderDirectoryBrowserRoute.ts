@@ -16,6 +16,7 @@ import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirector
 import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
 import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.js"
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
+import { PlatformReaderDirectorySizeProvider } from "../filesystem/PlatformReaderDirectorySizeProvider.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type {
   ReaderDirectoryMetadataField,
@@ -33,6 +34,7 @@ import {
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
+const BROWSER_DIRECTORY_SIZES_PATH = /^\/reader\/browser\/s\/([^/]+)\/directory-sizes$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
 const BROWSER_TREE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree$/
 const BROWSER_TREE_CACHE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/cache$/
@@ -67,6 +69,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         ...fileTreeOptions,
         scanner: fileTreeOptions.scanner ?? new PlatformFileTreeScanner(resourceScheduler),
         watcher: fileTreeOptions.watcher ?? new PlatformFileTreeWatcher(),
+        directorySizeProvider: fileTreeOptions.directorySizeProvider ?? new PlatformReaderDirectorySizeProvider({ resourceScheduler }),
       },
     )
   }
@@ -78,6 +81,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
 
     const entriesMatch = BROWSER_ENTRIES_PATH.exec(url.pathname)
     if (entriesMatch && request.method === "GET") return this.#list(entriesMatch[1]!, url, request.signal)
+    const directorySizesMatch = BROWSER_DIRECTORY_SIZES_PATH.exec(url.pathname)
+    if (directorySizesMatch && request.method === "POST") return this.#directorySizes(directorySizesMatch[1]!, request)
     const searchMatch = BROWSER_SEARCH_PATH.exec(url.pathname)
     if (searchMatch && request.method === "GET") return this.#search(searchMatch[1]!, url, request)
     const treeCacheMatch = BROWSER_TREE_CACHE_PATH.exec(url.pathname)
@@ -167,6 +172,23 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #directorySizes(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const body = await request.json().catch(() => undefined) as { generation?: unknown; paths?: unknown } | undefined
+    if (!Number.isSafeInteger(body?.generation) || !Array.isArray(body?.paths) || !body.paths.every((path) => typeof path === "string" && path.length > 0)) {
+      return errorResponse("Directory size request requires an integer generation and non-empty string paths", 400)
+    }
+    try {
+      const result = await this.#browser.directorySizes(sessionId, body.generation as number, body.paths as string[], request.signal)
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      const message = errorMessage(error)
+      return errorResponse(message, message.includes("stale") ? 409 : 400)
     }
   }
 

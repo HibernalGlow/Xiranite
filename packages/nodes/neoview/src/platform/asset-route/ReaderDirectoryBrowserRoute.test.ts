@@ -299,6 +299,49 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
+  it("[neoview.folder.size-http] returns generation-bound recursive sizes without delaying the initial listing", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-size-"))
+    directories.push(directory)
+    const small = join(directory, "small")
+    const large = join(directory, "large")
+    await mkdir(join(large, "nested"), { recursive: true })
+    await mkdir(small)
+    await writeFile(join(small, "a.bin"), Buffer.alloc(3))
+    await writeFile(join(large, "nested", "b.bin"), Buffer.alloc(7))
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const session = await opened.json() as { sessionId: string; generation: number; entries: Array<{ path: string; size?: number }> }
+      expect(session.entries.every((entry) => entry.size === undefined)).toBe(true)
+      const endpoint = `http://localhost/reader/browser/s/${session.sessionId}/directory-sizes`
+      const sizes = (await route.handle(new Request(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ generation: session.generation, paths: [small, large] }),
+      })))!
+      await expect(sizes.json()).resolves.toEqual({
+        sessionId: session.sessionId,
+        generation: session.generation,
+        results: [
+          { path: small, status: "ok", bytes: 3, fileCount: 1 },
+          { path: large, status: "ok", bytes: 7, fileCount: 1 },
+        ],
+      })
+      const stale = (await route.handle(new Request(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ generation: 0, paths: [small] }),
+      })))!
+      expect(stale.status).toBe(409)
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.sort-route-persistence] restores folder memory across browser route lifetimes", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-preferences-"))
     directories.push(directory)

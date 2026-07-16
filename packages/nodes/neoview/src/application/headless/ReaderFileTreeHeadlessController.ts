@@ -73,6 +73,10 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
     return this.#service.clearTreeCache(this.#requireSession(), path)
   }
 
+  directorySizes(generation: number, paths: readonly string[], signal?: AbortSignal) {
+    return this.#service.directorySizes(this.#requireSession(), generation, paths, signal)
+  }
+
   async listSearchHistory(scope: ReaderSearchHistoryScope, limit = 20) {
     return (await this.#requireSearchHistory()).service.list(scope, limit)
   }

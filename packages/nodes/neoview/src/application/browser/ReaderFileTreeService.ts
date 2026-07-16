@@ -10,6 +10,8 @@ import type {
 import type {
   ReaderFileTreeScanner,
 } from "../../ports/ReaderFileTreeScanner.js"
+import type { ReaderDirectorySizeProvider } from "../../ports/ReaderDirectorySizeProvider.js"
+import pMap from "p-map"
 import type {
   ReaderFileTreeChange,
   ReaderFileTreeSubscription,
@@ -77,7 +79,19 @@ export interface ReaderDirectoryPage {
 export interface ReaderFileTreeServiceOptions extends ReaderFileTreeIndexOptions {
   scanner?: ReaderFileTreeScanner
   watcher?: ReaderFileTreeWatcher
+  directorySizeProvider?: ReaderDirectorySizeProvider
+  directorySizeConcurrency?: number
 }
+
+export interface ReaderDirectorySizeBatch {
+  sessionId: string
+  generation: number
+  results: readonly ReaderDirectorySizeBatchItem[]
+}
+
+export type ReaderDirectorySizeBatchItem =
+  | { path: string; status: "ok"; bytes: number; fileCount: number }
+  | { path: string; status: "failed"; error: string }
 
 interface BrowserSession {
   id: string
@@ -100,6 +114,7 @@ interface BrowserSession {
   watchRefreshAbort?: AbortController
   watchError?: string
   searches: Set<ReaderFileTreeSearchHandle>
+  directorySizeOperations: Set<AbortController>
 }
 
 export class ReaderFileTreeService implements AsyncDisposable {
@@ -147,6 +162,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       watchRevision: 0,
       watchAppliedRevision: 0,
       searches: new Set(),
+      directorySizeOperations: new Set(),
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
@@ -188,6 +204,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const target = targetPath(session, navigation)
     if (!target) return this.#page(session, 0, 128, displayFields, signal)
 
+    abortDirectorySizeOperations(session)
     session.operation?.abort()
     const controller = new AbortController()
     session.operation = controller
@@ -231,6 +248,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
     if (!session.sortFields.includes(sort.field)) throw new Error(`Directory sort field is unavailable: ${sort.field}`)
+    abortDirectorySizeOperations(session)
     session.operation?.abort()
     const controller = new AbortController()
     session.operation = controller
@@ -273,6 +291,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
+    abortDirectorySizeOperations(session)
     session.operation?.abort()
     const controller = new AbortController()
     session.operation = controller
@@ -398,10 +417,54 @@ export class ReaderFileTreeService implements AsyncDisposable {
     return this.#tree.snapshot()
   }
 
+  async directorySizes(
+    sessionId: string,
+    generation: number,
+    paths: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectorySizeBatch | undefined> {
+    const provider = this.options.directorySizeProvider
+    if (!provider) throw new Error("Reader directory size scanning is unavailable.")
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    if (generation !== session.generation) throw new Error(`Reader directory size generation is stale: ${generation}`)
+    const uniquePaths = [...new Set(paths)]
+    if (!uniquePaths.length || uniquePaths.length > 64) throw new RangeError("Directory size batch must contain 1 to 64 unique paths.")
+    const directories = new Set(session.listing.entries.filter((entry) => entry.kind === "directory").map((entry) => entry.path))
+    if (uniquePaths.some((path) => !directories.has(path))) throw new Error("Directory size paths must belong to the current browser listing.")
+    const controller = new AbortController()
+    const unlinkAbort = forwardAbort(signal, controller)
+    session.directorySizeOperations.add(controller)
+    try {
+      const results = await pMap(uniquePaths, async (path): Promise<ReaderDirectorySizeBatchItem> => {
+        controller.signal.throwIfAborted()
+        try {
+          const result = await provider.measure(path, controller.signal)
+          return { path, status: "ok", bytes: result.bytes, fileCount: result.fileCount }
+        } catch (error) {
+          if (controller.signal.aborted) throw error
+          return { path, status: "failed", error: errorMessage(error) }
+        }
+      }, {
+        concurrency: boundedInteger(this.options.directorySizeConcurrency, 1, 8, 2),
+        stopOnError: true,
+      })
+      controller.signal.throwIfAborted()
+      if (this.#sessions.get(sessionId) !== session || session.generation !== generation) {
+        throw new Error(`Reader directory size generation is stale: ${generation}`)
+      }
+      return { sessionId, generation, results }
+    } finally {
+      unlinkAbort()
+      session.directorySizeOperations.delete(controller)
+    }
+  }
+
   async close(sessionId: string): Promise<boolean> {
     const session = this.#sessions.get(sessionId)
     if (!session) return false
     session.operation?.abort()
+    abortDirectorySizeOperations(session)
     this.#sessions.delete(sessionId)
     await Promise.all([...session.searches].map((search) => search.close()))
     await this.#closeWatcher(session)
@@ -415,6 +478,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     this.#sessions.clear()
     for (const session of sessions) {
       session.operation?.abort()
+      abortDirectorySizeOperations(session)
       await Promise.all([...session.searches].map((search) => search.close()))
       await this.#closeWatcher(session)
     }
@@ -508,6 +572,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   }
 
   async #reloadWatchedSession(session: BrowserSession, revision: number, signal: AbortSignal): Promise<void> {
+    abortDirectorySizeOperations(session)
     const rawListing = await this.provider.read(session.listing.path, signal)
     const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
     this.#assertSortAvailable(sortPreference.sort)
@@ -542,6 +607,11 @@ export class ReaderFileTreeService implements AsyncDisposable {
     signal?.throwIfAborted()
     return { ...page, entries }
   }
+}
+
+function abortDirectorySizeOperations(session: BrowserSession): void {
+  for (const controller of session.directorySizeOperations) controller.abort(new DOMException("Reader directory generation changed", "AbortError"))
+  session.directorySizeOperations.clear()
 }
 
 function targetPath(session: BrowserSession, navigation: ReaderDirectoryNavigation): string | undefined {
@@ -652,6 +722,10 @@ function normalizePathKey(path: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function boundedInteger(value: number | undefined, minimum: number, maximum: number, fallback: number): number {
+  return value !== undefined && Number.isSafeInteger(value) && value >= minimum && value <= maximum ? value : fallback
 }
 
 async function waitForSharedRefresh(refresh: Promise<void>, signal?: AbortSignal): Promise<void> {
