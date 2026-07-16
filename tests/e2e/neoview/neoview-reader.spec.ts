@@ -96,7 +96,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
+test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] [neoview.folder.tree-layout-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
@@ -296,11 +296,43 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(folderCard).toHaveAttribute("data-selection-count", "0")
   await expect(folderCard.locator('[data-neoview-folder-selection-bar="true"]')).toHaveCount(0)
   const stableFolderTreeImage = await first.getAttribute("data-neoview-settings-image-instance")
+  const folderTreeSettingPatches: Array<Record<string, unknown>> = []
+  page.on("request", (request) => {
+    if (request.url() !== `${backend.url}/reader/config` || request.method() !== "PATCH") return
+    const body = request.postDataJSON() as { folderView?: { tree?: Record<string, unknown> } }
+    if (body.folderView?.tree) folderTreeSettingPatches.push(body.folderView.tree)
+  })
   await folderCard.getByRole("button", { name: "文件树" }).click()
+  await expect.poll(() => folderTreeSettingPatches).toEqual([{ visible: true }])
+  await folderCard.getByRole("radio", { name: "文件树位于顶部" }).click()
+  await expect.poll(() => folderTreeSettingPatches).toEqual([{ visible: true }, { layout: "top" }])
   const folderTree = folderCard.locator('[data-neoview-folder-tree="true"]')
   await expect(folderTree).toBeVisible()
   await expect(folderList).toBeVisible()
   await expect(folderCard.locator('[data-neoview-folder-tree-pane="true"]')).toBeVisible()
+  const treeResizeHandle = folderCard.getByRole("separator", { name: "调整文件树大小" })
+  const treeResizeBox = await treeResizeHandle.boundingBox()
+  expect(treeResizeBox).not.toBeNull()
+  const treeResizeX = treeResizeBox!.x + treeResizeBox!.width / 2
+  const treeResizeY = treeResizeBox!.y + treeResizeBox!.height / 2
+  await treeResizeHandle.dispatchEvent("pointerdown", { pointerId: 17, clientX: treeResizeX, clientY: treeResizeY, buttons: 1 })
+  for (let step = 1; step <= 40; step += 1) {
+    await treeResizeHandle.dispatchEvent("pointermove", { pointerId: 17, clientX: treeResizeX, clientY: treeResizeY + step, buttons: 1 })
+  }
+  expect(folderTreeSettingPatches).toHaveLength(2)
+  const treeSizeResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"tree":{"size":240}') === true
+  ))
+  await treeResizeHandle.dispatchEvent("pointerup", { pointerId: 17, clientX: treeResizeX, clientY: treeResizeY + 40, buttons: 0 })
+  expect((await treeSizeResponse).status()).toBe(200)
+  await expect.poll(() => folderTreeSettingPatches).toEqual([{ visible: true }, { layout: "top" }, { size: 240 }])
+  const treeSettingsToml = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+  expect(treeSettingsToml).toContain("[nodes.neoview.folder.tree_view]")
+  expect(treeSettingsToml).toContain("visible = true")
+  expect(treeSettingsToml).toContain('layout = "top"')
+  expect(treeSettingsToml).toContain("size = 240")
   const originalTreeRow = folderTree.locator('[data-current="true"]')
   await expect(originalTreeRow).toHaveCount(1)
   const originalTreePath = await originalTreeRow.getAttribute("data-tree-path")
