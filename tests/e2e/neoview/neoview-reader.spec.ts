@@ -1064,14 +1064,17 @@ test("[neoview.folder.home-refresh-e2e] persists Home and refreshes only the cur
   }
 })
 
-test("[neoview.folder.tabs-lifecycle-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
+test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
   const tabsRoot = join(fixture.directory, "zz-folder-tabs")
   const firstPath = join(tabsRoot, "A")
   const secondPath = join(tabsRoot, "B")
+  const thirdPath = join(tabsRoot, "C")
   await mkdir(firstPath, { recursive: true })
   await mkdir(secondPath, { recursive: true })
+  await mkdir(thirdPath, { recursive: true })
   await writeFile(join(firstPath, "a.cbz"), "")
   await writeFile(join(secondPath, "b.cbz"), "")
+  await writeFile(join(thirdPath, "c.cbz"), "")
   const configured = await fetch(`${backend.url}/reader/config`, {
     method: "PATCH",
     headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
@@ -1124,31 +1127,41 @@ test("[neoview.folder.tabs-lifecycle-e2e] keeps Explorer folder tabs isolated an
     await secondItem.click()
     await expect(folderCard).toHaveAttribute("data-selection-count", "1")
 
+    await navigatePath(thirdPath)
+    const thirdItem = folderCard.getByTitle(join(thirdPath, "c.cbz"), { exact: true })
+    await thirdItem.click()
+    await newTabButton.focus()
+    await newTabButton.press("Enter")
+    await expect(currentBreadcrumb()).toHaveAttribute("title", secondPath)
+    await expect(folderCard.getByRole("tab", { name: "B" })).toHaveAttribute("aria-selected", "true")
+    expect(browserOpens).toBe(3)
+
     await folderCard.getByRole("tab", { name: "A" }).focus()
     await folderCard.getByRole("tab", { name: "A" }).press("Enter")
     await expect(currentBreadcrumb()).toHaveAttribute("title", firstPath)
     await expect(folderCard.getByRole("radio", { name: "详细信息" })).toHaveAttribute("data-state", "on")
     await expect(folderCard).toHaveAttribute("data-selection-count", "1")
 
-    await folderCard.getByRole("tab", { name: "B" }).focus()
-    await folderCard.getByRole("tab", { name: "B" }).press("Enter")
-    await expect(currentBreadcrumb()).toHaveAttribute("title", secondPath)
+    await folderCard.getByRole("tab", { name: "C" }).focus()
+    await folderCard.getByRole("tab", { name: "C" }).press("Enter")
+    await expect(currentBreadcrumb()).toHaveAttribute("title", thirdPath)
     await expect(folderCard.getByRole("radio", { name: "紧凑列表" })).toHaveAttribute("data-state", "on")
     await expect(folderCard).toHaveAttribute("data-selection-count", "1")
-    expect(browserOpens).toBe(2)
+    expect(browserOpens).toBe(3)
 
     const closed = page.waitForResponse((response) => response.url().includes("/reader/browser/s/")
       && response.request().method() === "DELETE")
-    const closeSecondTab = folderCard.getByRole("button", { name: "关闭标签 B" })
+    const closeSecondTab = folderCard.getByRole("button", { name: "关闭标签 C" })
     await closeSecondTab.focus()
     await closeSecondTab.press("Enter")
     expect((await closed).status()).toBe(204)
     await expect(currentBreadcrumb()).toHaveAttribute("title", firstPath)
     await expect(folderCard.getByRole("tab", { name: "A" })).toHaveAttribute("aria-selected", "true")
-    await expect(folderCard.getByRole("button", { name: /^关闭标签/ })).toHaveCount(0)
+    await expect(folderCard.getByRole("tab", { name: "B" })).toHaveAttribute("aria-selected", "false")
+    await expect(folderCard.getByRole("button", { name: /^关闭标签/ })).toHaveCount(2)
     await expect(folderCard.locator('[data-folder-tab-bar="true"]')).toBeVisible()
     expect(await image.getAttribute("data-folder-tabs-image-instance")).toBe("stable")
-    expect(browserOpens).toBe(2)
+    expect(browserOpens).toBe(3)
   } finally {
     await fetch(`${backend.url}/reader/config`, {
       method: "PATCH",

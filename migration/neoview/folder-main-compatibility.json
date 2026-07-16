@@ -327,9 +327,9 @@
       "sourceEvidence": ["stores/folderTabStore/tabManagement.svelte.ts"],
       "targetContract": "维护标签访问历史并在关闭活动标签时选择正确的最近标签。",
       "surfaces": ["GUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "不能简单选择数组相邻项。"
+      "status": "complete",
+      "testIds": ["neoview.folder.tabs-navigation-history", "neoview.folder.tabs-navigation-history-e2e"],
+      "notes": "FolderTabsHost 使用最多 8 项的去重 MRU 访问栈；创建和显式切换记录访问，关闭任意标签同步移除记录，关闭活动标签优先激活仍存在的最近访问项，仅在历史无有效项时回退到数组邻居。访问栈保存在 ref 中，不触发普通目录 list/grid/details 或独立 Folder Tree 的额外渲染。单元与 desktop/420x360 Chromium 均使用 A/C/B 标签顺序、A→C 访问后关闭 C 的反例，证明结果回到 A 而非数组邻居 B，同时保持三条 browser session、关闭 DELETE 和活动阅读图片身份稳定。FolderTabsHost 二级延迟 chunk 为 2,668 bytes。"
     },
     {
       "id": "folder.tabs.layout",

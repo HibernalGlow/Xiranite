@@ -34,6 +34,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   BrowserPane: ComponentType<FolderBrowserPaneProps>
 }) {
   const tabSequenceRef = useRef(1)
+  const tabAccessHistoryRef = useRef<readonly string[]>(["folder-tab-1"])
   const [tabs, setTabs] = useState<readonly FolderTabDescriptor[]>(() => [createFolderTab("folder-tab-1", context.sourcePath ?? "", folderView)])
   const [activeTabId, setActiveTabId] = useState("folder-tab-1")
 
@@ -54,7 +55,14 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     if (tabs.length >= MAX_FOLDER_TABS) return
     const id = `folder-tab-${++tabSequenceRef.current}`
     const path = folderView.homePath
+    tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
     setTabs((current) => [...current, createFolderTab(id, path, folderView)])
+    setActiveTabId(id)
+  }
+
+  function activateTab(id: string) {
+    if (id === activeTabId || !tabs.some((tab) => tab.id === id)) return
+    tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
     setActiveTabId(id)
   }
 
@@ -63,8 +71,15 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     const index = tabs.findIndex((tab) => tab.id === id)
     if (index < 0) return
     const nextTabs = tabs.filter((tab) => tab.id !== id)
+    const nextTabIds = new Set(nextTabs.map((tab) => tab.id))
+    tabAccessHistoryRef.current = tabAccessHistoryRef.current.filter((visitedId) => visitedId !== id)
     setTabs(nextTabs)
-    if (activeTabId === id) setActiveTabId(nextTabs[Math.min(index, nextTabs.length - 1)]!.id)
+    if (activeTabId === id) {
+      const nextActiveId = findMostRecentTab(tabAccessHistoryRef.current, nextTabIds)
+        ?? nextTabs[Math.min(index, nextTabs.length - 1)]!.id
+      tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, nextActiveId)
+      setActiveTabId(nextActiveId)
+    }
   }
 
   function updateTabPath(id: string, path: string) {
@@ -92,7 +107,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         activeTabId={activeTabId}
         disabled={context.disabled}
         maxTabs={MAX_FOLDER_TABS}
-        onActivate={setActiveTabId}
+        onActivate={activateTab}
         onCreate={createTab}
         onClose={closeTab}
       />
@@ -136,4 +151,16 @@ function createFolderTab(id: string, path: string, folderView: ReaderFolderViewC
 function folderTabTitle(path: string): string {
   const normalized = path.replace(/[\\/]+$/, "")
   return normalized.split(/[\\/]/).at(-1) || normalized || "新标签页"
+}
+
+function recordTabVisit(history: readonly string[], id: string): readonly string[] {
+  return [...history.filter((visitedId) => visitedId !== id), id]
+}
+
+function findMostRecentTab(history: readonly string[], availableIds: ReadonlySet<string>): string | undefined {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const id = history[index]!
+    if (availableIds.has(id)) return id
+  }
+  return undefined
 }

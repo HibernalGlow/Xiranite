@@ -26,15 +26,16 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
   })
 
-  it("[neoview.folder.tabs-lifecycle] creates, switches and closes isolated Explorer-style folder tabs", async () => {
+  it("[neoview.folder.tabs-lifecycle] [neoview.folder.tabs-navigation-history] creates, switches and closes isolated Explorer-style folder tabs", async () => {
     const pages = new Map([
       ["C:/A", page({ sessionId: "browser-a", path: "C:/A", entries: [{ name: "a.cbz", path: "C:/A/a.cbz", kind: "file", readerSupported: true }], total: 1 })],
       ["C:/B", page({ sessionId: "browser-b", path: "C:/B", entries: [{ name: "b.cbz", path: "C:/B/b.cbz", kind: "file", readerSupported: true }], total: 1 })],
+      ["C:/C", page({ sessionId: "browser-c", path: "C:/C", entries: [{ name: "c.cbz", path: "C:/C/c.cbz", kind: "file", readerSupported: true }], total: 1 })],
     ])
     const openDirectoryBrowser = vi.fn(async (path: string) => pages.get(path)!)
     const closeDirectoryBrowser = vi.fn(async () => undefined)
     const client = { openDirectoryBrowser, closeDirectoryBrowser } as unknown as ReaderHttpClient
-    const view = render(
+    const renderCard = (homePath: string) => (
       <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
         <FolderMainCard
           client={client}
@@ -42,11 +43,12 @@ describe("FolderMainCard", () => {
           sourcePath="C:/A"
           onOpen={vi.fn()}
           onGoTo={vi.fn()}
-          folderView={folderViewConfig({ homePath: "C:/B" })}
+          folderView={folderViewConfig({ homePath })}
           onFolderView={vi.fn(async () => undefined)}
         />
-      </VirtuosoMockContext.Provider>,
+      </VirtuosoMockContext.Provider>
     )
+    const view = render(renderCard("C:/B"))
     const ui = within(view.container)
     const activeCard = () => within(view.container.querySelector('[data-neoview-folder-card="true"]') as HTMLElement)
 
@@ -62,6 +64,12 @@ describe("FolderMainCard", () => {
     expect(ui.getByRole("tab", { name: "B" }).getAttribute("aria-selected")).toBe("true")
     expect(activeCard().getByRole("radio", { name: "紧凑列表" }).getAttribute("data-state")).toBe("on")
 
+    view.rerender(renderCard("C:/C"))
+    fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
+    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/C", expect.any(AbortSignal), undefined, true))
+    await activeCard().findByTitle("C:/C/c.cbz")
+    expect(ui.getByRole("tab", { name: "C" }).getAttribute("aria-selected")).toBe("true")
+
     fireEvent.click(ui.getByRole("tab", { name: "A" }))
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1"))
     expect(view.container.querySelector('[data-neoview-folder-card="true"] [data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")?.replaceAll("\\", "/")).toBe("C:/A")
@@ -71,12 +79,13 @@ describe("FolderMainCard", () => {
     fireEvent.click(ui.getByRole("button", { name: "关闭标签 B" }))
     await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b"))
     expect(ui.getByRole("tab", { name: "A" }).getAttribute("aria-selected")).toBe("true")
-    expect(ui.queryByRole("button", { name: /^关闭标签/ })).toBeNull()
-    expect(view.container.querySelector('[data-folder-tab-count="1"]')).toBeTruthy()
-    expect(openDirectoryBrowser).toHaveBeenCalledTimes(2)
+    expect(ui.getByRole("tab", { name: "C" }).getAttribute("aria-selected")).toBe("false")
+    expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy()
+    expect(openDirectoryBrowser).toHaveBeenCalledTimes(3)
 
     view.unmount()
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-a")
+    expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-c")
   })
 
   it("[neoview.folder.home-refresh-ui] keeps Home navigation separate from the tree and preserves selection on refresh", async () => {

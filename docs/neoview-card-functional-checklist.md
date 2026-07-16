@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=39`，`complete=6`，`pending=29`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=39`，`complete=7`，`pending=28`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -528,11 +528,11 @@
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
   - 测试：待补
   - 备注：淘汰顺序与固定上限需测试。
-- [ ] `folder.tabs.navigation-history` 标签切换历史
+- [x] `folder.tabs.navigation-history` 标签切换历史
   - 目标：维护标签访问历史并在关闭活动标签时选择正确的最近标签。
   - 源码：`stores/folderTabStore/tabManagement.svelte.ts`
-  - 测试：待补
-  - 备注：不能简单选择数组相邻项。
+  - 测试：`neoview.folder.tabs-navigation-history`、`neoview.folder.tabs-navigation-history-e2e`
+  - 备注：FolderTabsHost 使用最多 8 项的去重 MRU 访问栈；创建和显式切换记录访问，关闭任意标签同步移除记录，关闭活动标签优先激活仍存在的最近访问项，仅在历史无有效项时回退到数组邻居。访问栈保存在 ref 中，不触发普通目录 list/grid/details 或独立 Folder Tree 的额外渲染。单元与 desktop/420x360 Chromium 均使用 A/C/B 标签顺序、A→C 访问后关闭 C 的反例，证明结果回到 A 而非数组邻居 B，同时保持三条 browser session、关闭 DELETE 和活动阅读图片身份稳定。FolderTabsHost 二级延迟 chunk 为 2,668 bytes。
 - [ ] `folder.tabs.layout` 标签栏/工具栏/面包屑布局
   - 目标：标签栏布局以及工具栏、面包屑位置可配置并持久化，窄侧栏下保持原版密度和溢出行为。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/layoutSettings.svelte.ts`
