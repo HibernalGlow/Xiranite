@@ -47,14 +47,23 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
     controllersRef.current.get(key)?.abort()
     if (controllersRef.current.size >= MAXIMUM_TREE_REQUESTS) {
       const oldest = controllersRef.current.entries().next().value as [string, AbortController] | undefined
-      oldest?.[1].abort()
-      if (oldest) controllersRef.current.delete(oldest[0])
+      if (oldest) {
+        oldest[1].abort()
+        controllersRef.current.delete(oldest[0])
+        setLoading((current) => setValue(current, oldest[0], false))
+      }
     }
     const controller = new AbortController()
     const requestSignal = scopeSignal
       ? AbortSignal.any([controller.signal, scopeSignal])
       : controller.signal
     controllersRef.current.set(key, controller)
+    const clearRequest = () => {
+      if (controllersRef.current.get(key) !== controller) return
+      controllersRef.current.delete(key)
+      setLoading((current) => setValue(current, key, false))
+    }
+    requestSignal.addEventListener("abort", clearRequest, { once: true })
     setLoading((current) => setValue(current, key, true))
     setErrors((current) => mapWithout(current, key))
     try {
@@ -79,8 +88,8 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
       if (requestSignal.aborted) return
       setErrors((current) => boundedMapWith(current, key, errorMessage(error), MAXIMUM_TREE_PAGES))
     } finally {
-      if (controllersRef.current.get(key) === controller) controllersRef.current.delete(key)
-      if (!controller.signal.aborted) setLoading((current) => setValue(current, key, false))
+      requestSignal.removeEventListener("abort", clearRequest)
+      clearRequest()
     }
   }, [client, sessionId])
 

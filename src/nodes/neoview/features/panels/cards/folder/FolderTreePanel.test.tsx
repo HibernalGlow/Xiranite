@@ -90,6 +90,7 @@ describe("FolderTreePanel", () => {
     view.rerender(treeElement(client, "C:\\new", vi.fn()))
     await waitFor(() => expect(within(view.container).getByTitle("C:\\new").parentElement?.dataset.current).toBe("true"))
     expect(oldSignal.aborted).toBe(true)
+    await waitFor(() => expect((within(view.container).getByTitle("C:\\old").parentElement?.querySelector("button") as HTMLButtonElement).disabled).toBe(false))
 
     await act(async () => {
       resolveOld(treePage("C:\\old", [directory("stale", "C:\\old\\stale")]))
