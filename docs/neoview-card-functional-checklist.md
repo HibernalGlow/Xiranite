@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=29`，`pending=45`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=33`，`pending=41`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -682,13 +682,13 @@
 - [ ] `folder.search.current` 当前目录搜索
   - 目标：按名称或路径搜索当前目录，支持清除、空态、加载态、错误态和搜索历史。
   - 源码：`components/SearchResultList.svelte`、`stores/folderTabStore/sortingFiltering.svelte.ts`
-  - 测试：待补
-  - 备注：搜索结果必须继续虚拟化。
+  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`
+  - 备注：后端 depth=0 已提供同一 text/path NDJSON 契约；前端虚拟结果、搜索历史、清除和完整状态仍待迁移。
 - [ ] `folder.search.recursive` 包含子目录的流式搜索
   - 目标：递归搜索通过 readdirp stream 分批返回、可取消、可限制并发；不阻塞 Bun 事件循环。
   - 源码：`components/SearchResultList.svelte`、`components/FolderToolbar/ActionButtons.svelte`
-  - 测试：`neoview.folder.recursive-scanner`
-  - 备注：底层 adapter 已草拟，搜索会话尚未完成。
+  - 测试：`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.file-tree.ignore`、`neoview.file-tree.scheduler`、`neoview.folder.search-stream`、`neoview.folder.search-glob`、`neoview.folder.search-validation`、`neoview.folder.search-http`、`neoview.folder.search-http-cancellation`、`neoview.folder.search-session-close`
+  - 备注：ReaderFileTreeService 已提供 session-scoped text/glob NDJSON 搜索、硬预算、背压、宿主 I/O lease 与四条取消/释放路径；GUI/CLI/TUI 命令和搜索历史仍待完成。
 - [ ] `folder.search.emm-tags` EMM 标签、收藏标签与随机标签搜索
   - 目标：支持 EMM 标签条件、收藏标签快捷筛选和随机标签；标签组合修饰键行为与原版一致。
   - 源码：`components/FavoriteTagPanel.svelte`、`components/SearchResultList.svelte`
@@ -723,8 +723,8 @@
 - [ ] `folder.tree.cache` 树缓存清理与排除目录
   - 目标：支持清理树缓存、排除目录、取消排除和重新加载；排除规则持久化并应用于扫描/搜索/树。
   - 源码：`utils/directoryTreeCache.ts`、`components/FolderToolbar/CleanupOptionsDialog.svelte`
-  - 测试：待补
-  - 备注：三条路径共享一份 exclusion policy。
+  - 测试：`neoview.file-tree.ignore`、`neoview.folder.search-http`
+  - 备注：扫描/搜索已复用 ignore 的 gitignore 语义并在遍历前剪枝；排除项持久化、清理缓存、取消排除和树 UI 尚未完成。
 
 ### virtual-sources（2）
 
@@ -815,13 +815,13 @@
 - [ ] `folder.penetrate.mode` 递归显示/穿透模式
   - 目标：支持关闭/开启穿透、single/all 范围和递归显示，结果保留来源路径与层级语义。
   - 源码：`components/FolderToolbar/FolderToolbar.svelte`、`components/FolderToolbar/tabs/OtherTab.svelte`
-  - 测试：待补
-  - 备注：底层走流式 scanner，不复制另一套遍历器。
+  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`
+  - 备注：后端递归结果已保留 relativePath/depth 且不复制 scanner；single/all 设置与 GUI/TUI 呈现尚未完成。
 - [ ] `folder.penetrate.depth` 穿透最大深度
   - 目标：最大深度支持 1/2/3/5/10/无限，并在循环链接、权限错误和巨大树上有安全上限。
   - 源码：`components/FolderToolbar/tabs/OtherTab.svelte`
-  - 测试：待补
-  - 备注：无限指逻辑深度不限，仍受资源预算和取消约束。
+  - 测试：`neoview.file-tree.scan-limit`、`neoview.folder.search-validation`、`neoview.folder.search-http-cancellation`
+  - 备注：后端支持 0..4096 与默认无限逻辑深度，同时受 1,000,000 扫描项、10,000 结果和取消硬边界限制；旧 UI 离散选项尚未接线。
 - [ ] `folder.penetrate.internal-files` 内部文件策略与纯媒体文件夹
   - 目标：内部文件支持 none/penetrate/always；纯媒体文件夹按设置直接作为书籍打开。
   - 源码：`components/FolderToolbar/tabs/OtherTab.svelte`

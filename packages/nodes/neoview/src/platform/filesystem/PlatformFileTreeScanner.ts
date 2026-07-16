@@ -1,14 +1,22 @@
 import readdirp from "readdirp"
+import type { ReaddirpStream } from "readdirp"
+import ignore from "ignore"
 
 import type {
   ReaderFileTreeEntry,
   ReaderFileTreeScanOptions,
   ReaderFileTreeScanner,
 } from "../../ports/ReaderFileTreeScanner.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 const DEFAULT_MAXIMUM_ENTRIES = 1_000_000
 
 export class PlatformFileTreeScanner implements ReaderFileTreeScanner {
+  constructor(
+    private readonly resourceScheduler?: ResourceScheduler,
+    private readonly ownerId = "neoview:file-tree",
+  ) {}
+
   async *scan(
     rootPath: string,
     options: ReaderFileTreeScanOptions = {},
@@ -17,16 +25,26 @@ export class PlatformFileTreeScanner implements ReaderFileTreeScanner {
     signal?.throwIfAborted()
     const maximumDepth = boundedInteger(options.maximumDepth, 0, 4_096, Number.POSITIVE_INFINITY)
     const maximumEntries = boundedInteger(options.maximumEntries, 1, 10_000_000, DEFAULT_MAXIMUM_ENTRIES)
-    const stream = readdirp(rootPath, {
-      depth: maximumDepth,
-      type: "all",
-      alwaysStat: false,
-      highWaterMark: 256,
-    })
-    const abort = () => stream.destroy(abortReason(signal))
-    signal?.addEventListener("abort", abort, { once: true })
+    const exclusions = createExclusions(options.excludePatterns)
+    const lease = await this.resourceScheduler?.acquire({
+      resource: "io",
+      kind: "reader.file-tree.scan",
+      priority: options.resourcePriority ?? "background",
+      ownerId: this.ownerId,
+    }, signal)
+    let stream: ReaddirpStream | undefined
+    const abort = () => stream?.destroy(abortReason(signal))
     let count = 0
     try {
+      stream = readdirp(rootPath, {
+        depth: maximumDepth,
+        type: "all",
+        alwaysStat: false,
+        highWaterMark: 256,
+        directoryFilter: exclusions ? (entry) => !exclusions.ignores(normalizeRelativePath(entry.path, true)) : undefined,
+        fileFilter: exclusions ? (entry) => !exclusions.ignores(normalizeRelativePath(entry.path, false)) : undefined,
+      })
+      signal?.addEventListener("abort", abort, { once: true })
       for await (const entry of stream) {
         signal?.throwIfAborted()
         const kind = entry.dirent?.isDirectory() ? "directory" : entry.dirent?.isFile() ? "file" : "other"
@@ -46,9 +64,20 @@ export class PlatformFileTreeScanner implements ReaderFileTreeScanner {
       }
     } finally {
       signal?.removeEventListener("abort", abort)
-      if (!stream.destroyed) stream.destroy()
+      if (stream && !stream.destroyed) stream.destroy()
+      lease?.release()
     }
   }
+}
+
+function createExclusions(patterns: readonly string[] | undefined): ReturnType<typeof ignore> | undefined {
+  if (!patterns?.length) return undefined
+  return ignore().add(patterns)
+}
+
+function normalizeRelativePath(path: string, directory: boolean): string {
+  const normalized = path.replaceAll("\\", "/")
+  return directory ? `${normalized}/` : normalized
 }
 
 function included(kind: ReaderFileTreeEntry["kind"], options: ReaderFileTreeScanOptions): boolean {

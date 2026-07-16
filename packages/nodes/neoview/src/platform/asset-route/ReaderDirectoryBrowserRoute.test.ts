@@ -13,6 +13,77 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.search-http] streams glob results as backpressured NDJSON and prunes excluded directories", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-"))
+    directories.push(directory)
+    await mkdir(join(directory, "visible"), { recursive: true })
+    await mkdir(join(directory, "private"), { recursive: true })
+    await writeFile(join(directory, "visible", "Book.CBZ"), "visible")
+    await writeFile(join(directory, "private", "hidden.cbz"), "hidden")
+    await writeFile(join(directory, "visible", "readme.txt"), "text")
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const session = await opened.json() as { sessionId: string }
+      const response = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?q=${encodeURIComponent("**/*.cbz")}&mode=glob&kind=file&exclude=${encodeURIComponent("private/")}`,
+      )))!
+      expect(response.headers.get("content-type")).toBe("application/x-ndjson; charset=utf-8")
+      const events = await readNdjson(response)
+      expect(events).toEqual([
+        expect.objectContaining({ type: "meta", sessionId: session.sessionId, mode: "glob" }),
+        expect.objectContaining({ type: "entry", index: 0, entry: expect.objectContaining({ name: "Book.CBZ", kind: "file" }) }),
+        expect.objectContaining({ type: "complete", matched: 1, truncated: false }),
+      ])
+      expect(JSON.stringify(events)).not.toContain("hidden.cbz")
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.folder.search-http-cancellation] aborts the shared scanner when the NDJSON consumer cancels", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-cancel-"))
+    directories.push(directory)
+    let scanClosed = false
+    const route = new ReaderDirectoryBrowserRoute(undefined, undefined, undefined, {
+      scanner: {
+        async *scan(rootPath, _options, signal) {
+          try {
+            yield { name: "first.cbz", path: join(rootPath, "first.cbz"), relativePath: "first.cbz", depth: 0, kind: "file" as const }
+            await new Promise((_resolve, reject) => {
+              const abort = () => reject(signal?.reason)
+              signal?.addEventListener("abort", abort, { once: true })
+            })
+          } finally {
+            scanClosed = true
+          }
+        },
+      },
+    })
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const session = await opened.json() as { sessionId: string }
+      const response = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?q=cbz`,
+      )))!
+      const reader = response.body!.getReader()
+      expect(decodeNdjsonChunk((await reader.read()).value)[0]).toMatchObject({ type: "meta" })
+      expect(decodeNdjsonChunk((await reader.read()).value)[0]).toMatchObject({ type: "entry" })
+      await reader.cancel("not visible")
+      expect(scanClosed).toBe(true)
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.watch-http] refreshes an explicitly watched session and releases its native subscription", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-watch-"))
     directories.push(directory)
@@ -245,3 +316,11 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 })
+
+async function readNdjson(response: Response): Promise<Array<Record<string, unknown>>> {
+  return (await response.text()).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>)
+}
+
+function decodeNdjsonChunk(value: Uint8Array | undefined): Array<Record<string, unknown>> {
+  return new TextDecoder().decode(value).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>)
+}

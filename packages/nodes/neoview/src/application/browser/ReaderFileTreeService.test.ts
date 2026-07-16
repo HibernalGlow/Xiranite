@@ -187,7 +187,9 @@ describe("ReaderFileTreeService", () => {
     expect(refreshed?.entries.map((entry) => entry.name)).toEqual(["a.cbz", "b.cbz"])
 
     const recursive = []
-    for await (const entry of browser.scan(opened.sessionId)) recursive.push(entry)
+    const search = browser.search(opened.sessionId, "nested")
+    for await (const event of search.events) if (event.type === "entry") recursive.push(event.entry)
+    await search.close()
     expect(recursive).toEqual([{ name: "nested.cbz", path: "/library/child/nested.cbz", relativePath: "child/nested.cbz", depth: 1, kind: "file" }])
     expect(await browser.close(opened.sessionId)).toBe(true)
     expect(watcherCloses).toBe(1)
@@ -222,5 +224,39 @@ describe("ReaderFileTreeService", () => {
     await expect(pending).rejects.toMatchObject({ name: "AbortError" })
     await expect(closing).resolves.toBe(true)
     expect(await browser.list(opened.sessionId)).toBeUndefined()
+  })
+
+  it("[neoview.folder.search-session-close] aborts and drains active recursive search handles with the browser session", async () => {
+    let scanClosed = false
+    let scanWaiting = false
+    const browser = new ReaderFileTreeService({
+      async read(path) { return { path, entries: [] } },
+    }, undefined, undefined, {
+      scanner: {
+        async *scan(rootPath, _options, signal) {
+          try {
+            yield { name: "first.cbz", path: `${rootPath}/first.cbz`, relativePath: "first.cbz", depth: 0, kind: "file" as const }
+            scanWaiting = true
+            await new Promise((_resolve, reject) => {
+              const abort = () => reject(signal?.reason)
+              signal?.addEventListener("abort", abort, { once: true })
+            })
+          } finally {
+            scanClosed = true
+          }
+        },
+      },
+    })
+    const opened = await browser.open("/library")
+    const search = browser.search(opened.sessionId, "cbz")
+    const iterator = search.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: "meta" } })
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: "entry" } })
+    const pending = iterator.next()
+    await vi.waitFor(() => expect(scanWaiting).toBe(true))
+    const closing = browser.close(opened.sessionId)
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+    await expect(closing).resolves.toBe(true)
+    expect(scanClosed).toBe(true)
   })
 })

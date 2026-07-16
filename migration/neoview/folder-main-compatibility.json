@@ -606,9 +606,9 @@
       "sourceEvidence": ["components/SearchResultList.svelte", "stores/folderTabStore/sortingFiltering.svelte.ts"],
       "targetContract": "按名称或路径搜索当前目录，支持清除、空态、加载态、错误态和搜索历史。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "搜索结果必须继续虚拟化。"
+      "status": "partial",
+      "testIds": ["neoview.folder.search-stream", "neoview.folder.search-http"],
+      "notes": "后端 depth=0 已提供同一 text/path NDJSON 契约；前端虚拟结果、搜索历史、清除和完整状态仍待迁移。"
     },
     {
       "id": "folder.search.recursive",
@@ -618,8 +618,8 @@
       "targetContract": "递归搜索通过 readdirp stream 分批返回、可取消、可限制并发；不阻塞 Bun 事件循环。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
-      "testIds": ["neoview.folder.recursive-scanner"],
-      "notes": "底层 adapter 已草拟，搜索会话尚未完成。"
+      "testIds": ["neoview.file-tree.readdirp", "neoview.file-tree.scan-limit", "neoview.file-tree.ignore", "neoview.file-tree.scheduler", "neoview.folder.search-stream", "neoview.folder.search-glob", "neoview.folder.search-validation", "neoview.folder.search-http", "neoview.folder.search-http-cancellation", "neoview.folder.search-session-close"],
+      "notes": "ReaderFileTreeService 已提供 session-scoped text/glob NDJSON 搜索、硬预算、背压、宿主 I/O lease 与四条取消/释放路径；GUI/CLI/TUI 命令和搜索历史仍待完成。"
     },
     {
       "id": "folder.search.emm-tags",
@@ -684,9 +684,9 @@
       "sourceEvidence": ["utils/directoryTreeCache.ts", "components/FolderToolbar/CleanupOptionsDialog.svelte"],
       "targetContract": "支持清理树缓存、排除目录、取消排除和重新加载；排除规则持久化并应用于扫描/搜索/树。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "三条路径共享一份 exclusion policy。"
+      "status": "partial",
+      "testIds": ["neoview.file-tree.ignore", "neoview.folder.search-http"],
+      "notes": "扫描/搜索已复用 ignore 的 gitignore 语义并在遍历前剪枝；排除项持久化、清理缓存、取消排除和树 UI 尚未完成。"
     },
 
     {
@@ -864,9 +864,9 @@
       "sourceEvidence": ["components/FolderToolbar/FolderToolbar.svelte", "components/FolderToolbar/tabs/OtherTab.svelte"],
       "targetContract": "支持关闭/开启穿透、single/all 范围和递归显示，结果保留来源路径与层级语义。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "底层走流式 scanner，不复制另一套遍历器。"
+      "status": "partial",
+      "testIds": ["neoview.folder.search-stream", "neoview.folder.search-http"],
+      "notes": "后端递归结果已保留 relativePath/depth 且不复制 scanner；single/all 设置与 GUI/TUI 呈现尚未完成。"
     },
     {
       "id": "folder.penetrate.depth",
@@ -875,9 +875,9 @@
       "sourceEvidence": ["components/FolderToolbar/tabs/OtherTab.svelte"],
       "targetContract": "最大深度支持 1/2/3/5/10/无限，并在循环链接、权限错误和巨大树上有安全上限。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "无限指逻辑深度不限，仍受资源预算和取消约束。"
+      "status": "partial",
+      "testIds": ["neoview.file-tree.scan-limit", "neoview.folder.search-validation", "neoview.folder.search-http-cancellation"],
+      "notes": "后端支持 0..4096 与默认无限逻辑深度，同时受 1,000,000 扫描项、10,000 结果和取消硬边界限制；旧 UI 离散选项尚未接线。"
     },
     {
       "id": "folder.penetrate.internal-files",

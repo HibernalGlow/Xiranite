@@ -228,9 +228,9 @@ export async function createFileTreeWatcher(): Promise<ReaderFileTreeWatcher> {
   return new PlatformFileTreeWatcher()
 }
 
-export async function createFileTreeScanner(): Promise<ReaderFileTreeScanner> {
+export async function createFileTreeScanner(resourceScheduler?: ResourceScheduler): Promise<ReaderFileTreeScanner> {
   const { PlatformFileTreeScanner } = await import("./platform/filesystem/PlatformFileTreeScanner.js")
-  return new PlatformFileTreeScanner()
+  return new PlatformFileTreeScanner(resourceScheduler)
 }
 
 export async function createSolidArchiveCache(options: SolidArchiveCacheOptions = {}): Promise<SolidArchiveCache> {

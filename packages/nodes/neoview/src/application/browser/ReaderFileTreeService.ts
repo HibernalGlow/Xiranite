@@ -8,7 +8,6 @@ import type {
   ReaderDirectoryMetadataProvider,
 } from "../../ports/ReaderDirectoryMetadataProvider.js"
 import type {
-  ReaderFileTreeScanOptions,
   ReaderFileTreeScanner,
 } from "../../ports/ReaderFileTreeScanner.js"
 import type {
@@ -29,6 +28,12 @@ import {
   type ReaderDirectorySortPreferenceSnapshot,
   type ReaderDirectoryTemporarySortRule,
 } from "./ReaderDirectorySortPreferences.js"
+import {
+  searchReaderFileTree,
+  type ReaderFileTreeSearchEvent,
+  type ReaderFileTreeSearchHandle,
+  type ReaderFileTreeSearchOptions,
+} from "./ReaderFileTreeSearch.js"
 
 export type ReaderDirectoryNavigation =
   | { action: "path"; path: string }
@@ -88,6 +93,7 @@ interface BrowserSession {
   watchRefresh?: Promise<void>
   watchRefreshAbort?: AbortController
   watchError?: string
+  searches: Set<ReaderFileTreeSearchHandle>
 }
 
 export class ReaderFileTreeService implements AsyncDisposable {
@@ -131,6 +137,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       watchEnabled: watch,
       watchRevision: 0,
       watchAppliedRevision: 0,
+      searches: new Set(),
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
@@ -303,12 +310,49 @@ export class ReaderFileTreeService implements AsyncDisposable {
     }
   }
 
-  scan(sessionId: string, options?: ReaderFileTreeScanOptions, signal?: AbortSignal) {
+  search(
+    sessionId: string,
+    query: string,
+    options?: ReaderFileTreeSearchOptions,
+    signal?: AbortSignal,
+  ): ReaderFileTreeSearchHandle {
     const scanner = this.options.scanner
     if (!scanner) throw new Error("Reader file tree scanning is unavailable.")
     const session = this.#sessions.get(sessionId)
     if (!session) throw new Error(`Reader file tree session not found: ${sessionId}`)
-    return scanner.scan(session.listing.path, options, signal)
+    const controller = new AbortController()
+    const unlinkAbort = forwardAbort(signal, controller)
+    let iterator: AsyncIterator<ReaderFileTreeSearchEvent>
+    try {
+      iterator = searchReaderFileTree(scanner, {
+        id: session.id,
+        rootPath: session.listing.path,
+        generation: session.generation,
+      }, query, options, controller.signal)[Symbol.asyncIterator]()
+    } catch (error) {
+      unlinkAbort()
+      throw error
+    }
+    let closed = false
+    let handle!: ReaderFileTreeSearchHandle
+    const close = async () => {
+      if (closed) return
+      closed = true
+      controller.abort(new DOMException("Reader file tree search closed", "AbortError"))
+      try {
+        await iterator.return?.()
+      } finally {
+        unlinkAbort()
+        session.searches.delete(handle)
+      }
+    }
+    handle = {
+      events: { [Symbol.asyncIterator]: () => iterator },
+      close,
+      [Symbol.asyncDispose]: close,
+    }
+    session.searches.add(handle)
+    return handle
   }
 
   async close(sessionId: string): Promise<boolean> {
@@ -316,6 +360,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     if (!session) return false
     session.operation?.abort()
     this.#sessions.delete(sessionId)
+    await Promise.all([...session.searches].map((search) => search.close()))
     await this.#closeWatcher(session)
     return true
   }
@@ -327,6 +372,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     this.#sessions.clear()
     for (const session of sessions) {
       session.operation?.abort()
+      await Promise.all([...session.searches].map((search) => search.close()))
       await this.#closeWatcher(session)
     }
   }

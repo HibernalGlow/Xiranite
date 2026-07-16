@@ -21,8 +21,14 @@ import type {
   ReaderDirectoryMetadataField,
   ReaderDirectoryMetadataProvider,
 } from "../../ports/ReaderDirectoryMetadataProvider.js"
+import type {
+  ReaderFileTreeSearchHandle,
+  ReaderFileTreeSearchOptions,
+} from "../../application/browser/ReaderFileTreeSearch.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
+const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
 const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
@@ -40,13 +46,14 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     emmRecordStore?: ReaderDirectoryEmmRecordStore,
     mediaMetadataProvider?: ReaderDirectoryMetadataProvider,
     fileTreeOptions: ReaderFileTreeServiceOptions = {},
+    resourceScheduler?: ResourceScheduler,
   ) {
     this.#browser = new ReaderFileTreeService(
       new PlatformDirectoryListingProvider(),
       new PlatformDirectoryMetadataProvider(emmRecordStore, undefined, undefined, mediaMetadataProvider),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
       {
-        scanner: fileTreeOptions.scanner ?? new PlatformFileTreeScanner(),
+        scanner: fileTreeOptions.scanner ?? new PlatformFileTreeScanner(resourceScheduler),
         watcher: fileTreeOptions.watcher ?? new PlatformFileTreeWatcher(),
       },
     )
@@ -58,6 +65,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
 
     const entriesMatch = BROWSER_ENTRIES_PATH.exec(url.pathname)
     if (entriesMatch && request.method === "GET") return this.#list(entriesMatch[1]!, url, request.signal)
+    const searchMatch = BROWSER_SEARCH_PATH.exec(url.pathname)
+    if (searchMatch && request.method === "GET") return this.#search(searchMatch[1]!, url, request)
     const navigateMatch = BROWSER_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const sortPreferencesMatch = BROWSER_SORT_PREFERENCES_PATH.exec(url.pathname)
@@ -110,6 +119,18 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  #search(encodedSessionId: string, url: URL, request: Request): Response {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    try {
+      const parsed = parseSearch(url)
+      const search = this.#browser.search(sessionId, parsed.query, parsed.options, request.signal)
+      return ndjsonResponse(search, request.signal)
+    } catch (error) {
+      return errorResponse(errorMessage(error), errorMessage(error).includes("session not found") ? 404 : 400)
     }
   }
 
@@ -178,6 +199,26 @@ function requestedMetadataFields(url: URL): ReadonlySet<ReaderDirectoryMetadataF
   return fields
 }
 
+function parseSearch(url: URL): { query: string; options: ReaderFileTreeSearchOptions } {
+  const mode = url.searchParams.get("mode") ?? "text"
+  if (mode !== "text" && mode !== "glob") throw new Error("mode must be text or glob")
+  const kind = url.searchParams.get("kind") ?? "all"
+  if (kind !== "all" && kind !== "file" && kind !== "directory") throw new Error("kind must be all, file, or directory")
+  const caseValue = url.searchParams.get("case")
+  if (caseValue !== null && caseValue !== "0" && caseValue !== "1") throw new Error("case must be 0 or 1")
+  return {
+    query: url.searchParams.get("q") ?? "",
+    options: {
+      mode,
+      kind,
+      caseSensitive: caseValue === "1",
+      maximumDepth: optionalInteger(url.searchParams.get("depth"), "depth", 0, 4_096),
+      maximumResults: optionalInteger(url.searchParams.get("limit"), "limit", 1, 10_000),
+      excludePatterns: url.searchParams.getAll("exclude"),
+    },
+  }
+}
+
 function parseNavigation(body: { action?: unknown; path?: unknown } | undefined): ReaderDirectoryNavigation | undefined {
   if (body?.action === "path") return typeof body.path === "string" && body.path.trim() ? { action: "path", path: body.path } : undefined
   if (body?.action === "back" || body?.action === "forward" || body?.action === "up" || body?.action === "refresh") return { action: body.action }
@@ -213,6 +254,15 @@ function integer(value: string | null, fallback: number): number {
   return Number.isSafeInteger(parsed) ? parsed : fallback
 }
 
+function optionalInteger(value: string | null, name: string, minimum: number, maximum: number): number | undefined {
+  if (value === null) return undefined
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`)
+  }
+  return parsed
+}
+
 function safeDecode(value: string): string | undefined {
   try {
     return decodeURIComponent(value)
@@ -231,6 +281,54 @@ function errorResponse(error: string, status: number): Response {
 
 function responseInit(status = 200): ResponseInit {
   return { status, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } }
+}
+
+function ndjsonResponse(
+  search: ReaderFileTreeSearchHandle,
+  requestSignal: AbortSignal,
+): Response {
+  const iterator = search.events[Symbol.asyncIterator]()
+  const encoder = new TextEncoder()
+  let finished = false
+  const finish = async () => {
+    if (finished) return false
+    finished = true
+    await search.close()
+    return true
+  }
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (finished) return
+      try {
+        const next = await iterator.next()
+        if (next.done) {
+          await finish()
+          controller.close()
+          return
+        }
+        controller.enqueue(encoder.encode(`${JSON.stringify(next.value)}\n`))
+      } catch (error) {
+        let output = ""
+        if (!requestSignal.aborted) {
+          output += `${JSON.stringify({ type: "error", error: errorMessage(error) })}\n`
+        }
+        await finish()
+        if (output) controller.enqueue(encoder.encode(output))
+        controller.close()
+      }
+    },
+    async cancel(reason) {
+      void reason
+      await finish()
+    },
+  })
+  return new Response(stream, {
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "x-content-type-options": "nosniff",
+    },
+  })
 }
 import { realpath, stat } from "node:fs/promises"
 import { dirname } from "node:path"

@@ -14,6 +14,8 @@ export interface ReaderFileTreeScanOptions {
   includeDirectories?: boolean
   includeFiles?: boolean
   includeOther?: boolean
+  excludePatterns?: readonly string[]
+  resourcePriority?: "interactive" | "view" | "ahead" | "background"
 }
 
 export interface ReaderFileTreeScanner {

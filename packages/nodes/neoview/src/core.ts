@@ -14,6 +14,14 @@ export {
   type ReaderFileTreeServiceOptions,
 } from "./application/browser/ReaderFileTreeService.js"
 export {
+  searchReaderFileTree,
+  type ReaderFileTreeSearchEvent,
+  type ReaderFileTreeSearchHandle,
+  type ReaderFileTreeSearchKind,
+  type ReaderFileTreeSearchMode,
+  type ReaderFileTreeSearchOptions,
+} from "./application/browser/ReaderFileTreeSearch.js"
+export {
   DEFAULT_READER_DIRECTORY_SORT,
   READER_DIRECTORY_SORT_FIELDS,
   sortReaderDirectoryEntries,

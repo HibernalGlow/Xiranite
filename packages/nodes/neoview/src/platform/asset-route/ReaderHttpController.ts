@@ -199,6 +199,8 @@ export class ReaderHttpController implements AsyncDisposable {
       options.directorySortPreferenceStore,
       options.directoryEmmRecordStore,
       new PlatformDirectoryMediaMetadataProvider(bookLoader, imageMetadataProbe),
+      undefined,
+      options.resourceScheduler,
     )
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(options.libraryService) : undefined
