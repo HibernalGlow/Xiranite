@@ -281,6 +281,7 @@ export interface ReaderFolderTreeViewConfig {
   visible: boolean
   layout: ReaderFolderTreeLayout
   size: number
+  pinnedPaths: string[]
 }
 
 export interface ReaderFolderViewConfig {

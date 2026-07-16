@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight, Folder, FolderOpen, HardDrive, LoaderCircle, RefreshCw } from "lucide-react"
+import { ChevronDown, ChevronRight, Folder, FolderOpen, HardDrive, LoaderCircle, Pin, PinOff, RefreshCw } from "lucide-react"
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 
 import { Button } from "@/components/ui/button"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import type { ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 
 const TREE_ROW_HEIGHT = 30
@@ -15,7 +16,9 @@ interface FolderTreePanelProps {
   sessionId: string
   currentPath: string
   disabled: boolean
+  pinnedPaths: readonly string[]
   onNavigate(path: string): void
+  onPinnedPathsChange(paths: string[]): void
 }
 
 interface TreeRow {
@@ -27,9 +30,11 @@ interface TreeRow {
   loading: boolean
   error?: string
   loaded: boolean
+  pinnedRoot: boolean
+  rowKey: string
 }
 
-export default function FolderTreePanel({ client, sessionId, currentPath, disabled, onNavigate }: FolderTreePanelProps) {
+export default function FolderTreePanel({ client, sessionId, currentPath, disabled, pinnedPaths, onNavigate, onPinnedPathsChange }: FolderTreePanelProps) {
   const treeId = useId().replaceAll(":", "")
   const treeHostRef = useRef<HTMLDivElement>(null)
   const treeRef = useRef<VirtuosoHandle>(null)
@@ -42,6 +47,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
   const [focusedPath, setFocusedPath] = useState(currentPath)
   const [generationEpoch, setGenerationEpoch] = useState(0)
   const rootPath = useMemo(() => directoryRoot(currentPath), [currentPath])
+  const roots = useMemo(() => treeRoots(rootPath, pinnedPaths), [rootPath, pinnedPaths])
 
   const loadPage = useCallback(async (path: string, refresh = false, scopeSignal?: AbortSignal) => {
     if (!client.treeDirectoryBrowser || scopeSignal?.aborted) return
@@ -124,8 +130,8 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
   }, [client.treeDirectoryBrowser, currentPath, generationEpoch, loadPage])
 
   const rows = useMemo(
-    () => flattenTree(rootPath, pages, expanded, loading, errors),
-    [rootPath, pages, expanded, loading, errors],
+    () => flattenTree(roots, pages, expanded, loading, errors),
+    [roots, pages, expanded, loading, errors],
   )
   const currentIndex = useMemo(() => rows.findIndex((row) => samePath(row.path, currentPath)), [rows, currentPath])
   const requestedFocusedIndex = useMemo(() => rows.findIndex((row) => samePath(row.path, focusedPath)), [rows, focusedPath])
@@ -154,6 +160,18 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
   function focusRow(index: number) {
     const row = rows[index]
     if (row) setFocusedPath(row.path)
+  }
+
+  function togglePinned(path: string) {
+    const pinned = pinnedPaths.some((candidate) => samePath(candidate, path))
+    onPinnedPathsChange(pinned
+      ? pinnedPaths.filter((candidate) => !samePath(candidate, path))
+      : [...pinnedPaths, path])
+  }
+
+  function refreshRow(row: TreeRow) {
+    setExpanded((current) => setValue(current, directoryPathKey(row.path), true, MAXIMUM_TREE_EXPANDED_PATHS))
+    void loadPage(row.path, true)
   }
 
   function handleTreeKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
@@ -212,13 +230,16 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
         style={{ height: "100%" }}
         data={rows}
         fixedItemHeight={TREE_ROW_HEIGHT}
-        computeItemKey={(_index, row) => `${sessionId}:${directoryPathKey(row.path)}`}
+        computeItemKey={(_index, row) => `${sessionId}:${row.rowKey}`}
         itemContent={(index, row) => {
           const current = samePath(row.path, currentPath)
           const focused = index === focusedIndex
           const ancestor = !current && isPathAncestor(row.path, currentPath)
+          const pinned = pinnedPaths.some((path) => samePath(path, row.path))
           return (
-            <div
+            <ContextMenu onOpenChange={(open) => { if (open) setFocusedPath(row.path) }}>
+              <ContextMenuTrigger asChild>
+                <div
               id={`${treeId}-row-${index}`}
               className={`group flex h-[30px] min-w-0 items-center border-b border-border/30 pr-1 text-xs hover:bg-accent/50 ${current ? "bg-accent" : focused ? "bg-muted/70" : ""} ${ancestor ? "font-medium" : ""}`}
               style={{ paddingLeft: `${4 + row.depth * 14}px` }}
@@ -226,6 +247,8 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
               data-current={current || undefined}
               data-focused={focused || undefined}
               data-ancestor={ancestor || undefined}
+              data-pinned-root={row.pinnedRoot || undefined}
+              data-pinned={pinned || undefined}
               role="treeitem"
               aria-level={row.depth + 1}
               aria-selected={current}
@@ -248,7 +271,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
               >
                 {row.loading ? <LoaderCircle className="animate-spin" /> : row.expanded ? <ChevronDown /> : <ChevronRight />}
               </Button>
-              {row.root ? <HardDrive className="mr-1 size-4 shrink-0 text-primary" /> : row.expanded ? <FolderOpen className="mr-1 size-4 shrink-0 text-amber-500" /> : <Folder className="mr-1 size-4 shrink-0 text-amber-500" />}
+              {row.pinnedRoot ? <Pin className="mr-1 size-4 shrink-0 text-primary" /> : row.root ? <HardDrive className="mr-1 size-4 shrink-0 text-primary" /> : row.expanded ? <FolderOpen className="mr-1 size-4 shrink-0 text-amber-500" /> : <Folder className="mr-1 size-4 shrink-0 text-amber-500" />}
               <button
                 type="button"
                 className="min-w-0 flex-1 truncate text-left outline-none focus-visible:underline"
@@ -273,7 +296,21 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
                   <RefreshCw />
                 </Button>
               ) : null}
-            </div>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem disabled={disabled} onSelect={() => onNavigate(row.path)}>
+                  <FolderOpen />打开目录
+                </ContextMenuItem>
+                <ContextMenuItem disabled={disabled} onSelect={() => togglePinned(row.path)}>
+                  {pinned ? <PinOff /> : <Pin />}{pinned ? "取消固定" : "固定到文件树"}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem disabled={disabled || row.loading} onSelect={() => refreshRow(row)}>
+                  <RefreshCw />刷新
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           )
         }}
       />
@@ -305,28 +342,53 @@ export function directoryAncestors(path: string): string[] {
   return values
 }
 
+interface TreeRoot {
+  path: string
+  name: string
+  pinned: boolean
+}
+
+function treeRoots(rootPath: string, pinnedPaths: readonly string[]): TreeRoot[] {
+  const roots: TreeRoot[] = []
+  for (const path of pinnedPaths) {
+    if (!roots.some((root) => samePath(root.path, path))) roots.push({ path, name: pinnedLabel(path), pinned: true })
+  }
+  const existingRoot = roots.find((root) => samePath(root.path, rootPath))
+  if (existingRoot) existingRoot.name = rootLabel(rootPath)
+  else roots.push({ path: rootPath, name: rootLabel(rootPath), pinned: false })
+  return roots
+}
+
 function flattenTree(
-  rootPath: string,
+  roots: readonly TreeRoot[],
   pages: ReadonlyMap<string, ReaderDirectoryTreePageDto>,
   expanded: ReadonlySet<string>,
   loading: ReadonlySet<string>,
   errors: ReadonlyMap<string, string>,
 ): TreeRow[] {
   const rows: TreeRow[] = []
-  const visit = (path: string, name: string, depth: number, root: boolean) => {
+  const visit = (path: string, name: string, depth: number, root: boolean, pinnedRoot: boolean, branchKey: string) => {
     const key = directoryPathKey(path)
     const page = pages.get(key)
     const open = expanded.has(key)
-    rows.push({ path, name, depth, root, expanded: open, loading: loading.has(key), error: errors.get(key), loaded: Boolean(page) })
+    rows.push({ path, name, depth, root, pinnedRoot, rowKey: `${branchKey}:${key}`, expanded: open, loading: loading.has(key), error: errors.get(key), loaded: Boolean(page) })
     if (!open || !page) return
-    for (const entry of page.entries) visit(entry.path, entry.name, depth + 1, false)
+    for (const entry of page.entries) visit(entry.path, entry.name, depth + 1, false, false, branchKey)
   }
-  visit(rootPath, rootLabel(rootPath), 0, true)
+  for (const root of roots) {
+    const branchKey = `${root.pinned ? "pin" : "root"}:${directoryPathKey(root.path)}`
+    visit(root.path, root.name, 0, true, root.pinned, branchKey)
+  }
   return rows
 }
 
 function rootLabel(root: string): string {
   return root.replaceAll("\\", "/").replace(/\/$/u, "") || "/"
+}
+
+function pinnedLabel(path: string): string {
+  const normalized = path.replaceAll("\\", "/").replace(/\/+$/u, "")
+  return normalized.split("/").at(-1) || rootLabel(path)
 }
 
 export function directoryPathKey(path: string): string {

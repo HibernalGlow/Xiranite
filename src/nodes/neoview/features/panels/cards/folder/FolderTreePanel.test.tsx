@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { VirtuosoMockContext } from "react-virtuoso"
 import { describe, expect, it, vi } from "vitest"
 
@@ -97,6 +97,35 @@ describe("FolderTreePanel", () => {
     expect(onNavigate).toHaveBeenLastCalledWith("C:\\other")
   })
 
+  it("[neoview.folder.tree-pins] renders pinned roots and exposes bounded context actions without changing list selection", async () => {
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string): Promise<ReaderDirectoryTreePageDto> => treePage(
+      path ?? "C:\\",
+      path === "C:\\" ? [directory("books", "C:\\books")] : [],
+    ))
+    const client = { treeDirectoryBrowser } as unknown as ReaderHttpClient
+    const onNavigate = vi.fn()
+    const onPinnedPathsChange = vi.fn()
+    const view = renderTree(client, "C:\\books", onNavigate, ["D:\\Pinned"], onPinnedPathsChange)
+    const ui = within(view.container)
+
+    await waitFor(() => expect(ui.getByTitle("D:\\Pinned").parentElement?.dataset.pinnedRoot).toBe("true"))
+    expect(ui.getByTitle("C:\\")).toBeTruthy()
+    fireEvent.contextMenu(ui.getByTitle("C:\\books").parentElement!)
+    fireEvent.click(await screen.findByRole("menuitem", { name: "固定到文件树" }))
+    expect(onPinnedPathsChange).toHaveBeenCalledWith(["D:\\Pinned", "C:\\books"])
+
+    view.rerender(treeElement(client, "C:\\books", onNavigate, ["D:\\Pinned", "C:\\books"], onPinnedPathsChange))
+    const pinnedBook = [...view.container.querySelectorAll<HTMLElement>('[data-pinned-root="true"]')]
+      .find((row) => row.dataset.treePath === "C:\\books")!
+    fireEvent.contextMenu(pinnedBook)
+    fireEvent.click(await screen.findByRole("menuitem", { name: "取消固定" }))
+    expect(onPinnedPathsChange).toHaveBeenLastCalledWith(["D:\\Pinned"])
+
+    fireEvent.contextMenu(ui.getByTitle("D:\\Pinned").parentElement!)
+    fireEvent.click(await screen.findByRole("menuitem", { name: "刷新" }))
+    await waitFor(() => expect(treeDirectoryBrowser).toHaveBeenCalledWith("tree-1", "D:\\Pinned", true, expect.any(AbortSignal)))
+  })
+
   it("[neoview.folder.tree-lifecycle] aborts in-flight node reads on unmount", async () => {
     let signal!: AbortSignal
     const treeDirectoryBrowser = vi.fn((_sessionId: string, _path?: string, _refresh?: boolean, nextSignal?: AbortSignal) => {
@@ -167,14 +196,14 @@ describe("FolderTreePanel", () => {
   })
 })
 
-function renderTree(client: ReaderHttpClient, currentPath: string, onNavigate: (path: string) => void) {
-  return render(treeElement(client, currentPath, onNavigate))
+function renderTree(client: ReaderHttpClient, currentPath: string, onNavigate: (path: string) => void, pinnedPaths: readonly string[] = [], onPinnedPathsChange = vi.fn()) {
+  return render(treeElement(client, currentPath, onNavigate, pinnedPaths, onPinnedPathsChange))
 }
 
-function treeElement(client: ReaderHttpClient, currentPath: string, onNavigate: (path: string) => void) {
+function treeElement(client: ReaderHttpClient, currentPath: string, onNavigate: (path: string) => void, pinnedPaths: readonly string[] = [], onPinnedPathsChange = vi.fn()) {
   return (
     <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 30 }}>
-      <FolderTreePanel client={client} sessionId="tree-1" currentPath={currentPath} disabled={false} onNavigate={onNavigate} />
+      <FolderTreePanel client={client} sessionId="tree-1" currentPath={currentPath} disabled={false} pinnedPaths={pinnedPaths} onNavigate={onNavigate} onPinnedPathsChange={onPinnedPathsChange} />
     </VirtuosoMockContext.Provider>
   )
 }

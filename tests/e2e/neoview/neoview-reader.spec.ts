@@ -96,7 +96,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] [neoview.folder.tree-layout-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
+test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] [neoview.folder.tree-layout-e2e] [neoview.folder.tree-pins-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
@@ -355,6 +355,29 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(originalTreeButton.locator("..")).toHaveAttribute("data-focused", "true")
   await folderTree.press("Enter")
   await expect(originalTreeButton.locator("..")).toHaveAttribute("data-current", "true")
+  const childTreePath = await childTreeButton.locator("..").getAttribute("data-tree-path")
+  expect(childTreePath).toBeTruthy()
+  const pinTreeResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"pinnedPaths"') === true
+  ))
+  await childTreeButton.click({ button: "right" })
+  await page.getByRole("menuitem", { name: "固定到文件树" }).click()
+  expect((await pinTreeResponse).status()).toBe(200)
+  await expect.poll(() => folderTreeSettingPatches.at(-1)).toEqual({ pinnedPaths: [childTreePath] })
+  const pinnedTreeRow = folderTree.locator('[data-pinned-root="true"]').filter({ hasText: "nested-search" })
+  await expect(pinnedTreeRow).toBeVisible()
+  await expect(folderCard).toHaveAttribute("data-selection-count", "0")
+  const refreshPinnedResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname.endsWith("/tree") && url.searchParams.get("path") === childTreePath && url.searchParams.get("refresh") === "1"
+  })
+  await pinnedTreeRow.click({ button: "right" })
+  await page.getByRole("menuitem", { name: "刷新" }).click()
+  expect((await refreshPinnedResponse).status()).toBe(200)
+  const pinnedTreeToml = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+  expect(pinnedTreeToml).toContain(`pinned_paths = [ "${childTreePath!.replaceAll("\\", "\\\\")}" ]`)
   expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe(stableFolderTreeImage)
   await folderTree.press("Control+f")
   await expect(folderTree).toBeVisible()

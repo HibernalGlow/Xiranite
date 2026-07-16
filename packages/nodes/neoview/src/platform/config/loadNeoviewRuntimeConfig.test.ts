@@ -200,7 +200,7 @@ describe("loadNeoviewSessionOptions", () => {
           bannerWidthPercent: 70,
           details: { columnOrder: ["name", "rating", "path"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
-          tree: { visible: true, layout: "top", size: 240 },
+          tree: { visible: true, layout: "top", size: 240, pinnedPaths: ["D:/Pinned"] },
         } }),
       }))
       expect(await folderPatched?.json()).toMatchObject({
@@ -211,7 +211,7 @@ describe("loadNeoviewSessionOptions", () => {
           bannerWidthPercent: 70,
           details: { hiddenColumns: ["tags"], pinnedRight: ["rating"] },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
-          tree: { visible: true, layout: "top", size: 240 },
+          tree: { visible: true, layout: "top", size: 240, pinnedPaths: ["D:/Pinned"] },
         },
       })
       const folderConfig = await readFile(configPath, "utf8")
@@ -229,6 +229,7 @@ describe("loadNeoviewSessionOptions", () => {
       expect(folderConfig).toContain("[nodes.neoview.folder.tree_view]")
       expect(folderConfig).toContain("layout = \"top\"")
       expect(folderConfig).toContain("size = 240")
+      expect(folderConfig).toContain('pinned_paths = [ "D:/Pinned" ]')
       expect(folderConfig).toContain("name = 264")
       expect((await loadNeoviewRuntimeConfig({ configPath })).folderView).toMatchObject({
         viewMode: "details",
@@ -237,7 +238,7 @@ describe("loadNeoviewSessionOptions", () => {
         bannerWidthPercent: 70,
         details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
-        tree: { visible: true, layout: "top", size: 240 },
+        tree: { visible: true, layout: "top", size: 240, pinnedPaths: ["D:/Pinned"] },
       })
       const reopened = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
         method: "POST",

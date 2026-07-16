@@ -66,7 +66,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
     showHistoryOnFocus: true,
     searchInPath: false,
   },
-  tree: { visible: false, layout: "left", size: 200 },
+  tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
 }
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {

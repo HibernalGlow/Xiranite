@@ -15,9 +15,11 @@ interface FolderTreeWorkspaceProps {
   disabled: boolean
   layout: ReaderFolderTreeLayout
   size: number
+  pinnedPaths: readonly string[]
   onNavigate(path: string): void
   onLayoutChange(layout: ReaderFolderTreeLayout): void
   onSizeChange(size: number): void
+  onPinnedPathsChange(paths: string[]): void
 }
 
 export default function FolderTreeWorkspace({
@@ -27,9 +29,11 @@ export default function FolderTreeWorkspace({
   disabled,
   layout,
   size,
+  pinnedPaths,
   onNavigate,
   onLayoutChange,
   onSizeChange,
+  onPinnedPathsChange,
 }: FolderTreeWorkspaceProps) {
   const gestureRef = useRef<TreeResizeGesture | undefined>(undefined)
 
@@ -53,7 +57,15 @@ export default function FolderTreeWorkspace({
         <ToggleGroupItem value="bottom" aria-label="文件树位于底部" title="底部"><PanelBottom /></ToggleGroupItem>
       </ToggleGroup>
       <div className="min-h-0">
-        <FolderTreePanel client={client} sessionId={sessionId} currentPath={currentPath} disabled={disabled} onNavigate={onNavigate} />
+        <FolderTreePanel
+          client={client}
+          sessionId={sessionId}
+          currentPath={currentPath}
+          disabled={disabled}
+          pinnedPaths={pinnedPaths}
+          onNavigate={onNavigate}
+          onPinnedPathsChange={onPinnedPathsChange}
+        />
       </div>
       <button
         type="button"

@@ -46,6 +46,7 @@ export interface NeoviewFolderTreeViewConfig {
   visible: boolean
   layout: NeoviewFolderTreeLayout
   size: number
+  pinnedPaths: string[]
 }
 
 export interface NeoviewFolderViewConfig {
@@ -214,6 +215,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     visible: false,
     layout: "left",
     size: 200,
+    pinnedPaths: [],
   },
 }
 
@@ -436,7 +438,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.tree !== undefined) {
     const tree = requireRecord(folder.tree, "reader folder view patch.tree")
-    const treeKeys = new Set(["visible", "layout", "size"])
+    const treeKeys = new Set(["visible", "layout", "size", "pinnedPaths"])
     const unknownTree = Object.keys(tree).filter((key) => !treeKeys.has(key))
     if (unknownTree.length) throw new Error(`reader folder view patch.tree contains unsupported fields: ${unknownTree.join(", ")}.`)
     const treePatch: Partial<NeoviewFolderTreeViewConfig> = {}
@@ -452,6 +454,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     if (tree.size !== undefined) {
       treePatch.size = boundedInteger(tree.size, 100, 500, "reader folder view patch.tree.size")
       treeToml.size = treePatch.size
+    }
+    if (tree.pinnedPaths !== undefined) {
+      treePatch.pinnedPaths = normalizedTreePinnedPaths(tree.pinnedPaths, "reader folder view patch.tree.pinnedPaths")
+      treeToml.pinned_paths = treePatch.pinnedPaths
     }
     if (!Object.keys(treePatch).length) throw new Error("reader folder view patch.tree must change at least one field.")
     patch.folderView.tree = treePatch
@@ -510,8 +516,23 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
       size: tree?.size === undefined
         ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tree.size
         : boundedInteger(tree.size, 100, 500, "[nodes.neoview.folder.tree_view].size"),
+      pinnedPaths: normalizedTreePinnedPaths(tree?.pinned_paths ?? [], "[nodes.neoview.folder.tree_view].pinned_paths"),
     },
   }
+}
+
+function normalizedTreePinnedPaths(value: unknown, path: string): string[] {
+  if (!Array.isArray(value) || value.length > 64) throw new Error(`${path} must be an array containing at most 64 paths.`)
+  const result = new Map<string, string>()
+  for (const item of value) {
+    if (typeof item !== "string") throw new Error(`${path} must contain only string paths.`)
+    const pinnedPath = item.trim()
+    if (!pinnedPath || pinnedPath.length > 32_767 || pinnedPath.includes("\0")) throw new Error(`${path} contains an invalid path.`)
+    const normalized = pinnedPath.replaceAll("\\", "/").replace(/\/+$/u, "") || "/"
+    const key = /^(?:[A-Za-z]:|\/\/)/u.test(normalized) ? normalized.toLocaleLowerCase() : normalized
+    if (!result.has(key)) result.set(key, pinnedPath)
+  }
+  return [...result.values()]
 }
 
 function normalizedDetailColumns(value: unknown, path: string, appendMissing: boolean, strict = true): NeoviewFolderDetailColumn[] {

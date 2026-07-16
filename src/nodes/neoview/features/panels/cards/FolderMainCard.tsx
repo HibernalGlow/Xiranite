@@ -108,7 +108,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     showHistoryOnFocus: true,
     searchInPath: false,
   },
-  tree: { visible: false, layout: "left", size: 200 },
+  tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
@@ -908,7 +908,11 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div
         className="grid min-h-0 overflow-hidden"
-        style={treeBrowserStyle(treeOpen, treeLayout, treeSize)}
+        style={{
+          "--folder-tree-size": `${treeSize}px`,
+          gridTemplateColumns: !treeOpen ? "1fr" : treeLayout === "left" ? "min(var(--folder-tree-size), 50%) 1fr" : treeLayout === "right" ? "1fr min(var(--folder-tree-size), 50%)" : "1fr",
+          gridTemplateRows: !treeOpen ? undefined : treeLayout === "top" ? `var(--folder-tree-size) ${LIST_HEIGHT}px` : treeLayout === "bottom" ? `${LIST_HEIGHT}px var(--folder-tree-size)` : `${LIST_HEIGHT}px`,
+        } as CSSProperties}
         data-tree-layout={treeOpen ? treeLayout : undefined}
       >
         {treeOpen && sessionIdRef.current && catalog ? (
@@ -920,9 +924,11 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
                 disabled={disabled || loading}
                 layout={treeLayout}
                 size={treeSize}
+                pinnedPaths={folderView.tree.pinnedPaths}
                 onNavigate={(path) => { void navigate({ action: "path", path }, { keepTree: true }) }}
                 onLayoutChange={switchTreeLayout}
                 onSizeChange={commitTreeSize}
+                onPinnedPathsChange={(pinnedPaths) => { void onFolderView?.({ tree: { pinnedPaths } }) }}
               />
           </Suspense>
         ) : null}
@@ -1242,30 +1248,4 @@ function viewUsesVirtuosoList(mode: FolderViewMode): boolean {
 
 function thumbnailPixelSize(percent: number): number {
   return Math.round(48 + (percent - 10) * 3)
-}
-
-function treeBrowserStyle(visible: boolean, layout: ReaderFolderTreeLayout, size: number): CSSProperties {
-  const style = { "--folder-tree-size": `${size}px` } as CSSProperties
-  if (!visible) return { ...style, gridTemplateColumns: "minmax(0, 1fr)" }
-  if (layout === "left") {
-    return {
-      ...style,
-      gridTemplateColumns: "min(var(--folder-tree-size), 50%) 1fr",
-      gridTemplateRows: `${LIST_HEIGHT}px`,
-    }
-  }
-  if (layout === "right") {
-    return {
-      ...style,
-      gridTemplateColumns: "1fr min(var(--folder-tree-size), 50%)",
-      gridTemplateRows: `${LIST_HEIGHT}px`,
-    }
-  }
-  return {
-    ...style,
-    gridTemplateColumns: "1fr",
-    gridTemplateRows: layout === "top"
-      ? `var(--folder-tree-size) ${LIST_HEIGHT}px`
-      : `${LIST_HEIGHT}px var(--folder-tree-size)`,
-  }
 }

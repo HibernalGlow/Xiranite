@@ -524,7 +524,7 @@ describe("FolderMainCard", () => {
               columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
             },
             search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
-            tree: { visible: false, layout: "left", size: 200 },
+            tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
           }}
           onFolderView={onFolderView}
         />
@@ -566,7 +566,7 @@ describe("FolderMainCard", () => {
                 hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
               },
               search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
-              tree: { visible: false, layout: "left", size: 200 },
+              tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
             }}
             onFolderView={onFolderView}
           />

@@ -127,7 +127,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       preview_count: 9,
       thumbnail_width_percent: 34,
       banner_width_percent: 70,
-      tree_view: { visible: true, layout: "right", size: 260 },
+      tree_view: { visible: true, layout: "right", size: 260, pinned_paths: ["D:\\Pinned", "d:/pinned"] },
       details: {
         column_order: ["name", "rating", "path"],
         hidden_columns: ["tags", "future-column"],
@@ -151,14 +151,14 @@ describe("parseNeoviewRuntimeConfig", () => {
         },
       },
       search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
-      tree: { visible: true, layout: "right", size: 260 },
+      tree: { visible: true, layout: "right", size: 260, pinnedPaths: ["D:\\Pinned"] },
     })
     expect(parseNeoviewFolderViewPatch({ folderView: {
       viewMode: "mosaic-grid",
       previewCount: 16,
       thumbnailWidthPercent: 42,
       bannerWidthPercent: 80,
-      tree: { visible: true, layout: "bottom", size: 320 },
+      tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
       search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
     } })).toEqual({
@@ -175,7 +175,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           columnWidths: { name: 300, rating: 84 },
         },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
-        tree: { visible: true, layout: "bottom", size: 320 },
+        tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       } },
       tomlPatch: { folder: {
         view_mode: "mosaic-grid",
@@ -190,7 +190,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           column_widths: { name: 300, rating: 84 },
         },
         search: { include_subfolders: false, show_history_on_focus: false, search_in_path: true },
-        tree_view: { visible: true, layout: "bottom", size: 320 },
+        tree_view: { visible: true, layout: "bottom", size: 320, pinned_paths: ["E:/Books"] },
       } },
     })
     expect(parseNeoviewRuntimeConfig({ folder: { search: {
@@ -210,6 +210,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { layout: "center" } } })).toThrow("layout")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { size: 99 } } })).toThrow("between 100 and 500")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { future: true } } })).toThrow("unsupported fields")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { pinnedPaths: Array(65).fill("D:/Books") } } })).toThrow("at most 64")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { pinnedPaths: [""] } } })).toThrow("invalid path")
   })
 
   it("[neoview.folder.tree-config] keeps persistent exclusions in the node TOML contract", () => {
