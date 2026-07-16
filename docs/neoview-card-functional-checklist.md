@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=43`，`pending=31`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=44`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -259,7 +259,7 @@
 - [ ] 树位置 top/left/right/bottom
 - [ ] 树尺寸拖动
 - [ ] 树 pin/取消 pin
-- [ ] 外置树模式
+- [ ] 外置 Tree 与当前目录单层列表同时存在且选择隔离
 - [ ] 主视图内联树模式
 - [ ] 父/当前/子 FolderStack 层
 - [ ] 每层独立滚动与选择
@@ -706,15 +706,15 @@
 ### tree（4）
 
 - [ ] `folder.tree.panel` 文件树面板与展开/折叠
-  - 目标：树节点按需加载、展开/折叠、选中同步、加载占位、错误重试和缓存失效完整迁移。
+  - 目标：Tree 是独立导航窗格，与只列举当前目录直接子项的普通列表同时存在；两者焦点/选择隔离。树节点按需加载、展开/折叠、活动路径同步、加载占位、错误重试和缓存失效完整迁移。
   - 源码：`components/FolderTree.svelte`、`utils/directoryTreeCache.ts`
-  - 测试：`neoview.folder.tree-lazy`、`neoview.folder.tree-http`、`neoview.folder.tree-client`、`neoview.folder.tree-card`、`neoview.folder.tree-panel`、`neoview.folder.tree-paths`、`neoview.folder.tree-path-identity`、`neoview.folder.tree-lifecycle`、`neoview.folder.tree-navigation-race`、`neoview.folder.tree-generation`
-  - 备注：GUI 已使用二级 lazy 的固定行高 Virtuoso 树，支持当前路径祖先自动展开、节点展开/折叠、活动路径同步、加载占位、逐节点错误重试和 Ctrl+F 切换搜索；请求随路径/session/root 取消，前端 pages/errors/expanded/并发请求有界并按 backend generation 重基。后端 ReaderFileTreeIndex 使用 512 项、5 分钟 TTL 的 lru-cache，规范 key 不改写 provider 路径。仍待 all-drive roots、完整 tree 键盘模型、右键菜单、pin/布局/尺寸和 watcher 实时呈现，因此保持 partial。
+  - 测试：`neoview.folder.tree-lazy`、`neoview.folder.tree-http`、`neoview.folder.tree-client`、`neoview.folder.tree-card`、`neoview.folder.tree-panel`、`neoview.folder.tree-keyboard`、`neoview.folder.tree-paths`、`neoview.folder.tree-path-identity`、`neoview.folder.tree-lifecycle`、`neoview.folder.tree-navigation-race`、`neoview.folder.tree-generation`、`neoview.folder.tree-layout-e2e`
+  - 备注：GUI 已使用二级 lazy 的固定行高 Virtuoso Tree，作为独立 companion pane 与当前目录单层 list/grid/details 同时存在；Tree 焦点不进入列表 selection，导航才更新当前目录 catalog。支持当前路径祖先自动展开、完整 ARIA tree 键盘模型、节点展开/折叠、活动路径同步、加载占位、逐节点错误重试，Ctrl+F 只替换文件内容区且保留 Tree；请求随路径/session/root 取消，前端 pages/errors/expanded/并发请求有界并按 backend generation 重基。后端 ReaderFileTreeIndex 使用 512 项、5 分钟 TTL 的 lru-cache，规范 key 不改写 provider 路径。仍待 all-drive roots、右键菜单、节点 pin 和 watcher 实时呈现，因此保持 partial。
 - [ ] `folder.tree.layout-pin` 文件树位置、尺寸与 pin
   - 目标：文件树支持 left/right/top/bottom、尺寸拖动、固定/自动收起；状态持久化且与 Reader 侧栏 pin 语义协调。
   - 源码：`components/FolderTree.svelte`、`components/FolderToolbar/TreePanel.svelte`
-  - 测试：待补
-  - 备注：用户明确要求迁移 pin。
+  - 测试：`neoview.folder.tree-layout`、`neoview.folder.tree-layout-e2e`
+  - 备注：外置 Tree 已支持 left/right/top/bottom、100..500px 指针/键盘 resize、pointermove 零写盘与 pointerup 单次 PATCH，并持久化到 [nodes.neoview.folder.tree_view]；旧默认 false/left/200 保持不变。节点 pin/取消 pin 与自动收起契约仍待迁移，因此保持 partial。
 - [ ] `folder.tree.inline` 主视图内联树
   - 目标：内联树作为虚拟化数据源模式，支持层级缩进、展开、选择、预览和键盘导航。
   - 源码：`components/InlineTreeList.svelte`、`components/FolderToolbar/FolderToolbar.svelte`
