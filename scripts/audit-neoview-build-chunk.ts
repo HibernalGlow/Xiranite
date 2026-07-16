@@ -50,11 +50,12 @@ if (!deferredPanelChunks.some((chunk) => chunk.modules.some((module) => /[/\\]fe
 for (const chunk of deferredPanelChunks) {
   if (chunk.bytes > 32 * 1024) throw new Error(`NeoView deferred panel chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 32 KiB.`)
 }
-// [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk]
+// [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk] [neoview.shared-entry.chunk]
 const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
 const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
 const thumbnailSurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]thumbnails[/\\]ReaderThumbnailSurface\.tsx$/i.test(module)))
+const entrySurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]shared[/\\]ReaderEntrySurface\.tsx$/i.test(module)))
 if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
   throw new Error("NeoView BookmarkListCard did not produce an independent deferred production chunk.")
 }
@@ -67,6 +68,9 @@ if (!pageNavigationChunk || pageNavigationChunk === readerSidebarChunk) {
 if (!thumbnailSurfaceChunk || thumbnailSurfaceChunk === neoViewChunk || thumbnailSurfaceChunk === readerSidebarChunk || thumbnailSurfaceChunk === initialChunk) {
   throw new Error("NeoView shared thumbnail surface leaked into an eager reader/sidebar/initial chunk.")
 }
+if (!entrySurfaceChunk || entrySurfaceChunk === neoViewChunk || entrySurfaceChunk === readerSidebarChunk || entrySurfaceChunk === initialChunk) {
+  throw new Error("NeoView shared entry surface leaked into an eager reader/sidebar/initial chunk.")
+}
 if (bookmarkListChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView BookmarkListCard chunk ${bookmarkListChunk.fileName} is ${bookmarkListChunk.bytes} bytes, above 16 KiB.`)
 }
@@ -78,6 +82,9 @@ if (pageNavigationChunk.bytes > 16 * 1024) {
 }
 if (thumbnailSurfaceChunk.bytes > 4 * 1024) {
   throw new Error(`NeoView shared thumbnail surface chunk ${thumbnailSurfaceChunk.fileName} is ${thumbnailSurfaceChunk.bytes} bytes, above 4 KiB.`)
+}
+if (entrySurfaceChunk.bytes > 4 * 1024) {
+  throw new Error(`NeoView shared entry surface chunk ${entrySurfaceChunk.fileName} is ${entrySurfaceChunk.bytes} bytes, above 4 KiB.`)
 }
 const timeInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]TimeInformationCard\.tsx$/i.test(module)))
 if (!timeInformationChunk || timeInformationChunk === readerSidebarChunk) {
@@ -196,6 +203,7 @@ console.log(JSON.stringify({
   bookmarkListChunk: { fileName: bookmarkListChunk.fileName, bytes: bookmarkListChunk.bytes },
   pageNavigationChunk: { fileName: pageNavigationChunk.fileName, bytes: pageNavigationChunk.bytes },
   thumbnailSurfaceChunk: { fileName: thumbnailSurfaceChunk.fileName, bytes: thumbnailSurfaceChunk.bytes },
+  entrySurfaceChunk: { fileName: entrySurfaceChunk.fileName, bytes: entrySurfaceChunk.bytes },
   timeInformationChunk: { fileName: timeInformationChunk.fileName, bytes: timeInformationChunk.bytes },
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
   storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },

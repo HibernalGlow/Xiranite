@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
 import type { ReaderBookmarkDto, ReaderBookmarkListDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
 import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
+import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
 
@@ -353,32 +353,34 @@ function BookmarkRow({
   }
 
   return (
-    <div className={cn("flex h-full min-w-0 items-center gap-1 px-1 hover:bg-muted/70", selected && "bg-primary/10")} data-bookmark-id={item.id} data-selected={selected}>
-      <Checkbox checked={selected} aria-label={`选择书签：${item.name}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} />
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-        title={item.source.path}
-        aria-pressed={selected}
-        disabled={disabled}
-        data-bookmark-row-button={index}
-        onClick={(event) => onSelect(item, index, event)}
-        onDoubleClick={canOpen ? onOpen : undefined}
-        onKeyDown={handleKeyDown}
-      >
-        <ReaderThumbnailSurface url={thumbnailUrl} kind={item.kind} fit="cover" loading={thumbnailLoading} className="size-16" />
-        <span className="grid min-w-0 flex-1 gap-1">
-          <span className="block truncate text-xs">{item.name}</span>
-          <span className="block truncate text-[10px] text-muted-foreground" title={item.source.path}>{item.source.path}</span>
-          <span className="block truncate text-[10px] text-muted-foreground">{item.kind === "folder" ? "文件夹" : "文件"} · {formatLibraryTime(item.createdAt)}</span>
+    <ReaderEntrySurface
+      variant="content"
+      selected={selected}
+      data-bookmark-id={item.id}
+      leading={<Checkbox checked={selected} aria-label={`选择书签：${item.name}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} />}
+      media={<ReaderThumbnailSurface url={thumbnailUrl} kind={item.kind} fit="cover" loading={thumbnailLoading} className="size-16" />}
+      primary={item.name}
+      secondary={<span title={item.source.path}>{item.source.path}</span>}
+      tertiary={`${item.kind === "folder" ? "文件夹" : "文件"} · ${formatLibraryTime(item.createdAt)}`}
+      buttonProps={{
+        title: item.source.path,
+        "aria-pressed": selected,
+        disabled,
+        "data-bookmark-row-button": index,
+        onClick: (event) => onSelect(item, index, event),
+        onDoubleClick: canOpen ? onOpen : undefined,
+        onKeyDown: handleKeyDown,
+      }}
+      trailing={(
+        <span className="flex shrink-0 items-center">
+          <Button type="button" size="icon-sm" variant="ghost" aria-label={`打开书签：${item.name}`} title="打开" disabled={disabled || !canOpen} onClick={onOpen}><FolderOpen /></Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label={`${item.starred ? "取消收藏" : "收藏"}：${item.name}`} title={item.starred ? "取消收藏" : "收藏"} disabled={disabled} onClick={onToggleStar}>
+            <Star className={item.starred ? "fill-current text-amber-500" : undefined} />
+          </Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label={`删除书签：${item.name}`} title="删除书签" disabled={disabled} onClick={onRemove}><Trash2 /></Button>
         </span>
-      </button>
-      <Button type="button" size="icon-sm" variant="ghost" aria-label={`打开书签：${item.name}`} title="打开" disabled={disabled || !canOpen} onClick={onOpen}><FolderOpen /></Button>
-      <Button type="button" size="icon-sm" variant="ghost" aria-label={`${item.starred ? "取消收藏" : "收藏"}：${item.name}`} title={item.starred ? "取消收藏" : "收藏"} disabled={disabled} onClick={onToggleStar}>
-        <Star className={item.starred ? "fill-current text-amber-500" : undefined} />
-      </Button>
-      <Button type="button" size="icon-sm" variant="ghost" aria-label={`删除书签：${item.name}`} title="删除书签" disabled={disabled} onClick={onRemove}><Trash2 /></Button>
-    </div>
+      )}
+    />
   )
 }
 

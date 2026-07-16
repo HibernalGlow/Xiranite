@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
-import PageNavigationCard, { PageThumbnail } from "./PageNavigationCard"
+import PageNavigationCard, { PageRow, PageThumbnail, ThumbnailRow } from "./PageNavigationCard"
 
 afterEach(cleanup)
 
@@ -70,6 +70,21 @@ describe("PageNavigationCard", () => {
     const view = render(<PageThumbnail page={page(0)} className="h-16 w-12" />)
     expect(view.container.querySelector("img")?.className).toContain("object-contain")
     expect(view.container.querySelector('[data-reader-thumbnail-surface="true"]')?.getAttribute("data-thumbnail-fit")).toBe("contain")
+  })
+
+  it("[neoview.page-list.shared-renderer] reuses Folder entry frames without changing page thumbnail geometry", () => {
+    const view = render(<PageRow start={0} size={76} position={0} page={page(0)} activePageIndex={0} details disabled={false} onGoTo={vi.fn()} />)
+    const details = view.container.querySelector<HTMLElement>('[data-reader-entry-surface="true"]')!
+    expect(details.dataset.entryVariant).toBe("content")
+    expect(details.querySelector('[data-reader-thumbnail-surface="true"]')?.className).toContain("h-16")
+    expect(details.querySelector('[data-reader-thumbnail-surface="true"]')?.className).toContain("w-12")
+
+    view.rerender(<ThumbnailRow start={0} rowIndex={0} pages={new Map([[0, page(0)]])} activePageIndex={0} disabled={false} onGoTo={vi.fn()} />)
+    const tile = view.container.querySelector<HTMLElement>('[data-page-thumbnail-tile]')!
+    expect(tile.dataset.entryVariant).toBe("thumbnail")
+    expect(tile.className).toContain("h-auto")
+    expect(tile.querySelector('[data-reader-thumbnail-surface="true"]')?.className).toContain("aspect-[3/4]")
+    expect(tile.querySelector('[data-reader-thumbnail-surface="true"]')?.getAttribute("data-thumbnail-fit")).toBe("contain")
   })
 
   it("[neoview.page-list.retry] exposes a bounded retry instead of leaving a failed catalog in loading state", async () => {

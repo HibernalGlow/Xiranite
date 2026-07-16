@@ -3178,8 +3178,8 @@
 - [ ] `bookmark.shared-renderer` 复用文件浏览器条目视觉契约
   - 目标：Bookmark rows use a shared folder-entry visual primitive for compact/rich list and thumbnail surfaces instead of a divergent icon-only list.
   - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`
-  - 备注：The React Card now uses the shared thumbnail surface and a 76px folder-style title/path/type row; shared selection and alternate folder renderers remain pending.
+  - 测试：`neoview.shared-entry.variants`、`neoview.shared-entry.interaction`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：The default Bookmark content row now uses the shared React Folder entry surface with the authenticated visible-window thumbnail leaf. Bookmark-specific compact/banner/thumbnail switching and migration of Folder's local renderers to the primitive remain pending.
 - [ ] `bookmark.thumbnails` 显示可见书签缩略图
   - 目标：Only the virtual visible bookmark window registers authenticated file/folder thumbnails; stale batches cancel and contexts release on list change or unmount.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
@@ -3238,8 +3238,8 @@
 - [x] `bookmark.shell` 保持共享 Card shell 行为
   - 目标：Bookmark remains independently lazy, hideable, collapsible, movable, resizable and window-capable.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.shell.registry-lazy`、`neoview.bookmark.chunk`、`neoview.bookmark.thumbnail-e2e`
-  - 备注：The shared shell and independent 12,535-byte deferred production chunk are gated in desktop and constrained Card flows.
+  - 测试：`neoview.shell.registry-lazy`、`neoview.bookmark.chunk`、`neoview.shared-entry.chunk`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：The shared shell and independent 11,399-byte Bookmark plus 1,969-byte entry-surface deferred production chunks are gated in desktop and constrained Card flows.
 - [ ] `bookmark.accessibility` 键盘选择、命名动作与焦点恢复
   - 目标：List tabs, rows, selection, menus and destructive confirmations are keyboard/touch operable with stable accessible names.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
@@ -3263,8 +3263,8 @@
 - [x] `bookmark.deviations` 记录共享后端与视觉 primitive 扩展
   - 目标：Document authenticated thumbnail batching and the shared React entry visual as XR implementations of the legacy FileListPanel reuse contract.
   - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.batch-contract`、`neoview.bookmark.thumbnail-e2e`
-  - 备注：Authenticated visible-window thumbnails, stable ID selection and bounded batch routes replace the legacy in-process store wiring without removing bookmark fields or creating a second business store.
+  - 测试：`neoview.shared-entry.variants`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.batch-contract`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：Authenticated visible-window thumbnails, stable ID selection, bounded batch routes and the shared slot-based entry surface replace the legacy in-process FileListPanel wiring without removing bookmark fields or creating a second business store.
 
 ### Panel: `pageList`（1）
 

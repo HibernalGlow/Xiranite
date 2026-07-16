@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 
 const BATCH_SIZE = 64
 const THUMB_COLUMNS = 3
@@ -201,6 +202,7 @@ function PageListCard({
                 key={virtualItem.key}
                 start={virtualItem.start}
                 rowIndex={virtualItem.index}
+                measureElement={virtualizer.measureElement}
                 pages={pages}
                 activePageIndex={activePageIndex}
                 disabled={disabled}
@@ -254,7 +256,7 @@ function PageListCard({
   )
 }
 
-function PageRow({ start, size, position, page, activePageIndex, details, disabled, onGoTo }: {
+export function PageRow({ start, size, position, page, activePageIndex, details, disabled, onGoTo }: {
   start: number
   size: number
   position: number
@@ -266,59 +268,68 @@ function PageRow({ start, size, position, page, activePageIndex, details, disabl
 }) {
   const active = page?.index === activePageIndex
   return (
-    <button
-      type="button"
+    <ReaderEntrySurface
+      variant={details ? "content" : "compact"}
+      current={active}
       data-page-index={page?.index}
-      aria-current={active ? "page" : undefined}
-      aria-label={page ? `转到第 ${page.index + 1} 页：${page.name}` : `正在加载第 ${position + 1} 项`}
-      className={cn(
-        "absolute left-0 flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent disabled:opacity-50",
-        active && "text-primary",
-      )}
-      aria-selected={active}
+      className={cn("absolute left-0", active && "text-primary")}
       style={{ height: size, transform: `translateY(${start}px)` }}
-      disabled={disabled || !page}
-      onClick={() => { if (page) void onGoTo(page.index) }}
-    >
-      {details ? <PageThumbnail page={page} className="h-16 w-12" /> : null}
-      <PageIdentity page={page} position={position} active={active} />
-    </button>
+      media={details ? <PageThumbnail page={page} className="h-16 w-12" /> : undefined}
+      primary={<PageIdentity page={page} position={position} active={active} />}
+      buttonProps={{
+        "aria-current": active ? "page" : undefined,
+        "aria-label": page ? `转到第 ${page.index + 1} 页：${page.name}` : `正在加载第 ${position + 1} 项`,
+        disabled: disabled || !page,
+        onClick: () => { if (page) void onGoTo(page.index) },
+      }}
+    />
   )
 }
 
-function ThumbnailRow({ start, rowIndex, pages, activePageIndex, disabled, onGoTo }: {
+export function ThumbnailRow({ start, rowIndex, measureElement, pages, activePageIndex, disabled, onGoTo }: {
   start: number
   rowIndex: number
+  measureElement?: (element: HTMLDivElement | null) => void
   pages: ReadonlyMap<number, ReaderPageDto>
   activePageIndex: number
   disabled: boolean
   onGoTo(pageIndex: number): void | Promise<void>
 }) {
   return (
-    <div className="absolute left-0 grid h-[148px] w-full grid-cols-3 gap-1 p-1" data-page-thumbnail-grid-row={rowIndex} style={{ transform: `translateY(${start}px)` }}>
+    <div
+      ref={measureElement}
+      className="absolute left-0 grid w-full grid-cols-3 gap-1 p-1"
+      data-index={rowIndex}
+      data-page-thumbnail-grid-row={rowIndex}
+      style={{ transform: `translateY(${start}px)` }}
+    >
       {Array.from({ length: THUMB_COLUMNS }, (_, column) => {
         const position = rowIndex * THUMB_COLUMNS + column
         const page = pages.get(position)
         if (!page) return <div key={position} className="rounded bg-muted/35" aria-hidden="true" />
         const active = page.index === activePageIndex
         return (
-          <button
+          <ReaderEntrySurface
             key={page.id}
-            type="button"
+            variant="thumbnail"
+            current={active}
+            className="h-auto"
             data-page-thumbnail-tile={page.index}
-            aria-label={`转到第 ${page.index + 1} 页：${page.name}`}
-            aria-current={active ? "page" : undefined}
-            className={cn("grid h-36 min-w-0 grid-rows-[1fr_auto] overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted", active ? "border-primary bg-accent ring-1 ring-primary" : "border-border")}
-            disabled={disabled}
-            onClick={() => void onGoTo(page.index)}
-          >
-            <PageThumbnail page={page} className="h-full w-full" />
-            <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
-              <span className="shrink-0 font-mono text-[10px] font-semibold text-primary">#{page.index + 1}</span>
-              <span className="min-w-0 flex-1 truncate">{page.name}</span>
-              {active ? <span className="shrink-0 rounded bg-primary/15 px-1 text-[9px] text-primary">当前</span> : null}
-            </span>
-          </button>
+            media={<PageThumbnail page={page} className="aspect-[3/4] w-full" />}
+            primary={(
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="shrink-0 font-mono text-[10px] font-semibold text-primary">#{page.index + 1}</span>
+                <span className="min-w-0 flex-1 truncate">{page.name}</span>
+                {active ? <span className="shrink-0 rounded bg-primary/15 px-1 text-[9px] text-primary">当前</span> : null}
+              </span>
+            )}
+            buttonProps={{
+              "aria-label": `转到第 ${page.index + 1} 页：${page.name}`,
+              "aria-current": active ? "page" : undefined,
+              disabled,
+              onClick: () => void onGoTo(page.index),
+            }}
+          />
         )
       })}
     </div>

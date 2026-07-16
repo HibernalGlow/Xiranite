@@ -156,6 +156,7 @@ describe("Reader library cards", () => {
       expect.any(AbortSignal),
     ))
     await waitFor(() => expect(view.container.querySelector("img")?.getAttribute("src")).toBe("/reader/library/bookmark-1"))
+    expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("content")
     expect(screen.getByText("D:/books/demo.cbz")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "收藏：demo.cbz" }))
     await waitFor(() => expect(updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: true }))
