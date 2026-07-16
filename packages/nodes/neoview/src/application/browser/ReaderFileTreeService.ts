@@ -34,6 +34,12 @@ import {
   type ReaderFileTreeSearchHandle,
   type ReaderFileTreeSearchOptions,
 } from "./ReaderFileTreeSearch.js"
+import {
+  ReaderFileTreeIndex,
+  type ReaderFileTreeExclusionCommand,
+  type ReaderFileTreeIndexOptions,
+  type ReaderFileTreeNodePage,
+} from "./ReaderFileTreeIndex.js"
 
 export type ReaderDirectoryNavigation =
   | { action: "path"; path: string }
@@ -68,7 +74,7 @@ export interface ReaderDirectoryPage {
   watchError?: string
 }
 
-export interface ReaderFileTreeServiceOptions {
+export interface ReaderFileTreeServiceOptions extends ReaderFileTreeIndexOptions {
   scanner?: ReaderFileTreeScanner
   watcher?: ReaderFileTreeWatcher
 }
@@ -98,6 +104,7 @@ interface BrowserSession {
 
 export class ReaderFileTreeService implements AsyncDisposable {
   readonly #sessions = new Map<string, BrowserSession>()
+  readonly #tree: ReaderFileTreeIndex
   #nextSessionId = 1
   #closed = false
 
@@ -106,7 +113,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
     private readonly metadataProvider?: ReaderDirectoryMetadataProvider,
     private readonly sortPreferences = new CoreReaderDirectorySortPreferences(),
     private readonly options: ReaderFileTreeServiceOptions = {},
-  ) {}
+  ) {
+    this.#tree = new ReaderFileTreeIndex(provider, options)
+  }
 
   async open(
     path: string,
@@ -328,7 +337,13 @@ export class ReaderFileTreeService implements AsyncDisposable {
         id: session.id,
         rootPath: session.listing.path,
         generation: session.generation,
-      }, query, options, controller.signal)[Symbol.asyncIterator]()
+      }, query, {
+        ...options,
+        excludePatterns: [
+          ...this.#tree.exclusionPatterns(session.listing.path),
+          ...(options?.excludePatterns ?? []),
+        ],
+      }, controller.signal)[Symbol.asyncIterator]()
     } catch (error) {
       unlinkAbort()
       throw error
@@ -353,6 +368,34 @@ export class ReaderFileTreeService implements AsyncDisposable {
     }
     session.searches.add(handle)
     return handle
+  }
+
+  async tree(
+    sessionId: string,
+    path?: string,
+    refresh = false,
+    signal?: AbortSignal,
+  ): Promise<(ReaderFileTreeNodePage & { sessionId: string }) | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    const page = await this.#tree.read(path?.trim() || session.listing.path, refresh, signal)
+    return { sessionId, ...page }
+  }
+
+  async updateTreeExclusion(
+    sessionId: string,
+    command: ReaderFileTreeExclusionCommand,
+    signal?: AbortSignal,
+  ): Promise<{ generation: number; excludedPaths: readonly string[] } | undefined> {
+    if (!this.#sessions.has(sessionId)) return undefined
+    const excludedPaths = await this.#tree.updateExclusion(command, signal)
+    return { generation: this.#tree.snapshot().generation, excludedPaths }
+  }
+
+  clearTreeCache(sessionId: string, path?: string): { generation: number; size: number; excludedPaths: readonly string[] } | undefined {
+    if (!this.#sessions.has(sessionId)) return undefined
+    this.#tree.clear(path)
+    return this.#tree.snapshot()
   }
 
   async close(sessionId: string): Promise<boolean> {
@@ -445,6 +488,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
 
   #recordWatcherChanges(session: BrowserSession, changes: readonly ReaderFileTreeChange[]): void {
     if (this.#sessions.get(session.id) !== session) return
+    for (const change of changes) this.#tree.invalidate(change.path)
     if (!changes.some((change) => affectsCurrentDirectory(session.listing.path, change.path))) return
     session.watchRevision += 1
   }

@@ -14,6 +14,12 @@ export {
   type ReaderFileTreeServiceOptions,
 } from "./application/browser/ReaderFileTreeService.js"
 export {
+  ReaderFileTreeIndex,
+  type ReaderFileTreeExclusionCommand,
+  type ReaderFileTreeIndexOptions,
+  type ReaderFileTreeNodePage,
+} from "./application/browser/ReaderFileTreeIndex.js"
+export {
   searchReaderFileTree,
   type ReaderFileTreeSearchEvent,
   type ReaderFileTreeSearchHandle,

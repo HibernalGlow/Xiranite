@@ -13,6 +13,58 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.tree-http] lazily expands cached nodes and applies persisted exclusions to tree and search", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-tree-"))
+    directories.push(directory)
+    const privatePath = join(directory, "private")
+    await mkdir(join(privatePath, "nested"), { recursive: true })
+    await mkdir(join(directory, "visible"), { recursive: true })
+    await writeFile(join(privatePath, "nested", "hidden.cbz"), "hidden")
+    await writeFile(join(directory, "visible", "shown.cbz"), "shown")
+    const persist = vi.fn(async (paths: readonly string[]) => paths)
+    const route = new ReaderDirectoryBrowserRoute(undefined, undefined, undefined, {
+      updateExcludedPaths: persist,
+    })
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const session = await opened.json() as { sessionId: string }
+      const treeUrl = `http://localhost/reader/browser/s/${session.sessionId}/tree`
+      await expect((await route.handle(new Request(treeUrl)))!.json()).resolves.toMatchObject({
+        cacheHit: false,
+        entries: [{ name: "private" }, { name: "visible" }],
+      })
+      await expect((await route.handle(new Request(treeUrl)))!.json()).resolves.toMatchObject({ cacheHit: true })
+
+      const excluded = (await route.handle(new Request(`${treeUrl}/exclusions`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "exclude", path: privatePath }),
+      })))!
+      expect(excluded.status).toBe(200)
+      expect(persist).toHaveBeenCalledWith([privatePath])
+      await expect((await route.handle(new Request(treeUrl)))!.json()).resolves.toMatchObject({
+        cacheHit: false,
+        entries: [{ name: "visible" }],
+      })
+
+      const search = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?q=cbz`,
+      )))!
+      const events = await readNdjson(search)
+      expect(JSON.stringify(events)).toContain("shown.cbz")
+      expect(JSON.stringify(events)).not.toContain("hidden.cbz")
+
+      const cleared = (await route.handle(new Request(`${treeUrl}/cache`, { method: "DELETE" })))!
+      await expect(cleared.json()).resolves.toMatchObject({ size: 0, excludedPaths: [privatePath] })
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.search-http] streams glob results as backpressured NDJSON and prunes excluded directories", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-"))
     directories.push(directory)

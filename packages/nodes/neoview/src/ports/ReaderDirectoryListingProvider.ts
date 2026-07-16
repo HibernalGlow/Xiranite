@@ -22,5 +22,6 @@ export interface ReaderDirectoryListing {
 }
 
 export interface ReaderDirectoryListingProvider {
+  canonicalize?(path: string, signal?: AbortSignal): Promise<string>
   read(path: string, signal?: AbortSignal): Promise<ReaderDirectoryListing>
 }

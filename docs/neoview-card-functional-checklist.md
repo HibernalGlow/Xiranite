@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=34`，`pending=40`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=35`，`pending=39`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -708,8 +708,8 @@
 - [ ] `folder.tree.panel` 文件树面板与展开/折叠
   - 目标：树节点按需加载、展开/折叠、选中同步、加载占位、错误重试和缓存失效完整迁移。
   - 源码：`components/FolderTree.svelte`、`utils/directoryTreeCache.ts`
-  - 测试：待补
-  - 备注：不得预加载整棵磁盘树。
+  - 测试：`neoview.folder.tree-lazy`、`neoview.folder.tree-http`
+  - 备注：后端 ReaderFileTreeIndex 已按显式 path 单节点读取，并使用 512 项、5 分钟 TTL 的 lru-cache 和 refresh/cache-clear/invalidation 契约；GUI 展开/折叠、选中同步、占位与重试仍待迁移。
 - [ ] `folder.tree.layout-pin` 文件树位置、尺寸与 pin
   - 目标：文件树支持 left/right/top/bottom、尺寸拖动、固定/自动收起；状态持久化且与 Reader 侧栏 pin 语义协调。
   - 源码：`components/FolderTree.svelte`、`components/FolderToolbar/TreePanel.svelte`
@@ -723,8 +723,8 @@
 - [ ] `folder.tree.cache` 树缓存清理与排除目录
   - 目标：支持清理树缓存、排除目录、取消排除和重新加载；排除规则持久化并应用于扫描/搜索/树。
   - 源码：`utils/directoryTreeCache.ts`、`components/FolderToolbar/CleanupOptionsDialog.svelte`
-  - 测试：`neoview.file-tree.ignore`、`neoview.folder.search-http`
-  - 备注：扫描/搜索已复用 ignore 的 gitignore 语义并在遍历前剪枝；排除项持久化、清理缓存、取消排除和树 UI 尚未完成。
+  - 测试：`neoview.file-tree.ignore`、`neoview.folder.search-http`、`neoview.folder.tree-lazy`、`neoview.folder.tree-exclusions`、`neoview.folder.tree-http`、`neoview.folder.tree-config`
+  - 备注：树节点缓存复用 lru-cache；清理、刷新和 watcher 失效共用一个 generation。排除目录经 realpath/stat 规范化后原子写入 [nodes.neoview.folder.tree].excluded_paths，并同时剪枝树与 readdirp 搜索；GUI/CLI/TUI 命令呈现尚未完成。
 
 ### virtual-sources（2）
 

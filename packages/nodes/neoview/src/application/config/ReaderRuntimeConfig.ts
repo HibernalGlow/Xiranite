@@ -12,8 +12,13 @@ export interface NeoviewRuntimeConfig {
   shellOptions: NeoviewShellConfig
   viewDefaults: NeoviewViewDefaults
   folderView: NeoviewFolderViewConfig
+  fileTree: NeoviewFileTreeConfig
   slideshow: NeoviewSlideshowConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
+}
+
+export interface NeoviewFileTreeConfig {
+  excludedPaths: string[]
 }
 
 export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
@@ -178,6 +183,10 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   },
 }
 
+export const DEFAULT_NEOVIEW_FILE_TREE_CONFIG: NeoviewFileTreeConfig = {
+  excludedPaths: [],
+}
+
 export const DEFAULT_NEOVIEW_SLIDESHOW_CONFIG: NeoviewSlideshowConfig = {
   intervalSeconds: 5,
   loop: false,
@@ -229,6 +238,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
     viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
     folderView: DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
+    fileTree: DEFAULT_NEOVIEW_FILE_TREE_CONFIG,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
   }
@@ -277,9 +287,27 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     shellOptions: parseShellOptions(panels),
     viewDefaults: { fitMode, pageMode },
     folderView: parseFolderViewConfig(folder),
+    fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
   }
+}
+
+function parseFileTreeConfig(value: Record<string, unknown> | undefined): NeoviewFileTreeConfig {
+  if (!value) return DEFAULT_NEOVIEW_FILE_TREE_CONFIG
+  const rawPaths = value.excluded_paths ?? []
+  if (!Array.isArray(rawPaths) || rawPaths.length > 256) {
+    throw new Error("[nodes.neoview.folder.tree].excluded_paths must be an array with at most 256 paths.")
+  }
+  const excludedPaths: string[] = []
+  for (const rawPath of rawPaths) {
+    if (typeof rawPath !== "string" || !rawPath.trim() || rawPath.length > 32_767 || rawPath.includes("\0")) {
+      throw new Error("[nodes.neoview.folder.tree].excluded_paths must contain non-empty paths without NUL.")
+    }
+    const path = rawPath.trim()
+    if (!excludedPaths.includes(path)) excludedPaths.push(path)
+  }
+  return { excludedPaths }
 }
 
 export function parseNeoviewFolderViewPatch(value: unknown): {

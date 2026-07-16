@@ -179,9 +179,12 @@ describe("ReaderFileTreeService", () => {
     })
     const opened = await browser.open("/library", undefined, "folder-main", new Set(), undefined, true)
     expect(opened).toMatchObject({ generation: 1, total: 1, watching: true })
+    expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: false })
+    expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: true })
 
     names = ["a.cbz", "b.cbz"]
     onChanges?.([{ path: "/library/b.cbz", kind: "create" }])
+    expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: false })
     const refreshed = await browser.list(opened.sessionId)
     expect(refreshed).toMatchObject({ generation: 2, total: 2, watching: true })
     expect(refreshed?.entries.map((entry) => entry.name)).toEqual(["a.cbz", "b.cbz"])

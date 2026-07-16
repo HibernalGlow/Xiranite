@@ -181,6 +181,15 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnWidths: { future: 200 } } } })).toThrow("unknown column")
   })
 
+  it("[neoview.folder.tree-config] keeps persistent exclusions in the node TOML contract", () => {
+    expect(parseNeoviewRuntimeConfig({
+      folder: { tree: { excluded_paths: ["D:/Library/private", "D:/Library/archive"] } },
+    }).fileTree).toEqual({ excludedPaths: ["D:/Library/private", "D:/Library/archive"] })
+    expect(() => parseNeoviewRuntimeConfig({
+      folder: { tree: { excluded_paths: Array(257).fill("D:/Library/private") } },
+    })).toThrow("at most 256")
+  })
+
   it("[neoview.settings.shell] normalizes legacy panel settings into bounded shell options", () => {
     const { shellOptions } = parseNeoviewRuntimeConfig({
       panels: {

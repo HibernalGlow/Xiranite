@@ -166,6 +166,7 @@ export async function createReaderHttpController(
     shellOptions: runtimeConfig.shellOptions,
     viewDefaults: runtimeConfig.viewDefaults,
     folderView: runtimeConfig.folderView,
+    fileTree: runtimeConfig.fileTree,
     slideshow: runtimeConfig.slideshow,
     presentationDiskCache,
     disposePresentationDiskCache: Boolean(presentationDiskCache && !options.presentationDiskCache),
@@ -186,6 +187,14 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).folderView
+    },
+    updateFileTreeExclusions: async (paths) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig({
+        folder: { tree: { excluded_paths: [...paths] } },
+      }, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).fileTree.excludedPaths
     },
     updateSlideshow: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")

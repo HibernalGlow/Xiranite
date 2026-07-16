@@ -51,6 +51,7 @@ import {
   type NeoviewViewDefaultsPatch,
   type NeoviewFolderViewConfig,
   type NeoviewFolderViewPatch,
+  type NeoviewFileTreeConfig,
 } from "../../application/config/ReaderRuntimeConfig.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -108,6 +109,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateViewDefaults?: (patch: NeoviewViewDefaultsPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewViewDefaults>
   folderView?: NeoviewFolderViewConfig
   updateFolderView?: (patch: NeoviewFolderViewPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewFolderViewConfig>
+  fileTree?: NeoviewFileTreeConfig
+  updateFileTreeExclusions?: (paths: readonly string[]) => Promise<readonly string[]>
   slideshow?: NeoviewSlideshowConfig
   updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
 }
@@ -199,7 +202,10 @@ export class ReaderHttpController implements AsyncDisposable {
       options.directorySortPreferenceStore,
       options.directoryEmmRecordStore,
       new PlatformDirectoryMediaMetadataProvider(bookLoader, imageMetadataProbe),
-      undefined,
+      {
+        excludedPaths: options.fileTree?.excludedPaths,
+        updateExcludedPaths: options.updateFileTreeExclusions,
+      },
       options.resourceScheduler,
     )
     this.#libraryService = options.libraryService

@@ -12,6 +12,15 @@ const READER_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7", "pdf
 const MAX_DIRECTORY_ENTRIES = 100_000
 
 export class PlatformDirectoryListingProvider implements ReaderDirectoryListingProvider {
+  async canonicalize(path: string, signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
+    const canonicalPath = await realpath(path)
+    const sourceStats = await stat(canonicalPath)
+    signal?.throwIfAborted()
+    if (!sourceStats.isDirectory()) throw new Error(`Reader browser path is not a directory: ${path}`)
+    return canonicalPath
+  }
+
   async read(path: string, signal?: AbortSignal): Promise<ReaderDirectoryListing> {
     signal?.throwIfAborted()
     const canonicalPath = await realpath(path)

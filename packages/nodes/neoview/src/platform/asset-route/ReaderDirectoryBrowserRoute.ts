@@ -29,6 +29,9 @@ import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
+const BROWSER_TREE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree$/
+const BROWSER_TREE_CACHE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/cache$/
+const BROWSER_TREE_EXCLUSIONS_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/exclusions$/
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
 const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
@@ -53,6 +56,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       new PlatformDirectoryMetadataProvider(emmRecordStore, undefined, undefined, mediaMetadataProvider),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
       {
+        ...fileTreeOptions,
         scanner: fileTreeOptions.scanner ?? new PlatformFileTreeScanner(resourceScheduler),
         watcher: fileTreeOptions.watcher ?? new PlatformFileTreeWatcher(),
       },
@@ -67,6 +71,12 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (entriesMatch && request.method === "GET") return this.#list(entriesMatch[1]!, url, request.signal)
     const searchMatch = BROWSER_SEARCH_PATH.exec(url.pathname)
     if (searchMatch && request.method === "GET") return this.#search(searchMatch[1]!, url, request)
+    const treeCacheMatch = BROWSER_TREE_CACHE_PATH.exec(url.pathname)
+    if (treeCacheMatch && request.method === "DELETE") return this.#clearTreeCache(treeCacheMatch[1]!, url)
+    const treeExclusionsMatch = BROWSER_TREE_EXCLUSIONS_PATH.exec(url.pathname)
+    if (treeExclusionsMatch && request.method === "PATCH") return this.#updateTreeExclusion(treeExclusionsMatch[1]!, request)
+    const treeMatch = BROWSER_TREE_PATH.exec(url.pathname)
+    if (treeMatch && request.method === "GET") return this.#tree(treeMatch[1]!, url, request.signal)
     const navigateMatch = BROWSER_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const sortPreferencesMatch = BROWSER_SORT_PREFERENCES_PATH.exec(url.pathname)
@@ -131,6 +141,48 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       return ndjsonResponse(search, request.signal)
     } catch (error) {
       return errorResponse(errorMessage(error), errorMessage(error).includes("session not found") ? 404 : 400)
+    }
+  }
+
+  async #tree(encodedSessionId: string, url: URL, signal: AbortSignal): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const refresh = url.searchParams.get("refresh")
+    if (refresh !== null && refresh !== "0" && refresh !== "1") return errorResponse("refresh must be 0 or 1", 400)
+    try {
+      const result = await this.#browser.tree(sessionId, url.searchParams.get("path") ?? undefined, refresh === "1", signal)
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  #clearTreeCache(encodedSessionId: string, url: URL): Response {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    try {
+      const result = this.#browser.clearTreeCache(sessionId, url.searchParams.get("path") ?? undefined)
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #updateTreeExclusion(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const body = await request.json().catch(() => undefined) as { action?: unknown; path?: unknown } | undefined
+    if ((body?.action !== "exclude" && body?.action !== "include") || typeof body.path !== "string" || !body.path.trim()) {
+      return errorResponse("Tree exclusion requires action=exclude|include and a non-empty path", 400)
+    }
+    try {
+      const result = await this.#browser.updateTreeExclusion(sessionId, { action: body.action, path: body.path }, request.signal)
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      const message = errorMessage(error)
+      return errorResponse(message, message.includes("read-only") ? 405 : 400)
     }
   }
 

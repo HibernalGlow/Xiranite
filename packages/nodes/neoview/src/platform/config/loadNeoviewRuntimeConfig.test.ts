@@ -238,6 +238,25 @@ describe("loadNeoviewSessionOptions", () => {
       }))
       expect(await cardPatched?.json()).toMatchObject({ shell: { cardLayout: { "page-navigation": { expanded: false } } } })
       expect(await readFile(configPath, "utf8")).toContain("expanded = false")
+
+      const privatePath = join(root, "private")
+      await mkdir(privatePath)
+      const browserOpened = await controller.handle(new Request("http://127.0.0.1:43125/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ path: root }),
+      }))
+      const browser = await browserOpened?.json() as { sessionId: string }
+      const exclusionPatched = await controller.handle(new Request(`http://127.0.0.1:43125/reader/browser/s/${browser.sessionId}/tree/exclusions`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ action: "exclude", path: privatePath }),
+      }))
+      expect(await exclusionPatched?.json()).toMatchObject({ excludedPaths: [privatePath] })
+      const treeConfig = await readFile(configPath, "utf8")
+      expect(treeConfig).toContain("[nodes.neoview.folder.tree]")
+      expect(treeConfig).toContain("excluded_paths = [")
+      expect((await loadNeoviewRuntimeConfig({ configPath })).fileTree).toEqual({ excludedPaths: [privatePath] })
     } finally {
       await controller[Symbol.asyncDispose]()
     }
