@@ -39,6 +39,36 @@ describe("ReaderPreloadCoordinator", () => {
     expect(coordinator.snapshot()).toBe(reverse)
   })
 
+  it("[neoview.preload.viewport-admission] pauses unstable/scrub work and reduces a stable medium-speed continuous window", () => {
+    const pages = pageFixture(12)
+    const coordinator = new ReaderPreloadCoordinator(pages)
+    const current = frame(pages, 5, "single")
+    const unstable = coordinator.update(current, "go-to", { mode: "continuous", velocityPagesPerSecond: 2, stableForMs: 80 })
+    expect(unstable).toMatchObject({ admission: "paused", mode: "continuous", stableForMs: 80, candidates: [] })
+    const reduced = coordinator.update(current, "layout", { mode: "continuous", velocityPagesPerSecond: -2, stableForMs: 150 })
+    expect(reduced).toMatchObject({ admission: "reduced", direction: "backward", focused: true })
+    expect(reduced.candidates.map((candidate) => [candidate.tier, candidate.pageIndexes])).toEqual([
+      ["near", [4]],
+      ["ahead", [3]],
+    ])
+    const scrub = coordinator.update(current, "layout", { mode: "scrub", stableForMs: 500 })
+    expect(scrub).toMatchObject({ admission: "paused", candidates: [] })
+  })
+
+  it("[neoview.preload.viewport-validation] keeps legacy defaults and validates caller-provided viewport facts", () => {
+    const pages = pageFixture(6)
+    const coordinator = new ReaderPreloadCoordinator(pages)
+    expect(coordinator.update(frame(pages, 2, "single"), "next")).toMatchObject({
+      mode: "paged",
+      admission: "normal",
+      velocityPagesPerSecond: 0,
+      stableForMs: Number.MAX_SAFE_INTEGER,
+      focused: true,
+    })
+    expect(() => coordinator.update(frame(pages, 2, "single"), "next", { velocityPagesPerSecond: Number.NaN })).toThrow("velocityPagesPerSecond")
+    expect(() => coordinator.update(frame(pages, 2, "single"), "next", { stableForMs: -1 })).toThrow("stableForMs")
+  })
+
   it("handles empty/end frames and validates budgets", () => {
     expect(new ReaderPreloadCoordinator([]).update(frame([], 0, "single"), "initial").candidates).toEqual([])
     const pages = pageFixture(2)

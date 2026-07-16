@@ -98,6 +98,22 @@ describe("CoreReaderService", () => {
     await expect(service.openViewSource({ kind: "image", path: "x" })).rejects.toThrow("closed")
   })
 
+  it("[neoview.preload.viewport-session] updates only the preload generation and carries viewport admission into navigation", async () => {
+    const service = new CoreReaderService(async () => book(8))
+    const session = await service.openViewSource({ kind: "directory", path: "C:/book" }, { initialPage: 2 })
+    const frameGeneration = session.generation
+    const paused = session.updatePreloadContext({ mode: "continuous", velocityPagesPerSecond: 5, stableForMs: 200 })
+    expect(paused).toMatchObject({ admission: "paused", candidates: [], frameGeneration })
+    expect(session.generation).toBe(frameGeneration)
+    const next = await session.next()
+    expect(next.generation).toBe(frameGeneration + 1)
+    expect(session.preloadPlan()).toMatchObject({ admission: "paused", frameGeneration: frameGeneration + 1 })
+    const resumed = session.updatePreloadContext({ mode: "continuous", velocityPagesPerSecond: 0.5, stableForMs: 200 })
+    expect(resumed.admission).toBe("normal")
+    expect(resumed.candidates.length).toBeGreaterThan(0)
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.session.lifecycle] disposes a loaded book when cancellation wins the post-load race", async () => {
     const controller = new AbortController()
     const loaded = book(1)

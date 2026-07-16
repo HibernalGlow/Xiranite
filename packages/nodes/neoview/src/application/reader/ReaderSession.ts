@@ -3,7 +3,7 @@ import { buildFrameSnapshot } from "../../domain/frame/frame-builder.js"
 import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
-import { ReaderPreloadCoordinator, type ReaderNavigationIntent, type ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
+import { ReaderPreloadCoordinator, type ReaderNavigationIntent, type ReaderPreloadContext, type ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import { ReaderPreloadTelemetry, type ReaderPreloadReport, type ReaderPreloadReportResult, type ReaderPreloadTelemetrySnapshot } from "../preloading/PreloadTelemetry.js"
 import {
   DEFAULT_READER_SESSION_OPTIONS,
@@ -30,6 +30,7 @@ export class CoreReaderSession implements ReaderSession {
   readonly #preload: ReaderPreloadCoordinator
   readonly #preloadTelemetry = new ReaderPreloadTelemetry()
   #preloadPlan?: ReaderPreloadPlan
+  #preloadContext: ReaderPreloadContext = {}
 
   constructor(
     id: ReaderSessionId,
@@ -70,6 +71,15 @@ export class CoreReaderSession implements ReaderSession {
 
   preloadPlan(): ReaderPreloadPlan | undefined {
     return this.#preloadPlan
+  }
+
+  updatePreloadContext(context: ReaderPreloadContext): ReaderPreloadPlan {
+    this.#assertOpen()
+    const plan = this.#preload.update(this.snapshot(), "layout", context)
+    this.#preloadContext = { ...context }
+    this.#preloadPlan = plan
+    this.#preloadTelemetry.updatePlan(plan)
+    return plan
   }
 
   preloadTelemetry(): ReaderPreloadTelemetrySnapshot {
@@ -181,7 +191,7 @@ export class CoreReaderSession implements ReaderSession {
   }
 
   #refreshPreload(frame: FrameSnapshot, intent: ReaderNavigationIntent): void {
-    this.#preloadPlan = this.#preload.update(frame, intent)
+    this.#preloadPlan = this.#preload.update(frame, intent, this.#preloadContext)
     this.#preloadTelemetry.updatePlan(this.#preloadPlan)
   }
 

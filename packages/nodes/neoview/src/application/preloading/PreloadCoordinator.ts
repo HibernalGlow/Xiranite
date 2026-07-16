@@ -6,6 +6,15 @@ import type { ResourcePriority } from "../../ports/ResourceScheduler.js"
 export type ReaderNavigationIntent = "initial" | "next" | "previous" | "go-to" | "layout"
 export type ReaderPreloadDirection = "forward" | "backward"
 export type ReaderPreloadTier = "near" | "ahead" | "background"
+export type ReaderPreloadMode = "paged" | "continuous" | "scrub"
+export type ReaderPreloadAdmission = "normal" | "reduced" | "paused"
+
+export interface ReaderPreloadContext {
+  mode?: ReaderPreloadMode
+  velocityPagesPerSecond?: number
+  stableForMs?: number
+  focused?: boolean
+}
 
 export interface ReaderPreloadCandidate {
   tier: ReaderPreloadTier
@@ -20,6 +29,11 @@ export interface ReaderPreloadPlan {
   frameGeneration: number
   direction: ReaderPreloadDirection
   directionConfidence: number
+  mode: ReaderPreloadMode
+  admission: ReaderPreloadAdmission
+  velocityPagesPerSecond: number
+  stableForMs: number
+  focused: boolean
   currentPageIndexes: readonly number[]
   candidates: readonly ReaderPreloadCandidate[]
 }
@@ -48,10 +62,13 @@ export class ReaderPreloadCoordinator {
     this.#retainReverseFrame = options.retainReverseFrame ?? true
   }
 
-  update(frame: FrameSnapshot, intent: ReaderNavigationIntent): ReaderPreloadPlan {
+  update(frame: FrameSnapshot, intent: ReaderNavigationIntent, context: ReaderPreloadContext = {}): ReaderPreloadPlan {
+    const normalized = normalizeContext(context)
     const previousAnchor = this.#lastAnchorPageIndex
-    const direction = inferDirection(intent, frame.anchorPageIndex, previousAnchor, this.#direction)
-    const confidence = directionConfidence(intent, frame.anchorPageIndex, previousAnchor)
+    const inferredDirection = inferDirection(intent, frame.anchorPageIndex, previousAnchor, this.#direction)
+    const direction = viewportDirection(normalized, inferredDirection)
+    const confidence = viewportConfidence(normalized, directionConfidence(intent, frame.anchorPageIndex, previousAnchor))
+    const budget = preloadBudget(normalized, this.#nearFrames, this.#aheadFrames, this.#retainReverseFrame)
     this.#direction = direction
     this.#lastAnchorPageIndex = frame.anchorPageIndex
     this.#generation += 1
@@ -60,8 +77,13 @@ export class ReaderPreloadCoordinator {
       frameGeneration: frame.generation,
       direction,
       directionConfidence: confidence,
+      mode: normalized.mode,
+      admission: budget.admission,
+      velocityPagesPerSecond: normalized.velocityPagesPerSecond,
+      stableForMs: normalized.stableForMs,
+      focused: normalized.focused,
       currentPageIndexes: frame.pages.map((page) => page.pageIndex),
-      candidates: buildCandidates(this.pages, frame, direction, this.#nearFrames, this.#aheadFrames, this.#retainReverseFrame),
+      candidates: buildCandidates(this.pages, frame, direction, budget.nearFrames, budget.aheadFrames, budget.retainReverseFrame),
     }
     return this.#plan
   }
@@ -69,6 +91,51 @@ export class ReaderPreloadCoordinator {
   snapshot(): ReaderPreloadPlan | undefined {
     return this.#plan
   }
+}
+
+interface NormalizedPreloadContext {
+  mode: ReaderPreloadMode
+  velocityPagesPerSecond: number
+  stableForMs: number
+  focused: boolean
+}
+
+function normalizeContext(context: ReaderPreloadContext): NormalizedPreloadContext {
+  const mode = context.mode ?? "paged"
+  if (mode !== "paged" && mode !== "continuous" && mode !== "scrub") throw new TypeError(`Invalid preload mode: ${mode}`)
+  const velocityPagesPerSecond = context.velocityPagesPerSecond ?? 0
+  if (!Number.isFinite(velocityPagesPerSecond) || Math.abs(velocityPagesPerSecond) > 10_000) {
+    throw new RangeError("velocityPagesPerSecond must be finite and at most 10000 in magnitude.")
+  }
+  const stableForMs = context.stableForMs ?? Number.MAX_SAFE_INTEGER
+  if (!Number.isSafeInteger(stableForMs) || stableForMs < 0) throw new RangeError("stableForMs must be a non-negative safe integer.")
+  return { mode, velocityPagesPerSecond, stableForMs, focused: context.focused ?? true }
+}
+
+function viewportDirection(context: NormalizedPreloadContext, fallback: ReaderPreloadDirection): ReaderPreloadDirection {
+  if (context.mode !== "continuous" || Math.abs(context.velocityPagesPerSecond) < 0.05) return fallback
+  return context.velocityPagesPerSecond > 0 ? "forward" : "backward"
+}
+
+function viewportConfidence(context: NormalizedPreloadContext, fallback: number): number {
+  if (context.mode !== "continuous" || Math.abs(context.velocityPagesPerSecond) < 0.05) return fallback
+  return Math.min(1, 0.5 + Math.abs(context.velocityPagesPerSecond) / 8)
+}
+
+function preloadBudget(
+  context: NormalizedPreloadContext,
+  nearFrames: number,
+  aheadFrames: number,
+  retainReverseFrame: boolean,
+): { admission: ReaderPreloadAdmission; nearFrames: number; aheadFrames: number; retainReverseFrame: boolean } {
+  const speed = Math.abs(context.velocityPagesPerSecond)
+  if (!context.focused || context.mode === "scrub" || context.stableForMs < 120 || (context.mode === "continuous" && speed >= 4)) {
+    return { admission: "paused", nearFrames: 0, aheadFrames: 0, retainReverseFrame: false }
+  }
+  if (context.mode === "continuous" && speed >= 1.5) {
+    return { admission: "reduced", nearFrames: Math.min(nearFrames, 1), aheadFrames: Math.min(aheadFrames, 1), retainReverseFrame: false }
+  }
+  return { admission: "normal", nearFrames, aheadFrames, retainReverseFrame: retainReverseFrame && context.stableForMs >= 150 }
 }
 
 function buildCandidates(
