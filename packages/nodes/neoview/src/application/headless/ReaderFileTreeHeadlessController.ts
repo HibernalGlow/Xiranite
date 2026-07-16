@@ -10,6 +10,19 @@ import type {
   ReaderFileTreeSearchHandle,
   ReaderFileTreeSearchOptions,
 } from "../browser/ReaderFileTreeSearch.js"
+import {
+  type ReaderSearchHistoryScope,
+  ReaderSearchHistoryService,
+} from "../browser/ReaderSearchHistoryService.js"
+
+export interface ReaderSearchHistoryResource {
+  service: ReaderSearchHistoryService
+  close(): void | Promise<void>
+}
+
+export interface ReaderFileTreeHeadlessControllerOptions {
+  loadSearchHistory?: () => Promise<ReaderSearchHistoryResource>
+}
 
 export interface OpenHeadlessFileTreeInput {
   path: string
@@ -23,8 +36,9 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
   #sessionId: string | undefined
   #closed = false
   #disposing: Promise<void> | undefined
+  #searchHistory?: Promise<ReaderSearchHistoryResource>
 
-  constructor(service: ReaderFileTreeService) {
+  constructor(service: ReaderFileTreeService, private readonly options: ReaderFileTreeHeadlessControllerOptions = {}) {
     this.#service = service
   }
 
@@ -59,6 +73,22 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
     return this.#service.clearTreeCache(this.#requireSession(), path)
   }
 
+  async listSearchHistory(scope: ReaderSearchHistoryScope, limit = 20) {
+    return (await this.#requireSearchHistory()).service.list(scope, limit)
+  }
+
+  async recordSearchHistory(scope: ReaderSearchHistoryScope, query: string) {
+    return (await this.#requireSearchHistory()).service.record(scope, query)
+  }
+
+  async removeSearchHistory(scope: ReaderSearchHistoryScope, query: string) {
+    return (await this.#requireSearchHistory()).service.remove(scope, query)
+  }
+
+  async clearSearchHistory(scope: ReaderSearchHistoryScope) {
+    return (await this.#requireSearchHistory()).service.clear(scope)
+  }
+
   async close(): Promise<void> {
     const sessionId = this.#sessionId
     this.#sessionId = undefined
@@ -70,7 +100,10 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
     this.#closed = true
     this.#disposing = Promise.resolve().then(async () => {
       this.#sessionId = undefined
-      await this.#service[Symbol.asyncDispose]()
+      const errors: unknown[] = []
+      try { await this.#service[Symbol.asyncDispose]() } catch (error) { errors.push(error) }
+      try { await (await this.#searchHistory)?.close() } catch (error) { errors.push(error) }
+      if (errors.length) throw new AggregateError(errors, "Failed to dispose Reader file tree controller.")
     })
     return this.#disposing
   }
@@ -83,5 +116,11 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
 
   #assertOpen(): void {
     if (this.#closed) throw new Error("Headless Reader file tree is closed.")
+  }
+
+  #requireSearchHistory(): Promise<ReaderSearchHistoryResource> {
+    this.#assertOpen()
+    if (!this.options.loadSearchHistory) throw new Error("Reader search history is unavailable.")
+    return this.#searchHistory ??= this.options.loadSearchHistory()
   }
 }

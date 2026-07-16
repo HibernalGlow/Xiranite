@@ -12,7 +12,7 @@ afterEach(async () => {
 })
 
 describe("Reader data store composition", () => {
-  it("[neoview.reader-data.composition] shares progress writes with the recent-books control plane", async () => {
+  it("[neoview.reader-data.composition] [neoview.folder.search-history-composition] shares one Reader database across control planes", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-reader-data-composition-"))
     roots.push(root)
     const bookPath = join(root, "book")
@@ -45,6 +45,12 @@ describe("Reader data store composition", () => {
           pageCount: 2,
         })],
       })
+      const history = await controller.handle(authorized("/reader/browser/search-history", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ scope: "folder", query: "book" }),
+      }))
+      expect(history?.status).toBe(201)
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -52,6 +58,9 @@ describe("Reader data store composition", () => {
     const database = await openDatabase(databasePath)
     expect(database.get("SELECT COUNT(*) AS count FROM xr_reader_progress")).toEqual({ count: 1 })
     expect(database.get("SELECT COUNT(*) AS count FROM xr_reader_bookmarks")).toEqual({ count: 0 })
+    expect(database.get("SELECT scope_id, query, use_count FROM xr_reader_search_history")).toEqual({
+      scope_id: "folder", query: "book", use_count: 1,
+    })
     database.close()
   })
 

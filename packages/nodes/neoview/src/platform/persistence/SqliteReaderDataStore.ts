@@ -11,6 +11,7 @@ import type {
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
+import type { ReaderSearchHistoryRecord } from "../../ports/ReaderSearchHistoryStore.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
@@ -105,6 +106,15 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         );
         CREATE INDEX IF NOT EXISTS xr_reader_folder_sort_rules_updated_idx
           ON xr_reader_folder_sort_rules (updated_at DESC, path_key ASC);
+        CREATE TABLE IF NOT EXISTS xr_reader_search_history (
+          scope_id TEXT NOT NULL,
+          query TEXT NOT NULL,
+          used_at INTEGER NOT NULL,
+          use_count INTEGER NOT NULL DEFAULT 1 CHECK (use_count >= 1),
+          PRIMARY KEY (scope_id, query)
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_search_history_scope_used_idx
+          ON xr_reader_search_history (scope_id, used_at DESC, query ASC);
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database)
@@ -510,6 +520,73 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     return output
   }
 
+  async listSearchHistory(scope: string, limit: number): Promise<readonly ReaderSearchHistoryRecord[]> {
+    this.#assertOpen()
+    assertSearchHistoryScope(scope)
+    assertSearchHistoryLimit(limit)
+    return this.database.all(
+      `SELECT scope_id, query, used_at, use_count FROM xr_reader_search_history
+       WHERE scope_id = ?1 ORDER BY used_at DESC, query ASC LIMIT ?2`,
+      scope,
+      limit,
+    ).map(parseSearchHistory)
+  }
+
+  async recordSearchHistory(
+    record: Omit<ReaderSearchHistoryRecord, "useCount">,
+    maximumEntries: number,
+  ): Promise<ReaderSearchHistoryRecord> {
+    this.#assertOpen()
+    assertSearchHistoryIdentity(record.scope, record.query)
+    assertSearchHistoryTimestamp(record.usedAt)
+    assertSearchHistoryLimit(maximumEntries)
+    return this.#transaction(() => {
+      this.database.run(
+        `INSERT INTO xr_reader_search_history (scope_id, query, used_at, use_count)
+         VALUES (?1, ?2, ?3, 1)
+         ON CONFLICT(scope_id, query) DO UPDATE SET
+           used_at = excluded.used_at,
+           use_count = xr_reader_search_history.use_count + 1`,
+        record.scope,
+        record.query,
+        record.usedAt,
+      )
+      this.database.run(
+        `DELETE FROM xr_reader_search_history WHERE rowid IN (
+           SELECT rowid FROM xr_reader_search_history WHERE scope_id = ?1
+           ORDER BY used_at DESC, query ASC LIMIT -1 OFFSET ?2
+         )`,
+        record.scope,
+        maximumEntries,
+      )
+      return parseSearchHistory(this.database.get(
+        `SELECT scope_id, query, used_at, use_count FROM xr_reader_search_history
+         WHERE scope_id = ?1 AND query = ?2`,
+        record.scope,
+        record.query,
+      )!)
+    })
+  }
+
+  deleteSearchHistory(scope: string, query: string): Promise<boolean> {
+    this.#assertOpen()
+    assertSearchHistoryIdentity(scope, query)
+    return this.#write(() => this.database.run(
+      "DELETE FROM xr_reader_search_history WHERE scope_id = ?1 AND query = ?2",
+      scope,
+      query,
+    ).changes > 0)
+  }
+
+  clearSearchHistory(scope: string): Promise<number> {
+    this.#assertOpen()
+    assertSearchHistoryScope(scope)
+    return this.#write(() => this.database.run(
+      "DELETE FROM xr_reader_search_history WHERE scope_id = ?1",
+      scope,
+    ).changes)
+  }
+
   close(): Promise<void> {
     if (this.#closed) return Promise.resolve()
     this.#closed = true
@@ -521,12 +598,13 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     await this.close()
   }
 
-  async #transaction(operation: () => void): Promise<void> {
-    await this.#write(() => {
+  async #transaction<T>(operation: () => T): Promise<T> {
+    return this.#write(() => {
       this.database.exec("BEGIN IMMEDIATE")
       try {
-        operation()
+        const result = operation()
         this.database.exec("COMMIT")
+        return result
       } catch (error) {
         try { this.database.exec("ROLLBACK") } catch { /* The original write error is authoritative. */ }
         throw error
@@ -727,6 +805,36 @@ function requireFiniteNumber(value: unknown, name: string): number {
 
 function assertText(value: string, name: string): void {
   if (!value.trim() || value.length > 512) throw new Error(`Reader ${name} is invalid.`)
+}
+
+function parseSearchHistory(row: Record<string, unknown>): ReaderSearchHistoryRecord {
+  const record = {
+    scope: requireString(row.scope_id, "search history scope"),
+    query: requireString(row.query, "search history query"),
+    usedAt: requireInteger(row.used_at, "search history used time"),
+    useCount: requireInteger(row.use_count, "search history use count"),
+  }
+  assertSearchHistoryIdentity(record.scope, record.query)
+  assertSearchHistoryTimestamp(record.usedAt)
+  if (record.useCount < 1) throw new Error("Stored Reader search history use count is invalid.")
+  return record
+}
+
+function assertSearchHistoryIdentity(scope: string, query: string): void {
+  assertSearchHistoryScope(scope)
+  if (!query.trim() || query.length > 512 || query.includes("\0")) throw new Error("Reader search history query is invalid.")
+}
+
+function assertSearchHistoryScope(scope: string): void {
+  if (!scope.trim() || scope.length > 64 || scope.includes("\0")) throw new Error("Reader search history scope is invalid.")
+}
+
+function assertSearchHistoryTimestamp(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error("Reader search history timestamp is invalid.")
+}
+
+function assertSearchHistoryLimit(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 100) throw new Error("Reader search history limit is invalid.")
 }
 
 function requireBooleanInteger(value: unknown, name: string): boolean {

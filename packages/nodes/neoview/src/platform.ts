@@ -10,6 +10,7 @@ import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
+import type { ReaderSearchHistoryStore } from "./ports/ReaderSearchHistoryStore.js"
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
 import type { ResourceScheduler } from "./ports/ResourceScheduler.js"
@@ -19,6 +20,7 @@ import type { ReaderFileTreeScanner } from "./ports/ReaderFileTreeScanner.js"
 import type { ReaderLibraryService } from "./application/library/ReaderLibraryService.js"
 import type { ReaderCacheService } from "./application/cache/ReaderCacheService.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
+import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
@@ -76,6 +78,8 @@ export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
   "scanner" | "watcher" | "maximumCacheEntries" | "cacheTtlMs"
 > & {
   resourceScheduler?: ResourceScheduler
+  searchHistoryStore?: ReaderSearchHistoryStore | false
+  legacyThumbnailDatabasePath?: string | false
 }
 export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
   resourceScheduler?: ResourceScheduler
@@ -139,7 +143,20 @@ export async function createReaderFileTreeController(
       updateExcludedPaths,
     },
   )
-  return new ReaderFileTreeHeadlessController(service)
+  const externalSearchHistoryStore = options.searchHistoryStore || undefined
+  const loadSearchHistory = options.searchHistoryStore === false || options.legacyThumbnailDatabasePath === false
+    ? undefined
+    : async () => {
+        const store = externalSearchHistoryStore ?? await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(
+          typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
+        ))
+        const { ReaderSearchHistoryService } = await import("./application/browser/ReaderSearchHistoryService.js")
+        return {
+          service: new ReaderSearchHistoryService(store),
+          close: externalSearchHistoryStore ? async () => undefined : () => store.close(),
+        }
+      }
+  return new ReaderFileTreeHeadlessController(service, { loadSearchHistory })
 }
 
 export async function createReaderAssetRoute(
@@ -203,6 +220,7 @@ export async function createReaderHttpController(
     libraryService,
     directorySortPreferenceStore: dataStore,
     directoryEmmRecordStore: dataStore,
+    searchHistoryStore: dataStore,
     disposeLibraryService: true,
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
@@ -342,6 +360,13 @@ export async function createLegacyReaderDataImporter(databasePath?: string): Pro
   return new LegacyReaderDataImporter(
     await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(databasePath)),
     resolveLegacyReaderSource,
+  )
+}
+
+export async function createLegacySearchHistoryImporter(databasePath?: string): Promise<LegacySearchHistoryImporter> {
+  const { LegacySearchHistoryImporter } = await import("./migration/LegacySearchHistoryImporter.js")
+  return new LegacySearchHistoryImporter(
+    await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(databasePath)),
   )
 }
 

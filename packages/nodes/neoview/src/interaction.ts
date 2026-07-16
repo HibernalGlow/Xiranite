@@ -14,7 +14,9 @@ export interface NeoviewTuiResult {
   snapshot?: HeadlessReaderSnapshot
 }
 
-export type NeoviewFileTreeTuiAction = "tree" | "search" | "exclude" | "include" | "clear-cache"
+export type NeoviewFileTreeTuiAction =
+  | "tree" | "search" | "exclude" | "include" | "clear-cache"
+  | "history" | "delete-history" | "clear-history"
 
 export interface NeoviewFileTreeTuiInput {
   action: NeoviewFileTreeTuiAction
@@ -24,6 +26,7 @@ export interface NeoviewFileTreeTuiInput {
   maximumDepth?: number
   maximumResults?: number
   caseSensitive?: boolean
+  scope?: "folder" | "file" | "bookmark" | "history"
 }
 
 export interface NeoviewFileTreeTuiResult {
@@ -62,7 +65,10 @@ export function createNeoviewFileTreeTuiDefinition(
       const controller = await createController()
       active = controller
       try {
-        await controller.open({ path: input.action === "exclude" || input.action === "include" ? dirname(input.path) : input.path })
+        const needsTreeSession = input.action !== "history" && input.action !== "delete-history" && input.action !== "clear-history"
+        if (needsTreeSession) {
+          await controller.open({ path: input.action === "exclude" || input.action === "include" ? dirname(input.path) : input.path })
+        }
         if (input.action === "tree") {
           const page = await controller.tree()
           const paths = page?.entries.map((entry) => entry.path) ?? []
@@ -86,7 +92,20 @@ export function createNeoviewFileTreeTuiDefinition(
           } finally {
             await handle.close()
           }
+          await controller.recordSearchHistory("folder", input.query ?? "")
           return { success: true, message: `${paths.length} matches.`, paths }
+        }
+        if (input.action === "history") {
+          const entries = await controller.listSearchHistory(input.scope ?? "folder", input.maximumResults ?? 20)
+          return { success: true, message: `${entries.length} history entries.`, paths: entries.map((entry) => entry.query) }
+        }
+        if (input.action === "delete-history") {
+          const removed = await controller.removeSearchHistory(input.scope ?? "folder", input.query ?? "")
+          return { success: true, message: removed ? "Search history entry removed." : "Search history entry not found." }
+        }
+        if (input.action === "clear-history") {
+          const cleared = await controller.clearSearchHistory(input.scope ?? "folder")
+          return { success: true, message: `${cleared} search history entries cleared.` }
         }
         if (input.action === "clear-cache") {
           const snapshot = controller.clearCache()
@@ -138,6 +157,9 @@ function createNeoviewTuiSchema(language: "zh" | "en"): TerminalInteractionSchem
 function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewFileTreeTuiInput, NeoviewFileTreeTuiResult> {
   const zh = language === "zh"
   const search = (values: Readonly<InteractionValues>) => values.action === "search"
+  const query = (values: Readonly<InteractionValues>) => values.action === "search" || values.action === "delete-history"
+  const history = (values: Readonly<InteractionValues>) => values.action === "history" || values.action === "delete-history" || values.action === "clear-history"
+  const needsPath = (action: NeoviewFileTreeTuiAction) => action !== "history" && action !== "delete-history" && action !== "clear-history"
   return {
     id: "neoview-file-tree",
     title: "NeoView File Tree",
@@ -150,9 +172,18 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
         { value: "exclude", label: zh ? "排除目录" : "Exclude directory" },
         { value: "include", label: zh ? "取消排除" : "Include directory" },
         { value: "clear-cache", label: zh ? "清理树缓存" : "Clear tree cache" },
+        { value: "history", label: zh ? "搜索历史" : "Search history" },
+        { value: "delete-history", label: zh ? "删除搜索记录" : "Delete search entry" },
+        { value: "clear-history", label: zh ? "清空搜索历史" : "Clear search history" },
       ] },
       { id: "path", label: zh ? "目录路径" : "Directory path", kind: "text" },
-      { id: "query", label: zh ? "搜索内容" : "Query", kind: "text", visibleWhen: search },
+      { id: "query", label: zh ? "搜索内容" : "Query", kind: "text", visibleWhen: query },
+      { id: "scope", label: zh ? "历史范围" : "History scope", kind: "select", options: [
+        { value: "folder", label: zh ? "文件夹" : "Folder" },
+        { value: "file", label: zh ? "文件" : "File" },
+        { value: "bookmark", label: zh ? "书签" : "Bookmark" },
+        { value: "history", label: zh ? "阅读历史" : "Reading history" },
+      ], visibleWhen: history },
       { id: "mode", label: zh ? "匹配方式" : "Match mode", kind: "select", options: [{ value: "text", label: zh ? "文本" : "Text" }, { value: "glob", label: "Glob" }], visibleWhen: search },
       { id: "maximumDepth", label: zh ? "最大深度" : "Maximum depth", kind: "number", min: 0, max: 4096, step: 1, visibleWhen: search },
       { id: "maximumResults", label: zh ? "结果上限" : "Result limit", kind: "number", min: 1, max: 10000, step: 1, visibleWhen: search },
@@ -166,18 +197,21 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       maximumDepth: Number(values.maximumDepth ?? 10),
       maximumResults: Number(values.maximumResults ?? 512),
       caseSensitive: values.caseSensitive === true,
+      scope: isSearchHistoryScope(values.scope) ? values.scope : "folder",
     }),
-    validate: (_values, input) => !input.path
+    validate: (_values, input) => needsPath(input.action) && !input.path
       ? (zh ? "请输入目录路径。" : "Enter a directory path.")
-      : input.action === "search" && !input.query
+      : (input.action === "search" || input.action === "delete-history") && !input.query
         ? (zh ? "请输入搜索内容。" : "Enter a search query.")
         : null,
     preview: (input) => [input.path, input.action === "search" ? `${input.mode}: ${input.query}` : input.action],
-    isDangerous: (input) => input.action === "exclude" || input.action === "include" || input.action === "clear-cache",
+    isDangerous: (input) => input.action === "exclude" || input.action === "include" || input.action === "clear-cache" || input.action === "delete-history" || input.action === "clear-history",
     dangerPrompt: (input) => ({
       title: zh ? "确认文件树操作" : "Confirm file-tree operation",
       body: input.action === "clear-cache"
         ? (zh ? "将清理当前有界树缓存。" : "The bounded file-tree cache will be cleared.")
+        : input.action === "delete-history" || input.action === "clear-history"
+          ? (zh ? "将删除 NeoView 主数据库中的搜索历史。" : "This removes search history from the NeoView primary database.")
         : (zh ? "将修改 [nodes.neoview.folder.tree] 排除设置。" : "This changes [nodes.neoview.folder.tree] exclusions."),
       confirmLabel: zh ? "确认" : "Confirm",
     }),
@@ -187,4 +221,9 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
 
 function isFileTreeAction(value: unknown): value is NeoviewFileTreeTuiAction {
   return value === "tree" || value === "search" || value === "exclude" || value === "include" || value === "clear-cache"
+    || value === "history" || value === "delete-history" || value === "clear-history"
+}
+
+function isSearchHistoryScope(value: unknown): value is "folder" | "file" | "bookmark" | "history" {
+  return value === "folder" || value === "file" || value === "bookmark" || value === "history"
 }

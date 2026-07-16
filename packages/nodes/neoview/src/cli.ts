@@ -21,16 +21,19 @@ import {
 import { help } from "./help.js"
 import { createReaderFileTreeController, createReaderHeadlessController } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
+import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
   "reader-data-inspect", "reader-data-import",
+  "search-history-inspect", "search-history-import",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
+  "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
 ])
 const VALUE_FLAGS = new Set([
   "--entry",
@@ -54,6 +57,7 @@ const VALUE_FLAGS = new Set([
   "--depth",
   "--exclude",
   "--node",
+  "--scope",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--refresh"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -70,6 +74,7 @@ export interface NeoviewCliDependencies {
   createFileTreeController?: (options?: ReaderCompositionOptions) => Promise<ReaderFileTreeHeadlessController>
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
+  createSearchHistoryImporter?: (databasePath?: string) => Promise<LegacySearchHistoryImporter>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
@@ -131,6 +136,16 @@ export async function runProgram(
   if (command.startsWith("reader-data-")) {
     if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one legacy JSON path.`)
     await runReaderDataCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("search-history-")) {
+    if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one legacy settings JSON path.`)
+    await runSearchHistoryImportCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("folder-search-history")) {
+    if (parsed.positionals.length) throw usage(`${command} does not accept a directory path.`)
+    await runFolderSearchHistoryCommand(command, parsed, host, dependencies)
     return
   }
   if (command.startsWith("folder-")) {
@@ -196,6 +211,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--yes", "--database", "--config", "--strategy"] ))
     return
   }
+  if (command === "search-history-inspect") {
+    rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
+  if (command === "search-history-import") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--database", "--strategy"]))
+    return
+  }
   if (command === "thumbnail-db-inspect") {
     rejectOptions(parsed, new Set(["--json"]))
     return
@@ -242,6 +265,18 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "folder-search") {
     rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--depth", "--limit", "--exclude", "--case-sensitive"]))
+    return
+  }
+  if (command === "folder-search-history") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--database", "--scope", "--limit"]))
+    return
+  }
+  if (command === "folder-search-history-delete") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--database", "--scope", "--query", "--yes"]))
+    return
+  }
+  if (command === "folder-search-history-clear") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--database", "--scope", "--yes"]))
     return
   }
   if (command === "folder-exclude" || command === "folder-include") {
@@ -341,6 +376,53 @@ async function runFolderSearch(
     await handle.close()
   }
   if (json) writeJson(host, output)
+  await controller.recordSearchHistory("folder", query).catch(() => undefined)
+}
+
+async function runFolderSearchHistoryCommand(
+  command: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (command !== "folder-search-history" && !parsed.booleans.has("--yes")) {
+    throw usage(`${command} requires --yes because it removes persisted search history.`)
+  }
+  const scope = searchHistoryScope(oneValue(parsed, "--scope"))
+  const createController = dependencies.createFileTreeController ?? createReaderFileTreeController
+  const controller = await createController({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+    legacyThumbnailDatabasePath: oneValue(parsed, "--database"),
+  })
+  try {
+    if (command === "folder-search-history") {
+      const entries = await controller.listSearchHistory(scope, integerOption(parsed, "--limit", 1, 100, 20))
+      if (parsed.booleans.has("--json")) writeJson(host, { scope, entries })
+      else for (const entry of entries) writeLine(host, `${entry.query}\t${entry.usedAt}\t${entry.useCount}`)
+      return
+    }
+    if (command === "folder-search-history-delete") {
+      const query = oneValue(parsed, "--query")
+      if (!query) throw usage("folder-search-history-delete requires --query <text>.")
+      const removed = await controller.removeSearchHistory(scope, query)
+      if (parsed.booleans.has("--json")) writeJson(host, { scope, query, removed })
+      else writeLine(host, removed ? `Removed: ${query}` : `Not found: ${query}`)
+      return
+    }
+    const cleared = await controller.clearSearchHistory(scope)
+    if (parsed.booleans.has("--json")) writeJson(host, { scope, cleared })
+    else writeLine(host, `Cleared ${cleared} ${scope} search history entr${cleared === 1 ? "y" : "ies"}.`)
+  } finally {
+    await controller[Symbol.asyncDispose]()
+  }
+}
+
+function searchHistoryScope(value: string | undefined): "folder" | "file" | "bookmark" | "history" {
+  const scope = value ?? "folder"
+  if (scope === "folder" || scope === "file" || scope === "bookmark" || scope === "history") return scope
+  throw usage("--scope must be folder, file, bookmark or history.")
 }
 
 async function runThumbnailDatabaseInspect(path: string | undefined, json: boolean, host: CliHost): Promise<void> {
@@ -466,6 +548,46 @@ async function runReaderDataCommand(
     printReaderDataPreview(preview, host)
     writeLine(host, `Applied: history=${imported.applied.progress} bookmarks=${imported.applied.bookmarks} lists=${imported.applied.bookmarkLists}`)
     writeLine(host, `Migration metadata: pathStacks=${imported.applied.pathStacks} mediaProgress=${imported.applied.mediaProgress} unresolved=${imported.unresolvedSources}`)
+  }
+}
+
+async function runSearchHistoryImportCommand(
+  command: string,
+  inputPath: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const inputStat = await stat(inputPath)
+  if (!inputStat.isFile()) throw usage(`Search history input is not a file: ${inputPath}`)
+  if (inputStat.size > MAX_SETTINGS_BYTES) throw usage(`Search history input exceeds ${MAX_SETTINGS_BYTES} bytes.`)
+  const { LegacySearchHistoryCodec } = await import("./migration/LegacySearchHistoryCodec.js")
+  const decoded = new LegacySearchHistoryCodec().decode(await readFile(inputPath, "utf8"))
+  if (command === "search-history-inspect") {
+    if (parsed.booleans.has("--json")) writeJson(host, decoded)
+    else {
+      writeLine(host, `${decoded.entries.length} valid entries across ${decoded.scopes.length} scope(s); issues=${decoded.issues.length}`)
+      for (const issue of decoded.issues) writeLine(host, `- ${issue.sourcePath}: ${issue.message}`)
+    }
+    return
+  }
+  if (!parsed.booleans.has("--yes")) throw usage("search-history-import requires --yes because it writes Reader runtime data.")
+  const strategy = oneValue(parsed, "--strategy") ?? "merge"
+  if (strategy !== "merge" && strategy !== "overwrite") throw usage("--strategy must be merge or overwrite.")
+  const databasePath = oneValue(parsed, "--database")
+    ? resolve(host.cwd, oneValue(parsed, "--database")!)
+    : undefined
+  const createImporter = dependencies.createSearchHistoryImporter ?? (async (target?: string) => {
+    const { createLegacySearchHistoryImporter } = await import("./platform.js")
+    return createLegacySearchHistoryImporter(target)
+  })
+  const importer = await createImporter(databasePath)
+  try {
+    const imported = await importer.import(decoded, strategy)
+    if (parsed.booleans.has("--json")) writeJson(host, { strategy, imported, issues: decoded.issues })
+    else writeLine(host, `Applied: ${imported.applied}; cleared=${imported.cleared}; skipped-newer=${imported.skippedNewer}; issues=${decoded.issues.length}`)
+  } finally {
+    await importer[Symbol.asyncDispose]()
   }
 }
 
@@ -957,6 +1079,8 @@ function formatCliHelp(): string {
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
     "  reader-data-inspect <json>  Preview legacy history/bookmark migration",
     "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
+    "  search-history-inspect <json>  Preview legacy search-history migration",
+    "  search-history-import <json>   Import search history into thumbnails.db",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
     "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
@@ -969,6 +1093,9 @@ function formatCliHelp(): string {
     "  presentation-cache-clear       Clear unleased L3 entries",
     "  folder-tree <path>              List one lazily loaded directory-tree node",
     "  folder-search <path>            Stream a bounded recursive directory search",
+    "  folder-search-history            List persisted scoped search history",
+    "  folder-search-history-delete     Delete one persisted search query (--yes)",
+    "  folder-search-history-clear      Clear one persisted search scope (--yes)",
     "  folder-exclude <path>           Persist an excluded directory in node TOML",
     "  folder-include <path>           Remove a persisted directory exclusion",
     "  folder-tree-cache-clear <path>  Clear the bounded file-tree cache",

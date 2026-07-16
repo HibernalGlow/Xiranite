@@ -11,6 +11,8 @@ import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressStore } from "../../ports/ReaderMediaProgressStore.js"
+import type { ReaderSearchHistoryStore } from "../../ports/ReaderSearchHistoryStore.js"
+import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
@@ -100,6 +102,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   libraryService?: ReaderLibraryService
   directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
   directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
+  searchHistoryStore?: ReaderSearchHistoryStore
   disposeLibraryService?: boolean
   presentationDiskCache?: ReaderPresentationDiskCache
   disposePresentationDiskCache?: boolean
@@ -207,6 +210,7 @@ export class ReaderHttpController implements AsyncDisposable {
         updateExcludedPaths: options.updateFileTreeExclusions,
       },
       options.resourceScheduler,
+      options.searchHistoryStore ? new ReaderSearchHistoryService(options.searchHistoryStore) : undefined,
     )
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(options.libraryService) : undefined

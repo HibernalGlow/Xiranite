@@ -9,17 +9,73 @@ import type {
   HeadlessReaderSnapshot,
   OpenHeadlessReaderInput,
   ReaderHeadlessController,
+  ReaderFileTreeHeadlessController,
 } from "../core.js"
 import { runProgram } from "../cli.js"
-import { createReaderHeadlessController } from "../platform.js"
+import { createReaderFileTreeController, createReaderHeadlessController } from "../platform.js"
 import { ReaderCacheService } from "../application/cache/ReaderCacheService.js"
 import type { ReaderPresentationDiskCache } from "../ports/ReaderPresentationDiskCache.js"
 
 const testPlatformDependencies = {
   createController: (options = {}) => createReaderHeadlessController({ ...options, progressStore: false }),
+  createFileTreeController: (options = {}) => createReaderFileTreeController({ ...options, legacyThumbnailDatabasePath: false }),
 }
 
 describe("NeoView CLI", () => {
+  it("[neoview.folder.search-history-cli] shares headless history operations and confirms destructive commands", async () => {
+    const dispose = vi.fn(async () => undefined)
+    const controller = {
+      listSearchHistory: vi.fn(async () => [{ scope: "folder", query: "cover", usedAt: 100, useCount: 2 }]),
+      removeSearchHistory: vi.fn(async () => true),
+      clearSearchHistory: vi.fn(async () => 1),
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderFileTreeHeadlessController
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createFileTreeController: async () => controller,
+    }
+    const output: unknown[] = []
+    await runProgram(["folder-search-history", "--scope", "folder", "--json"], host(output), dependencies)
+    expect(JSON.parse(output.join(""))).toEqual({
+      scope: "folder",
+      entries: [{ scope: "folder", query: "cover", usedAt: 100, useCount: 2 }],
+    })
+    await expect(runProgram(["folder-search-history-delete", "--query", "cover"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["folder-search-history-delete", "--query", "cover", "--yes"], host([]), dependencies)
+    expect(controller.removeSearchHistory).toHaveBeenCalledWith("folder", "cover")
+    expect(dispose).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.folder.search-history-import-cli] inspects and imports legacy history through the dedicated importer", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-search-history-cli-"))
+    const inputPath = join(directory, "settings.json")
+    await writeFile(inputPath, JSON.stringify({
+      version: "1.0.0",
+      extended: { searchHistory: { file: [{ query: "cover", timestamp: 100 }] } },
+    }))
+    const dispose = vi.fn(async () => undefined)
+    const importHistory = vi.fn(async () => ({ applied: 1, cleared: 0, skippedNewer: 0 }))
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createSearchHistoryImporter: async () => ({ import: importHistory, close: dispose, [Symbol.asyncDispose]: dispose }) as never,
+    }
+    try {
+      const previewOutput: unknown[] = []
+      await runProgram(["search-history-inspect", inputPath, "--json"], host(previewOutput), dependencies)
+      expect(JSON.parse(previewOutput.join(""))).toMatchObject({
+        scopes: ["file"], entries: [{ scope: "file", query: "cover", usedAt: 100 }], issues: [],
+      })
+      await expect(runProgram(["search-history-import", inputPath], host([]), dependencies)).rejects.toThrow("requires --yes")
+      const importOutput: unknown[] = []
+      await runProgram(["search-history-import", inputPath, "--strategy", "merge", "--yes", "--json"], host(importOutput), dependencies)
+      expect(JSON.parse(importOutput.join(""))).toMatchObject({ imported: { applied: 1 }, issues: [] })
+      expect(importHistory).toHaveBeenCalledWith(expect.objectContaining({ scopes: ["file"] }), "merge")
+      expect(dispose).toHaveBeenCalledOnce()
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.folder.cli] reuses the lazy tree/search service and persists exclusions only after confirmation", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-folder-cli-"))
     const privatePath = join(directory, "private")

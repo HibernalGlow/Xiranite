@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { SqliteReaderDataStore } from "../persistence/SqliteReaderDataStore.js"
+import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 
 const directories: string[] = []
 
@@ -13,6 +14,42 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.search-history-http] exposes the shared scoped history service", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-history-"))
+    directories.push(directory)
+    const store = await SqliteReaderDataStore.open(join(directory, "thumbnails.db"))
+    const route = new ReaderDirectoryBrowserRoute(
+      undefined,
+      undefined,
+      undefined,
+      {},
+      undefined,
+      new ReaderSearchHistoryService(store, () => 100),
+    )
+    try {
+      const endpoint = "http://localhost/reader/browser/search-history"
+      const recorded = (await route.handle(new Request(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ scope: "folder", query: "  cover  " }),
+      })))!
+      expect(recorded.status).toBe(201)
+      await expect(recorded.json()).resolves.toEqual({ scope: "folder", query: "cover", usedAt: 100, useCount: 1 })
+      await expect((await route.handle(new Request(`${endpoint}?scope=folder`)))!.json()).resolves.toEqual({
+        scope: "folder",
+        entries: [{ scope: "folder", query: "cover", usedAt: 100, useCount: 1 }],
+      })
+      await expect((await route.handle(new Request(`${endpoint}?scope=folder&query=cover`, { method: "DELETE" })))!.json())
+        .resolves.toEqual({ scope: "folder", query: "cover", removed: true })
+      await expect((await route.handle(new Request(`${endpoint}?scope=folder`, { method: "DELETE" })))!.json())
+        .resolves.toEqual({ scope: "folder", cleared: 0 })
+      expect((await route.handle(new Request(`${endpoint}?scope=invalid`)))?.status).toBe(400)
+    } finally {
+      await route[Symbol.asyncDispose]()
+      await store.close()
+    }
+  })
+
   it("[neoview.folder.tree-http] lazily expands cached nodes and applies persisted exclusions to tree and search", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-tree-"))
     directories.push(directory)

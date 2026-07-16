@@ -189,6 +189,51 @@ describe("SqliteReaderDataStore", () => {
     verified.close()
   })
 
+  it("[neoview.folder.search-history-sqlite] deduplicates, bounds and removes scoped history without changing legacy schema", async () => {
+    const { path } = await fixture()
+    const before = await openFixtureDatabase(path)
+    const legacyObjects = before.all("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name")
+    const journalMode = before.get("PRAGMA journal_mode")
+    before.close()
+
+    const store = await SqliteReaderDataStore.open(path)
+    await store.recordSearchHistory({ scope: "folder", query: "a", usedAt: 100 }, 20)
+    await store.recordSearchHistory({ scope: "folder", query: "b", usedAt: 200 }, 20)
+    await expect(store.recordSearchHistory({ scope: "folder", query: "a", usedAt: 300 }, 20)).resolves.toEqual({
+      scope: "folder", query: "a", usedAt: 300, useCount: 2,
+    })
+    await expect(store.listSearchHistory("folder", 20)).resolves.toEqual([
+      { scope: "folder", query: "a", usedAt: 300, useCount: 2 },
+      { scope: "folder", query: "b", usedAt: 200, useCount: 1 },
+    ])
+    for (let index = 0; index < 25; index += 1) {
+      await store.recordSearchHistory({ scope: "file", query: `query-${index}`, usedAt: 1_000 + index }, 20)
+    }
+    const bounded = await store.listSearchHistory("file", 100)
+    expect(bounded).toHaveLength(20)
+    expect(bounded[0]?.query).toBe("query-24")
+    expect(bounded.at(-1)?.query).toBe("query-5")
+    await expect(store.deleteSearchHistory("folder", "b")).resolves.toBe(true)
+    await expect(store.clearSearchHistory("file")).resolves.toBe(20)
+    await expect(store.listSearchHistory("file", 20)).resolves.toEqual([])
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("SELECT category, hex(value) AS value, emm_json FROM thumbs WHERE key = 'D:/cover.jpg'"))
+      .toEqual({ category: "file", value: "00", emm_json: "legacy" })
+    expect(verified.get("SELECT value FROM metadata WHERE key = 'version'")).toEqual({ value: "2.4" })
+    expect(verified.get("PRAGMA user_version")).toEqual({ user_version: 7 })
+    expect(verified.get("PRAGMA journal_mode")).toEqual(journalMode)
+    const afterObjects = verified.all("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name NOT LIKE 'xr_%' ORDER BY type, name")
+    expect(afterObjects).toEqual(legacyObjects)
+    expect(verified.all("SELECT type, name FROM sqlite_master WHERE name IN ('xr_reader_search_history', 'xr_reader_search_history_scope_used_idx') ORDER BY type, name"))
+      .toEqual([
+        { type: "index", name: "xr_reader_search_history_scope_used_idx" },
+        { type: "table", name: "xr_reader_search_history" },
+      ])
+    verified.close()
+  })
+
   it("[neoview.folder.emm-sqlite-batch] reads legacy EMM business columns without decoding thumbnail blobs", async () => {
     const { path } = await fixture()
     const seeded = await openFixtureDatabase(path)
@@ -274,6 +319,7 @@ const CURRENT_SCHEMA_SQL = `
 interface FixtureDatabase {
   exec(sql: string): void
   get(sql: string): Record<string, unknown> | undefined
+  all(sql: string): Record<string, unknown>[]
   close(): void
 }
 
@@ -288,7 +334,12 @@ async function openFixtureDatabase(path: string): Promise<FixtureDatabase> {
       }
     }
     const database = new sqlite.Database(path, { create: true, strict: true })
-    return { exec: (sql) => database.exec(sql), get: (sql) => database.query(sql).get() ?? undefined, close: () => database.close() }
+    return {
+      exec: (sql) => database.exec(sql),
+      get: (sql) => database.query(sql).get() ?? undefined,
+      all: (sql) => database.query(sql).all() as Record<string, unknown>[],
+      close: () => database.close(),
+    }
   }
   const moduleName = "node:sqlite"
   const sqlite = await import(moduleName) as typeof import("node:sqlite")
@@ -296,6 +347,7 @@ async function openFixtureDatabase(path: string): Promise<FixtureDatabase> {
   return {
     exec: (sql) => database.exec(sql),
     get: (sql) => database.prepare(sql).get() as Record<string, unknown> | undefined,
+    all: (sql) => database.prepare(sql).all() as Record<string, unknown>[],
     close: () => database.close(),
   }
 }

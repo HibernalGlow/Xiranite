@@ -230,7 +230,7 @@
 - 设置：`system.excludedPaths`、`book.lockedSortMode`、`book.lockedMediaPriority`
 - 数据：search history、excluded paths、quick library
 - 行为：名称/路径/标签搜索；自然排序和正逆序；媒体类型过滤；排除路径；快速库目标；大目录流式搜索取消
-- 测试：待补
+- 测试：`neoview.folder.search-history-service`、`neoview.folder.search-history-validation`、`neoview.folder.search-history-sqlite`、`neoview.folder.search-history-http`、`neoview.folder.search-history-composition`、`neoview.folder.search-history-headless`、`neoview.folder.search-history-cli`、`neoview.folder.search-history-tui`、`neoview.folder.search-history-codec`、`neoview.folder.search-history-codec-raw`、`neoview.folder.search-history-import`、`neoview.folder.search-history-import-cli`
 - 性能基准：`file-search`
 - 已知差异：无
 

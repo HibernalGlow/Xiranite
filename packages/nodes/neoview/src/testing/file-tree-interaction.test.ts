@@ -4,7 +4,7 @@ import type { ReaderFileTreeHeadlessController } from "../core.js"
 import { createNeoviewFileTreeTuiDefinition } from "../interaction.js"
 
 describe("NeoView file-tree terminal interaction", () => {
-  it("[neoview.folder.tui] uses the shared headless controller and marks persistent actions dangerous", async () => {
+  it("[neoview.folder.tui] [neoview.folder.search-history-tui] uses the shared headless controller and marks persistent actions dangerous", async () => {
     const closeSearch = vi.fn(async () => undefined)
     const dispose = vi.fn(async () => undefined)
     const controller = {
@@ -20,6 +20,10 @@ describe("NeoView file-tree terminal interaction", () => {
         close: closeSearch,
         [Symbol.asyncDispose]: closeSearch,
       })),
+      recordSearchHistory: vi.fn(async () => ({ scope: "folder", query: "book", usedAt: 1, useCount: 1 })),
+      listSearchHistory: vi.fn(async () => [{ scope: "folder", query: "book", usedAt: 1, useCount: 1 }]),
+      removeSearchHistory: vi.fn(async () => true),
+      clearSearchHistory: vi.fn(async () => 1),
       [Symbol.asyncDispose]: dispose,
     } as unknown as ReaderFileTreeHeadlessController
     const definition = createNeoviewFileTreeTuiDefinition("en", async () => controller)
@@ -36,8 +40,14 @@ describe("NeoView file-tree terminal interaction", () => {
     expect(result).toEqual({ success: true, message: "1 matches.", paths: ["/library/book.cbz"] })
     expect(events).toEqual(["/library/book.cbz"])
     expect(closeSearch).toHaveBeenCalledOnce()
+    expect(controller.recordSearchHistory).toHaveBeenCalledWith("folder", "book")
     expect(dispose).toHaveBeenCalledOnce()
     expect(definition.schema.isDangerous({ action: "exclude", path: "/library/private" })).toBe(true)
     expect(definition.schema.isDangerous({ action: "tree", path: "/library" })).toBe(false)
+
+    const history = await definition.run({ action: "history", path: "", scope: "folder", maximumResults: 20 }, () => undefined)
+    expect(history).toEqual({ success: true, message: "1 history entries.", paths: ["book"] })
+    expect(controller.open).toHaveBeenCalledTimes(1)
+    expect(definition.schema.isDangerous({ action: "clear-history", path: "", scope: "folder" })).toBe(true)
   })
 })

@@ -20,6 +20,15 @@ export {
   type ReaderFileTreeNodePage,
 } from "./application/browser/ReaderFileTreeIndex.js"
 export {
+  ReaderSearchHistoryService,
+  READER_SEARCH_HISTORY_SCOPES,
+  type ReaderSearchHistoryScope,
+} from "./application/browser/ReaderSearchHistoryService.js"
+export type {
+  ReaderSearchHistoryRecord,
+  ReaderSearchHistoryStore,
+} from "./ports/ReaderSearchHistoryStore.js"
+export {
   searchReaderFileTree,
   type ReaderFileTreeSearchEvent,
   type ReaderFileTreeSearchHandle,

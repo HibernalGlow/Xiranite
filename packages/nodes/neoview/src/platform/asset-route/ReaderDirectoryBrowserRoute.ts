@@ -26,7 +26,12 @@ import type {
   ReaderFileTreeSearchOptions,
 } from "../../application/browser/ReaderFileTreeSearch.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import {
+  ReaderSearchHistoryService,
+  type ReaderSearchHistoryScope,
+} from "../../application/browser/ReaderSearchHistoryService.js"
 
+const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
 const BROWSER_TREE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree$/
@@ -43,6 +48,7 @@ const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: ReaderFileTreeService
+  readonly #searchHistory?: ReaderSearchHistoryService
 
   constructor(
     sortPreferenceStore?: ReaderDirectorySortPreferenceStore,
@@ -50,7 +56,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     mediaMetadataProvider?: ReaderDirectoryMetadataProvider,
     fileTreeOptions: ReaderFileTreeServiceOptions = {},
     resourceScheduler?: ResourceScheduler,
+    searchHistory?: ReaderSearchHistoryService,
   ) {
+    this.#searchHistory = searchHistory
     this.#browser = new ReaderFileTreeService(
       new PlatformDirectoryListingProvider(),
       new PlatformDirectoryMetadataProvider(emmRecordStore, undefined, undefined, mediaMetadataProvider),
@@ -65,6 +73,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
+    if (url.pathname === BROWSER_SEARCH_HISTORY_PATH) return this.#handleSearchHistory(request, url)
     if (url.pathname === "/reader/browser/sessions" && request.method === "POST") return this.#open(request)
 
     const entriesMatch = BROWSER_ENTRIES_PATH.exec(url.pathname)
@@ -89,6 +98,35 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       return sessionId && await this.#browser.close(sessionId) ? new Response(null, { status: 204 }) : errorResponse("Browser session not found", 404)
     }
     return undefined
+  }
+
+  async #handleSearchHistory(request: Request, url: URL): Promise<Response> {
+    if (!this.#searchHistory) return errorResponse("Reader search history is unavailable", 503)
+    try {
+      if (request.method === "GET") {
+        const scope = searchHistoryScope(url.searchParams.get("scope"))
+        const limit = optionalInteger(url.searchParams.get("limit"), "limit", 1, 100) ?? 20
+        return Response.json({ scope, entries: await this.#searchHistory.list(scope, limit) }, responseInit())
+      }
+      if (request.method === "POST") {
+        const body = await request.json().catch(() => undefined) as { scope?: unknown; query?: unknown } | undefined
+        if (typeof body?.scope !== "string" || typeof body.query !== "string") {
+          return errorResponse("Search history requires string scope and query", 400)
+        }
+        const entry = await this.#searchHistory.record(searchHistoryScope(body.scope), body.query)
+        return Response.json(entry, responseInit(201))
+      }
+      if (request.method === "DELETE") {
+        const scope = searchHistoryScope(url.searchParams.get("scope"))
+        const query = url.searchParams.get("query")
+        return Response.json(query === null
+          ? { scope, cleared: await this.#searchHistory.clear(scope) }
+          : { scope, query, removed: await this.#searchHistory.remove(scope, query) }, responseInit())
+      }
+      return errorResponse("Search history method not allowed", 405)
+    } catch (error) {
+      return errorResponse(errorMessage(error), 400)
+    }
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -313,6 +351,11 @@ function optionalInteger(value: string | null, name: string, minimum: number, ma
     throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`)
   }
   return parsed
+}
+
+function searchHistoryScope(value: string | null): ReaderSearchHistoryScope {
+  if (value === "folder" || value === "file" || value === "bookmark" || value === "history") return value
+  throw new Error("scope must be folder, file, bookmark or history")
 }
 
 function safeDecode(value: string): string | undefined {
