@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, List, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Star, TableProperties, Unlock } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, List, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -50,8 +50,10 @@ import {
   createDirectorySelection,
   directorySelectionCount,
   extendDirectorySelection,
+  invertDirectorySelection,
   rebaseDirectorySelection,
   selectedLoadedDirectoryPaths,
+  selectAllDirectoryEntries,
   selectDirectorySingle,
   toggleDirectorySelection,
   type DirectorySelectionModel,
@@ -103,6 +105,7 @@ const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 interface SavedDirectoryState {
   viewMode: FolderViewMode
   previewCount: FolderPreviewCount
+  multiSelectMode: boolean
   selection: DirectorySelectionModel
   focusedPath?: string
   focusedIndex?: number
@@ -133,6 +136,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
+  const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [selection, setSelection] = useState<DirectorySelectionModel>(() => createDirectorySelection(0))
   const [focusedPath, setFocusedPath] = useState<string>()
@@ -273,6 +277,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const restored: SavedDirectoryState = preferredState ?? saved ?? {
       viewMode,
       previewCount,
+      multiSelectMode: false,
       selection: suggested
         ? selectDirectorySingle(page.generation, suggested.path, suggested.index)
         : createDirectorySelection(page.generation),
@@ -286,6 +291,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     focusedIndexRef.current = restored.focusedIndex
     setViewMode(restored.viewMode)
     setPreviewCount(restored.previewCount)
+    setMultiSelectMode(restored.multiSelectMode)
     setRestoreState({ ...restored, selection: restoredSelection })
     setSelection(restoredSelection)
     setFocusedPath(restored.focusedPath)
@@ -306,6 +312,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       applyPage(result, {
         viewMode,
         previewCount,
+        multiSelectMode,
         selection: rebaseDirectorySelection(selection, result.generation),
         focusedPath,
         focusedIndex: focusIndex,
@@ -338,6 +345,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       applyPage(result, {
         viewMode,
         previewCount,
+        multiSelectMode,
         selection: rebaseDirectorySelection(selection, result.generation),
         focusedPath,
         focusedIndex: focusIndex,
@@ -395,6 +403,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const state: SavedDirectoryState = {
       viewMode,
       previewCount,
+      multiSelectMode,
       selection,
       focusedPath,
       focusedIndex: focusedIndexRef.current,
@@ -418,6 +427,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const nextState: SavedDirectoryState = {
       viewMode: next,
       previewCount,
+      multiSelectMode,
       selection,
       focusedPath,
       focusedIndex: focusedIndexRef.current,
@@ -452,9 +462,10 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       setSelection((current) => extendDirectorySelection(current, generation, index, {
         additive: event.ctrlKey || event.metaKey,
         fallbackAnchor: previousFocusIndex ?? 0,
+        anchorPath: focusedPath,
         endPath: entry.path,
       }))
-    } else if (event.ctrlKey || event.metaKey) {
+    } else if (multiSelectMode || event.ctrlKey || event.metaKey) {
       setSelection((current) => toggleDirectorySelection(current, generation, entry.path, index))
     } else {
       setSelection(selectDirectorySingle(generation, entry.path, index))
@@ -512,14 +523,17 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   }
 
   const loadedCount = catalog ? [...catalog.pages.values()].reduce((total, entries) => total + entries.length, 0) : 0
+  const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
   const virtualKey = catalog ? `${catalog.sessionId}:${catalog.generation}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
 
   return (
     <div
       className="grid min-h-0 gap-2"
       data-neoview-folder-card="true"
-      data-selection-count={directorySelectionCount(selection)}
+      data-selection-count={selectedCount}
+      data-selection-total={catalog?.total ?? 0}
       data-selection-ranges={selection.ranges.length}
+      data-selection-all={selection.allSelected || undefined}
     >
       <form
         className="flex gap-1"
@@ -537,6 +551,16 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
           <BrowserButton label="上级" disabled={!catalog?.parentPath || loading} onClick={() => void navigate({ action: "up" })}><ArrowUp /></BrowserButton>
           <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
+          <BrowserButton
+            label={multiSelectMode ? "退出多选" : "多选模式"}
+            disabled={!catalog || loading}
+            onClick={() => {
+              if (multiSelectMode) setSelection(createDirectorySelection(catalog?.generation ?? selection.generation))
+              setMultiSelectMode((current) => !current)
+            }}
+          >
+            <CheckSquare />
+          </BrowserButton>
           <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
         </div>
         <div className="flex min-w-0 items-center gap-1">
@@ -626,6 +650,48 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           </div>
         ) : null}
       </div>
+      {catalog && multiSelectMode ? (
+        <div
+          className="flex min-w-0 items-center gap-1 border-y px-1 py-1"
+          data-neoview-folder-selection-bar="true"
+        >
+          <span className="min-w-[4.5rem] text-xs font-medium tabular-nums">
+            <span className="text-primary">{selectedCount}</span> / {catalog.total}
+          </span>
+          <div className="ml-auto flex items-center gap-1">
+            <BrowserButton
+              label="选择全部项目"
+              disabled={selectedCount === catalog.total}
+              onClick={() => setSelection(selectAllDirectoryEntries(catalog.generation))}
+            >
+              <CheckSquare />
+            </BrowserButton>
+            <BrowserButton
+              label="反转选择状态"
+              disabled={catalog.total === 0}
+              onClick={() => setSelection((current) => invertDirectorySelection(current, catalog.generation))}
+            >
+              <Square />
+            </BrowserButton>
+            <BrowserButton
+              label="取消全部选择"
+              disabled={selectedCount === 0}
+              onClick={() => setSelection(createDirectorySelection(catalog.generation))}
+            >
+              <SquareX />
+            </BrowserButton>
+            <BrowserButton
+              label="关闭多选模式"
+              onClick={() => {
+                setSelection(createDirectorySelection(catalog.generation))
+                setMultiSelectMode(false)
+              }}
+            >
+              <X />
+            </BrowserButton>
+          </div>
+        </div>
+      ) : null}
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div className="min-h-32 overflow-hidden rounded border bg-background/60" data-neoview-folder-list="true">
         {catalog && viewUsesVirtuosoList(viewMode) ? (

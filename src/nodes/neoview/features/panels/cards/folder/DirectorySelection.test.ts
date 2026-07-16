@@ -4,9 +4,11 @@ import {
   createDirectorySelection,
   directorySelectionCount,
   extendDirectorySelection,
+  invertDirectorySelection,
   isDirectoryIndexSelected,
   rebaseDirectorySelection,
   selectedLoadedDirectoryPaths,
+  selectAllDirectoryEntries,
   selectDirectorySingle,
   toggleDirectorySelection,
 } from "./DirectorySelection"
@@ -18,7 +20,7 @@ describe("DirectorySelection", () => {
 
     expect(selected.ranges).toEqual([{ start: 10, end: 99_999 }])
     expect(selected.explicit.size).toBe(1)
-    expect(directorySelectionCount(selected)).toBe(99_990)
+    expect(directorySelectionCount(selected, 100_000)).toBe(99_990)
     expect(isDirectoryIndexSelected(selected, 50_000)).toBe(true)
     expect(isDirectoryIndexSelected(selected, 9)).toBe(false)
   })
@@ -29,7 +31,7 @@ describe("DirectorySelection", () => {
     selected = toggleDirectorySelection(selected, 3, "D:/library/item-35", 35)
 
     expect(selected.ranges).toEqual([{ start: 10, end: 20 }, { start: 30, end: 34 }, { start: 36, end: 40 }])
-    expect(directorySelectionCount(selected)).toBe(21)
+    expect(directorySelectionCount(selected, 100)).toBe(21)
     expect(isDirectoryIndexSelected(selected, 35, "D:/library/item-35")).toBe(false)
   })
 
@@ -44,7 +46,7 @@ describe("DirectorySelection", () => {
 
     expect(selected.ranges).toEqual([{ start: 10, end: 19 }])
     expect(selected.explicit.has("D:/library/item-20")).toBe(false)
-    expect(directorySelectionCount(selected)).toBe(10)
+    expect(directorySelectionCount(selected, 100)).toBe(10)
     expect(isDirectoryIndexSelected(selected, 20, "D:/library/item-20")).toBe(false)
   })
 
@@ -57,6 +59,54 @@ describe("DirectorySelection", () => {
 
     expect([...loaded]).toEqual(["item-0", "item-1", "item-9998", "item-9999"])
     expect(loaded.size).toBe(4)
+  })
+
+  it("[neoview.folder.selection-bulk-sparse] selects and inverts 100K entries in constant model space", () => {
+    const all = selectAllDirectoryEntries(8)
+    const exceptOne = toggleDirectorySelection(all, 8, "item-50", 50)
+    const inverted = invertDirectorySelection(exceptOne, 8)
+
+    expect(all.allSelected).toBe(true)
+    expect(all.ranges).toEqual([])
+    expect(all.explicit.size).toBe(0)
+    expect(directorySelectionCount(all, 100_000)).toBe(100_000)
+    expect(directorySelectionCount(exceptOne, 100_000)).toBe(99_999)
+    expect(isDirectoryIndexSelected(exceptOne, 50, "item-50")).toBe(false)
+    expect(directorySelectionCount(inverted, 100_000)).toBe(1)
+    expect(isDirectoryIndexSelected(inverted, 50, "item-50")).toBe(true)
+    expect(isDirectoryIndexSelected(inverted, 51, "item-51")).toBe(false)
+  })
+
+  it("selects an additive range by removing all-selected exceptions", () => {
+    let selected = selectAllDirectoryEntries(9)
+    selected = toggleDirectorySelection(selected, 9, "item-20", 20)
+    selected = toggleDirectorySelection(selected, 9, "item-21", 21)
+    selected = extendDirectorySelection({ ...selected, anchorIndex: 20 }, 9, 21, {
+      additive: true,
+      fallbackAnchor: 0,
+      endPath: "item-21",
+    })
+
+    expect(selected.allSelected).toBe(true)
+    expect(selected.explicit.size).toBe(0)
+    expect(directorySelectionCount(selected, 100)).toBe(100)
+  })
+
+  it("keeps both Shift endpoint identities when selecting a range from all-selected state", () => {
+    const ranged = extendDirectorySelection(selectAllDirectoryEntries(13), 13, 20, {
+      additive: false,
+      fallbackAnchor: 10,
+      anchorPath: "item-10",
+      endPath: "item-20",
+    })
+    const rebased = rebaseDirectorySelection(ranged, 14)
+
+    expect(ranged.allSelected).toBe(false)
+    expect(directorySelectionCount(ranged, 100)).toBe(11)
+    expect(rebased.explicit).toEqual(new Map([
+      ["item-10", undefined],
+      ["item-20", undefined],
+    ]))
   })
 
   it("[neoview.folder.selection-generation] preserves explicit identity but drops unsafe ranges after reorder", () => {
@@ -75,5 +125,17 @@ describe("DirectorySelection", () => {
     ]))
     expect(isDirectoryIndexSelected(rebased, 999, "D:/library/keep.cbz")).toBe(true)
     expect(isDirectoryIndexSelected(rebased, 0, "D:/library/end.cbz")).toBe(true)
+  })
+
+  it("[neoview.folder.selection-bulk-rebase] preserves all-selected path exceptions across reorder", () => {
+    let selected = selectAllDirectoryEntries(4)
+    selected = toggleDirectorySelection(selected, 4, "D:/library/excluded.cbz", 12)
+    const rebased = rebaseDirectorySelection(selected, 5)
+
+    expect(rebased.allSelected).toBe(true)
+    expect(rebased.ranges).toEqual([])
+    expect(rebased.explicit).toEqual(new Map([["D:/library/excluded.cbz", undefined]]))
+    expect(isDirectoryIndexSelected(rebased, 40, "D:/library/excluded.cbz")).toBe(false)
+    expect(isDirectoryIndexSelected(rebased, 12, "D:/library/other.cbz")).toBe(true)
   })
 })

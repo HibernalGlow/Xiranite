@@ -261,6 +261,20 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(folderCard).toHaveAttribute("data-selection-count", "3")
   await folderEntries.nth(1).click({ modifiers: ["Control"] })
   await expect(folderCard).toHaveAttribute("data-selection-count", "2")
+  await folderCard.getByRole("button", { name: "多选模式" }).click()
+  const selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
+  await expect(selectionBar).toBeVisible()
+  const totalEntries = Number(await folderCard.getAttribute("data-selection-total"))
+  await selectionBar.getByRole("button", { name: "选择全部项目" }).click()
+  await expect(folderCard).toHaveAttribute("data-selection-count", String(totalEntries))
+  await folderEntries.nth(1).click()
+  await expect(folderCard).toHaveAttribute("data-selection-count", String(totalEntries - 1))
+  await selectionBar.getByRole("button", { name: "反转选择状态" }).click()
+  await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+  await selectionBar.getByRole("button", { name: "取消全部选择" }).click()
+  await expect(folderCard).toHaveAttribute("data-selection-count", "0")
+  await selectionBar.getByRole("button", { name: "关闭多选模式" }).click()
+  await expect(selectionBar).toHaveCount(0)
   const folderViewResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"

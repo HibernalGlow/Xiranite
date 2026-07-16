@@ -140,6 +140,24 @@ describe("FolderMainCard", () => {
     expect(item(2).getAttribute("aria-selected")).toBe("false")
     expect(item(3).getAttribute("aria-selected")).toBe("true")
 
+    fireEvent.click(currentView.getByLabelText("多选模式"))
+    expect(currentView.getByText("2").closest('[data-neoview-folder-selection-bar="true"]')).toBeTruthy()
+    fireEvent.click(currentView.getByLabelText("选择全部项目"))
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("4")
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-all")).toBe("true")
+
+    fireEvent.click(item(2))
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
+    expect(item(2).getAttribute("aria-selected")).toBe("false")
+    fireEvent.click(currentView.getByLabelText("反转选择状态"))
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+    expect(item(2).getAttribute("aria-selected")).toBe("true")
+
+    fireEvent.click(currentView.getByLabelText("取消全部选择"))
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
+    fireEvent.click(currentView.getByLabelText("关闭多选模式"))
+    expect(view.container.querySelector('[data-neoview-folder-selection-bar="true"]')).toBeNull()
+
     view.unmount()
   })
 
