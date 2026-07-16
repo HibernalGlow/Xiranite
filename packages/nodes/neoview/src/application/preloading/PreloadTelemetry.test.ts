@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest"
 
 import type { ReaderPreloadPlan } from "./PreloadCoordinator.js"
-import { ReaderPreloadTelemetry } from "./PreloadTelemetry.js"
+import { aggregateReaderPreloadTelemetry, ReaderPreloadTelemetry } from "./PreloadTelemetry.js"
 
 describe("ReaderPreloadTelemetry", () => {
   it("[neoview.preload.telemetry] tracks current-plan outcomes without retaining assets", () => {
     const telemetry = new ReaderPreloadTelemetry()
     telemetry.updatePlan(plan(1, ["p2", "p3"]))
     expect(telemetry.report({ generation: 1, pageId: "p2", outcome: "started" })).toEqual({ accepted: true })
-    expect(telemetry.report({ generation: 1, pageId: "p2", outcome: "ready" })).toEqual({ accepted: true })
+    expect(telemetry.report({
+      generation: 1,
+      pageId: "p2",
+      outcome: "ready",
+      metrics: { ttfbMs: 12.5, decodeMs: 20, retainedBytes: 4096, activeLeases: 2 },
+    })).toEqual({ accepted: true })
     expect(telemetry.report({ generation: 1, pageId: "p2", outcome: "evicted" })).toEqual({ accepted: true })
     expect(telemetry.report({ generation: 1, pageId: "p3", outcome: "failed" })).toEqual({ accepted: true })
     expect(telemetry.snapshot()).toMatchObject({
@@ -20,6 +25,20 @@ describe("ReaderPreloadTelemetry", () => {
       ready: 1,
       failed: 1,
       evicted: 1,
+      performance: {
+        ttfbSamples: 1,
+        totalTtfbMs: 12.5,
+        maxTtfbMs: 12.5,
+        decodeSamples: 1,
+        totalDecodeMs: 20,
+        maxDecodeMs: 20,
+        retainedByteSamples: 1,
+        totalRetainedBytes: 4096,
+        maxRetainedBytes: 4096,
+        leaseSamples: 1,
+        totalActiveLeases: 2,
+        maxActiveLeases: 2,
+      },
     })
   })
 
@@ -41,6 +60,34 @@ describe("ReaderPreloadTelemetry", () => {
       staleReports: 1,
       rejectedReports: 1,
       duplicateReports: 1,
+    })
+  })
+
+  it("[neoview.preload.performance-telemetry] rejects invalid samples and aggregates bounded metrics across sessions", () => {
+    const first = new ReaderPreloadTelemetry()
+    const second = new ReaderPreloadTelemetry()
+    first.updatePlan(plan(1, ["p1"]))
+    second.updatePlan(plan(1, ["p2"]))
+    expect(first.report({ generation: 1, pageId: "p1", outcome: "ready", metrics: { decodeMs: Number.NaN } }))
+      .toEqual({ accepted: false, reason: "invalid-metrics" })
+    first.report({ generation: 1, pageId: "p1", outcome: "ready", metrics: { ttfbMs: 10, decodeMs: 30, retainedBytes: 100, activeLeases: 1 } })
+    second.report({ generation: 1, pageId: "p2", outcome: "ready", metrics: { ttfbMs: 20, decodeMs: 15, retainedBytes: 300, activeLeases: 4 } })
+    expect(aggregateReaderPreloadTelemetry([first.snapshot(), second.snapshot()])).toMatchObject({
+      rejectedReports: 1,
+      performance: {
+        ttfbSamples: 2,
+        totalTtfbMs: 30,
+        maxTtfbMs: 20,
+        decodeSamples: 2,
+        totalDecodeMs: 45,
+        maxDecodeMs: 30,
+        retainedByteSamples: 2,
+        totalRetainedBytes: 400,
+        maxRetainedBytes: 300,
+        leaseSamples: 2,
+        totalActiveLeases: 5,
+        maxActiveLeases: 4,
+      },
     })
   })
 })

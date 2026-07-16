@@ -2,10 +2,33 @@ import type { ReaderPreloadPlan, ReaderPreloadTier } from "./PreloadCoordinator.
 
 export type ReaderPreloadOutcome = "started" | "ready" | "failed" | "cancelled" | "evicted"
 
+export interface ReaderPreloadPerformanceMetrics {
+  ttfbMs?: number
+  decodeMs?: number
+  retainedBytes?: number
+  activeLeases?: number
+}
+
 export interface ReaderPreloadReport {
   generation: number
   pageId: string
   outcome: ReaderPreloadOutcome
+  metrics?: ReaderPreloadPerformanceMetrics
+}
+
+export interface ReaderPreloadPerformanceDiagnostics {
+  ttfbSamples: number
+  totalTtfbMs: number
+  maxTtfbMs: number
+  decodeSamples: number
+  totalDecodeMs: number
+  maxDecodeMs: number
+  retainedByteSamples: number
+  totalRetainedBytes: number
+  maxRetainedBytes: number
+  leaseSamples: number
+  totalActiveLeases: number
+  maxActiveLeases: number
 }
 
 export interface ReaderPreloadTelemetrySnapshot {
@@ -23,6 +46,7 @@ export interface ReaderPreloadTelemetrySnapshot {
   staleReports: number
   rejectedReports: number
   duplicateReports: number
+  performance: ReaderPreloadPerformanceDiagnostics
 }
 
 export interface ReaderPreloadDiagnostics {
@@ -38,11 +62,12 @@ export interface ReaderPreloadDiagnostics {
   staleReports: number
   rejectedReports: number
   duplicateReports: number
+  performance: ReaderPreloadPerformanceDiagnostics
 }
 
 export interface ReaderPreloadReportResult {
   accepted: boolean
-  reason?: "stale-generation" | "unknown-page" | "duplicate"
+  reason?: "stale-generation" | "unknown-page" | "duplicate" | "invalid-metrics"
 }
 
 export class ReaderPreloadTelemetry {
@@ -58,6 +83,7 @@ export class ReaderPreloadTelemetry {
   #staleReports = 0
   #rejectedReports = 0
   #duplicateReports = 0
+  readonly #performance = emptyPerformanceDiagnostics()
 
   updatePlan(plan: ReaderPreloadPlan): void {
     if (this.#plan?.generation === plan.generation) return
@@ -77,6 +103,10 @@ export class ReaderPreloadTelemetry {
       this.#rejectedReports += 1
       return { accepted: false, reason: "unknown-page" }
     }
+    if (!validPerformanceMetrics(report.metrics)) {
+      this.#rejectedReports += 1
+      return { accepted: false, reason: "invalid-metrics" }
+    }
     const previous = this.#states.get(report.pageId)
     if (previous === report.outcome || (previous !== undefined && isTerminal(previous) && report.outcome !== "evicted")) {
       this.#duplicateReports += 1
@@ -95,6 +125,7 @@ export class ReaderPreloadTelemetry {
       else this.#evicted += 1
     }
     this.#states.set(report.pageId, report.outcome)
+    recordPerformanceMetrics(this.#performance, report.metrics)
     return { accepted: true }
   }
 
@@ -123,6 +154,7 @@ export class ReaderPreloadTelemetry {
       staleReports: this.#staleReports,
       rejectedReports: this.#rejectedReports,
       duplicateReports: this.#duplicateReports,
+      performance: { ...this.#performance },
     }
   }
 
@@ -145,6 +177,7 @@ export function aggregateReaderPreloadTelemetry(snapshots: readonly ReaderPreloa
     staleReports: 0,
     rejectedReports: 0,
     duplicateReports: 0,
+    performance: emptyPerformanceDiagnostics(),
   }
   const candidates = output.candidates as Record<ReaderPreloadTier, number>
   for (const snapshot of snapshots) {
@@ -154,8 +187,72 @@ export function aggregateReaderPreloadTelemetry(snapshots: readonly ReaderPreloa
     for (const key of ["active", "plannedCandidates", "started", "ready", "failed", "cancelled", "evicted", "staleReports", "rejectedReports", "duplicateReports"] as const) {
       output[key] += snapshot[key]
     }
+    for (const key of ["ttfbSamples", "totalTtfbMs", "decodeSamples", "totalDecodeMs", "retainedByteSamples", "totalRetainedBytes", "leaseSamples", "totalActiveLeases"] as const) {
+      output.performance[key] += snapshot.performance[key]
+    }
+    output.performance.maxTtfbMs = Math.max(output.performance.maxTtfbMs, snapshot.performance.maxTtfbMs)
+    output.performance.maxDecodeMs = Math.max(output.performance.maxDecodeMs, snapshot.performance.maxDecodeMs)
+    output.performance.maxRetainedBytes = Math.max(output.performance.maxRetainedBytes, snapshot.performance.maxRetainedBytes)
+    output.performance.maxActiveLeases = Math.max(output.performance.maxActiveLeases, snapshot.performance.maxActiveLeases)
   }
   return output
+}
+
+function emptyPerformanceDiagnostics(): ReaderPreloadPerformanceDiagnostics {
+  return {
+    ttfbSamples: 0,
+    totalTtfbMs: 0,
+    maxTtfbMs: 0,
+    decodeSamples: 0,
+    totalDecodeMs: 0,
+    maxDecodeMs: 0,
+    retainedByteSamples: 0,
+    totalRetainedBytes: 0,
+    maxRetainedBytes: 0,
+    leaseSamples: 0,
+    totalActiveLeases: 0,
+    maxActiveLeases: 0,
+  }
+}
+
+function validPerformanceMetrics(metrics: ReaderPreloadPerformanceMetrics | undefined): boolean {
+  if (!metrics) return true
+  return validDuration(metrics.ttfbMs)
+    && validDuration(metrics.decodeMs)
+    && validCount(metrics.retainedBytes, Number.MAX_SAFE_INTEGER)
+    && validCount(metrics.activeLeases, 1_000_000)
+}
+
+function validDuration(value: number | undefined): boolean {
+  return value === undefined || (Number.isFinite(value) && value >= 0 && value <= 10 * 60_000)
+}
+
+function validCount(value: number | undefined, maximum: number): boolean {
+  return value === undefined || (Number.isSafeInteger(value) && value >= 0 && value <= maximum)
+}
+
+function recordPerformanceMetrics(target: ReaderPreloadPerformanceDiagnostics, metrics: ReaderPreloadPerformanceMetrics | undefined): void {
+  if (!metrics) return
+  if (metrics.ttfbMs !== undefined) {
+    target.ttfbSamples += 1
+    target.totalTtfbMs += metrics.ttfbMs
+    target.maxTtfbMs = Math.max(target.maxTtfbMs, metrics.ttfbMs)
+  }
+  if (metrics.decodeMs !== undefined) {
+    target.decodeSamples += 1
+    target.totalDecodeMs += metrics.decodeMs
+    target.maxDecodeMs = Math.max(target.maxDecodeMs, metrics.decodeMs)
+  }
+  if (metrics.retainedBytes !== undefined) {
+    target.retainedByteSamples += 1
+    target.totalRetainedBytes += metrics.retainedBytes
+    target.maxRetainedBytes = Math.max(target.maxRetainedBytes, metrics.retainedBytes)
+  }
+  if (metrics.activeLeases !== undefined) {
+    target.leaseSamples += 1
+    target.totalActiveLeases += metrics.activeLeases
+    target.maxActiveLeases = Math.max(target.maxActiveLeases, metrics.activeLeases)
+  }
 }
 
 function isTerminal(outcome: ReaderPreloadOutcome): boolean {

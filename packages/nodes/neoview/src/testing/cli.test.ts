@@ -672,6 +672,26 @@ describe("NeoView CLI", () => {
     const close = vi.fn(async () => undefined)
     const service = new ReaderDiagnosticsService({
       activeSessions: () => 0,
+      preload: () => ({
+        sessions: 1,
+        candidates: { near: 1, ahead: 1, background: 0 },
+        active: 0,
+        plannedCandidates: 2,
+        started: 2,
+        ready: 2,
+        failed: 0,
+        cancelled: 0,
+        evicted: 0,
+        staleReports: 0,
+        rejectedReports: 0,
+        duplicateReports: 0,
+        performance: {
+          ttfbSamples: 2, totalTtfbMs: 30, maxTtfbMs: 20,
+          decodeSamples: 2, totalDecodeMs: 50, maxDecodeMs: 30,
+          retainedByteSamples: 2, totalRetainedBytes: 400, maxRetainedBytes: 300,
+          leaseSamples: 2, totalActiveLeases: 5, maxActiveLeases: 4,
+        },
+      }),
       runtimeResources: () => ({ archiveProviders: 2, archiveIndexEntries: 12, archiveIndexPayloadBytes: 640, archiveActiveExtractions: 1 }),
       assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
       presentationDiskCache: async () => ({ enabled: false }),
@@ -709,6 +729,26 @@ describe("NeoView CLI", () => {
     }
     const service = new ReaderDiagnosticsService({
       activeSessions: () => 0,
+      preload: () => ({
+        sessions: 1,
+        candidates: { near: 1, ahead: 1, background: 0 },
+        active: 0,
+        plannedCandidates: 2,
+        started: 2,
+        ready: 2,
+        failed: 0,
+        cancelled: 0,
+        evicted: 0,
+        staleReports: 0,
+        rejectedReports: 0,
+        duplicateReports: 0,
+        performance: {
+          ttfbSamples: 2, totalTtfbMs: 30, maxTtfbMs: 20,
+          decodeSamples: 2, totalDecodeMs: 50, maxDecodeMs: 30,
+          retainedByteSamples: 2, totalRetainedBytes: 400, maxRetainedBytes: 300,
+          leaseSamples: 2, totalActiveLeases: 5, maxActiveLeases: 4,
+        },
+      }),
       runtimeResources: () => ({ archiveProviders: 2, archiveIndexEntries: 12, archiveIndexPayloadBytes: 640, archiveActiveExtractions: 1 }),
       assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
       presentationDiskCache: async () => ({ enabled: false }),
@@ -720,6 +760,7 @@ describe("NeoView CLI", () => {
       createDiagnosticsService: async () => service,
     })
     expect(output.join("")).toContain("cpu=1/2 waitAvg=2.5ms waitMax=6.0ms waitNow=3.0ms")
+    expect(output.join("")).toContain("ttfbAvg=15.0ms decodeAvg=25.0ms retainedMax=300 leaseMax=4")
     expect(output.join("")).toContain("archiveProviders=2 indexEntries=12 indexBytes=640 activeExtractions=1")
   })
 })
