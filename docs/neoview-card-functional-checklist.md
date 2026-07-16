@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=40`，`complete=4`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=39`，`complete=5`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -485,11 +485,11 @@
   - 源码：`components/FolderStack/folderStackNavigation.ts`、`components/FolderToolbar/NavigationButtons.svelte`
   - 测试：`neoview.folder.parent-suggested-selection`、`neoview.browser.restore-index`、`neoview.folder.parent-locate-e2e`
   - 备注：ReaderFileTreeService 在返回上级时基于排序后的父目录快照返回离开子目录的稳定 path/index，10K 父目录测试确认目标不必进入首批 128 项。FolderMainCard 先按全局索引请求对应稀疏页；compact 与 grid 在无历史 snapshot 时使用 Virtuoso initialTopMostItemIndex，details 使用 Niko initialIndex，避免 ref 尚未挂载时的一次性滚动丢失。真实 Chromium desktop/420x360 验证索引 400 的目录在三种 renderer 中进入视口、保持焦点与选中；父目录普通列表只显示直接子项，不显示该目录内部文件，Folder Tree 继续保持独立。
-- [ ] `folder.nav.home-refresh` 主页、设为主页与刷新
+- [x] `folder.nav.home-refresh` 主页、设为主页与刷新
   - 目标：主页跳转、修饰键设为主页、F5/按钮刷新均保留当前位置策略并给出加载状态。
   - 源码：`components/FolderToolbar/NavigationButtons.svelte`、`components/FolderToolbar/FolderToolbar.svelte`
-  - 测试：`neoview.folder.refresh`
-  - 备注：刷新按钮已有；主页和持久化设置未实现。
+  - 测试：`neoview.folder.settings`、`neoview.folder.refresh`、`neoview.folder.home-refresh-ui`、`neoview.folder.home-refresh-e2e`
+  - 备注：Home 使用共享 [nodes.neoview.folder].home_path 配置：单击走普通 path navigation 并进入同一后退/前进历史，右键把当前目录持久化为 Home。F5 与按钮刷新复用当前 navigationEntryId、临时排序、选择、焦点和虚拟滚动快照；item count 变化时丢弃不兼容 Virtuoso snapshot 并按全局 focus/anchor index 定位。watcher 更新走同一状态捕获通道。真实 Chromium desktop/420x360 验证加载态、TOML 写回、活动阅读图片不重挂，以及普通列表只更新当前目录直接子项；Folder Tree 保持独立且不向普通列表注入层级或盘符根。
 - [ ] `folder.nav.stack` FolderStack 分层浏览
   - 目标：保留父/当前/子层的分层浏览、预加载和每层独立滚动/选择状态，路径切换不重置无关层。
   - 源码：`components/FolderStack.svelte`、`components/FolderStack/FolderStackState.svelte.ts`、`components/FolderStack/folderStackNavigation.ts`

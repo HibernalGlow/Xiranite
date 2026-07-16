@@ -238,9 +238,9 @@
       "sourceEvidence": ["components/FolderToolbar/NavigationButtons.svelte", "components/FolderToolbar/FolderToolbar.svelte"],
       "targetContract": "主页跳转、修饰键设为主页、F5/按钮刷新均保留当前位置策略并给出加载状态。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.folder.refresh"],
-      "notes": "刷新按钮已有；主页和持久化设置未实现。"
+      "status": "complete",
+      "testIds": ["neoview.folder.settings", "neoview.folder.refresh", "neoview.folder.home-refresh-ui", "neoview.folder.home-refresh-e2e"],
+      "notes": "Home 使用共享 [nodes.neoview.folder].home_path 配置：单击走普通 path navigation 并进入同一后退/前进历史，右键把当前目录持久化为 Home。F5 与按钮刷新复用当前 navigationEntryId、临时排序、选择、焦点和虚拟滚动快照；item count 变化时丢弃不兼容 Virtuoso snapshot 并按全局 focus/anchor index 定位。watcher 更新走同一状态捕获通道。真实 Chromium desktop/420x360 验证加载态、TOML 写回、活动阅读图片不重挂，以及普通列表只更新当前目录直接子项；Folder Tree 保持独立且不向普通列表注入层级或盘符根。"
     },
     {
       "id": "folder.nav.stack",
