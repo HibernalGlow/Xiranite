@@ -100,7 +100,7 @@ describe("NeoView CLI", () => {
     }
   })
 
-  it("[neoview.folder.cli] reuses the lazy tree/search service and persists exclusions only after confirmation", async () => {
+  it("[neoview.folder.cli] [neoview.folder.search-path-cli] reuses shared search options and persists exclusions only after confirmation", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-folder-cli-"))
     const privatePath = join(directory, "private")
     const visiblePath = join(directory, "visible")
@@ -122,6 +122,15 @@ describe("NeoView CLI", () => {
       const searched = JSON.parse(searchOutput.join("")) as { entries: Array<{ name: string }>; complete: { matched: number; truncated: boolean } }
       expect(searched.entries.map((entry) => entry.name).toSorted()).toEqual(["hidden.cbz", "shown.cbz"])
       expect(searched.complete).toMatchObject({ matched: 2, truncated: false })
+
+      const nameOnlyOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "visible/shown", "--json"], host(nameOnlyOutput), testPlatformDependencies)
+      expect((JSON.parse(nameOnlyOutput.join("")) as { entries: unknown[] }).entries).toHaveLength(0)
+      const pathOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "visible/shown", "--search-in-path", "--json"], host(pathOutput), testPlatformDependencies)
+      expect((JSON.parse(pathOutput.join("")) as { entries: Array<{ name: string }> }).entries).toEqual([
+        expect.objectContaining({ name: "shown.cbz" }),
+      ])
 
       await expect(runProgram(["folder-exclude", privatePath, "--config", configPath], host([]), testPlatformDependencies)).rejects.toThrow("requires --yes")
       await runProgram(["folder-exclude", privatePath, "--config", configPath, "--yes", "--json"], host([]), testPlatformDependencies)

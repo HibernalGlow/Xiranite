@@ -68,7 +68,7 @@ const VALUE_FLAGS = new Set([
   "--list",
   "--before",
 ])
-const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--refresh", "--starred", "--favorite"])
+const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 
@@ -306,7 +306,7 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "folder-search") {
-    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--depth", "--limit", "--exclude", "--case-sensitive"]))
+    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
     return
   }
   if (command === "folder-search-history") {
@@ -400,6 +400,7 @@ async function runFolderSearch(
     mode,
     kind,
     caseSensitive: parsed.booleans.has("--case-sensitive"),
+    searchInPath: parsed.booleans.has("--search-in-path"),
     maximumDepth,
     maximumResults,
     excludePatterns: parsed.values.get("--exclude"),
@@ -1291,6 +1292,7 @@ function formatCliHelp(): string {
     "  --depth N            Recursive search depth (0..4096)",
     "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",
     "  --case-sensitive     Use case-sensitive folder search",
+    "  --search-in-path     Match text queries against relative paths",
     "  --refresh            Bypass one cached tree node",
     "  --database PATH      Override the legacy NeoView thumbnails.db path",
     "  --strategy MODE      Settings import mode: merge or overwrite",

@@ -27,6 +27,7 @@ export interface NeoviewFileTreeTuiInput {
   maximumDepth?: number
   maximumResults?: number
   caseSensitive?: boolean
+  searchInPath?: boolean
   scope?: "folder" | "file" | "bookmark" | "history"
 }
 
@@ -102,6 +103,7 @@ export function createNeoviewFileTreeTuiDefinition(
           const handle = controller.search(input.query ?? "", {
             mode: input.mode,
             caseSensitive: input.caseSensitive,
+            searchInPath: input.searchInPath,
             maximumDepth: input.maximumDepth,
             maximumResults: input.maximumResults,
           })
@@ -230,7 +232,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
     id: "neoview-file-tree",
     title: "NeoView File Tree",
     description: zh ? "目录树、递归搜索与排除规则" : "Directory tree, recursive search and exclusions",
-    initialValues: { action: "tree", path: "", query: "", mode: "text", maximumDepth: 10, maximumResults: 512, caseSensitive: false },
+    initialValues: { action: "tree", path: "", query: "", mode: "text", maximumDepth: 10, maximumResults: 512, caseSensitive: false, searchInPath: false },
     fields: [
       { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
         { value: "tree", label: zh ? "展开树节点" : "Expand tree node" },
@@ -254,6 +256,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       { id: "maximumDepth", label: zh ? "最大深度" : "Maximum depth", kind: "number", min: 0, max: 4096, step: 1, visibleWhen: search },
       { id: "maximumResults", label: zh ? "结果上限" : "Result limit", kind: "number", min: 1, max: 10000, step: 1, visibleWhen: search },
       { id: "caseSensitive", label: zh ? "区分大小写" : "Case sensitive", kind: "boolean", visibleWhen: search },
+      { id: "searchInPath", label: zh ? "匹配相对路径" : "Match relative paths", kind: "boolean", visibleWhen: search },
     ],
     toInput: (values) => ({
       action: isFileTreeAction(values.action) ? values.action : "tree",
@@ -263,6 +266,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       maximumDepth: Number(values.maximumDepth ?? 10),
       maximumResults: Number(values.maximumResults ?? 512),
       caseSensitive: values.caseSensitive === true,
+      searchInPath: values.searchInPath === true,
       scope: isSearchHistoryScope(values.scope) ? values.scope : "folder",
     }),
     validate: (_values, input) => needsPath(input.action) && !input.path
