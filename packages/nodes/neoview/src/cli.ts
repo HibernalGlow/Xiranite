@@ -646,6 +646,10 @@ function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArgum
   writeLine(host, pressure
     ? `Memory pressure: ${pressure.level} available=${pressure.availableBytes ?? "unknown"} reliefs=${pressure.elevatedReliefs}/${pressure.criticalReliefs} rejected=${pressure.admissionRejections}`
     : "Memory pressure: unavailable")
+  const preload = result.reader.preload
+  writeLine(host, preload
+    ? `Preload: sessions=${preload.sessions} candidates=${preload.candidates.near}/${preload.candidates.ahead}/${preload.candidates.background} active=${preload.active} ready=${preload.ready} failed=${preload.failed} cancelled=${preload.cancelled} stale=${preload.staleReports}`
+    : "Preload: unavailable")
   writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes}`)
   writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${result.scheduler.cpu.active}/${result.scheduler.cpu.queued} io=${result.scheduler.io.active}/${result.scheduler.io.queued} gpu=${result.scheduler.gpu.active}/${result.scheduler.gpu.queued}` : "unavailable in standalone CLI"}`)
 }

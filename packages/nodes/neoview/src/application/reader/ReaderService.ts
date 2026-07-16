@@ -4,6 +4,7 @@ import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import { LatestRecordWriteCoordinator } from "../persistence/LatestRecordWriteCoordinator.js"
 import { CoreReaderSession } from "./ReaderSession.js"
+import { aggregateReaderPreloadTelemetry, type ReaderPreloadDiagnostics } from "../preloading/PreloadTelemetry.js"
 import type { OpenViewSourceOptions, ReaderService, ReaderSession, ReaderSessionId, ReaderSessionOptions } from "./contracts.js"
 
 export class CoreReaderService implements ReaderService {
@@ -32,6 +33,10 @@ export class CoreReaderService implements ReaderService {
 
   get sessionCount(): number {
     return this.#sessions.size
+  }
+
+  preloadDiagnostics(): ReaderPreloadDiagnostics {
+    return aggregateReaderPreloadTelemetry([...this.#sessions.values()].map((session) => session.preloadTelemetry()))
   }
 
   async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {

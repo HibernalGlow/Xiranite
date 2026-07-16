@@ -4,6 +4,7 @@ import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.j
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import { ReaderPreloadCoordinator, type ReaderNavigationIntent, type ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
+import { ReaderPreloadTelemetry, type ReaderPreloadReport, type ReaderPreloadReportResult, type ReaderPreloadTelemetrySnapshot } from "../preloading/PreloadTelemetry.js"
 import {
   DEFAULT_READER_SESSION_OPTIONS,
   type ReaderSession,
@@ -27,6 +28,7 @@ export class CoreReaderSession implements ReaderSession {
   #onClose?: (sessionId: ReaderSessionId, snapshot: FrameSnapshot) => void | Promise<void>
   readonly #metadataProbe?: ImageMetadataProbe
   readonly #preload: ReaderPreloadCoordinator
+  readonly #preloadTelemetry = new ReaderPreloadTelemetry()
   #preloadPlan?: ReaderPreloadPlan
 
   constructor(
@@ -68,6 +70,15 @@ export class CoreReaderSession implements ReaderSession {
 
   preloadPlan(): ReaderPreloadPlan | undefined {
     return this.#preloadPlan
+  }
+
+  preloadTelemetry(): ReaderPreloadTelemetrySnapshot {
+    return this.#preloadTelemetry.snapshot()
+  }
+
+  reportPreload(report: ReaderPreloadReport): ReaderPreloadReportResult {
+    this.#assertOpen()
+    return this.#preloadTelemetry.report(report)
   }
 
   async initialize(pageIndex = 0, signal?: AbortSignal): Promise<FrameSnapshot> {
@@ -141,6 +152,7 @@ export class CoreReaderSession implements ReaderSession {
     if (this.#closing) return this.#closing
     const finalSnapshot = this.snapshot()
     this.#closed = true
+    this.#preloadTelemetry.close()
     this.#closing = Promise.resolve().then(async () => {
       this.#emit({ type: "closed", sessionId: this.id })
       this.#listeners.clear()
@@ -170,6 +182,7 @@ export class CoreReaderSession implements ReaderSession {
 
   #refreshPreload(frame: FrameSnapshot, intent: ReaderNavigationIntent): void {
     this.#preloadPlan = this.#preload.update(frame, intent)
+    this.#preloadTelemetry.updatePlan(this.#preloadPlan)
   }
 
   async #prepareFrameMetadata(

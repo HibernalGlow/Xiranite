@@ -23,6 +23,7 @@ import type { ReaderLibraryService } from "../../application/library/ReaderLibra
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
+import type { ReaderPreloadOutcome } from "../../application/preloading/PreloadTelemetry.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
@@ -69,6 +70,7 @@ import {
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
+const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
@@ -266,6 +268,7 @@ export class ReaderHttpController implements AsyncDisposable {
     })
     this.#diagnostics = new ReaderDiagnosticsService({
       activeSessions: () => this.#service.sessionCount,
+      preload: () => this.#service.preloadDiagnostics(),
       assets: () => this.#assets.snapshot(),
       presentationDiskCache: () => this.#cacheService.status(),
       solidArchiveCache: () => this.#solidArchiveCache.snapshot(),
@@ -352,6 +355,8 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     const navigateMatch = SESSION_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
+    const preloadEventsMatch = SESSION_PRELOAD_EVENTS_PATH.exec(url.pathname)
+    if (preloadEventsMatch && request.method === "POST") return this.#reportPreloadEvents(preloadEventsMatch[1]!, request)
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
     if (optionsMatch && request.method === "PATCH") return this.#updateSessionOptions(optionsMatch[1]!, request)
     const sessionMatch = SESSION_PATH.exec(url.pathname)
@@ -655,6 +660,30 @@ export class ReaderHttpController implements AsyncDisposable {
     }
   }
 
+  async #reportPreloadEvents(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    if (!body || !Number.isSafeInteger(body.generation) || !Array.isArray(body.events) || body.events.length < 1 || body.events.length > 64) {
+      return jsonResponse({ error: "Preload report requires generation and 1..64 events" }, 400)
+    }
+    const events: Array<{ pageId: string; outcome: ReaderPreloadOutcome }> = []
+    for (const value of body.events) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return jsonResponse({ error: "Invalid preload event" }, 400)
+      const event = value as Record<string, unknown>
+      if (typeof event.pageId !== "string" || !event.pageId || !isPreloadOutcome(event.outcome)) {
+        return jsonResponse({ error: "Preload event requires pageId and a valid outcome" }, 400)
+      }
+      events.push({ pageId: event.pageId, outcome: event.outcome })
+    }
+    const results = events.map((event) => session.reportPreload({ generation: body.generation as number, ...event }))
+    const accepted = results.filter((result) => result.accepted).length
+    const stale = results.filter((result) => result.reason === "stale-generation").length
+    const rejected = results.length - accepted
+    const status = accepted > 0 ? 202 : stale > 0 ? 409 : 400
+    return jsonResponse({ generation: body.generation, accepted, rejected, stale }, status)
+  }
+
   async #updateSessionOptions(encodedSessionId: string, request: Request): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -887,6 +916,10 @@ function safeDecode(value: string): string | undefined {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isPreloadOutcome(value: unknown): value is ReaderPreloadOutcome {
+  return value === "started" || value === "ready" || value === "failed" || value === "cancelled" || value === "evicted"
 }
 
 async function safeStat(path: string, signal?: AbortSignal): Promise<Stats | undefined> {

@@ -86,6 +86,15 @@ export {
   type ReaderPreloadPlan,
   type ReaderPreloadTier,
 } from "./application/preloading/PreloadCoordinator.js"
+export {
+  ReaderPreloadTelemetry,
+  aggregateReaderPreloadTelemetry,
+  type ReaderPreloadDiagnostics,
+  type ReaderPreloadOutcome,
+  type ReaderPreloadReport,
+  type ReaderPreloadReportResult,
+  type ReaderPreloadTelemetrySnapshot,
+} from "./application/preloading/PreloadTelemetry.js"
 export type { ReaderProgressRecord, ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 export type { ReaderMediaProgressRecord, ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
 export { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "./application/reader/ReaderMediaProgressService.js"

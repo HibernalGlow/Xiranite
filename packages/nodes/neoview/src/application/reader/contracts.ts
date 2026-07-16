@@ -4,6 +4,7 @@ import type { ReadingDirection, TailOverflowBehavior } from "../../domain/naviga
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
+import type { ReaderPreloadReport, ReaderPreloadReportResult, ReaderPreloadTelemetrySnapshot } from "../preloading/PreloadTelemetry.js"
 
 export type ReaderSessionId = string
 
@@ -31,6 +32,8 @@ export interface ReaderSession extends AsyncDisposable {
   readonly generation: ReaderGeneration
   snapshot(): FrameSnapshot
   preloadPlan(): ReaderPreloadPlan | undefined
+  preloadTelemetry(): ReaderPreloadTelemetrySnapshot
+  reportPreload(report: ReaderPreloadReport): ReaderPreloadReportResult
   getPage(pageId: PageId): ReaderPage | undefined
   goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot>
   next(signal?: AbortSignal): Promise<FrameSnapshot>
