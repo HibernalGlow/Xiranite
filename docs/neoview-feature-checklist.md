@@ -65,7 +65,7 @@
 - 设置：`fileBrowser.sortField`、`fileBrowser.sortOrder`、`folderPanelSettings.homePath`
 - 数据：folder tabs、navigation history、quick folders、tree pins
 - 行为：列表/网格/树视图；面包屑前进后退；多标签与主页；虚拟列表；目录流取消；文件夹预览和评分
-- 测试：待补
+- 测试：`neoview.browser.navigation`、`neoview.browser.cancel`、`neoview.browser.http`、`neoview.file-tree.opendir`、`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.file-tree.watcher`、`neoview.file-tree.watcher-native`、`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`
 - 性能基准：无专项
 - 已知差异：无
 

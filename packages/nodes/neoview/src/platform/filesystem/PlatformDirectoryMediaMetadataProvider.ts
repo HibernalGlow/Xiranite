@@ -27,7 +27,7 @@ export class PlatformDirectoryMediaMetadataProvider implements ReaderDirectoryMe
     if (!fields.has("dimensions") && !fields.has("pageCount")) return entries
     return Readable.from(entries).map(
       (entry) => this.#hydrateEntry(entry, fields, signal),
-      { concurrency: MEDIA_METADATA_CONCURRENCY, signal },
+      { concurrency: MEDIA_METADATA_CONCURRENCY },
     ).toArray()
   }
 

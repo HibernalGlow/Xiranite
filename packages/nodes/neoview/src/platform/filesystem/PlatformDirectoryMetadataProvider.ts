@@ -90,7 +90,7 @@ async function hydrateStats(
       if (signal?.aborted) throw error
       return entry
     }
-  }, { concurrency: STAT_CONCURRENCY, signal }).toArray()
+  }, { concurrency: STAT_CONCURRENCY }).toArray()
 }
 
 function effectiveRating(record: ReaderDirectoryEmmRecord | undefined, fallback: number): number {

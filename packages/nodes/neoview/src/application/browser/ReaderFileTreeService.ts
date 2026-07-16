@@ -7,6 +7,15 @@ import type {
   ReaderDirectoryMetadataField,
   ReaderDirectoryMetadataProvider,
 } from "../../ports/ReaderDirectoryMetadataProvider.js"
+import type {
+  ReaderFileTreeScanOptions,
+  ReaderFileTreeScanner,
+} from "../../ports/ReaderFileTreeScanner.js"
+import type {
+  ReaderFileTreeChange,
+  ReaderFileTreeSubscription,
+  ReaderFileTreeWatcher,
+} from "../../ports/ReaderFileTreeWatcher.js"
 import {
   READER_DIRECTORY_SORT_FIELDS,
   readerDirectoryMetadataFields,
@@ -50,6 +59,13 @@ export interface ReaderDirectoryPage {
   globalDefaultSort: ReaderDirectorySortRule
   tabDefaultSort: ReaderDirectorySortRule
   suggestedSelection?: { path: string; index: number }
+  watching: boolean
+  watchError?: string
+}
+
+export interface ReaderFileTreeServiceOptions {
+  scanner?: ReaderFileTreeScanner
+  watcher?: ReaderFileTreeWatcher
 }
 
 interface BrowserSession {
@@ -65,9 +81,16 @@ interface BrowserSession {
   sortFields: readonly ReaderDirectorySortField[]
   randomSeeds: Map<string, string>
   operation?: AbortController
+  watchEnabled: boolean
+  watch?: ReaderFileTreeSubscription
+  watchRevision: number
+  watchAppliedRevision: number
+  watchRefresh?: Promise<void>
+  watchRefreshAbort?: AbortController
+  watchError?: string
 }
 
-export class CoreReaderDirectoryBrowser implements AsyncDisposable {
+export class ReaderFileTreeService implements AsyncDisposable {
   readonly #sessions = new Map<string, BrowserSession>()
   #nextSessionId = 1
   #closed = false
@@ -76,6 +99,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     private readonly provider: ReaderDirectoryListingProvider,
     private readonly metadataProvider?: ReaderDirectoryMetadataProvider,
     private readonly sortPreferences = new CoreReaderDirectorySortPreferences(),
+    private readonly options: ReaderFileTreeServiceOptions = {},
   ) {}
 
   async open(
@@ -84,6 +108,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     scopeId = "folder-main",
     displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
     focusPath?: string,
+    watch = false,
   ): Promise<ReaderDirectoryPage> {
     this.#assertOpen()
     const rawListing = await this.provider.read(path, signal)
@@ -103,9 +128,13 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       sortPreference,
       sortFields: this.#availableSortFields(),
       randomSeeds: new Map(),
+      watchEnabled: watch,
+      watchRevision: 0,
+      watchAppliedRevision: 0,
     }
-    if (this.#sessions.size >= 8) this.close(this.#sessions.keys().next().value as string)
+    if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
+    await this.#startWatcher(session)
     const focusIndex = focusPath ? listing.entries.findIndex((entry) => entry.path === focusPath) : -1
     return this.#page(
       session,
@@ -126,6 +155,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
   ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
+    await this.#refreshWatchedSession(session, signal)
     assertPage(cursor, limit, session.listing.entries.length)
     return this.#page(session, cursor, limit, displayFields, signal)
   }
@@ -145,7 +175,8 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     session.operation?.abort()
     const controller = new AbortController()
     session.operation = controller
-    const combinedSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+    const unlinkAbort = forwardAbort(signal, controller)
+    const combinedSignal = controller.signal
     const generation = session.generation + 1
     try {
       const rawListing = await this.provider.read(target, combinedSignal)
@@ -164,8 +195,12 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       session.sort = sortPreference.sort
       session.sortPreference = sortPreference
       session.generation = generation
+      await this.#replaceWatcher(session)
+      combinedSignal.throwIfAborted()
+      if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
       return await this.#page(session, 0, 128, displayFields, combinedSignal, suggestedSelection(navigation, listing, previousPath))
     } finally {
+      unlinkAbort()
       if (session.operation === controller) session.operation = undefined
     }
   }
@@ -183,7 +218,8 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     session.operation?.abort()
     const controller = new AbortController()
     session.operation = controller
-    const combinedSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+    const unlinkAbort = forwardAbort(signal, controller)
+    const combinedSignal = controller.signal
     try {
       const entries = await this.#hydrate(session.listing.entries, sort, combinedSignal)
       combinedSignal.throwIfAborted()
@@ -207,6 +243,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       const focusIndex = focusPath ? session.listing.entries.findIndex((entry) => entry.path === focusPath) : -1
       return await this.#page(session, 0, 128, displayFields, combinedSignal, focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex })
     } finally {
+      unlinkAbort()
       if (session.operation === controller) session.operation = undefined
     }
   }
@@ -223,7 +260,8 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     session.operation?.abort()
     const controller = new AbortController()
     session.operation = controller
-    const combinedSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+    const unlinkAbort = forwardAbort(signal, controller)
+    const combinedSignal = controller.signal
     try {
       let next: { preference: ReaderDirectorySortPreferenceSnapshot; temporary?: ReaderDirectoryTemporarySortRule }
       if (command.action === "temporary") {
@@ -260,21 +298,37 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       const focusIndex = focusPath ? session.listing.entries.findIndex((entry) => entry.path === focusPath) : -1
       return await this.#page(session, 0, 128, displayFields, combinedSignal, focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex })
     } finally {
+      unlinkAbort()
       if (session.operation === controller) session.operation = undefined
     }
   }
 
-  close(sessionId: string): boolean {
+  scan(sessionId: string, options?: ReaderFileTreeScanOptions, signal?: AbortSignal) {
+    const scanner = this.options.scanner
+    if (!scanner) throw new Error("Reader file tree scanning is unavailable.")
     const session = this.#sessions.get(sessionId)
-    session?.operation?.abort()
-    return this.#sessions.delete(sessionId)
+    if (!session) throw new Error(`Reader file tree session not found: ${sessionId}`)
+    return scanner.scan(session.listing.path, options, signal)
+  }
+
+  async close(sessionId: string): Promise<boolean> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return false
+    session.operation?.abort()
+    this.#sessions.delete(sessionId)
+    await this.#closeWatcher(session)
+    return true
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
     if (this.#closed) return
     this.#closed = true
-    for (const session of this.#sessions.values()) session.operation?.abort()
+    const sessions = [...this.#sessions.values()]
     this.#sessions.clear()
+    for (const session of sessions) {
+      session.operation?.abort()
+      await this.#closeWatcher(session)
+    }
   }
 
   #assertOpen(): void {
@@ -304,6 +358,82 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     if (!this.#availableSortFields().includes(sort.field)) {
       throw new Error(`Directory sort field is unavailable: ${sort.field}`)
     }
+  }
+
+  async #startWatcher(session: BrowserSession): Promise<void> {
+    if (!session.watchEnabled || !this.options.watcher) return
+    try {
+      const subscription = await this.options.watcher.subscribe(
+        session.listing.path,
+        (changes) => this.#recordWatcherChanges(session, changes),
+        (error) => {
+          if (this.#sessions.get(session.id) === session) session.watchError = error.message
+        },
+      )
+      if (this.#sessions.get(session.id) !== session) {
+        await subscription.close()
+        return
+      }
+      session.watch = subscription
+      session.watchError = undefined
+    } catch (error) {
+      session.watchError = errorMessage(error)
+    }
+  }
+
+  async #replaceWatcher(session: BrowserSession): Promise<void> {
+    await this.#closeWatcher(session)
+    session.watchRevision = 0
+    session.watchAppliedRevision = 0
+    await this.#startWatcher(session)
+  }
+
+  async #closeWatcher(session: BrowserSession): Promise<void> {
+    session.watchRefreshAbort?.abort(new DOMException("Reader file tree watch closed", "AbortError"))
+    const refresh = session.watchRefresh
+    const subscription = session.watch
+    session.watch = undefined
+    if (refresh) await refresh.catch(() => undefined)
+    if (subscription) await subscription.close()
+  }
+
+  #recordWatcherChanges(session: BrowserSession, changes: readonly ReaderFileTreeChange[]): void {
+    if (this.#sessions.get(session.id) !== session) return
+    if (!changes.some((change) => affectsCurrentDirectory(session.listing.path, change.path))) return
+    session.watchRevision += 1
+  }
+
+  async #refreshWatchedSession(session: BrowserSession, signal?: AbortSignal): Promise<void> {
+    if (session.watchAppliedRevision >= session.watchRevision) return
+    if (!session.watchRefresh) {
+      const revision = session.watchRevision
+      const controller = new AbortController()
+      session.watchRefreshAbort = controller
+      session.watchRefresh = this.#reloadWatchedSession(session, revision, controller.signal).finally(() => {
+        session.watchRefresh = undefined
+        if (session.watchRefreshAbort === controller) session.watchRefreshAbort = undefined
+      })
+    }
+    await waitForSharedRefresh(session.watchRefresh, signal)
+  }
+
+  async #reloadWatchedSession(session: BrowserSession, revision: number, signal: AbortSignal): Promise<void> {
+    const rawListing = await this.provider.read(session.listing.path, signal)
+    const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
+    this.#assertSortAvailable(sortPreference.sort)
+    const entries = await this.#hydrate(rawListing.entries, sortPreference.sort, signal)
+    signal.throwIfAborted()
+    if (this.#sessions.get(session.id) !== session) return
+    session.listing = sortListing(
+      { ...rawListing, entries },
+      sortPreference.sort,
+      randomSeedForPath(session, rawListing.path),
+    )
+    session.sort = sortPreference.sort
+    session.sortPreference = sortPreference
+    session.watchAppliedRevision = revision
+    session.watchError = undefined
+    session.generation += 1
   }
 
   async #page(
@@ -378,6 +508,8 @@ function pageOf(
     globalDefaultSort: session.sortPreference.globalDefault,
     tabDefaultSort: session.sortPreference.tabDefault,
     suggestedSelection: suggestedSelectionValue,
+    watching: Boolean(session.watch),
+    watchError: session.watchError,
   }
 }
 
@@ -414,4 +546,45 @@ function suggestedSelection(
 function assertPage(cursor: number, limit: number, total: number): void {
   if (!Number.isSafeInteger(cursor) || cursor < 0 || cursor > total) throw new RangeError(`Invalid browser cursor: ${cursor}`)
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw new RangeError(`Invalid browser limit: ${limit}`)
+}
+
+function affectsCurrentDirectory(directoryPath: string, changedPath: string): boolean {
+  const directory = normalizePathKey(directoryPath)
+  const changed = normalizePathKey(changedPath)
+  if (changed === directory) return true
+  const separator = changed.lastIndexOf("/")
+  return separator >= 0 && changed.slice(0, separator) === directory
+}
+
+function normalizePathKey(path: string): string {
+  return path.replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase()
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+async function waitForSharedRefresh(refresh: Promise<void>, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted()
+  if (!signal) return refresh
+  await Promise.race([
+    refresh,
+    new Promise<never>((_resolve, reject) => {
+      const abort = () => reject(signal.reason)
+      signal.addEventListener("abort", abort, { once: true })
+      const cleanup = () => signal.removeEventListener("abort", abort)
+      void refresh.then(cleanup, cleanup)
+    }),
+  ])
+}
+
+function forwardAbort(source: AbortSignal | undefined, target: AbortController): () => void {
+  if (!source) return () => undefined
+  if (source.aborted) {
+    target.abort(source.reason)
+    return () => undefined
+  }
+  const abort = () => target.abort(source.reason)
+  source.addEventListener("abort", abort, { once: true })
+  return () => source.removeEventListener("abort", abort)
 }

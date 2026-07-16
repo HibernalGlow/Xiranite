@@ -1,8 +1,9 @@
 import {
-  CoreReaderDirectoryBrowser,
+  ReaderFileTreeService,
   type ReaderDirectoryNavigation,
   type ReaderDirectorySortPreferenceCommand,
-} from "../../application/browser/ReaderDirectoryBrowser.js"
+  type ReaderFileTreeServiceOptions,
+} from "../../application/browser/ReaderFileTreeService.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
@@ -13,6 +14,8 @@ import {
 } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
 import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
+import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.js"
+import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type {
   ReaderDirectoryMetadataField,
@@ -30,17 +33,22 @@ const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
 ])
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
-  readonly #browser: CoreReaderDirectoryBrowser
+  readonly #browser: ReaderFileTreeService
 
   constructor(
     sortPreferenceStore?: ReaderDirectorySortPreferenceStore,
     emmRecordStore?: ReaderDirectoryEmmRecordStore,
     mediaMetadataProvider?: ReaderDirectoryMetadataProvider,
+    fileTreeOptions: ReaderFileTreeServiceOptions = {},
   ) {
-    this.#browser = new CoreReaderDirectoryBrowser(
+    this.#browser = new ReaderFileTreeService(
       new PlatformDirectoryListingProvider(),
       new PlatformDirectoryMetadataProvider(emmRecordStore, undefined, undefined, mediaMetadataProvider),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
+      {
+        scanner: fileTreeOptions.scanner ?? new PlatformFileTreeScanner(),
+        watcher: fileTreeOptions.watcher ?? new PlatformFileTreeWatcher(),
+      },
     )
   }
 
@@ -59,7 +67,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     const sessionMatch = BROWSER_SESSION_PATH.exec(url.pathname)
     if (sessionMatch && request.method === "DELETE") {
       const sessionId = safeDecode(sessionMatch[1]!)
-      return sessionId && this.#browser.close(sessionId) ? new Response(null, { status: 204 }) : errorResponse("Browser session not found", 404)
+      return sessionId && await this.#browser.close(sessionId) ? new Response(null, { status: 204 }) : errorResponse("Browser session not found", 404)
     }
     return undefined
   }
@@ -69,9 +77,10 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   }
 
   async #open(request: Request): Promise<Response> {
-    const body = await request.json().catch(() => undefined) as { path?: unknown; scopeId?: unknown } | undefined
+    const body = await request.json().catch(() => undefined) as { path?: unknown; scopeId?: unknown; watch?: unknown } | undefined
     if (typeof body?.path !== "string" || !body.path.trim()) return errorResponse("path must be a non-empty string", 400)
     if (body.scopeId !== undefined && (typeof body.scopeId !== "string" || !body.scopeId.trim())) return errorResponse("scopeId must be a non-empty string", 400)
+    if (body.watch !== undefined && typeof body.watch !== "boolean") return errorResponse("watch must be a boolean", 400)
     try {
       const resolvedPath = await realpath(body.path)
       const pathStats = await stat(resolvedPath)
@@ -83,6 +92,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         typeof body.scopeId === "string" ? body.scopeId : undefined,
         DISPLAY_METADATA_FIELDS,
         focusPath,
+        body.watch === true,
       ), responseInit(201))
     } catch (error) {
       if (request.signal.aborted) throw error

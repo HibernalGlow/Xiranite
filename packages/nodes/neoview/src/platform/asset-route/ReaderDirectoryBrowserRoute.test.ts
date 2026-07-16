@@ -13,6 +13,48 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.watch-http] refreshes an explicitly watched session and releases its native subscription", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-watch-"))
+    directories.push(directory)
+    await writeFile(join(directory, "a.cbz"), "a")
+    let changes: ((events: readonly [{ path: string; kind: "create" }]) => void) | undefined
+    const close = vi.fn(async () => undefined)
+    const route = new ReaderDirectoryBrowserRoute(undefined, undefined, undefined, {
+      watcher: {
+        async subscribe(_path, onChanges) {
+          changes = onChanges as typeof changes
+          return { close, [Symbol.asyncDispose]: close }
+        },
+      },
+    })
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory, watch: true }),
+      })))!
+      const initial = await opened.json() as { sessionId: string; generation: number; total: number; watching: boolean }
+      expect(initial).toMatchObject({ generation: 1, total: 1, watching: true })
+
+      const addedPath = join(directory, "b.cbz")
+      await writeFile(addedPath, "b")
+      changes?.([{ path: addedPath, kind: "create" }])
+      const refreshed = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}/entries`,
+      )))!
+      await expect(refreshed.json()).resolves.toMatchObject({ generation: 2, total: 2, watching: true })
+
+      const closed = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}`,
+        { method: "DELETE" },
+      )))!
+      expect(closed.status).toBe(204)
+      expect(close).toHaveBeenCalledOnce()
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.open-file-location] opens a file's parent directory and returns its stable selection", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-file-location-"))
     directories.push(directory)

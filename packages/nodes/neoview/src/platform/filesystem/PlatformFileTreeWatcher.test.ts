@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import { PlatformFileTreeWatcher } from "./PlatformFileTreeWatcher.js"
 
@@ -20,4 +23,40 @@ describe("PlatformFileTreeWatcher", () => {
     await subscription[Symbol.asyncDispose]()
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
+
+  it.runIf(process.platform === "win32")("[neoview.file-tree.watcher-native] receives a real Windows create event and releases the subscription", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-file-tree-watch-"))
+    let resolveChange!: (path: string) => void
+    let rejectChange!: (error: Error) => void
+    const changed = new Promise<string>((resolve, reject) => {
+      resolveChange = resolve
+      rejectChange = reject
+    })
+    const subscription = await new PlatformFileTreeWatcher().subscribe(
+      root,
+      (changes) => {
+        const created = changes.find((change) => change.kind === "create")
+        if (created) resolveChange(created.path)
+      },
+      rejectChange,
+    )
+    try {
+      const file = join(root, "book.cbz")
+      await writeFile(file, "fixture")
+      await expect(withTimeout(changed, 5_000)).resolves.toBe(file)
+    } finally {
+      await subscription.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })
+
+function withTimeout<T>(value: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    value,
+    new Promise<never>((_resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Watcher event timed out after ${timeoutMs} ms.`)), timeoutMs)
+      void value.then(() => clearTimeout(timer), () => clearTimeout(timer))
+    }),
+  ])
+}

@@ -7,11 +7,12 @@ export {
 } from "./application/node/runNeoview.js"
 export { CoreReaderService } from "./application/reader/ReaderService.js"
 export {
-  CoreReaderDirectoryBrowser,
+  ReaderFileTreeService,
   type ReaderDirectoryNavigation,
   type ReaderDirectoryPage,
   type ReaderDirectorySortPreferenceCommand,
-} from "./application/browser/ReaderDirectoryBrowser.js"
+  type ReaderFileTreeServiceOptions,
+} from "./application/browser/ReaderFileTreeService.js"
 export {
   DEFAULT_READER_DIRECTORY_SORT,
   READER_DIRECTORY_SORT_FIELDS,

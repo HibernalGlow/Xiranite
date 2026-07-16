@@ -445,8 +445,8 @@
 - [ ] `folder.arch.session` 有界目录浏览会话
   - 目标：一个 ReaderFileTreeService 会话维护稳定 generation、显式关闭、取消和有界缓存；GUI/CLI/TUI 不各建目录实现。
   - 源码：`stores/folderPanelStore/core.svelte.ts`、`components/FolderStack/FolderDataLoader.ts`
-  - 测试：`neoview.folder.browser-session`、`neoview.folder.catalog-bounds`
-  - 备注：当前 CoreReaderDirectoryBrowser 与 12x128 稀疏 catalog 已覆盖基础纵切，最终需并入统一服务。
+  - 测试：`neoview.browser.navigation`、`neoview.browser.cancel`、`neoview.folder.file-tree-service`
+  - 备注：单层 listing、导航、排序、递归 scanner 和按需 watcher 已收口到唯一 ReaderFileTreeService；前端稀疏 catalog 与完整多标签会话仍待完成。
 - [ ] `folder.arch.page` 任意 cursor 分页与稳定快照
   - 目标：可按任意 cursor/limit 拉取稳定快照，目录变化通过 generation 失效，不向前端一次性返回完整大目录。
   - 源码：`components/FolderStack/FolderDataLoader.ts`、`stores/folderPanelStore/types.ts`
@@ -455,18 +455,18 @@
 - [ ] `folder.arch.scan` 单层与递归扫描分层
   - 目标：单层列举使用原生 opendir/Dirent；递归索引与搜索使用唯一 readdirp adapter，支持 AbortSignal、背压和批次输出。
   - 源码：`utils/directoryTreeCache.ts`、`components/FolderTree.svelte`
-  - 测试：`neoview.folder.native-listing`、`neoview.folder.recursive-scanner`
-  - 备注：scanner adapter 已加入但仍需完成聚焦验证与统一服务接线。
+  - 测试：`neoview.file-tree.opendir`、`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.folder.file-tree-service`
+  - 备注：单层 opendir provider 与 readdirp scanner 已由 ReaderFileTreeService 按 session 根统一编排；流式 HTTP 搜索 surface 与排除规则仍待完成。
 - [ ] `folder.arch.watch` 文件树增量监听
   - 目标：按需动态加载 @parcel/watcher，仅监听活动根；事件合并后增量修补 generation，最后消费者关闭即 unsubscribe。
   - 源码：`utils/directoryTreeCache.ts`、`components/FolderTree.svelte`
-  - 测试：`neoview.folder.watcher-lifecycle`
-  - 备注：Windows/Bun create 事件探针已通过，尚未接入目录快照增量刷新。
+  - 测试：`neoview.file-tree.watcher`、`neoview.file-tree.watcher-native`、`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`
+  - 备注：watch:true 显式 session 已接入目录快照失效、单飞重读、generation 递增、导航换根和关闭 unsubscribe；前端默认 opt-in、事件推送/轮询和增量行补丁仍待完成。
 - [ ] `folder.arch.dispose` 取消、释放与休眠
   - 目标：折叠、切目录、关闭标签和卸载 Card 时取消过期分页/扫描/缩略图，释放 watcher、thumbnail context、browser session 和 Worker。
   - 源码：`components/FolderStack.svelte`、`utils/directoryTreeCache.ts`
-  - 测试：`neoview.folder.thumbnail-release`、`neoview.folder.session-dispose`
-  - 备注：当前 Card 已释放分页、缩略图 context 和会话。
+  - 测试：`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`
+  - 备注：ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和 dispose 释放 watcher；Card 分页与缩略图 context 已释放，完整树/搜索/Worker 休眠仍待完成。
 
 ### navigation（7）
 
