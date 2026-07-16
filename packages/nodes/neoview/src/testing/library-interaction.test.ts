@@ -9,6 +9,7 @@ describe("NeoView library terminal interaction", () => {
     const controller = {
       listBookmarks: vi.fn(async () => [{ id: "bookmark-1", name: "Demo" }]),
       removeBookmark: vi.fn(async () => true),
+      cleanupInvalid: vi.fn(async () => ({ kind: "both", scanned: 1, missing: 1, unknown: 0, deleted: 1, truncated: false })),
       [Symbol.asyncDispose]: dispose,
     } as unknown as ReaderLibraryHeadlessController
     const definition = createNeoviewLibraryTuiDefinition("en", async () => controller)
@@ -21,6 +22,11 @@ describe("NeoView library terminal interaction", () => {
     expect(controller.listBookmarks).toHaveBeenCalledWith(undefined, 20)
     expect(definition.schema.isDangerous({ action: "delete-bookmark", id: "bookmark-1" })).toBe(true)
     expect(definition.schema.isDangerous({ action: "list-bookmarks" })).toBe(false)
-    expect(dispose).toHaveBeenCalledOnce()
+    await expect(definition.run({ action: "cleanup-invalid", cleanupKind: "both", limit: 20, concurrency: 2 }, () => undefined)).resolves.toMatchObject({
+      success: true, message: "1/1 invalid entries deleted.",
+    })
+    expect(controller.cleanupInvalid).toHaveBeenCalledWith({ kind: "both", scanLimit: 20, deleteLimit: 20, concurrency: 2 })
+    expect(definition.schema.isDangerous({ action: "cleanup-invalid" })).toBe(true)
+    expect(dispose).toHaveBeenCalledTimes(2)
   })
 })

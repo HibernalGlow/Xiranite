@@ -31,6 +31,7 @@ const COMMANDS = new Set([
   "reader-data-inspect", "reader-data-import",
   "search-history-inspect", "search-history-import",
   "library-recents", "library-recent-delete", "library-recent-cleanup",
+  "library-invalid-cleanup",
   "library-bookmarks", "library-bookmark-add", "library-bookmark-delete",
   "library-bookmark-lists", "library-bookmark-list-add", "library-bookmark-list-delete",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
@@ -67,6 +68,7 @@ const VALUE_FLAGS = new Set([
   "--name",
   "--list",
   "--before",
+  "--concurrency",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -259,6 +261,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "library-recent-cleanup") {
     rejectOptions(parsed, new Set(["--json", "--database", "--before", "--limit", "--yes"]))
+    return
+  }
+  if (command === "library-invalid-cleanup") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--kind", "--scan-limit", "--limit", "--concurrency", "--yes"]))
     return
   }
   if (command === "thumbnail-db-inspect") {
@@ -646,6 +652,7 @@ async function runLibraryCommand(
   }
   const destructive = command === "library-recent-delete"
     || command === "library-recent-cleanup"
+    || command === "library-invalid-cleanup"
     || command === "library-bookmark-delete"
     || command === "library-bookmark-list-delete"
   if (destructive && !parsed.booleans.has("--yes")) throw usage(`${command} requires --yes.`)
@@ -675,6 +682,17 @@ async function runLibraryCommand(
       const before = integerOption(parsed, "--before", 0, Number.MAX_SAFE_INTEGER, 0)
       const deleted = await controller.clearRecentBefore(before, integerOption(parsed, "--limit", 1, 500, 500))
       return printLibraryMutation({ deleted, before }, json, host)
+    }
+    if (command === "library-invalid-cleanup") {
+      const kind = oneValue(parsed, "--kind") ?? "both"
+      if (kind !== "recents" && kind !== "bookmarks" && kind !== "both") throw usage("--kind must be recents, bookmarks or both.")
+      const result = await controller.cleanupInvalid({
+        kind,
+        scanLimit: integerOption(parsed, "--scan-limit", 1, 500, 500),
+        deleteLimit: integerOption(parsed, "--limit", 1, 500, 500),
+        concurrency: integerOption(parsed, "--concurrency", 1, 16, 8),
+      })
+      return printLibraryMutation(result as unknown as Record<string, unknown>, json, host)
     }
     if (command === "library-bookmarks") {
       const items = await controller.listBookmarks(
@@ -1248,6 +1266,7 @@ function formatCliHelp(): string {
     "  library-recents                 List recent Reader entries",
     "  library-recent-delete           Delete one recent entry (--id, --yes)",
     "  library-recent-cleanup          Delete an old bounded batch (--before, --yes)",
+    "  library-invalid-cleanup         Remove missing recent/bookmark paths (--yes)",
     "  library-bookmarks               List bookmarks, optionally by --list",
     "  library-bookmark-add <path>     Add or merge a bookmark",
     "  library-bookmark-delete         Delete one bookmark (--id, --yes)",

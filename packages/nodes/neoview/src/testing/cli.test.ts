@@ -29,6 +29,7 @@ describe("NeoView CLI", () => {
       listRecent: vi.fn(async () => [{ bookId: "book-1", displayName: "Book" }]),
       savePathBookmark: vi.fn(async () => ({ id: "bookmark-1", name: "Demo" })),
       removeBookmark: vi.fn(async () => true),
+      cleanupInvalid: vi.fn(async () => ({ kind: "both", scanned: 2, missing: 1, unknown: 0, deleted: 1, truncated: false })),
       [Symbol.asyncDispose]: dispose,
     } as unknown as ReaderLibraryHeadlessController
     const dependencies = { createController: async () => fakeReader(), createLibraryController: async () => controller }
@@ -43,7 +44,10 @@ describe("NeoView CLI", () => {
     await expect(runProgram(["library-bookmark-delete", "--id", "bookmark-1"], host([]), dependencies)).rejects.toThrow("requires --yes")
     await runProgram(["library-bookmark-delete", "--id", "bookmark-1", "--yes"], host([]), dependencies)
     expect(controller.removeBookmark).toHaveBeenCalledWith("bookmark-1")
-    expect(dispose).toHaveBeenCalledTimes(3)
+    await expect(runProgram(["library-invalid-cleanup"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["library-invalid-cleanup", "--kind", "both", "--scan-limit", "20", "--limit", "10", "--concurrency", "2", "--yes"], host([]), dependencies)
+    expect(controller.cleanupInvalid).toHaveBeenCalledWith({ kind: "both", scanLimit: 20, deleteLimit: 10, concurrency: 2 })
+    expect(dispose).toHaveBeenCalledTimes(4)
   })
 
   it("[neoview.folder.search-history-cli] shares headless history operations and confirms destructive commands", async () => {
