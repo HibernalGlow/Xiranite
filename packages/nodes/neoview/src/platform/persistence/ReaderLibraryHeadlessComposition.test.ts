@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -30,6 +30,11 @@ describe("Reader library headless composition", () => {
     await expect(reopened.listBookmarks(undefined, 10)).resolves.toEqual([
       expect.objectContaining({ id: created.id, name: "Cover", listIds: ["default", "reading"] }),
     ])
+    await unlink(imagePath)
+    await expect(reopened.cleanupInvalid({ kind: "bookmarks", scanLimit: 10, deleteLimit: 10 })).resolves.toMatchObject({
+      scanned: 1, missing: 1, deleted: 1,
+    })
+    await expect(reopened.listBookmarks(undefined, 10)).resolves.toEqual([])
     await reopened.close()
   })
 })

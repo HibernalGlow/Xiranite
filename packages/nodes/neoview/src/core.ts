@@ -125,6 +125,13 @@ export {
   type SavePathBookmarkInput,
 } from "./application/headless/ReaderLibraryHeadlessController.js"
 export {
+  ReaderLibraryCleanupService,
+  type ReaderLibraryCleanupKind,
+  type ReaderLibraryCleanupRequest,
+  type ReaderLibraryCleanupResult,
+} from "./application/library/ReaderLibraryCleanupService.js"
+export type { ReaderPathStatus, ReaderPathStatusProvider } from "./ports/ReaderPathStatusProvider.js"
+export {
   DEFAULT_READER_SESSION_OPTIONS,
   type OpenViewSourceOptions,
   type ReaderService,

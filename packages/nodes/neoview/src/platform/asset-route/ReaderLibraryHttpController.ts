@@ -1,6 +1,7 @@
 import type { SaveReaderBookmarkInput, SaveReaderBookmarkListInput } from "../../application/library/ReaderLibraryService.js"
 import { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ViewSource } from "../../domain/book/book.js"
+import type { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 
 const RECENT_ITEM_PATH = /^\/reader\/library\/recents\/([^/]+)$/
 const BOOKMARK_ITEM_PATH = /^\/reader\/library\/bookmarks\/([^/]+)$/
@@ -8,7 +9,10 @@ const BOOKMARK_LIST_ITEM_PATH = /^\/reader\/library\/bookmark-lists\/([^/]+)$/
 const MAX_BODY_BYTES = 64 * 1024
 
 export class ReaderLibraryHttpController {
-  constructor(private readonly library: ReaderLibraryService) {}
+  constructor(
+    private readonly library: ReaderLibraryService,
+    private readonly cleanup?: ReaderLibraryCleanupService,
+  ) {}
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
@@ -25,6 +29,22 @@ export class ReaderLibraryHttpController {
         const limit = optionalPositiveInteger(body.limit, 500)
         if (limit === undefined) return jsonResponse({ error: "limit must be a positive integer" }, 400)
         return jsonResponse({ deleted: await this.library.clearRecentBefore(body.before, limit) })
+      }
+      if (url.pathname === "/reader/library/cleanup-invalid" && request.method === "POST") {
+        if (!this.cleanup) return jsonResponse({ error: "Reader library invalid-path cleanup is unavailable" }, 503)
+        const body = await readJson(request)
+        if (!body) return jsonResponse({ error: "Invalid cleanup request" }, 400)
+        const kind = body.kind ?? "both"
+        if (kind !== "recents" && kind !== "bookmarks" && kind !== "both") return jsonResponse({ error: "kind must be recents, bookmarks or both" }, 400)
+        const concurrency = optionalBoundedInteger(body.concurrency, 8, 16)
+        if (body.concurrency !== undefined && concurrency === undefined) return jsonResponse({ error: "concurrency must be an integer from 1 to 16" }, 400)
+        return jsonResponse(await this.cleanup.cleanupInvalid({
+          kind,
+          scanLimit: optionalPositiveInteger(body.scanLimit, 500),
+          deleteLimit: optionalPositiveInteger(body.deleteLimit, 500),
+          concurrency,
+          signal: request.signal,
+        }))
       }
       const recentMatch = RECENT_ITEM_PATH.exec(url.pathname)
       if (recentMatch && request.method === "DELETE") {
@@ -148,6 +168,11 @@ function queryInteger(value: string | null, minimum: number, maximum: number, fa
 function optionalPositiveInteger(value: unknown, fallback: number): number | undefined {
   if (value === undefined) return fallback
   return Number.isSafeInteger(value) && (value as number) > 0 ? Math.min(value as number, 500) : undefined
+}
+
+function optionalBoundedInteger(value: unknown, fallback: number, maximum: number): number | undefined {
+  if (value === undefined) return fallback
+  return Number.isSafeInteger(value) && (value as number) > 0 && (value as number) <= maximum ? value as number : undefined
 }
 
 function isTimestamp(value: unknown): value is number {

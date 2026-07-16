@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
+import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 import type { ReaderLibraryStore } from "../../ports/ReaderLibraryStore.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 
@@ -25,7 +26,9 @@ describe("ReaderLibraryHttpController", () => {
         listIds: ["default"],
       })
     const service = new ReaderLibraryService(store, () => 200, () => "generated")
-    const controller = new ReaderLibraryHttpController(service)
+    const controller = new ReaderLibraryHttpController(service, new ReaderLibraryCleanupService(service, {
+      check: vi.fn(async () => "missing"),
+    }))
 
     const recent = (await controller.handle(request("/reader/library/recents?limit=900&offset=2")))!
     expect(await recent.json()).toEqual({ items: [] })
@@ -49,6 +52,13 @@ describe("ReaderLibraryHttpController", () => {
     await expect(repeated.json()).resolves.toMatchObject({ id: "generated", name: "Renamed", listIds: ["default", "reading"] })
     expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites")))?.status).toBe(200)
     expect((await controller.handle(request("/reader/library/bookmark-lists")))?.status).toBe(200)
+    store.listRecent.mockResolvedValueOnce([{ bookId: "missing", source: { kind: "archive", path: "D:/missing.cbz" }, displayName: "Missing", pageIndex: 0, pageCount: 1, updatedAt: 1 }])
+    store.listBookmarks.mockResolvedValueOnce([])
+    store.deleteRecent.mockResolvedValueOnce(true)
+    const invalid = (await controller.handle(jsonRequest("/reader/library/cleanup-invalid", {
+      kind: "both", scanLimit: 20, deleteLimit: 10, concurrency: 2,
+    })))!
+    await expect(invalid.json()).resolves.toMatchObject({ scanned: 1, missing: 1, deleted: 1 })
   })
 })
 

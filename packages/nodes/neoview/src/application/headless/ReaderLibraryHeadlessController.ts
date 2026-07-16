@@ -1,5 +1,6 @@
 import type { ReaderLibraryService, SaveReaderBookmarkListInput } from "../library/ReaderLibraryService.js"
 import type { ViewSource } from "../../domain/book/book.js"
+import type { ReaderLibraryCleanupRequest, ReaderLibraryCleanupService } from "../library/ReaderLibraryCleanupService.js"
 
 export interface ReaderLibrarySourceIdentity {
   source: Exclude<ViewSource, { kind: "path" }>
@@ -20,6 +21,7 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
   constructor(
     private readonly library: ReaderLibraryService,
     private readonly resolveSource: (path: string) => Promise<ReaderLibrarySourceIdentity>,
+    private readonly cleanup?: ReaderLibraryCleanupService,
   ) {}
 
   listRecent(limit = 100, offset = 0) {
@@ -74,6 +76,12 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
   removeBookmarkList(id: string) {
     this.#assertOpen()
     return this.library.removeBookmarkList(id)
+  }
+
+  cleanupInvalid(request: ReaderLibraryCleanupRequest = {}) {
+    this.#assertOpen()
+    if (!this.cleanup) throw new Error("Reader library invalid-path cleanup is unavailable.")
+    return this.cleanup.cleanupInvalid(request)
   }
 
   async close(): Promise<void> {

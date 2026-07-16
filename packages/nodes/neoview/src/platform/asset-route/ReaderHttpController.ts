@@ -33,6 +33,8 @@ import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeli
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
+import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
+import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import {
   parseNeoviewFolderViewPatch,
@@ -213,7 +215,10 @@ export class ReaderHttpController implements AsyncDisposable {
       options.searchHistoryStore ? new ReaderSearchHistoryService(options.searchHistoryStore) : undefined,
     )
     this.#libraryService = options.libraryService
-    this.#library = options.libraryService ? new ReaderLibraryHttpController(options.libraryService) : undefined
+    this.#library = options.libraryService ? new ReaderLibraryHttpController(
+      options.libraryService,
+      new ReaderLibraryCleanupService(options.libraryService, new PlatformReaderPathStatusProvider(options.resourceScheduler)),
+    ) : undefined
     this.#disposeLibraryService = options.disposeLibraryService ?? false
     this.#cacheService = new ReaderCacheService(options.presentationDiskCache, {
       ownsPresentationCache: options.disposePresentationDiskCache,

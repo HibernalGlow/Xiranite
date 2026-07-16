@@ -355,16 +355,23 @@ export async function createReaderLibraryService(databasePath?: string): Promise
   )
 }
 
-export async function createReaderLibraryHeadlessController(databasePath?: string): Promise<ReaderLibraryHeadlessController> {
+export async function createReaderLibraryHeadlessController(
+  databasePath?: string,
+  resourceScheduler?: ResourceScheduler,
+): Promise<ReaderLibraryHeadlessController> {
   const { basename } = await import("node:path")
   const { ReaderLibraryHeadlessController } = await import("./application/headless/ReaderLibraryHeadlessController.js")
   const { detectViewSource } = await import("./platform/filesystem/detectViewSource.js")
+  const { ReaderLibraryCleanupService } = await import("./application/library/ReaderLibraryCleanupService.js")
+  const { PlatformReaderPathStatusProvider } = await import("./platform/filesystem/PlatformReaderPathStatusProvider.js")
+  const library = await createReaderLibraryService(databasePath)
   return new ReaderLibraryHeadlessController(
-    await createReaderLibraryService(databasePath),
+    library,
     async (path) => {
       const source = await detectViewSource(path)
       return { source, displayName: basename(source.path) || source.path }
     },
+    new ReaderLibraryCleanupService(library, new PlatformReaderPathStatusProvider(resourceScheduler)),
   )
 }
 

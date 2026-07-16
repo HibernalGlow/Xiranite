@@ -66,6 +66,7 @@
     "image-size": "2.0.2",
     "lru-cache": "11.5.2",
     "lz4js": "0.2.0",
+    "p-map": "4.0.0",
     "picomatch": "4.0.5",
     "proper-lockfile": "4.1.2",
     "readdirp": "^5.0.0",
