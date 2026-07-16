@@ -41,17 +41,29 @@ interface CardFunctionalScope {
   checklistRef?: string
 }
 
+interface DetailedChecklist {
+  title?: string
+  legacyCardId: string
+  sourceUiInventory: SourceUiInventoryGroup[]
+  items: FolderItem[]
+}
+
 const root = resolve(import.meta.dir, "..")
 const folder = await readJson<{ sourceUiInventory: SourceUiInventoryGroup[]; items: FolderItem[] }>(resolve(root, "migration/neoview/folder-main-compatibility.json"))
 const cards = await readJson<{ cards: CardEntry[] }>(resolve(root, "migration/neoview/card-compatibility.json"))
 const scopes = await readJson<{ cards: CardFunctionalScope[] }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
+const detailedChecklists = new Map<string, DetailedChecklist>()
+for (const scope of scopes.cards) {
+  if (!scope.checklistRef) continue
+  detailedChecklists.set(scope.checklistRef, await readJson<DetailedChecklist>(resolve(root, scope.checklistRef)))
+}
 const features = await readJson<{ features: Array<{ id: string; title: string }> }>(resolve(root, "migration/neoview/feature-compatibility.json"))
 const featureTitles = new Map(features.features.map((feature) => [feature.id, feature.title]))
 const scopeByCard = new Map(scopes.cards.map((scope) => [scope.legacyId, scope]))
 const lines: string[] = [
   "# NeoView Card 完整功能与 UI 验收清单",
   "",
-  "> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json` 与 `migration/neoview/card-compatibility.json`，请勿只改本文件。",
+  `> 本文件由 \`bun run generate:neoview-card-checklist\` 生成。机器事实源为 ${[...detailedChecklists.keys(), "migration/neoview/card-functional-scopes.json", "migration/neoview/card-compatibility.json"].map((path) => `\`${path}\``).join("、")}，请勿只改本文件。`,
   "",
   "## 完成规则",
   "",
@@ -118,8 +130,11 @@ for (const [panelId, panelCards] of groupBy(cards.cards, (card) => card.panelId)
     const scope = scopeByCard.get(card.legacyId)
     lines.push(`#### \`${card.legacyId}\` ${card.title}`, "")
     if (scope?.checklistRef) lines.push(`- 细项清单：\`${scope.checklistRef}\``)
-    for (const capability of scope?.capabilities ?? []) lines.push(`- [ ] ${capability}`)
+    const capabilityMark = card.status === "migrated" || card.status === "replaced" ? "[x]" : "[ ]"
+    for (const capability of scope?.capabilities ?? []) lines.push(`- ${capabilityMark} ${capability}`)
     lines.push(`- UI 基线：\`${card.sourceComponent ?? "registry-only"}\`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。`, "")
+    const detailed = scope?.checklistRef ? detailedChecklists.get(scope.checklistRef) : undefined
+    if (detailed && detailed.legacyCardId !== "folderMain") appendDetailedChecklist(lines, detailed)
   }
 }
 
@@ -178,4 +193,30 @@ function statusMark(status: Status): string {
 
 function escapeTable(value: string): string {
   return value.replaceAll("|", "\\|").replaceAll("\n", " ")
+}
+
+function appendDetailedChecklist(lines: string[], checklist: DetailedChecklist): void {
+  lines.push(
+    `##### 专用逐控件库存（${checklist.sourceUiInventory.length} 组，${checklist.sourceUiInventory.reduce((total, group) => total + group.acceptanceItems.length, 0)} 项）`,
+    "",
+  )
+  for (const group of checklist.sourceUiInventory) {
+    lines.push(
+      `- \`${group.id}\` ${group.title}`,
+      `  - 源码：${group.sourceEvidence.map((source) => `\`${source}\``).join("、")}`,
+      `  - 映射：${group.mappedChecklistIds.map((id) => `\`${id}\``).join("、")}`,
+      ...group.acceptanceItems.map((item) => `  - [ ] ${item}`),
+    )
+  }
+  lines.push("", "##### 专用源码级验收项", "")
+  for (const item of checklist.items) {
+    lines.push(
+      `- ${statusMark(item.status)} \`${item.id}\` ${item.title}`,
+      `  - 目标：${item.targetContract}`,
+      `  - 源码：${item.sourceEvidence.map((source) => `\`${source}\``).join("、")}`,
+      `  - 测试：${item.testIds.length ? item.testIds.map((id) => `\`${id}\``).join("、") : "待补"}`,
+      `  - 备注：${item.notes || "无"}`,
+    )
+  }
+  lines.push("")
 }

@@ -257,7 +257,7 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "partial",
+      "status": "migrated",
       "currentCardId": "time-information",
       "sourceComponent": "src/lib/cards/info/TimeCard.svelte",
       "sourceDisposition": "component"

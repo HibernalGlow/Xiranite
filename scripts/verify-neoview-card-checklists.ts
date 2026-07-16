@@ -57,6 +57,11 @@ const functionalScopes = await readJson<{ cards: Array<{
   capabilities: string[]
   checklistRef?: string
 }> }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
+const checklistByRef = new Map<string, CardChecklist>([["migration/neoview/folder-main-compatibility.json", checklist]])
+for (const scope of functionalScopes.cards) {
+  if (!scope.checklistRef || checklistByRef.has(scope.checklistRef)) continue
+  checklistByRef.set(scope.checklistRef, await readJson<CardChecklist>(resolve(root, scope.checklistRef)))
+}
 const inventory = await readJson<{ modules: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/module-inventory.json"))
 const componentInventory = await readJson<{ components: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/component-inventory.json"))
 const errors: string[] = []
@@ -83,6 +88,15 @@ for (const card of cardMatrix.cards) {
 const folderScope = functionalScopes.cards.find((scope) => scope.legacyId === checklist.legacyCardId)
 if (folderScope?.checklistRef !== "migration/neoview/folder-main-compatibility.json") {
   errors.push(`${checklist.legacyCardId} does not reference its detailed checklist`)
+}
+const referencedChecklistPaths = new Set<string>()
+for (const scope of functionalScopes.cards) {
+  if (!scope.checklistRef) continue
+  if (referencedChecklistPaths.has(scope.checklistRef)) errors.push(`duplicate detailed checklist reference ${scope.checklistRef}`)
+  referencedChecklistPaths.add(scope.checklistRef)
+  const detailed = checklistByRef.get(scope.checklistRef)
+  if (!detailed) errors.push(`${scope.legacyId} detailed checklist could not be loaded: ${scope.checklistRef}`)
+  else if (detailed.legacyCardId !== scope.legacyId) errors.push(`${scope.checklistRef} belongs to ${detailed.legacyCardId}, not ${scope.legacyId}`)
 }
 
 const sourcePrefix = "src/lib/components/panels/folderPanel/"
@@ -139,6 +153,11 @@ for (const group of checklist.sourceUiInventory) {
   }
 }
 
+for (const [checklistRef, detailed] of checklistByRef) {
+  if (detailed === checklist) continue
+  validateDetailedChecklist(detailed, checklistRef)
+}
+
 const legacyCard = cardMatrix.cards.find((card) => card.legacyId === checklist.legacyCardId)
 if (!legacyCard) errors.push(`legacy card ${checklist.legacyCardId} is missing from card matrix`)
 const incomplete = checklist.items.filter((item) => item.status !== "complete")
@@ -160,10 +179,65 @@ console.log(JSON.stringify({
   acceptanceDimensions: contract.requiredDimensions.length,
   sourceUiInventoryGroups: checklist.sourceUiInventory.length,
   sourceUiInventoryItems: checklist.sourceUiInventory.reduce((total, group) => total + group.acceptanceItems.length, 0),
+  detailedChecklists: [...checklistByRef.keys()],
   functionalScopes: functionalScopes.cards.length,
   cardSourceComponents: cardMatrix.cards.filter((card) => card.sourceDisposition === "component").length,
   registryOnlyCards: cardMatrix.cards.filter((card) => card.sourceDisposition === "registry-only").map((card) => card.legacyId),
 }, null, 2))
+
+function validateDetailedChecklist(detailed: CardChecklist, checklistRef: string): void {
+  if (detailed.schemaVersion !== 1) errors.push(`${checklistRef} has unsupported schema ${String(detailed.schemaVersion)}`)
+  if (!detailed.completionRule.trim()) errors.push(`${checklistRef} has no completion rule`)
+  const allowedDetailedStatuses = new Set(detailed.statusValues)
+  const detailedIds = new Set<string>()
+  const groupIds = new Set<string>()
+  for (const item of detailed.items) {
+    if (detailedIds.has(item.id)) errors.push(`${checklistRef} has duplicate item ${item.id}`)
+    detailedIds.add(item.id)
+    for (const field of contract.requiredItemFields) {
+      if (!(field in item)) errors.push(`${checklistRef}:${item.id} is missing ${field}`)
+    }
+    if (!item.id.trim() || !item.category.trim() || !item.title.trim()) errors.push(`${checklistRef}:${item.id || "<missing id>"} has blank identity fields`)
+    if (!item.targetContract.trim()) errors.push(`${checklistRef}:${item.id} has no target contract`)
+    if (!allowedDetailedStatuses.has(item.status)) errors.push(`${checklistRef}:${item.id} has invalid status ${item.status}`)
+    if (!item.sourceEvidence.length) errors.push(`${checklistRef}:${item.id} has no source evidence`)
+    if (!item.surfaces.length || item.surfaces.some((surface) => !allowedSurfaces.has(surface))) errors.push(`${checklistRef}:${item.id} has invalid surfaces`)
+    if (item.status === "complete" && !item.testIds.length) errors.push(`${checklistRef}:${item.id} is complete without automated test IDs`)
+    for (const evidence of item.sourceEvidence) validateDetailedEvidence(detailed, checklistRef, item.id, evidence)
+  }
+  for (const group of detailed.sourceUiInventory) {
+    if (groupIds.has(group.id)) errors.push(`${checklistRef} has duplicate source UI group ${group.id}`)
+    groupIds.add(group.id)
+    if (!group.id.trim() || !group.title.trim()) errors.push(`${checklistRef}:${group.id || "<missing id>"} has blank inventory identity`)
+    if (!group.sourceEvidence.length) errors.push(`${checklistRef}:${group.id} has no source UI evidence`)
+    if (!group.acceptanceItems.length || group.acceptanceItems.some((item) => !item.trim())) errors.push(`${checklistRef}:${group.id} has blank acceptance items`)
+    if (!group.mappedChecklistIds.length) errors.push(`${checklistRef}:${group.id} has no checklist mapping`)
+    for (const evidence of group.sourceEvidence) validateDetailedEvidence(detailed, checklistRef, group.id, evidence)
+    for (const itemId of group.mappedChecklistIds) {
+      if (!detailedIds.has(itemId)) errors.push(`${checklistRef}:${group.id} maps to unknown item ${itemId}`)
+    }
+  }
+  const legacy = cardMatrix.cards.find((card) => card.legacyId === detailed.legacyCardId)
+  if (!legacy) errors.push(`${checklistRef} references missing Card ${detailed.legacyCardId}`)
+  const incomplete = detailed.items.filter((item) => item.status !== "complete")
+  if (legacy?.status === "migrated" && incomplete.length) errors.push(`${detailed.legacyCardId} is migrated while ${incomplete.length} checklist items remain incomplete`)
+  if (process.argv.includes("--require-complete")) {
+    for (const item of incomplete) errors.push(`${checklistRef}:${item.id} remains ${item.status}`)
+  }
+}
+
+function validateDetailedEvidence(detailed: CardChecklist, checklistRef: string, id: string, evidence: string): void {
+  const sourcePath = detailedSourcePath(detailed.sourceRoot, evidence)
+  if (!sourceFiles.has(sourcePath)) errors.push(`${checklistRef}:${id} references source missing from frozen inventory: ${sourcePath}`)
+}
+
+function detailedSourcePath(sourceRoot: string, evidence: string): string {
+  const normalizedRoot = sourceRoot.replaceAll("\\", "/").replace(/\/$/, "")
+  const marker = "/neoview-tauri"
+  const markerIndex = normalizedRoot.toLocaleLowerCase().lastIndexOf(marker)
+  const prefix = markerIndex === -1 ? "" : normalizedRoot.slice(markerIndex + marker.length).replace(/^\//, "")
+  return [prefix, evidence.replaceAll("\\", "/")].filter(Boolean).join("/")
+}
 
 async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T
