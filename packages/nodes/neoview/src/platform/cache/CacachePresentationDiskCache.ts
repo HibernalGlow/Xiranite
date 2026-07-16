@@ -1,6 +1,8 @@
 import { mkdir, statfs } from "node:fs/promises"
 import { performance } from "node:perf_hooks"
 import { createHash } from "node:crypto"
+import { join } from "node:path"
+import { lock } from "proper-lockfile"
 
 import type {
   ReaderPresentationDiskCache,
@@ -50,6 +52,8 @@ const DEFAULT_MAX_ENTRY_BYTES = 24 * 1024 * 1024
 const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 const DEFAULT_MIN_FREE_BYTES = 512 * 1024 * 1024
 const DEFAULT_MINIMUM_RETENTION_MS = 60 * 1000
+const ENTRY_LOCK_STALE_MS = 30_000
+const ENTRY_LOCK_UPDATE_MS = 10_000
 
 export class CacachePresentationDiskCache implements ReaderPresentationDiskCache {
   readonly maxEntryBytes: number
@@ -62,10 +66,12 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
   readonly #now: () => number
   readonly #loadCacache: () => Promise<CacacheApi>
   readonly #availableBytes: (path: string) => Promise<number | undefined>
+  readonly #entryLockRoot: string
   readonly #leases = new Map<string, LeaseState>()
   readonly #putFlights = new Map<string, Promise<boolean>>()
   readonly #pendingRemovals = new Set<Promise<void>>()
   #cacache?: Promise<CacacheApi>
+  #entryLockRootReady?: Promise<void>
   #maintenance?: Promise<ReaderPresentationDiskCacheCleanupResult>
   #vacuum?: Promise<void>
   #mutationVersion = 0
@@ -81,6 +87,7 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
   constructor(options: CacachePresentationDiskCacheOptions) {
     if (!options.root) throw new TypeError("root must be a non-empty path")
     this.#root = options.root
+    this.#entryLockRoot = join(this.#root, ".xr-entry-locks")
     this.#maxBytes = positiveInteger(options.maxBytes ?? DEFAULT_MAX_BYTES, "maxBytes")
     this.maxEntryBytes = positiveInteger(options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES, "maxEntryBytes")
     if (this.maxEntryBytes > this.#maxBytes) throw new RangeError("maxEntryBytes must not exceed maxBytes")
@@ -112,7 +119,13 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
     state.leases += 1
     this.#leases.set(key, state)
     let transferred = false
+    let releaseEntryLock: (() => Promise<void>) | undefined
     try {
+      releaseEntryLock = await this.#tryEntryLock(key)
+      if (!releaseEntryLock) {
+        this.#misses += 1
+        return undefined
+      }
       const api = await this.#api()
       const result = await api.get(this.#root, key, { memoize: false })
       signal?.throwIfAborted()
@@ -148,6 +161,7 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
       this.#misses += 1
       return undefined
     } finally {
+      await releaseEntryLock?.().catch(() => undefined)
       if (!transferred) this.#releaseLease(key, state)
     }
   }
@@ -207,6 +221,11 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
   }
 
   async #putOne(key: string, value: CachedPresentation, signal?: AbortSignal): Promise<boolean> {
+    const releaseEntryLock = await this.#tryEntryLock(key)
+    if (!releaseEntryLock) {
+      this.#rejectedWrites += 1
+      return false
+    }
     try {
       const integrity = sha256Integrity(value.bytes)
       if (!await this.#ensureCapacity(value.bytes.byteLength, integrity)) {
@@ -225,7 +244,7 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
         } satisfies PresentationMetadata,
       })
       if (signal?.aborted) {
-        await this.#removeEntry(key)
+        await this.#removeEntry(key, true)
         this.#rejectedWrites += 1
         return false
       }
@@ -235,6 +254,8 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
       if (signal?.aborted) return false
       this.#rejectedWrites += 1
       return false
+    } finally {
+      await releaseEntryLock().catch(() => undefined)
     }
   }
 
@@ -319,6 +340,8 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
     }
     const removed = new Set<string>()
     for (const key of removedKeys) {
+      const releaseEntryLock = await this.#tryEntryLock(key)
+      if (!releaseEntryLock) continue
       try {
         await api.rm.entry(this.#root, key)
         removed.add(key)
@@ -326,6 +349,8 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
         this.#mutationVersion += 1
       } catch {
         // A failed tombstone is not counted as an eviction.
+      } finally {
+        await releaseEntryLock().catch(() => undefined)
       }
     }
     if (removed.size) await this.#verify()
@@ -375,7 +400,9 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
     }
   }
 
-  async #removeEntry(key: string): Promise<void> {
+  async #removeEntry(key: string, entryLockHeld = false): Promise<void> {
+    const releaseEntryLock = entryLockHeld ? undefined : await this.#tryEntryLock(key, true)
+    if (!entryLockHeld && !releaseEntryLock) return
     const api = await this.#api()
     try {
       await api.rm.entry(this.#root, key)
@@ -384,6 +411,8 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
       const state = this.#leases.get(key)
       if (state) state.invalidated = true
       return
+    } finally {
+      await releaseEntryLock?.().catch(() => undefined)
     }
     this.#leases.delete(key)
     await this.#verify()
@@ -424,6 +453,34 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
     this.#cacache ??= this.#loadCacache()
     return this.#cacache
   }
+
+  async #tryEntryLock(key: string, wait = false): Promise<(() => Promise<void>) | undefined> {
+    await this.#prepareEntryLockRoot()
+    const target = join(this.#entryLockRoot, createHash("sha256").update(key).digest("hex"))
+    try {
+      return await lock(target, {
+        lockfilePath: `${target}.lock`,
+        realpath: false,
+        retries: wait ? { retries: 5, factor: 1, minTimeout: 10, maxTimeout: 50 } : 0,
+        stale: ENTRY_LOCK_STALE_MS,
+        update: ENTRY_LOCK_UPDATE_MS,
+      })
+    } catch (error) {
+      if (isAlreadyLocked(error)) return undefined
+      throw error
+    }
+  }
+
+  #prepareEntryLockRoot(): Promise<void> {
+    if (!this.#entryLockRootReady) {
+      const pending = mkdir(this.#entryLockRoot, { recursive: true }).then(() => undefined).catch((error) => {
+        if (this.#entryLockRootReady === pending) this.#entryLockRootReady = undefined
+        throw error
+      })
+      this.#entryLockRootReady = pending
+    }
+    return this.#entryLockRootReady
+  }
 }
 
 function parseMetadata(value: unknown): PresentationMetadata | undefined {
@@ -463,6 +520,10 @@ function positiveInteger(value: number, name: string): number {
 function nonNegativeInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value < 0) throw new RangeError(`${name} must be a non-negative safe integer`)
   return value
+}
+
+function isAlreadyLocked(error: unknown): boolean {
+  return error instanceof Error && (error as NodeJS.ErrnoException).code === "ELOCKED"
 }
 
 async function waitForFlight(flight: Promise<boolean>, signal?: AbortSignal): Promise<boolean> {

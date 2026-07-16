@@ -1,12 +1,16 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { execFile } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { promisify } from "node:util"
 
 import cacache from "cacache"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CacachePresentationDiskCache } from "./CacachePresentationDiskCache.js"
 import { buildPresentationCacheKey } from "./PresentationCacheKey.js"
+
+const execFileAsync = promisify(execFile)
 
 describe("CacachePresentationDiskCache", () => {
   let root = ""
@@ -79,6 +83,47 @@ describe("CacachePresentationDiskCache", () => {
     lease!.release()
     await expect.poll(async () => (await cache.snapshot()).entries).toBe(0)
     await cache.close()
+  })
+
+  it("[neoview.cache.l3-cross-process-read-lock] skips maintenance while another instance is loading the same entry", async () => {
+    const api = await import("cacache")
+    const cacheKey = key("cross-process-read")
+    const seed = createCache({ maxBytes: 64, maxEntryBytes: 32 })
+    await seed.put(cacheKey, value(10, 6))
+    await seed.close()
+
+    const started = deferred<void>()
+    const resume = deferred<void>()
+    const delayedGet = Object.assign(async (...args: Parameters<typeof api.get>) => {
+      started.resolve()
+      await resume.promise
+      return api.get(...args)
+    }, api.get) as typeof api.get
+    const reader = createCache({
+      maxBytes: 64,
+      maxEntryBytes: 32,
+      loadCacache: async () => ({ ...api, get: delayedGet }),
+    })
+    const reading = reader.acquire(cacheKey)
+    await started.promise
+
+    const child = execFileAsync("bun", [
+      join(process.cwd(), "test/helpers/clear-presentation-cache.ts"),
+    ], {
+      cwd: process.cwd(),
+      env: { ...process.env, NEOVIEW_CACHE_TEST_ROOT: root },
+    })
+    const { stdout } = await child
+    expect(JSON.parse(stdout)).toMatchObject({ removedEntries: 0, entries: 1 })
+    resume.resolve()
+    const lease = await reading
+    expect(lease?.bytes).toEqual(value(10, 6).bytes)
+    lease?.release()
+
+    const maintenance = createCache({ maxBytes: 64, maxEntryBytes: 32 })
+    await expect(maintenance.clear()).resolves.toMatchObject({ removedEntries: 1, entries: 0 })
+    await reader.close()
+    await maintenance.close()
   })
 
   it("[neoview.cache.l3-clear] clears unleased entries immediately and retires leased entries on release", async () => {
