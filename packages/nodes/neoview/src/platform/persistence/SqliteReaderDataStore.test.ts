@@ -81,6 +81,24 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.file-operations.undo-sqlite] persists and bounds guarded receipts without changing legacy metadata", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.saveFileUndoTransaction(undoTransaction("older", 1, "D:/older"), 1)
+    await store.saveFileUndoTransaction(undoTransaction("newer", 2, "D:/newer"), 1)
+    await expect(store.loadFileUndoTransactions(50)).resolves.toEqual([undoTransaction("newer", 2, "D:/newer")])
+    await expect(store.removeFileUndoTransaction("newer")).resolves.toBe(true)
+    await expect(store.loadFileUndoTransactions(50)).resolves.toEqual([])
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("PRAGMA user_version")).toEqual({ user_version: 7 })
+    expect(verified.get("PRAGMA journal_mode")).toEqual({ journal_mode: "wal" })
+    expect(verified.get("SELECT value FROM metadata WHERE key = 'version'")).toEqual({ value: "2.4" })
+    expect(verified.get("SELECT category, value FROM thumbs WHERE key = 'D:/cover.jpg'")).toEqual({ category: "file", value: Uint8Array.of(0) })
+    verified.close()
+  })
+
   it("[neoview.media-progress.sqlite] persists runtime playback state without modifying legacy schema metadata", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)
@@ -322,6 +340,22 @@ interface FixtureDatabase {
   get(sql: string): Record<string, unknown> | undefined
   all(sql: string): Record<string, unknown>[]
   close(): void
+}
+
+function undoTransaction(id: string, createdAt: number, path: string) {
+  const original = { kind: "copy" as const, sourcePath: `${path}-source`, destinationPath: path, overwrite: false }
+  return {
+    id,
+    createdAt,
+    entries: [{
+      index: 0,
+      receipt: {
+        original,
+        inverse: { kind: "delete" as const, sourcePath: path },
+        guard: { path, kind: "file" as const, size: 1, mtimeMs: 1, ctimeMs: 1, device: 1, inode: 1 },
+      },
+    }],
+  }
 }
 
 async function openFixtureDatabase(path: string): Promise<FixtureDatabase> {

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { isAbsolute, normalize, resolve } from "node:path"
 
 import type { ReaderFileMutation, ReaderFileMutationProvider, ReaderFileUndoReceipt } from "../../ports/ReaderFileMutationProvider.js"
+import type { ReaderFileUndoJournalRecord, ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJournalStore.js"
 
 const DEFAULT_CONCURRENCY = 4
 const MAX_CONCURRENCY = 8
@@ -32,6 +33,7 @@ export interface ReaderFileOperationBatchResult {
   cancelled: number
   undoable: number
   undoId?: string
+  undoPersisted?: boolean
 }
 
 export interface ReaderFileUndoState {
@@ -41,6 +43,8 @@ export interface ReaderFileUndoState {
   latestCreatedAt?: number
   supportedKinds: readonly ReaderFileMutation["kind"][]
   trashRestore: false
+  persistent: boolean
+  persistenceError?: string
 }
 
 export interface ReaderFileUndoResult {
@@ -49,23 +53,42 @@ export interface ReaderFileUndoResult {
   succeeded: number
   failed: number
   remaining: number
+  journalPersisted?: boolean
 }
 
-interface UndoTransaction {
-  id: string
-  createdAt: number
+export interface ReaderFileUndoDiscardResult {
+  undoId?: string
+  discarded: boolean
+  remaining: number
+  journalPersisted?: boolean
+}
+
+interface UndoTransaction extends Omit<ReaderFileUndoJournalRecord, "entries"> {
   entries: Array<{ index: number; receipt: ReaderFileUndoReceipt }>
 }
 
 export class ReaderFileOperationService {
   readonly #undoLimit: number
   readonly #undo: UndoTransaction[] = []
+  readonly #journal?: ReaderFileUndoJournalStore
+  readonly #disposeJournal?: () => void | Promise<void>
+  #hydrated = false
+  #hydratePromise?: Promise<void>
+  #persistenceError?: string
+  #closed = false
 
-  constructor(private readonly provider: ReaderFileMutationProvider, options: { undoLimit?: number } = {}) {
+  constructor(
+    private readonly provider: ReaderFileMutationProvider,
+    options: { undoLimit?: number; journal?: ReaderFileUndoJournalStore; disposeJournal?: () => void | Promise<void> } = {},
+  ) {
     this.#undoLimit = boundedUndoLimit(options.undoLimit)
+    this.#journal = options.journal
+    this.#disposeJournal = options.disposeJournal
   }
 
   async execute(request: ReaderFileOperationRequest): Promise<ReaderFileOperationBatchResult> {
+    this.#assertOpen()
+    await this.prepare()
     const operations = validateOperations(request.operations)
     const concurrency = boundedConcurrency(request.concurrency)
     const receipts: Array<{ index: number; receipt: ReaderFileUndoReceipt }> = []
@@ -87,18 +110,26 @@ export class ReaderFileOperationService {
       }
     }, { concurrency, stopOnError: true })
     receipts.sort((left, right) => left.index - right.index)
-    const undoId = receipts.length ? this.#recordUndo(receipts) : undefined
+    const recorded = receipts.length ? await this.#recordUndo(receipts) : undefined
     return {
       results,
       succeeded: results.filter((result) => result.status === "succeeded").length,
       failed: results.filter((result) => result.status === "failed").length,
       cancelled: results.filter((result) => result.status === "cancelled").length,
       undoable: receipts.length,
-      undoId,
+      undoId: recorded?.id,
+      undoPersisted: recorded?.persisted,
     }
   }
 
+  prepare(): Promise<void> {
+    this.#assertOpen()
+    if (this.#hydrated) return Promise.resolve()
+    return this.#hydratePromise ??= this.#hydrate()
+  }
+
   undoState(): ReaderFileUndoState {
+    this.#assertOpen()
     const latest = this.#undo.at(-1)
     return {
       available: Boolean(this.provider.undo && latest),
@@ -107,10 +138,14 @@ export class ReaderFileOperationService {
       latestCreatedAt: latest?.createdAt,
       supportedKinds: ["copy", "move", "rename", "create-directory"],
       trashRestore: false,
+      persistent: Boolean(this.#journal),
+      persistenceError: this.#persistenceError,
     }
   }
 
   async undoLatest(signal?: AbortSignal): Promise<ReaderFileUndoResult> {
+    this.#assertOpen()
+    await this.prepare()
     signal?.throwIfAborted()
     const transaction = this.#undo.at(-1)
     if (!transaction) return { results: [], succeeded: 0, failed: 0, remaining: 0 }
@@ -137,21 +172,87 @@ export class ReaderFileOperationService {
         break
       }
     }
-    if (transaction.entries.length === 0) this.#undo.pop()
+    let journalPersisted: boolean | undefined
+    if (transaction.entries.length === 0) {
+      this.#undo.pop()
+      journalPersisted = await this.#persist(() => this.#journal!.removeFileUndoTransaction(transaction.id))
+    } else {
+      journalPersisted = await this.#persist(() => this.#journal!.saveFileUndoTransaction(transaction, this.#undoLimit))
+    }
     return {
       undoId: transaction.id,
       results,
       succeeded,
       failed: results.filter((result) => result.status === "failed").length,
       remaining: transaction.entries.length,
+      journalPersisted,
     }
   }
 
-  #recordUndo(entries: Array<{ index: number; receipt: ReaderFileUndoReceipt }>): string {
+  async discardLatest(): Promise<ReaderFileUndoDiscardResult> {
+    this.#assertOpen()
+    await this.prepare()
+    const transaction = this.#undo.pop()
+    if (!transaction) return { discarded: false, remaining: 0 }
+    return {
+      undoId: transaction.id,
+      discarded: true,
+      remaining: this.#undo.length,
+      journalPersisted: await this.#persist(() => this.#journal!.removeFileUndoTransaction(transaction.id)),
+    }
+  }
+
+  async #recordUndo(entries: Array<{ index: number; receipt: ReaderFileUndoReceipt }>): Promise<{ id: string; persisted?: boolean }> {
     const transaction = { id: randomUUID(), createdAt: Date.now(), entries }
     this.#undo.push(transaction)
     if (this.#undo.length > this.#undoLimit) this.#undo.splice(0, this.#undo.length - this.#undoLimit)
-    return transaction.id
+    return {
+      id: transaction.id,
+      persisted: await this.#persist(() => this.#journal!.saveFileUndoTransaction(transaction, this.#undoLimit)),
+    }
+  }
+
+  async #hydrate(): Promise<void> {
+    try {
+      if (this.#journal) {
+        const records = await this.#journal.loadFileUndoTransactions(this.#undoLimit)
+        this.#undo.splice(0, this.#undo.length, ...records.map((record) => ({
+          id: record.id,
+          createdAt: record.createdAt,
+          entries: record.entries.map((entry) => ({ index: entry.index, receipt: entry.receipt })),
+        })))
+      }
+    } catch (error) {
+      this.#persistenceError = errorMessage(error)
+    } finally {
+      this.#hydrated = true
+    }
+  }
+
+  async #persist(operation: () => Promise<unknown>): Promise<boolean | undefined> {
+    if (!this.#journal) return undefined
+    try {
+      await operation()
+      this.#persistenceError = undefined
+      return true
+    } catch (error) {
+      this.#persistenceError = errorMessage(error)
+      return false
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return
+    this.#closed = true
+    await this.#disposeJournal?.()
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.close()
+  }
+
+  #assertOpen(): void {
+    if (this.#closed) throw new Error("Reader file operation service is closed.")
   }
 }
 

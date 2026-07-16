@@ -41,7 +41,7 @@ const COMMANDS = new Set([
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
-  "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "directory-create",
+  "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
 ])
 const VALUE_FLAGS = new Set([
   "--entry",
@@ -90,7 +90,7 @@ export interface NeoviewCliDependencies {
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
   createSearchHistoryImporter?: (databasePath?: string) => Promise<LegacySearchHistoryImporter>
   createLibraryController?: (databasePath?: string) => Promise<ReaderLibraryHeadlessController>
-  createFileOperationService?: () => Promise<ReaderFileOperationService>
+  createFileOperationService?: (databasePath?: string) => Promise<ReaderFileOperationService>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
@@ -285,6 +285,18 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "file-delete" || command === "file-trash") {
     rejectOptions(parsed, new Set(["--json", "--concurrency", "--yes"]))
+    return
+  }
+  if (command === "file-undo") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--yes"]))
+    return
+  }
+  if (command === "file-undo-discard") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--yes"]))
+    return
+  }
+  if (command === "file-undo-state") {
+    rejectOptions(parsed, new Set(["--json", "--database"]))
     return
   }
   if (command === "directory-create") {
@@ -764,37 +776,64 @@ async function runFileOperationCommand(
   dependencies: NeoviewCliDependencies,
 ): Promise<void> {
   const pair = command === "file-copy" || command === "file-move" || command === "file-rename"
+  const journalCommand = command === "file-undo" || command === "file-undo-discard" || command === "file-undo-state"
   if (pair && parsed.positionals.length !== 2) throw usage(`${command} requires source and destination paths.`)
-  if (!pair && parsed.positionals.length === 0) throw usage(`${command} requires at least one path.`)
-  if ((command === "file-delete" || command === "file-trash") && !parsed.booleans.has("--yes")) {
+  if (journalCommand && parsed.positionals.length !== 0) throw usage(`${command} does not accept a path.`)
+  if (!pair && !journalCommand && parsed.positionals.length === 0) throw usage(`${command} requires at least one path.`)
+  if ((command === "file-delete" || command === "file-trash" || command === "file-undo" || command === "file-undo-discard") && !parsed.booleans.has("--yes")) {
     throw usage(`${command} requires --yes.`)
   }
-  const paths = parsed.positionals.map((path) => resolve(host.cwd, path))
-  const overwrite = parsed.booleans.has("--overwrite")
-  let operations: ReaderFileMutation[]
-  if (command === "file-copy" || command === "file-move" || command === "file-rename") {
-    operations = [{ kind: command.slice(5) as "copy" | "move" | "rename", sourcePath: paths[0]!, destinationPath: paths[1]!, overwrite }]
-  } else if (command === "directory-create") {
-    operations = paths.map((destinationPath) => ({ kind: "create-directory", destinationPath }))
-  } else {
-    const kind = command === "file-trash" ? "trash" : "delete"
-    operations = paths.map((sourcePath) => ({ kind, sourcePath }))
-  }
-  const createService = dependencies.createFileOperationService ?? (async () => {
+  const databasePath = oneValue(parsed, "--database") ? resolve(host.cwd, oneValue(parsed, "--database")!) : undefined
+  const createService = dependencies.createFileOperationService ?? (async (target?: string) => {
     const { createReaderFileOperationService } = await import("./platform.js")
-    return createReaderFileOperationService()
+    return createReaderFileOperationService({ databasePath: target })
   })
-  const result = await (await createService()).execute({
-    operations,
-    concurrency: integerOption(parsed, "--concurrency", 1, 8, 4),
-  })
-  if (parsed.booleans.has("--json")) return writeJson(host, result)
-  for (const item of result.results) {
-    const source = "sourcePath" in item.operation ? item.operation.sourcePath : item.operation.destinationPath
-    const destination = "destinationPath" in item.operation && "sourcePath" in item.operation ? ` -> ${item.operation.destinationPath}` : ""
-    writeLine(host, `${item.status}: ${item.operation.kind} ${source}${destination}${item.error ? ` (${item.error})` : ""}`)
+  const service = await createService(databasePath)
+  try {
+    if (command === "file-undo-state") {
+      await service.prepare()
+      const state = service.undoState()
+      if (parsed.booleans.has("--json")) writeJson(host, state)
+      else writeLine(host, JSON.stringify(state))
+      return
+    }
+    if (command === "file-undo") {
+      const result = await service.undoLatest()
+      if (parsed.booleans.has("--json")) writeJson(host, result)
+      else writeLine(host, JSON.stringify(result))
+      return
+    }
+    if (command === "file-undo-discard") {
+      const result = await service.discardLatest()
+      if (parsed.booleans.has("--json")) writeJson(host, result)
+      else writeLine(host, JSON.stringify(result))
+      return
+    }
+    const paths = parsed.positionals.map((path) => resolve(host.cwd, path))
+    const overwrite = parsed.booleans.has("--overwrite")
+    let operations: ReaderFileMutation[]
+    if (command === "file-copy" || command === "file-move" || command === "file-rename") {
+      operations = [{ kind: command.slice(5) as "copy" | "move" | "rename", sourcePath: paths[0]!, destinationPath: paths[1]!, overwrite }]
+    } else if (command === "directory-create") {
+      operations = paths.map((destinationPath) => ({ kind: "create-directory", destinationPath }))
+    } else {
+      const kind = command === "file-trash" ? "trash" : "delete"
+      operations = paths.map((sourcePath) => ({ kind, sourcePath }))
+    }
+    const result = await service.execute({
+      operations,
+      concurrency: integerOption(parsed, "--concurrency", 1, 8, 4),
+    })
+    if (parsed.booleans.has("--json")) return writeJson(host, result)
+    for (const item of result.results) {
+      const source = "sourcePath" in item.operation ? item.operation.sourcePath : item.operation.destinationPath
+      const destination = "destinationPath" in item.operation && "sourcePath" in item.operation ? ` -> ${item.operation.destinationPath}` : ""
+      writeLine(host, `${item.status}: ${item.operation.kind} ${source}${destination}${item.error ? ` (${item.error})` : ""}`)
+    }
+    writeLine(host, `Completed: ${result.succeeded}; failed=${result.failed}; cancelled=${result.cancelled}`)
+  } finally {
+    await service.close()
   }
-  writeLine(host, `Completed: ${result.succeeded}; failed=${result.failed}; cancelled=${result.cancelled}`)
 }
 
 function requiredValue(parsed: ParsedArguments, option: string, command: string): string {
@@ -1363,6 +1402,9 @@ function formatCliHelp(): string {
     "  file-rename <source> <destination> Rename within one directory",
     "  file-trash <path...>             Move paths to system trash (--yes)",
     "  file-delete <path...>            Permanently delete paths (--yes)",
+    "  file-undo                        Undo the latest guarded transaction (--yes)",
+    "  file-undo-discard                Discard a stale latest undo transaction (--yes)",
+    "  file-undo-state                  Show persistent undo capability and state",
     "  directory-create <path...>       Create directories",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",

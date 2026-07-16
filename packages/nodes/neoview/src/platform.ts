@@ -222,6 +222,7 @@ export async function createReaderHttpController(
     directorySortPreferenceStore: dataStore,
     directoryEmmRecordStore: dataStore,
     searchHistoryStore: dataStore,
+    fileUndoJournalStore: dataStore,
     disposeLibraryService: true,
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
@@ -355,10 +356,20 @@ export async function createReaderLibraryService(databasePath?: string): Promise
   )
 }
 
-export async function createReaderFileOperationService(resourceScheduler?: ResourceScheduler) {
+export async function createReaderFileOperationService(options: {
+  resourceScheduler?: ResourceScheduler
+  databasePath?: string
+  journal?: import("./ports/ReaderFileUndoJournalStore.js").ReaderFileUndoJournalStore
+} = {}) {
   const { ReaderFileOperationService } = await import("./application/files/ReaderFileOperationService.js")
   const { PlatformReaderFileMutationProvider } = await import("./platform/filesystem/PlatformReaderFileMutationProvider.js")
-  return new ReaderFileOperationService(new PlatformReaderFileMutationProvider({ scheduler: resourceScheduler }))
+  const provider = new PlatformReaderFileMutationProvider({ scheduler: options.resourceScheduler })
+  if (options.journal) return new ReaderFileOperationService(provider, { journal: options.journal })
+  const journal = await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(options.databasePath))
+  return new ReaderFileOperationService(provider, {
+    journal,
+    disposeJournal: () => journal.close(),
+  })
 }
 
 export async function createReaderLibraryHeadlessController(

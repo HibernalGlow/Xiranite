@@ -31,8 +31,14 @@ describe("NeoView CLI", () => {
       failed: 0,
       cancelled: 0,
     }))
-    const service = { execute } as ReaderFileOperationService
-    const dependencies = { createController: async () => fakeReader(), createFileOperationService: async () => service }
+    const close = vi.fn(async () => undefined)
+    const prepare = vi.fn(async () => undefined)
+    const undoState = vi.fn(() => ({ available: true, count: 1, persistent: true, supportedKinds: [], trashRestore: false as const }))
+    const undoLatest = vi.fn(async () => ({ results: [], succeeded: 1, failed: 0, remaining: 0, journalPersisted: true }))
+    const discardLatest = vi.fn(async () => ({ discarded: true, remaining: 0, journalPersisted: true }))
+    const service = { execute, close, prepare, undoState, undoLatest, discardLatest } as unknown as ReaderFileOperationService
+    const createFileOperationService = vi.fn(async () => service)
+    const dependencies = { createController: async () => fakeReader(), createFileOperationService }
 
     await runProgram(["file-copy", "source.jpg", "target.jpg", "--overwrite", "--concurrency", "1"], host([]), dependencies)
     expect(execute).toHaveBeenLastCalledWith({ operations: [{
@@ -47,6 +53,18 @@ describe("NeoView CLI", () => {
       { kind: "delete", sourcePath: resolve("source.jpg") },
       { kind: "delete", sourcePath: resolve("target.jpg") },
     ], concurrency: 4 })
+    await expect(runProgram(["file-undo"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["file-undo", "--yes", "--database", "undo.db"], host([]), dependencies)
+    expect(createFileOperationService).toHaveBeenLastCalledWith(resolve("undo.db"))
+    expect(undoLatest).toHaveBeenCalledOnce()
+    await expect(runProgram(["file-undo-discard"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["file-undo-discard", "--yes"], host([]), dependencies)
+    expect(discardLatest).toHaveBeenCalledOnce()
+    const state: unknown[] = []
+    await runProgram(["file-undo-state", "--json"], host(state), dependencies)
+    expect(JSON.parse(state.join(""))).toMatchObject({ available: true, count: 1, persistent: true })
+    expect(prepare).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledTimes(5)
   })
 
   it("[neoview.library.cli] adapts shared library operations and confirms destructive commands", async () => {

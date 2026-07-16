@@ -112,6 +112,22 @@ describe("ReaderFileOperationService", () => {
     await service.undoLatest()
     expect(undone).toEqual([absolute("second")])
   })
+
+  it("[neoview.file-operations.undo-discard] explicitly removes a stale transaction without running its inverse", async () => {
+    const undo = vi.fn(async () => undefined)
+    const provider: ReaderFileMutationProvider = {
+      async execute(operation) {
+        return "destinationPath" in operation ? undoReceipt(operation, operation.destinationPath) : undefined
+      },
+      undo,
+    }
+    const service = new ReaderFileOperationService(provider)
+    const operation = await service.execute({ operations: [{ kind: "create-directory", destinationPath: absolute("stale") }] })
+
+    await expect(service.discardLatest()).resolves.toMatchObject({ undoId: operation.undoId, discarded: true, remaining: 0 })
+    expect(undo).not.toHaveBeenCalled()
+    await expect(service.discardLatest()).resolves.toEqual({ discarded: false, remaining: 0 })
+  })
 })
 
 function undoReceipt(original: ReaderFileUndoReceipt["original"], path: string): ReaderFileUndoReceipt {

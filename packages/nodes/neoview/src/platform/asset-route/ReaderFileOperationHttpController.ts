@@ -3,6 +3,7 @@ import type { ReaderFileOperationService } from "../../application/files/ReaderF
 
 const OPERATIONS_PATH = "/reader/files/operations"
 const UNDO_PATH = "/reader/files/undo"
+const DISCARD_UNDO_PATH = "/reader/files/undo/discard"
 const MAX_BODY_BYTES = 256 * 1024
 
 export class ReaderFileOperationHttpController {
@@ -12,9 +13,10 @@ export class ReaderFileOperationHttpController {
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
-    if (url.pathname !== OPERATIONS_PATH && url.pathname !== UNDO_PATH) return undefined
+    if (url.pathname !== OPERATIONS_PATH && url.pathname !== UNDO_PATH && url.pathname !== DISCARD_UNDO_PATH) return undefined
     if (url.pathname === OPERATIONS_PATH && request.method === "GET") {
       const service = await (this.#service ??= this.loadService())
+      await service.prepare()
       return jsonResponse(service.undoState())
     }
     if (url.pathname === UNDO_PATH) {
@@ -28,6 +30,13 @@ export class ReaderFileOperationHttpController {
         if (request.signal.aborted) throw error
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 409)
       }
+    }
+    if (url.pathname === DISCARD_UNDO_PATH) {
+      if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "POST" })
+      const body = await readBody(request)
+      if (!body || body.confirmed !== true) return jsonResponse({ error: "Discarding undo state requires confirmed=true" }, 409)
+      const service = await (this.#service ??= this.loadService())
+      return jsonResponse(await service.discardLatest())
     }
     if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "POST" })
     const body = await readBody(request)

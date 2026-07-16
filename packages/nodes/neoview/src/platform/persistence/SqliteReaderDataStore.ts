@@ -1,17 +1,18 @@
 import { scheduler } from "node:timers/promises"
+import { z } from "zod"
 
 import type { ViewSource } from "../../domain/book/book.js"
 import type {
   ReaderBookmarkListRecord,
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
-  ReaderLibraryStore,
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
-import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderSearchHistoryRecord } from "../../ports/ReaderSearchHistoryStore.js"
+import type { ReaderFileUndoJournalRecord } from "../../ports/ReaderFileUndoJournalStore.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
@@ -115,6 +116,13 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         );
         CREATE INDEX IF NOT EXISTS xr_reader_search_history_scope_used_idx
           ON xr_reader_search_history (scope_id, used_at DESC, query ASC);
+        CREATE TABLE IF NOT EXISTS xr_reader_file_undo_transactions (
+          id TEXT PRIMARY KEY NOT NULL,
+          created_at INTEGER NOT NULL,
+          entries_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_file_undo_created_idx
+          ON xr_reader_file_undo_transactions (created_at DESC, id DESC);
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database)
@@ -606,6 +614,47 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     ).changes)
   }
 
+  async loadFileUndoTransactions(limit: number): Promise<ReaderFileUndoJournalRecord[]> {
+    this.#assertOpen()
+    assertUndoLimit(limit)
+    return this.database.all(
+      `SELECT id, created_at, entries_json FROM xr_reader_file_undo_transactions
+       ORDER BY created_at DESC, id DESC LIMIT ?1`,
+      limit,
+    ).map(parseUndoTransaction).reverse()
+  }
+
+  async saveFileUndoTransaction(record: ReaderFileUndoJournalRecord, limit: number): Promise<void> {
+    this.#assertOpen()
+    const value = UndoTransactionSchema.parse(record)
+    assertUndoLimit(limit)
+    await this.#transaction(() => {
+      this.database.run(
+        `INSERT INTO xr_reader_file_undo_transactions (id, created_at, entries_json)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, entries_json = excluded.entries_json`,
+        value.id,
+        value.createdAt,
+        JSON.stringify(value.entries),
+      )
+      this.database.run(
+        `DELETE FROM xr_reader_file_undo_transactions WHERE id NOT IN (
+           SELECT id FROM xr_reader_file_undo_transactions ORDER BY created_at DESC, id DESC LIMIT ?1
+         )`,
+        limit,
+      )
+    })
+  }
+
+  removeFileUndoTransaction(id: string): Promise<boolean> {
+    this.#assertOpen()
+    if (!id || id.length > 128 || id.includes("\0")) throw new Error("Reader file undo transaction id is invalid.")
+    return this.#write(() => this.database.run(
+      "DELETE FROM xr_reader_file_undo_transactions WHERE id = ?1",
+      id,
+    ).changes > 0)
+  }
+
   close(): Promise<void> {
     if (this.#closed) return Promise.resolve()
     this.#closed = true
@@ -843,6 +892,48 @@ function parseSearchHistory(row: Record<string, unknown>): ReaderSearchHistoryRe
   assertSearchHistoryTimestamp(record.usedAt)
   if (record.useCount < 1) throw new Error("Stored Reader search history use count is invalid.")
   return record
+}
+
+const PathSchema = z.string().min(1).max(32_768).refine((value) => !value.includes("\0"))
+const PairMutationSchema = z.object({
+  kind: z.enum(["copy", "move", "rename"]),
+  sourcePath: PathSchema,
+  destinationPath: PathSchema,
+  overwrite: z.boolean().optional(),
+}).strict()
+const SourceMutationSchema = z.object({ kind: z.enum(["delete", "trash"]), sourcePath: PathSchema }).strict()
+const DirectoryMutationSchema = z.object({ kind: z.literal("create-directory"), destinationPath: PathSchema }).strict()
+const MutationSchema = z.union([PairMutationSchema, SourceMutationSchema, DirectoryMutationSchema])
+const UndoReceiptSchema = z.object({
+  original: MutationSchema,
+  inverse: MutationSchema,
+  guard: z.object({
+    path: PathSchema,
+    kind: z.enum(["file", "directory", "symbolic-link", "other"]),
+    size: z.number().finite().nonnegative(),
+    mtimeMs: z.number().finite(),
+    ctimeMs: z.number().finite(),
+    device: z.number().finite().nonnegative(),
+    inode: z.number().finite().nonnegative(),
+  }).strict(),
+}).strict()
+const UndoTransactionSchema = z.object({
+  id: z.string().min(1).max(128).refine((value) => !value.includes("\0")),
+  createdAt: z.number().int().nonnegative(),
+  entries: z.array(z.object({ index: z.number().int().nonnegative(), receipt: UndoReceiptSchema }).strict()).min(1).max(256),
+}).strict()
+
+function parseUndoTransaction(row: Record<string, unknown>): ReaderFileUndoJournalRecord {
+  const entries = JSON.parse(requireString(row.entries_json, "file undo entries")) as unknown
+  return UndoTransactionSchema.parse({
+    id: requireString(row.id, "file undo id"),
+    createdAt: requireInteger(row.created_at, "file undo created time"),
+    entries,
+  })
+}
+
+function assertUndoLimit(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 100) throw new Error("Reader file undo limit is invalid.")
 }
 
 function assertSearchHistoryIdentity(scope: string, query: string): void {

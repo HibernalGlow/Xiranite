@@ -144,8 +144,13 @@ export {
   type ReaderFileOperationResult,
   type ReaderFileOperationStatus,
   type ReaderFileUndoResult,
+  type ReaderFileUndoDiscardResult,
   type ReaderFileUndoState,
 } from "./application/files/ReaderFileOperationService.js"
+export type {
+  ReaderFileUndoJournalRecord,
+  ReaderFileUndoJournalStore,
+} from "./ports/ReaderFileUndoJournalStore.js"
 export {
   DEFAULT_READER_SESSION_OPTIONS,
   type OpenViewSourceOptions,

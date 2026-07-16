@@ -12,6 +12,7 @@ import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressStore } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderSearchHistoryStore } from "../../ports/ReaderSearchHistoryStore.js"
+import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJournalStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
@@ -106,6 +107,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
   directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
   searchHistoryStore?: ReaderSearchHistoryStore
+  fileUndoJournalStore?: ReaderFileUndoJournalStore
   disposeLibraryService?: boolean
   presentationDiskCache?: ReaderPresentationDiskCache
   disposePresentationDiskCache?: boolean
@@ -219,7 +221,9 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#fileOperations = new ReaderFileOperationHttpController(async () => {
       const { ReaderFileOperationService } = await import("../../application/files/ReaderFileOperationService.js")
       const { PlatformReaderFileMutationProvider } = await import("../filesystem/PlatformReaderFileMutationProvider.js")
-      return new ReaderFileOperationService(new PlatformReaderFileMutationProvider({ scheduler: options.resourceScheduler }))
+      return new ReaderFileOperationService(new PlatformReaderFileMutationProvider({ scheduler: options.resourceScheduler }), {
+        journal: options.fileUndoJournalStore,
+      })
     })
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(

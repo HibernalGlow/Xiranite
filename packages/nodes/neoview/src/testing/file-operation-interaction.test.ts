@@ -13,7 +13,8 @@ describe("NeoView file-operation terminal interaction", () => {
       cancelled: 0,
     }))
     const undoLatest = vi.fn(async () => ({ results: [], succeeded: 1, failed: 0, remaining: 0 }))
-    const definition = createNeoviewFileOperationTuiDefinition("en", async () => ({ execute, undoLatest }) as unknown as ReaderFileOperationService)
+    const discardLatest = vi.fn(async () => ({ discarded: true, remaining: 0 }))
+    const definition = createNeoviewFileOperationTuiDefinition("en", async () => ({ execute, undoLatest, discardLatest }) as unknown as ReaderFileOperationService)
 
     await expect(definition.run({ action: "move", sourcePath: "source.jpg", destinationPath: "target.jpg" }, () => undefined)).resolves.toMatchObject({
       success: true,
@@ -28,8 +29,11 @@ describe("NeoView file-operation terminal interaction", () => {
     expect(definition.schema.isDangerous({ action: "delete", sourcePath: "source.jpg" })).toBe(true)
     expect(definition.schema.isDangerous({ action: "trash", sourcePath: "source.jpg" })).toBe(true)
     expect(definition.schema.isDangerous({ action: "undo" })).toBe(true)
+    expect(definition.schema.isDangerous({ action: "discard-undo" })).toBe(true)
     expect(definition.schema.isDangerous({ action: "copy", sourcePath: "source.jpg", destinationPath: "target.jpg" })).toBe(false)
     await expect(definition.run({ action: "undo" }, () => undefined)).resolves.toMatchObject({ success: true, message: "1 operation(s) undone." })
     expect(undoLatest).toHaveBeenCalledOnce()
+    await expect(definition.run({ action: "discard-undo" }, () => undefined)).resolves.toMatchObject({ success: true, message: "Latest undo transaction discarded." })
+    expect(discardLatest).toHaveBeenCalledOnce()
   })
 })

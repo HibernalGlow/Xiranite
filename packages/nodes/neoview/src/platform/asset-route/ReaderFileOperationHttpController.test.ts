@@ -56,6 +56,12 @@ describe("ReaderFileOperationHttpController", () => {
     expect(rejected?.status).toBe(409)
     const undone = await controller.handle(jsonRequest({ confirmed: true }, "/reader/files/undo"))
     expect(await undone?.json()).toMatchObject({ succeeded: 1, failed: 0, remaining: 0 })
+
+    await controller.handle(jsonRequest({ operations: [{ kind: "copy", sourcePath: absolute("source-2"), destinationPath: absolute("target-2") }] }))
+    const rejectedDiscard = await controller.handle(jsonRequest({}, "/reader/files/undo/discard"))
+    expect(rejectedDiscard?.status).toBe(409)
+    const discarded = await controller.handle(jsonRequest({ confirmed: true }, "/reader/files/undo/discard"))
+    expect(await discarded?.json()).toMatchObject({ discarded: true, remaining: 0 })
   })
 })
 
