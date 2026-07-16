@@ -107,6 +107,10 @@ export {
   type OpenHeadlessReaderInput,
 } from "./application/headless/ReaderHeadlessController.js"
 export {
+  ReaderFileTreeHeadlessController,
+  type OpenHeadlessFileTreeInput,
+} from "./application/headless/ReaderFileTreeHeadlessController.js"
+export {
   DEFAULT_READER_SESSION_OPTIONS,
   type OpenViewSourceOptions,
   type ReaderService,

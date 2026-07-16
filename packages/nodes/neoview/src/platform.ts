@@ -21,6 +21,8 @@ import type { ReaderCacheService } from "./application/cache/ReaderCacheService.
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
+import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
+import type { ReaderFileTreeServiceOptions } from "./application/browser/ReaderFileTreeService.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
 import type { NeoviewPresentationDiskCacheConfig } from "./application/config/ReaderRuntimeConfig.js"
@@ -69,6 +71,12 @@ export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & Neoview
   mediaProgressStore?: ReaderMediaProgressStore | false
   legacyThumbnailDatabasePath?: string | false
 }
+export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
+  ReaderFileTreeServiceOptions,
+  "scanner" | "watcher" | "maximumCacheEntries" | "cacheTtlMs"
+> & {
+  resourceScheduler?: ResourceScheduler
+}
 export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
   resourceScheduler?: ResourceScheduler
 }
@@ -104,6 +112,36 @@ export async function createReaderBookLoader(options: PlatformReaderBookLoaderOp
   return createPlatformReaderBookLoader(options)
 }
 
+export async function createReaderFileTreeController(
+  options: ReaderFileTreeCompositionOptions = {},
+): Promise<ReaderFileTreeHeadlessController> {
+  const { ReaderFileTreeHeadlessController } = await import("./application/headless/ReaderFileTreeHeadlessController.js")
+  const { ReaderFileTreeService } = await import("./application/browser/ReaderFileTreeService.js")
+  const { PlatformDirectoryListingProvider } = await import("./platform/filesystem/PlatformDirectoryListingProvider.js")
+  const { PlatformFileTreeScanner } = await import("./platform/filesystem/PlatformFileTreeScanner.js")
+  const { PlatformFileTreeWatcher } = await import("./platform/filesystem/PlatformFileTreeWatcher.js")
+  const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const updateExcludedPaths = async (paths: readonly string[]) => {
+    const { commitNeoviewFileTreeExclusions } = await import("./platform/config/NeoviewFileTreeConfigStore.js")
+    return commitNeoviewFileTreeExclusions(paths, options)
+  }
+  const service = new ReaderFileTreeService(
+    new PlatformDirectoryListingProvider(),
+    undefined,
+    undefined,
+    {
+      scanner: options.scanner ?? new PlatformFileTreeScanner(options.resourceScheduler, "neoview:file-tree-headless"),
+      watcher: options.watcher ?? new PlatformFileTreeWatcher(),
+      maximumCacheEntries: options.maximumCacheEntries,
+      cacheTtlMs: options.cacheTtlMs,
+      excludedPaths: runtimeConfig.fileTree.excludedPaths,
+      updateExcludedPaths,
+    },
+  )
+  return new ReaderFileTreeHeadlessController(service)
+}
+
 export async function createReaderAssetRoute(
   readerService: ReaderService,
   options: ReaderAssetRouteCompositionOptions,
@@ -126,6 +164,10 @@ export async function createReaderHttpController(
   const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const updateFileTreeExclusions = async (paths: readonly string[]) => {
+    const { commitNeoviewFileTreeExclusions } = await import("./platform/config/NeoviewFileTreeConfigStore.js")
+    return commitNeoviewFileTreeExclusions(paths, options)
+  }
   const presentationDiskCache = options.presentationDiskCache ?? (
     runtimeConfig.presentationDiskCache.enabled
       ? await createDefaultPresentationDiskCache(runtimeConfig.presentationDiskCache, options)
@@ -188,14 +230,7 @@ export async function createReaderHttpController(
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).folderView
     },
-    updateFileTreeExclusions: async (paths) => {
-      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
-      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
-      const committed = await commitNeoviewConfig({
-        folder: { tree: { excluded_paths: [...paths] } },
-      }, { ...options, strategy: "merge" })
-      return parseNeoviewRuntimeConfig(committed.nodeConfig).fileTree.excludedPaths
-    },
+    updateFileTreeExclusions,
     updateSlideshow: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")

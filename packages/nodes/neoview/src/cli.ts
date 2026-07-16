@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { open, readFile, rm, stat } from "node:fs/promises"
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import { CliUsageError, createCliHost, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import type {
   HeadlessReaderPageSnapshot,
   HeadlessReaderSnapshot,
   ReaderCacheService,
+  ReaderFileTreeHeadlessController,
   ReaderHeadlessController,
 } from "./core.js"
 import type {
@@ -18,7 +19,7 @@ import {
   type ReaderThumbnailMaintenancePort,
 } from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 import { help } from "./help.js"
-import { createReaderHeadlessController } from "./platform.js"
+import { createReaderFileTreeController, createReaderHeadlessController } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 
@@ -29,6 +30,7 @@ const COMMANDS = new Set([
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
+  "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
 ])
 const VALUE_FLAGS = new Set([
   "--entry",
@@ -47,8 +49,13 @@ const VALUE_FLAGS = new Set([
   "--scan-limit",
   "--reason",
   "--database",
+  "--query",
+  "--mode",
+  "--depth",
+  "--exclude",
+  "--node",
 ])
-const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum"])
+const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--refresh"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 
@@ -60,6 +67,7 @@ export const cli: CliCommand = {
 
 export interface NeoviewCliDependencies {
   createController: (options?: ReaderCompositionOptions) => Promise<ReaderHeadlessController>
+  createFileTreeController?: (options?: ReaderCompositionOptions) => Promise<ReaderFileTreeHeadlessController>
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
@@ -70,6 +78,7 @@ interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, A
 
 const DEFAULT_DEPENDENCIES: NeoviewCliDependencies = {
   createController: createReaderHeadlessController,
+  createFileTreeController: createReaderFileTreeController,
 }
 
 export async function runProgram(
@@ -89,6 +98,10 @@ export async function runProgram(
   }
   if (command === "ui") {
     await runReaderUi(args.slice(1), host)
+    return
+  }
+  if (command === "folder-ui") {
+    await runFolderUi(args.slice(1), host)
     return
   }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
@@ -118,6 +131,11 @@ export async function runProgram(
   if (command.startsWith("reader-data-")) {
     if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one legacy JSON path.`)
     await runReaderDataCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("folder-")) {
+    if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one directory path.`)
+    await runFolderCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
     return
   }
   const path = parsed.positionals[0]
@@ -218,9 +236,111 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--yes", "--config"]))
     return
   }
+  if (command === "folder-tree") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--node", "--refresh"]))
+    return
+  }
+  if (command === "folder-search") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--depth", "--limit", "--exclude", "--case-sensitive"]))
+    return
+  }
+  if (command === "folder-exclude" || command === "folder-include") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--yes"]))
+    return
+  }
+  if (command === "folder-tree-cache-clear") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--node", "--yes"]))
+    return
+  }
   for (const option of ["--strategy", "--modules", "--yes"]) {
     if (parsed.values.has(option) || parsed.booleans.has(option)) throw usage(`${command} does not accept ${option}.`)
   }
+}
+
+async function runFolderCommand(
+  command: string,
+  path: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if ((command === "folder-exclude" || command === "folder-include" || command === "folder-tree-cache-clear") && !parsed.booleans.has("--yes")) {
+    throw usage(`${command} requires --yes because it changes persistent settings or cache state.`)
+  }
+  const createController = dependencies.createFileTreeController ?? createReaderFileTreeController
+  const controller = await createController({ configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env })
+  try {
+    const openPath = command === "folder-exclude" || command === "folder-include" ? dirname(path) : path
+    await controller.open({ path: openPath })
+    if (command === "folder-tree") {
+      const node = oneValue(parsed, "--node")
+      const result = await controller.tree(node ? resolve(host.cwd, node) : undefined, parsed.booleans.has("--refresh"))
+      if (!result) throw new Error("Reader file tree session closed before the node was loaded.")
+      if (parsed.booleans.has("--json")) writeJson(host, result)
+      else {
+        for (const entry of result.entries) writeLine(host, entry.path)
+        writeLine(host, `${result.entries.length} child director${result.entries.length === 1 ? "y" : "ies"}; cache=${result.cacheHit ? "hit" : "miss"}`)
+      }
+      return
+    }
+    if (command === "folder-search") {
+      await runFolderSearch(controller, parsed, host)
+      return
+    }
+    if (command === "folder-tree-cache-clear") {
+      const node = oneValue(parsed, "--node")
+      const result = controller.clearCache(node ? resolve(host.cwd, node) : undefined)
+      if (!result) throw new Error("Reader file tree session closed before the cache was cleared.")
+      if (parsed.booleans.has("--json")) writeJson(host, result)
+      else writeLine(host, `Tree cache cleared; remaining=${result.size} generation=${result.generation}`)
+      return
+    }
+    const action = command === "folder-exclude" ? "exclude" : "include"
+    const result = await controller.updateExclusion({ action, path })
+    if (!result) throw new Error("Reader file tree session closed before exclusions were updated.")
+    if (parsed.booleans.has("--json")) writeJson(host, result)
+    else writeLine(host, `${action === "exclude" ? "Excluded" : "Included"}: ${path}`)
+  } finally {
+    await controller[Symbol.asyncDispose]()
+  }
+}
+
+async function runFolderSearch(
+  controller: ReaderFileTreeHeadlessController,
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const query = oneValue(parsed, "--query")
+  if (!query) throw usage("folder-search requires --query <text|glob>.")
+  const mode = oneValue(parsed, "--mode") ?? "text"
+  if (mode !== "text" && mode !== "glob") throw usage("--mode must be text or glob.")
+  const kind = oneValue(parsed, "--kind") ?? "all"
+  if (kind !== "all" && kind !== "file" && kind !== "directory") throw usage("--kind must be all, file or directory.")
+  const depthValue = oneValue(parsed, "--depth")
+  const maximumDepth = depthValue === undefined ? undefined : integerOption(parsed, "--depth", 0, 4_096, 0)
+  const maximumResults = integerOption(parsed, "--limit", 1, 10_000, 512)
+  const handle = controller.search(query, {
+    mode,
+    kind,
+    caseSensitive: parsed.booleans.has("--case-sensitive"),
+    maximumDepth,
+    maximumResults,
+    excludePatterns: parsed.values.get("--exclude"),
+  })
+  const json = parsed.booleans.has("--json")
+  const output: Record<string, unknown> = { entries: [] }
+  try {
+    for await (const event of handle.events) {
+      if (json) {
+        if (event.type === "entry") (output.entries as unknown[]).push(event.entry)
+        else output[event.type] = event
+      } else if (event.type === "entry") writeLine(host, event.entry.path)
+      else if (event.type === "complete") writeLine(host, `${event.matched} match(es); scanned=${event.scanned}; truncated=${event.truncated}`)
+    }
+  } finally {
+    await handle.close()
+  }
+  if (json) writeJson(host, output)
 }
 
 async function runThumbnailDatabaseInspect(path: string | undefined, json: boolean, host: CliHost): Promise<void> {
@@ -799,6 +919,27 @@ async function runReaderUi(args: readonly string[], host: CliHost): Promise<void
   })
 }
 
+async function runFolderUi(args: readonly string[], host: CliHost): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView folder-ui requires an interactive terminal.")
+  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
+  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+    throw usage(flags.error ?? `Unknown folder-ui argument: ${flags.args[0]}`)
+  }
+  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+    throw usage(`Unknown terminal theme: ${flags.theme}.`)
+  }
+  const { createNeoviewFileTreeTuiDefinition } = await import("./interaction.js")
+  await runTerminalUi(createNeoviewFileTreeTuiDefinition(flags.language), {
+    host,
+    language: flags.language,
+    renderer: flags.renderer,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["folder-ui", ...args] } : undefined,
+  })
+}
+
 function usage(message: string): CliUsageError {
   return new CliUsageError(`${message}\n\n${formatCliHelp()}`)
 }
@@ -826,6 +967,12 @@ function formatCliHelp(): string {
     "  presentation-cache-stats       Show L3 content-cache statistics",
     "  presentation-cache-cleanup     Run age/budget maintenance for L3",
     "  presentation-cache-clear       Clear unleased L3 entries",
+    "  folder-tree <path>              List one lazily loaded directory-tree node",
+    "  folder-search <path>            Stream a bounded recursive directory search",
+    "  folder-exclude <path>           Persist an excluded directory in node TOML",
+    "  folder-include <path>           Remove a persisted directory exclusion",
+    "  folder-tree-cache-clear <path>  Clear the bounded file-tree cache",
+    "  folder-ui                        Open the shared file-tree terminal workbench",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",
@@ -838,6 +985,13 @@ function formatCliHelp(): string {
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
     "  --config PATH        Xiranite TOML path for settings/cache commands",
+    "  --query QUERY        Folder search text or glob",
+    "  --mode MODE          Folder search mode: text or glob",
+    "  --node PATH          Explicit tree node for tree/cache commands",
+    "  --depth N            Recursive search depth (0..4096)",
+    "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",
+    "  --case-sensitive     Use case-sensitive folder search",
+    "  --refresh            Bypass one cached tree node",
     "  --database PATH      Override the legacy NeoView thumbnails.db path",
     "  --strategy MODE      Settings import mode: merge or overwrite",
     "  --modules LIST       Comma-separated settings modules:",

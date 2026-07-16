@@ -20,6 +20,47 @@ const testPlatformDependencies = {
 }
 
 describe("NeoView CLI", () => {
+  it("[neoview.folder.cli] reuses the lazy tree/search service and persists exclusions only after confirmation", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-folder-cli-"))
+    const privatePath = join(directory, "private")
+    const visiblePath = join(directory, "visible")
+    const configPath = join(directory, "xiranite.config.toml")
+    await mkdir(privatePath)
+    await mkdir(visiblePath)
+    await writeFile(join(privatePath, "hidden.cbz"), "hidden")
+    await writeFile(join(visiblePath, "shown.cbz"), "shown")
+    try {
+      const treeOutput: unknown[] = []
+      await runProgram(["folder-tree", directory, "--json"], host(treeOutput), testPlatformDependencies)
+      expect(JSON.parse(treeOutput.join(""))).toMatchObject({
+        cacheHit: false,
+        entries: [{ name: "private" }, { name: "visible" }],
+      })
+
+      const searchOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "cbz", "--json"], host(searchOutput), testPlatformDependencies)
+      const searched = JSON.parse(searchOutput.join("")) as { entries: Array<{ name: string }>; complete: { matched: number; truncated: boolean } }
+      expect(searched.entries.map((entry) => entry.name).toSorted()).toEqual(["hidden.cbz", "shown.cbz"])
+      expect(searched.complete).toMatchObject({ matched: 2, truncated: false })
+
+      await expect(runProgram(["folder-exclude", privatePath, "--config", configPath], host([]), testPlatformDependencies)).rejects.toThrow("requires --yes")
+      await runProgram(["folder-exclude", privatePath, "--config", configPath, "--yes", "--json"], host([]), testPlatformDependencies)
+      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview.folder.tree]")
+
+      const filteredOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "cbz", "--config", configPath, "--json"], host(filteredOutput), testPlatformDependencies)
+      const filtered = JSON.parse(filteredOutput.join("")) as { entries: Array<{ name: string }> }
+      expect(filtered.entries.map((entry) => entry.name)).toEqual(["shown.cbz"])
+
+      await runProgram(["folder-include", privatePath, "--config", configPath, "--yes"], host([]), testPlatformDependencies)
+      const restoredOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "cbz", "--config", configPath, "--json"], host(restoredOutput), testPlatformDependencies)
+      expect((JSON.parse(restoredOutput.join("")) as { entries: unknown[] }).entries).toHaveLength(2)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.cli.inspect] prints sanitized JSON and clears environment password bytes", async () => {
     const output: unknown[] = []
     const opened: OpenHeadlessReaderInput[] = []
