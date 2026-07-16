@@ -29,16 +29,38 @@ describe("ReaderFileOperationHttpController", () => {
   it("[neoview.file-operations.http-validation] rejects invalid kinds and methods", async () => {
     const controller = new ReaderFileOperationHttpController(async () => new ReaderFileOperationService({ execute: vi.fn() }))
     const invalid = await controller.handle(jsonRequest({ operations: [{ kind: "unknown", sourcePath: absolute("source.jpg") }] }))
-    const method = await controller.handle(new Request("http://127.0.0.1/reader/files/operations"))
+    const method = await controller.handle(new Request("http://127.0.0.1/reader/files/operations", { method: "PUT" }))
 
     expect(invalid?.status).toBe(400)
     expect(method?.status).toBe(405)
     expect(method?.headers.get("allow")).toBe("POST")
   })
+
+  it("[neoview.file-operations.undo-http] exposes capability and confirmed session undo", async () => {
+    const service = new ReaderFileOperationService({
+      async execute(operation) {
+        return {
+          original: operation,
+          inverse: { kind: "delete", sourcePath: "destinationPath" in operation ? operation.destinationPath : absolute("fallback") },
+          guard: { path: absolute("target"), kind: "file", size: 1, mtimeMs: 1, ctimeMs: 1, device: 1, inode: 1 },
+        }
+      },
+      undo: vi.fn(async () => undefined),
+    })
+    const controller = new ReaderFileOperationHttpController(async () => service)
+    await controller.handle(jsonRequest({ operations: [{ kind: "copy", sourcePath: absolute("source"), destinationPath: absolute("target") }] }))
+
+    const state = await controller.handle(new Request("http://127.0.0.1/reader/files/operations"))
+    expect(await state?.json()).toMatchObject({ available: true, count: 1, trashRestore: false })
+    const rejected = await controller.handle(jsonRequest({}, "/reader/files/undo"))
+    expect(rejected?.status).toBe(409)
+    const undone = await controller.handle(jsonRequest({ confirmed: true }, "/reader/files/undo"))
+    expect(await undone?.json()).toMatchObject({ succeeded: 1, failed: 0, remaining: 0 })
+  })
 })
 
-function jsonRequest(body: unknown): Request {
-  return new Request("http://127.0.0.1/reader/files/operations", {
+function jsonRequest(body: unknown, path = "/reader/files/operations"): Request {
+  return new Request(`http://127.0.0.1${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

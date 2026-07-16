@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import type { ReaderFileMutationProvider } from "../../ports/ReaderFileMutationProvider.js"
+import type { ReaderFileMutationProvider, ReaderFileUndoReceipt } from "../../ports/ReaderFileMutationProvider.js"
 import { ReaderFileOperationService } from "./ReaderFileOperationService.js"
 
 describe("ReaderFileOperationService", () => {
@@ -52,7 +52,75 @@ describe("ReaderFileOperationService", () => {
     await expect(service.execute({ operations: [], concurrency: 9 })).rejects.toThrow("concurrency")
     expect(provider.execute).not.toHaveBeenCalled()
   })
+
+  it("[neoview.file-operations.undo-journal] records reversible receipts and undoes a batch in reverse order", async () => {
+    const undone: string[] = []
+    const provider: ReaderFileMutationProvider = {
+      async execute(operation) {
+        if (!("destinationPath" in operation)) return undefined
+        return undoReceipt(operation, operation.destinationPath)
+      },
+      async undo(receipt) { undone.push(receipt.guard.path) },
+    }
+    const service = new ReaderFileOperationService(provider)
+    const result = await service.execute({ operations: [
+      { kind: "copy", sourcePath: absolute("a"), destinationPath: absolute("out/a") },
+      { kind: "create-directory", destinationPath: absolute("out/folder") },
+    ], concurrency: 2 })
+
+    expect(result).toMatchObject({ succeeded: 2, undoable: 2 })
+    expect(result.undoId).toEqual(expect.any(String))
+    expect(service.undoState()).toMatchObject({ available: true, count: 1, latestId: result.undoId, trashRestore: false })
+    await expect(service.undoLatest()).resolves.toMatchObject({ undoId: result.undoId, succeeded: 2, failed: 0, remaining: 0 })
+    expect(undone).toEqual([absolute("out/folder"), absolute("out/a")])
+    expect(service.undoState()).toMatchObject({ available: false, count: 0 })
+  })
+
+  it("[neoview.file-operations.undo-partial] retains the failed and unattempted receipts for a safe retry", async () => {
+    const provider: ReaderFileMutationProvider = {
+      async execute(operation) {
+        return "destinationPath" in operation ? undoReceipt(operation, operation.destinationPath) : undefined
+      },
+      async undo(receipt) {
+        if (receipt.guard.path.endsWith("a")) throw Object.assign(new Error("changed"), { code: "ESTALE" })
+      },
+    }
+    const service = new ReaderFileOperationService(provider)
+    await service.execute({ operations: [
+      { kind: "copy", sourcePath: absolute("source-a"), destinationPath: absolute("a") },
+      { kind: "copy", sourcePath: absolute("source-b"), destinationPath: absolute("b") },
+    ], concurrency: 1 })
+
+    await expect(service.undoLatest()).resolves.toMatchObject({ succeeded: 1, failed: 1, remaining: 1 })
+    expect(service.undoState()).toMatchObject({ available: true, count: 1 })
+  })
+
+  it("[neoview.file-operations.undo-bounded] evicts the oldest transaction at the configured hard limit", async () => {
+    const undone: string[] = []
+    const provider: ReaderFileMutationProvider = {
+      async execute(operation) {
+        return "destinationPath" in operation ? undoReceipt(operation, operation.destinationPath) : undefined
+      },
+      async undo(receipt) { undone.push(receipt.guard.path) },
+    }
+    const service = new ReaderFileOperationService(provider, { undoLimit: 1 })
+    const first = await service.execute({ operations: [{ kind: "create-directory", destinationPath: absolute("first") }] })
+    const second = await service.execute({ operations: [{ kind: "create-directory", destinationPath: absolute("second") }] })
+
+    expect(service.undoState()).toMatchObject({ count: 1, latestId: second.undoId })
+    expect(service.undoState().latestId).not.toBe(first.undoId)
+    await service.undoLatest()
+    expect(undone).toEqual([absolute("second")])
+  })
 })
+
+function undoReceipt(original: ReaderFileUndoReceipt["original"], path: string): ReaderFileUndoReceipt {
+  return {
+    original,
+    inverse: { kind: "delete", sourcePath: path },
+    guard: { path, kind: "file", size: 1, mtimeMs: 1, ctimeMs: 1, device: 1, inode: 1 },
+  }
+}
 
 function absolute(path: string): string {
   return process.platform === "win32" ? `C:\\reader-test\\${path.replaceAll("/", "\\")}` : `/reader-test/${path}`

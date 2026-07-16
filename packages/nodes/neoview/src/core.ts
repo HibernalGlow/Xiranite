@@ -131,13 +131,20 @@ export {
   type ReaderLibraryCleanupResult,
 } from "./application/library/ReaderLibraryCleanupService.js"
 export type { ReaderPathStatus, ReaderPathStatusProvider } from "./ports/ReaderPathStatusProvider.js"
-export type { ReaderFileMutation, ReaderFileMutationProvider } from "./ports/ReaderFileMutationProvider.js"
+export type {
+  ReaderFileMutation,
+  ReaderFileMutationGuard,
+  ReaderFileMutationProvider,
+  ReaderFileUndoReceipt,
+} from "./ports/ReaderFileMutationProvider.js"
 export {
   ReaderFileOperationService,
   type ReaderFileOperationBatchResult,
   type ReaderFileOperationRequest,
   type ReaderFileOperationResult,
   type ReaderFileOperationStatus,
+  type ReaderFileUndoResult,
+  type ReaderFileUndoState,
 } from "./application/files/ReaderFileOperationService.js"
 export {
   DEFAULT_READER_SESSION_OPTIONS,

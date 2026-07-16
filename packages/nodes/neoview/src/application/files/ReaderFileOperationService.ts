@@ -1,11 +1,13 @@
 import pMap from "p-map"
+import { randomUUID } from "node:crypto"
 import { isAbsolute, normalize, resolve } from "node:path"
 
-import type { ReaderFileMutation, ReaderFileMutationProvider } from "../../ports/ReaderFileMutationProvider.js"
+import type { ReaderFileMutation, ReaderFileMutationProvider, ReaderFileUndoReceipt } from "../../ports/ReaderFileMutationProvider.js"
 
 const DEFAULT_CONCURRENCY = 4
 const MAX_CONCURRENCY = 8
 const MAX_OPERATIONS = 256
+const DEFAULT_UNDO_LIMIT = 50
 
 export interface ReaderFileOperationRequest {
   operations: readonly ReaderFileMutation[]
@@ -28,18 +30,50 @@ export interface ReaderFileOperationBatchResult {
   succeeded: number
   failed: number
   cancelled: number
+  undoable: number
+  undoId?: string
+}
+
+export interface ReaderFileUndoState {
+  available: boolean
+  count: number
+  latestId?: string
+  latestCreatedAt?: number
+  supportedKinds: readonly ReaderFileMutation["kind"][]
+  trashRestore: false
+}
+
+export interface ReaderFileUndoResult {
+  undoId?: string
+  results: ReaderFileOperationResult[]
+  succeeded: number
+  failed: number
+  remaining: number
+}
+
+interface UndoTransaction {
+  id: string
+  createdAt: number
+  entries: Array<{ index: number; receipt: ReaderFileUndoReceipt }>
 }
 
 export class ReaderFileOperationService {
-  constructor(private readonly provider: ReaderFileMutationProvider) {}
+  readonly #undoLimit: number
+  readonly #undo: UndoTransaction[] = []
+
+  constructor(private readonly provider: ReaderFileMutationProvider, options: { undoLimit?: number } = {}) {
+    this.#undoLimit = boundedUndoLimit(options.undoLimit)
+  }
 
   async execute(request: ReaderFileOperationRequest): Promise<ReaderFileOperationBatchResult> {
     const operations = validateOperations(request.operations)
     const concurrency = boundedConcurrency(request.concurrency)
+    const receipts: Array<{ index: number; receipt: ReaderFileUndoReceipt }> = []
     const results = await pMap(operations, async (operation, index): Promise<ReaderFileOperationResult> => {
       if (request.signal?.aborted) return cancelled(index, operation)
       try {
-        await this.provider.execute(operation, request.signal)
+        const receipt = await this.provider.execute(operation, request.signal)
+        if (receipt) receipts.push({ index, receipt })
         return { index, operation, status: "succeeded" }
       } catch (error) {
         if (request.signal?.aborted || isAbortError(error)) return cancelled(index, operation)
@@ -52,12 +86,72 @@ export class ReaderFileOperationService {
         }
       }
     }, { concurrency, stopOnError: true })
+    receipts.sort((left, right) => left.index - right.index)
+    const undoId = receipts.length ? this.#recordUndo(receipts) : undefined
     return {
       results,
       succeeded: results.filter((result) => result.status === "succeeded").length,
       failed: results.filter((result) => result.status === "failed").length,
       cancelled: results.filter((result) => result.status === "cancelled").length,
+      undoable: receipts.length,
+      undoId,
     }
+  }
+
+  undoState(): ReaderFileUndoState {
+    const latest = this.#undo.at(-1)
+    return {
+      available: Boolean(this.provider.undo && latest),
+      count: this.#undo.length,
+      latestId: latest?.id,
+      latestCreatedAt: latest?.createdAt,
+      supportedKinds: ["copy", "move", "rename", "create-directory"],
+      trashRestore: false,
+    }
+  }
+
+  async undoLatest(signal?: AbortSignal): Promise<ReaderFileUndoResult> {
+    signal?.throwIfAborted()
+    const transaction = this.#undo.at(-1)
+    if (!transaction) return { results: [], succeeded: 0, failed: 0, remaining: 0 }
+    if (!this.provider.undo) throw new Error("Reader file operation undo is unavailable on this platform.")
+    const results: ReaderFileOperationResult[] = []
+    let succeeded = 0
+    for (let offset = transaction.entries.length - 1; offset >= 0; offset -= 1) {
+      const entry = transaction.entries[offset]!
+      try {
+        signal?.throwIfAborted()
+        await this.provider.undo(entry.receipt, signal)
+        transaction.entries.splice(offset, 1)
+        succeeded += 1
+        results.push({ index: entry.index, operation: entry.receipt.original, status: "succeeded" })
+      } catch (error) {
+        if (signal?.aborted || isAbortError(error)) throw error
+        results.push({
+          index: entry.index,
+          operation: entry.receipt.original,
+          status: "failed",
+          errorCode: errorCode(error),
+          error: errorMessage(error),
+        })
+        break
+      }
+    }
+    if (transaction.entries.length === 0) this.#undo.pop()
+    return {
+      undoId: transaction.id,
+      results,
+      succeeded,
+      failed: results.filter((result) => result.status === "failed").length,
+      remaining: transaction.entries.length,
+    }
+  }
+
+  #recordUndo(entries: Array<{ index: number; receipt: ReaderFileUndoReceipt }>): string {
+    const transaction = { id: randomUUID(), createdAt: Date.now(), entries }
+    this.#undo.push(transaction)
+    if (this.#undo.length > this.#undoLimit) this.#undo.splice(0, this.#undo.length - this.#undoLimit)
+    return transaction.id
   }
 }
 
@@ -109,6 +203,14 @@ function boundedConcurrency(value: number | undefined): number {
   const result = value ?? DEFAULT_CONCURRENCY
   if (!Number.isSafeInteger(result) || result < 1 || result > MAX_CONCURRENCY) {
     throw new Error(`Reader file operation concurrency must be from 1 to ${MAX_CONCURRENCY}.`)
+  }
+  return result
+}
+
+function boundedUndoLimit(value: number | undefined): number {
+  const result = value ?? DEFAULT_UNDO_LIMIT
+  if (!Number.isSafeInteger(result) || result < 1 || result > 100) {
+    throw new Error("Reader file operation undoLimit must be from 1 to 100.")
   }
   return result
 }

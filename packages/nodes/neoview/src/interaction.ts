@@ -64,7 +64,7 @@ export interface NeoviewLibraryTuiResult {
   lines?: readonly string[]
 }
 
-export type NeoviewFileOperationTuiAction = "copy" | "move" | "rename" | "delete" | "trash" | "create-directory"
+export type NeoviewFileOperationTuiAction = "copy" | "move" | "rename" | "delete" | "trash" | "create-directory" | "undo"
 
 export interface NeoviewFileOperationTuiInput {
   action: NeoviewFileOperationTuiAction
@@ -229,12 +229,22 @@ export function createNeoviewFileOperationTuiDefinition(
   language: "zh" | "en" = "zh",
   createService: () => Promise<ReaderFileOperationService> = createReaderFileOperationService,
 ): TerminalInteractionDefinition<NeoviewFileOperationTuiInput, NeoviewFileOperationTuiResult> {
+  let service: Promise<ReaderFileOperationService> | undefined
+  const getService = () => service ??= createService()
   return {
     schema: createNeoviewFileOperationTuiSchema(language),
     async run(input) {
       try {
+        if (input.action === "undo") {
+          const result = await (await getService()).undoLatest()
+          return {
+            success: result.failed === 0 && result.succeeded > 0,
+            message: result.succeeded > 0 ? `${result.succeeded} operation(s) undone.` : "No operation is available to undo.",
+            lines: result.results.map((item) => JSON.stringify(item)),
+          }
+        }
         const operation = fileOperationFromInput(input)
-        const result = await (await createService()).execute({ operations: [operation], concurrency: 1 })
+        const result = await (await getService()).execute({ operations: [operation], concurrency: 1 })
         const item = result.results[0]!
         return {
           success: item.status === "succeeded",
@@ -395,7 +405,7 @@ function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteracti
 
 function createNeoviewFileOperationTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewFileOperationTuiInput, NeoviewFileOperationTuiResult> {
   const zh = language === "zh"
-  const needsSource = (values: Readonly<InteractionValues>) => values.action !== "create-directory"
+  const needsSource = (values: Readonly<InteractionValues>) => values.action !== "create-directory" && values.action !== "undo"
   const needsDestination = (values: Readonly<InteractionValues>) => values.action === "copy" || values.action === "move" || values.action === "rename" || values.action === "create-directory"
   const supportsOverwrite = (values: Readonly<InteractionValues>) => values.action === "copy" || values.action === "move" || values.action === "rename"
   return {
@@ -415,18 +425,20 @@ function createNeoviewFileOperationTuiSchema(language: "zh" | "en"): TerminalInt
       destinationPath: String(values.destinationPath ?? "").trim(),
       overwrite: values.overwrite === true,
     }),
-    validate: (_values, input) => input.action !== "create-directory" && !input.sourcePath
+    validate: (_values, input) => input.action !== "create-directory" && input.action !== "undo" && !input.sourcePath
       ? (zh ? "请输入源路径。" : "Enter a source path.")
       : (input.action === "copy" || input.action === "move" || input.action === "rename" || input.action === "create-directory") && !input.destinationPath
         ? (zh ? "请输入目标路径。" : "Enter a destination path.")
         : null,
     preview: (input) => [input.action, input.sourcePath ?? "", input.destinationPath ?? ""].filter(Boolean),
-    isDangerous: (input) => input.action === "delete" || input.action === "trash",
+    isDangerous: (input) => input.action === "delete" || input.action === "trash" || input.action === "undo",
     dangerPrompt: (input) => ({
       title: zh ? "确认文件操作" : "Confirm file operation",
       body: input.action === "delete"
         ? (zh ? "该路径将被永久删除。" : "The path will be permanently deleted.")
-        : (zh ? "该路径将移动到系统回收站。" : "The path will be moved to the system trash."),
+        : input.action === "trash"
+          ? (zh ? "该路径将移动到系统回收站。" : "The path will be moved to the system trash.")
+          : (zh ? "将撤销最近一批仍通过安全校验的文件操作。" : "The latest file-operation batch will be undone after safety checks."),
       confirmLabel: zh ? "确认" : "Confirm",
     }),
     result: (result) => ({ success: result.success, message: result.message, lines: result.lines }),
@@ -436,6 +448,7 @@ function createNeoviewFileOperationTuiSchema(language: "zh" | "en"): TerminalInt
 const FILE_OPERATION_ACTIONS: ReadonlyArray<readonly [NeoviewFileOperationTuiAction, string, string]> = [
   ["copy", "Copy", "复制"], ["move", "Move", "移动"], ["rename", "Rename", "重命名"],
   ["trash", "Move to trash", "移到回收站"], ["delete", "Delete permanently", "永久删除"], ["create-directory", "Create directory", "新建目录"],
+  ["undo", "Undo latest batch", "撤销最近操作"],
 ]
 
 function isFileOperationAction(value: unknown): value is NeoviewFileOperationTuiAction {
@@ -443,6 +456,7 @@ function isFileOperationAction(value: unknown): value is NeoviewFileOperationTui
 }
 
 function fileOperationFromInput(input: NeoviewFileOperationTuiInput): ReaderFileMutation {
+  if (input.action === "undo") throw new Error("Undo does not create a file mutation.")
   if (input.action === "create-directory") return { kind: input.action, destinationPath: resolve(input.destinationPath ?? "") }
   if (input.action === "delete" || input.action === "trash") return { kind: input.action, sourcePath: resolve(input.sourcePath ?? "") }
   return {

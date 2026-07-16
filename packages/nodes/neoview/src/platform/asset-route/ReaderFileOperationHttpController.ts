@@ -2,6 +2,7 @@ import type { ReaderFileMutation } from "../../ports/ReaderFileMutationProvider.
 import type { ReaderFileOperationService } from "../../application/files/ReaderFileOperationService.js"
 
 const OPERATIONS_PATH = "/reader/files/operations"
+const UNDO_PATH = "/reader/files/undo"
 const MAX_BODY_BYTES = 256 * 1024
 
 export class ReaderFileOperationHttpController {
@@ -11,7 +12,23 @@ export class ReaderFileOperationHttpController {
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
-    if (url.pathname !== OPERATIONS_PATH) return undefined
+    if (url.pathname !== OPERATIONS_PATH && url.pathname !== UNDO_PATH) return undefined
+    if (url.pathname === OPERATIONS_PATH && request.method === "GET") {
+      const service = await (this.#service ??= this.loadService())
+      return jsonResponse(service.undoState())
+    }
+    if (url.pathname === UNDO_PATH) {
+      if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "POST" })
+      const body = await readBody(request)
+      if (!body || body.confirmed !== true) return jsonResponse({ error: "Undo requires confirmed=true" }, 409)
+      try {
+        const service = await (this.#service ??= this.loadService())
+        return jsonResponse(await service.undoLatest(request.signal))
+      } catch (error) {
+        if (request.signal.aborted) throw error
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 409)
+      }
+    }
     if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "POST" })
     const body = await readBody(request)
     if (!body || !Array.isArray(body.operations)) return jsonResponse({ error: "operations must be an array" }, 400)

@@ -54,6 +54,40 @@ describe("PlatformReaderFileMutationProvider", () => {
     expect(acquire).toHaveBeenCalledWith(expect.objectContaining({ resource: "io", priority: "interactive" }), undefined)
     expect(release).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.file-operations.undo-platform] reverses unchanged copy and move receipts", async () => {
+    const root = await temporaryRoot()
+    const source = join(root, "source.txt")
+    const copied = join(root, "copied.txt")
+    const moved = join(root, "moved.txt")
+    await writeFile(source, "reader")
+    const provider = new PlatformReaderFileMutationProvider()
+
+    const copyReceipt = await provider.execute({ kind: "copy", sourcePath: source, destinationPath: copied })
+    expect(copyReceipt).toBeDefined()
+    await provider.undo(copyReceipt!)
+    await expect(stat(copied)).rejects.toMatchObject({ code: "ENOENT" })
+    expect(await readFile(source, "utf8")).toBe("reader")
+
+    const moveReceipt = await provider.execute({ kind: "move", sourcePath: source, destinationPath: moved })
+    expect(moveReceipt).toBeDefined()
+    await provider.undo(moveReceipt!)
+    expect(await readFile(source, "utf8")).toBe("reader")
+    await expect(stat(moved)).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("[neoview.file-operations.undo-stale] refuses to remove a target modified after the operation", async () => {
+    const root = await temporaryRoot()
+    const source = join(root, "source.txt")
+    const copied = join(root, "copied.txt")
+    await writeFile(source, "reader")
+    const provider = new PlatformReaderFileMutationProvider()
+    const receipt = await provider.execute({ kind: "copy", sourcePath: source, destinationPath: copied })
+    await writeFile(copied, "changed after copy")
+
+    await expect(provider.undo(receipt!)).rejects.toMatchObject({ code: "ESTALE" })
+    expect(await readFile(copied, "utf8")).toBe("changed after copy")
+  })
 })
 
 async function temporaryRoot(): Promise<string> {
