@@ -11,6 +11,7 @@ import {
   READER_PANEL_MANIFEST,
   type ReaderCardId,
   type ReaderPanelId,
+  type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
 
@@ -46,6 +47,7 @@ export interface ReaderPanelContext {
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   folderView?: ReaderRuntimeConfigDto["folderView"]
   onFolderView?(patch: ReaderFolderViewPatch["folderView"]): Promise<void>
+  presentation?: ReaderPresentation
   shellControl?: ReaderShellControlPort
 }
 

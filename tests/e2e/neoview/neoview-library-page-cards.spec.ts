@@ -62,7 +62,11 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] reuses bounded thumbnail surfaces", async ({ page }, testInfo) => {
+test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] reuses bounded thumbnail surfaces", async ({ page }, testInfo) => {
+  let pageMediaInformationRequests = 0
+  page.on("request", (request) => {
+    if (request.url().includes("/page-media-information")) pageMediaInformationRequests += 1
+  })
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
   const openButton = page.getByRole("button", { name: "打开书籍" })
@@ -113,6 +117,20 @@ test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] reuses 
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   expect(await pageListCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await pageListCard.screenshot({ path: testInfo.outputPath(`neoview-page-list-thumbnails-${testInfo.project.name}.png`) })
+
+  await page.mouse.move(viewport.width - 1, viewport.height / 2)
+  const rightSidebar = page.locator('[data-reader-sidebar="right"]')
+  await expect(rightSidebar).toBeVisible()
+  await rightSidebar.getByRole("button", { name: "信息", exact: true }).click()
+  const imageInformationCard = rightSidebar.locator('[data-reader-card="图像信息"]')
+  await expect(imageInformationCard).toBeVisible()
+  await expect(imageInformationCard.getByText("001.png", { exact: true })).toBeVisible()
+  await expect(imageInformationCard.getByText("PNG", { exact: true })).toBeVisible()
+  await expect(imageInformationCard.getByText("image/png", { exact: true })).toBeVisible()
+  expect(pageMediaInformationRequests).toBe(0)
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  expect(await imageInformationCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+  await imageInformationCard.screenshot({ path: testInfo.outputPath(`neoview-image-information-${testInfo.project.name}.png`) })
 })
 
 const CURRENT_THUMBNAIL_SCHEMA = `

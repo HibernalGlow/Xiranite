@@ -18,6 +18,7 @@ import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../.
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
 import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../application/metadata/ReaderBookMetadataService.js"
+import { ReaderPageMediaInformationService } from "../../application/metadata/ReaderPageMediaInformationService.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
@@ -28,6 +29,7 @@ import type { ReaderPreloadOutcome, ReaderPreloadPerformanceMetrics } from "../.
 import { deriveReaderPreloadResourceContext } from "../../application/preloading/PreloadResourceContext.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
+import type { ReaderPageMediaMetadataProviderLoader } from "../../ports/ReaderPageMediaMetadataProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
@@ -77,6 +79,7 @@ const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
 const SESSION_PRELOAD_CONTEXT_PATH = /^\/reader\/s\/([^/]+)\/preload-context$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
+const SESSION_PAGE_MEDIA_INFORMATION_PATH = /^\/reader\/s\/([^/]+)\/page-media-information$/
 const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
 const SESSION_CLIPBOARD_MATERIALIZATION_PATH = /^\/reader\/s\/([^/]+)\/clipboard-materializations(?:\/([^/]+))?$/
 const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
@@ -115,6 +118,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   thumbnailStore?: ReaderThumbnailStore
   loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
+  loadPageMediaMetadataProvider?: ReaderPageMediaMetadataProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
   progressStore?: ReaderProgressStore | false
   mediaProgressStore?: ReaderMediaProgressStore
@@ -156,6 +160,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #diagnostics: ReaderDiagnosticsService
   readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   readonly #bookMetadata: ReaderBookMetadataService
+  readonly #pageMediaInformation: ReaderPageMediaInformationService
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -224,6 +229,12 @@ export class ReaderHttpController implements AsyncDisposable {
       options.progressStore || undefined,
     )
     this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore)
+    this.#pageMediaInformation = new ReaderPageMediaInformationService(
+      options.loadPageMediaMetadataProvider ?? (async () => {
+        const { FfprobePageMediaMetadataProvider } = await import("../video/FfprobePageMediaMetadataProvider.js")
+        return new FfprobePageMediaMetadataProvider({ resourceScheduler: options.resourceScheduler })
+      }),
+    )
     this.#clipboardMaterializations = new ReaderClipboardMaterializationService(
       this.#service,
       new PlatformReaderPageMaterializer({
@@ -358,6 +369,10 @@ export class ReaderHttpController implements AsyncDisposable {
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
     const metadataMatch = SESSION_METADATA_PATH.exec(url.pathname)
     if (metadataMatch && request.method === "GET") return this.#metadata(metadataMatch[1]!, request.signal)
+    const pageMediaInformationMatch = SESSION_PAGE_MEDIA_INFORMATION_PATH.exec(url.pathname)
+    if (pageMediaInformationMatch && request.method === "GET") {
+      return this.#pageMediaInformationResponse(pageMediaInformationMatch[1]!, request.signal)
+    }
     const mediaProgressMatch = SESSION_MEDIA_PROGRESS_PATH.exec(url.pathname)
     if (mediaProgressMatch && (request.method === "GET" || request.method === "PATCH")) {
       return this.#handleMediaProgress(mediaProgressMatch[1]!, request)
@@ -406,6 +421,11 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     try {
       await this.#clipboardMaterializations[Symbol.asyncDispose]()
+    } catch (error) {
+      errors.push(error)
+    }
+    try {
+      await this.#pageMediaInformation[Symbol.asyncDispose]()
     } catch (error) {
       errors.push(error)
     }
@@ -661,6 +681,19 @@ export class ReaderHttpController implements AsyncDisposable {
     })
   }
 
+  async #pageMediaInformationResponse(encodedSessionId: string, signal?: AbortSignal): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const page = session.book.pages[session.snapshot().anchorPageIndex]
+    if (!page) return jsonResponse({ error: "Reader session has no current page" }, 404)
+    try {
+      return jsonResponse(await this.#pageMediaInformation.inspect(session.id, page, signal))
+    } catch (error) {
+      if (signal?.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 503)
+    }
+  }
+
   async #navigate(encodedSessionId: string, request: Request): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -761,6 +794,7 @@ export class ReaderHttpController implements AsyncDisposable {
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     await this.#mediaProgress?.flush(session.book.id)
     await this.#clipboardMaterializations.releaseSession(session.id)
+    await this.#pageMediaInformation.releaseSession(session.id)
     this.#assets.releaseSessionPages(session.id)
     this.#releaseBookMetadata(session.id)
     await this.#service.closeSession(session.id)

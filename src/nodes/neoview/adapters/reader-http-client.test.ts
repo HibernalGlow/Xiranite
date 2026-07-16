@@ -84,6 +84,21 @@ describe("reader-http-client", () => {
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.image-information.client] requests demand-only page media information", async () => {
+    const fetchMock = vi.fn(async () => Response.json({
+      pageId: "page-1",
+      contentVersion: "v1",
+      mediaKind: "video",
+      durationSeconds: 10,
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.pageMediaInformation!("session/1")).resolves.toMatchObject({ durationSeconds: 10 })
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/s/session%2F1/page-media-information")
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.book-information.reveal-client] posts the canonical path to the authenticated system route", async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
     vi.stubGlobal("fetch", fetchMock)

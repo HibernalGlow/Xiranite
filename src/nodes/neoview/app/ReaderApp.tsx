@@ -698,6 +698,7 @@ export function ReaderApp({
     onViewDefaults: applyConfiguredViewDefaults,
     folderView,
     onFolderView: persistFolderView,
+    presentation,
     ...(session ? { session } : {}),
   }
   const leftEdge: ReaderControlledEdgeSlot | undefined = (session || hasSessionlessPanel("left", shell)) && (shell?.edges.left.enabled ?? true) ? {

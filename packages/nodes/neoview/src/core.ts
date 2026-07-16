@@ -11,6 +11,17 @@ export {
   type ReaderBookStaticMetadata,
 } from "./application/metadata/ReaderBookMetadataService.js"
 export {
+  ReaderPageMediaInformationService,
+  type ReaderPageMediaInformation,
+} from "./application/metadata/ReaderPageMediaInformationService.js"
+export type {
+  ReaderPageMediaDetails,
+  ReaderPageMediaMetadataInput,
+  ReaderPageMediaMetadataProvider,
+  ReaderPageMediaMetadataProviderLoader,
+  ReaderPageMediaMetadataRequest,
+} from "./ports/ReaderPageMediaMetadataProvider.js"
+export {
   legacyEmmBookPathKey,
   parseLegacyEmmBookMetadata,
   type ReaderBookEmmMetadata,

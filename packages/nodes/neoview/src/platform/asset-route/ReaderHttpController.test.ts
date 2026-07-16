@@ -398,6 +398,113 @@ describe("ReaderHttpController", () => {
     }
   })
 
+  it("[neoview.image-information.image-http-zero-ffprobe] returns image identity without loading the media provider", async () => {
+    const directory = await createBookDirectory()
+    const loadPageMediaMetadataProvider = vi.fn(async () => ({ inspect: vi.fn(async () => ({})) }))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      loadPageMediaMetadataProvider,
+    })
+    try {
+      const session = await (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!.json() as ReaderSessionDto
+      const endpoint = `/reader/s/${session.sessionId}/page-media-information`
+      expect((await controller.handle(new Request(new URL(endpoint, "http://127.0.0.1:41000"))))?.status).toBe(401)
+      expect(await (await controller.handle(authorizedRequest(endpoint)))!.json()).toEqual({
+        pageId: session.visiblePages[0]!.id,
+        contentVersion: session.visiblePages[0]!.contentVersion,
+        mediaKind: "image",
+      })
+      expect(loadPageMediaMetadataProvider).not.toHaveBeenCalled()
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.image-information.archive-video-http] probes an archive video stream once through the demand route", async () => {
+    const archive = await createZipFixture({
+      name: "video.cbz",
+      entries: [{ path: "clips/clip.mp4", bytes: Uint8Array.of(4, 3, 2, 1), level: 0 }],
+    })
+    cleanupArchives.push(archive)
+    const inspect = vi.fn(async (request: { sourceStream?: ReadableStream<Uint8Array> }) => {
+      expect(request.sourceStream).toBeInstanceOf(ReadableStream)
+      const reader = request.sourceStream!.getReader()
+      const bytes: number[] = []
+      try {
+        while (true) {
+          const result = await reader.read()
+          if (result.done) break
+          bytes.push(...result.value)
+        }
+      } finally {
+        reader.releaseLock()
+      }
+      expect(bytes).toEqual([4, 3, 2, 1])
+      return {
+        durationSeconds: 10,
+        frameRate: 24,
+        bitRateBps: 800_000,
+        videoCodec: "h264",
+        audioCodec: "aac",
+      }
+    })
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      loadPageMediaMetadataProvider: async () => ({ inspect }),
+    })
+    try {
+      const session = await (await controller.handle(jsonRequest("/reader/sessions", { path: archive.path })))!.json() as ReaderSessionDto
+      const endpoint = `/reader/s/${session.sessionId}/page-media-information`
+      const first = await (await controller.handle(authorizedRequest(endpoint)))!.json()
+      const second = await (await controller.handle(authorizedRequest(endpoint)))!.json()
+      expect(first).toMatchObject({
+        pageId: session.visiblePages[0]!.id,
+        mediaKind: "video",
+        durationSeconds: 10,
+        frameRate: 24,
+        bitRateBps: 800_000,
+        videoCodec: "h264",
+        audioCodec: "aac",
+      })
+      expect(second).toEqual(first)
+      expect(inspect).toHaveBeenCalledOnce()
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.image-information.video-http-session-close] aborts an active demand before closing the session", async () => {
+    const directory = await createBookDirectory()
+    const videoPath = join(directory, "clip.mp4")
+    await writeFile(videoPath, Uint8Array.of(0, 1, 2, 3))
+    const started = Promise.withResolvers<void>()
+    const aborted = vi.fn()
+    const inspect = vi.fn((_request: unknown, signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
+      started.resolve()
+      signal?.addEventListener("abort", () => {
+        aborted()
+        reject(signal.reason)
+      }, { once: true })
+    }))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      loadPageMediaMetadataProvider: async () => ({ inspect }),
+    })
+    try {
+      const session = await (await controller.handle(jsonRequest("/reader/sessions", { path: videoPath })))!.json() as ReaderSessionDto
+      const pending = controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/page-media-information`))
+      await started.promise
+      expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      expect((await pending)?.status).toBe(503)
+      expect(aborted).toHaveBeenCalledOnce()
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.media-progress.http] restores, coalesces and durably flushes video playback state", async () => {
     const directory = await createBookDirectory()
     const videoPath = join(directory, "clip.mp4")

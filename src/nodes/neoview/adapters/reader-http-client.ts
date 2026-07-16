@@ -63,6 +63,17 @@ export interface ReaderMetadataDto {
   }
 }
 
+export interface ReaderPageMediaInformationDto {
+  pageId: string
+  contentVersion: string
+  mediaKind: PageMediaKind
+  durationSeconds?: number
+  frameRate?: number
+  bitRateBps?: number
+  videoCodec?: string
+  audioCodec?: string
+}
+
 export interface ReaderStorageDiagnosticsDto {
   schemaVersion: 1
   assets: {
@@ -463,6 +474,7 @@ export interface ReaderHttpClient {
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
+  pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
@@ -681,6 +693,7 @@ export function createReaderHttpClient(
       return request<ReaderPageListDto>(`/reader/s/${encodeURIComponent(sessionId)}/pages?${search}`, { signal })
     },
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
+    pageMediaInformation: (sessionId, signal) => request<ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
     revealSystemPath: (path, signal) => request<void>("/reader/files/reveal", {
       method: "POST",

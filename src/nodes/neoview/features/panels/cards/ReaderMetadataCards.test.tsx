@@ -58,7 +58,7 @@ describe("Reader metadata cards", () => {
 
     await waitFor(() => expect(metadata).toHaveBeenCalledOnce())
     expect(await screen.findByText("demo.cbz")).toBeTruthy()
-    expect(screen.getByText("1920 x 1080")).toBeTruthy()
+    expect(screen.getByText("1920 × 1080")).toBeTruthy()
     expect(screen.getAllByText("2.00 MB").length).toBeGreaterThan(0)
     expect(screen.getByText("D:/books/pages/001.jpg")).toBeTruthy()
     expect(screen.getByText("访问时间")).toBeTruthy()

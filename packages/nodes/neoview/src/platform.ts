@@ -48,6 +48,10 @@ import type {
   FfmpegVideoThumbnailProviderOptions,
 } from "./platform/video/FfmpegVideoThumbnailProvider.js"
 import type {
+  FfprobePageMediaMetadataProvider,
+  FfprobePageMediaMetadataProviderOptions,
+} from "./platform/video/FfprobePageMediaMetadataProvider.js"
+import type {
   SqliteLegacyThumbnailDatabaseMaintenance,
   SqliteLegacyThumbnailDatabaseMaintenanceOptions,
 } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
@@ -57,6 +61,7 @@ export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/Soli
 export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPipelineOptions } from "./platform/thumbnails/PlatformThumbnailPipeline.js"
 export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "./ports/VideoThumbnailProvider.js"
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
+export type { FfprobePageMediaMetadataProviderOptions } from "./platform/video/FfprobePageMediaMetadataProvider.js"
 export type { SqliteLegacyThumbnailDatabaseMaintenanceOptions } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
 export type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 export type {
@@ -382,6 +387,13 @@ export async function createFfmpegVideoThumbnailProvider(
 ): Promise<FfmpegVideoThumbnailProvider> {
   const { FfmpegVideoThumbnailProvider } = await import("./platform/video/FfmpegVideoThumbnailProvider.js")
   return new FfmpegVideoThumbnailProvider(options)
+}
+
+export async function createFfprobePageMediaMetadataProvider(
+  options: FfprobePageMediaMetadataProviderOptions = {},
+): Promise<FfprobePageMediaMetadataProvider> {
+  const { FfprobePageMediaMetadataProvider } = await import("./platform/video/FfprobePageMediaMetadataProvider.js")
+  return new FfprobePageMediaMetadataProvider(options)
 }
 
 export async function createReaderLibraryService(databasePath?: string): Promise<ReaderLibraryService> {

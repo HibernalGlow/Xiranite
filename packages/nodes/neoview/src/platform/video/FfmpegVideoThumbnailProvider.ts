@@ -9,11 +9,10 @@ import type {
   VideoThumbnailRequest,
   VideoThumbnailResult,
 } from "../../ports/VideoThumbnailProvider.js"
-import { PriorityResourceScheduler } from "../scheduler/PriorityResourceScheduler.js"
+import { videoProcessSlots } from "./VideoProcessScheduler.js"
 import { detectImageContentType } from "../thumbnails/ThumbnailBlobCodec.js"
 
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
-const processSlots = new PriorityResourceScheduler({ maxConcurrent: 1, reservedInteractive: 0 })
 
 export interface FfmpegVideoThumbnailProviderOptions {
   executablePath?: string
@@ -31,7 +30,7 @@ export class FfmpegVideoThumbnailProvider implements VideoThumbnailProvider {
   constructor(options: FfmpegVideoThumbnailProviderOptions = {}) {
     this.#executablePath = (options.executablePath ?? process.env.XIRANITE_FFMPEG_PATH?.trim()) || "ffmpeg"
     this.#resourceScheduler = options.resourceScheduler
-    this.#processScheduler = options.processScheduler ?? processSlots
+    this.#processScheduler = options.processScheduler ?? videoProcessSlots
     this.#runThumbnail = options.runThumbnail ?? runFluentFfmpegThumbnail
   }
 
