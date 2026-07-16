@@ -175,9 +175,9 @@
 - 设置：`performance.cacheMemorySize`
 - 数据：memory LRU、persistent cache、cache index DB
 - 行为：真实字节预算；pin 和方向淘汰；mtime/hash 失效；损坏恢复；80% hysteresis；session close/hibernate 回收
-- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.soft-trim`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.cache.presentation-lease`、`neoview.cache.presentation-lease-pressure`、`neoview.memory-pressure.hysteresis`、`neoview.memory-pressure.critical`、`neoview.memory-pressure.l2-trim`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-trim`、`neoview.memory-pressure.solid-http`、`neoview.http.e2e`、`neoview.sevenzip.solid-cache-singleflight`、`neoview.sevenzip.solid-cache-incomplete`、`neoview.sevenzip.solid-cache-lru`、`neoview.sevenzip.solid-cache-fingerprint`、`neoview.sevenzip.solid-cache-reuse`、`neoview.sevenzip.solid-session-cache`、`terminal.image.decode.byte-budget`、`neoview.tui.decode-cache`
+- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.soft-trim`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.cache.presentation-lease`、`neoview.cache.presentation-lease-pressure`、`neoview.folder.listing-payload-bytes`、`neoview.memory-pressure.file-tree`、`neoview.memory-pressure.hysteresis`、`neoview.memory-pressure.critical`、`neoview.memory-pressure.l2-trim`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-trim`、`neoview.memory-pressure.solid-http`、`neoview.http.e2e`、`neoview.sevenzip.solid-cache-singleflight`、`neoview.sevenzip.solid-cache-incomplete`、`neoview.sevenzip.solid-cache-lru`、`neoview.sevenzip.solid-cache-fingerprint`、`neoview.sevenzip.solid-cache-reuse`、`neoview.sevenzip.solid-session-cache`、`terminal.image.decode.byte-budget`、`neoview.tui.decode-cache`
 - 性能基准：`cache-memory-budget`、`solid-cross-session`
-- 已知差异：L2 已对正在传输的 HTTP presentation response 使用引用计数 lease；跨响应的 current/adjacent frame pin 与方向/距离权重仍待 GUI 回报实际 transform profile
+- 已知差异：L2 已对正在传输的 HTTP presentation response 使用引用计数 lease；FileTree owner 已报告 current listing/navigation/random seed 的逻辑 payload；跨响应的 current/adjacent frame pin、方向/距离权重和 owner 快照的全局 diagnostics 聚合仍待接入
 
 ### 超分模型、预览、队列、缓存与保存（`super-resolution`）
 
@@ -230,9 +230,9 @@
 - 设置：`system.excludedPaths`、`book.lockedSortMode`、`book.lockedMediaPriority`
 - 数据：search history、excluded paths、quick library
 - 行为：名称/路径/标签搜索；自然排序和正逆序；媒体类型过滤；排除路径；快速库目标；大目录流式搜索取消
-- 测试：`neoview.folder.search-history-service`、`neoview.folder.search-history-validation`、`neoview.folder.search-history-sqlite`、`neoview.folder.search-history-http`、`neoview.folder.search-history-composition`、`neoview.folder.search-history-headless`、`neoview.folder.search-history-cli`、`neoview.folder.search-history-tui`、`neoview.folder.search-history-codec`、`neoview.folder.search-history-codec-raw`、`neoview.folder.search-history-import`、`neoview.folder.search-history-import-cli`
+- 测试：`neoview.folder.listing-payload-bytes`、`neoview.memory-pressure.file-tree`、`neoview.folder.search-history-service`、`neoview.folder.search-history-validation`、`neoview.folder.search-history-sqlite`、`neoview.folder.search-history-http`、`neoview.folder.search-history-composition`、`neoview.folder.search-history-headless`、`neoview.folder.search-history-cli`、`neoview.folder.search-history-tui`、`neoview.folder.search-history-codec`、`neoview.folder.search-history-codec-raw`、`neoview.folder.search-history-import`、`neoview.folder.search-history-import-cli`
 - 性能基准：`file-search`
-- 已知差异：无
+- 已知差异：当前目录 listing 为 session owner 保留以维持首屏/选择稳定；内存压力只释放可重建 tree metadata、目录大小任务和 random seed，listing payload 可观测但尚未按预算降级
 
 ### 键盘、鼠标、触摸、区域、径向菜单和语音控制（`input-bindings-radial-voice`）
 

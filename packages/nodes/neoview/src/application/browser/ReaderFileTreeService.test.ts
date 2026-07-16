@@ -74,16 +74,27 @@ describe("ReaderFileTreeService", () => {
       },
     })
     const opened = await browser.open("C:/books")
+    expect(browser.memorySnapshot()).toMatchObject({ sessions: 1, listingEntries: 1, listingPayloadBytes: expect.any(Number) })
     expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: false })
     expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: true })
     const sizes = browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/nested"])
     await vi.waitFor(() => expect(scanning).toBe(true))
 
     expect(browser.releaseMemoryPressure()).toEqual({ clearedTreeEntries: 1, cancelledDirectorySizes: 1, clearedRandomSeeds: 0 })
+    expect(browser.memorySnapshot()).toMatchObject({ sessions: 1, listingEntries: 1, randomSeeds: 0, randomSeedPayloadBytes: 0 })
     await expect(sizes).rejects.toMatchObject({ name: "AbortError" })
     await expect(browser.list(opened.sessionId)).resolves.toMatchObject({ generation: 1, total: 1, entries: [{ name: "nested" }] })
     expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: false })
     await browser[Symbol.asyncDispose]()
+    expect(browser.memorySnapshot()).toEqual({
+      sessions: 0,
+      listingEntries: 0,
+      listingPayloadBytes: 0,
+      navigationPaths: 0,
+      navigationPayloadBytes: 0,
+      randomSeeds: 0,
+      randomSeedPayloadBytes: 0,
+    })
   })
 
   it("[neoview.browser.navigation] pages stable snapshots and maintains navigation history", async () => {

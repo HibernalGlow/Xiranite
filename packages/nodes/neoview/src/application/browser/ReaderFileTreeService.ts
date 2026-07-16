@@ -42,6 +42,7 @@ import {
   type ReaderFileTreeIndexOptions,
   type ReaderFileTreeNodePage,
 } from "./ReaderFileTreeIndex.js"
+import { readerDirectoryListingPayloadBytes, stringPayloadBytes } from "./ReaderDirectoryListingMetrics.js"
 
 export type ReaderDirectoryNavigation =
   | { action: "path"; path: string }
@@ -81,6 +82,16 @@ export interface ReaderFileTreeServiceOptions extends ReaderFileTreeIndexOptions
   watcher?: ReaderFileTreeWatcher
   directorySizeProvider?: ReaderDirectorySizeProvider
   directorySizeConcurrency?: number
+}
+
+export interface ReaderFileTreeMemorySnapshot {
+  sessions: number
+  listingEntries: number
+  listingPayloadBytes: number
+  navigationPaths: number
+  navigationPayloadBytes: number
+  randomSeeds: number
+  randomSeedPayloadBytes: number
 }
 
 export interface ReaderDirectorySizeBatch {
@@ -415,6 +426,27 @@ export class ReaderFileTreeService implements AsyncDisposable {
     if (!this.#sessions.has(sessionId)) return undefined
     this.#tree.clear(path)
     return this.#tree.snapshot()
+  }
+
+  memorySnapshot(): ReaderFileTreeMemorySnapshot {
+    const snapshot: ReaderFileTreeMemorySnapshot = {
+      sessions: this.#sessions.size,
+      listingEntries: 0,
+      listingPayloadBytes: 0,
+      navigationPaths: 0,
+      navigationPayloadBytes: 0,
+      randomSeeds: 0,
+      randomSeedPayloadBytes: 0,
+    }
+    for (const session of this.#sessions.values()) {
+      snapshot.listingEntries += session.listing.entries.length
+      snapshot.listingPayloadBytes += readerDirectoryListingPayloadBytes(session.listing)
+      snapshot.navigationPaths += session.back.length + session.forward.length
+      snapshot.navigationPayloadBytes += stringPayloadBytes(session.back) + stringPayloadBytes(session.forward)
+      snapshot.randomSeeds += session.randomSeeds.size
+      snapshot.randomSeedPayloadBytes += stringPayloadBytes(session.randomSeeds.keys()) + stringPayloadBytes(session.randomSeeds.values())
+    }
+    return snapshot
   }
 
   releaseMemoryPressure(): { clearedTreeEntries: number; cancelledDirectorySizes: number; clearedRandomSeeds: number } {
