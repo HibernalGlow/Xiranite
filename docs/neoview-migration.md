@@ -1591,7 +1591,7 @@ xneoview inspect book.cbz --connect http://127.0.0.1:41000 --json
 
 现有 `ReaderHeadlessController` 位于 application 层，只依赖 `ReaderService`，由 `platform.ts` 延迟装配目录、ZIP、7-Zip 和流式元数据探测；本地 CLI 与 OpenTUI React 工作台调用这个 controller，不直接访问 provider。`ui --connect` 通过同一 `RemoteReaderHeadlessController` 注入异步 TUI port，页面列表、导航和原图流不另写 transport；退出仍关闭该 TUI 创建的远程 session。TUI 已支持路径打开、关闭、100 页有界页面列表、当前单/双页 frame、上一页、下一页和页码跳转；当前页面以可取消的 `HeadlessPageStream` 进入共享 `TerminalImagePreview`，原型默认使用 SIXEL，并保留 Kitty、auto 和 truecolor half-block 可注入后端，替换/退出时关闭 stream/source。终端解码现统一由 `TerminalImageDecodeService` 管理：使用 `lru-cache` 按 RGBA 与 PNG 的实际字节计费，CLI runtime 默认上限 64 MiB，NeoView TUI session 上限 32 MiB；使用 `p-queue` 有界并发，NeoView 默认 2 个 decode task，并以 `terminal.image.decode` / `view` 请求宿主 `ResourceScheduler` 的 CPU lease。字符串路径和带 `cacheKey` 的 stream source 可复用解码结果，`Uint8Array` 不做隐式缓存；关闭书籍、退出或卸载会取消 source 并清空 session cache。自动化已覆盖异步远程 port 注入、字节预算、排队取消、scheduler lease、fake session 前后翻页命中与关闭失效、资源归零、真实目录图片和真实 Deflate CBZ 的 half-block 像素显示；CBZ 测试只向默认 controller 传 archive path，不包含 TUI 专属 ZIP 分支。真实 SIXEL/Kitty 终端、7z/RAR 的 TUI 集成语料、缩略图 gallery、设置与更多 feature 命令仍属于后续能力，不能把当前原型描述成完整 TUI。
 
-CLI 密码参数只接受 `--password-env VAR` 或 `--archive-password-env entry.cbz::nested.cbz=VAR`，不提供明文 `--password`。本地模式不经过 HTTP；连接模式只在鉴权 loopback POST body 中短暂传递密码，不进入 URL、argv、日志、响应 DTO 或 TOML。环境变量值会复制为每次 open 独立的 `Uint8Array`，CLI 临时字节在命令结束时主动覆零。JSON 输出不包含本地 source path、临时物化路径、backend token 或密码。`extract-page --output -` 的 stdout 专用于二进制数据；写文件默认使用排他创建，只有显式 `--force` 才覆盖。
+CLI 密码参数只接受 `--password-env VAR` 或 `--archive-password-env entry.cbz::nested.cbz=VAR`，不提供明文 `--password`。本地模式不经过 HTTP；连接模式只在鉴权 loopback POST body 中短暂传递密码，不进入 URL、argv、日志、响应 DTO、SQLite 或 TOML。`RemoteReaderHeadlessController` 使用 Zod 在 fetch 前验证 1～16 个 scope、每项恰好一种密码表示和 4096 UTF-8 字节上限；string 原样传递，raw bytes 只接受 `TextDecoder({ fatal: true })` 可逆解码的 UTF-8，禁止以替换字符静默改变密码。环境变量值会复制为每次 open 独立的 `Uint8Array`，CLI 临时字节在命令结束时主动覆零。JSON 输出不包含本地 source path、临时物化路径、backend token 或密码。`extract-page --output -` 的 stdout 专用于二进制数据；写文件默认使用排他创建，只有显式 `--force` 才覆盖。
 
 ### 15.1 TUI 图片阅读：复用共享能力，TUI 只做终端适配
 
@@ -2572,7 +2572,7 @@ scripts/
 - 继续把 archive、thumbnail、超分和其他高负载节点迁入宿主 scheduler，并补 queue/cache 指标与 benchmark；
 - 已以原 `%APPDATA%\NeoView\thumbnails.db` 接入惰性单 writer、批量命中、受保护 HTTP URL、Page/file/folder/video/归档内视频生成、失败退避与有界在线维护；已完成 SQLite 原生一致性备份、XR writer/维护进程锁、显式离线 checkpoint/optimize/vacuum、验证备份恢复、`data_version` 外部写失效和 V1/V3/V4 调度行为收口；继续补真实大规模基准；
 - 已实现 loopback asset/control route、opaque token、ETag、文件 Range、ZIP 无伪 Range、背压与断开取消；
-- GUI 已使用共享 `openViewSource()` contract；CLI/TUI presentation adapter 仍待接入；
+- GUI、CLI 与 TUI 已使用共享 `openViewSource()` / `openPageStream()` contract；OpenTUI presentation adapter 复用宿主 `TerminalImageDecodeService`、`TerminalImagePreview`、字节 LRU、`p-queue` 和 `ResourceScheduler`，本地与 loopback remote controller 不维护第二套解码或页面 transport；
 - GUI HTTP 与 CLI/TUI headless controller 已共用视频进度恢复/合并写回 service；播放器、音量/倍速、字幕和切页播放资源治理仍待迁移；
 - 已验证 ZIP 流式读取、背压、取消、ETag、错误恢复和 session close；EPUB 已复用 ZIP provider，完成有界 container/OPF 解析、路径安全、取消、关闭和统一 asset stream 测试；non-solid RAR/7z 已使用单 entry stdout 流，solid RAR/7z 已使用单进程顺序 materializer，并覆盖真实 CB7、CRC、预算、取消和临时目录清理；嵌套 ZIP/7z 已使用路径栈与物化 lease 打通，AES ZIP 与 7-Zip 根级/嵌套密码使用同一 session scope，7-Zip 密码只走 stdin；真实 encrypted RAR、历史/UI 导航与真实 EPUB 语料回归仍需补齐，PDF 不计入当前缺口。
 

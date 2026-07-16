@@ -80,6 +80,68 @@ describe("RemoteReaderHeadlessController", () => {
     await remote[Symbol.asyncDispose]()
   })
 
+  it("[neoview.cli.connect-passwords] preserves string and UTF-8 raw credential scopes without putting secrets in URLs", async () => {
+    const requests: Request[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      return request.method === "DELETE"
+        ? new Response(null, { status: 204 })
+        : new Response(JSON.stringify(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1")), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "token",
+      fetch: fetchMock,
+    })
+    try {
+      await remote.open({ path: "D:/book.cb7", archivePasswords: [{ password: "文本-password" }] })
+      const rawPassword = new TextEncoder().encode("nested-secret")
+      await remote.open({
+        path: "D:/book.cb7",
+        archivePasswords: [{ entryPaths: ["inner.cb7"], rawPassword }],
+      })
+      expect(rawPassword).toEqual(new TextEncoder().encode("nested-secret"))
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+    const posts = requests.filter((request) => request.method === "POST")
+    await expect(posts[0]!.json()).resolves.toMatchObject({ archivePasswords: [{ password: "文本-password" }] })
+    await expect(posts[1]!.json()).resolves.toMatchObject({
+      archivePasswords: [{ entryPaths: ["inner.cb7"], password: "nested-secret" }],
+    })
+    expect(requests.every((request) => !request.url.includes("password"))).toBe(true)
+  })
+
+  it("[neoview.cli.connect-passwords] rejects ambiguous, oversized and invalid UTF-8 credentials before fetch", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    const remote = new RemoteReaderHeadlessController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "token",
+      fetch: fetchMock,
+    })
+    try {
+      await expect(remote.open({
+        path: "D:/book.cb7",
+        archivePasswords: [{ password: "text", rawPassword: Uint8Array.of(1) }],
+      })).rejects.toThrow("invalid")
+      await expect(remote.open({
+        path: "D:/book.cb7",
+        archivePasswords: [{ password: "x".repeat(4097) }],
+      })).rejects.toThrow("invalid")
+      await expect(remote.open({
+        path: "D:/book.cb7",
+        archivePasswords: [{ rawPassword: Uint8Array.of(0xff) }],
+      })).rejects.toThrow("valid UTF-8")
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.diagnostics.cli-connect] reads the authenticated running-backend snapshot without creating a Reader session", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(diagnosticsSnapshot()), {
       headers: { "content-type": "application/json" },

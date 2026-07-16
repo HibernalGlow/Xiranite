@@ -7,6 +7,7 @@ import type {
 import type { ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
+import { z } from "zod"
 
 interface ReaderFrameDto {
   frame: ReaderSessionDto["frame"]
@@ -68,10 +69,7 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
       entryPaths: input.entryPaths,
     }
     if (input.archivePasswords?.length) {
-      body.archivePasswords = input.archivePasswords.map((credential) => ({
-        entryPaths: credential.entryPaths,
-        password: new TextDecoder().decode(credential.rawPassword),
-      }))
+      body.archivePasswords = serializeRemoteArchivePasswords(input.archivePasswords)
     }
     const next = await this.#json<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
@@ -324,4 +322,42 @@ async function responseError(response: Response, operation: string): Promise<Err
 function optionalLength(response: Response): number | undefined {
   const value = Number(response.headers.get("content-length"))
   return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+}
+
+const remoteArchivePasswordSchema = z.object({
+  entryPaths: z.array(z.string().refine((value) => Boolean(value.trim()), "entry path must be non-empty")).max(16).optional(),
+  password: z.string().refine((value) => {
+    const bytes = new TextEncoder().encode(value).byteLength
+    return bytes > 0 && bytes <= 4096
+  }, "password must contain 1 to 4096 UTF-8 bytes").optional(),
+  rawPassword: z.instanceof(Uint8Array).refine(
+    (value) => value.byteLength > 0 && value.byteLength <= 4096,
+    "rawPassword must contain 1 to 4096 bytes",
+  ).optional(),
+}).strict().refine(
+  (value) => (value.password !== undefined) !== (value.rawPassword !== undefined),
+  "exactly one password representation is required",
+)
+
+function serializeRemoteArchivePasswords(inputs: OpenHeadlessReaderInput["archivePasswords"]): Array<{
+  entryPaths?: readonly string[]
+  password: string
+}> {
+  if (!inputs?.length || inputs.length > 16) throw new Error("Remote archive passwords must contain 1 to 16 entries.")
+  return inputs.map((input) => {
+    const parsed = remoteArchivePasswordSchema.safeParse(input)
+    if (!parsed.success) throw new Error("Remote archive password input is invalid.")
+    let password = parsed.data.password
+    if (password === undefined) {
+      try {
+        password = new TextDecoder("utf-8", { fatal: true }).decode(parsed.data.rawPassword)
+      } catch {
+        throw new Error("Remote archive rawPassword must be valid UTF-8.")
+      }
+    }
+    return {
+      ...(parsed.data.entryPaths ? { entryPaths: parsed.data.entryPaths } : {}),
+      password,
+    }
+  })
 }
