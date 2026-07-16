@@ -64,9 +64,29 @@ describe("ReaderPreloadCoordinator", () => {
       velocityPagesPerSecond: 0,
       stableForMs: Number.MAX_SAFE_INTEGER,
       focused: true,
+      queueWaitMs: 0,
+      memoryPressure: "normal",
     })
     expect(() => coordinator.update(frame(pages, 2, "single"), "next", { velocityPagesPerSecond: Number.NaN })).toThrow("velocityPagesPerSecond")
     expect(() => coordinator.update(frame(pages, 2, "single"), "next", { stableForMs: -1 })).toThrow("stableForMs")
+    expect(() => coordinator.update(frame(pages, 2, "single"), "next", { queueWaitMs: -1 })).toThrow("queueWaitMs")
+  })
+
+  it("[neoview.preload.resource-admission] pauses speculative candidates under host queue or memory pressure", () => {
+    const pages = pageFixture(8)
+    const coordinator = new ReaderPreloadCoordinator(pages, { maxSpeculativeQueueWaitMs: 75 })
+    expect(coordinator.update(frame(pages, 3, "single"), "next", { queueWaitMs: 76 })).toMatchObject({
+      admission: "paused",
+      queueWaitMs: 76,
+      memoryPressure: "normal",
+      candidates: [],
+    })
+    expect(coordinator.update(frame(pages, 3, "single"), "layout", { memoryPressure: "elevated" })).toMatchObject({
+      admission: "paused",
+      memoryPressure: "elevated",
+      candidates: [],
+    })
+    expect(() => new ReaderPreloadCoordinator(pages, { maxSpeculativeQueueWaitMs: 60_001 })).toThrow("maxSpeculativeQueueWaitMs")
   })
 
   it("handles empty/end frames and validates budgets", () => {

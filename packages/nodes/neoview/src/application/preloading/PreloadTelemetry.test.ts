@@ -56,6 +56,8 @@ function plan(generation: number, pageIds: string[]): ReaderPreloadPlan {
     velocityPagesPerSecond: 0,
     stableForMs: Number.MAX_SAFE_INTEGER,
     focused: true,
+    queueWaitMs: 0,
+    memoryPressure: "normal",
     currentPageIndexes: [0],
     candidates: [{ tier: "near", priority: "view", anchorPageIndex: 1, pageIndexes: pageIds.map((_, index) => index + 1), pageIds }],
   }

@@ -14,6 +14,8 @@ export interface ReaderPreloadContext {
   velocityPagesPerSecond?: number
   stableForMs?: number
   focused?: boolean
+  queueWaitMs?: number
+  memoryPressure?: "normal" | "elevated" | "critical"
 }
 
 export interface ReaderPreloadCandidate {
@@ -34,6 +36,8 @@ export interface ReaderPreloadPlan {
   velocityPagesPerSecond: number
   stableForMs: number
   focused: boolean
+  queueWaitMs: number
+  memoryPressure: "normal" | "elevated" | "critical"
   currentPageIndexes: readonly number[]
   candidates: readonly ReaderPreloadCandidate[]
 }
@@ -42,12 +46,14 @@ export interface ReaderPreloadCoordinatorOptions {
   nearFrames?: number
   aheadFrames?: number
   retainReverseFrame?: boolean
+  maxSpeculativeQueueWaitMs?: number
 }
 
 export class ReaderPreloadCoordinator {
   readonly #nearFrames: number
   readonly #aheadFrames: number
   readonly #retainReverseFrame: boolean
+  readonly #maxSpeculativeQueueWaitMs: number
   #generation = 0
   #lastAnchorPageIndex?: number
   #direction: ReaderPreloadDirection = "forward"
@@ -60,6 +66,7 @@ export class ReaderPreloadCoordinator {
     this.#nearFrames = bounded(options.nearFrames ?? 1, "nearFrames", 0, 4)
     this.#aheadFrames = bounded(options.aheadFrames ?? 2, "aheadFrames", 0, 8)
     this.#retainReverseFrame = options.retainReverseFrame ?? true
+    this.#maxSpeculativeQueueWaitMs = bounded(options.maxSpeculativeQueueWaitMs ?? 100, "maxSpeculativeQueueWaitMs", 0, 60_000)
   }
 
   update(frame: FrameSnapshot, intent: ReaderNavigationIntent, context: ReaderPreloadContext = {}): ReaderPreloadPlan {
@@ -68,7 +75,7 @@ export class ReaderPreloadCoordinator {
     const inferredDirection = inferDirection(intent, frame.anchorPageIndex, previousAnchor, this.#direction)
     const direction = viewportDirection(normalized, inferredDirection)
     const confidence = viewportConfidence(normalized, directionConfidence(intent, frame.anchorPageIndex, previousAnchor))
-    const budget = preloadBudget(normalized, this.#nearFrames, this.#aheadFrames, this.#retainReverseFrame)
+    const budget = preloadBudget(normalized, this.#nearFrames, this.#aheadFrames, this.#retainReverseFrame, this.#maxSpeculativeQueueWaitMs)
     this.#direction = direction
     this.#lastAnchorPageIndex = frame.anchorPageIndex
     this.#generation += 1
@@ -82,6 +89,8 @@ export class ReaderPreloadCoordinator {
       velocityPagesPerSecond: normalized.velocityPagesPerSecond,
       stableForMs: normalized.stableForMs,
       focused: normalized.focused,
+      queueWaitMs: normalized.queueWaitMs,
+      memoryPressure: normalized.memoryPressure,
       currentPageIndexes: frame.pages.map((page) => page.pageIndex),
       candidates: buildCandidates(this.pages, frame, direction, budget.nearFrames, budget.aheadFrames, budget.retainReverseFrame),
     }
@@ -98,6 +107,8 @@ interface NormalizedPreloadContext {
   velocityPagesPerSecond: number
   stableForMs: number
   focused: boolean
+  queueWaitMs: number
+  memoryPressure: "normal" | "elevated" | "critical"
 }
 
 function normalizeContext(context: ReaderPreloadContext): NormalizedPreloadContext {
@@ -109,7 +120,13 @@ function normalizeContext(context: ReaderPreloadContext): NormalizedPreloadConte
   }
   const stableForMs = context.stableForMs ?? Number.MAX_SAFE_INTEGER
   if (!Number.isSafeInteger(stableForMs) || stableForMs < 0) throw new RangeError("stableForMs must be a non-negative safe integer.")
-  return { mode, velocityPagesPerSecond, stableForMs, focused: context.focused ?? true }
+  const queueWaitMs = context.queueWaitMs ?? 0
+  if (!Number.isFinite(queueWaitMs) || queueWaitMs < 0 || queueWaitMs > 60_000) throw new RangeError("queueWaitMs must be finite from 0 to 60000.")
+  const memoryPressure = context.memoryPressure ?? "normal"
+  if (memoryPressure !== "normal" && memoryPressure !== "elevated" && memoryPressure !== "critical") {
+    throw new TypeError(`Invalid memoryPressure: ${memoryPressure}`)
+  }
+  return { mode, velocityPagesPerSecond, stableForMs, focused: context.focused ?? true, queueWaitMs, memoryPressure }
 }
 
 function viewportDirection(context: NormalizedPreloadContext, fallback: ReaderPreloadDirection): ReaderPreloadDirection {
@@ -127,9 +144,11 @@ function preloadBudget(
   nearFrames: number,
   aheadFrames: number,
   retainReverseFrame: boolean,
+  maxSpeculativeQueueWaitMs: number,
 ): { admission: ReaderPreloadAdmission; nearFrames: number; aheadFrames: number; retainReverseFrame: boolean } {
   const speed = Math.abs(context.velocityPagesPerSecond)
-  if (!context.focused || context.mode === "scrub" || context.stableForMs < 120 || (context.mode === "continuous" && speed >= 4)) {
+  if (context.memoryPressure !== "normal" || context.queueWaitMs > maxSpeculativeQueueWaitMs
+    || !context.focused || context.mode === "scrub" || context.stableForMs < 120 || (context.mode === "continuous" && speed >= 4)) {
     return { admission: "paused", nearFrames: 0, aheadFrames: 0, retainReverseFrame: false }
   }
   if (context.mode === "continuous" && speed >= 1.5) {
