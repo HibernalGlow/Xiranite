@@ -6,13 +6,14 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import type {
   HeadlessReaderPageSnapshot,
   HeadlessReaderSnapshot,
+  HeadlessPageStream,
+  OpenHeadlessReaderInput,
   ReaderCacheService,
   ReaderFileTreeHeadlessController,
   ReaderFileOperationService,
   ReaderSystemIntegrationService,
   ReaderFileMutation,
   ReaderLibraryHeadlessController,
-  ReaderHeadlessController,
   ReaderDiagnosticsService,
 } from "./core.js"
 import type {
@@ -75,6 +76,8 @@ const VALUE_FLAGS = new Set([
   "--list",
   "--before",
   "--concurrency",
+  "--connect",
+  "--token-env",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -87,7 +90,8 @@ export const cli: CliCommand = {
 }
 
 export interface NeoviewCliDependencies {
-  createController: (options?: ReaderCompositionOptions) => Promise<ReaderHeadlessController>
+  createController: (options?: ReaderCompositionOptions) => Promise<CliReaderController>
+  createRemoteController?: (options: { baseUrl: string; token: string }) => Promise<CliReaderController>
   createFileTreeController?: (options?: ReaderCompositionOptions) => Promise<ReaderFileTreeHeadlessController>
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
@@ -102,8 +106,18 @@ export interface NeoviewCliDependencies {
 
 interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, AsyncDisposable {}
 
+export interface CliReaderController extends AsyncDisposable {
+  open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
+  listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
+  openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
+}
+
 const DEFAULT_DEPENDENCIES: NeoviewCliDependencies = {
   createController: createReaderHeadlessController,
+  createRemoteController: async (options) => {
+    const { RemoteReaderHeadlessController } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+    return new RemoteReaderHeadlessController(options)
+  },
   createFileTreeController: createReaderFileTreeController,
 }
 
@@ -206,13 +220,22 @@ export async function runProgram(
   }
   const index = integerOption(parsed, "--index", 0, Number.MAX_SAFE_INTEGER, 0)
   const credentials = credentialsFromEnvironment(parsed, host)
-  let controller: ReaderHeadlessController | undefined
+  let controller: CliReaderController | undefined
   try {
-    controller = await dependencies.createController({
-      configPath: oneValue(parsed, "--config"),
-      cwd: host.cwd,
-      env: host.env,
-    })
+    const connect = oneValue(parsed, "--connect")
+    const tokenVariable = oneValue(parsed, "--token-env")
+    if (!connect && tokenVariable) throw usage("--token-env requires --connect.")
+    if (connect && parsed.values.has("--config")) throw usage("--config cannot be combined with --connect because the running backend owns configuration.")
+    controller = connect
+      ? await (dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!)({
+          baseUrl: connect,
+          token: connectionToken(tokenVariable, host),
+        })
+      : await dependencies.createController({
+          configPath: oneValue(parsed, "--config"),
+          cwd: host.cwd,
+          env: host.env,
+        })
     const snapshot = await controller.open({
       path: resolve(host.cwd, path),
       entryPaths: parsed.values.get("--entry"),
@@ -224,7 +247,7 @@ export async function runProgram(
     if (command === "pages") {
       const cursor = integerOption(parsed, "--cursor", 0, snapshot.book.pageCount, 0)
       const limit = integerOption(parsed, "--limit", 1, 500, 100)
-      return printPages(controller.listPages(cursor, limit), cursor, snapshot.book.pageCount, parsed.booleans.has("--json"), host)
+      return printPages(await controller.listPages(cursor, limit), cursor, snapshot.book.pageCount, parsed.booleans.has("--json"), host)
     }
     if (parsed.booleans.has("--json")) throw usage("extract-page does not support --json because its output is binary.")
     const output = oneValue(parsed, "--output")
@@ -1170,6 +1193,14 @@ function passwordBytes(variable: string, host: CliHost): Uint8Array {
   return new TextEncoder().encode(value)
 }
 
+function connectionToken(variable: string | undefined, host: CliHost): string {
+  const name = variable ?? "XIRANITE_BACKEND_TOKEN"
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw usage(`Invalid backend token environment variable name: ${name}`)
+  const token = host.env[name]?.trim()
+  if (!token) throw usage(`Backend token environment variable is missing or empty: ${name}`)
+  return token
+}
+
 function printInspect(snapshot: HeadlessReaderSnapshot, json: boolean, host: CliHost): void {
   if (json) return writeJson(host, snapshot)
   writeLine(host, `${snapshot.book.displayName}: ${snapshot.book.pageCount} page(s)`)
@@ -1201,7 +1232,7 @@ function pageLine(page: HeadlessReaderPageSnapshot): string {
 }
 
 async function extractPage(
-  controller: ReaderHeadlessController,
+  controller: Pick<CliReaderController, "openPageStream">,
   pageIndex: number,
   output: string,
   force: boolean,
@@ -1492,6 +1523,8 @@ function formatCliHelp(): string {
     "  --entry PATH         Repeat for each nested archive entry",
     "  --password-env VAR   Read the root archive password from VAR",
     "  --archive-password-env SCOPE=VAR  Scoped nested password; join scope with ::",
+    "  --connect URL        Use the running loopback XR Reader backend",
+    "  --token-env VAR      Read its token from VAR (default XIRANITE_BACKEND_TOKEN)",
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
     "  --config PATH        Xiranite TOML path for settings/cache commands",

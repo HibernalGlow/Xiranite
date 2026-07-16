@@ -1,0 +1,71 @@
+import { describe, expect, it, vi } from "vitest"
+import type { CliHost } from "@xiranite/cli-runtime"
+
+import { runProgram, type CliReaderController } from "../cli.js"
+import type { HeadlessReaderSnapshot } from "../application/headless/ReaderHeadlessController.js"
+
+describe("NeoView CLI remote Reader", () => {
+  it("[neoview.cli.connect] selects the remote adapter and reads its token only from the environment", async () => {
+    const output: unknown[] = []
+    const controller = fakeRemoteReader()
+    const createRemoteController = vi.fn(async () => controller)
+    const createController = vi.fn(async () => { throw new Error("local controller must stay lazy") })
+    await runProgram(
+      ["pages", "book.cbz", "--connect", "http://127.0.0.1:41000", "--cursor", "0", "--limit", "1", "--json"],
+      host(output, { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      { createController, createRemoteController },
+    )
+    expect(createRemoteController).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "runtime-token" })
+    expect(createController).not.toHaveBeenCalled()
+    expect(JSON.parse(output.join(""))).toMatchObject({ total: 1, pages: [{ name: "1.jpg" }] })
+    expect(controller[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.cli.connect-security] rejects missing tokens and remote/local configuration mixing", async () => {
+    const dependencies = { createController: vi.fn(async () => fakeRemoteReader()), createRemoteController: vi.fn(async () => fakeRemoteReader()) }
+    await expect(runProgram(
+      ["inspect", "book.cbz", "--connect", "http://127.0.0.1:41000"],
+      host([]),
+      dependencies,
+    )).rejects.toThrow("XIRANITE_BACKEND_TOKEN")
+    await expect(runProgram(
+      ["inspect", "book.cbz", "--connect", "http://127.0.0.1:41000", "--config", "xiranite.config.toml"],
+      host([], { XIRANITE_BACKEND_TOKEN: "token" }),
+      dependencies,
+    )).rejects.toThrow("cannot be combined")
+    expect(dependencies.createRemoteController).not.toHaveBeenCalled()
+  })
+})
+
+function fakeRemoteReader(): CliReaderController {
+  const snapshot: HeadlessReaderSnapshot = {
+    book: { displayName: "book.cbz", pageCount: 1 },
+    frame: {
+      generation: 0,
+      anchorPageIndex: 0,
+      direction: "left-to-right",
+      layout: { pageMode: "single", widePageMode: "single", firstPageMode: "normal" },
+      pages: [{ pageId: "page-1", pageIndex: 0, role: "primary" }],
+      atStart: true,
+      atEnd: true,
+    },
+    visiblePages: [{ id: "page-1", index: 0, name: "1.jpg", mediaKind: "image", contentVersion: "v1" }],
+  }
+  return {
+    open: vi.fn(async () => snapshot),
+    listPages: vi.fn(async () => snapshot.visiblePages),
+    openPageStream: vi.fn(async () => { throw new Error("not used") }),
+    [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function host(output: unknown[], env: Record<string, string> = {}): CliHost {
+  return {
+    cwd: "D:/workspace",
+    env,
+    stdin: { isTTY: false, read: async () => null },
+    stdout: { isTTY: false, write: (value: unknown) => { output.push(value); return true } },
+    stderr: { isTTY: false, write: (value: unknown) => { output.push(value); return true } },
+    exitCode: 0,
+  } as unknown as CliHost
+}

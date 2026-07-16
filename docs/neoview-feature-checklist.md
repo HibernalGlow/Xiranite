@@ -285,7 +285,7 @@
 - 设置：`startup`、`cardConfigs`
 - 数据：window state、card windows、tabs
 - 行为：CLI 路径打开；窗口大小/位置恢复；最小化托盘；卡片窗口恢复；单实例导航；宿主关闭释放所有进程
-- 测试：`neoview.headless.session`、`neoview.cli.inspect`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.cli.extract-page`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
+- 测试：`neoview.headless.session`、`neoview.cli.inspect`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.cli.extract-page`、`neoview.cli.reader-e2e`、`neoview.cli.connect`、`neoview.cli.connect-security`、`neoview.tui.reader`
 - 性能基准：`cold-start`、`idle-rss`
 - 已知差异：无
 
