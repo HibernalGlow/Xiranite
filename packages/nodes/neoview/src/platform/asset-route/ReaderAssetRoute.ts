@@ -28,6 +28,7 @@ import {
 } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { buildPresentationCacheKey, SHARP_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import { transformPageSource } from "../images/transform-page-source.js"
+import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -45,6 +46,7 @@ export interface ReaderAssetRouteDependencies {
   thumbnailStore?: ReaderThumbnailStore
   thumbnailPipeline?: PlatformThumbnailPipeline
   resourceScheduler?: ResourceScheduler
+  memoryPressureMonitor?: ReaderMemoryPressureMonitor
 }
 
 export class ReaderAssetRoute {
@@ -57,6 +59,7 @@ export class ReaderAssetRoute {
   readonly #presentationProducerVersion: string
   readonly #thumbnailPipeline?: PlatformThumbnailPipeline
   readonly #resourceScheduler?: ResourceScheduler
+  readonly #memoryPressure: ReaderMemoryPressureMonitor
   readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   #imageTransformer?: Promise<ImageTransformer>
@@ -77,6 +80,7 @@ export class ReaderAssetRoute {
     this.#presentationDiskCache = dependencies.presentationDiskCache
     this.#presentationProducerVersion = dependencies.presentationProducerVersion ?? SHARP_PRESENTATION_PRODUCER_VERSION
     this.#resourceScheduler = dependencies.resourceScheduler
+    this.#memoryPressure = dependencies.memoryPressureMonitor ?? new ReaderMemoryPressureMonitor()
     this.#ownsThumbnailPipeline = !dependencies.thumbnailPipeline
       && Boolean(dependencies.thumbnailStore || dependencies.loadImageTransformer)
     this.#thumbnailPipeline = dependencies.thumbnailPipeline ?? (
@@ -118,6 +122,10 @@ export class ReaderAssetRoute {
   }
 
   prewarmThumbnails(pages: readonly ReaderPage[], signal?: AbortSignal): Promise<ThumbnailPrewarmResult> {
+    if (this.#memoryPressure.sample().level !== "normal") {
+      this.#memoryPressure.recordAdmissionRejection()
+      return Promise.resolve({ requested: pages.length, databaseHits: 0, primed: 0 })
+    }
     return this.#thumbnailPipeline?.prewarmPages(pages, { signal })
       ?? Promise.resolve({ requested: pages.length, databaseHits: 0, primed: 0 })
   }
@@ -125,6 +133,7 @@ export class ReaderAssetRoute {
   snapshot(): ReaderAssetDiagnostics {
     return {
       activeTransformFlights: this.#transformFlights.size,
+      memoryPressure: this.#memoryPressure.snapshot(),
       presentation: this.#presentationCache?.snapshot() ?? null,
       thumbnails: this.#thumbnailPipeline?.snapshot() ?? null,
     }
@@ -133,9 +142,13 @@ export class ReaderAssetRoute {
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     const thumbnailMatch = THUMBNAIL_PATH.exec(url.pathname)
-    if (thumbnailMatch) return this.#handleThumbnail(request, url, thumbnailMatch[1]!, thumbnailMatch[2]!)
+    if (thumbnailMatch) {
+      this.#relieveMemoryPressure()
+      return this.#handleThumbnail(request, url, thumbnailMatch[1]!, thumbnailMatch[2]!)
+    }
     const match = PAGE_PATH.exec(url.pathname)
     if (!match) return undefined
+    this.#relieveMemoryPressure()
     if (this.#closed) return textResponse("Reader asset route is closed", 410)
     if (!this.#isAuthorized(request, url)) return textResponse("Unauthorized", 401)
     if (request.method !== "GET" && request.method !== "HEAD") {
@@ -334,11 +347,16 @@ export class ReaderAssetRoute {
       return new Response(null, { status: 200, headers })
     }
     if (cached) return cachedPresentationResponse(cached, headers)
-    const diskLease = await this.#presentationDiskCache?.acquire(cacheKey, workSignal).catch(() => undefined)
+    const allowCacheAdmission = this.#memoryPressure.sample().level === "normal"
+    if (!allowCacheAdmission) this.#memoryPressure.recordAdmissionRejection()
+    const diskLease = allowCacheAdmission
+      ? await this.#presentationDiskCache?.acquire(cacheKey, workSignal).catch(() => undefined)
+      : undefined
     workSignal.throwIfAborted()
     if (diskLease) {
       const presentation = { bytes: diskLease.bytes, contentType: diskLease.contentType }
-      this.#presentationCache?.set(cacheKey, presentation)
+      if (this.#memoryPressure.sample().level === "normal") this.#presentationCache?.set(cacheKey, presentation)
+      else this.#memoryPressure.recordAdmissionRejection()
       const response = cachedPresentationResponse(presentation, headers)
       diskLease.release()
       return response
@@ -353,7 +371,7 @@ export class ReaderAssetRoute {
 
     let settleFlight: ((value: CachedPresentation | undefined) => void) | undefined
     const presentationEpoch = this.#presentationEpoch
-    if (this.#presentationCache) {
+    if (this.#presentationCache && allowCacheAdmission) {
       const completion = new Promise<CachedPresentation | undefined>((resolve) => { settleFlight = resolve })
       this.#transformFlights.set(cacheKey, completion)
     }
@@ -383,7 +401,9 @@ export class ReaderAssetRoute {
       const cacheCompletion = collectPresentation(cacheStream, this.#presentationCache.maxEntryBytes, expectedContentType)
         .then((presentation) => {
           if (presentation && (this.#closed || presentationEpoch !== this.#presentationEpoch
+            || this.#memoryPressure.sample().level !== "normal"
             || !this.#presentationCache!.set(cacheKey, presentation))) {
+            if (this.#memoryPressure.snapshot().level !== "normal") this.#memoryPressure.recordAdmissionRejection()
             presentation = undefined
           }
           if (presentation && this.#presentationDiskCache) {
@@ -415,6 +435,19 @@ export class ReaderAssetRoute {
       this.#imageTransformer = guarded
     }
     return this.#imageTransformer
+  }
+
+  #relieveMemoryPressure(): void {
+    const pressure = this.#memoryPressure.sample()
+    if (!pressure.relieve || pressure.level === "normal") return
+    if (pressure.level === "critical") {
+      this.clearPresentationCache()
+    } else {
+      const snapshot = this.#presentationCache?.snapshot()
+      if (snapshot) this.#presentationCache?.trimTo?.(Math.floor(snapshot.maxBytes * 0.25))
+    }
+    this.#thumbnailPipeline?.hibernateReader()
+    this.#memoryPressure.recordRelief(pressure.level)
   }
 
   #isAuthorized(request: Request, url: URL): boolean {

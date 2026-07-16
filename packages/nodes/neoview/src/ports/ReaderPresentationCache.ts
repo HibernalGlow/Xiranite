@@ -17,6 +17,7 @@ export interface ReaderPresentationCache {
   readonly maxEntryBytes: number
   get(key: string): CachedPresentation | undefined
   set(key: string, value: CachedPresentation): boolean
+  trimTo?(maxBytes: number): void
   clear(): void
   snapshot(): ReaderPresentationCacheSnapshot
 }

@@ -37,6 +37,20 @@ describe("WeightedLruPresentationCache", () => {
     expect(cache.get("c")).toBeDefined()
     expect(cache.get("e")).toBeDefined()
   })
+
+  it("[neoview.memory-pressure.l2-trim] releases least-recently-used bytes to an explicit pressure target", () => {
+    const cache = new WeightedLruPresentationCache({ maxBytes: 16, maxEntryBytes: 4 })
+    for (const key of ["a", "b", "c", "d"]) cache.set(key, value(4))
+    expect(cache.get("b")).toBeDefined()
+    cache.trimTo(8)
+    expect(cache.snapshot()).toMatchObject({ entries: 2, bytes: 8, evictions: 2 })
+    expect(cache.get("a")).toBeUndefined()
+    expect(cache.get("c")).toBeUndefined()
+    expect(cache.get("b")).toBeDefined()
+    expect(cache.get("d")).toBeDefined()
+    cache.trimTo(0)
+    expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0, evictions: 4 })
+  })
 })
 
 function value(size: number) {

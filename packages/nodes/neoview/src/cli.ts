@@ -642,6 +642,10 @@ function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArgum
   writeLine(host, `Reader diagnostics: sessions=${result.reader.activeSessions} uptime=${result.uptimeSeconds.toFixed(1)}s`)
   writeLine(host, `Process: rss=${result.process.rssBytes} heap=${result.process.heapUsedBytes}/${result.process.heapTotalBytes} external=${result.process.externalBytes}`)
   writeLine(host, `Assets: transforms=${result.assets.activeTransformFlights} L2=${result.assets.presentation?.bytes ?? 0} bytes thumbnails=${result.assets.thumbnails?.cachedBytes ?? 0} bytes`)
+  const pressure = result.assets.memoryPressure
+  writeLine(host, pressure
+    ? `Memory pressure: ${pressure.level} available=${pressure.availableBytes ?? "unknown"} reliefs=${pressure.elevatedReliefs}/${pressure.criticalReliefs} rejected=${pressure.admissionRejections}`
+    : "Memory pressure: unavailable")
   writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes}`)
   writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${result.scheduler.cpu.active}/${result.scheduler.cpu.queued} io=${result.scheduler.io.active}/${result.scheduler.io.queued} gpu=${result.scheduler.gpu.active}/${result.scheduler.gpu.queued}` : "unavailable in standalone CLI"}`)
 }

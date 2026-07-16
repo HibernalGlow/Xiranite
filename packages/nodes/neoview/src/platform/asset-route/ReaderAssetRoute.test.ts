@@ -8,11 +8,13 @@ import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
+import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { CacachePresentationDiskCache } from "../cache/CacachePresentationDiskCache.js"
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
+import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
@@ -66,6 +68,60 @@ describe("ReaderAssetRoute", () => {
     const invalid = (await route.handle(new Request(url, { headers: { range: "bytes=99-100" } })))!
     expect(invalid.status).toBe(416)
     expect(invalid.headers.get("content-range")).toBe("bytes */32")
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.memory-pressure.route] trims L2, rejects background prewarm and preserves the visible original stream", async () => {
+    let available = 350
+    let now = 0
+    const monitor = new ReaderMemoryPressureMonitor({
+      criticalAvailableBytes: 200,
+      elevatedAvailableBytes: 400,
+      recoveryAvailableBytes: 800,
+      sampleIntervalMs: 0,
+      reliefIntervalMs: 10,
+      availableMemory: () => available,
+      now: () => now,
+    })
+    const cache = new WeightedLruPresentationCache({ maxBytes: 16, maxEntryBytes: 4 })
+    for (const key of ["a", "b", "c", "d"]) cache.set(key, { bytes: new Uint8Array(4), contentType: "image/webp" })
+    const service = new CoreReaderService(async () => fixtureBook(pageSource(Uint8Array.of(1, 2, 3))))
+    const session = await service.openViewSource({ kind: "path", path: "opaque" })
+    const acquireDisk = vi.fn(async () => undefined)
+    const putDisk = vi.fn(async () => false)
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      {
+        presentationCache: cache,
+        presentationDiskCache: { acquire: acquireDisk, put: putDisk } as unknown as ReaderPresentationDiskCache,
+        memoryPressureMonitor: monitor,
+        loadImageTransformer: async () => ({
+          transform: async (input) => {
+            await input.cancel("pressure fixture transformed")
+            return { stream: new Blob([Uint8Array.of(9)]).stream() as ReadableStream<Uint8Array>, contentType: "image/webp" }
+          },
+        }),
+      },
+    )
+    const response = (await route.handle(new Request(route.pageUrl(session.id, "page-1"))))!
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(Uint8Array.of(1, 2, 3))
+    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4 })
+    const transformedUrl = new URL(route.pageUrl(session.id, "page-1"))
+    transformedUrl.searchParams.set("width", "100")
+    expect(new Uint8Array(await (await route.handle(new Request(transformedUrl)))!.arrayBuffer())).toEqual(Uint8Array.of(9))
+    expect(acquireDisk).not.toHaveBeenCalled()
+    expect(putDisk).not.toHaveBeenCalled()
+    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4 })
+    await expect(route.prewarmThumbnails(session.book.pages)).resolves.toEqual({ requested: 1, databaseHits: 0, primed: 0 })
+    expect(route.snapshot().memoryPressure).toMatchObject({ level: "elevated", elevatedReliefs: 1, admissionRejections: 2 })
+
+    available = 100
+    now = 10
+    cache.set("critical", { bytes: new Uint8Array(4), contentType: "image/webp" })
+    await route.handle(new Request(route.pageUrl(session.id, "page-1"), { method: "HEAD" }))
+    expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0 })
+    expect(route.snapshot().memoryPressure).toMatchObject({ level: "critical", criticalReliefs: 1 })
     await service[Symbol.asyncDispose]()
   })
 
@@ -667,5 +723,16 @@ function fixtureBook(source: PageSource): ReaderBook {
     pages: [page],
     close,
     [Symbol.asyncDispose]: close,
+  }
+}
+
+function pageSource(bytes: Uint8Array): PageSource {
+  return {
+    byteLength: bytes.byteLength,
+    contentType: "image/jpeg",
+    rangeSupported: false,
+    open: async () => new Blob([bytes]).stream() as ReadableStream<Uint8Array>,
+    close: async () => undefined,
+    [Symbol.asyncDispose]: async () => undefined,
   }
 }

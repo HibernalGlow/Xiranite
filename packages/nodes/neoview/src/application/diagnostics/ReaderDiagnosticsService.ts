@@ -1,6 +1,7 @@
 import type { ReaderCacheStatus } from "../cache/ReaderCacheService.js"
 import type { ReaderPresentationCacheSnapshot } from "../../ports/ReaderPresentationCache.js"
 import type { ResourceClass, ResourcePriority } from "../../ports/ResourceScheduler.js"
+import type { ReaderMemoryPressureSnapshot } from "../../platform/memory/ReaderMemoryPressureMonitor.js"
 
 export interface ReaderSchedulerPoolDiagnostics {
   active: number
@@ -10,6 +11,7 @@ export interface ReaderSchedulerPoolDiagnostics {
 
 export interface ReaderAssetDiagnostics {
   activeTransformFlights: number
+  memoryPressure?: ReaderMemoryPressureSnapshot
   presentation: ReaderPresentationCacheSnapshot | null
   thumbnails: {
     demands: number

@@ -65,6 +65,11 @@ export class WeightedLruPresentationCache implements ReaderPresentationCache {
     this.#entries.clear()
   }
 
+  trimTo(maxBytes: number): void {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new RangeError("maxBytes must be a non-negative safe integer")
+    while (this.#entries.calculatedSize > maxBytes) this.#entries.pop()
+  }
+
   snapshot(): ReaderPresentationCacheSnapshot {
     return {
       entries: this.#entries.size,
