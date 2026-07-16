@@ -337,6 +337,7 @@ export interface ReaderFolderTreeViewConfig {
 }
 
 export interface ReaderFolderViewConfig {
+  homePath: string
   viewMode: ReaderFolderViewMode
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
@@ -356,6 +357,7 @@ export interface ReaderFolderDetailsPatch {
 
 export interface ReaderFolderViewPatch {
   folderView: {
+    homePath?: string
     viewMode?: ReaderFolderViewMode
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number

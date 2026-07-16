@@ -55,6 +55,7 @@ const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   fadeTransition: true,
 }
 const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
+  homePath: "",
   viewMode: "compact",
   previewCount: 4,
   thumbnailWidthPercent: 20,

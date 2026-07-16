@@ -1293,86 +1293,86 @@
 
 ##### 专用源码级验收项
 
-- [x] `image-information.states` 空、加载、成功、失败与重试状态
+- [ ] `image-information.states` 空、加载、成功、失败与重试状态
   - 目标：No session is zero DOM; unavailable media is a stable empty state; base metadata and optional probe failures remain independently visible and retryable.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.metadata.cards`、`neoview.image-information.zero-session`、`neoview.image-information.probe-degradation`
-  - 备注：Base and probe loading, empty, error and independently named retry states are covered.
+  - 测试：`neoview.metadata.cards`
+  - 备注：Current Card lacks retry and independent media-probe degradation.
 - [ ] `image-information.base-fields` 显示类型、名称和源尺寸
   - 目标：The active page exposes image/video/animated type, name and source dimensions with legacy labels and compact density.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.metadata.cards`、`neoview.image-information.image-fields`、`neoview.image-information.video-fields`
-  - 备注：GUI preserves the legacy base rows; CLI/TUI explicit media inspection remains pending.
+  - 测试：`neoview.metadata.cards`
+  - 备注：Basic fields exist, but type labels and UTF-8 UI need completion.
 - [ ] `image-information.image-fields` 显示图片格式与文件大小
   - 目标：Non-video pages display normalized format and conditionally display positive source bytes using frozen boundaries.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.image-fields`、`neoview.image-information.formatting`、`neoview.image-information.image-e2e`
-  - 备注：GUI image format and conditional bytes match legacy behavior; headless projection remains pending.
+  - 测试：`neoview.metadata.cards`
+  - 备注：MIME and bytes exist but format and conditional legacy presentation are incomplete.
 - [ ] `image-information.video-fields` 显示完整视频媒体字段
   - 目标：Video pages display duration and conditionally display frame rate, bitrate, video codec and audio codec from a shared probe contract.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.video-fields`、`neoview.image-information.archive-video-http`
-  - 备注：GUI and shared HTTP DTO expose all legacy video fields; CLI/TUI commands remain pending.
+  - 测试：待补
+  - 备注：No target media-probe contract currently exists.
 - [ ] `image-information.formatting` 保持旧时长、码率与大小格式
   - 目标：Duration, bitrate and byte formatters preserve all legacy thresholds, precision and invalid-value degradation.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.formatting`
-  - 备注：Pure GUI formatters freeze every legacy boundary; headless text projection must reuse them before completion.
+  - 测试：待补
+  - 备注：Requires frozen pure formatter tests.
 - [ ] `image-information.media-probe` 按需探测视频容器与流
   - 目标：A proven ffprobe-based platform adapter supplies bounded normalized media metadata only when requested for a video page.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.image-information.image-zero-ffprobe`、`neoview.image-information.ffprobe-normalize`、`neoview.image-information.ffprobe-stream`、`neoview.image-information.video-cache-budget`、`neoview.image-information.image-e2e`
-  - 备注：GUI demand and platform probing are bounded and image paths make zero probe requests; CLI/TUI demand entry points remain pending.
+  - 测试：待补
+  - 备注：Must not execute during Reader open, navigation or image-only metadata requests.
 - [ ] `image-information.data-contract` 共享规范媒体信息 DTO
   - 目标：GUI, CLI and TUI share one path-safe DTO for kind, dimensions, bytes, MIME, duration, frame rate, bitrate and codecs.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.image-information.client`、`neoview.image-information.archive-video-http`
-  - 备注：Base metadata and demand-only media DTOs are path-safe and shared with GUI; CLI/TUI still need explicit projection.
-- [x] `image-information.presentation` 显示当前呈现的有效尺寸与旋转
+  - 测试：待补
+  - 备注：The current metadata DTO contains only base page fields.
+- [ ] `image-information.presentation` 显示当前呈现的有效尺寸与旋转
   - 目标：The Card distinguishes immutable source dimensions from CSS presentation rotation/fit/manual scale without generating a second asset.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.image-information.image-fields`
-  - 备注：The Card separately shows source size, truthful rotated size, fit mode and manual scale; it does not claim unavailable rendered-pixel metrics.
+  - 测试：待补
+  - 备注：Frozen XR extension; presentation state is not yet passed to the Card context.
 - [ ] `image-information.degradation` 缺少 ffprobe 或字段时稳定降级
   - 目标：Base metadata remains visible when probing is unsupported or fails; optional video rows remain absent and duration uses an em dash.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.probe-degradation`、`neoview.image-information.ffprobe-normalize`
-  - 备注：GUI preserves base rows and offers an isolated probe retry; headless degradation output remains pending.
+  - 测试：待补
+  - 备注：Probe errors must not fail the shared base metadata route.
 - [ ] `image-information.lifecycle` 取消探测并忽略迟到页面结果
   - 目标：Unmount, navigation and session close abort active probing; obsolete generation results never replace the current page.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.image-information.navigation-cancel`、`neoview.image-information.video-cancel`、`neoview.image-information.session-release`、`neoview.image-information.ffprobe-abort`
-  - 备注：GUI, application, route and process cancellation are covered; CLI/TUI consumers remain pending.
-- [x] `image-information.shell` 复用通用 Card 外壳
+  - 测试：待补
+  - 备注：Requires AbortSignal coverage on client, route and platform process.
+- [ ] `image-information.shell` 复用通用 Card 外壳
   - 目标：Image Information remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the info Panel.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.shell.registry-lazy`、`neoview.image-information.chunk`
-  - 备注：The shared shell and independent 8 KiB deferred chunk are both gated.
-- [x] `image-information.accessibility` 字段、错误与重试具有可访问语义
+  - 测试：`neoview.shell.registry-lazy`
+  - 备注：The Card is registered but its dedicated chunk and full lifecycle are not frozen.
+- [ ] `image-information.accessibility` 字段、错误与重试具有可访问语义
   - 目标：Labels use semantic description lists, truncated values retain titles, and retry is keyboard/touch operable.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.image-fields`、`neoview.image-information.probe-degradation`
-  - 备注：Semantic terms, complete titles, live probe status and separately named retry buttons are present.
-- [x] `image-information.ui-parity` 保持旧版紧凑字段层级
+  - 测试：`neoview.metadata.cards`
+  - 备注：Current labels are mojibake and errors lack retry.
+- [ ] `image-information.ui-parity` 保持旧版紧凑字段层级
   - 目标：Legacy field order, conditional rows, label hierarchy and compact geometry remain readable on desktop and 420x360 viewports.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.image-fields`、`neoview.image-information.video-fields`、`neoview.image-information.image-e2e`
-  - 备注：Desktop and 420x360 Chromium prove the legacy order and compact geometry without clipping or horizontal overflow.
+  - 测试：待补
+  - 备注：Requires real Chromium screenshots and overflow assertions.
 - [ ] `image-information.image-stability` 信息探测不重挂活动媒体
   - 目标：Opening, retrying and navigating the Card preserve the active image/video node and asset URL.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.image-e2e`、`neoview.image-information.navigation-cancel`
-  - 备注：Opening the image Card and navigation cancellation are covered; real video retry/navigation identity remains pending.
+  - 测试：待补
+  - 备注：Required by the frozen Card acceptance contract.
 - [ ] `image-information.performance` 独立 chunk 与零热路径探测
   - 目标：The Card remains below 8 KiB in an independent deferred chunk; image paths make no probe request and pointer/page-turn budgets remain green.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.image-information.chunk`、`neoview.image-information.image-e2e`、`neoview.image-information.video-cache-budget`
-  - 备注：The Card is 5,106 bytes, images issue zero probe requests, video cache is bounded and loopback navigation p95 is 3.80 ms; the full Reader gate remains pending outside this Card.
-- [x] `image-information.deviations` 记录 ffprobe 与呈现扩展
+  - 测试：待补
+  - 备注：Requires production chunk and request-count gates.
+- [ ] `image-information.deviations` 记录 ffprobe 与呈现扩展
   - 目标：Document the separate cancellable media endpoint and truthful presentation fields as XR extensions without removing legacy rows.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.client`、`neoview.image-information.image-fields`
-  - 备注：XR uses an authenticated cancellable media endpoint and truthful CSS presentation fields while preserving every legacy row.
+  - 测试：待补
+  - 备注：No intentional legacy behavior is removed.
 
 #### `storage` 存储信息
 
