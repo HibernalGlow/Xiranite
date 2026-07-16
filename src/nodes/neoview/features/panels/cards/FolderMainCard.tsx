@@ -7,8 +7,8 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, List, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Link, List, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -47,6 +47,7 @@ import {
   type DirectoryCatalog,
 } from "./folder/DirectoryCatalog"
 import {
+  chainDirectorySelection,
   createDirectorySelection,
   directorySelectionCount,
   extendDirectorySelection,
@@ -129,17 +130,22 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const listRef = useRef<VirtuosoHandle>(null)
   const gridRef = useRef<VirtuosoGridHandle>(null)
+  const listHostRef = useRef<HTMLDivElement>(null)
   const gridSnapshotRef = useRef<GridStateSnapshot | undefined>(undefined)
   const focusedIndexRef = useRef<number | undefined>(undefined)
+  const chainAnchorIndexRef = useRef<number | undefined>(undefined)
   const historyStatesRef = useRef(new Map<string, SavedDirectoryState>())
   const [draftPath, setDraftPath] = useState(sourcePath ?? "")
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
+  const [chainSelectMode, setChainSelectMode] = useState(false)
+  const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [selection, setSelection] = useState<DirectorySelectionModel>(() => createDirectorySelection(0))
   const [focusedPath, setFocusedPath] = useState<string>()
+  const [focusedIndex, setFocusedIndex] = useState<number>()
   const [thumbnailUrls, setThumbnailUrls] = useState<ReadonlyMap<string, string>>(() => new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -269,6 +275,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     releaseThumbnailContext()
     setThumbnailUrls(new Map())
     const next = createDirectoryCatalog(page)
+    chainAnchorIndexRef.current = undefined
     commitCatalog(next)
     setDraftPath(page.path)
     visibleRangeRef.current = { startIndex: 0, endIndex: 0 }
@@ -289,6 +296,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       ? restored.selection
       : rebaseDirectorySelection(restored.selection, page.generation)
     focusedIndexRef.current = restored.focusedIndex
+    setFocusedIndex(restored.focusedIndex)
     setViewMode(restored.viewMode)
     setPreviewCount(restored.previewCount)
     setMultiSelectMode(restored.multiSelectMode)
@@ -456,20 +464,99 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   function selectEntry(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent) {
     const previousFocusIndex = focusedIndexRef.current
     focusedIndexRef.current = index
+    setFocusedIndex(index)
     setFocusedPath(entry.path)
     const generation = catalogRef.current?.generation ?? selection.generation
-    if (event.shiftKey) {
+    if (multiSelectMode && chainSelectMode) {
+      const chainAnchorIndex = chainAnchorIndexRef.current
+      setSelection((current) => chainDirectorySelection(current, generation, index, {
+        anchorIndex: chainAnchorIndex,
+        anchorPath: chainAnchorIndex === previousFocusIndex ? focusedPath : undefined,
+        endPath: entry.path,
+      }))
+      chainAnchorIndexRef.current = index
+    } else if (event.shiftKey) {
       setSelection((current) => extendDirectorySelection(current, generation, index, {
         additive: event.ctrlKey || event.metaKey,
         fallbackAnchor: previousFocusIndex ?? 0,
         anchorPath: focusedPath,
         endPath: entry.path,
       }))
-    } else if (multiSelectMode || event.ctrlKey || event.metaKey) {
+    } else if ((multiSelectMode && checkModeClickBehavior === "select") || event.ctrlKey || event.metaKey) {
       setSelection((current) => toggleDirectorySelection(current, generation, entry.path, index))
+    } else if (multiSelectMode) {
+      activate(entry)
     } else {
       setSelection(selectDirectorySingle(generation, entry.path, index))
     }
+  }
+
+  function handleDirectoryKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const currentCatalog = catalogRef.current
+    if (!currentCatalog || currentCatalog.total <= 0 || disabled || loading) return
+    const currentIndex = Math.min(
+      Math.max(focusedIndexRef.current ?? visibleRangeRef.current.startIndex, 0),
+      currentCatalog.total - 1,
+    )
+    const gridColumns = viewUsesGrid(viewMode) ? visibleGridColumnCount(listHostRef.current) : 1
+    let targetIndex: number | undefined
+
+    if (event.key === "ArrowUp") targetIndex = currentIndex - gridColumns
+    else if (event.key === "ArrowDown") targetIndex = currentIndex + gridColumns
+    else if (event.key === "ArrowLeft" && viewUsesGrid(viewMode)) targetIndex = currentIndex - 1
+    else if (event.key === "ArrowRight" && viewUsesGrid(viewMode)) targetIndex = currentIndex + 1
+    else if (event.key === "Home") targetIndex = 0
+    else if (event.key === "End") targetIndex = currentCatalog.total - 1
+    else if (event.key === "Enter") {
+      const entry = directoryEntryAt(currentCatalog, currentIndex)
+      if (entry) activate(entry)
+    } else if (event.key === " ") {
+      const entry = directoryEntryAt(currentCatalog, currentIndex)
+      if (entry) {
+        setMultiSelectMode(true)
+        setSelection((current) => toggleDirectorySelection(current, currentCatalog.generation, entry.path, currentIndex))
+      }
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+      setMultiSelectMode(true)
+      setSelection(selectAllDirectoryEntries(currentCatalog.generation))
+    } else if (event.key === "Escape" && multiSelectMode) {
+      setSelection(createDirectorySelection(currentCatalog.generation))
+      setMultiSelectMode(false)
+    } else if (event.key === "Backspace") {
+      if (currentCatalog.canGoBack) void navigate({ action: "back" })
+      else if (currentCatalog.parentPath) void navigate({ action: "up" })
+    } else if (event.key === "F5") {
+      void navigate({ action: "refresh" })
+    } else {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    if (targetIndex === undefined) return
+    const nextIndex = Math.min(Math.max(targetIndex, 0), currentCatalog.total - 1)
+    const entry = directoryEntryAt(currentCatalog, nextIndex)
+    focusedIndexRef.current = nextIndex
+    setFocusedIndex(nextIndex)
+    setFocusedPath(entry?.path)
+    if (event.shiftKey) {
+      setSelection((current) => extendDirectorySelection(current, currentCatalog.generation, nextIndex, {
+        additive: event.ctrlKey || event.metaKey,
+        fallbackAnchor: currentIndex,
+        anchorPath: focusedPath,
+        endPath: entry?.path,
+      }))
+    } else if (!event.ctrlKey && !event.metaKey) {
+      setSelection(entry
+        ? selectDirectorySingle(currentCatalog.generation, entry.path, nextIndex)
+        : extendDirectorySelection(createDirectorySelection(currentCatalog.generation), currentCatalog.generation, nextIndex, {
+          additive: false,
+          fallbackAnchor: nextIndex,
+        }))
+    }
+    requestRange({ startIndex: nextIndex, endIndex: nextIndex })
+    if (viewUsesVirtuosoList(viewMode)) listRef.current?.scrollToIndex({ index: nextIndex, align: "center" })
+    else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index: nextIndex, align: "center" })
   }
 
   function activate(entry: ReaderDirectoryEntryDto) {
@@ -555,7 +642,11 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             label={multiSelectMode ? "退出多选" : "多选模式"}
             disabled={!catalog || loading}
             onClick={() => {
-              if (multiSelectMode) setSelection(createDirectorySelection(catalog?.generation ?? selection.generation))
+              if (multiSelectMode) {
+                setSelection(createDirectorySelection(catalog?.generation ?? selection.generation))
+                chainAnchorIndexRef.current = undefined
+                setChainSelectMode(false)
+              }
               setMultiSelectMode((current) => !current)
             }}
           >
@@ -658,7 +749,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           <span className="min-w-[4.5rem] text-xs font-medium tabular-nums">
             <span className="text-primary">{selectedCount}</span> / {catalog.total}
           </span>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto">
             <BrowserButton
               label="选择全部项目"
               disabled={selectedCount === catalog.total}
@@ -674,6 +765,28 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
               <Square />
             </BrowserButton>
             <BrowserButton
+              label="链接选中模式"
+              active={chainSelectMode}
+              onClick={() => {
+                chainAnchorIndexRef.current = undefined
+                setChainSelectMode((current) => !current)
+              }}
+            >
+              <Link />
+            </BrowserButton>
+            <Button
+              type="button"
+              size="sm"
+              variant={checkModeClickBehavior === "select" ? "default" : "ghost"}
+              className="h-7 gap-1 px-2 text-xs"
+              aria-label={`点击行为：${checkModeClickBehavior === "select" ? "点选" : "点开"}`}
+              title={`点击卡片会${checkModeClickBehavior === "select" ? "选中或取消选中" : "打开项目"}`}
+              onClick={() => setCheckModeClickBehavior((current) => current === "open" ? "select" : "open")}
+            >
+              <MousePointer2 />
+              {checkModeClickBehavior === "select" ? "点选" : "点开"}
+            </Button>
+            <BrowserButton
               label="取消全部选择"
               disabled={selectedCount === 0}
               onClick={() => setSelection(createDirectorySelection(catalog.generation))}
@@ -684,6 +797,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
               label="关闭多选模式"
               onClick={() => {
                 setSelection(createDirectorySelection(catalog.generation))
+                chainAnchorIndexRef.current = undefined
+                setChainSelectMode(false)
                 setMultiSelectMode(false)
               }}
             >
@@ -693,7 +808,16 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
         </div>
       ) : null}
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
-      <div className="min-h-32 overflow-hidden rounded border bg-background/60" data-neoview-folder-list="true">
+      <div
+        ref={listHostRef}
+        className="min-h-32 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        data-neoview-folder-list="true"
+        data-focused-index={focusedIndex}
+        role="listbox"
+        aria-label="文件项目"
+        tabIndex={0}
+        onKeyDown={handleDirectoryKeyDown}
+      >
         {catalog && viewUsesVirtuosoList(viewMode) ? (
           <Virtuoso
             key={virtualKey}
@@ -713,7 +837,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
                   index={index}
                   disabled={disabled}
                   selected={Boolean(entry && selectedPaths.has(entry.path))}
-                  focused={entry?.path === focusedPath}
+                  focused={index === focusedIndex}
                   showRating={catalog.metadataFields.includes("rating")}
                   showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                   visualMode={viewMode}
@@ -732,7 +856,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
               catalog={catalog}
               disabled={disabled}
               selectedPaths={selectedPaths}
-              initialIndex={restoreState?.viewMode === "details" ? restoreState.focusedIndex ?? restoreState.anchorIndex : undefined}
+              initialIndex={focusedIndex ?? (restoreState?.viewMode === "details" ? restoreState.focusedIndex ?? restoreState.anchorIndex : undefined)}
               layout={folderView.details}
               onRangeChange={requestRange}
               onSelect={selectEntry}
@@ -762,7 +886,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
                   index={index}
                   disabled={disabled}
                   selected={Boolean(entry && selectedPaths.has(entry.path))}
-                  focused={entry?.path === focusedPath}
+                  focused={index === focusedIndex}
                   showRating={catalog.metadataFields.includes("rating")}
                   showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                   visualMode={viewMode}
@@ -786,14 +910,14 @@ function DirectoryListItem({ entry, index, disabled, selected, focused, showRati
   return (
     <button
       type="button"
-      className={`flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent ${rich ? "h-[76px]" : "h-[34px]"}`}
+      className={`flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${rich ? "h-[76px]" : "h-[34px]"}`}
       aria-selected={selected}
       data-focused={focused || undefined}
       disabled={disabled}
       title={entry.path}
       onClick={(event) => onSelect(entry, index, event)}
       onDoubleClick={() => onActivate(entry)}
-      onKeyDown={(event) => { if (event.key === "Enter") onActivate(entry) }}
+      tabIndex={-1}
       data-preview-mode={visualMode}
     >
       {rich ? (
@@ -816,14 +940,14 @@ function DirectoryGridItem({ entry, index, disabled, selected, focused, showRati
   return (
     <button
       type="button"
-      className={`grid h-36 w-full overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent ${showMetadata ? "grid-rows-[1fr_auto_auto]" : "grid-rows-[1fr_auto]"}`}
+      className={`grid h-36 w-full overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary ${showMetadata ? "grid-rows-[1fr_auto_auto]" : "grid-rows-[1fr_auto]"}`}
       aria-selected={selected}
       data-focused={focused || undefined}
       disabled={disabled}
       title={entry.path}
       onClick={(event) => onSelect(entry, index, event)}
       onDoubleClick={() => onActivate(entry)}
-      onKeyDown={(event) => { if (event.key === "Enter") onActivate(entry) }}
+      tabIndex={-1}
       data-preview-mode={visualMode}
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
@@ -881,8 +1005,8 @@ function EntryIcon({ entry, className = "size-4" }: { entry: ReaderDirectoryEntr
     : <File className={`${className} shrink-0 text-muted-foreground`} />
 }
 
-function BrowserButton({ label, disabled, onClick, children }: { label: string; disabled: boolean; onClick(): void; children: ReactNode }) {
-  return <Button type="button" size="icon-sm" variant="ghost" aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</Button>
+function BrowserButton({ label, disabled = false, active = false, onClick, children }: { label: string; disabled?: boolean; active?: boolean; onClick(): void; children: ReactNode }) {
+  return <Button type="button" size="icon-sm" variant={active ? "default" : "ghost"} aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</Button>
 }
 
 function isAbortError(error: unknown): boolean {
@@ -899,6 +1023,11 @@ function viewUsesGrid(mode: FolderViewMode): boolean {
 
 function viewUsesMosaic(mode: FolderViewMode): boolean {
   return mode === "mosaic-list" || mode === "mosaic-grid"
+}
+
+function visibleGridColumnCount(host: HTMLElement | null): number {
+  const width = host?.clientWidth ?? 112
+  return Math.max(1, Math.floor((width + 4) / 116))
 }
 
 function viewUsesThumbnails(mode: FolderViewMode): boolean {
