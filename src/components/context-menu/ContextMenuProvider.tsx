@@ -188,7 +188,12 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
       }
 
       if (items.length === 0) return
-      setOpenMenu({ x: e.clientX, y: e.clientY, items })
+      const targetRect = e.clientX === 0 && e.clientY === 0 ? target?.getBoundingClientRect() : undefined
+      setOpenMenu({
+        x: targetRect ? targetRect.left + targetRect.width / 2 : e.clientX,
+        y: targetRect ? targetRect.top + targetRect.height / 2 : e.clientY,
+        items,
+      })
     }
     window.addEventListener("contextmenu", handler)
     return () => window.removeEventListener("contextmenu", handler)
@@ -275,6 +280,7 @@ function MenuController({
         <span
           ref={anchorRef}
           aria-hidden
+          data-context-menu-anchor="true"
           style={{
             position: "fixed",
             left: coords.x,

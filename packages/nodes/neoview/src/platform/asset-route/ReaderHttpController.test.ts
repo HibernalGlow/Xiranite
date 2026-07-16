@@ -438,7 +438,14 @@ describe("ReaderHttpController", () => {
 
   it("[neoview.control.session] [neoview.page-list.catalog] [neoview.metadata.http] opens, filters pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
-    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => new Map([
+      [paths[0]!, { emmJson: JSON.stringify({ translated_title: "译名" }) }],
+    ]))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      directoryEmmRecordStore: { directoryEmmAvailable: true, readDirectoryEmmRecords },
+    })
     try {
       const unauthorized = await controller.handle(jsonRequest("/reader/sessions", { path: directory }, false))
       expect(unauthorized?.status).toBe(401)
@@ -462,10 +469,13 @@ describe("ReaderHttpController", () => {
       const metadata = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!
       expect(await metadata.json()).toMatchObject({
         book: {
+          bookId: session.book.id,
+          displayName: expect.any(String),
           sourceKind: "directory",
           sourcePath: directory,
           pageCount: 3,
           currentPage: 2,
+          emm: { translatedTitle: "译名" },
           createdAtMs: expect.any(Number),
           modifiedAtMs: expect.any(Number),
           accessedAtMs: expect.any(Number),
@@ -542,6 +552,9 @@ describe("ReaderHttpController", () => {
         frame: { anchorPageIndex: 2 },
         preload: { generation: 4, direction: "forward", candidates: [{ tier: "background", pageIndexes: [1] }] },
       })
+      const metadataAfterNavigation = await (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!.json()
+      expect(metadataAfterNavigation).toMatchObject({ book: { currentPage: 3, emm: { translatedTitle: "译名" } } })
+      expect(readDirectoryEmmRecords).toHaveBeenCalledOnce()
 
       const closed = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))!
       expect(closed.status).toBe(204)
@@ -575,6 +588,32 @@ describe("ReaderHttpController", () => {
       const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
       const { sessionId } = await opened.json() as ReaderSessionDto
       expect((await controller.handle(jsonRequest(`/reader/s/${sessionId}/navigate`, { action: "goTo" })))?.status).toBe(400)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.book-information.session-close] aborts a pending static EMM load when its session closes", async () => {
+    const directory = await createBookDirectory()
+    let emmSignal: AbortSignal | undefined
+    const readDirectoryEmmRecords = vi.fn((_paths: readonly string[], signal?: AbortSignal) => {
+      emmSignal = signal
+      return new Promise<ReadonlyMap<string, never>>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+      })
+    })
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      directoryEmmRecordStore: { directoryEmmAvailable: true, readDirectoryEmmRecords },
+    })
+    try {
+      const session = await (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!.json() as ReaderSessionDto
+      const metadata = controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`))
+      await vi.waitFor(() => expect(readDirectoryEmmRecords).toHaveBeenCalledOnce())
+      expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      expect(emmSignal?.aborted).toBe(true)
+      await expect(metadata).rejects.toMatchObject({ name: "AbortError" })
     } finally {
       await controller[Symbol.asyncDispose]()
     }

@@ -7,6 +7,7 @@ import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import type { ReaderMediaProgressService, ReaderMediaProgressUpdate } from "../reader/ReaderMediaProgressService.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderService, ReaderSession } from "../reader/contracts.js"
+import type { ReaderBookMetadataService, ReaderBookStaticMetadata } from "../metadata/ReaderBookMetadataService.js"
 
 export interface OpenHeadlessReaderInput {
   path: string
@@ -19,6 +20,9 @@ export interface OpenHeadlessReaderInput {
 export interface HeadlessReaderBookSnapshot {
   displayName: string
   pageCount: number
+  sourceKind?: ReaderBookStaticMetadata["sourceKind"]
+  sourceFormat?: ReaderBookStaticMetadata["sourceFormat"]
+  translatedTitle?: string
 }
 
 export interface HeadlessReaderPageSnapshot {
@@ -53,6 +57,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
   readonly #disposeDependencies?: () => Promise<void>
   readonly #mediaProgress?: ReaderMediaProgressService
   #session: ReaderSession | undefined
+  #bookMetadata: ReaderBookStaticMetadata | undefined
   #closed = false
   #disposing: Promise<void> | undefined
 
@@ -60,6 +65,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     service: ReaderService,
     disposeDependencies?: () => Promise<void>,
     mediaProgress?: ReaderMediaProgressService,
+    private readonly metadata?: ReaderBookMetadataService,
   ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
@@ -91,11 +97,15 @@ export class ReaderHeadlessController implements AsyncDisposable {
       input.signal?.throwIfAborted()
       this.#assertOpen()
       const previous = this.#session
+      const bookMetadata = this.metadata
+        ? await this.metadata.load(next.book, input.signal)
+        : staticMetadataOf(next)
       this.#session = next
+      this.#bookMetadata = bookMetadata
       adopted = true
       if (previous) await this.#mediaProgress?.flush(previous.book.id)
       await previous?.close()
-      return snapshotOf(next)
+      return snapshotOf(next, bookMetadata)
     } catch (error) {
       if (!adopted) await next.close()
       throw error
@@ -103,7 +113,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
   }
 
   inspect(): HeadlessReaderSnapshot {
-    return snapshotOf(this.#requireSession())
+    return snapshotOf(this.#requireSession(), this.#bookMetadata)
   }
 
   listPages(cursor = 0, limit = 100): readonly HeadlessReaderPageSnapshot[] {
@@ -115,20 +125,20 @@ export class ReaderHeadlessController implements AsyncDisposable {
   async next(signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
     const session = this.#requireSession()
     await session.next(signal)
-    return snapshotOf(session)
+    return snapshotOf(session, this.#bookMetadata)
   }
 
   async previous(signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
     const session = this.#requireSession()
     await session.previous(signal)
-    return snapshotOf(session)
+    return snapshotOf(session, this.#bookMetadata)
   }
 
   async goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
     assertPageIndex(pageIndex)
     const session = this.#requireSession()
     await session.goTo(pageIndex, signal)
-    return snapshotOf(session)
+    return snapshotOf(session, this.#bookMetadata)
   }
 
   async openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream> {
@@ -167,6 +177,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
   async closeBook(): Promise<void> {
     const session = this.#session
     this.#session = undefined
+    this.#bookMetadata = undefined
     if (session) await this.#mediaProgress?.flush(session.book.id)
     await session?.close()
   }
@@ -177,6 +188,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     this.#disposing = Promise.resolve().then(async () => {
       const session = this.#session
       this.#session = undefined
+      this.#bookMetadata = undefined
       const errors: unknown[] = []
       for (const dispose of [
         this.#mediaProgress ? () => this.#mediaProgress!.close() : undefined,
@@ -245,12 +257,15 @@ class OwnedHeadlessPageStream implements HeadlessPageStream {
   }
 }
 
-function snapshotOf(session: ReaderSession): HeadlessReaderSnapshot {
+function snapshotOf(session: ReaderSession, metadata = staticMetadataOf(session)): HeadlessReaderSnapshot {
   const frame = session.snapshot()
   return {
     book: {
       displayName: session.book.displayName,
       pageCount: session.book.pages.length,
+      sourceKind: metadata.sourceKind,
+      sourceFormat: metadata.sourceFormat,
+      translatedTitle: metadata.emm?.translatedTitle,
     },
     frame,
     preload: session.preloadPlan(),
@@ -258,6 +273,17 @@ function snapshotOf(session: ReaderSession): HeadlessReaderSnapshot {
       const page = session.getPage(pageId)
       return page ? [pageSnapshot(page)] : []
     }),
+  }
+}
+
+function staticMetadataOf(session: ReaderSession): ReaderBookStaticMetadata {
+  return {
+    bookId: session.book.id,
+    displayName: session.book.displayName,
+    sourcePath: session.book.source.path,
+    sourceKind: session.book.source.kind,
+    sourceFormat: session.book.source.kind === "document" ? session.book.source.format : undefined,
+    pageCount: session.book.pages.length,
   }
 }
 

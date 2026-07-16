@@ -34,12 +34,15 @@ export interface ReaderPageListDto {
 
 export interface ReaderMetadataDto {
   book: {
+    bookId: string
     displayName: string
     sourceKind: "path" | "directory" | "archive" | "image" | "media" | "document"
+    sourceFormat?: "pdf" | "epub"
     sourcePath: string
     pageCount: number
     currentPage: number
-    progressPercent: number
+    progressPercent?: number
+    emm?: { translatedTitle?: string }
     byteLength?: number
     createdAtMs?: number
     modifiedAtMs?: number
@@ -411,6 +414,7 @@ export interface ReaderHttpClient {
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
+  revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
@@ -608,6 +612,12 @@ export function createReaderHttpClient(
       return request<ReaderPageListDto>(`/reader/s/${encodeURIComponent(sessionId)}/pages?${search}`, { signal })
     },
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
+    revealSystemPath: (path, signal) => request<void>("/reader/files/reveal", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path }),
+      signal,
+    }),
     listRecent: (offset, limit, signal) => request<{ items: ReaderRecentDto[] }>(
       `/reader/library/recents?offset=${offset}&limit=${limit}`,
       { signal },

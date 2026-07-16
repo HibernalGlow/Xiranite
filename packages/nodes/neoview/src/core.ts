@@ -7,6 +7,15 @@ export {
 } from "./application/node/runNeoview.js"
 export { CoreReaderService } from "./application/reader/ReaderService.js"
 export {
+  ReaderBookMetadataService,
+  type ReaderBookStaticMetadata,
+} from "./application/metadata/ReaderBookMetadataService.js"
+export {
+  legacyEmmBookPathKey,
+  parseLegacyEmmBookMetadata,
+  type ReaderBookEmmMetadata,
+} from "./application/metadata/LegacyEmmBookMetadataCodec.js"
+export {
   ReaderFileTreeService,
   type ReaderDirectoryNavigation,
   type ReaderDirectoryPage,

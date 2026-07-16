@@ -6,10 +6,20 @@ import BookInformationCard from "./BookInformationCard"
 import ImageInformationCard from "./ImageInformationCard"
 import StorageInformationCard from "./StorageInformationCard"
 import TimeInformationCard from "./TimeInformationCard"
+import { InfoPanelActions } from "../InfoPanelActions"
 
 afterEach(cleanup)
 
 describe("Reader metadata cards", () => {
+  it("[neoview.book-information.states] shows loading for an active session and zero DOM without one", () => {
+    const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
+    const active = render(<BookInformationCard {...panelContext(clientWith(metadata), session())} />)
+    expect(screen.getByLabelText("正在加载书籍信息")).toBeTruthy()
+    active.unmount()
+    const inactive = render(<BookInformationCard {...panelContext(clientWith(metadata), undefined)} />)
+    expect(inactive.container.innerHTML).toBe("")
+  })
+
   it("[neoview.time-information.states] shows loading for an active session and zero DOM without one", () => {
     const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
     const active = render(<TimeInformationCard {...panelContext(clientWith(metadata), session())} />)
@@ -29,6 +39,7 @@ describe("Reader metadata cards", () => {
         <ImageInformationCard {...context} />
         <StorageInformationCard {...context} />
         <TimeInformationCard {...context} />
+        <InfoPanelActions context={context} />
       </>,
     )
 
@@ -52,6 +63,61 @@ describe("Reader metadata cards", () => {
     await waitFor(() => expect(metadata).toHaveBeenCalledOnce())
     view.unmount()
     expect(signal?.aborted).toBe(true)
+  })
+
+  it("[neoview.book-information.legacy-fields] displays translated and original titles without duplicating Storage size", async () => {
+    const value = metadataDto()
+    value.book.emm = { translatedTitle: "译名" }
+    render(<BookInformationCard {...panelContext(clientWith(vi.fn(async () => value)), session())} />)
+
+    expect(await screen.findByText("译名")).toBeTruthy()
+    expect(screen.getByText("原名")).toBeTruthy()
+    expect(screen.getByText("demo.cbz")).toBeTruthy()
+    expect(screen.getByText("压缩包")).toBeTruthy()
+    expect(screen.queryByText("源大小")).toBeNull()
+    expect(screen.queryByText("10.00 MB")).toBeNull()
+  })
+
+  it("[neoview.book-information.zero-pages] renders an em dash and avoids duplicate equal titles", async () => {
+    const value = metadataDto()
+    value.book.pageCount = 0
+    value.book.currentPage = 0
+    value.book.progressPercent = undefined
+    value.book.emm = { translatedTitle: "demo.cbz" }
+    render(<BookInformationCard {...panelContext(clientWith(vi.fn(async () => value)), session())} />)
+
+    expect(await screen.findByText("0 / 0")).toBeTruthy()
+    expect(screen.getByText("—")).toBeTruthy()
+    expect(screen.queryByText("原名")).toBeNull()
+  })
+
+  it("[neoview.book-information.retry] retries a failed metadata request", async () => {
+    const metadata = vi.fn().mockRejectedValueOnce(new Error("book unavailable")).mockResolvedValueOnce(metadataDto())
+    render(<BookInformationCard {...panelContext(clientWith(metadata), session())} />)
+    fireEvent.click(await screen.findByRole("button", { name: "重试" }))
+    expect(await screen.findByText("demo.cbz")).toBeTruthy()
+    expect(metadata).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.book-information.generation-stale] ignores a translated title from an obsolete frame generation", async () => {
+    let resolveFirst!: (value: ReaderMetadataDto) => void
+    const first = new Promise<ReaderMetadataDto>((resolve) => { resolveFirst = resolve })
+    const current = metadataDto()
+    current.book.emm = { translatedTitle: "当前译名" }
+    const metadata = vi.fn().mockReturnValueOnce(first).mockResolvedValueOnce(current)
+    const initial = session()
+    const context = panelContext(clientWith(metadata), initial)
+    const view = render(<BookInformationCard {...context} />)
+    await waitFor(() => expect(metadata).toHaveBeenCalledOnce())
+
+    view.rerender(<BookInformationCard {...panelContext(context.client, { ...initial, frame: { ...initial.frame, generation: 4 } })} />)
+    expect(await screen.findByText("当前译名")).toBeTruthy()
+    const stale = metadataDto()
+    stale.book.emm = { translatedTitle: "过期译名" }
+    resolveFirst(stale)
+    await Promise.resolve()
+    expect(screen.queryByText("过期译名")).toBeNull()
+    expect(screen.getByText("当前译名")).toBeTruthy()
   })
 
   it("[neoview.time-information.archive-source] keeps unavailable archive entry times unknown", async () => {
@@ -138,6 +204,7 @@ function session(): ReaderSessionDto {
 function metadataDto(): ReaderMetadataDto {
   return {
     book: {
+      bookId: "book-1",
       displayName: "demo.cbz",
       sourceKind: "archive",
       sourcePath: "D:/books/demo.cbz",

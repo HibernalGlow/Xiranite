@@ -469,6 +469,9 @@ export async function createReaderHeadlessController(
   const mediaProgress = mediaProgressStore
     ? new (await import("./application/reader/ReaderMediaProgressService.js")).ReaderMediaProgressService(mediaProgressStore)
     : undefined
+  const bookMetadata = isReaderDirectoryEmmRecordStore(progressStore)
+    ? new (await import("./application/metadata/ReaderBookMetadataService.js")).ReaderBookMetadataService(progressStore)
+    : undefined
   const ownsCache = !options.solidArchiveCache
   const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
     maxBytes: options.maxSolidArchiveCacheBytes,
@@ -482,6 +485,7 @@ export async function createReaderHeadlessController(
     ),
     ownsCache ? () => solidArchiveCache.close() : undefined,
     mediaProgress,
+    bookMetadata,
   )
 }
 
@@ -489,6 +493,12 @@ function isReaderMediaProgressStore(store: ReaderProgressStore | undefined): sto
   return Boolean(store
     && typeof (store as Partial<ReaderMediaProgressStore>).getMediaProgress === "function"
     && typeof (store as Partial<ReaderMediaProgressStore>).saveMediaProgress === "function")
+}
+
+function isReaderDirectoryEmmRecordStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderDirectoryEmmRecordStore {
+  return Boolean(store
+    && typeof (store as Partial<ReaderDirectoryEmmRecordStore>).directoryEmmAvailable === "boolean"
+    && typeof (store as Partial<ReaderDirectoryEmmRecordStore>).readDirectoryEmmRecords === "function")
 }
 
 async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore> {

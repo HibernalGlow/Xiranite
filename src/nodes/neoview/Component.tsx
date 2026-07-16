@@ -19,6 +19,7 @@ export function Component({ host }: NodeComponentProps<NeoViewCardState>) {
         }))[0]
         : undefined}
       pickDirectory={host.localFiles?.pickDirectory}
+      copyText={host.clipboard?.writeText}
       onPathCommitted={(path) => host.state.patchData({ path })}
     />
   )

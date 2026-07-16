@@ -84,6 +84,18 @@ describe("reader-http-client", () => {
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.book-information.reveal-client] posts the canonical path to the authenticated system route", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.revealSystemPath!("D:/books/demo.cbz")
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/files/reveal")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ path: "D:/books/demo.cbz" })
+  })
+
   it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request)

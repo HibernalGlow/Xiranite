@@ -289,6 +289,29 @@ describe("SqliteReaderDataStore", () => {
     expect(verified.get("SELECT COUNT(*) AS count FROM pragma_table_info('thumbs') WHERE name = 'manual_tags'")).toEqual({ count: 0 })
     verified.close()
   })
+
+  it("[neoview.book-information.emm-sqlite] reads translated titles from a key plus emm_json legacy schema", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-reader-book-emm-legacy-"))
+    directories.push(directory)
+    const path = join(directory, "thumbnails.db")
+    const database = await openFixtureDatabase(path)
+    database.exec(`
+      CREATE TABLE thumbs (key TEXT PRIMARY KEY, emm_json TEXT);
+      INSERT INTO thumbs (key, emm_json) VALUES ('D:\\books\\demo.cbz', '{"translated_title":"译名"}');
+    `)
+    database.close()
+
+    const store = await SqliteReaderDataStore.open(path)
+    expect(store.directoryEmmAvailable).toBe(true)
+    await expect(store.readDirectoryEmmRecords(["D:\\books\\demo.cbz"])).resolves.toEqual(new Map([
+      ["D:\\books\\demo.cbz", { ratingData: undefined, emmJson: '{"translated_title":"译名"}', manualTags: undefined }],
+    ]))
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.all("PRAGMA table_info(thumbs)").map((column) => column.name)).toEqual(["key", "emm_json"])
+    verified.close()
+  })
 })
 
 function bookmark(id: string, starred: boolean, listIds: readonly string[]) {

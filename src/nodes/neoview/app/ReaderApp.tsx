@@ -108,6 +108,7 @@ export interface ReaderAppProps {
   client?: ReaderHttpClient
   pickFile?: () => Promise<string | undefined>
   pickDirectory?: () => Promise<string | undefined>
+  copyText?: (text: string) => Promise<void>
   onPathCommitted?: (path: string) => void
 }
 
@@ -116,6 +117,7 @@ export function ReaderApp({
   client: injectedClient,
   pickFile,
   pickDirectory,
+  copyText,
   onPathCommitted,
 }: ReaderAppProps) {
   const surface = useNodeSurface()
@@ -581,6 +583,10 @@ export function ReaderApp({
     onGoTo: goTo,
     onPageModeChange: updateCurrentBookPageMode,
     sourcePath: path,
+    systemActions: {
+      copyText,
+      revealPath: client.revealSystemPath,
+    },
     onOpen: openPath,
     shell,
     onBoardLayout: commitBoardLayout,
@@ -622,6 +628,7 @@ export function ReaderApp({
   return (
     <div
       ref={surface.ref}
+      data-reader-app="true"
       className="h-full min-h-0 w-full overflow-hidden bg-background text-foreground"
       tabIndex={0}
       onKeyDown={(event) => {

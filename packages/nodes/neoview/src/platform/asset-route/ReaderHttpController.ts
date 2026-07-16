@@ -17,6 +17,7 @@ import { ReaderSearchHistoryService } from "../../application/browser/ReaderSear
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
 import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
+import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../application/metadata/ReaderBookMetadataService.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
@@ -149,6 +150,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #mediaProgress?: ReaderMediaProgressService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
   readonly #diagnostics: ReaderDiagnosticsService
+  readonly #bookMetadata: ReaderBookMetadataService
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -165,6 +167,11 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
+  readonly #bookMetadataLoads = new Map<string, {
+    bookId: string
+    controller: AbortController
+    promise: Promise<ReaderBookStaticMetadata>
+  }>()
 
   constructor(options: ReaderHttpControllerOptions) {
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -211,6 +218,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.sessionOptions,
       options.progressStore || undefined,
     )
+    this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore)
     this.#clipboardMaterializations = new ReaderClipboardMaterializationService(
       this.#service,
       new PlatformReaderPageMaterializer({
@@ -366,6 +374,8 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
+    for (const load of this.#bookMetadataLoads.values()) load.controller.abort()
+    this.#bookMetadataLoads.clear()
     this.#assets.close()
     this.#libraryThumbnails.close()
     const errors: unknown[] = []
@@ -618,19 +628,17 @@ export class ReaderHttpController implements AsyncDisposable {
     const pageFilePath = page && !page.timestamps && !page.entryPath && page.sourcePath !== sourcePath
       ? page.sourcePath
       : undefined
-    const [bookStats, pageStats] = await Promise.all([
+    const [staticMetadata, bookStats, pageStats] = await Promise.all([
+      waitForSignal(this.#loadBookMetadata(session), signal),
       safeStat(sourcePath, signal),
       pageFilePath && pageFilePath !== sourcePath ? safeStat(pageFilePath, signal) : Promise.resolve(undefined),
     ])
     signal?.throwIfAborted()
     return jsonResponse({
       book: {
-        displayName: session.book.displayName,
-        sourceKind: session.book.source.kind,
-        sourcePath,
-        pageCount: session.book.pages.length,
+        ...staticMetadata,
         currentPage: snapshot.anchorPageIndex + 1,
-        progressPercent: session.book.pages.length ? (snapshot.anchorPageIndex + 1) / session.book.pages.length * 100 : 0,
+        progressPercent: session.book.pages.length ? Math.min(snapshot.anchorPageIndex + 1, session.book.pages.length) / session.book.pages.length * 100 : undefined,
         byteLength: bookStats?.isFile() ? bookStats.size : undefined,
         createdAtMs: validTime(bookStats?.birthtimeMs),
         modifiedAtMs: validTime(bookStats?.mtimeMs),
@@ -714,6 +722,7 @@ export class ReaderHttpController implements AsyncDisposable {
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     await this.#mediaProgress?.flush(session.book.id)
     await this.#clipboardMaterializations.releaseSession(session.id)
+    this.#releaseBookMetadata(session.id)
     await this.#service.closeSession(session.id)
     await this.#hibernateIfIdle()
     return new Response(null, { status: 204 })
@@ -836,9 +845,42 @@ export class ReaderHttpController implements AsyncDisposable {
     return sessionId ? this.#service.getSession(sessionId) : undefined
   }
 
+  #loadBookMetadata(session: ReaderSession): Promise<ReaderBookStaticMetadata> {
+    const existing = this.#bookMetadataLoads.get(session.id)
+    if (existing?.bookId === session.book.id) return existing.promise
+    if (existing) existing.controller.abort()
+    const controller = new AbortController()
+    const load = {
+      bookId: session.book.id,
+      controller,
+      promise: this.#bookMetadata.load(session.book, controller.signal),
+    }
+    this.#bookMetadataLoads.set(session.id, load)
+    load.promise.catch(() => {
+      if (this.#bookMetadataLoads.get(session.id) === load) this.#bookMetadataLoads.delete(session.id)
+    })
+    return load.promise
+  }
+
+  #releaseBookMetadata(sessionId: string): void {
+    const load = this.#bookMetadataLoads.get(sessionId)
+    load?.controller.abort()
+    this.#bookMetadataLoads.delete(sessionId)
+  }
+
   #isAuthorized(request: Request, url: URL): boolean {
     return request.headers.get("x-xiranite-token") === this.#token || url.searchParams.get("token") === this.#token
   }
+}
+
+function waitForSignal<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation
+  signal.throwIfAborted()
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason)
+    signal.addEventListener("abort", abort, { once: true })
+    operation.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort))
+  })
 }
 
 class ReaderShellRevisionConflict extends Error {

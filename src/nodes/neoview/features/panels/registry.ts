@@ -35,6 +35,10 @@ export interface ReaderPanelContext {
   onPageModeChange?(pageMode: "single" | "double"): void | Promise<void>
   sourcePath?: string
   onOpen?(path: string): void | Promise<void>
+  systemActions?: {
+    copyText?(text: string): Promise<void>
+    revealPath?(path: string, signal?: AbortSignal): Promise<void>
+  }
   shell?: ReaderShellConfigDto
   onBoardLayout?(patch: ReaderBoardLayoutPatch): Promise<void>
   viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]

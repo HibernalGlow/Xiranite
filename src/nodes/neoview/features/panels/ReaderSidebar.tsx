@@ -17,6 +17,7 @@ import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPa
 
 import { cn } from "@/lib/utils"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
+import { InfoPanelActions } from "./InfoPanelActions"
 import {
   availablePanels,
   cardsForPanel,
@@ -101,10 +102,11 @@ export function ReaderSidebar({
           </button>
         ))}
       </nav>
-      <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-2" data-reader-panel={active?.id}>
+      <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-2" data-reader-panel={active?.id} data-context-menu={active?.id === "info" ? "neoview-info" : undefined}>
         <div className="mb-2 flex items-center gap-2 px-1 py-1">
           <span aria-hidden="true">{active?.emoji}</span>
           <h2 className="truncate text-sm font-semibold">{active?.title}</h2>
+          {active?.id === "info" ? <InfoPanelActions context={context} /> : null}
           {layout?.height !== "full" ? (
             <button
               type="button"

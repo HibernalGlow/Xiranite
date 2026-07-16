@@ -4,6 +4,7 @@ import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
 import { CoreReaderService } from "../reader/ReaderService.js"
 import { ReaderMediaProgressService } from "../reader/ReaderMediaProgressService.js"
+import { ReaderBookMetadataService } from "../metadata/ReaderBookMetadataService.js"
 import { ReaderHeadlessController } from "./ReaderHeadlessController.js"
 
 describe("ReaderHeadlessController", () => {
@@ -22,7 +23,7 @@ describe("ReaderHeadlessController", () => {
         entryPaths: ["nested.cbz"],
         archivePasswords: [{ rawPassword: password }],
       })
-      expect(first.book).toEqual({ displayName: "first.cbz", pageCount: 3 })
+      expect(first.book).toEqual({ displayName: "first.cbz", pageCount: 3, sourceKind: "archive", sourceFormat: undefined, translatedTitle: undefined })
       expect(JSON.stringify(first)).not.toContain("D:/private")
       expect(loadOptions[0]?.archivePasswords?.[0]?.rawPassword).toBe(password)
 
@@ -45,6 +46,30 @@ describe("ReaderHeadlessController", () => {
       expect((await controller.goTo(2)).visiblePages[0]?.index).toBe(2)
       expect(await controller.previous()).toMatchObject({ frame: { anchorPageIndex: 1 }, preload: { direction: "backward" } })
       expect(() => controller.listPages(0, 501)).toThrow("limit")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.book-information.headless-contract] shares one bounded EMM title load across inspect and navigation", async () => {
+    const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => new Map([
+      [paths[0]!, { emmJson: JSON.stringify({ translated_title: "译名", tags: [{ tag: "hidden" }] }) }],
+    ]))
+    const service = new CoreReaderService(async (source) => book(source.path, []))
+    const controller = new ReaderHeadlessController(
+      service,
+      undefined,
+      undefined,
+      new ReaderBookMetadataService({ directoryEmmAvailable: true, readDirectoryEmmRecords }),
+    )
+    try {
+      const opened = await controller.open({ path: "D:/private/book.cbz" })
+      expect(opened.book).toEqual({ displayName: "book.cbz", pageCount: 3, sourceKind: "archive", sourceFormat: undefined, translatedTitle: "译名" })
+      expect(JSON.stringify(opened)).not.toContain("D:/private")
+      expect(JSON.stringify(opened)).not.toContain("tags")
+      await controller.next()
+      controller.inspect()
+      expect(readDirectoryEmmRecords).toHaveBeenCalledOnce()
     } finally {
       await controller[Symbol.asyncDispose]()
     }

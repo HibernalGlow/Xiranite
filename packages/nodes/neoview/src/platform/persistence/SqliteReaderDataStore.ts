@@ -29,12 +29,14 @@ const MAX_FOLDER_SORT_RULES = 1_000
 
 export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore {
   readonly directoryEmmAvailable: boolean
+  readonly #directoryRatingDataAvailable: boolean
   readonly #directoryManualTagsAvailable: boolean
   #closed = false
 
   private constructor(private readonly database: WritableSqliteConnection) {
     const columns = new Set(database.all("PRAGMA table_info(thumbs)").flatMap((row) => typeof row.name === "string" ? [row.name] : []))
-    this.directoryEmmAvailable = columns.has("key") && columns.has("rating_data") && columns.has("emm_json")
+    this.directoryEmmAvailable = columns.has("key") && columns.has("emm_json")
+    this.#directoryRatingDataAvailable = columns.has("rating_data")
     this.#directoryManualTagsAvailable = columns.has("manual_tags")
   }
 
@@ -529,7 +531,7 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
       const batch = unique.slice(cursor, cursor + 256)
       const placeholders = batch.map((_, index) => `?${index + 1}`).join(", ")
       const rows = this.database.all(
-        `SELECT key, rating_data, emm_json, ${this.#directoryManualTagsAvailable ? "manual_tags" : "NULL AS manual_tags"}
+        `SELECT key, ${this.#directoryRatingDataAvailable ? "rating_data" : "NULL AS rating_data"}, emm_json, ${this.#directoryManualTagsAvailable ? "manual_tags" : "NULL AS manual_tags"}
          FROM thumbs WHERE key IN (${placeholders})`,
         ...batch,
       )

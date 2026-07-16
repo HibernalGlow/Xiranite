@@ -36,6 +36,21 @@ describe("ContextMenuProvider", () => {
     await waitFor(() => expect(screen.queryByText("Open target")).toBeNull())
   })
 
+  test("[neoview.context-menu.keyboard-position] positions a keyboard-triggered context menu at the target center", async () => {
+    render(<ContextMenuProvider><ContextTarget onSelect={vi.fn()} /></ContextMenuProvider>)
+    const target = screen.getByTestId("context-target")
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue({
+      x: 100, y: 40, left: 100, top: 40, right: 300, bottom: 120, width: 200, height: 80, toJSON: () => ({}),
+    })
+
+    fireEvent.contextMenu(target, { clientX: 0, clientY: 0 })
+
+    await screen.findByText("Open target")
+    const anchor = document.querySelector<HTMLElement>('[data-context-menu-anchor="true"]')!
+    expect(anchor.style.left).toBe("200px")
+    expect(anchor.style.top).toBe("80px")
+  })
+
   test("disabled item does not call its handler", async () => {
     const onDisabled = vi.fn()
     const onOk = vi.fn()
