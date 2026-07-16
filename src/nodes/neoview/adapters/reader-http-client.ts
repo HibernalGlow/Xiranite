@@ -257,10 +257,17 @@ export interface ReaderFolderDetailsConfig {
   columnWidths: Record<ReaderFolderDetailColumn, number>
 }
 
+export interface ReaderFolderSearchConfig {
+  includeSubfolders: boolean
+  showHistoryOnFocus: boolean
+  searchInPath: boolean
+}
+
 export interface ReaderFolderViewConfig {
   viewMode: ReaderFolderViewMode
   previewCount: 4 | 9 | 16
   details: ReaderFolderDetailsConfig
+  search: ReaderFolderSearchConfig
 }
 
 export interface ReaderFolderDetailsPatch {
@@ -276,6 +283,7 @@ export interface ReaderFolderViewPatch {
     viewMode?: ReaderFolderViewMode
     previewCount?: 4 | 9 | 16
     details?: ReaderFolderDetailsPatch
+    search?: Partial<ReaderFolderSearchConfig>
   }
 }
 

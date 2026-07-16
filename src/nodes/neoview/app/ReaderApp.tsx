@@ -59,6 +59,11 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
     pinnedRight: [],
     columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
   },
+  search: {
+    includeSubfolders: true,
+    showHistoryOnFocus: true,
+    searchInPath: false,
+  },
 }
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {
@@ -369,6 +374,10 @@ export function ReaderApp({
           ...folderViewRef.current.details.columnWidths,
           ...patch.details?.columnWidths,
         },
+      },
+      search: {
+        ...folderViewRef.current.search,
+        ...patch.search,
       },
     }
     folderViewRef.current = next

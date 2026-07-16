@@ -427,6 +427,7 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
         pinnedRight: [],
         columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
       },
+      search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
     },
     slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
   }

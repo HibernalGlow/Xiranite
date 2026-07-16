@@ -15,6 +15,7 @@ import type {
   ReaderDirectorySearchKindDto,
   ReaderDirectorySearchModeDto,
   ReaderDirectorySearchResultDto,
+  ReaderFolderSearchConfig,
   ReaderHttpClient,
   ReaderSearchHistoryDto,
 } from "../../../../adapters/reader-http-client"
@@ -32,12 +33,16 @@ export default function FolderSearchPanel({
   client,
   sessionId,
   disabled,
+  settings,
+  onSettingsChange,
   onActivate,
   onClose,
 }: {
   client: ReaderHttpClient
   sessionId: string
   disabled: boolean
+  settings: ReaderFolderSearchConfig
+  onSettingsChange(patch: Partial<ReaderFolderSearchConfig>): void
   onActivate(entry: ReaderDirectoryEntryDto): void
   onClose(): void
 }) {
@@ -48,10 +53,7 @@ export default function FolderSearchPanel({
   const [query, setQuery] = useState("")
   const [mode, setMode] = useState<ReaderDirectorySearchModeDto>("text")
   const [kind, setKind] = useState<ReaderDirectorySearchKindDto>("all")
-  const [recursive, setRecursive] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
-  const [searchInPath, setSearchInPath] = useState(false)
-  const [showHistoryOnFocus, setShowHistoryOnFocus] = useState(true)
   const [showHistory, setShowHistory] = useState(false)
   const [history, setHistory] = useState<readonly ReaderSearchHistoryDto[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -97,8 +99,8 @@ export default function FolderSearchPanel({
         mode,
         kind,
         caseSensitive,
-        searchInPath,
-        maximumDepth: recursive ? undefined : 0,
+        searchInPath: settings.searchInPath,
+        maximumDepth: settings.includeSubfolders ? undefined : 0,
         maximumResults: SEARCH_RESULT_LIMIT,
         onEntries: (entries) => {
           if (requestRef.current === controller) setStreamedEntries(entries)
@@ -130,7 +132,7 @@ export default function FolderSearchPanel({
       const entries = await client.listSearchHistory("folder", SEARCH_HISTORY_LIMIT, controller.signal)
       if (historyRequestRef.current === controller) {
         setHistory(entries)
-        if (showHistoryOnFocus && entries.length > 0 && document.activeElement === inputRef.current) {
+        if (settings.showHistoryOnFocus && entries.length > 0 && document.activeElement === inputRef.current) {
           setShowHistory(true)
         }
       }
@@ -227,7 +229,7 @@ export default function FolderSearchPanel({
           placeholder={mode === "glob" ? "例如 **/*.cbz" : "名称或相对路径"}
           onChange={(event) => setQuery(event.currentTarget.value)}
           onFocus={() => {
-            if (showHistoryOnFocus && history.length > 0) setShowHistory(true)
+            if (settings.showHistoryOnFocus && history.length > 0) setShowHistory(true)
           }}
         />
         {client.listSearchHistory ? (
@@ -256,16 +258,16 @@ export default function FolderSearchPanel({
           <ToggleGroupItem value="file" aria-label="仅文件"><File /></ToggleGroupItem>
           <ToggleGroupItem value="directory" aria-label="仅文件夹"><Folder /></ToggleGroupItem>
         </ToggleGroup>
-        <Button type="button" size="sm" variant={recursive ? "default" : "ghost"} className="h-7 gap-1 px-2 text-xs" aria-pressed={recursive} onClick={() => setRecursive((current) => !current)}><ListTree />子目录</Button>
+        <Button type="button" size="sm" variant={settings.includeSubfolders ? "default" : "ghost"} className="h-7 gap-1 px-2 text-xs" aria-pressed={settings.includeSubfolders} onClick={() => onSettingsChange({ includeSubfolders: !settings.includeSubfolders })}><ListTree />子目录</Button>
         <Button type="button" size="icon-sm" variant={mode === "glob" ? "default" : "ghost"} aria-label="Glob 模式" aria-pressed={mode === "glob"} onClick={() => setMode((current) => current === "text" ? "glob" : "text")}><Asterisk /></Button>
         <Button type="button" size="icon-sm" variant={caseSensitive ? "default" : "ghost"} aria-label="区分大小写" aria-pressed={caseSensitive} onClick={() => setCaseSensitive((current) => !current)}><CaseSensitive /></Button>
         <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground">
           <label className="flex items-center gap-1" title="匹配相对路径">
-            <input type="checkbox" checked={searchInPath} onChange={(event) => setSearchInPath(event.currentTarget.checked)} />
+            <input type="checkbox" checked={settings.searchInPath} onChange={(event) => onSettingsChange({ searchInPath: event.currentTarget.checked })} />
             匹配路径
           </label>
           <label className="flex items-center gap-1">
-            <input type="checkbox" checked={showHistoryOnFocus} onChange={(event) => setShowHistoryOnFocus(event.currentTarget.checked)} />
+            <input type="checkbox" checked={settings.showHistoryOnFocus} onChange={(event) => onSettingsChange({ showHistoryOnFocus: event.currentTarget.checked })} />
             聚焦显示历史
           </label>
         </div>

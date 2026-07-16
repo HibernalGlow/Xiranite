@@ -95,6 +95,10 @@ describe("ReaderHttpController", () => {
           ...patch.folderView.details?.columnWidths,
         },
       },
+      search: {
+        ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search,
+        ...patch.folderView.search,
+      },
     }))
     const updateShellOptions = vi.fn(async (patch) => ({
       showDelayMs: 50,
@@ -142,6 +146,7 @@ describe("ReaderHttpController", () => {
         viewMode: "compact",
         previewCount: 4,
         details: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.details },
+        search: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search },
       },
       updateFolderView,
       slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
@@ -202,12 +207,32 @@ describe("ReaderHttpController", () => {
         { reader: { default_zoom_mode: "original", double_page_view: true } },
       )
       const folderPatched = (await controller.handle(jsonRequest("/reader/config", {
-        folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } } },
+        folderView: {
+          viewMode: "details",
+          previewCount: 9,
+          details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
+          search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
+        },
       }, true, "PATCH")))!
-      expect(await folderPatched.json()).toMatchObject({ folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } } } })
+      expect(await folderPatched.json()).toMatchObject({ folderView: {
+        viewMode: "details",
+        previewCount: 9,
+        details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
+        search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
+      } })
       expect(updateFolderView).toHaveBeenCalledWith(
-        { folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } } } },
-        { folder: { view_mode: "details", preview_count: 9, details: { hidden_columns: ["tags"], column_widths: { name: 310 } } } },
+        { folderView: {
+          viewMode: "details",
+          previewCount: 9,
+          details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
+          search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
+        } },
+        { folder: {
+          view_mode: "details",
+          preview_count: 9,
+          details: { hidden_columns: ["tags"], column_widths: { name: 310 } },
+          search: { include_subfolders: false, show_history_on_focus: false, search_in_path: true },
+        } },
       )
       const slideshowPatched = (await controller.handle(jsonRequest("/reader/config", {
         slideshow: { intervalSeconds: 11, loop: true },

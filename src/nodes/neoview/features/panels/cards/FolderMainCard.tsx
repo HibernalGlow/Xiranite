@@ -99,6 +99,11 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     pinnedRight: [],
     columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
   },
+  search: {
+    includeSubfolders: true,
+    showHistoryOnFocus: true,
+    searchInPath: false,
+  },
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
@@ -840,6 +845,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
               client={client}
               sessionId={sessionIdRef.current}
               disabled={disabled}
+              settings={folderView.search}
+              onSettingsChange={(search) => void onFolderView?.({ search })}
               onActivate={activate}
               onClose={() => setSearchOpen(false)}
             />

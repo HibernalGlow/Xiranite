@@ -295,8 +295,32 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await folderList.press("Escape")
   await expect(folderCard).toHaveAttribute("data-selection-count", "0")
   await expect(folderCard.locator('[data-neoview-folder-selection-bar="true"]')).toHaveCount(0)
-  await folderList.press("Control+f")
+  const stableFolderTreeImage = await first.getAttribute("data-neoview-settings-image-instance")
+  await folderCard.getByRole("button", { name: "文件树" }).click()
+  const folderTree = folderCard.locator('[data-neoview-folder-tree="true"]')
+  await expect(folderTree).toBeVisible()
+  const originalTreeRow = folderTree.locator('[data-current="true"]')
+  await expect(originalTreeRow).toHaveCount(1)
+  const originalTreePath = await originalTreeRow.getAttribute("data-tree-path")
+  expect(originalTreePath).toBeTruthy()
+  const ancestorTreeRow = folderTree.locator('[data-ancestor="true"]').last()
+  await expect(ancestorTreeRow).toBeVisible()
+  await ancestorTreeRow.locator('button[title]').click()
+  await expect(folderTree).toBeVisible()
+  await expect(ancestorTreeRow).toHaveAttribute("data-current", "true")
+  const originalTreeButton = folderTree.getByTitle(originalTreePath!, { exact: true })
+  await originalTreeButton.click()
+  await expect(originalTreeButton.locator("..")).toHaveAttribute("data-current", "true")
+  expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe(stableFolderTreeImage)
+  await folderTree.press("Control+f")
+  await expect(folderTree).toHaveCount(0)
   const folderSearch = folderCard.locator('[data-neoview-folder-search="true"]')
+  const folderSearchSettingPatches: Array<Record<string, unknown>> = []
+  page.on("request", (request) => {
+    if (request.url() !== `${backend.url}/reader/config` || request.method() !== "PATCH") return
+    const body = request.postDataJSON() as { folderView?: { search?: Record<string, unknown> } }
+    if (body.folderView?.search) folderSearchSettingPatches.push(body.folderView.search)
+  })
   await expect(folderSearch).toBeVisible()
   const folderSearchInput = folderSearch.getByRole("textbox", { name: "搜索文件" })
   await expect(folderSearchInput).toBeFocused()
@@ -312,7 +336,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   ))
   await folderSearch.getByRole("button", { name: "执行搜索" }).click()
   const currentFolderSearchUrl = new URL((await currentFolderSearchResponse).url())
-  expect(currentFolderSearchUrl.searchParams.get("depth")).toBe("0")
+  expect(currentFolderSearchUrl.searchParams.has("depth")).toBe(false)
   expect((await currentSearchHistoryResponse).status()).toBe(201)
   await expect(folderSearch.getByText("xiranite.config.toml", { exact: true })).toBeVisible()
   await folderSearch.getByRole("button", { name: "搜索历史", exact: true }).click()
@@ -322,6 +346,14 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await folderSearch.getByRole("button", { name: "子目录" }).click()
   await folderSearch.getByRole("radio", { name: "仅文件", exact: true }).click()
   await folderSearch.getByRole("checkbox", { name: "匹配路径" }).check()
+  await folderSearch.locator("button:has(svg.lucide-list-tree)").click()
+  await folderSearch.getByRole("checkbox").nth(1).uncheck()
+  await expect.poll(() => folderSearchSettingPatches).toEqual([
+    { includeSubfolders: false },
+    { searchInPath: true },
+    { includeSubfolders: true },
+    { showHistoryOnFocus: false },
+  ])
   await folderSearchInput.fill("nested-search")
   const recursiveFolderSearchResponse = page.waitForResponse((response) => {
     const url = new URL(response.url())
@@ -356,6 +388,11 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   })
   await folderSearch.getByRole("button", { name: "清空搜索历史" }).click()
   expect((await clearSearchHistoryResponse).status()).toBe(200)
+  const searchSettingsToml = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+  expect(searchSettingsToml).toContain("[nodes.neoview.folder.search]")
+  expect(searchSettingsToml).toContain("include_subfolders = true")
+  expect(searchSettingsToml).toContain("show_history_on_focus = false")
+  expect(searchSettingsToml).toContain("search_in_path = true")
   expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
   await folderSearch.getByRole("button", { name: "关闭搜索" }).click()
   await expect(folderSearch).toHaveCount(0)

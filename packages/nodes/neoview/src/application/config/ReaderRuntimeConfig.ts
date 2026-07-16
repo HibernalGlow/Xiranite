@@ -34,10 +34,17 @@ export interface NeoviewFolderDetailsConfig {
   columnWidths: Record<NeoviewFolderDetailColumn, number>
 }
 
+export interface NeoviewFolderSearchConfig {
+  includeSubfolders: boolean
+  showHistoryOnFocus: boolean
+  searchInPath: boolean
+}
+
 export interface NeoviewFolderViewConfig {
   viewMode: NeoviewFolderViewMode
   previewCount: 4 | 9 | 16
   details: NeoviewFolderDetailsConfig
+  search: NeoviewFolderSearchConfig
 }
 
 export interface NeoviewFolderDetailsPatch {
@@ -53,6 +60,7 @@ export interface NeoviewFolderViewPatch {
     viewMode?: NeoviewFolderViewMode
     previewCount?: 4 | 9 | 16
     details?: NeoviewFolderDetailsPatch
+    search?: Partial<NeoviewFolderSearchConfig>
   }
 }
 
@@ -180,6 +188,11 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
       rating: 72,
       tags: 180,
     },
+  },
+  search: {
+    includeSubfolders: true,
+    showHistoryOnFocus: true,
+    searchInPath: false,
   },
 }
 
@@ -317,7 +330,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["viewMode", "previewCount", "details"])
+  const allowed = new Set(["viewMode", "previewCount", "details", "search"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -367,6 +380,29 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     patch.folderView.details = detailPatch
     toml.details = detailToml
   }
+  if (folder.search !== undefined) {
+    const search = requireRecord(folder.search, "reader folder view patch.search")
+    const searchKeys = new Set(["includeSubfolders", "showHistoryOnFocus", "searchInPath"])
+    const unknownSearch = Object.keys(search).filter((key) => !searchKeys.has(key))
+    if (unknownSearch.length) throw new Error(`reader folder view patch.search contains unsupported fields: ${unknownSearch.join(", ")}.`)
+    const searchPatch: Partial<NeoviewFolderSearchConfig> = {}
+    const searchToml: Record<string, unknown> = {}
+    if (search.includeSubfolders !== undefined) {
+      searchPatch.includeSubfolders = optionalBoolean(search.includeSubfolders, "reader folder view patch.search.includeSubfolders")
+      searchToml.include_subfolders = searchPatch.includeSubfolders
+    }
+    if (search.showHistoryOnFocus !== undefined) {
+      searchPatch.showHistoryOnFocus = optionalBoolean(search.showHistoryOnFocus, "reader folder view patch.search.showHistoryOnFocus")
+      searchToml.show_history_on_focus = searchPatch.showHistoryOnFocus
+    }
+    if (search.searchInPath !== undefined) {
+      searchPatch.searchInPath = optionalBoolean(search.searchInPath, "reader folder view patch.search.searchInPath")
+      searchToml.search_in_path = searchPatch.searchInPath
+    }
+    if (!Object.keys(searchPatch).length) throw new Error("reader folder view patch.search must change at least one field.")
+    patch.folderView.search = searchPatch
+    toml.search = searchToml
+  }
   if (!Object.keys(patch.folderView).length) throw new Error("reader folder view patch must change at least one field.")
   return { patch, tomlPatch: { folder: toml } }
 }
@@ -374,6 +410,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
 function parseFolderViewConfig(value: Record<string, unknown> | undefined): NeoviewFolderViewConfig {
   if (!value) return DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
   const details = optionalRecord(value.details, "[nodes.neoview.folder.details]")
+  const search = optionalRecord(value.search, "[nodes.neoview.folder.search]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false)
     .filter((id) => id !== "name")
   const pinnedLeft = normalizedDetailColumns(details?.pinned_left ?? ["name"], "[nodes.neoview.folder.details].pinned_left", false, false)
@@ -395,6 +432,14 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
         ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.details.columnWidths,
         ...normalizedDetailWidths(details?.column_widths ?? {}, "[nodes.neoview.folder.details].column_widths", false),
       },
+    },
+    search: {
+      includeSubfolders: optionalBoolean(search?.include_subfolders, "[nodes.neoview.folder.search].include_subfolders")
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search.includeSubfolders,
+      showHistoryOnFocus: optionalBoolean(search?.show_history_on_focus, "[nodes.neoview.folder.search].show_history_on_focus")
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search.showHistoryOnFocus,
+      searchInPath: optionalBoolean(search?.search_in_path, "[nodes.neoview.folder.search].search_in_path")
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search.searchInPath,
     },
   }
 }

@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react"
 import { VirtuosoMockContext } from "react-virtuoso"
+import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderDirectorySearchOptionsDto, ReaderDirectorySearchResultDto, ReaderHttpClient, ReaderSearchHistoryDto } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectorySearchOptionsDto, ReaderDirectorySearchResultDto, ReaderFolderSearchConfig, ReaderHttpClient, ReaderSearchHistoryDto } from "../../../../adapters/reader-http-client"
 import FolderSearchPanel from "./FolderSearchPanel"
 
 afterEach(cleanup)
@@ -19,7 +20,7 @@ describe("FolderSearchPanel", () => {
     await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
       "browser-1",
       "cover",
-      expect.objectContaining({ mode: "text", kind: "all", searchInPath: false, maximumDepth: 0, maximumResults: 512 }),
+      expect.objectContaining({ mode: "text", kind: "all", searchInPath: false, maximumDepth: undefined, maximumResults: 512 }),
       expect.any(AbortSignal),
     ))
     await waitFor(() => expect(current.getByText("未找到“cover”")).toBeTruthy())
@@ -29,7 +30,7 @@ describe("FolderSearchPanel", () => {
     await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
       "browser-1",
       "cover",
-      expect.objectContaining({ maximumDepth: undefined, maximumResults: 512 }),
+      expect.objectContaining({ maximumDepth: 0, maximumResults: 512 }),
       expect.any(AbortSignal),
     ))
 
@@ -41,6 +42,23 @@ describe("FolderSearchPanel", () => {
       expect.objectContaining({ searchInPath: true }),
       expect.any(AbortSignal),
     ))
+  })
+
+  it("[neoview.folder.search-settings-gui] emits one minimal patch for each legacy search setting", () => {
+    const onSettingsChange = vi.fn()
+    const view = renderPanel({} as ReaderHttpClient, onSettingsChange)
+    const current = within(view.container)
+
+    fireEvent.click(current.getByRole("button", { pressed: true }))
+    const [pathCheckbox, historyCheckbox] = current.getAllByRole("checkbox")
+    fireEvent.click(pathCheckbox!)
+    fireEvent.click(historyCheckbox!)
+
+    expect(onSettingsChange.mock.calls).toEqual([
+      [{ includeSubfolders: false }],
+      [{ searchInPath: true }],
+      [{ showHistoryOnFocus: false }],
+    ])
   })
 
   it("[neoview.folder.search-stale] ignores a superseded search and renders error and truncated states", async () => {
@@ -166,10 +184,25 @@ describe("FolderSearchPanel", () => {
   })
 })
 
-function renderPanel(client: ReaderHttpClient) {
+const DEFAULT_SEARCH_SETTINGS: ReaderFolderSearchConfig = {
+  includeSubfolders: true,
+  showHistoryOnFocus: true,
+  searchInPath: false,
+}
+
+function SearchPanelHarness({ client, onSettingsChange }: { client: ReaderHttpClient; onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void }) {
+  const [settings, setSettings] = useState(DEFAULT_SEARCH_SETTINGS)
+  function updateSettings(patch: Partial<ReaderFolderSearchConfig>) {
+    setSettings((current) => ({ ...current, ...patch }))
+    onSettingsChange?.(patch)
+  }
+  return <FolderSearchPanel client={client} sessionId="browser-1" disabled={false} settings={settings} onSettingsChange={updateSettings} onActivate={vi.fn()} onClose={vi.fn()} />
+}
+
+function renderPanel(client: ReaderHttpClient, onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void) {
   return render(
     <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
-      <FolderSearchPanel client={client} sessionId="browser-1" disabled={false} onActivate={vi.fn()} onClose={vi.fn()} />
+      <SearchPanelHarness client={client} onSettingsChange={onSettingsChange} />
     </VirtuosoMockContext.Provider>,
   )
 }

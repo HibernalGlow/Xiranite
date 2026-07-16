@@ -127,7 +127,7 @@ describe("loadNeoviewSessionOptions", () => {
     })
   })
 
-  it("[neoview.settings.runtime-gui] [neoview.folder.settings-toml] applies the same TOML defaults in the HTTP composition", async () => {
+  it("[neoview.settings.runtime-gui] [neoview.folder.settings-toml] [neoview.folder.search-settings-toml] applies shared TOML defaults", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-runtime-http-"))
     roots.push(root)
     const bookPath = join(root, "book")
@@ -197,10 +197,16 @@ describe("loadNeoviewSessionOptions", () => {
           viewMode: "details",
           previewCount: 9,
           details: { columnOrder: ["name", "rating", "path"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
+          search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
         } }),
       }))
       expect(await folderPatched?.json()).toMatchObject({
-        folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], pinnedRight: ["rating"] } },
+        folderView: {
+          viewMode: "details",
+          previewCount: 9,
+          details: { hiddenColumns: ["tags"], pinnedRight: ["rating"] },
+          search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
+        },
       })
       const folderConfig = await readFile(configPath, "utf8")
       expect(folderConfig).toContain("[nodes.neoview.folder]")
@@ -208,11 +214,16 @@ describe("loadNeoviewSessionOptions", () => {
       expect(folderConfig).toContain("preview_count = 9")
       expect(folderConfig).toContain("[nodes.neoview.folder.details]")
       expect(folderConfig).toContain("[nodes.neoview.folder.details.column_widths]")
+      expect(folderConfig).toContain("[nodes.neoview.folder.search]")
+      expect(folderConfig).toContain("include_subfolders = false")
+      expect(folderConfig).toContain("show_history_on_focus = false")
+      expect(folderConfig).toContain("search_in_path = true")
       expect(folderConfig).toContain("name = 264")
       expect((await loadNeoviewRuntimeConfig({ configPath })).folderView).toMatchObject({
         viewMode: "details",
         previewCount: 9,
         details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
+        search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
       })
       const reopened = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
         method: "POST",

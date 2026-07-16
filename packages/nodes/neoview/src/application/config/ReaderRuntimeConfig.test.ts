@@ -121,7 +121,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { fitMode: "stretch" } })).toThrow("fitMode")
   })
 
-  it("[neoview.folder.settings] normalizes the six views and bounded Niko column layout", () => {
+  it("[neoview.folder.settings] [neoview.folder.search-settings] normalizes folder view and legacy search settings", () => {
     expect(parseNeoviewRuntimeConfig({ folder: {
       view_mode: "details",
       preview_count: 9,
@@ -145,11 +145,13 @@ describe("parseNeoviewRuntimeConfig", () => {
           modifiedAt: 152, dimensions: 96, pageCount: 72, rating: 72, tags: 180,
         },
       },
+      search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
     })
     expect(parseNeoviewFolderViewPatch({ folderView: {
       viewMode: "mosaic-grid",
       previewCount: 16,
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
+      search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
     } })).toEqual({
       patch: { folderView: {
         viewMode: "mosaic-grid",
@@ -161,6 +163,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           pinnedRight: ["rating"],
           columnWidths: { name: 300, rating: 84 },
         },
+        search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
       } },
       tomlPatch: { folder: {
         view_mode: "mosaic-grid",
@@ -172,13 +175,21 @@ describe("parseNeoviewRuntimeConfig", () => {
           pinned_right: ["rating"],
           column_widths: { name: 300, rating: 84 },
         },
+        search: { include_subfolders: false, show_history_on_focus: false, search_in_path: true },
       } },
     })
+    expect(parseNeoviewRuntimeConfig({ folder: { search: {
+      include_subfolders: false,
+      show_history_on_focus: false,
+      search_in_path: true,
+    } } }).folderView.search).toEqual({ includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true })
     expect(() => parseNeoviewFolderViewPatch({ folderView: { previewCount: 8 } })).toThrow("4, 9 or 16")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { hiddenColumns: ["name"] } } })).toThrow("cannot hide name")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnOrder: ["unknown"] } } })).toThrow("unknown column")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnWidths: { name: 47 } } } })).toThrow("between 48 and 800")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnWidths: { future: 200 } } } })).toThrow("unknown column")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { search: { searchInPath: "yes" } } })).toThrow("searchInPath")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { search: { future: true } } })).toThrow("unsupported fields")
   })
 
   it("[neoview.folder.tree-config] keeps persistent exclusions in the node TOML contract", () => {
