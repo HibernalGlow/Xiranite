@@ -27,7 +27,7 @@
     { "legacyId": "infoOverlay", "capabilities": ["配置阅读画面信息悬浮层的字段与位置", "控制可见性、透明度和自动隐藏", "实时预览页码、尺寸、文件名等叠加信息"] },
     { "legacyId": "switchToast", "capabilities": ["逐类开关阅读模式切换提示", "配置提示内容/持续时间/位置等旧选项", "提供测试提示与恢复默认值"] },
     { "legacyId": "imageInfo", "capabilities": ["显示当前页文件名、路径、格式、MIME 与尺寸", "显示帧/动画/视频等媒体属性", "显示旋转、裁剪、解码或超分后的有效信息"] },
-    { "legacyId": "storage", "capabilities": ["显示当前书籍/页面的压缩与实际字节大小", "显示缓存、缩略图或解码资源占用", "对缺失或不可统计字段稳定降级"] },
+    { "legacyId": "storage", "checklistRef": "migration/neoview/storage-information-compatibility.json", "capabilities": ["显示当前书籍/页面的压缩与实际字节大小", "显示缓存、缩略图或解码资源占用", "对缺失或不可统计字段稳定降级"] },
     { "legacyId": "time", "checklistRef": "migration/neoview/time-information-compatibility.json", "capabilities": ["显示文件创建、修改和访问相关时间", "显示归档条目与书籍记录时间语义", "按本地时区格式化并处理未知时间"] },
     { "legacyId": "sidebarControl", "capabilities": ["控制 top/right/bottom/left 边栏显示与 pin", "切换自动隐藏、触发区和展开行为", "恢复布局默认值且不重挂活动阅读图像"] },
     { "legacyId": "colorFilter", "capabilities": ["开关并配置亮度、对比度、饱和度、灰度/反色等颜色效果", "实时预览、单项复位和全部复位", "区分书籍级与全局设置并避免重复渲染链"] },
