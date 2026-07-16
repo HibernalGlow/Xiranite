@@ -1,5 +1,6 @@
 import {
   ReaderFileTreeService,
+  type ReaderFileTreeMemorySnapshot,
   type ReaderDirectoryNavigation,
   type ReaderDirectorySortPreferenceCommand,
   type ReaderFileTreeServiceOptions,
@@ -157,6 +158,10 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
 
   releaseMemoryPressure(): { clearedTreeEntries: number; cancelledDirectorySizes: number; clearedRandomSeeds: number } {
     return this.#browser.releaseMemoryPressure()
+  }
+
+  memorySnapshot(): ReaderFileTreeMemorySnapshot {
+    return this.#browser.memorySnapshot()
   }
 
   async #open(request: Request): Promise<Response> {

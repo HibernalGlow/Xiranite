@@ -23,8 +23,9 @@ import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentation
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
-import type { ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
-import type { ReaderPreloadOutcome } from "../../application/preloading/PreloadTelemetry.js"
+import type { ReaderPreloadContext, ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
+import type { ReaderPreloadOutcome, ReaderPreloadPerformanceMetrics } from "../../application/preloading/PreloadTelemetry.js"
+import { deriveReaderPreloadResourceContext } from "../../application/preloading/PreloadResourceContext.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
@@ -72,6 +73,7 @@ const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
+const SESSION_PRELOAD_CONTEXT_PATH = /^\/reader\/s\/([^/]+)\/preload-context$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
@@ -79,6 +81,7 @@ const SESSION_CLIPBOARD_MATERIALIZATION_PATH = /^\/reader\/s\/([^/]+)\/clipboard
 const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
 const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
+const PRELOAD_CONTEXT_FIELDS = new Set(["mode", "velocityPagesPerSecond", "stableForMs", "focused"])
 
 export interface ReaderPageDto {
   id: string
@@ -150,6 +153,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #mediaProgress?: ReaderMediaProgressService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
   readonly #diagnostics: ReaderDiagnosticsService
+  readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   readonly #bookMetadata: ReaderBookMetadataService
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
@@ -274,13 +278,16 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#cacheService = new ReaderCacheService(options.presentationDiskCache, {
       ownsPresentationCache: options.disposePresentationDiskCache,
     })
+    this.#schedulerSnapshot = schedulerSnapshot(options.resourceScheduler)
     this.#diagnostics = new ReaderDiagnosticsService({
       activeSessions: () => this.#service.sessionCount,
       preload: () => this.#service.preloadDiagnostics(),
+      runtimeResources: () => this.#service.runtimeResourceDiagnostics(),
+      browserMemory: () => this.#directoryBrowser.memorySnapshot(),
       assets: () => this.#assets.snapshot(),
       presentationDiskCache: () => this.#cacheService.status(),
       solidArchiveCache: () => this.#solidArchiveCache.snapshot(),
-      scheduler: schedulerSnapshot(options.resourceScheduler),
+      scheduler: this.#schedulerSnapshot,
     })
     this.#mediaProgress = options.mediaProgressStore
       ? new ReaderMediaProgressService(options.mediaProgressStore)
@@ -365,6 +372,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const preloadEventsMatch = SESSION_PRELOAD_EVENTS_PATH.exec(url.pathname)
     if (preloadEventsMatch && request.method === "POST") return this.#reportPreloadEvents(preloadEventsMatch[1]!, request)
+    const preloadContextMatch = SESSION_PRELOAD_CONTEXT_PATH.exec(url.pathname)
+    if (preloadContextMatch && request.method === "PATCH") return this.#updatePreloadContext(preloadContextMatch[1]!, request)
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
     if (optionsMatch && request.method === "PATCH") return this.#updateSessionOptions(optionsMatch[1]!, request)
     const sessionMatch = SESSION_PATH.exec(url.pathname)
@@ -675,14 +684,16 @@ export class ReaderHttpController implements AsyncDisposable {
     if (!body || !Number.isSafeInteger(body.generation) || !Array.isArray(body.events) || body.events.length < 1 || body.events.length > 64) {
       return jsonResponse({ error: "Preload report requires generation and 1..64 events" }, 400)
     }
-    const events: Array<{ pageId: string; outcome: ReaderPreloadOutcome }> = []
+    const events: Array<{ pageId: string; outcome: ReaderPreloadOutcome; metrics?: ReaderPreloadPerformanceMetrics }> = []
     for (const value of body.events) {
       if (!value || typeof value !== "object" || Array.isArray(value)) return jsonResponse({ error: "Invalid preload event" }, 400)
       const event = value as Record<string, unknown>
       if (typeof event.pageId !== "string" || !event.pageId || !isPreloadOutcome(event.outcome)) {
         return jsonResponse({ error: "Preload event requires pageId and a valid outcome" }, 400)
       }
-      events.push({ pageId: event.pageId, outcome: event.outcome })
+      const metrics = parsePreloadPerformanceMetrics(event.metrics)
+      if (metrics === "invalid") return jsonResponse({ error: "Invalid preload event metrics" }, 400)
+      events.push({ pageId: event.pageId, outcome: event.outcome, metrics })
     }
     const results = events.map((event) => session.reportPreload({ generation: body.generation as number, ...event }))
     const accepted = results.filter((result) => result.accepted).length
@@ -690,6 +701,26 @@ export class ReaderHttpController implements AsyncDisposable {
     const rejected = results.length - accepted
     const status = accepted > 0 ? 202 : stale > 0 ? 409 : 400
     return jsonResponse({ generation: body.generation, accepted, rejected, stale }, status)
+  }
+
+  async #updatePreloadContext(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    if (!body || Array.isArray(body) || Object.keys(body).some((key) => !PRELOAD_CONTEXT_FIELDS.has(key))) {
+      return jsonResponse({ error: "Preload context contains unsupported fields" }, 400)
+    }
+    const context = parsePreloadViewportContext(body)
+    if (context === "invalid") return jsonResponse({ error: "Invalid preload viewport context" }, 400)
+    try {
+      const resources = deriveReaderPreloadResourceContext({
+        scheduler: this.#schedulerSnapshot?.(),
+        memoryPressure: this.#assets.snapshot().memoryPressure,
+      })
+      return jsonResponse({ preload: session.updatePreloadContext({ ...context, ...resources }) })
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
   }
 
   async #updateSessionOptions(encodedSessionId: string, request: Request): Promise<Response> {
@@ -962,6 +993,51 @@ function errorMessage(error: unknown): string {
 
 function isPreloadOutcome(value: unknown): value is ReaderPreloadOutcome {
   return value === "started" || value === "ready" || value === "failed" || value === "cancelled" || value === "evicted"
+}
+
+function parsePreloadViewportContext(body: Record<string, unknown>): ReaderPreloadContext | "invalid" {
+  if (body.mode !== undefined && body.mode !== "paged" && body.mode !== "continuous" && body.mode !== "scrub") return "invalid"
+  if (body.velocityPagesPerSecond !== undefined && (
+    typeof body.velocityPagesPerSecond !== "number"
+    || !Number.isFinite(body.velocityPagesPerSecond)
+    || Math.abs(body.velocityPagesPerSecond) > 10_000
+  )) return "invalid"
+  if (body.stableForMs !== undefined && (
+    !Number.isSafeInteger(body.stableForMs)
+    || (body.stableForMs as number) < 0
+  )) return "invalid"
+  if (body.focused !== undefined && typeof body.focused !== "boolean") return "invalid"
+  return {
+    mode: body.mode as ReaderPreloadContext["mode"],
+    velocityPagesPerSecond: body.velocityPagesPerSecond as number | undefined,
+    stableForMs: body.stableForMs as number | undefined,
+    focused: body.focused as boolean | undefined,
+  }
+}
+
+function parsePreloadPerformanceMetrics(value: unknown): ReaderPreloadPerformanceMetrics | undefined | "invalid" {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "invalid"
+  const metrics = value as Record<string, unknown>
+  if (Object.keys(metrics).some((key) => !PRELOAD_METRIC_FIELDS.has(key))) return "invalid"
+  if (!validPreloadDuration(metrics.ttfbMs) || !validPreloadDuration(metrics.decodeMs)) return "invalid"
+  if (!validPreloadCount(metrics.retainedBytes, Number.MAX_SAFE_INTEGER) || !validPreloadCount(metrics.activeLeases, 1_000_000)) return "invalid"
+  return {
+    ttfbMs: metrics.ttfbMs as number | undefined,
+    decodeMs: metrics.decodeMs as number | undefined,
+    retainedBytes: metrics.retainedBytes as number | undefined,
+    activeLeases: metrics.activeLeases as number | undefined,
+  }
+}
+
+const PRELOAD_METRIC_FIELDS = new Set(["ttfbMs", "decodeMs", "retainedBytes", "activeLeases"])
+
+function validPreloadDuration(value: unknown): boolean {
+  return value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 10 * 60_000)
+}
+
+function validPreloadCount(value: unknown, maximum: number): boolean {
+  return value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= maximum)
 }
 
 async function safeStat(path: string, signal?: AbortSignal): Promise<Stats | undefined> {

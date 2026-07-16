@@ -27,9 +27,20 @@ describe("Reader preload telemetry HTTP", () => {
       const generation = opened.preload!.generation
       const pageId = opened.preload!.candidates[0]!.pageIds[0]!
       const endpoint = `/reader/s/${opened.sessionId}/preload-events`
+      const invalid = (await controller.handle(jsonRequest(endpoint, {
+        generation,
+        events: [
+          { pageId, outcome: "started", metrics: { ttfbMs: 4 } },
+          { pageId, outcome: "ready", metrics: { retainedBytes: -1 } },
+        ],
+      })))!
+      expect(invalid.status).toBe(400)
       const accepted = (await controller.handle(jsonRequest(endpoint, {
         generation,
-        events: [{ pageId, outcome: "started" }, { pageId, outcome: "ready" }],
+        events: [
+          { pageId, outcome: "started", metrics: { ttfbMs: 12.5, activeLeases: 2 } },
+          { pageId, outcome: "ready", metrics: { decodeMs: 7.25, retainedBytes: 4096, activeLeases: 1 } },
+        ],
       })))!
       expect(accepted.status).toBe(202)
       await expect(accepted.json()).resolves.toEqual({ generation, accepted: 2, rejected: 0, stale: 0 })
@@ -60,6 +71,20 @@ describe("Reader preload telemetry HTTP", () => {
           cancelled: 0,
           staleReports: 1,
           duplicateReports: 1,
+          performance: {
+            ttfbSamples: 1,
+            totalTtfbMs: 12.5,
+            maxTtfbMs: 12.5,
+            decodeSamples: 1,
+            totalDecodeMs: 7.25,
+            maxDecodeMs: 7.25,
+            retainedByteSamples: 1,
+            totalRetainedBytes: 4096,
+            maxRetainedBytes: 4096,
+            leaseSamples: 2,
+            totalActiveLeases: 3,
+            maxActiveLeases: 2,
+          },
         } },
       })
       expect(JSON.stringify(snapshot)).not.toContain(pageId)
