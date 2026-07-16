@@ -5,7 +5,10 @@ import type {
   ReaderDirectorySortDto,
   ReaderDirectorySortFieldDto,
   ReaderDirectorySortSourceDto,
+  ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
+
+const DIRECTORY_VIEWPORT_HEIGHT = 288
 
 export interface DirectoryCatalog {
   sessionId: string
@@ -24,6 +27,8 @@ export interface DirectoryCatalog {
   globalDefaultSort: ReaderDirectorySortDto
   tabDefaultSort: ReaderDirectorySortDto
   suggestedSelection?: { path: string; index: number }
+  watching: boolean
+  watchError?: string
   pages: ReadonlyMap<number, readonly ReaderDirectoryEntryDto[]>
   pageMetadataFields: ReadonlyMap<number, ReadonlySet<ReaderDirectoryMetadataFieldDto>>
 }
@@ -46,6 +51,8 @@ export function createDirectoryCatalog(page: ReaderDirectoryPageDto): DirectoryC
     globalDefaultSort: page.globalDefaultSort,
     tabDefaultSort: page.tabDefaultSort,
     suggestedSelection: page.suggestedSelection,
+    watching: page.watching,
+    watchError: page.watchError,
     pages: new Map([[page.cursor, page.entries]]),
     pageMetadataFields: new Map([[page.cursor, new Set(page.metadataFields)]]),
   }
@@ -123,4 +130,44 @@ export function directoryLoadedEntries(
     if (output.length >= maximum) break
   }
   return output
+}
+
+export function viewUsesGrid(mode: ReaderFolderViewMode): boolean {
+  return viewUsesBanner(mode) || viewUsesThumbnailGrid(mode)
+}
+
+export function viewUsesBanner(mode: ReaderFolderViewMode): boolean {
+  return mode === "mosaic-list"
+}
+
+export function viewUsesThumbnailGrid(mode: ReaderFolderViewMode): boolean {
+  return mode === "cover-grid" || mode === "mosaic-grid"
+}
+
+export function viewUsesMosaic(mode: ReaderFolderViewMode): boolean {
+  return mode === "mosaic-list" || mode === "mosaic-grid"
+}
+
+export function viewUsesThumbnails(mode: ReaderFolderViewMode): boolean {
+  return mode === "cover-list" || mode === "mosaic-list" || mode === "cover-grid" || mode === "mosaic-grid"
+}
+
+export function viewUsesVirtuosoList(mode: ReaderFolderViewMode): boolean {
+  return mode === "compact" || mode === "cover-list"
+}
+
+export function visibleGridColumnCount(host: HTMLElement | null): number {
+  const width = host?.clientWidth ?? 112
+  return Math.max(1, Math.floor((width + 4) / 116))
+}
+
+export function visiblePageStep(mode: ReaderFolderViewMode, gridColumns: number): number {
+  if (viewUsesGrid(mode)) return gridColumns * 2
+  if (mode === "compact") return Math.floor(DIRECTORY_VIEWPORT_HEIGHT / 34)
+  if (mode === "details") return Math.floor(DIRECTORY_VIEWPORT_HEIGHT / 36)
+  return Math.floor(DIRECTORY_VIEWPORT_HEIGHT / 76)
+}
+
+export function thumbnailPixelSize(percent: number): number {
+  return Math.round(48 + (percent - 10) * 3)
 }

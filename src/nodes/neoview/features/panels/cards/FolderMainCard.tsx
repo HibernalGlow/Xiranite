@@ -45,7 +45,16 @@ import {
   directoryPageHasMetadata,
   directoryPageCursors,
   mergeDirectoryPage,
+  thumbnailPixelSize,
   trimDirectoryPages,
+  viewUsesBanner,
+  viewUsesGrid,
+  viewUsesMosaic,
+  viewUsesThumbnailGrid,
+  viewUsesThumbnails,
+  viewUsesVirtuosoList,
+  visibleGridColumnCount,
+  visiblePageStep,
   type DirectoryCatalog,
 } from "./folder/DirectoryCatalog"
 import {
@@ -114,6 +123,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
+const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
 
 interface SavedDirectoryState {
   viewMode: FolderViewMode
@@ -255,7 +265,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     setLoading(true)
     setError(undefined)
     try {
-      const opened = await client.openDirectoryBrowser(normalized, navigationRequestRef.current?.signal)
+      const opened = await client.openDirectoryBrowser(normalized, navigationRequestRef.current?.signal, undefined, true)
       if (generation !== navigationGenerationRef.current) {
         void client.closeDirectoryBrowser?.(opened.sessionId).catch(() => undefined)
         return
@@ -295,7 +305,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     }
   }
 
-  function applyPage(page: ReaderDirectoryPageDto, preferredState?: SavedDirectoryState) {
+  function applyPage(page: ReaderDirectoryPageDto, preferredState?: SavedDirectoryState, preserveViewport = false) {
     catalogRequestRef.current?.abort()
     catalogRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
@@ -305,6 +315,14 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     chainAnchorIndexRef.current = undefined
     commitCatalog(next)
     setDraftPath(page.path)
+    if (preserveViewport) {
+      setSelection((value) => rebaseDirectorySelection(value, page.generation))
+      focusedIndexRef.current = page.suggestedSelection?.index
+      setFocusedIndex(page.suggestedSelection?.index)
+      setFocusedPath(page.suggestedSelection?.path)
+      queueMicrotask(() => requestRange(visibleRangeRef.current))
+      return
+    }
     visibleRangeRef.current = { startIndex: 0, endIndex: 0 }
     const saved = historyStatesRef.current.get(page.path)
     const suggested = page.suggestedSelection
@@ -686,6 +704,18 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
         }
       }}
     >
+      {catalog?.watching && client.watchDirectoryBrowser ? (
+        <Suspense fallback={null}>
+          <DirectoryWatch
+            client={client}
+            sessionId={catalog.sessionId}
+            generation={catalog.generation}
+            focusPath={focusedPath}
+            onPage={(page) => applyPage(page, undefined, true)}
+            onError={(cause) => setError(`目录监听失败：${errorMessage(cause)}`)}
+          />
+        </Suspense>
+      ) : null}
       <form
         className="flex gap-1"
         onSubmit={(event) => {
@@ -1208,44 +1238,4 @@ function isAbortError(error: unknown): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-function viewUsesGrid(mode: FolderViewMode): boolean {
-  return viewUsesBanner(mode) || viewUsesThumbnailGrid(mode)
-}
-
-function viewUsesBanner(mode: FolderViewMode): boolean {
-  return mode === "mosaic-list"
-}
-
-function viewUsesThumbnailGrid(mode: FolderViewMode): boolean {
-  return mode === "cover-grid" || mode === "mosaic-grid"
-}
-
-function viewUsesMosaic(mode: FolderViewMode): boolean {
-  return mode === "mosaic-list" || mode === "mosaic-grid"
-}
-
-function visibleGridColumnCount(host: HTMLElement | null): number {
-  const width = host?.clientWidth ?? 112
-  return Math.max(1, Math.floor((width + 4) / 116))
-}
-
-function visiblePageStep(mode: FolderViewMode, gridColumns: number): number {
-  if (viewUsesGrid(mode)) return gridColumns * 2
-  if (mode === "compact") return Math.floor(LIST_HEIGHT / 34)
-  if (mode === "details") return Math.floor(LIST_HEIGHT / 36)
-  return Math.floor(LIST_HEIGHT / 76)
-}
-
-function viewUsesThumbnails(mode: FolderViewMode): boolean {
-  return mode === "cover-list" || mode === "mosaic-list" || mode === "cover-grid" || mode === "mosaic-grid"
-}
-
-function viewUsesVirtuosoList(mode: FolderViewMode): boolean {
-  return mode === "compact" || mode === "cover-list"
-}
-
-function thumbnailPixelSize(percent: number): number {
-  return Math.round(48 + (percent - 10) * 3)
 }

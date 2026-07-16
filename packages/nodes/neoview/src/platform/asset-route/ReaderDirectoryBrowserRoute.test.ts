@@ -232,11 +232,23 @@ describe("ReaderDirectoryBrowserRoute", () => {
 
       const addedPath = join(directory, "b.cbz")
       await writeFile(addedPath, "b")
+      const changeResponse = route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}/changes?after=1&wait=1000&focus=${encodeURIComponent(join(directory, "a.cbz"))}`,
+      ))
+      await Promise.resolve()
       changes?.([{ path: addedPath, kind: "create" }])
-      const refreshed = (await route.handle(new Request(
-        `http://localhost/reader/browser/s/${initial.sessionId}/entries`,
+      const refreshed = (await changeResponse)!
+      await expect(refreshed.json()).resolves.toMatchObject({
+        generation: 2,
+        total: 2,
+        watching: true,
+        suggestedSelection: { path: join(directory, "a.cbz"), index: 0 },
+      })
+      const heartbeat = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}/changes?after=2&wait=10`,
       )))!
-      await expect(refreshed.json()).resolves.toMatchObject({ generation: 2, total: 2, watching: true })
+      expect(heartbeat.status).toBe(204)
+      expect(await heartbeat.text()).toBe("")
 
       const closed = (await route.handle(new Request(
         `http://localhost/reader/browser/s/${initial.sessionId}`,

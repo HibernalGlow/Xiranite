@@ -321,6 +321,44 @@ describe("ReaderFileTreeService", () => {
     expect(await browser.list(opened.sessionId)).toBeUndefined()
   })
 
+  it("[neoview.folder.watch-long-poll] waits for native changes, preserves focus identity, times out, and wakes on close", async () => {
+    let names = ["a.cbz"]
+    let onChanges: ((changes: readonly [{ path: string; kind: "create" }]) => void) | undefined
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: names.map((name) => ({ name, path: `${path}/${name}`, kind: "file" as const, readerSupported: true })) }
+      },
+    }, undefined, undefined, {
+      watcher: {
+        async subscribe(_rootPath, next) {
+          onChanges = next as typeof onChanges
+          const close = async () => undefined
+          return { close, [Symbol.asyncDispose]: close }
+        },
+      },
+    })
+    const opened = await browser.open("/library", undefined, "folder-main", new Set(), undefined, true)
+    let settled = false
+    const changed = browser.waitForChanges(opened.sessionId, opened.generation, 1_000, new Set(), "/library/a.cbz")
+      .finally(() => { settled = true })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    names = ["a.cbz", "b.cbz"]
+    onChanges?.([{ path: "/library/b.cbz", kind: "create" }])
+    await expect(changed).resolves.toMatchObject({
+      generation: 2,
+      total: 2,
+      suggestedSelection: { path: "/library/a.cbz", index: 0 },
+    })
+    await expect(browser.waitForChanges(opened.sessionId, 2, 10)).resolves.toBeNull()
+
+    const closingWait = browser.waitForChanges(opened.sessionId, 2, 1_000)
+    await Promise.resolve()
+    await browser.close(opened.sessionId)
+    await expect(closingWait).resolves.toBeUndefined()
+  })
+
   it("[neoview.folder.search-session-close] aborts and drains active recursive search handles with the browser session", async () => {
     let scanClosed = false
     let scanWaiting = false

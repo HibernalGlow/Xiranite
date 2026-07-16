@@ -67,6 +67,7 @@ if (bookInformationChunk.bytes > 8 * 1024) {
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
+const directoryWatchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]DirectoryWatch\.tsx$/i.test(module)))
 if (!folderMainChunk) throw new Error("NeoView FolderMainCard deferred chunk is missing.")
 if (!folderSearchChunk || folderSearchChunk === folderMainChunk) {
   throw new Error("NeoView FolderSearchPanel did not produce a second-level deferred production chunk.")
@@ -80,6 +81,14 @@ if (!folderTreeChunk || folderTreeChunk === folderMainChunk) {
 if (folderTreeChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView FolderTreePanel chunk ${folderTreeChunk.fileName} is ${folderTreeChunk.bytes} bytes, above 16 KiB.`)
 }
+if (!directoryWatchChunk || directoryWatchChunk === folderMainChunk) {
+  throw new Error("NeoView DirectoryWatch did not produce a second-level deferred production chunk.")
+}
+if (directoryWatchChunk.bytes > 4 * 1024) {
+  throw new Error(`NeoView DirectoryWatch chunk ${directoryWatchChunk.fileName} is ${directoryWatchChunk.bytes} bytes, above 4 KiB.`)
+}
+const nativeWatcherModules = chunks.flatMap((chunk) => chunk.modules.filter((module) => /@parcel[/\\]watcher/i.test(module)))
+if (nativeWatcherModules.length) throw new Error(`Native @parcel/watcher leaked into the frontend build: ${nativeWatcherModules.join(", ")}`)
 
 const settingsWindowChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]ReaderSettingsWindow\.tsx$/i.test(module)))
 const sidebarManagementSettingsCardChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]SidebarManagementSettingsCard\.tsx$/i.test(module)))
@@ -121,6 +130,7 @@ console.log(JSON.stringify({
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
+  directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },
   settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },
   sidebarManagementSettingsCardChunk: { fileName: sidebarManagementSettingsCardChunk.fileName, bytes: sidebarManagementSettingsCardChunk.bytes },
   panelLayoutEditorChunk: { fileName: panelLayoutEditorChunk.fileName, bytes: panelLayoutEditorChunk.bytes },

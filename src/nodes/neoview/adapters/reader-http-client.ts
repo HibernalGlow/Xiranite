@@ -63,6 +63,16 @@ export interface ReaderMetadataDto {
   }
 }
 
+export interface ReaderStorageDiagnosticsDto {
+  schemaVersion: 1
+  assets: {
+    presentation: { bytes: number } | null
+    thumbnails: { cachedBytes: number } | null
+  }
+  presentationDiskCache: { enabled: boolean; bytes?: number }
+  solidArchiveCache: { retainedBytes: number }
+}
+
 export interface ReaderRecentDto {
   bookId: string
   source: ViewSource
@@ -160,6 +170,8 @@ export interface ReaderDirectoryPageDto {
   globalDefaultSort: ReaderDirectorySortDto
   tabDefaultSort: ReaderDirectorySortDto
   suggestedSelection?: { path: string; index: number }
+  watching: boolean
+  watchError?: string
 }
 
 export type ReaderDirectorySearchModeDto = "text" | "glob"
@@ -375,7 +387,8 @@ export interface ReaderHttpClient {
   updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
-  openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string): Promise<ReaderDirectoryPageDto>
+  openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
+  watchDirectoryBrowser?(sessionId: string, afterGeneration: number, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto | undefined>
   listDirectoryRoots?(signal?: AbortSignal): Promise<readonly ReaderDirectoryRootDto[]>
   listDirectoryBrowser?(
     sessionId: string,
@@ -414,6 +427,7 @@ export interface ReaderHttpClient {
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
+  diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
@@ -494,12 +508,20 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path }),
       signal,
     }),
-    openDirectoryBrowser: (path, signal, scopeId) => request<ReaderDirectoryPageDto>("/reader/browser/sessions", {
+    openDirectoryBrowser: (path, signal, scopeId, watch = false) => request<ReaderDirectoryPageDto>("/reader/browser/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path, scopeId }),
+      body: JSON.stringify({ path, scopeId, ...(watch ? { watch: true } : {}) }),
       signal,
     }),
+    watchDirectoryBrowser: (sessionId, afterGeneration, focusPath, signal) => {
+      const search = new URLSearchParams({ after: String(afterGeneration) })
+      if (focusPath) search.set("focus", focusPath)
+      return request<ReaderDirectoryPageDto | undefined>(
+        `/reader/browser/s/${encodeURIComponent(sessionId)}/changes?${search}`,
+        { signal },
+      )
+    },
     listDirectoryRoots: (signal) => request<{ roots: ReaderDirectoryRootDto[] }>("/reader/browser/roots", { signal })
       .then((value) => value.roots),
     listDirectoryBrowser: (sessionId, cursor, limit, signal, metadataFields) => {
@@ -612,6 +634,7 @@ export function createReaderHttpClient(
       return request<ReaderPageListDto>(`/reader/s/${encodeURIComponent(sessionId)}/pages?${search}`, { signal })
     },
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
+    diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
     revealSystemPath: (path, signal) => request<void>("/reader/files/reveal", {
       method: "POST",
       headers: { "content-type": "application/json" },

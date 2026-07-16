@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { expect, test } from "@playwright/test"
@@ -96,7 +96,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] [neoview.folder.tree-layout-e2e] [neoview.folder.tree-pins-e2e] [neoview.folder.tree-roots-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
+test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] [neoview.folder.tree-layout-e2e] [neoview.folder.tree-pins-e2e] [neoview.folder.tree-roots-e2e] [neoview.folder.watch-live-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
@@ -299,6 +299,28 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await folderList.press("Escape")
   await expect(folderCard).toHaveAttribute("data-selection-count", "0")
   await expect(folderCard.locator('[data-neoview-folder-selection-bar="true"]')).toHaveCount(0)
+  const stableWatchSelection = folderList.getByTitle(join(fixture.directory, "fixture.cbz"), { exact: true })
+  await stableWatchSelection.click({ modifiers: ["Control"] })
+  await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+  const watchedPath = join(fixture.directory, "watch-created.cbz")
+  const createdResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith("/changes") && response.status() === 200
+  ), { timeout: 20_000 })
+  await writeFile(watchedPath, "external")
+  expect((await createdResponse).status()).toBe(200)
+  await expect(folderList.getByText("watch-created.cbz", { exact: true })).toBeVisible()
+  await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+  await expect(stableWatchSelection).toHaveAttribute("aria-selected", "true")
+  const removedResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith("/changes") && response.status() === 200
+  ), { timeout: 20_000 })
+  await rm(watchedPath)
+  expect((await removedResponse).status()).toBe(200)
+  await expect(folderList.getByText("watch-created.cbz", { exact: true })).toHaveCount(0)
+  await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+  await expect(stableWatchSelection).toHaveAttribute("aria-selected", "true")
+  await stableWatchSelection.click({ modifiers: ["Control"] })
+  await expect(folderCard).toHaveAttribute("data-selection-count", "0")
   const stableFolderTreeImage = await first.getAttribute("data-neoview-settings-image-instance")
   const folderTreeSettingPatches: Array<Record<string, unknown>> = []
   page.on("request", (request) => {

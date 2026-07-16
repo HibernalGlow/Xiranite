@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { VirtuosoGridMockContext, VirtuosoMockContext } from "react-virtuoso"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -18,7 +18,7 @@ describe("FolderMainCard", () => {
     const view = render(
       <FolderMainCard client={client} disabled={false} sourcePath="C:/books/page1.png" onOpen={vi.fn()} onGoTo={vi.fn()} />,
     )
-    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/books/page1.png", expect.any(AbortSignal)))
+    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/books/page1.png", expect.any(AbortSignal), undefined, true))
     await waitFor(() => expect(screen.getByDisplayValue("C:/books")).toBeTruthy())
     fireEvent.click(screen.getByRole("button", { name: "上级" }))
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal)))
@@ -46,6 +46,48 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect((screen.getByRole("button", { name: "上级" }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole("button", { name: "上级" }))
     await waitFor(() => expect(listDirectoryBrowser).toHaveBeenCalledWith("browser-1", 896, 128, expect.any(AbortSignal)))
+  })
+
+  it("[neoview.folder.watch-gui] applies external changes without losing path selection and aborts the next wait on unmount", async () => {
+    const opened = page({
+      watching: true,
+      total: 1,
+      entries: [{ name: "a.cbz", path: "C:/books/a.cbz", kind: "file", readerSupported: true }],
+    })
+    const waits: Array<{ resolve(page: ReaderDirectoryPageDto): void; signal: AbortSignal }> = []
+    const watchDirectoryBrowser = vi.fn((_sessionId: string, _generation: number, _focusPath?: string, signal?: AbortSignal) => (
+      new Promise<ReaderDirectoryPageDto>((resolve) => waits.push({ resolve, signal: signal! }))
+    ))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      watchDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    await waitFor(() => expect(ui.getByTitle("C:/books/a.cbz")).toBeTruthy())
+    fireEvent.click(ui.getByTitle("C:/books/a.cbz"))
+    await waitFor(() => expect(waits).toHaveLength(1))
+
+    await act(async () => waits[0]!.resolve(page({
+      watching: true,
+      generation: 2,
+      total: 2,
+      entries: [
+        { name: "a.cbz", path: "C:/books/a.cbz", kind: "file", readerSupported: true },
+        { name: "b.cbz", path: "C:/books/b.cbz", kind: "file", readerSupported: true },
+      ],
+      suggestedSelection: { path: "C:/books/a.cbz", index: 0 },
+    })))
+    await waitFor(() => expect(ui.getByTitle("C:/books/b.cbz")).toBeTruthy())
+    expect(ui.getByTitle("C:/books/a.cbz").getAttribute("aria-selected")).toBe("true")
+    await waitFor(() => expect(waits).toHaveLength(2))
+    view.unmount()
+    expect(waits[1]!.signal.aborted).toBe(true)
   })
 
   it("[neoview.browser.visible-thumbnails] registers grid entries and releases the bounded context", async () => {
@@ -610,6 +652,7 @@ function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDt
     sortTemporary: false,
     globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
     tabDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
+    watching: false,
     ...overrides,
   }
 }

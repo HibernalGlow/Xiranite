@@ -124,6 +124,7 @@ interface BrowserSession {
   watchRefresh?: Promise<void>
   watchRefreshAbort?: AbortController
   watchError?: string
+  watchWaiters: Set<() => void>
   searches: Set<ReaderFileTreeSearchHandle>
   directorySizeOperations: Set<AbortController>
 }
@@ -172,6 +173,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       watchEnabled: watch,
       watchRevision: 0,
       watchAppliedRevision: 0,
+      watchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
     }
@@ -201,6 +203,37 @@ export class ReaderFileTreeService implements AsyncDisposable {
     await this.#refreshWatchedSession(session, signal)
     assertPage(cursor, limit, session.listing.entries.length)
     return this.#page(session, cursor, limit, displayFields, signal)
+  }
+
+  async waitForChanges(
+    sessionId: string,
+    afterGeneration: number,
+    waitMs = 25_000,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+    focusPath?: string,
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectoryPage | null | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    if (!Number.isSafeInteger(afterGeneration) || afterGeneration < 0) throw new RangeError("afterGeneration must be a non-negative integer")
+    if (!Number.isSafeInteger(waitMs) || waitMs < 10 || waitMs > 30_000) throw new RangeError("waitMs must be an integer from 10 to 30000")
+    await this.#refreshWatchedSession(session, signal)
+    if (session.generation <= afterGeneration && session.watch) {
+      const revision = session.watchRevision
+      await waitForWatcherChange(session, revision, waitMs, signal)
+      if (this.#sessions.get(sessionId) !== session) return undefined
+      await this.#refreshWatchedSession(session, signal)
+      if (session.generation <= afterGeneration && session.watch && !session.watchError) return null
+    }
+    const focusIndex = focusPath ? session.listing.entries.findIndex((entry) => entry.path === focusPath) : -1
+    return this.#page(
+      session,
+      0,
+      128,
+      displayFields,
+      signal,
+      focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex },
+    )
   }
 
   async navigate(
@@ -567,7 +600,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
         session.listing.path,
         (changes) => this.#recordWatcherChanges(session, changes),
         (error) => {
-          if (this.#sessions.get(session.id) === session) session.watchError = error.message
+          if (this.#sessions.get(session.id) !== session) return
+          session.watchError = error.message
+          wakeWatcherWaiters(session)
         },
       )
       if (this.#sessions.get(session.id) !== session) {
@@ -593,6 +628,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const refresh = session.watchRefresh
     const subscription = session.watch
     session.watch = undefined
+    wakeWatcherWaiters(session)
     if (refresh) await refresh.catch(() => undefined)
     if (subscription) await subscription.close()
   }
@@ -602,6 +638,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     for (const change of changes) this.#tree.invalidate(change.path)
     if (!changes.some((change) => affectsCurrentDirectory(session.listing.path, change.path))) return
     session.watchRevision += 1
+    wakeWatcherWaiters(session)
   }
 
   async #refreshWatchedSession(session: BrowserSession, signal?: AbortSignal): Promise<void> {
@@ -659,6 +696,38 @@ export class ReaderFileTreeService implements AsyncDisposable {
 function abortDirectorySizeOperations(session: BrowserSession): void {
   for (const controller of session.directorySizeOperations) controller.abort(new DOMException("Reader directory generation changed", "AbortError"))
   session.directorySizeOperations.clear()
+}
+
+function wakeWatcherWaiters(session: BrowserSession): void {
+  for (const wake of session.watchWaiters) wake()
+  session.watchWaiters.clear()
+}
+
+async function waitForWatcherChange(
+  session: BrowserSession,
+  revision: number,
+  waitMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted()
+  if (session.watchRevision > revision) return
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      session.watchWaiters.delete(wake)
+      signal?.removeEventListener("abort", abort)
+      callback()
+    }
+    const wake = () => finish(resolve)
+    const abort = () => finish(() => reject(signal?.reason))
+    const timer = setTimeout(wake, waitMs)
+    session.watchWaiters.add(wake)
+    signal?.addEventListener("abort", abort, { once: true })
+    if (session.watchRevision > revision) wake()
+  })
 }
 
 function targetPath(session: BrowserSession, navigation: ReaderDirectoryNavigation): string | undefined {

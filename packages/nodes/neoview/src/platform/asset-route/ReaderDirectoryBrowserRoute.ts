@@ -37,6 +37,7 @@ import {
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_ROOTS_PATH = "/reader/browser/roots"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
+const BROWSER_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/changes$/
 const BROWSER_DIRECTORY_SIZES_PATH = /^\/reader\/browser\/s\/([^/]+)\/directory-sizes$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
 const BROWSER_TREE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree$/
@@ -86,6 +87,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
 
     const entriesMatch = BROWSER_ENTRIES_PATH.exec(url.pathname)
     if (entriesMatch && request.method === "GET") return this.#list(entriesMatch[1]!, url, request.signal)
+    const changesMatch = BROWSER_CHANGES_PATH.exec(url.pathname)
+    if (changesMatch && request.method === "GET") return this.#changes(changesMatch[1]!, url, request.signal)
     const directorySizesMatch = BROWSER_DIRECTORY_SIZES_PATH.exec(url.pathname)
     if (directorySizesMatch && request.method === "POST") return this.#directorySizes(directorySizesMatch[1]!, request)
     const searchMatch = BROWSER_SEARCH_PATH.exec(url.pathname)
@@ -189,6 +192,28 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       const result = await this.#browser.list(sessionId, cursor, limit, requestedMetadataFields(url), signal)
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #changes(encodedSessionId: string, url: URL, signal: AbortSignal): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const afterGeneration = integer(url.searchParams.get("after"), -1)
+    const waitMs = optionalInteger(url.searchParams.get("wait"), "wait", 10, 30_000) ?? 25_000
+    try {
+      const result = await this.#browser.waitForChanges(
+        sessionId,
+        afterGeneration,
+        waitMs,
+        DISPLAY_METADATA_FIELDS,
+        url.searchParams.get("focus") ?? undefined,
+        signal,
+      )
+      if (result === null) return new Response(null, responseInit(204))
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (signal.aborted) throw error
       return errorResponse(errorMessage(error), 400)
     }
   }

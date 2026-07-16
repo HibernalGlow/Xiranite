@@ -273,6 +273,21 @@ describe("reader-http-client", () => {
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.folder.watch-client] opts into watching and waits on the authenticated generation route", async () => {
+    const watched = { sessionId: "browser-1", generation: 2 }
+    const fetchMock = vi.fn(async () => Response.json(watched))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await client.openDirectoryBrowser!("D:/books", undefined, "folder-main", true)
+    await expect(client.watchDirectoryBrowser!("browser-1", 1, "D:/books/a.cbz")).resolves.toEqual(watched)
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ path: "D:/books", scopeId: "folder-main", watch: true })
+    const url = new URL(String(fetchMock.mock.calls[1]?.[0]))
+    expect(url.pathname).toBe("/reader/browser/s/browser-1/changes")
+    expect(url.searchParams.get("after")).toBe("1")
+    expect(url.searchParams.get("focus")).toBe("D:/books/a.cbz")
+  })
+
   it("[neoview.folder.search-incremental] publishes bounded entry batches before the stream completes", async () => {
     let streamController!: ReadableStreamDefaultController<Uint8Array>
     const encoder = new TextEncoder()
