@@ -216,9 +216,9 @@
       "sourceEvidence": ["stores/folderTabStore/navigationHistory.svelte.ts", "components/FolderToolbar/NavigationButtons.svelte"],
       "targetContract": "每标签维护分支正确的前进/后退历史，并恢复目录、滚动、焦点、选择和临时排序。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.folder.navigation-history", "neoview.folder.restore-snapshot"],
-      "notes": "当前单 Card 路径历史和 Virtuoso snapshot 已有基础实现。"
+      "status": "complete",
+      "testIds": ["neoview.folder.nav-history", "neoview.folder.nav-history-ui", "neoview.folder.nav-history-e2e"],
+      "notes": "ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot，details 保存原始 scrollTop 并在虚拟行测量后保持同一行锚点。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖，普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。"
     },
     {
       "id": "folder.nav.parent",

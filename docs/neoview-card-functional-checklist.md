@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=42`，`complete=2`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=41`，`complete=3`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -475,11 +475,11 @@
   - 源码：`components/BreadcrumbBar.svelte`
   - 测试：`neoview.folder.path-navigation`
   - 备注：共享 FolderBreadcrumb 解析 Windows 盘符、UNC 与 POSIX 根路径，按宽度保留根和末段并将中间段折叠到菜单；面包屑与完整路径输入互换，Enter 确认、Escape/blur 取消，失败导航保留当前 catalog，支持复制路径及 Alt+Left/Right/Up、F5。真实 Chromium 验证进入子目录后 list/grid/details 仍只消费当前目录 direct children，Folder Tree 保持独立层级导航；新建标签仍归 folder.tabs.lifecycle。
-- [ ] `folder.nav.history` 前进、后退与导航历史
+- [x] `folder.nav.history` 前进、后退与导航历史
   - 目标：每标签维护分支正确的前进/后退历史，并恢复目录、滚动、焦点、选择和临时排序。
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderToolbar/NavigationButtons.svelte`
-  - 测试：`neoview.folder.navigation-history`、`neoview.folder.restore-snapshot`
-  - 备注：当前单 Card 路径历史和 Virtuoso snapshot 已有基础实现。
+  - 测试：`neoview.folder.nav-history`、`neoview.folder.nav-history-ui`、`neoview.folder.nav-history-e2e`
+  - 备注：ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot，details 保存原始 scrollTop 并在虚拟行测量后保持同一行锚点。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖，普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。
 - [ ] `folder.nav.parent` 返回上级并定位原目录
   - 目标：返回上级后自动选中并滚动到刚离开的子目录；远端批次尚未加载时先定位索引再取页。
   - 源码：`components/FolderStack/folderStackNavigation.ts`、`components/FolderToolbar/NavigationButtons.svelte`
