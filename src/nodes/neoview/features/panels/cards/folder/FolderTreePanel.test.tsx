@@ -126,6 +126,26 @@ describe("FolderTreePanel", () => {
     await waitFor(() => expect(treeDirectoryBrowser).toHaveBeenCalledWith("tree-1", "D:\\Pinned", true, expect.any(AbortSignal)))
   })
 
+  it("[neoview.folder.tree-roots] merges actual platform volumes with pins and disables unavailable roots", async () => {
+    const listDirectoryRoots = vi.fn(async () => [
+      { path: "C:\\", label: "System (C:)", kind: "fixed" as const, available: true },
+      { path: "E:\\", label: "USB (E:)", kind: "removable" as const, available: false },
+      { path: "Z:\\", label: "Archive (Z:)", kind: "network" as const, available: true },
+    ])
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string) => treePage(path ?? "C:\\", []))
+    const onNavigate = vi.fn()
+    const view = renderTree({ listDirectoryRoots, treeDirectoryBrowser } as unknown as ReaderHttpClient, "C:\\books", onNavigate, ["Z:\\"])
+    const ui = within(view.container)
+
+    await waitFor(() => expect(ui.getByText("System (C:)")).toBeTruthy())
+    expect(ui.getByText("Archive (Z:)")).toBeTruthy()
+    expect([...view.container.querySelectorAll<HTMLElement>("[data-tree-path]")].filter((row) => row.dataset.treePath === "Z:\\")).toHaveLength(1)
+    expect(ui.getByText("USB (E:)").closest("[data-tree-path]")?.textContent).toContain("不可用")
+    fireEvent.click(ui.getByTitle("E:\\"))
+    expect(onNavigate).not.toHaveBeenCalled()
+    expect(listDirectoryRoots).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.folder.tree-lifecycle] aborts in-flight node reads on unmount", async () => {
     let signal!: AbortSignal
     const treeDirectoryBrowser = vi.fn((_sessionId: string, _path?: string, _refresh?: boolean, nextSignal?: AbortSignal) => {

@@ -66,6 +66,42 @@ pub struct SystemThumbnailTask {
 }
 
 #[napi(object)]
+pub struct WindowsVolumeRoot {
+    pub path: String,
+    pub label: Option<String>,
+    pub drive_type: String,
+    pub available: bool,
+}
+
+pub struct WindowsVolumeRootsTask;
+
+#[napi]
+pub fn list_windows_volume_roots() -> AsyncTask<WindowsVolumeRootsTask> {
+    AsyncTask::new(WindowsVolumeRootsTask)
+}
+
+impl Task for WindowsVolumeRootsTask {
+    type Output = Vec<core::WindowsVolumeRoot>;
+    type JsValue = Vec<WindowsVolumeRoot>;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        core::list_windows_volume_roots().map_err(|error| Error::from_reason(error.to_string()))
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output
+            .into_iter()
+            .map(|root| WindowsVolumeRoot {
+                path: root.path,
+                label: root.label,
+                drive_type: root.drive_type.into(),
+                available: root.available,
+            })
+            .collect())
+    }
+}
+
+#[napi(object)]
 pub struct WicImageThumbnailOptions {
     pub data: Buffer,
     pub max_dimension: Option<u32>,

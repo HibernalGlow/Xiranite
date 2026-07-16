@@ -250,6 +250,17 @@ describe("reader-http-client", () => {
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.folder.tree-roots-client] requests authenticated platform roots independently of a session", async () => {
+    const roots = [{ path: "D:\\", label: "Data (D:)", kind: "fixed", available: true }]
+    const fetchMock = vi.fn(async () => Response.json({ roots }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.listDirectoryRoots!()).resolves.toEqual(roots)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/roots")
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.folder.search-incremental] publishes bounded entry batches before the stream completes", async () => {
     let streamController!: ReadableStreamDefaultController<Uint8Array>
     const encoder = new TextEncoder()

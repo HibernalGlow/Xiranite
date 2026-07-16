@@ -1,6 +1,8 @@
 mod arcthumb;
 #[cfg(all(windows, feature = "windows-shell"))]
 mod windows_shell;
+#[cfg(all(windows, feature = "windows-shell"))]
+mod windows_volumes;
 
 // Keep ArcThumb's original crate-relative module paths intact. This lets the
 // imported core stay close to upstream while the public API remains ours.
@@ -118,6 +120,24 @@ pub struct SystemThumbnail {
     pub width: u32,
     pub height: u32,
     pub premultiplied: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct WindowsVolumeRoot {
+    pub path: String,
+    pub label: Option<String>,
+    pub drive_type: &'static str,
+    pub available: bool,
+}
+
+#[cfg(all(windows, feature = "windows-shell"))]
+pub fn list_windows_volume_roots() -> Result<Vec<WindowsVolumeRoot>, ArcThumbError> {
+    windows_volumes::list_volume_roots()
+}
+
+#[cfg(not(all(windows, feature = "windows-shell")))]
+pub fn list_windows_volume_roots() -> Result<Vec<WindowsVolumeRoot>, ArcThumbError> {
+    Ok(Vec::new())
 }
 
 #[cfg(all(windows, feature = "wic"))]

@@ -14,6 +14,25 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.tree-roots-http] exposes platform roots without opening a browser session", async () => {
+    const list = vi.fn(async () => [
+      { path: "C:\\", label: "System (C:)", kind: "fixed" as const, available: true },
+      { path: "E:\\", label: "E:", kind: "removable" as const, available: false },
+    ])
+    const route = new ReaderDirectoryBrowserRoute(undefined, undefined, undefined, {}, undefined, undefined, { list })
+    try {
+      const response = (await route.handle(new Request("http://localhost/reader/browser/roots")))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ roots: [
+        { path: "C:\\", label: "System (C:)", kind: "fixed", available: true },
+        { path: "E:\\", label: "E:", kind: "removable", available: false },
+      ] })
+      expect(list).toHaveBeenCalledOnce()
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.search-history-http] exposes the shared scoped history service", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-history-"))
     directories.push(directory)

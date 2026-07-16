@@ -17,6 +17,8 @@ import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirecto
 import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.js"
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
 import { PlatformReaderDirectorySizeProvider } from "../filesystem/PlatformReaderDirectorySizeProvider.js"
+import { PlatformDirectoryRootProvider } from "../filesystem/PlatformDirectoryRootProvider.js"
+import type { ReaderDirectoryRootProvider } from "../../ports/ReaderDirectoryRootProvider.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type {
   ReaderDirectoryMetadataField,
@@ -33,6 +35,7 @@ import {
 } from "../../application/browser/ReaderSearchHistoryService.js"
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
+const BROWSER_ROOTS_PATH = "/reader/browser/roots"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_DIRECTORY_SIZES_PATH = /^\/reader\/browser\/s\/([^/]+)\/directory-sizes$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
@@ -59,6 +62,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     fileTreeOptions: ReaderFileTreeServiceOptions = {},
     resourceScheduler?: ResourceScheduler,
     searchHistory?: ReaderSearchHistoryService,
+    private readonly directoryRootProvider: ReaderDirectoryRootProvider = new PlatformDirectoryRootProvider(),
   ) {
     this.#searchHistory = searchHistory
     this.#browser = new ReaderFileTreeService(
@@ -77,6 +81,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     if (url.pathname === BROWSER_SEARCH_HISTORY_PATH) return this.#handleSearchHistory(request, url)
+    if (url.pathname === BROWSER_ROOTS_PATH && request.method === "GET") return this.#roots(request.signal)
     if (url.pathname === "/reader/browser/sessions" && request.method === "POST") return this.#open(request)
 
     const entriesMatch = BROWSER_ENTRIES_PATH.exec(url.pathname)
@@ -136,6 +141,15 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
 
   async [Symbol.asyncDispose](): Promise<void> {
     await this.#browser[Symbol.asyncDispose]()
+  }
+
+  async #roots(signal: AbortSignal): Promise<Response> {
+    try {
+      return Response.json({ roots: await this.directoryRootProvider.list(signal) }, responseInit())
+    } catch (error) {
+      if (signal.aborted) throw error
+      return errorResponse(errorMessage(error), 503)
+    }
   }
 
   releaseMemoryPressure(): { clearedTreeEntries: number; cancelledDirectorySizes: number; clearedRandomSeeds: number } {

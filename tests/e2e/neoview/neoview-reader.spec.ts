@@ -96,7 +96,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] [neoview.folder.tree-layout-e2e] [neoview.folder.tree-pins-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
+test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] [neoview.folder.tree-layout-e2e] [neoview.folder.tree-pins-e2e] [neoview.folder.tree-roots-e2e] decodes, virtualizes thumbnails and navigates a real CBZ", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
@@ -128,6 +128,10 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   let repeatedActiveAssetRequests = 0
   page.on("request", (request) => {
     if (request.url() === activeAssetUrl) repeatedActiveAssetRequests += 1
+  })
+  const platformRootRequests: string[] = []
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/browser/roots`) platformRootRequests.push(request.url())
   })
   const originalDefaultsResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/config`
@@ -302,12 +306,20 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
     const body = request.postDataJSON() as { folderView?: { tree?: Record<string, unknown> } }
     if (body.folderView?.tree) folderTreeSettingPatches.push(body.folderView.tree)
   })
+  const platformRootsResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/browser/roots` && response.request().method() === "GET"
+  ))
   await folderCard.getByRole("button", { name: "文件树" }).click()
   await expect.poll(() => folderTreeSettingPatches).toEqual([{ visible: true }])
   await folderCard.getByRole("radio", { name: "文件树位于顶部" }).click()
   await expect.poll(() => folderTreeSettingPatches).toEqual([{ visible: true }, { layout: "top" }])
   const folderTree = folderCard.locator('[data-neoview-folder-tree="true"]')
   await expect(folderTree).toBeVisible()
+  const platformRoots = await (await platformRootsResponse).json() as { roots: Array<{ path: string; label: string; available: boolean }> }
+  expect(platformRoots.roots.length).toBeGreaterThan(0)
+  await expect(folderTree).toHaveAttribute("data-platform-root-count", String(platformRoots.roots.length))
+  await expect(folderTree).toHaveAttribute("data-tree-root-count", String(platformRoots.roots.length))
+  expect(platformRootRequests).toHaveLength(1)
   await expect(folderList).toBeVisible()
   await expect(folderCard.locator('[data-neoview-folder-tree-pane="true"]')).toBeVisible()
   const treeResizeHandle = folderCard.getByRole("separator", { name: "调整文件树大小" })

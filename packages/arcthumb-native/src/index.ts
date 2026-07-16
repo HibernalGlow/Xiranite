@@ -44,11 +44,19 @@ export interface SystemThumbnail {
   premultiplied: boolean
 }
 
+export interface WindowsVolumeRoot {
+  path: string
+  label?: string
+  driveType: "fixed" | "removable" | "network" | "optical" | "ramdisk" | "unavailable" | "unknown"
+  available: boolean
+}
+
 export interface ArcThumbBinding {
   getArcThumbInfo(): ArcThumbInfo
   createArchiveThumbnail(options: ArchiveThumbnailOptions): Promise<ArchiveThumbnail>
   getCachedSystemThumbnail(options: SystemThumbnailOptions): Promise<SystemThumbnail | undefined>
   createWicImageThumbnail(options: WicImageThumbnailOptions): Promise<SystemThumbnail>
+  listWindowsVolumeRoots(): Promise<WindowsVolumeRoot[]>
 }
 
 let cachedBinding: ArcThumbBinding | undefined
@@ -72,3 +80,4 @@ export const getCachedSystemThumbnail = (options: SystemThumbnailOptions): Promi
   loadArcThumbBinding().getCachedSystemThumbnail(options)
 export const createWicImageThumbnail = (options: WicImageThumbnailOptions): Promise<SystemThumbnail> =>
   loadArcThumbBinding().createWicImageThumbnail(options)
+export const listWindowsVolumeRoots = (): Promise<WindowsVolumeRoot[]> => loadArcThumbBinding().listWindowsVolumeRoots()

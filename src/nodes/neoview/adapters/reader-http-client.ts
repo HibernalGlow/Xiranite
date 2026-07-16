@@ -195,6 +195,13 @@ export interface ReaderDirectoryTreePageDto {
   excludedPaths: string[]
 }
 
+export interface ReaderDirectoryRootDto {
+  path: string
+  label: string
+  kind: "fixed" | "removable" | "network" | "optical" | "ramdisk" | "system" | "unknown"
+  available: boolean
+}
+
 export type ReaderSearchHistoryScopeDto = "folder" | "file" | "bookmark" | "history"
 
 export interface ReaderSearchHistoryDto {
@@ -366,6 +373,7 @@ export interface ReaderHttpClient {
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string): Promise<ReaderDirectoryPageDto>
+  listDirectoryRoots?(signal?: AbortSignal): Promise<readonly ReaderDirectoryRootDto[]>
   listDirectoryBrowser?(
     sessionId: string,
     cursor: number,
@@ -488,6 +496,8 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path, scopeId }),
       signal,
     }),
+    listDirectoryRoots: (signal) => request<{ roots: ReaderDirectoryRootDto[] }>("/reader/browser/roots", { signal })
+      .then((value) => value.roots),
     listDirectoryBrowser: (sessionId, cursor, limit, signal, metadataFields) => {
       const search = new URLSearchParams({ cursor: String(cursor), limit: String(limit) })
       if (metadataFields?.length) search.set("fields", metadataFields.join(","))
