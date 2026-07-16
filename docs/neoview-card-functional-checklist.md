@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=39`，`complete=5`，`pending=30`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=39`，`complete=6`，`pending=29`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -508,11 +508,11 @@
 
 ### tabs（6）
 
-- [ ] `folder.tabs.lifecycle` 多标签创建、切换与关闭
+- [x] `folder.tabs.lifecycle` 多标签创建、切换与关闭
   - 目标：创建、切换、关闭标签；关闭最后标签的策略与原版一致，每标签拥有隔离浏览状态。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
-  - 测试：待补
-  - 备注：当前 FolderMainCard 只有单会话。
+  - 测试：`neoview.folder.tabs-lifecycle`、`neoview.folder.tabs-lifecycle-e2e`
+  - 备注：GUI 使用最多 8 个标签的有界宿主，与 backend browser session 上限一致；新标签打开共享 Home，最后一个标签不可关闭。每个标签独立保存当前目录、browser session、导航历史、renderer、选择、焦点与 Virtuoso 视口，切换不重复 POST，关闭会卸载 pane 并释放 watcher、缩略图 context 与 browser session。普通 list/grid/details 始终只显示各标签当前目录的直接子项；Folder Tree 是独立 companion view，不把树层级或磁盘根注入普通列表。标签宿主与标签栏保持 2,291/1,818-byte 二级延迟 chunk，desktop/420x360 Chromium 已验证状态隔离、关闭 DELETE 与活动阅读图片身份稳定。
 - [ ] `folder.tabs.bulk-close` 关闭其他/左侧/右侧标签
   - 目标：上下文菜单支持关闭其他、左侧和右侧标签，固定标签保护规则与原版一致。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`

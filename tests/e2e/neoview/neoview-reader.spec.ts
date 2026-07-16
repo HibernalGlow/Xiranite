@@ -261,7 +261,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
   const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
   await expect(folderCard).toBeVisible()
-  const folderEntries = folderCard.locator('button[aria-selected]')
+  const folderEntries = folderCard.getByRole("listbox", { name: "文件项目" }).locator('button[aria-selected]')
   await expect.poll(() => folderEntries.count()).toBeGreaterThanOrEqual(3)
   await folderEntries.nth(0).click()
   await folderEntries.nth(2).click({ modifiers: ["Shift"] })
@@ -558,8 +558,11 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await columnSearch.press("Enter")
   expect((await folderColumnsResponse).status()).toBe(200)
   const nameResizeHandle = leftSidebar.getByRole("separator", { name: "调整 name 列宽" })
-  const nameResizeBox = await nameResizeHandle.boundingBox()
-  expect(nameResizeBox).not.toBeNull()
+  let nameResizeBox = await nameResizeHandle.boundingBox()
+  await expect.poll(async () => {
+    nameResizeBox = await nameResizeHandle.boundingBox().catch(() => null)
+    return nameResizeBox
+  }).not.toBeNull()
   const folderWidthResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"
@@ -744,7 +747,7 @@ test("[neoview.folder.path-navigation] keeps breadcrumb navigation scoped to the
   }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: "打开书籍" }).click()
-  await expect(page.locator('img[alt="001.jpg"]')).toBeVisible()
+  await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible({ timeout: 15_000 })
 
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
   if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
@@ -821,7 +824,7 @@ test("[neoview.folder.parent-locate-e2e] selects the departed child across spars
     }, { baseUrl: backend.url, token: backend.token })
     await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: "打开书籍" }).click()
-    await expect(page.locator('img[alt="001.jpg"]')).toBeVisible()
+    await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible()
 
     const leftSidebar = page.locator('[data-reader-sidebar="left"]')
     if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
@@ -897,7 +900,7 @@ test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory vi
     }, { baseUrl: backend.url, token: backend.token })
     await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: "打开书籍" }).click()
-    await expect(page.locator('img[alt="001.jpg"]')).toBeVisible()
+    await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible()
 
     const leftSidebar = page.locator('[data-reader-sidebar="left"]')
     if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
@@ -990,7 +993,7 @@ test("[neoview.folder.home-refresh-e2e] persists Home and refreshes only the cur
     }, { baseUrl: backend.url, token: backend.token })
     await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: "打开书籍" }).click()
-    const image = page.locator('img[alt="001.jpg"]')
+    const image = page.locator("img[data-reader-page-image]").first()
     await expect(image).toBeVisible()
     await image.evaluate((element) => element.setAttribute("data-home-refresh-image-instance", "stable"))
 
@@ -1061,6 +1064,101 @@ test("[neoview.folder.home-refresh-e2e] persists Home and refreshes only the cur
   }
 })
 
+test("[neoview.folder.tabs-lifecycle-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
+  const tabsRoot = join(fixture.directory, "zz-folder-tabs")
+  const firstPath = join(tabsRoot, "A")
+  const secondPath = join(tabsRoot, "B")
+  await mkdir(firstPath, { recursive: true })
+  await mkdir(secondPath, { recursive: true })
+  await writeFile(join(firstPath, "a.cbz"), "")
+  await writeFile(join(secondPath, "b.cbz"), "")
+  const configured = await fetch(`${backend.url}/reader/config`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+    body: JSON.stringify({ folderView: { homePath: secondPath } }),
+  })
+  expect(configured.status).toBe(200)
+
+  try {
+    let browserOpens = 0
+    page.on("request", (request) => {
+      if (request.url() === `${backend.url}/reader/browser/sessions` && request.method() === "POST") browserOpens += 1
+    })
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const image = page.locator("img[data-reader-page-image]").first()
+    await expect(image).toBeVisible()
+    await image.evaluate((element) => element.setAttribute("data-folder-tabs-image-instance", "stable"))
+
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const currentBreadcrumb = () => folderCard.locator('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')
+    const navigatePath = async (path: string) => {
+      const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+      const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
+      await edit.focus()
+      await edit.press("Enter")
+      const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+      await input.fill(path)
+      await input.press("Enter")
+      await expect(currentBreadcrumb()).toHaveAttribute("title", path)
+    }
+
+    await navigatePath(firstPath)
+    const firstItem = folderCard.getByTitle(join(firstPath, "a.cbz"), { exact: true })
+    await firstItem.click()
+    await folderCard.getByRole("radio", { name: "详细信息" }).click()
+    await expect(folderCard.getByRole("radio", { name: "详细信息" })).toHaveAttribute("data-state", "on")
+
+    const newTabButton = folderCard.getByRole("button", { name: "新建文件夹标签" })
+    await newTabButton.focus()
+    await newTabButton.press("Enter")
+    await expect(currentBreadcrumb()).toHaveAttribute("title", secondPath)
+    await folderCard.getByRole("radio", { name: "紧凑列表" }).click()
+    const secondItem = folderCard.getByTitle(join(secondPath, "b.cbz"), { exact: true })
+    await secondItem.click()
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+
+    await folderCard.getByRole("tab", { name: "A" }).focus()
+    await folderCard.getByRole("tab", { name: "A" }).press("Enter")
+    await expect(currentBreadcrumb()).toHaveAttribute("title", firstPath)
+    await expect(folderCard.getByRole("radio", { name: "详细信息" })).toHaveAttribute("data-state", "on")
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+
+    await folderCard.getByRole("tab", { name: "B" }).focus()
+    await folderCard.getByRole("tab", { name: "B" }).press("Enter")
+    await expect(currentBreadcrumb()).toHaveAttribute("title", secondPath)
+    await expect(folderCard.getByRole("radio", { name: "紧凑列表" })).toHaveAttribute("data-state", "on")
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+    expect(browserOpens).toBe(2)
+
+    const closed = page.waitForResponse((response) => response.url().includes("/reader/browser/s/")
+      && response.request().method() === "DELETE")
+    const closeSecondTab = folderCard.getByRole("button", { name: "关闭标签 B" })
+    await closeSecondTab.focus()
+    await closeSecondTab.press("Enter")
+    expect((await closed).status()).toBe(204)
+    await expect(currentBreadcrumb()).toHaveAttribute("title", firstPath)
+    await expect(folderCard.getByRole("tab", { name: "A" })).toHaveAttribute("aria-selected", "true")
+    await expect(folderCard.getByRole("button", { name: /^关闭标签/ })).toHaveCount(0)
+    await expect(folderCard.locator('[data-folder-tab-bar="true"]')).toBeVisible()
+    expect(await image.getAttribute("data-folder-tabs-image-instance")).toBe("stable")
+    expect(browserOpens).toBe(2)
+  } finally {
+    await fetch(`${backend.url}/reader/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+      body: JSON.stringify({ folderView: { homePath: "" } }),
+    }).catch(() => undefined)
+    await rm(tabsRoot, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.time-information.e2e] renders source-aware archive times in the real Reader", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
@@ -1071,7 +1169,7 @@ test("[neoview.time-information.e2e] renders source-aware archive times in the r
   ))
   await page.getByRole("button", { name: "打开书籍" }).click()
   const opened = await (await openedResponse).json() as { sessionId: string }
-  const image = page.locator('img[alt="001.jpg"]')
+  const image = page.locator("img[data-reader-page-image]").first()
   await expect(image).toBeVisible()
   await image.evaluate((element) => element.setAttribute("data-neoview-time-card-image-instance", "stable"))
 
@@ -1133,7 +1231,7 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   await page.mouse.move(viewport.width - 1, viewport.height / 2)
   const rightSidebar = page.locator('[data-reader-sidebar="right"]')
   await expect(rightSidebar).toBeVisible()
-  await rightSidebar.locator("nav button[title]").last().click()
+  await rightSidebar.getByRole("button", { name: "控制", exact: true }).click()
   const card = rightSidebar.locator('[data-neoview-card="sidebar-control"]')
   await expect(card).toBeVisible()
 
@@ -1255,6 +1353,7 @@ test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide"
   ))
   await leftSidebar.getByRole("button", { name: "取消固定左侧栏" }).click()
   expect((await unpinResponse).status()).toBe(200)
+  await page.mouse.move(viewport.width - 1, viewport.height / 2)
   await expect(leftSidebar).toHaveCount(0, { timeout: 1_500 })
   expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain("pinned = false")
 

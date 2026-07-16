@@ -126,6 +126,7 @@ const FolderBreadcrumb = lazy(() => import("./folder/FolderBreadcrumb"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
 const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
+const FolderTabsHost = lazy(() => import("./folder/FolderTabsHost"))
 
 interface SavedDirectoryState {
   total?: number
@@ -141,7 +142,16 @@ interface SavedDirectoryState {
   detailsScrollTop?: number
 }
 
-export default function FolderMainCard({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView }: ReaderPanelContext) {
+export default function FolderMainCard(context: ReaderPanelContext) {
+  const folderView = context.folderView ?? DEFAULT_FOLDER_VIEW
+  return (
+    <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
+      <FolderTabsHost context={context} folderView={folderView} BrowserPane={FolderBrowserPane} />
+    </Suspense>
+  )
+}
+
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, onCurrentPathChange }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; onCurrentPathChange(path: string): void }) {
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
@@ -189,8 +199,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
   useEffect(() => {
     if (!sourcePath) return
     void openBrowser(sourcePath)
-    return disposeBrowser
   }, [sourcePath])
+
+  useEffect(() => disposeBrowser, [])
 
   useEffect(() => setViewMode(folderView.viewMode), [folderView.viewMode])
   useEffect(() => setPreviewCount(folderView.previewCount), [folderView.previewCount])
@@ -710,6 +721,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
   function commitCatalog(next: DirectoryCatalog) {
     catalogRef.current = next
     setCatalog(next)
+    onCurrentPathChange(next.path)
   }
 
   function releaseThumbnailContext() {
@@ -742,7 +754,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
   return (
     <div
       className="grid min-h-0 gap-2"
-      data-neoview-folder-card="true"
+      data-neoview-folder-card={active ? "true" : undefined}
+      data-neoview-folder-pane="true"
       data-selection-count={selectedCount}
       data-selection-total={catalog?.total ?? 0}
       data-selection-ranges={selection.ranges.length}
@@ -756,6 +769,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
         }
       }}
     >
+      {tabBar}
       {catalog?.watching && client.watchDirectoryBrowser ? (
         <Suspense fallback={null}>
           <DirectoryWatch
