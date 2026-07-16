@@ -37,8 +37,13 @@ export function createPlatformReaderBookLoader(options: PlatformReaderBookLoader
         const { loadArchiveBook } = await import("../archives/ArchiveBookLoader.js")
         return loadArchiveBook(source, loadOptions, options)
       }
-      case "document":
+      case "document": {
+        if (source.format === "epub") {
+          const { loadEpubBook } = await import("../epub/EpubBookLoader.js")
+          return loadEpubBook(source as Extract<ViewSource, { kind: "document" }> & { format: "epub" }, signal)
+        }
         throw new Error(`Document provider is not available yet: ${source.format}`)
+      }
     }
   }
   return load
