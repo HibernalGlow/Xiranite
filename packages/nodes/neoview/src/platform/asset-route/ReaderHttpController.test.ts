@@ -722,7 +722,7 @@ describe("ReaderHttpController", () => {
   it("[neoview.image.transform-http] streams a native transform through the controller response", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-transform-"))
     cleanupDirectories.push(directory)
-    await writeFile(join(directory, "page.png"), ONE_PIXEL_PNG)
+    await Promise.all([1, 2, 3].map((index) => writeFile(join(directory, `page-${index}.png`), ONE_PIXEL_PNG)))
     const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
     try {
       const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
@@ -739,6 +739,26 @@ describe("ReaderHttpController", () => {
       const cached = (await controller.handle(new Request(url)))!
       expect(Buffer.from(await cached.arrayBuffer())).toEqual(bytes)
       expect(cached.headers.get("content-length")).toBe(String(bytes.byteLength))
+      await expect((await controller.handle(authorizedRequest("/reader/diagnostics")))!.json()).resolves.toMatchObject({
+        assets: {
+          presentation: { pinnedEntries: 1, activeLeases: 1 },
+          presentationRetention: { sessions: 1, desiredPages: 2, retainedPresentations: 1 },
+        },
+      })
+      expect((await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" })))?.status).toBe(200)
+      await expect((await controller.handle(authorizedRequest("/reader/diagnostics")))!.json()).resolves.toMatchObject({
+        assets: {
+          presentation: { pinnedEntries: 0, activeLeases: 0 },
+          presentationRetention: { sessions: 1, retainedPresentations: 0 },
+        },
+      })
+      expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      await expect((await controller.handle(authorizedRequest("/reader/diagnostics")))!.json()).resolves.toMatchObject({
+        assets: {
+          presentation: { pinnedEntries: 0, activeLeases: 0 },
+          presentationRetention: { sessions: 0, desiredPages: 0, retainedPresentations: 0 },
+        },
+      })
     } finally {
       await controller[Symbol.asyncDispose]()
     }

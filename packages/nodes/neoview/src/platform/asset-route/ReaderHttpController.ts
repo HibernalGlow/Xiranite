@@ -477,6 +477,7 @@ export class ReaderHttpController implements AsyncDisposable {
         source,
         { initialPage, signal: request.signal, archivePasswords },
       )
+      this.#retainSessionFrame(session, session.snapshot())
       return jsonResponse(this.#sessionDto(session), 201)
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -670,6 +671,7 @@ export class ReaderHttpController implements AsyncDisposable {
         : body.action === "previous"
           ? await session.previous(request.signal)
           : await session.goTo(requirePageIndex(body.pageIndex), request.signal)
+      this.#retainSessionFrame(session, frame)
       return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), preload: session.preloadPlan() })
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -717,7 +719,9 @@ export class ReaderHttpController implements AsyncDisposable {
         scheduler: this.#schedulerSnapshot?.(),
         memoryPressure: this.#assets.snapshot().memoryPressure,
       })
-      return jsonResponse({ preload: session.updatePreloadContext({ ...context, ...resources }) })
+      const preload = session.updatePreloadContext({ ...context, ...resources })
+      this.#retainSessionFrame(session, session.snapshot(), preload)
+      return jsonResponse({ preload })
     } catch (error) {
       return jsonResponse({ error: errorMessage(error) }, 400)
     }
@@ -741,6 +745,7 @@ export class ReaderHttpController implements AsyncDisposable {
     try {
       const current = session.snapshot().layout
       const frame = await session.updateOptions({ layout: { ...current, pageMode: record.pageMode } }, request.signal)
+      this.#retainSessionFrame(session, frame)
       return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), preload: session.preloadPlan() })
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -753,6 +758,7 @@ export class ReaderHttpController implements AsyncDisposable {
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     await this.#mediaProgress?.flush(session.book.id)
     await this.#clipboardMaterializations.releaseSession(session.id)
+    this.#assets.releaseSessionPages(session.id)
     this.#releaseBookMetadata(session.id)
     await this.#service.closeSession(session.id)
     await this.#hibernateIfIdle()
@@ -847,6 +853,14 @@ export class ReaderHttpController implements AsyncDisposable {
       visiblePages: this.#visiblePages(session, frame),
       preload: session.preloadPlan(),
     }
+  }
+
+  #retainSessionFrame(session: ReaderSession, frame: FrameSnapshot, preload = session.preloadPlan()): void {
+    const pageIds = frame.pages.map((page) => page.pageId)
+    for (const candidate of preload?.candidates ?? []) {
+      if (candidate.tier === "near") pageIds.push(...candidate.pageIds)
+    }
+    this.#assets.retainSessionPages(session.id, pageIds)
   }
 
   #visiblePages(session: ReaderSession, frame: FrameSnapshot): ReaderPageDto[] {

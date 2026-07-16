@@ -1446,7 +1446,9 @@ L2 presentation cache 现已在既有 `lru-cache` adapter 上提供引用计数 
 
 `ReaderFileTreeService` 也已在 owner 内公开 current listing、back/forward navigation path 与 random seed 的逻辑 payload 快照：字符串按 UTF-8 bytes，数字/布尔按定宽字段累计，不 JSON 序列化、不遍历文件系统、不把结果冒充 V8 对象总 heap。内存压力仍保留 current listing 以保证首屏和选择身份，同时释放可重建 tree index、目录大小任务和 random seed；session close 后所有计数归零。`ReaderDirectoryBrowserRoute.memorySnapshot()` 只透传该 owner 快照，常驻 Controller 将它作为 `ReaderDiagnosticsService` 的可选 source 聚合到 `reader.browserMemory`；route 和 diagnostics 均不复制计数器或重扫目录。
 
-这仍不是第 12 节的全部完成状态：当前实现是 response-bound pin；跨响应的 current/adjacent frame pin 必须由 GUI 回报实际 transform profile 后才能准确绑定 cache key，不能按页 ID 猜测变体。方向/距离权重、current listing 的预算降级策略、跨进程 active lease，以及所有缓存层的统一 lease 指标尚待实现。缓存产物物化是受字节预算约束的明确例外，禁止把同一机制扩展为“所有原图默认进 JS 堆”。
+L2 presentation 的跨响应保留继续复用 `WeightedLruPresentationCache.pin()`，没有新增 cache、Buffer 副本或自定义淘汰器。Controller 从唯一 frame/preload plan 提取当前 frame 与 `near` candidate 的 opaque page ID，每 session 最多声明 8 个 desired page；AssetRoute 仅在这些页面的 transformed presentation 已经因真实请求进入 L2 后，为每页最近一次实际 cache key 持有一个现有引用计数 lease，因此不需要 GUI 猜测 transform profile，也不会为 retention 打开 PageContent、读取 archive、调用 sharp/WIC 或预解码邻页。导航、layout/context generation 变化会释放离开 current/near 集合的 lease，关书和 hibernate 删除整个 session desired set；critical pressure 与显式 cache clear 先释放 retention lease 再清 L2，正在向客户端传输的 response lease 仍按 Web Stream close/cancel 生命周期释放。diagnostics 的 `assets.presentationRetention` 只报告 session、desired page 和实际 retained presentation 三个计数，不保存 page ID、cache key 或路径。
+
+这仍不是第 12 节的全部完成状态：current listing 的预算降级策略、跨进程 active lease、所有缓存层的统一 lease 指标，以及真实 corpus 下 retention 命中收益与预算校准尚待实现。缓存产物物化是受字节预算约束的明确例外，禁止把同一机制扩展为“所有原图默认进 JS 堆”。
 
 `bun run benchmark:neoview-cache` 提供可重复的 `cache-memory-budget` JSON。2026-07-16 本机 `lru-cache@11` 实现以 32 MiB 预算连续写入 64 个 1 MiB 已触碰字节条目，最终严格保留 32 MiB、淘汰 32 条；写入约 `3804 MiB/s`，20,000 次热命中无 miss，平均约 `0.15 µs/次`。脚本支持 `NEOVIEW_CACHE_BENCH_MIB` 调整预算，报告 Bun/平台、配置、写入吞吐、热命中延迟、保留字节和淘汰数；这些数值用于同机回归，不作为跨硬件性能承诺。
 

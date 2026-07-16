@@ -32,6 +32,7 @@ import { ReaderMemoryPressureMonitor, type ReaderMemoryPressureLevel } from "../
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
+const MAX_RETAINED_PAGES_PER_SESSION = 8
 
 export interface ReaderAssetRouteOptions {
   baseUrl: string
@@ -64,6 +65,8 @@ export class ReaderAssetRoute {
   readonly #relieveHostMemoryPressure?: ReaderAssetRouteDependencies["relieveHostMemoryPressure"]
   readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
+  readonly #retainedPageIds = new Map<ReaderSessionId, ReadonlySet<PageId>>()
+  readonly #retainedPresentations = new Map<ReaderSessionId, Map<PageId, { cacheKey: string; lease: ReaderPresentationCacheLease }>>()
   #imageTransformer?: Promise<ImageTransformer>
   #workController = new AbortController()
   #presentationEpoch = 0
@@ -137,10 +140,39 @@ export class ReaderAssetRoute {
   snapshot(): ReaderAssetDiagnostics {
     return {
       activeTransformFlights: this.#transformFlights.size,
+      presentationRetention: this.#presentationRetentionSnapshot(),
       memoryPressure: this.#memoryPressure.snapshot(),
       presentation: this.#presentationCache?.snapshot() ?? null,
       thumbnails: this.#thumbnailPipeline?.snapshot() ?? null,
     }
+  }
+
+  retainSessionPages(sessionId: ReaderSessionId, pageIds: readonly PageId[]): void {
+    if (this.#closed) return
+    if (!this.#readerService.getSession(sessionId)) {
+      this.releaseSessionPages(sessionId)
+      return
+    }
+    const unique = new Set<PageId>()
+    for (const pageId of pageIds) {
+      unique.add(pageId)
+      if (unique.size === MAX_RETAINED_PAGES_PER_SESSION) break
+    }
+    this.#retainedPageIds.set(sessionId, unique)
+    const retainedPages = this.#retainedPresentations.get(sessionId)
+    for (const [pageId, retained] of retainedPages ?? []) {
+      if (unique.has(pageId)) continue
+      retained.lease.release()
+      retainedPages!.delete(pageId)
+    }
+    if (retainedPages?.size === 0) this.#retainedPresentations.delete(sessionId)
+  }
+
+  releaseSessionPages(sessionId: ReaderSessionId): void {
+    this.#retainedPageIds.delete(sessionId)
+    const retainedPages = this.#retainedPresentations.get(sessionId)
+    for (const retained of retainedPages?.values() ?? []) retained.lease.release()
+    this.#retainedPresentations.delete(sessionId)
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -180,7 +212,7 @@ export class ReaderAssetRoute {
     if (transform && !this.#loadImageTransformer) return textResponse("Image transforms are unavailable", 501)
 
     request.signal.throwIfAborted()
-    if (transform) return this.#respondTransformed(request, page, transform)
+    if (transform) return this.#respondTransformed(request, sessionId, page, transform)
     const source = await page.content.load(request.signal)
     try {
       return await this.#respondOriginal(request, page, source)
@@ -261,6 +293,7 @@ export class ReaderAssetRoute {
 
   clearPresentationCache(): void {
     this.#presentationEpoch += 1
+    this.#releaseAllRetainedPresentations(false)
     this.#presentationCache?.clear()
   }
 
@@ -268,6 +301,7 @@ export class ReaderAssetRoute {
     const activeController = this.#workController
     this.#workController = new AbortController()
     activeController.abort(abortError("Reader assets hibernated."))
+    this.#releaseAllRetainedPresentations(true)
     this.clearPresentationCache()
     const evicted = this.#thumbnailPipeline?.hibernateReader() ?? { entries: 0, bytes: 0 }
     return { thumbnailEntries: evicted.entries, thumbnailBytes: evicted.bytes }
@@ -323,6 +357,7 @@ export class ReaderAssetRoute {
 
   async #respondTransformed(
     request: Request,
+    sessionId: ReaderSessionId,
     page: ReaderPage,
     transform: ImageTransformRequest,
   ): Promise<Response> {
@@ -351,7 +386,10 @@ export class ReaderAssetRoute {
       return new Response(null, { status: 200, headers })
     }
     const cacheLease = this.#presentationCache?.pin?.(cacheKey)
-    if (cacheLease) return cachedPresentationResponse(cacheLease.value, headers, cacheLease)
+    if (cacheLease) {
+      this.#retainPresentation(sessionId, page.id, cacheKey)
+      return cachedPresentationResponse(cacheLease.value, headers, cacheLease)
+    }
     const cached = this.#presentationCache?.get(cacheKey)
     if (cached) return cachedPresentationResponse(cached, headers)
     const allowCacheAdmission = this.#memoryPressure.sample().level === "normal"
@@ -362,7 +400,9 @@ export class ReaderAssetRoute {
     workSignal.throwIfAborted()
     if (diskLease) {
       const presentation = { bytes: diskLease.bytes, contentType: diskLease.contentType }
-      if (this.#memoryPressure.sample().level === "normal") this.#presentationCache?.set(cacheKey, presentation)
+      if (this.#memoryPressure.sample().level === "normal") {
+        if (this.#presentationCache?.set(cacheKey, presentation)) this.#retainPresentation(sessionId, page.id, cacheKey)
+      }
       else this.#memoryPressure.recordAdmissionRejection()
       const response = cachedPresentationResponse(presentation, headers)
       diskLease.release()
@@ -373,7 +413,7 @@ export class ReaderAssetRoute {
       const shared = await waitForSharedTransform(active, workSignal)
       if (shared) return cachedPresentationResponse(shared, headers)
       workSignal.throwIfAborted()
-      return this.#respondTransformed(request, page, transform)
+      return this.#respondTransformed(request, sessionId, page, transform)
     }
 
     let settleFlight: ((value: CachedPresentation | undefined) => void) | undefined
@@ -413,6 +453,7 @@ export class ReaderAssetRoute {
             if (this.#memoryPressure.snapshot().level !== "normal") this.#memoryPressure.recordAdmissionRejection()
             presentation = undefined
           }
+          if (presentation) this.#retainPresentation(sessionId, page.id, cacheKey)
           if (presentation && this.#presentationDiskCache) {
             void this.#presentationDiskCache.put(cacheKey, presentation)
           }
@@ -460,6 +501,37 @@ export class ReaderAssetRoute {
       } catch {}
     }
     this.#memoryPressure.recordRelief(pressure.level)
+  }
+
+  #retainPresentation(sessionId: ReaderSessionId, pageId: PageId, cacheKey: string): void {
+    if (!this.#retainedPageIds.get(sessionId)?.has(pageId)) return
+    let retainedPages = this.#retainedPresentations.get(sessionId)
+    const previous = retainedPages?.get(pageId)
+    if (previous?.cacheKey === cacheKey) return
+    const lease = this.#presentationCache?.pin?.(cacheKey)
+    if (!lease) return
+    previous?.lease.release()
+    if (!retainedPages) {
+      retainedPages = new Map()
+      this.#retainedPresentations.set(sessionId, retainedPages)
+    }
+    retainedPages.set(pageId, { cacheKey, lease })
+  }
+
+  #releaseAllRetainedPresentations(clearDesiredPages: boolean): void {
+    for (const pages of this.#retainedPresentations.values()) {
+      for (const retained of pages.values()) retained.lease.release()
+    }
+    this.#retainedPresentations.clear()
+    if (clearDesiredPages) this.#retainedPageIds.clear()
+  }
+
+  #presentationRetentionSnapshot(): NonNullable<ReaderAssetDiagnostics["presentationRetention"]> {
+    let desiredPages = 0
+    let retainedPresentations = 0
+    for (const pages of this.#retainedPageIds.values()) desiredPages += pages.size
+    for (const pages of this.#retainedPresentations.values()) retainedPresentations += pages.size
+    return { sessions: this.#retainedPageIds.size, desiredPages, retainedPresentations }
   }
 
   #isAuthorized(request: Request, url: URL): boolean {

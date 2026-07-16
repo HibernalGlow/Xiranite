@@ -459,6 +459,55 @@ describe("ReaderAssetRoute", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.cache.frame-retention] reuses cache leases for the desired frame and releases them on frame replacement", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input) => {
+      await input.cancel("fixture transformed")
+      return {
+        stream: new ReadableStream({ start(controller) { controller.enqueue(Uint8Array.of(4, 5, 6, 7)); controller.close() } }),
+        contentType: "image/webp",
+      }
+    })
+    const cache = new WeightedLruPresentationCache({ maxBytes: 32, maxEntryBytes: 16 })
+    let availableMemory = 1_000
+    const monitor = new ReaderMemoryPressureMonitor({
+      criticalAvailableBytes: 100,
+      elevatedAvailableBytes: 300,
+      recoveryAvailableBytes: 600,
+      sampleIntervalMs: 0,
+      availableMemory: () => availableMemory,
+    })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { presentationCache: cache, loadImageTransformer: async () => ({ transform }), memoryPressureMonitor: monitor },
+    )
+    const page = session.book.pages[0]!
+    route.retainSessionPages(session.id, [page.id])
+    const url = new URL(route.pageUrl(session.id, page.id))
+    url.searchParams.set("width", "100")
+    expect(new Uint8Array(await (await route.handle(new Request(url)))!.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
+    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4, pinnedEntries: 1, pinnedBytes: 4, activeLeases: 1 })
+    expect(route.snapshot()).toMatchObject({ presentationRetention: { sessions: 1, desiredPages: 1, retainedPresentations: 1 } })
+
+    route.retainSessionPages(session.id, [])
+    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4, pinnedEntries: 0, pinnedBytes: 0, activeLeases: 0 })
+    route.retainSessionPages(session.id, [page.id])
+    expect(new Uint8Array(await (await route.handle(new Request(url)))!.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
+    expect(transform).toHaveBeenCalledOnce()
+    expect(cache.snapshot()).toMatchObject({ pinnedEntries: 1, activeLeases: 1 })
+
+    availableMemory = 50
+    await route.prewarmThumbnails([])
+    expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0, pinnedEntries: 0, activeLeases: 0 })
+    expect(route.snapshot()).toMatchObject({
+      presentationRetention: { sessions: 1, desiredPages: 1, retainedPresentations: 0 },
+      memoryPressure: { level: "critical" },
+    })
+    route.close()
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.cache.l3-route] reuses a verified transform across memory-cache lifecycles", async () => {
     const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
     const cacheDirectory = await mkdtemp(join(tmpdir(), "xiranite-neoview-route-l3-"))

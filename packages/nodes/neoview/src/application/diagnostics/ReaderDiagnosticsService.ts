@@ -21,6 +21,11 @@ export interface ReaderSchedulerPoolDiagnostics {
 
 export interface ReaderAssetDiagnostics {
   activeTransformFlights: number
+  presentationRetention?: {
+    sessions: number
+    desiredPages: number
+    retainedPresentations: number
+  }
   memoryPressure?: ReaderMemoryPressureSnapshot
   presentation: ReaderPresentationCacheSnapshot | null
   thumbnails: {
