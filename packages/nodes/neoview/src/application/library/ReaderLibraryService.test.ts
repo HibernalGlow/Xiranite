@@ -116,6 +116,20 @@ describe("ReaderLibraryService", () => {
     expect(store.updateBookmark).not.toHaveBeenCalled()
   })
 
+  it("[neoview.history.batch-remove] deletes a bounded recent identity batch and reports missing rows", async () => {
+    const store = createStore()
+    store.deleteRecent.mockImplementation(async (id) => id !== "missing")
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.removeRecents(["one", "missing", "two"])).resolves.toEqual({ deleted: 2, missingIds: ["missing"] })
+    expect(store.deleteRecent).toHaveBeenCalledTimes(3)
+    await expect(service.removeRecents(["one", "one"])).rejects.toThrow("duplicate")
+    await expect(service.removeRecents([])).rejects.toThrow("1 to 500")
+    const controller = new AbortController()
+    controller.abort()
+    await expect(service.removeRecents(["one"], controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+  })
+
   it("[neoview.bookmark.batch-contract] updates list memberships through one bounded shared command", async () => {
     const store = createStore()
     store.listBookmarkLists.mockResolvedValue([customList])

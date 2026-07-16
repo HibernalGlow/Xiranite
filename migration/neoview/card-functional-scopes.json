@@ -55,7 +55,7 @@
     { "legacyId": "upscaleConditions", "capabilities": ["创建、排序、启停和删除条件规则", "按格式、尺寸、页类型等条件选择模型/动作", "验证冲突、预览匹配并导入导出"] },
     { "legacyId": "progressiveUpscale", "capabilities": ["配置相邻页/整书预超分范围和优先级", "启动、暂停、取消并显示进度", "服从阅读任务优先级、资源预算和缓存限制"] },
 
-    { "legacyId": "historyList", "capabilities": ["虚拟化显示最近阅读记录与进度", "搜索、排序、筛选、恢复阅读和定位源", "单项/批量删除、清空、缩略图/评分与上下文操作"] },
+    { "legacyId": "historyList", "checklistRef": "migration/neoview/history-list-compatibility.json", "capabilities": ["虚拟化显示最近阅读记录与进度", "搜索、排序、筛选、恢复阅读和定位源", "单项/批量删除、清空、缩略图/评分与上下文操作"] },
     { "legacyId": "bookmarkList", "checklistRef": "migration/neoview/bookmark-list-compatibility.json", "capabilities": ["虚拟化显示书签和自定义列表", "搜索、排序、筛选、打开和定位源", "创建/重命名/删除列表并单项/批量编辑书签"] },
     { "legacyId": "pageListMain", "checklistRef": "migration/neoview/page-list-compatibility.json", "capabilities": ["list/grid/thumb 三种虚拟化页面视图", "搜索、当前页跟随、页码输入和 Slider 跳转", "可见批次缩略图预热、超分状态与页面上下文删除"] },
 

@@ -35,10 +35,52 @@ describe("Reader library cards", () => {
     const onOpen = vi.fn()
     render(<HistoryListCard client={{ listRecent, removeRecent } as ReaderHttpClient} disabled={false} onOpen={onOpen} onGoTo={vi.fn()} />)
     await screen.findByText("demo.cbz")
-    fireEvent.click(screen.getByText("demo.cbz"))
+    fireEvent.click(screen.getByRole("button", { name: "继续阅读：demo.cbz" }))
     expect(onOpen).toHaveBeenCalledWith("D:/books/demo.cbz")
     fireEvent.click(screen.getByRole("button", { name: "删除历史：demo.cbz" }))
+    fireEvent.click(screen.getByRole("button", { name: "删除历史", exact: true }))
     await waitFor(() => expect(removeRecent).toHaveBeenCalledWith("book-1"))
+  })
+
+  it("[neoview.history.thumbnail-visible] [neoview.history.selection] registers the virtual window, selects a range and sends one batch removal", async () => {
+    const recents = [recent("one"), recent("two"), recent("three")]
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number) => ({
+      contextId,
+      generation,
+      items: recents.map((item) => ({ id: item.bookId, thumbnailUrl: `/reader/library/${item.bookId}`, contentVersion: "v1" })),
+    }))
+    const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
+    const removeRecents = vi.fn(async () => ({ deleted: 3, missingIds: [] }))
+    const view = render(
+      <HistoryListCard
+        client={{
+          listRecent: vi.fn(async () => recents),
+          registerLibraryThumbnails,
+          releaseLibraryThumbnailContext,
+          removeRecents,
+        } as ReaderHttpClient}
+        disabled={false}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
+      expect.stringMatching(/^history:/),
+      1,
+      recents.map((item) => ({ id: item.bookId, path: item.source.path, kind: "file", previewCount: 1 })),
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(3))
+    fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!)
+    fireEvent.click(view.container.querySelector('[data-history-row-button="2"]')!, { shiftKey: true })
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
+    fireEvent.click(screen.getByRole("button", { name: "删除所选历史记录" }))
+    fireEvent.click(screen.getByRole("button", { name: "删除历史", exact: true }))
+    await waitFor(() => expect(removeRecents).toHaveBeenCalledWith(["one", "two", "three"]))
+
+    view.unmount()
+    await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(expect.stringMatching(/^history:/)))
   })
 
   it("[neoview.bookmark.card] filters lists and saves the current book without duplicating state", async () => {
@@ -240,5 +282,16 @@ function bookmark(id: string): ReaderBookmarkDto {
     createdAt: 1_700_000_000_000,
     updatedAt: 1_700_000_100_000,
     listIds: ["default"],
+  }
+}
+
+function recent(id: string) {
+  return {
+    bookId: id,
+    source: { kind: "archive" as const, path: `D:/books/${id}.cbz` },
+    displayName: `${id}.cbz`,
+    pageIndex: 4,
+    pageCount: 20,
+    updatedAt: 1_700_000_000_000,
   }
 }

@@ -43,7 +43,7 @@ export const READER_PANEL_MANIFEST = [
 
 export const READER_CARD_MANIFEST = [
   card("folder-main", "文件浏览", "folder", true, true, 0, false, false),
-  card("history-list", "历史记录", "history", true, true, 0, true, false),
+  card("history-list", "历史记录", "history", true, true, 0, false, false),
   card("bookmark-list", "书签列表", "bookmark", true, true, 0, true, false),
   card("page-navigation", "页面导航", "pageList", true, true, 0, false, true),
   card("book-information", "书籍信息", "info", true, true, 0, false, true),

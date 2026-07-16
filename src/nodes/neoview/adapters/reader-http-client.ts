@@ -112,6 +112,11 @@ export interface ReaderRecentDto {
   updatedAt: number
 }
 
+export interface ReaderRecentBatchRemoveResultDto {
+  deleted: number
+  missingIds: readonly string[]
+}
+
 export interface ReaderBookmarkDto {
   id: string
   source: ViewSource
@@ -514,6 +519,7 @@ export interface ReaderHttpClient {
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
+  removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
   listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
   saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
   updateBookmark?(id: string, patch: UpdateReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
@@ -744,6 +750,12 @@ export function createReaderHttpClient(
     ).then((value) => value.items),
     removeRecent: (bookId, signal) => request<void>(`/reader/library/recents/${encodeURIComponent(bookId)}`, {
       method: "DELETE",
+      signal,
+    }),
+    removeRecents: (ids, signal) => request<ReaderRecentBatchRemoveResultDto>("/reader/library/recents/batch", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
       signal,
     }),
     listBookmarks: (offset, limit, listId, signal) => {

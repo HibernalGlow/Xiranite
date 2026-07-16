@@ -30,6 +30,12 @@ export class ReaderLibraryHttpController {
         if (limit === undefined) return jsonResponse({ error: "limit must be a positive integer" }, 400)
         return jsonResponse({ deleted: await this.library.clearRecentBefore(body.before, limit) })
       }
+      if (url.pathname === "/reader/library/recents/batch" && request.method === "DELETE") {
+        const body = await readJson(request)
+        const ids = body && parseBatchIds(body.ids)
+        if (!ids) return jsonResponse({ error: "Invalid reader recent batch delete" }, 400)
+        return jsonResponse(await this.library.removeRecents(ids, request.signal))
+      }
       if (url.pathname === "/reader/library/cleanup-invalid" && request.method === "POST") {
         if (!this.cleanup) return jsonResponse({ error: "Reader library invalid-path cleanup is unavailable" }, 503)
         const body = await readJson(request)
@@ -74,7 +80,7 @@ export class ReaderLibraryHttpController {
       }
       if (url.pathname === "/reader/library/bookmarks/batch" && request.method === "DELETE") {
         const body = await readJson(request)
-        const ids = body && parseBookmarkBatchIds(body.ids)
+        const ids = body && parseBatchIds(body.ids)
         if (!ids) return jsonResponse({ error: "Invalid reader bookmark batch delete" }, 400)
         return jsonResponse(await this.library.removeBookmarks(ids, request.signal))
       }
@@ -176,7 +182,7 @@ function parseBookmarkBatchUpdates(value: unknown): ReaderBookmarkBatchUpdate[] 
   return updates
 }
 
-function parseBookmarkBatchIds(value: unknown): string[] | undefined {
+function parseBatchIds(value: unknown): string[] | undefined {
   return Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every((id) => typeof id === "string")
     ? value
     : undefined

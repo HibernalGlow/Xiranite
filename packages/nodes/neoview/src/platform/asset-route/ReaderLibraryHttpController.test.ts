@@ -44,6 +44,10 @@ describe("ReaderLibraryHttpController", () => {
     expect(await recent.json()).toEqual({ items: [] })
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 500, offset: 2 })
     expect((await controller.handle(request("/reader/library/recents/book-1", { method: "DELETE" })))?.status).toBe(204)
+    store.deleteRecent.mockImplementation(async (id) => id !== "missing")
+    const recentBatch = (await controller.handle(jsonRequest("/reader/library/recents/batch", { ids: ["one", "missing"] }, "DELETE")))!
+    await expect(recentBatch.json()).resolves.toEqual({ deleted: 1, missingIds: ["missing"] })
+    expect((await controller.handle(jsonRequest("/reader/library/recents/batch", { ids: [] }, "DELETE")))?.status).toBe(400)
     const cleanup = (await controller.handle(jsonRequest("/reader/library/recents/cleanup", { before: 100, limit: 20 })))!
     expect(await cleanup.json()).toEqual({ deleted: 3 })
 

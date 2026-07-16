@@ -48,6 +48,11 @@ export interface ReaderBookmarkBatchRemoveResult {
   missingIds: readonly string[]
 }
 
+export interface ReaderRecentBatchRemoveResult {
+  deleted: number
+  missingIds: readonly string[]
+}
+
 export class ReaderLibraryService implements AsyncDisposable {
   #closed = false
 
@@ -66,6 +71,20 @@ export class ReaderLibraryService implements AsyncDisposable {
     this.#assertOpen()
     assertId(bookId, "bookId")
     return this.store.deleteRecent(bookId)
+  }
+
+  async removeRecents(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResult> {
+    this.#assertOpen()
+    const normalized = normalizeBatchIds(ids, "recent")
+    let deleted = 0
+    const missingIds: string[] = []
+    for (const id of normalized) {
+      signal?.throwIfAborted()
+      if (await this.store.deleteRecent(id)) deleted += 1
+      else missingIds.push(id)
+    }
+    signal?.throwIfAborted()
+    return { deleted, missingIds }
   }
 
   clearRecentBefore(timestamp: number, limit = 500): Promise<number> {
@@ -190,15 +209,7 @@ export class ReaderLibraryService implements AsyncDisposable {
 
   async removeBookmarks(ids: readonly string[], signal?: AbortSignal): Promise<ReaderBookmarkBatchRemoveResult> {
     this.#assertOpen()
-    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500) {
-      throw new Error("Reader bookmark batch delete must contain from 1 to 500 ids.")
-    }
-    const normalized = ids.map((id) => {
-      if (typeof id !== "string") throw new Error("Reader bookmark batch delete ids must be strings.")
-      assertId(id, "bookmark id")
-      return id.trim()
-    })
-    if (new Set(normalized).size !== normalized.length) throw new Error("Reader bookmark batch delete contains duplicate ids.")
+    const normalized = normalizeBatchIds(ids, "bookmark")
     let deleted = 0
     const missingIds: string[] = []
     for (const id of normalized) {
@@ -294,6 +305,21 @@ function normalizeRequestedListIds(listIds: readonly string[]): string[] {
     return id
   }))].sort()
   return normalized.length ? normalized : ["default"]
+}
+
+function normalizeBatchIds(ids: readonly string[], kind: "bookmark" | "recent"): string[] {
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500) {
+    throw new Error(`Reader ${kind} batch delete must contain from 1 to 500 ids.`)
+  }
+  const normalized = ids.map((id) => {
+    if (typeof id !== "string") throw new Error(`Reader ${kind} batch delete ids must be strings.`)
+    assertId(id, `${kind} id`)
+    return id.trim()
+  })
+  if (new Set(normalized).size !== normalized.length) {
+    throw new Error(`Reader ${kind} batch delete contains duplicate ids.`)
+  }
+  return normalized
 }
 
 const SYSTEM_BOOKMARK_LISTS = [

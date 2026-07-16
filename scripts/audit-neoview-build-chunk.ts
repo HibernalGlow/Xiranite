@@ -52,10 +52,14 @@ for (const chunk of deferredPanelChunks) {
 }
 // [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk]
 const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
+const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
 const thumbnailSurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]thumbnails[/\\]ReaderThumbnailSurface\.tsx$/i.test(module)))
 if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
   throw new Error("NeoView BookmarkListCard did not produce an independent deferred production chunk.")
+}
+if (!historyListChunk || historyListChunk === readerSidebarChunk) {
+  throw new Error("NeoView HistoryListCard did not produce an independent deferred production chunk.")
 }
 if (!pageNavigationChunk || pageNavigationChunk === readerSidebarChunk) {
   throw new Error("NeoView PageNavigationCard did not produce an independent deferred production chunk.")
@@ -65,6 +69,9 @@ if (!thumbnailSurfaceChunk || thumbnailSurfaceChunk === neoViewChunk || thumbnai
 }
 if (bookmarkListChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView BookmarkListCard chunk ${bookmarkListChunk.fileName} is ${bookmarkListChunk.bytes} bytes, above 16 KiB.`)
+}
+if (historyListChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView HistoryListCard chunk ${historyListChunk.fileName} is ${historyListChunk.bytes} bytes, above 16 KiB.`)
 }
 if (pageNavigationChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView PageNavigationCard chunk ${pageNavigationChunk.fileName} is ${pageNavigationChunk.bytes} bytes, above 16 KiB.`)
@@ -185,6 +192,7 @@ console.log(JSON.stringify({
   neoviewChunk: { fileName: neoViewChunk.fileName, bytes: neoViewChunk.bytes },
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
+  historyListChunk: { fileName: historyListChunk.fileName, bytes: historyListChunk.bytes },
   bookmarkListChunk: { fileName: bookmarkListChunk.fileName, bytes: bookmarkListChunk.bytes },
   pageNavigationChunk: { fileName: pageNavigationChunk.fileName, bytes: pageNavigationChunk.bytes },
   thumbnailSurfaceChunk: { fileName: thumbnailSurfaceChunk.fileName, bytes: thumbnailSurfaceChunk.bytes },

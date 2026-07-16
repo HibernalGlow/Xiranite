@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -2451,10 +2451,435 @@
 
 #### `historyList` 历史记录
 
+- 细项清单：`migration/neoview/history-list-compatibility.json`
 - [ ] 虚拟化显示最近阅读记录与进度
 - [ ] 搜索、排序、筛选、恢复阅读和定位源
 - [ ] 单项/批量删除、清空、缩略图/评分与上下文操作
 - UI 基线：`src/lib/cards/history/HistoryListCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（16 组，265 项）
+
+- `history-ui.shared-folder-surface` 共享文件浏览器外观与虚拟历史源
+  - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts`
+  - 映射：`history.shared-renderer`、`history.views`、`history.selection`、`history.ui-parity`
+  - [ ] virtual://history 初始源
+  - [ ] mode=history
+  - [ ] 本地历史标签标题
+  - [ ] 复用 FileListPanel
+  - [ ] 复用 ToolbarCard
+  - [ ] 复用 FileListCard
+  - [ ] list/content/banner/thumbnail 视觉语义
+  - [ ] 文件与文件夹图标
+  - [ ] 名称与路径层级
+  - [ ] 选中背景
+  - [ ] hover 状态
+  - [ ] 窄 Card 响应式密度
+- `history-ui.item-fields` 历史条目字段、进度与徽章
+  - 源码：`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemCard.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`
+  - 映射：`history.fields`、`history.progress`、`history.thumbnails`、`history.ui-parity`、`history.data-contract`
+  - [ ] 稳定 id
+  - [ ] displayName
+  - [ ] 完整 source path
+  - [ ] pathStack
+  - [ ] currentFilePath
+  - [ ] contentType
+  - [ ] timestamp
+  - [ ] currentIndex
+  - [ ] totalItems
+  - [ ] 阅读进度 badge
+  - [ ] 视频 position
+  - [ ] 视频 duration
+  - [ ] 视频 completed
+  - [ ] 相对时间
+  - [ ] 已读标记
+  - [ ] 书签标记
+  - [ ] 缩略图
+  - [ ] 翻译标题
+  - [ ] 评分
+  - [ ] EMM/manual 标签
+  - [ ] 文件类型 icon
+- `history-ui.open-restore` 打开、恢复阅读位置与文件夹同步
+  - 源码：`src/lib/cards/shared/useFileActions.ts`、`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/stores/historySettings.svelte.ts`
+  - 映射：`history.open-resume`、`history.sync-folder`、`history.states`、`history.data-contract`
+  - [ ] 单击选择
+  - [ ] 双击打开
+  - [ ] 压缩包恢复 currentIndex
+  - [ ] 普通文件恢复 currentIndex
+  - [ ] 文件夹恢复 currentIndex
+  - [ ] 文件夹恢复 currentFilePath
+  - [ ] 图片/视频单文件模式
+  - [ ] pathStack 精确定位
+  - [ ] 打开失败反馈
+  - [ ] 同步文件夹默认关闭
+  - [ ] 同步开启后定位父目录
+  - [ ] 同步开关即时生效
+- `history-ui.toolbar-cleanup` 历史工具栏、刷新与快速清理
+  - 源码：`src/lib/cards/folder/cards/ToolbarCard.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte`
+  - 映射：`history.actions`、`history.cleanup`、`history.sync-folder`、`history.states`、`history.accessibility`
+  - [ ] 重新加载历史 icon button
+  - [ ] 同步文件夹 icon button
+  - [ ] 同步开关 pressed 状态
+  - [ ] 清理选项 icon button
+  - [ ] 清理中 pulse
+  - [ ] 清理中 disabled
+  - [ ] 清理结果三秒反馈
+  - [ ] 清理失效记录
+  - [ ] 高级清理选项
+  - [ ] 菜单分隔线
+  - [ ] 一键清除全部
+  - [ ] 清空 destructive 确认
+  - [ ] 刷新后保留活动设置
+- `history-ui.advanced-cleanup` 高级清理对话框
+  - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte`、`src/lib/stores/unifiedHistory.svelte.ts`
+  - 映射：`history.cleanup`、`history.states`、`history.accessibility`、`history.deviations`
+  - [ ] 高级清理选项历史标题
+  - [ ] 说明文本
+  - [ ] 最旧记录数量默认 10
+  - [ ] 数量最小值 1
+  - [ ] 按数量执行
+  - [ ] 指定天数默认 30
+  - [ ] 天数最小值 1
+  - [ ] 按日期执行
+  - [ ] 文件夹路径输入
+  - [ ] 系统目录选择
+  - [ ] 空路径禁用执行
+  - [ ] 按文件夹前缀清理
+  - [ ] 一键清除全部记录
+  - [ ] 二次 destructive 确认
+  - [ ] 成功反馈
+  - [ ] 完成后刷新并关闭
+- `history-ui.search-sort-filter` 搜索、八字段排序与类型筛选
+  - 源码：`src/lib/cards/folder/cards/ToolbarCard.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte`
+  - 映射：`history.search-sort-filter`、`history.persistence`、`history.performance`、`history.ui-parity`
+  - [ ] 搜索历史记录 placeholder
+  - [ ] 本地有界搜索
+  - [ ] 名称排序
+  - [ ] 路径排序
+  - [ ] 添加时间排序
+  - [ ] 大小排序
+  - [ ] 类型排序
+  - [ ] 随机排序
+  - [ ] 评分排序
+  - [ ] 收藏标签数排序
+  - [ ] 升序
+  - [ ] 降序
+  - [ ] 默认 date desc
+  - [ ] 全部类型
+  - [ ] 压缩包
+  - [ ] 文件夹
+  - [ ] 视频
+  - [ ] 活动筛选强调
+  - [ ] 独立 History 设置
+- `history-ui.views-thumbnails` 四种视图、密度与可见缩略图
+  - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
+  - 映射：`history.views`、`history.thumbnails`、`history.lifecycle`、`history.performance`、`history.image-stability`
+  - [ ] list
+  - [ ] content
+  - [ ] banner
+  - [ ] thumbnail
+  - [ ] 活动视图图标
+  - [ ] thumbnail 紧凑模式
+  - [ ] 缩略图宽度 10..90
+  - [ ] 响应式列数
+  - [ ] 可见范围虚拟化
+  - [ ] lazy img
+  - [ ] async decode
+  - [ ] 骨架屏
+  - [ ] 失败 fallback
+  - [ ] hover 大图预览
+  - [ ] folder 1/4/9/16 多图预览
+  - [ ] 切换视图取消旧缩略图
+  - [ ] History 视图独立持久化
+- `history-ui.selection` 多选、链选与批量移除
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/components/SelectionBar.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`
+  - 映射：`history.selection`、`history.actions`、`history.accessibility`、`history.performance`
+  - [ ] 多选模式
+  - [ ] checkbox
+  - [ ] 选中计数
+  - [ ] 全选
+  - [ ] 反选
+  - [ ] 取消全选
+  - [ ] 链选模式
+  - [ ] 点选/点开行为
+  - [ ] 焦点与选择分离
+  - [ ] 批量复制
+  - [ ] 批量剪切
+  - [ ] 批量移除历史
+  - [ ] 退出多选
+  - [ ] 无选择 disabled
+  - [ ] 确认移除数量
+- `history-ui.context-actions` 文件上下文菜单与宿主动作
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`、`src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte`
+  - 映射：`history.actions`、`history.selection`、`history.accessibility`、`history.deviations`
+  - [ ] 右键菜单 portal
+  - [ ] 视口边界调整
+  - [ ] 剪切
+  - [ ] 复制
+  - [ ] 粘贴
+  - [ ] 从历史移除
+  - [ ] 重命名
+  - [ ] 浏览文件夹
+  - [ ] 在新标签页打开
+  - [ ] 作为书籍打开
+  - [ ] 打开所在文件夹
+  - [ ] 系统默认软件打开
+  - [ ] 资源管理器定位
+  - [ ] 撤回删除
+  - [ ] 添加书签
+  - [ ] 文件树置顶/取消
+  - [ ] 编辑标签
+  - [ ] 复制路径
+  - [ ] 复制文件名
+  - [ ] 重载缩略图
+  - [ ] 点击外部关闭
+  - [ ] 按项目类型显示动作
+- `history-ui.keyboard` 条目键盘语义与虚拟面板输入保护
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
+  - 映射：`history.selection`、`history.accessibility`、`history.deviations`
+  - [ ] listbox role
+  - [ ] 条目 role=button
+  - [ ] 条目 tabindex=0
+  - [ ] Enter
+  - [ ] Space
+  - [ ] 输入框不触发 Reader 命令
+  - [ ] 搜索输入保护
+  - [ ] 上下文菜单键盘等价扩展
+  - [ ] 方向键焦点扩展
+  - [ ] Home/End 扩展
+  - [ ] Delete 扩展
+  - [ ] Ctrl/Cmd+A 扩展
+  - [ ] Ctrl/Cmd+F 扩展
+  - [ ] Escape 扩展
+  - [ ] 焦点恢复
+  - [ ] 旧虚拟实例不注册 document keydown 的事实
+- `history-ui.settings` History 独立工具栏与行为设置
+  - 源码：`src/lib/stores/virtualPanelSettings.svelte.ts`、`src/lib/stores/historySettings.svelte.ts`、`src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte`
+  - 映射：`history.persistence`、`history.sync-folder`、`history.views`、`history.search-sort-filter`、`history.deviations`
+  - [ ] neoview-history-panel-settings
+  - [ ] viewStyle=list
+  - [ ] sortField=date
+  - [ ] sortOrder=desc
+  - [ ] itemTypeFilter=all
+  - [ ] multiSelectMode=false
+  - [ ] deleteMode=false
+  - [ ] showSearchBar=false
+  - [ ] showMigrationBar=false
+  - [ ] penetrateMode=false
+  - [ ] inlineTreeMode=false
+  - [ ] thumbnailWidthPercent=20
+  - [ ] folderTreeVisible=false
+  - [ ] folderTreeLayout=left
+  - [ ] folderTreeSize=200
+  - [ ] showToolbarTooltip=false
+  - [ ] neoview-history-settings
+  - [ ] syncFileTreeOnHistorySelect=false
+  - [ ] maxHistorySize=0
+  - [ ] 工具栏提示开关
+  - [ ] 同步文件夹开关
+  - [ ] 默认评分
+  - [ ] 空白点击行为
+  - [ ] 返回按钮可见性
+  - [ ] 重置
+- `history-ui.persistence-migration` 历史业务数据、限制与旧格式迁移
+  - 源码：`src/lib/stores/history.svelte.ts`、`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/stores/historySettings.svelte.ts`
+  - 映射：`history.data-contract`、`history.persistence`、`history.cleanup`、`history.lifecycle`、`history.deviations`
+  - [ ] neoview-history 旧 key
+  - [ ] neoview-unified-history 新 key
+  - [ ] 旧 entry 迁移
+  - [ ] 旧视频进度迁移
+  - [ ] 旧数据迁移后保留
+  - [ ] pathStack identity
+  - [ ] 重复项更新并移到最前
+  - [ ] updateIndex 不改变时间戳
+  - [ ] 视频进度完成映射
+  - [ ] maxHistorySize 0 为无限
+  - [ ] 正数限制保存数量
+  - [ ] 无效 JSON 降级
+  - [ ] 单项移除
+  - [ ] 清空
+  - [ ] 按数量清理
+  - [ ] 按日期清理
+  - [ ] 按文件夹清理
+- `history-ui.states-lifecycle` 加载、空、错误、失效路径与释放
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts`、`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 映射：`history.states`、`history.lifecycle`、`history.shell`、`history.performance`、`history.deviations`
+  - [ ] 加载状态
+  - [ ] 空历史状态
+  - [ ] 分页错误
+  - [ ] 操作错误
+  - [ ] 重试
+  - [ ] 刷新
+  - [ ] 路径失效降级
+  - [ ] 首次加载后台清理一次
+  - [ ] 存在检查失败时保留记录
+  - [ ] Card 折叠零查询
+  - [ ] 搜索切换取消旧结果
+  - [ ] 缩略图上下文释放
+  - [ ] store subscription 释放
+  - [ ] 迟到结果拒绝
+  - [ ] 独立 lazy chunk
+  - [ ] 大列表有界 DOM
+- `history-ui.shell` History Panel 与无标题 full-height Card shell
+  - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 映射：`history.shell`、`history.ui-parity`、`history.lifecycle`、`history.deviations`
+  - [ ] History 图标
+  - [ ] 历史记录标题
+  - [ ] history Panel
+  - [ ] defaultVisible
+  - [ ] defaultExpanded
+  - [ ] canHide=false
+  - [ ] fullHeight=true
+  - [ ] hideHeader=true
+  - [ ] 动态 loader
+  - [ ] Panel 折叠
+  - [ ] Card Window
+  - [ ] 失败边界
+  - [ ] 当前 XR canHide=true 偏离待解决
+- `history-ui.shared-contract` GUI、CLI、TUI 共用阅读历史契约
+  - 源码：`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/types/content.ts`、`src/lib/cards/shared/useFileActions.ts`
+  - 映射：`history.data-contract`、`history.progress`、`history.cleanup`、`history.lifecycle`、`history.performance`
+  - [ ] 稳定 book/history id
+  - [ ] 规范 source identity
+  - [ ] displayName
+  - [ ] pageIndex
+  - [ ] pageCount
+  - [ ] updatedAt
+  - [ ] pathStack 导入
+  - [ ] media progress 导入
+  - [ ] 有界 offset/limit
+  - [ ] 按 updatedAt 倒序
+  - [ ] 单项删除
+  - [ ] 按 before/limit 清理
+  - [ ] 失效路径清理
+  - [ ] 取消
+  - [ ] 错误
+  - [ ] 数据库关闭
+  - [ ] GUI CLI TUI 共用服务
+  - [ ] 不暴露第二套 store
+- `history-ui.accessibility-parity` 可访问性、响应式与视觉 characterization
+  - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte`
+  - 映射：`history.accessibility`、`history.ui-parity`、`history.image-stability`、`history.performance`
+  - [ ] 命名 icon button
+  - [ ] pressed 状态
+  - [ ] destructive confirmation
+  - [ ] live feedback
+  - [ ] 焦点可见
+  - [ ] 触摸可达操作
+  - [ ] desktop screenshot
+  - [ ] 420x360 screenshot
+  - [ ] 无重叠
+  - [ ] 旧信息密度
+  - [ ] 完整路径 tooltip
+  - [ ] 活动 Reader 图像不重挂
+  - [ ] 重复 active asset 请求为零
+
+##### 专用源码级验收项
+
+- [ ] `history.shared-renderer` 复用文件浏览器条目视觉契约
+  - 目标：History rows use the same source-evidenced file item renderers as the folder surface instead of a divergent text-only recent list.
+  - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 测试：`neoview.history.card`、`neoview.history.shared-renderer`、`neoview.history.thumbnail-e2e`
+  - 备注：The React Card now shares the folder-style thumbnail, name/path hierarchy, selection background and row action density; the other three renderer modes, badges and context states remain pending.
+- [ ] `history.fields` 显示完整历史条目字段
+  - 目标：Each entry preserves stable identity, display name, canonical source, path stack, current file, content type, updated time and bounded page or media progress fields.
+  - 源码：`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`
+  - 测试：`neoview.history.card`、`neoview.library.contract`、`neoview.history.fields`、`neoview.history.e2e`
+  - 备注：Current shared recents expose name, source, page index/count and updated time; path-stack, media and content-type presentation remain incomplete.
+- [ ] `history.progress` 显示并更新页面与视频进度
+  - 目标：Page progress and video position/duration/completed state share one normalized recent identity and update monotonically without creating duplicate history rows.
+  - 源码：`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/components/panels/file/components/FileItemListView.svelte`
+  - 测试：`neoview.progress.sqlite`、`neoview.history.progress`、`neoview.history.media-progress`、`neoview.history.e2e`
+  - 备注：Page recents and a separate compatible media-progress table exist; the Card does not yet render full video progress or completion semantics.
+- [ ] `history.open-resume` 从历史恢复原书源与阅读位置
+  - 目标：Opening an archive, file, directory or nested single-file history item restores its canonical source, page index and current file or media position through the shared Reader session.
+  - 源码：`src/lib/cards/shared/useFileActions.ts`、`src/lib/stores/unifiedHistory.svelte.ts`
+  - 测试：`neoview.history.card`、`neoview.history.resume`、`neoview.history.path-stack`、`neoview.history.e2e`
+  - 备注：React reopens the source path, but current tests do not prove page, current-file, path-stack or media-position restoration.
+- [ ] `history.search-sort-filter` 搜索、八字段排序与类型筛选
+  - 目标：History supports bounded search, name/path/date/size/type/random/rating/collect-tag sorting, ascending/descending order and all/archive/folder/video filters with date-desc defaults.
+  - 源码：`src/lib/cards/folder/cards/ToolbarCard.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte`
+  - 测试：`neoview.history.search`、`neoview.history.sort`、`neoview.history.filter`、`neoview.history.e2e`
+  - 备注：The current React Card exposes only backend updated-time order and refresh.
+- [ ] `history.views` 切换四种共享文件视图
+  - 目标：List, content, banner and thumbnail modes retain their legacy icons, active state, compact thumbnail option and History-specific size preference.
+  - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
+  - 测试：`neoview.history.views`、`neoview.history.e2e`
+  - 备注：The current React Card has one text-row mode.
+- [ ] `history.thumbnails` 显示可见历史缩略图与文件夹预览
+  - 目标：Only the virtual visible history window requests authenticated file or folder thumbnails, including bounded multi-image folder previews, and releases stale contexts on mode, query or mount changes.
+  - 源码：`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
+  - 测试：`neoview.history.thumbnail-visible`、`neoview.history.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
+  - 备注：GUI registers only the virtual visible window through the shared authenticated thumbnail context, requests bounded 1/4 previews and releases ownership on unmount; explicit headless demand and mode/query transitions remain pending.
+- [ ] `history.selection` 共享选择、链选与焦点语义
+  - 目标：Single, toggle, range/chain, all, invert and keyboard focus selection remain bounded and separate from opening behavior across all History views.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/components/SelectionBar.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`
+  - 测试：`neoview.history.selection`、`neoview.history.thumbnail-e2e`
+  - 备注：Stable book IDs back single, Ctrl/Meta toggle and Shift range selection; Space selects, Enter opens and Arrow/Home/End move visible focus. Select-all, invert and cross-view focus persistence remain pending.
+- [ ] `history.actions` 打开、定位、书签、文件与历史动作
+  - 目标：History preserves open, browse/new-tab, system-open, reveal, copy path/name, add bookmark, tree pin, tag, thumbnail reload and confirmed single/batch history removal through authenticated host capabilities.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`、`src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte`
+  - 测试：`neoview.history.card`、`neoview.history.batch-remove`、`neoview.library.http`、`neoview.history.thumbnail-e2e`
+  - 备注：Single/double-click and explicit resume plus confirmed single/batch history removal exist; browse, new-tab, reveal, copy, add-bookmark, tag and thumbnail-reload actions remain pending.
+- [ ] `history.cleanup` 清理失效、最旧、过期、目录与全部历史
+  - 目标：Bounded, cancellable cleanup supports confirmed missing paths, oldest count, timestamp cutoff, folder scope and clear-all without deleting unrelated progress or bookmarks.
+  - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte`、`src/lib/stores/unifiedHistory.svelte.ts`
+  - 测试：`neoview.library.cleanup-invalid`、`neoview.library.cleanup-cancel`、`neoview.library.cli`、`neoview.history.cleanup`、`neoview.history.e2e`
+  - 备注：Core invalid and before/limit cleanup exists; the complete advanced GUI modes and exact counts remain pending.
+- [ ] `history.sync-folder` 同步历史选择到文件夹 Panel
+  - 目标：A default-off History-specific toggle optionally reveals the selected source parent in the shared folder surface without changing the history source or opening duplicate sessions.
+  - 源码：`src/lib/cards/shared/useFileActions.ts`、`src/lib/stores/historySettings.svelte.ts`、`src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte`
+  - 测试：`neoview.history.sync-folder`、`neoview.history.settings`、`neoview.history.e2e`
+  - 备注：No canonical XR setting or React control exists.
+- [ ] `history.data-contract` GUI、CLI、TUI 共用阅读历史契约
+  - 目标：All surfaces share stable source identity, display name, page and media progress, updated time, bounded paging, deletion, cleanup, cancellation and disposal through one Reader library service.
+  - 源码：`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/types/content.ts`
+  - 测试：`neoview.library.contract`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.cli`、`neoview.library.tui`、`neoview.library.sqlite`
+  - 备注：The shared service covers page recents and destructive commands; richer path-stack/media/view contracts remain incomplete.
+- [ ] `history.states` 加载、空、错误、刷新与失效路径
+  - 目标：Stable loading, empty, request error, action error, retry, cleanup pending/result and invalid-path states retain usable rows when optional thumbnail or metadata work fails.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts`、`src/lib/stores/unifiedHistory.svelte.ts`
+  - 测试：`neoview.history.card`、`neoview.library.lifecycle`、`neoview.history.states`、`neoview.history.e2e`
+  - 备注：React has empty, request error, refresh and action error states; retry, partial thumbnail/metadata and cleanup feedback are incomplete.
+- [ ] `history.persistence` 迁移业务历史并持久化独立视图设置
+  - 目标：Legacy neoview-history and neoview-unified-history data import once into compatible xr_ progress tables, History view/behavior settings use canonical [nodes.neoview], and Card layout remains separate.
+  - 源码：`src/lib/stores/history.svelte.ts`、`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/stores/historySettings.svelte.ts`、`src/lib/stores/virtualPanelSettings.svelte.ts`、`src/lib/stores/cardConfig.svelte.ts`
+  - 测试：`neoview.reader-data.codec`、`neoview.reader-data.import`、`neoview.library.sqlite`、`neoview.settings.card-layout`、`neoview.history.settings`
+  - 备注：Legacy business import and xr_ tables exist; History-specific canonical UI settings and full migration evidence remain incomplete.
+- [ ] `history.lifecycle` 取消分页、缩略图和清理并释放所有权
+  - 目标：Refresh, query/view changes, collapse, unmount and backend disposal abort stale pages, thumbnails and cleanup, release subscriptions and contexts, and reject late publication.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.library.lifecycle`、`neoview.library.cleanup-cancel`、`neoview.history.lifecycle`、`neoview.history.thumbnail-visible`、`neoview.history.thumbnail-e2e`
+  - 备注：Pagination and visible-thumbnail requests abort on replacement/unmount and the thumbnail owner context is released; cleanup, collapse and full backend disposal evidence remain pending.
+- [ ] `history.shell` 保持 History full-height 无标题 Card shell
+  - 目标：History remains independently lazy in the History Panel with default visible/expanded, canHide=false, fullHeight=true and hideHeader=true while retaining Panel collapse, window and failure boundaries.
+  - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：`neoview.shell.registry-lazy`、`neoview.history.shell`、`neoview.history.chunk`、`neoview.history.thumbnail-e2e`
+  - 备注：The manifest now restores canHide=false and the Card remains independently lazy; generic shell full-height/hide-header parity remains pending.
+- [ ] `history.accessibility` 命名动作、键盘选择与焦点恢复
+  - 目标：Rows, search, view/filter controls, menus, selection and destructive dialogs are keyboard/touch operable with accessible names, input guards, visible focus and focus restoration.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
+  - 测试：`neoview.history.card`、`neoview.history.selection`、`neoview.history.thumbnail-e2e`
+  - 备注：Rows and actions have stable names, visible focus, Space/Enter and Arrow/Home/End support, and destructive removal uses a keyboard/touch dialog; shortcuts, focus restoration and keyboard context menus remain pending.
+- [ ] `history.ui-parity` 保持旧版历史信息密度与响应式几何
+  - 目标：Progress, time, read/bookmark state, folder-style media hierarchy and toolbar density remain readable at desktop and 420x360 without overlap or horizontal overflow.
+  - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`
+  - 测试：`neoview.history.thumbnail-e2e`、`neoview.history.selection`
+  - 备注：Desktop and 420x360 Chromium prove the folder-style thumbnail/name/path/progress hierarchy and selected-row density without overflow; read/bookmark badges and the full toolbar remain pending.
+- [ ] `history.performance` 有界分页、DOM、缩略图、清理与独立 chunk
+  - 目标：A 10K history corpus keeps bounded paging and DOM, registers only visible thumbnails, bounds path checks and cleanup batches, performs zero hidden work and stays in an independent deferred chunk.
+  - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.library.contract`、`neoview.library.lifecycle`、`neoview.library.cleanup-invalid`、`neoview.history.thumbnail-visible`、`neoview.history.chunk`、`neoview.history.thumbnail-e2e`
+  - 备注：The list is paged/virtualized, thumbnails follow only the visible window and History stays in an independent 5,859-byte deferred chunk; 10K Chromium and advanced cleanup budgets remain pending.
+- [ ] `history.image-stability` 历史交互不重挂活动阅读媒体
+  - 目标：Opening History, refreshing, searching, changing views, scrolling thumbnails, selecting and cleaning records preserve the active Reader media node and asset URL until an explicit history entry is opened.
+  - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
+  - 测试：`neoview.history.image-stability`、`neoview.history.thumbnail-e2e`
+  - 备注：Desktop and 420x360 Chromium prove opening, thumbnail loading, selection and batch removal preserve the active image node; search/view/scroll identity remains pending.
+- [ ] `history.deviations` 记录共享后端、键盘扩展与 shell 差异
+  - 目标：Document authenticated paged xr_ history storage, shared React entry/thumbnail primitives and full keyboard operation as XR replacements while preserving legacy fields and controls; explicitly resolve current canHide=true against legacy canHide=false/fullHeight/hideHeader, and replace unbounded in-process invalid-path checks with cancellable bounded cleanup.
+  - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`、`src/lib/cards/registry.ts`
+  - 测试：`neoview.history.shell`、`neoview.history.selection`、`neoview.history.thumbnail-visible`、`neoview.history.thumbnail-e2e`
+  - 备注：XR replaces localStorage and unbounded Promise.all path checks with authenticated paged xr_ history, visible-window thumbnail contexts and bounded cancellable services; keyboard focus additions are intentional, canHide=false is restored, while fullHeight/hideHeader remain unresolved.
 
 ### Panel: `bookmark`（1）
 

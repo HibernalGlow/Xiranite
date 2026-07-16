@@ -62,7 +62,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
+test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
   page.on("request", (request) => {
@@ -77,11 +77,34 @@ test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neovie
   const readerImage = page.locator('img[alt="001.png"]')
   await expect(readerImage).toBeVisible()
   await readerImage.evaluate((node) => node.setAttribute("data-library-page-card-image", "stable"))
+  await page.waitForTimeout(350)
 
   const viewport = page.viewportSize()!
   await page.mouse.move(1, viewport.height / 2)
   const sidebar = page.locator('[data-reader-sidebar="left"]')
   await expect(sidebar).toBeVisible()
+  await sidebar.getByRole("button", { name: "历史记录", exact: true }).click()
+  const historyCard = sidebar.locator('[data-reader-card="历史记录"]')
+  const historyContent = historyCard.locator('[data-neoview-history-card="true"]')
+  const historyRow = historyCard.locator("[data-history-id]").filter({ hasText: "fixture.cbz" }).first()
+  await expect(historyRow).toBeVisible()
+  await expect(historyRow).toContainText(fixture.path)
+  await expect(historyRow).toContainText("第 1 / 12 页")
+  const historyThumbnail = historyRow.locator('[data-reader-thumbnail-surface="true"]')
+  await expect(historyThumbnail).toHaveAttribute("data-thumbnail-fit", "cover")
+  await expect(historyThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
+  await historyRow.locator("[data-history-row-button]").click()
+  await expect(historyContent).toHaveAttribute("data-selection-count", "1")
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  expect(await historyCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+  await historyCard.screenshot({ path: testInfo.outputPath(`neoview-history-selection-${testInfo.project.name}.png`) })
+  await historyCard.getByRole("button", { name: "删除所选历史记录" }).click()
+  const recentBatchResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/recents/batch") && response.request().method() === "DELETE")
+  await page.getByRole("button", { name: "删除历史", exact: true }).click()
+  expect((await recentBatchResponse).status()).toBe(200)
+  await expect(historyRow).toHaveCount(0)
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+
   await sidebar.getByRole("button", { name: "书签", exact: true }).click()
   const bookmarkCard = sidebar.locator('[data-reader-card="书签列表"]')
   const bookmarkContent = bookmarkCard.locator('[data-neoview-bookmark-card="true"]')

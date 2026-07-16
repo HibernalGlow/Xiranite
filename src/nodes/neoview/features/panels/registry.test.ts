@@ -18,6 +18,10 @@ describe("NeoView panel and card registries", () => {
     for (const loader of loaders) loader.mockRestore()
   })
 
+  it("[neoview.history.shell] preserves the non-hideable legacy History Card contract", () => {
+    expect(CARD_DEFINITIONS.find((card) => card.id === "history-list")?.canHide).toBe(false)
+  })
+
   it("[neoview.shell.registry-compat] preserves unknown old panel configuration", () => {
     expect(resolveLegacyPanels([
       { id: "info", position: "left", order: 4 },

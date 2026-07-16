@@ -125,6 +125,7 @@ describe("reader-http-client", () => {
   it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request)
+      if (url.endsWith("/reader/library/recents/batch")) return Response.json({ deleted: 2, missingIds: [] })
       if (url.endsWith("/reader/library/bookmarks/batch")) return Response.json({ items: [], missingIds: [], deleted: 2 })
       if (url.includes("bookmark-lists")) return Response.json({ items: [] })
       return Response.json({ items: [] })
@@ -137,6 +138,7 @@ describe("reader-http-client", () => {
     await client.updateBookmark!("bookmark/1", { starred: false, listIds: ["default"] })
     await client.updateBookmarks!([{ id: "one", listIds: ["reading"] }, { id: "two", starred: true }])
     await client.removeBookmarks!(["one", "two"])
+    await client.removeRecents!(["recent-one", "recent-two"])
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/library/recents?offset=40&limit=20")
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/reader/library/bookmarks?offset=0&limit=100&listId=favorites")
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/reader/library/bookmark-lists")
@@ -148,6 +150,9 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ updates: [{ id: "one", listIds: ["reading"] }, { id: "two", starred: true }] })
     expect(fetchMock.mock.calls[5]?.[1]).toMatchObject({ method: "DELETE" })
     expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ ids: ["one", "two"] })
+    expect(String(fetchMock.mock.calls[6]?.[0])).toContain("/reader/library/recents/batch")
+    expect(fetchMock.mock.calls[6]?.[1]).toMatchObject({ method: "DELETE" })
+    expect(JSON.parse(String(fetchMock.mock.calls[6]?.[1]?.body))).toEqual({ ids: ["recent-one", "recent-two"] })
     for (const call of fetchMock.mock.calls) {
       expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
     }
