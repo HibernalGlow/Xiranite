@@ -372,6 +372,12 @@ export async function createReaderFileOperationService(options: {
   })
 }
 
+export async function createReaderSystemIntegrationService(resourceScheduler?: ResourceScheduler) {
+  const { ReaderSystemIntegrationService } = await import("./application/files/ReaderSystemIntegrationService.js")
+  const { PlatformReaderSystemIntegrationProvider } = await import("./platform/filesystem/PlatformReaderSystemIntegrationProvider.js")
+  return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({ scheduler: resourceScheduler }))
+}
+
 export async function createReaderLibraryHeadlessController(
   databasePath?: string,
   resourceScheduler?: ResourceScheduler,

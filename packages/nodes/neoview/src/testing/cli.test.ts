@@ -11,6 +11,7 @@ import type {
   ReaderHeadlessController,
   ReaderFileTreeHeadlessController,
   ReaderFileOperationService,
+  ReaderSystemIntegrationService,
   ReaderLibraryHeadlessController,
 } from "../core.js"
 import { runProgram } from "../cli.js"
@@ -38,7 +39,13 @@ describe("NeoView CLI", () => {
     const discardLatest = vi.fn(async () => ({ discarded: true, remaining: 0, journalPersisted: true }))
     const service = { execute, close, prepare, undoState, undoLatest, discardLatest } as unknown as ReaderFileOperationService
     const createFileOperationService = vi.fn(async () => service)
-    const dependencies = { createController: async () => fakeReader(), createFileOperationService }
+    const openSystem = vi.fn(async () => undefined)
+    const revealSystem = vi.fn(async () => undefined)
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createFileOperationService,
+      createSystemIntegrationService: async () => ({ open: openSystem, reveal: revealSystem }) as unknown as ReaderSystemIntegrationService,
+    }
 
     await runProgram(["file-copy", "source.jpg", "target.jpg", "--overwrite", "--concurrency", "1"], host([]), dependencies)
     expect(execute).toHaveBeenLastCalledWith({ operations: [{
@@ -65,6 +72,10 @@ describe("NeoView CLI", () => {
     expect(JSON.parse(state.join(""))).toMatchObject({ available: true, count: 1, persistent: true })
     expect(prepare).toHaveBeenCalledOnce()
     expect(close).toHaveBeenCalledTimes(5)
+    await runProgram(["file-open", "source.jpg"], host([]), dependencies)
+    await runProgram(["file-reveal", "source.jpg"], host([]), dependencies)
+    expect(openSystem).toHaveBeenCalledWith(resolve("source.jpg"))
+    expect(revealSystem).toHaveBeenCalledWith(resolve("source.jpg"))
   })
 
   it("[neoview.library.cli] adapts shared library operations and confirms destructive commands", async () => {

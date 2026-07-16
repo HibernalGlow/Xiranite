@@ -76,9 +76,9 @@
 - 设置：`archive.allowFileOperations`、`archive.confirmBeforeDelete`
 - 数据：operation undo log
 - 行为：批量与单项操作结果逐项报告；冲突和只读失败；回收站与永久删除；取消和撤销；系统资源管理器定位
-- 测试：`neoview.file-operations.results`、`neoview.file-operations.cancel`、`neoview.file-operations.validation`、`neoview.file-operations.platform`、`neoview.file-operations.trash-adapter`、`neoview.file-operations.scheduler`、`neoview.file-operations.http`、`neoview.file-operations.confirmation`、`neoview.file-operations.http-validation`、`neoview.file-operations.cli`、`neoview.file-operations.tui`、`neoview.file-operations.undo-journal`、`neoview.file-operations.undo-partial`、`neoview.file-operations.undo-bounded`、`neoview.file-operations.undo-discard`、`neoview.file-operations.undo-platform`、`neoview.file-operations.undo-stale`、`neoview.file-operations.undo-http`、`neoview.file-operations.undo-sqlite`、`neoview.file-operations.undo-cross-process`
+- 测试：`neoview.file-operations.results`、`neoview.file-operations.cancel`、`neoview.file-operations.validation`、`neoview.file-operations.platform`、`neoview.file-operations.trash-adapter`、`neoview.file-operations.scheduler`、`neoview.file-operations.http`、`neoview.file-operations.confirmation`、`neoview.file-operations.http-validation`、`neoview.file-operations.cli`、`neoview.file-operations.tui`、`neoview.file-operations.undo-journal`、`neoview.file-operations.undo-partial`、`neoview.file-operations.undo-bounded`、`neoview.file-operations.undo-discard`、`neoview.file-operations.undo-platform`、`neoview.file-operations.undo-stale`、`neoview.file-operations.undo-http`、`neoview.file-operations.undo-sqlite`、`neoview.file-operations.undo-cross-process`、`neoview.file-operations.system-service`、`neoview.file-operations.system-platform`、`neoview.file-operations.system-scheduler`、`neoview.file-operations.system-http`
 - 性能基准：无专项
-- 已知差异：trash restore 与 Explorer/open-with 仍未实现；已启动的系统文件操作不可强制中断，取消只阻止尚未 admission 的项
+- 已知差异：trash restore 仍未实现；已启动的系统文件操作不可强制中断，取消只阻止尚未 admission 的项
 
 ### 压缩包索引、流式读取、预热、提取与条目删除（`archive-index-stream-mutate`）
 
@@ -296,9 +296,9 @@
 - 设置：`slideshow`、`book.autoPageTurnInterval`
 - 数据：slideshow runtime
 - 行为：开始/暂停；间隔；循环/随机；淡入淡出；切书和手动操作协调
-- 测试：待补
+- 测试：`neoview.file-operations.system-service`、`neoview.file-operations.system-platform`、`neoview.file-operations.system-scheduler`、`neoview.file-operations.system-http`、`neoview.file-operations.cli`
 - 性能基准：无专项
-- 已知差异：无
+- 已知差异：open/reveal 已迁移；剪贴板、快捷方式解析和 Explorer 右键注册仍待完成
 
 ### Ollama、AI 面板和翻译服务（`ai-ollama-translation`）
 

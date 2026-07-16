@@ -35,6 +35,7 @@ import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpController.js"
+import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
@@ -131,6 +132,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #thumbnailMaintenance: ThumbnailMaintenanceRoute
   readonly #directoryBrowser: ReaderDirectoryBrowserRoute
   readonly #fileOperations: ReaderFileOperationHttpController
+  readonly #systemIntegration: ReaderSystemIntegrationHttpController
   readonly #library?: ReaderLibraryHttpController
   readonly #libraryService?: ReaderLibraryService
   readonly #disposeLibraryService: boolean
@@ -225,6 +227,11 @@ export class ReaderHttpController implements AsyncDisposable {
         journal: options.fileUndoJournalStore,
       })
     })
+    this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
+      const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")
+      const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
+      return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({ scheduler: options.resourceScheduler }))
+    })
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(
       options.libraryService,
@@ -265,6 +272,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (directoryBrowserResponse) return directoryBrowserResponse
     const fileOperationResponse = await this.#fileOperations.handle(request)
     if (fileOperationResponse) return fileOperationResponse
+    const systemIntegrationResponse = await this.#systemIntegration.handle(request)
+    if (systemIntegrationResponse) return systemIntegrationResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
 

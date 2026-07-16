@@ -9,6 +9,7 @@ import type {
   ReaderCacheService,
   ReaderFileTreeHeadlessController,
   ReaderFileOperationService,
+  ReaderSystemIntegrationService,
   ReaderFileMutation,
   ReaderLibraryHeadlessController,
   ReaderHeadlessController,
@@ -41,7 +42,7 @@ const COMMANDS = new Set([
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
-  "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
+  "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-open", "file-reveal", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
 ])
 const VALUE_FLAGS = new Set([
   "--entry",
@@ -91,6 +92,7 @@ export interface NeoviewCliDependencies {
   createSearchHistoryImporter?: (databasePath?: string) => Promise<LegacySearchHistoryImporter>
   createLibraryController?: (databasePath?: string) => Promise<ReaderLibraryHeadlessController>
   createFileOperationService?: (databasePath?: string) => Promise<ReaderFileOperationService>
+  createSystemIntegrationService?: () => Promise<ReaderSystemIntegrationService>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
@@ -281,6 +283,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "file-copy" || command === "file-move" || command === "file-rename") {
     rejectOptions(parsed, new Set(["--json", "--concurrency", "--overwrite"]))
+    return
+  }
+  if (command === "file-open" || command === "file-reveal") {
+    rejectOptions(parsed, new Set(["--json"]))
     return
   }
   if (command === "file-delete" || command === "file-trash") {
@@ -776,6 +782,18 @@ async function runFileOperationCommand(
   dependencies: NeoviewCliDependencies,
 ): Promise<void> {
   const pair = command === "file-copy" || command === "file-move" || command === "file-rename"
+  if (command === "file-open" || command === "file-reveal") {
+    if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one path.`)
+    const createService = dependencies.createSystemIntegrationService ?? (async () => {
+      const { createReaderSystemIntegrationService } = await import("./platform.js")
+      return createReaderSystemIntegrationService()
+    })
+    const path = resolve(host.cwd, parsed.positionals[0]!)
+    if (command === "file-open") await (await createService()).open(path)
+    else await (await createService()).reveal(path)
+    if (parsed.booleans.has("--json")) writeJson(host, { action: command.slice(5), path })
+    return
+  }
   const journalCommand = command === "file-undo" || command === "file-undo-discard" || command === "file-undo-state"
   if (pair && parsed.positionals.length !== 2) throw usage(`${command} requires source and destination paths.`)
   if (journalCommand && parsed.positionals.length !== 0) throw usage(`${command} does not accept a path.`)
@@ -1402,6 +1420,8 @@ function formatCliHelp(): string {
     "  file-rename <source> <destination> Rename within one directory",
     "  file-trash <path...>             Move paths to system trash (--yes)",
     "  file-delete <path...>            Permanently delete paths (--yes)",
+    "  file-open <path>                 Open with the system default application",
+    "  file-reveal <path>               Reveal in the system file manager",
     "  file-undo                        Undo the latest guarded transaction (--yes)",
     "  file-undo-discard                Discard a stale latest undo transaction (--yes)",
     "  file-undo-state                  Show persistent undo capability and state",

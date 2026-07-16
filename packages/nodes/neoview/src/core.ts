@@ -151,6 +151,8 @@ export type {
   ReaderFileUndoJournalRecord,
   ReaderFileUndoJournalStore,
 } from "./ports/ReaderFileUndoJournalStore.js"
+export { ReaderSystemIntegrationService } from "./application/files/ReaderSystemIntegrationService.js"
+export type { ReaderSystemIntegrationProvider } from "./ports/ReaderSystemIntegrationProvider.js"
 export {
   DEFAULT_READER_SESSION_OPTIONS,
   type OpenViewSourceOptions,
