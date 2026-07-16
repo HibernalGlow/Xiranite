@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/time-information-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/book-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -1009,7 +1009,7 @@
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|
 | `preloadStatus` | 预加载状态 | core | partial | `src/lib/cards/info/PreloadStatusCard.svelte` | 预读、渐进加载、流传输和全局调度；XR `preload-status` |
-| `bookInfo` | 书籍信息 | core | partial | `src/lib/cards/info/BookInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `book-information` |
+| `bookInfo` | 书籍信息 | core | migrated | `src/lib/cards/info/BookInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `book-information` |
 | `infoOverlay` | 信息悬浮窗 | deferred | pending | `src/lib/cards/info/InfoOverlayCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
 | `imageInfo` | 图像信息 | core | partial | `src/lib/cards/info/ImageInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `image-information` |
 | `storage` | 存储信息 | core | partial | `src/lib/cards/info/StorageCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `storage-information` |
@@ -1024,10 +1024,189 @@
 
 #### `bookInfo` 书籍信息
 
-- [ ] 显示书名、源路径、类型、页数和阅读进度
-- [ ] 显示文件/归档大小与可用书籍元数据
-- [ ] 复制路径或打开系统位置并处理缺失源
+- 细项清单：`migration/neoview/book-information-compatibility.json`
+- [x] 显示书名、EMM 译名、条件原名、源路径、类型、页数和阅读进度
+- [x] 由 Storage Card 独占展示文件/归档大小，Book Card 不重复该字段
+- [x] Info Panel 共享复制路径与系统定位动作并处理缺失源
 - UI 基线：`src/lib/cards/info/BookInfoCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（8 组，63 项）
+
+- `book-ui.titles` 名称、译名与条件原名
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`book.primary-title`、`book.translated-title`、`book.original-title`、`book.ui-parity`
+  - [ ] 名称行
+  - [ ] 优先显示非空 EMM translated_title
+  - [ ] 译名与原名不同才使用强调 chip
+  - [ ] 译名与原名不同才显示原名行
+  - [ ] 相同译名不重复原名
+  - [ ] 完整值 title
+  - [ ] 长文本换行
+- `book-ui.identity` 书源路径与类型
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`book.path`、`book.type`、`book.data-contract`
+  - [ ] 路径行
+  - [ ] 等宽小字号
+  - [ ] 完整路径 tooltip
+  - [ ] folder 映射文件夹
+  - [ ] archive 映射压缩包
+  - [ ] pdf 映射 PDF
+  - [ ] media 映射媒体
+  - [ ] 缺失类型映射未知
+  - [ ] 其他类型稳定显示
+- `book-ui.progress` 页码与阅读进度
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`book.pagination`、`book.progress`、`book.lifecycle`
+  - [ ] 当前页使用 1-based 页码
+  - [ ] 显示总页数
+  - [ ] 进度保留一位小数
+  - [ ] 进度不超过 100%
+  - [ ] 零页显示 em dash
+  - [ ] 翻页同步更新
+- `book-ui.states` 空数据与共享元数据生命周期
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/services/metadataService.ts`
+  - 映射：`book.states`、`book.lifecycle`、`book.performance`、`book.deviations`
+  - [ ] 无书籍信息时字段零 DOM
+  - [ ] 显示暂无书籍信息
+  - [ ] 关闭书籍清空
+  - [ ] Card 卸载取消订阅
+  - [ ] 翻页拒绝迟到结果
+  - [ ] 相同元数据请求去重
+  - [ ] 加载状态
+  - [ ] 错误状态
+  - [ ] 重试入口
+- `book-ui.panel-actions` Info Panel 共享路径动作
+  - 源码：`src/lib/components/panels/InfoPanel.svelte`
+  - 映射：`book.panel-actions`、`book.accessibility`、`book.deviations`
+  - [ ] 信息 Panel 任意空白处右键
+  - [ ] 复制路径
+  - [ ] 菜单分隔线
+  - [ ] 在资源管理器中打开
+  - [ ] 优先书籍路径并回退当前图像路径
+  - [ ] 无路径时定位动作禁用
+  - [ ] ContextMenu 键与 Shift+F10 几何定位
+  - [ ] 点击外部或 Escape 关闭
+- `book-ui.shell` 通用 Card 外壳与布局状态
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`、`src/lib/stores/cardConfig.svelte.ts`
+  - 映射：`book.shell`、`book.persistence`、`book.accessibility`、`book.performance`
+  - [ ] BookOpen 图标与书籍信息标题
+  - [ ] 默认 info Panel
+  - [ ] 默认显示并展开
+  - [ ] 不可隐藏
+  - [ ] 标题折叠
+  - [ ] 上下移动
+  - [ ] 独立窗口
+  - [ ] 高度拖动与恢复自动
+  - [ ] 折叠内容零挂载
+  - [ ] 动态 import 加载与失败状态
+  - [ ] expanded/order/height 持久化
+- `book-ui.data-flow` EMM 与共享三端数据契约
+  - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/emmMetadata.svelte.ts`、`src/lib/services/metadataService.ts`、`src/lib/utils/pathHash.ts`
+  - 映射：`book.translated-title`、`book.data-contract`、`book.lifecycle`、`book.performance`
+  - [ ] 按规范书源路径精确读取旧 EMM 记录
+  - [ ] 只暴露有界 translated_title
+  - [ ] 坏 JSON 稳定降级
+  - [ ] 不读取缩略图 blob
+  - [ ] GUI/CLI/TUI 共用字段语义
+  - [ ] 翻页不重复读取静态 EMM
+  - [ ] 取消与 session 关闭释放
+- `book-ui.deviations` XR 所有权与可访问性扩展
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/components/panels/InfoPanel.svelte`
+  - 映射：`book.panel-actions`、`book.accessibility`、`book.deviations`
+  - [ ] 源大小归 Storage Card 而非 Book Card
+  - [ ] 复制使用宿主 clipboard capability
+  - [ ] 系统定位通过受鉴权后端而非浏览器 shell
+  - [ ] 动作成功失败 live region
+  - [ ] 语义 description list
+  - [ ] 加载错误重试为显式扩展
+
+##### 专用源码级验收项
+
+- [x] `book.primary-title` 显示规范书籍名称
+  - 目标：The Card displays the current book display name with full-value tooltip and bounded wrapping.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`
+  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.headless-contract`、`neoview.book-information.e2e`
+  - 备注：Original displayName remains the canonical fallback.
+- [x] `book.translated-title` 优先显示有效 EMM 译名
+  - 目标：A bounded non-empty translated_title from the exact legacy EMM book record becomes the emphasized primary title.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/emmMetadata.svelte.ts`
+  - 测试：`neoview.book-information.emm-codec`、`neoview.book-information.emm-sqlite`、`neoview.book-information.shared-contract`、`neoview.book-information.headless-contract`、`neoview.book-information.legacy-fields`、`neoview.book-information.e2e`
+  - 备注：Only a trimmed title up to 4096 characters crosses the shared DTO; raw emm_json and tags never do.
+- [x] `book.original-title` 条件显示原名
+  - 目标：The original-name row appears only when the normalized translated title differs from displayName.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`
+  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
+  - 备注：Equal, empty or malformed translations do not duplicate the name.
+- [x] `book.path` 显示规范书源路径
+  - 目标：The Card exposes the canonical opened book source path, not an uncommitted input value or archive entry path.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：`neoview.metadata.http`、`neoview.book-information.panel-actions`、`neoview.book-information.e2e`
+  - 备注：GUI wraps the full canonical path; headless surfaces intentionally redact local absolute paths while sharing source kind and title.
+- [x] `book.type` 保留完整书源类型语义
+  - 目标：folder, archive, PDF, EPUB, media, image and unknown sources have stable shared type semantics and legacy labels.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`
+  - 测试：`neoview.book-information.shared-contract`、`neoview.book-information.headless-contract`、`neoview.book-information.legacy-fields`、`neoview.book-information.e2e`
+  - 备注：The shared contract preserves document format instead of collapsing PDF and EPUB.
+- [x] `book.pagination` 显示 1-based 当前页与总页数
+  - 目标：Current page and page count derive from the active frame and update after navigation.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`
+  - 测试：`neoview.metadata.http`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
+  - 备注：Zero-page books remain representable and navigation updates the frame-derived value.
+- [x] `book.progress` 计算有界一位小数进度
+  - 目标：Progress clamps current to total, renders one decimal for non-empty books and an em dash for zero pages.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`
+  - 测试：`neoview.metadata.http`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
+  - 备注：The backend omits progress for zero pages and clamps the numerator before the GUI formats one decimal.
+- [x] `book.states` 加载、空、错误与重试
+  - 目标：The Card has stable loading, empty, error and retry states and never presents stale book metadata as current.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/services/metadataService.ts`
+  - 测试：`neoview.book-information.states`、`neoview.book-information.retry`、`neoview.book-information.generation-stale`
+  - 备注：Loading/error/retry are intentional accessible target extensions; no session mounts zero Card DOM.
+- [x] `book.panel-actions` Info Panel 共享复制与系统定位
+  - 目标：The whole Info Panel exposes copy-path and reveal-in-file-manager through host/backend capabilities with disabled, pending and feedback states.
+  - 源码：`src/lib/components/panels/InfoPanel.svelte`
+  - 测试：`neoview.book-information.host-clipboard`、`neoview.book-information.reveal-client`、`neoview.book-information.panel-actions`、`neoview.book-information.panel-actions-disabled`、`neoview.book-information.e2e`
+  - 备注：The actions belong to the shared Info Panel, use host/authenticated capabilities and expose live feedback.
+- [x] `book.data-contract` 共享有界静态书籍元数据契约
+  - 目标：GUI, CLI and TUI share source identity, source format, page count and a bounded translated title loaded once per session book identity.
+  - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/emmMetadata.svelte.ts`、`src/lib/services/metadataService.ts`
+  - 测试：`neoview.book-information.emm-codec`、`neoview.book-information.emm-path`、`neoview.book-information.emm-sqlite`、`neoview.book-information.shared-contract`、`neoview.metadata.http`、`neoview.book-information.headless-contract`
+  - 备注：One application service serves HTTP and local headless surfaces without a second database, raw EMM JSON or image decode path.
+- [x] `book.lifecycle` 会话切换、去重、取消与释放
+  - 目标：Hidden/unmounted Cards do no work; static book metadata is deduplicated; generation and session changes cannot publish stale values; close releases pending work.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/services/metadataService.ts`
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.book-information.generation-stale`、`neoview.book-information.session-close`、`neoview.book-information.headless-contract`
+  - 备注：Page progress changes per frame without rereading EMM; session close aborts an unfinished static load.
+- [x] `book.shell` 共享 Card 外壳行为
+  - 目标：The Book Card remains independently lazy, collapsible, movable, resizable and window-capable while retaining its non-hideable legacy rule.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：`neoview.card.collapse`、`neoview.card.resize-patch`、`neoview.settings.card-layout`、`neoview.book-information.lazy-chunk`
+  - 备注：Book remains non-hideable in the manifest and builds as an independent 2655-byte deferred chunk.
+- [x] `book.persistence` 仅持久化共享 Card 布局
+  - 目标：Book content has no settings; order, expanded state and height persist only through canonical [nodes.neoview] layout.
+  - 源码：`src/lib/stores/cardConfig.svelte.ts`
+  - 测试：`neoview.settings.card-layout`、`neoview.card.persist-react`、`neoview.card.resize-patch`
+  - 备注：Only canonical [nodes.neoview] layout persists; Reader business data remains in the legacy NeoView database.
+- [x] `book.accessibility` 语义字段与键盘等价动作
+  - 目标：Description fields, shell controls, retry and Info Panel actions have accessible names, keyboard operation, focus restoration and live feedback.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/components/panels/InfoPanel.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
+  - 测试：`neoview.book-information.retry`、`neoview.book-information.panel-actions`、`neoview.book-information.panel-actions-disabled`、`neoview.context-menu.keyboard-position`、`neoview.book-information.e2e`
+  - 备注：Semantic dl, named controls and live regions are present; keyboard context menus anchor at the target center.
+- [x] `book.ui-parity` 桌面与窄 Card 视觉几何
+  - 目标：Legacy labels, two-column density, conditional title chip and long values remain readable at desktop and 420x360 Card widths.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/components/panels/InfoPanel.svelte`
+  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.e2e`
+  - 备注：Desktop and 420x360 Chromium assert bounded values and capture the rendered Card.
+- [x] `book.performance` 常量 DOM、静态请求去重与独立 chunk
+  - 目标：O(1) DOM, zero hidden work, one bounded static EMM read per session book, shared frame metadata and an independent deferred Book Card chunk under 8 KiB.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/services/metadataService.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.metadata.http`、`neoview.book-information.headless-contract`、`neoview.book-information.e2e`、`neoview.book-information.lazy-chunk`
+  - 备注：Book chunk is 2655 bytes; entry is 24667 bytes; session EMM reads are O(1), cached and blob-free.
+- [x] `book.deviations` 记录所有权与可访问性扩展
+  - 目标：Document that source size remains Storage-owned and that host clipboard, authenticated reveal, loading/error/retry, semantic dl and action feedback replace weaker legacy behavior.
+  - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/components/panels/InfoPanel.svelte`
+  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.host-clipboard`、`neoview.book-information.reveal-client`、`neoview.book-information.retry`、`neoview.book-information.e2e`
+  - 备注：Source size stays in Storage; host/authenticated actions, semantic dl and accessible failure states are explicit target improvements.
 
 #### `infoOverlay` 信息悬浮窗
 
