@@ -1,10 +1,22 @@
 import { describe, expect, it, vi } from "vitest"
 import type { CliHost } from "@xiranite/cli-runtime"
 
-import { runProgram, type CliReaderController } from "../cli.js"
+import { parseReaderUiConnectionArgs, runProgram, type CliReaderController } from "../cli.js"
 import type { HeadlessReaderSnapshot } from "../application/headless/ReaderHeadlessController.js"
 
 describe("NeoView CLI remote Reader", () => {
+  it("[neoview.tui.connect] separates connection credentials from OpenTUI flags", () => {
+    expect(parseReaderUiConnectionArgs([
+      "--lang", "en", "--connect", "http://127.0.0.1:41000", "--theme", "nord", "--token-env", "READER_TOKEN",
+    ])).toEqual({
+      terminalArgs: ["--lang", "en", "--theme", "nord"],
+      baseUrl: "http://127.0.0.1:41000",
+      tokenVariable: "READER_TOKEN",
+    })
+    expect(() => parseReaderUiConnectionArgs(["--token-env", "TOKEN"])).toThrow("requires --connect")
+    expect(() => parseReaderUiConnectionArgs(["--connect", "one", "--connect", "two"])).toThrow("only be specified once")
+  })
+
   it("[neoview.cli.connect] selects the remote adapter and reads its token only from the environment", async () => {
     const output: unknown[] = []
     const controller = fakeRemoteReader()

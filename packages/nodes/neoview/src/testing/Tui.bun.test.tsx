@@ -5,7 +5,7 @@ import { expect, test } from "bun:test"
 import sharp from "sharp"
 import type { HeadlessReaderSnapshot } from "../core.js"
 import { createNeoviewTuiDefinition } from "../interaction.js"
-import { NeoviewTui } from "../Tui.js"
+import { createNeoviewTuiScreen } from "../Tui.js"
 import { ResourceSchedulerService } from "@xiranite/services"
 
 async function verifyPersistentReaderLifecycle() {
@@ -21,7 +21,7 @@ async function verifyPersistentReaderLifecycle() {
   }).png().toBuffer()
   const port = {
     async open() { opens += 1; return snapshot(current = 0) },
-    listPages: () => pageList,
+    listPages: async () => pageList,
     async next() { nextCalls += 1; return snapshot(current = Math.min(2, current + 1)) },
     async previous() { previousCalls += 1; return snapshot(current = Math.max(0, current - 1)) },
     async goTo(index: number) { return snapshot(current = index) },
@@ -48,10 +48,11 @@ async function verifyPersistentReaderLifecycle() {
   const definition = createNeoviewTuiDefinition("zh")
   definition.schema.initialValues.path = "D:/books/book.cbz"
   const resources = new ResourceSchedulerService()
+  const ConnectedNeoviewTui = createNeoviewTuiScreen(async () => port)
   let screen: Awaited<ReturnType<typeof testRender>>
   await act(async () => {
     screen = await testRender(
-      <NeoviewTui definition={definition} language="zh" onExit={() => undefined} createController={async () => port} resourceScheduler={resources} />,
+      <ConnectedNeoviewTui definition={definition} language="zh" onExit={() => undefined} resourceScheduler={resources} />,
       { width: 132, height: 34, useMouse: true },
     )
   })
@@ -113,7 +114,7 @@ async function verifyPersistentReaderLifecycle() {
 }
 
 test(
-  "[neoview.tui.reader] [neoview.tui.navigation] [neoview.tui.decode-cache] opens a persistent reader and navigates with shared controller methods",
+  "[neoview.tui.reader] [neoview.tui.navigation] [neoview.tui.decode-cache] [neoview.tui.connect] opens a persistent reader through an injected async controller",
   verifyPersistentReaderLifecycle,
 )
 

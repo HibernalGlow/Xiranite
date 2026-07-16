@@ -31,9 +31,9 @@ import type {
 import type { NeoviewTuiInput, NeoviewTuiResult } from "./interaction.js"
 import { createReaderHeadlessController } from "./platform.js"
 
-interface ReaderTuiPort extends AsyncDisposable {
+export interface ReaderTuiPort extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
-  listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[]
+  listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
   next(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   previous(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
@@ -45,6 +45,12 @@ export interface NeoviewTuiProps extends TerminalUiScreenProps<NeoviewTuiInput, 
   createController?: () => Promise<ReaderTuiPort>
   imageBackend?: TerminalImageBackend
   resourceScheduler?: ResourceScheduler
+}
+
+export function createNeoviewTuiScreen(createController: () => Promise<ReaderTuiPort>) {
+  return function ConnectedNeoviewTui(props: Omit<NeoviewTuiProps, "createController">) {
+    return <NeoviewTui {...props} createController={createController} />
+  }
 }
 
 export function NeoviewTui(props: NeoviewTuiProps) {
@@ -95,13 +101,14 @@ function ReaderWorkbench({
     return controller.current
   }, [createController, resources])
 
-  const applySnapshot = useCallback((value: HeadlessReaderSnapshot, port: ReaderTuiPort) => {
+  const applySnapshot = useCallback(async (value: HeadlessReaderSnapshot, port: ReaderTuiPort) => {
     const pageLimit = Math.min(value.book.pageCount, 100)
     const cursor = Math.max(0, Math.min(value.frame.anchorPageIndex - Math.floor(pageLimit / 2), value.book.pageCount - pageLimit))
+    const nextPages = await port.listPages(cursor, pageLimit || 1)
     setSnapshot(value)
     setPageInput(value.frame.anchorPageIndex + 1)
     setPageCursor(cursor)
-    setPages(port.listPages(cursor, pageLimit || 1))
+    setPages(nextPages)
     setStatus(`${value.book.displayName} · ${value.book.pageCount} ${language === "zh" ? "页" : "pages"}`)
     setPhase("ready")
     setFocused("viewer")
@@ -116,7 +123,7 @@ function ReaderWorkbench({
     try {
       const port = await ensureController()
       const value = await operation(port, abort.signal)
-      if (!abort.signal.aborted) applySnapshot(value, port)
+      if (!abort.signal.aborted) await applySnapshot(value, port)
     } catch (error) {
       if (abort.signal.aborted) return
       setPhase("error")

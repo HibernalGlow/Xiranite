@@ -92,7 +92,7 @@ export const cli: CliCommand = {
 
 export interface NeoviewCliDependencies {
   createController: (options?: ReaderCompositionOptions) => Promise<CliReaderController>
-  createRemoteController?: (options: { baseUrl: string; token: string }) => Promise<CliReaderController>
+  createRemoteController?: (options: { baseUrl: string; token: string }) => Promise<CliInteractiveReaderController>
   createFileTreeController?: (options?: ReaderCompositionOptions) => Promise<ReaderFileTreeHeadlessController>
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
@@ -114,6 +114,13 @@ export interface CliReaderController extends AsyncDisposable {
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
 }
 
+export interface CliInteractiveReaderController extends CliReaderController {
+  next(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  previous(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  closeBook(): Promise<void>
+}
+
 const DEFAULT_DEPENDENCIES: NeoviewCliDependencies = {
   createController: createReaderHeadlessController,
   createRemoteController: async (options) => {
@@ -130,7 +137,7 @@ export async function runProgram(
 ): Promise<void> {
   const command = args[0]
   if (!command) {
-    if (host.stdin.isTTY && host.stdout.isTTY) await runReaderUi([], host)
+    if (host.stdin.isTTY && host.stdout.isTTY) await runReaderUi([], host, dependencies)
     else writeLine(host, formatCliHelp())
     return
   }
@@ -139,7 +146,7 @@ export async function runProgram(
     return
   }
   if (command === "ui") {
-    await runReaderUi(args.slice(1), host)
+    await runReaderUi(args.slice(1), host, dependencies)
     return
   }
   if (command === "folder-ui") {
@@ -1387,10 +1394,11 @@ function oneValue(parsed: ParsedArguments, flag: string): string | undefined {
   return values[0]
 }
 
-async function runReaderUi(args: readonly string[], host: CliHost): Promise<void> {
+async function runReaderUi(args: readonly string[], host: CliHost, dependencies: NeoviewCliDependencies): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView ui requires an interactive terminal.")
+  const connection = parseReaderUiConnectionArgs(args)
   const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
-  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
+  const flags = resolveTerminalUiFlags(connection.terminalArgs, { language: "zh", renderer: "opentui", theme: "nord" })
   if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
     throw usage(flags.error ?? `Unknown ui argument: ${flags.args[0]}`)
   }
@@ -1399,14 +1407,52 @@ async function runReaderUi(args: readonly string[], host: CliHost): Promise<void
     throw usage(`Unknown terminal theme: ${flags.theme}.`)
   }
   const { createNeoviewTuiDefinition } = await import("./interaction.js")
+  const remoteOptions = connection.baseUrl ? {
+    baseUrl: connection.baseUrl,
+    token: connectionToken(connection.tokenVariable, host),
+  } : undefined
   await runTerminalUi(createNeoviewTuiDefinition(flags.language), {
     host,
     language: flags.language,
     renderer: flags.renderer,
     theme: flags.theme,
-    loadScreen: async () => (await import("./Tui.js")).NeoviewTui,
+    loadScreen: async () => {
+      const tui = await import("./Tui.js")
+      if (!remoteOptions) return tui.NeoviewTui
+      const createRemote = dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!
+      return tui.createNeoviewTuiScreen(() => createRemote(remoteOptions))
+    },
     reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["ui", ...args] } : undefined,
   })
+}
+
+export function parseReaderUiConnectionArgs(args: readonly string[]): {
+  terminalArgs: string[]
+  baseUrl?: string
+  tokenVariable?: string
+} {
+  const terminalArgs: string[] = []
+  let baseUrl: string | undefined
+  let tokenVariable: string | undefined
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!
+    if (argument !== "--connect" && argument !== "--token-env") {
+      terminalArgs.push(argument)
+      continue
+    }
+    const value = args[index + 1]
+    if (!value || value.startsWith("--")) throw usage(`${argument} requires a value.`)
+    if (argument === "--connect") {
+      if (baseUrl !== undefined) throw usage("--connect can only be specified once.")
+      baseUrl = value
+    } else {
+      if (tokenVariable !== undefined) throw usage("--token-env can only be specified once.")
+      tokenVariable = value
+    }
+    index += 1
+  }
+  if (!baseUrl && tokenVariable) throw usage("--token-env requires --connect.")
+  return { terminalArgs, baseUrl, tokenVariable }
 }
 
 async function runFolderUi(args: readonly string[], host: CliHost): Promise<void> {
