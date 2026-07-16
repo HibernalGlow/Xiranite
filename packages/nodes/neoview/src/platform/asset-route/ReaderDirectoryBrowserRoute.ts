@@ -42,6 +42,7 @@ const BROWSER_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/changes$/
 const BROWSER_DIRECTORY_SIZES_PATH = /^\/reader\/browser\/s\/([^/]+)\/directory-sizes$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
 const BROWSER_TREE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree$/
+const BROWSER_TREE_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/changes$/
 const BROWSER_TREE_CACHE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/cache$/
 const BROWSER_TREE_EXCLUSIONS_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/exclusions$/
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
@@ -94,6 +95,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (directorySizesMatch && request.method === "POST") return this.#directorySizes(directorySizesMatch[1]!, request)
     const searchMatch = BROWSER_SEARCH_PATH.exec(url.pathname)
     if (searchMatch && request.method === "GET") return this.#search(searchMatch[1]!, url, request)
+    const treeChangesMatch = BROWSER_TREE_CHANGES_PATH.exec(url.pathname)
+    if (treeChangesMatch && request.method === "GET") return this.#treeChanges(treeChangesMatch[1]!, url, request.signal)
     const treeCacheMatch = BROWSER_TREE_CACHE_PATH.exec(url.pathname)
     if (treeCacheMatch && request.method === "DELETE") return this.#clearTreeCache(treeCacheMatch[1]!, url)
     const treeExclusionsMatch = BROWSER_TREE_EXCLUSIONS_PATH.exec(url.pathname)
@@ -259,6 +262,21 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (refresh !== null && refresh !== "0" && refresh !== "1") return errorResponse("refresh must be 0 or 1", 400)
     try {
       const result = await this.#browser.tree(sessionId, url.searchParams.get("path") ?? undefined, refresh === "1", signal)
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #treeChanges(encodedSessionId: string, url: URL, signal: AbortSignal): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const afterRevision = integer(url.searchParams.get("after"), -1)
+    const waitMs = optionalInteger(url.searchParams.get("wait"), "wait", 10, 30_000) ?? 25_000
+    try {
+      const result = await this.#browser.waitForTreeChanges(sessionId, afterRevision, waitMs, signal)
+      if (result === null) return new Response(null, responseInit(204))
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       if (signal.aborted) throw error

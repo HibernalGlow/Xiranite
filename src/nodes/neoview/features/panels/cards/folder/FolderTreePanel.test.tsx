@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { VirtuosoMockContext } from "react-virtuoso"
 import { describe, expect, it, vi } from "vitest"
 
-import type { ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectoryTreeChangesDto, ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderTreePanel, { directoryAncestors, directoryPathKey, directoryRoot } from "./FolderTreePanel"
 
 describe("FolderTreePanel", () => {
@@ -146,6 +146,42 @@ describe("FolderTreePanel", () => {
     expect(listDirectoryRoots).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.folder.tree-watch-gui] refreshes only an invalidated expanded node and aborts its independent wait", async () => {
+    let generation = 1
+    const waits: Array<{ resolve(batch: ReaderDirectoryTreeChangesDto): void; signal: AbortSignal }> = []
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string): Promise<ReaderDirectoryTreePageDto> => ({
+      ...treePage(path ?? "C:\\", path === "C:\\"
+        ? [directory("books", "C:\\books")]
+        : path === "C:\\books"
+          ? [directory(generation === 1 ? "old" : "fresh", `C:\\books\\${generation === 1 ? "old" : "fresh"}`)]
+          : []),
+      generation,
+    }))
+    const watchDirectoryTreeBrowser = vi.fn((_sessionId: string, _revision: number, signal?: AbortSignal) => (
+      new Promise<ReaderDirectoryTreeChangesDto>((resolve) => waits.push({ resolve, signal: signal! }))
+    ))
+    const view = renderTree({ treeDirectoryBrowser, watchDirectoryTreeBrowser } as unknown as ReaderHttpClient, "C:\\books", vi.fn())
+    const ui = within(view.container)
+    await waitFor(() => expect(ui.getByTitle("C:\\books\\old")).toBeTruthy())
+    await waitFor(() => expect(waits).toHaveLength(1))
+
+    generation = 2
+    await act(async () => waits[0]!.resolve({
+      sessionId: "tree-1",
+      revision: 1,
+      generation: 2,
+      paths: ["C:\\books"],
+      reset: false,
+    }))
+    await waitFor(() => expect(ui.getByTitle("C:\\books\\fresh")).toBeTruthy())
+    expect(ui.queryByTitle("C:\\books\\old")).toBeNull()
+    expect(ui.getByTitle("C:\\books").parentElement?.getAttribute("aria-expanded")).toBe("true")
+    expect(treeDirectoryBrowser).toHaveBeenLastCalledWith("tree-1", "C:\\books", false, expect.any(AbortSignal))
+    await waitFor(() => expect(waits).toHaveLength(2))
+    view.unmount()
+    expect(waits[1]!.signal.aborted).toBe(true)
+  })
+
   it("[neoview.folder.tree-lifecycle] aborts in-flight node reads on unmount", async () => {
     let signal!: AbortSignal
     const treeDirectoryBrowser = vi.fn((_sessionId: string, _path?: string, _refresh?: boolean, nextSignal?: AbortSignal) => {
@@ -223,7 +259,7 @@ function renderTree(client: ReaderHttpClient, currentPath: string, onNavigate: (
 function treeElement(client: ReaderHttpClient, currentPath: string, onNavigate: (path: string) => void, pinnedPaths: readonly string[] = [], onPinnedPathsChange = vi.fn()) {
   return (
     <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 30 }}>
-      <FolderTreePanel client={client} sessionId="tree-1" currentPath={currentPath} disabled={false} pinnedPaths={pinnedPaths} onNavigate={onNavigate} onPinnedPathsChange={onPinnedPathsChange} />
+      <FolderTreePanel client={client} sessionId="tree-1" currentPath={currentPath} watching={Boolean(client.watchDirectoryTreeBrowser)} disabled={false} pinnedPaths={pinnedPaths} onNavigate={onNavigate} onPinnedPathsChange={onPinnedPathsChange} />
     </VirtuosoMockContext.Provider>
   )
 }

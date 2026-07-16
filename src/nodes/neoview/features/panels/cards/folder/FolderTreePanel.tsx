@@ -4,7 +4,7 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 
 import { Button } from "@/components/ui/button"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
-import type { ReaderDirectoryRootDto, ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectoryRootDto, ReaderDirectoryTreeChangesDto, ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 
 const TREE_ROW_HEIGHT = 30
 const MAXIMUM_TREE_PAGES = 512
@@ -15,6 +15,7 @@ interface FolderTreePanelProps {
   client: ReaderHttpClient
   sessionId: string
   currentPath: string
+  watching: boolean
   disabled: boolean
   pinnedPaths: readonly string[]
   onNavigate(path: string): void
@@ -35,7 +36,7 @@ interface TreeRow {
   rowKey: string
 }
 
-export default function FolderTreePanel({ client, sessionId, currentPath, disabled, pinnedPaths, onNavigate, onPinnedPathsChange }: FolderTreePanelProps) {
+export default function FolderTreePanel({ client, sessionId, currentPath, watching, disabled, pinnedPaths, onNavigate, onPinnedPathsChange }: FolderTreePanelProps) {
   const treeId = useId().replaceAll(":", "")
   const treeHostRef = useRef<HTMLDivElement>(null)
   const treeRef = useRef<VirtuosoHandle>(null)
@@ -48,10 +49,14 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
   const [focusedPath, setFocusedPath] = useState(currentPath)
   const [generationEpoch, setGenerationEpoch] = useState(0)
   const [volumeRoots, setVolumeRoots] = useState<readonly ReaderDirectoryRootDto[]>([])
+  const pagesRef = useRef(pages)
+  const expandedRef = useRef(expanded)
+  pagesRef.current = pages
+  expandedRef.current = expanded
   const rootPath = useMemo(() => directoryRoot(currentPath), [currentPath])
   const roots = useMemo(() => treeRoots(rootPath, pinnedPaths, volumeRoots), [rootPath, pinnedPaths, volumeRoots])
 
-  const loadPage = useCallback(async (path: string, refresh = false, scopeSignal?: AbortSignal) => {
+  const loadPage = useCallback(async (path: string, refresh = false, scopeSignal?: AbortSignal, preserveTree = false) => {
     if (!client.treeDirectoryBrowser || scopeSignal?.aborted) return
     const key = directoryPathKey(path)
     controllersRef.current.get(key)?.abort()
@@ -83,13 +88,13 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
       if (currentGeneration !== undefined && page.generation < currentGeneration) return
       const generationChanged = currentGeneration !== undefined && page.generation > currentGeneration
       generationRef.current = page.generation
-      if (generationChanged) {
+      if (generationChanged && !preserveTree) {
         setErrors(new Map())
         setExpanded(new Set())
         setGenerationEpoch((current) => current + 1)
       }
       setPages((current) => boundedMapWith(
-        generationChanged ? new Map() : current,
+        generationChanged && !preserveTree ? new Map() : current,
         directoryPathKey(page.path),
         page,
         MAXIMUM_TREE_PAGES,
@@ -125,6 +130,48 @@ export default function FolderTreePanel({ client, sessionId, currentPath, disabl
     }).catch(() => undefined)
     return () => controller.abort()
   }, [client.listDirectoryRoots])
+
+  useEffect(() => {
+    const watchTree = client.watchDirectoryTreeBrowser
+    if (!watching || !watchTree) return
+    const controller = new AbortController()
+    void (async () => {
+      let revision = 0
+      while (!controller.signal.aborted) {
+        const batch = await watchTree(sessionId, revision, controller.signal)
+        if (!batch) continue
+        revision = batch.revision
+        if (batch.watchError) throw new Error(batch.watchError)
+        await applyTreeChanges(batch, controller.signal)
+      }
+    })().catch((error) => {
+      if (controller.signal.aborted) return
+      setErrors((current) => boundedMapWith(current, directoryPathKey(currentPath), errorMessage(error), MAXIMUM_TREE_PAGES))
+    })
+    return () => controller.abort()
+
+    async function applyTreeChanges(batch: ReaderDirectoryTreeChangesDto, signal: AbortSignal) {
+      if (batch.reset) {
+        generationRef.current = batch.generation
+        setPages(new Map())
+        setExpanded(new Set(directoryAncestors(currentPath).map(directoryPathKey)))
+        setGenerationEpoch((current) => current + 1)
+        return
+      }
+      const loaded = pagesRef.current
+      const expandedPaths = expandedRef.current
+      for (const path of batch.paths) {
+        signal.throwIfAborted()
+        const key = directoryPathKey(path)
+        if (!loaded.has(key)) continue
+        if (!expandedPaths.has(key)) {
+          setPages((current) => mapWithout(current, key))
+          continue
+        }
+        await loadPage(path, false, signal, true)
+      }
+    }
+  }, [client.watchDirectoryTreeBrowser, currentPath, loadPage, sessionId, watching])
 
   useEffect(() => {
     if (!client.treeDirectoryBrowser || !currentPath) return

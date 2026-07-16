@@ -951,6 +951,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
                 client={client}
                 sessionId={sessionIdRef.current}
                 currentPath={catalog.path}
+                watching={catalog.watching}
                 disabled={disabled || loading}
                 layout={treeLayout}
                 size={treeSize}

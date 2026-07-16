@@ -1,3 +1,5 @@
+import { posix, win32 } from "node:path"
+
 import type {
   ReaderDirectoryEntry,
   ReaderDirectoryListing,
@@ -43,6 +45,8 @@ import {
   type ReaderFileTreeNodePage,
 } from "./ReaderFileTreeIndex.js"
 import { readerDirectoryListingPayloadBytes, stringPayloadBytes } from "./ReaderDirectoryListingMetrics.js"
+
+const MAXIMUM_TREE_WATCH_PATHS = 32
 
 export type ReaderDirectoryNavigation =
   | { action: "path"; path: string }
@@ -94,6 +98,15 @@ export interface ReaderFileTreeMemorySnapshot {
   randomSeedPayloadBytes: number
 }
 
+export interface ReaderFileTreeWatchBatch {
+  sessionId: string
+  revision: number
+  generation: number
+  paths: readonly string[]
+  reset: boolean
+  watchError?: string
+}
+
 export interface ReaderDirectorySizeBatch {
   sessionId: string
   generation: number
@@ -125,6 +138,10 @@ interface BrowserSession {
   watchRefreshAbort?: AbortController
   watchError?: string
   watchWaiters: Set<() => void>
+  treeWatchRevision: number
+  treeWatchResetRevision: number
+  treeWatchChanges: Map<string, { path: string; revision: number }>
+  treeWatchWaiters: Set<() => void>
   searches: Set<ReaderFileTreeSearchHandle>
   directorySizeOperations: Set<AbortController>
 }
@@ -174,6 +191,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
       watchRevision: 0,
       watchAppliedRevision: 0,
       watchWaiters: new Set(),
+      treeWatchRevision: 0,
+      treeWatchResetRevision: 0,
+      treeWatchChanges: new Map(),
+      treeWatchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
     }
@@ -234,6 +255,28 @@ export class ReaderFileTreeService implements AsyncDisposable {
       signal,
       focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex },
     )
+  }
+
+  async waitForTreeChanges(
+    sessionId: string,
+    afterRevision: number,
+    waitMs = 25_000,
+    signal?: AbortSignal,
+  ): Promise<ReaderFileTreeWatchBatch | null | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    if (!Number.isSafeInteger(afterRevision) || afterRevision < 0) throw new RangeError("afterRevision must be a non-negative integer")
+    if (!Number.isSafeInteger(waitMs) || waitMs < 10 || waitMs > 30_000) throw new RangeError("waitMs must be an integer from 10 to 30000")
+    if (afterRevision !== session.treeWatchRevision) {
+      return treeWatchBatch(session, afterRevision, this.#tree.snapshot().generation)
+    }
+    if (session.watch) {
+      const revision = session.treeWatchRevision
+      await waitForTreeWatcherChange(session, revision, waitMs, signal)
+      if (this.#sessions.get(sessionId) !== session) return undefined
+      if (session.treeWatchRevision <= afterRevision && session.watch && !session.watchError) return null
+    }
+    return treeWatchBatch(session, afterRevision, this.#tree.snapshot().generation)
   }
 
   async navigate(
@@ -603,6 +646,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
           if (this.#sessions.get(session.id) !== session) return
           session.watchError = error.message
           wakeWatcherWaiters(session)
+          wakeTreeWatcherWaiters(session)
         },
       )
       if (this.#sessions.get(session.id) !== session) {
@@ -620,6 +664,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
     await this.#closeWatcher(session)
     session.watchRevision = 0
     session.watchAppliedRevision = 0
+    session.treeWatchRevision = 0
+    session.treeWatchResetRevision = 0
+    session.treeWatchChanges.clear()
     await this.#startWatcher(session)
   }
 
@@ -629,13 +676,29 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const subscription = session.watch
     session.watch = undefined
     wakeWatcherWaiters(session)
+    wakeTreeWatcherWaiters(session)
     if (refresh) await refresh.catch(() => undefined)
     if (subscription) await subscription.close()
   }
 
   #recordWatcherChanges(session: BrowserSession, changes: readonly ReaderFileTreeChange[]): void {
     if (this.#sessions.get(session.id) !== session) return
-    for (const change of changes) this.#tree.invalidate(change.path)
+    const treeRevision = session.treeWatchRevision + 1
+    for (const change of changes) {
+      this.#tree.invalidate(change.path)
+      const parentPath = watcherParentPath(change.path)
+      session.treeWatchChanges.delete(directoryWatchPathKey(parentPath))
+      session.treeWatchChanges.set(directoryWatchPathKey(parentPath), { path: parentPath, revision: treeRevision })
+    }
+    session.treeWatchRevision = treeRevision
+    while (session.treeWatchChanges.size > MAXIMUM_TREE_WATCH_PATHS) {
+      const oldestKey = session.treeWatchChanges.keys().next().value as string | undefined
+      if (oldestKey === undefined) break
+      const oldest = session.treeWatchChanges.get(oldestKey)
+      session.treeWatchChanges.delete(oldestKey)
+      if (oldest) session.treeWatchResetRevision = Math.max(session.treeWatchResetRevision, oldest.revision)
+    }
+    wakeTreeWatcherWaiters(session)
     if (!changes.some((change) => affectsCurrentDirectory(session.listing.path, change.path))) return
     session.watchRevision += 1
     wakeWatcherWaiters(session)
@@ -703,6 +766,11 @@ function wakeWatcherWaiters(session: BrowserSession): void {
   session.watchWaiters.clear()
 }
 
+function wakeTreeWatcherWaiters(session: BrowserSession): void {
+  for (const wake of session.treeWatchWaiters) wake()
+  session.treeWatchWaiters.clear()
+}
+
 async function waitForWatcherChange(
   session: BrowserSession,
   revision: number,
@@ -728,6 +796,63 @@ async function waitForWatcherChange(
     signal?.addEventListener("abort", abort, { once: true })
     if (session.watchRevision > revision) wake()
   })
+}
+
+async function waitForTreeWatcherChange(
+  session: BrowserSession,
+  revision: number,
+  waitMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted()
+  if (session.treeWatchRevision > revision) return
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      session.treeWatchWaiters.delete(wake)
+      signal?.removeEventListener("abort", abort)
+      callback()
+    }
+    const wake = () => finish(resolve)
+    const abort = () => finish(() => reject(signal?.reason))
+    const timer = setTimeout(wake, waitMs)
+    session.treeWatchWaiters.add(wake)
+    signal?.addEventListener("abort", abort, { once: true })
+    if (session.treeWatchRevision > revision) wake()
+  })
+}
+
+function treeWatchBatch(
+  session: BrowserSession,
+  afterRevision: number,
+  generation: number,
+): ReaderFileTreeWatchBatch {
+  const reset = afterRevision > session.treeWatchRevision || afterRevision < session.treeWatchResetRevision
+  const paths = reset
+    ? []
+    : [...session.treeWatchChanges.values()]
+      .filter((change) => change.revision > afterRevision)
+      .map((change) => change.path)
+  return {
+    sessionId: session.id,
+    revision: session.treeWatchRevision,
+    generation,
+    paths,
+    reset,
+    ...(session.watchError ? { watchError: session.watchError } : {}),
+  }
+}
+
+function watcherParentPath(path: string): string {
+  return path.includes("\\") || /^[A-Za-z]:/u.test(path) ? win32.dirname(path) : posix.dirname(path)
+}
+
+function directoryWatchPathKey(path: string): string {
+  const normalized = path.replaceAll("\\", "/").replace(/\/+$/u, "") || "/"
+  return /^(?:[A-Za-z]:|\/\/)/u.test(normalized) ? normalized.toLowerCase() : normalized
 }
 
 function targetPath(session: BrowserSession, navigation: ReaderDirectoryNavigation): string | undefined {

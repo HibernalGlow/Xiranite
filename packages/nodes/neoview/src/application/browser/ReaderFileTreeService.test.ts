@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectoryListingProvider } from "../../ports/ReaderDirectoryListingProvider.js"
+import type { ReaderFileTreeChange } from "../../ports/ReaderFileTreeWatcher.js"
 import { ReaderFileTreeService } from "./ReaderFileTreeService.js"
 import { CoreReaderDirectorySortPreferences } from "./ReaderDirectorySortPreferences.js"
 
@@ -240,7 +241,7 @@ describe("ReaderFileTreeService", () => {
 
   it("[neoview.folder.file-tree-service] refreshes one watched directory generation and shares the recursive scanner", async () => {
     let names = ["a.cbz"]
-    let onChanges: ((changes: readonly [{ path: string; kind: "create" }]) => void) | undefined
+    let onChanges: ((changes: readonly ReaderFileTreeChange[]) => void) | undefined
     let watcherCloses = 0
     const provider: ReaderDirectoryListingProvider = {
       async read(path) {
@@ -357,6 +358,71 @@ describe("ReaderFileTreeService", () => {
     await Promise.resolve()
     await browser.close(opened.sessionId)
     await expect(closingWait).resolves.toBeUndefined()
+  })
+
+  it("[neoview.folder.tree-watch-stream] reports nested tree invalidations without refreshing the current-directory listing", async () => {
+    let nestedNames = ["old"]
+    let onChanges: ((changes: readonly ReaderFileTreeChange[]) => void) | undefined
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        if (path === "/library/nested") {
+          return { path, entries: nestedNames.map((name) => ({
+            name,
+            path: `${path}/${name}`,
+            kind: "directory" as const,
+            readerSupported: false,
+          })) }
+        }
+        return { path, entries: [{ name: "nested", path: `${path}/nested`, kind: "directory" as const, readerSupported: false }] }
+      },
+    }, undefined, undefined, {
+      watcher: {
+        async subscribe(_rootPath, next) {
+          onChanges = next as typeof onChanges
+          const close = async () => undefined
+          return { close, [Symbol.asyncDispose]: close }
+        },
+      },
+    })
+    const opened = await browser.open("/library", undefined, "folder-main", new Set(), undefined, true)
+    await expect(browser.tree(opened.sessionId, "/library/nested")).resolves.toMatchObject({
+      generation: 1,
+      entries: [{ path: "/library/nested/old" }],
+    })
+    const treeChanges = browser.waitForTreeChanges(opened.sessionId, 0, 1_000)
+    const listHeartbeat = browser.waitForChanges(opened.sessionId, opened.generation, 10)
+    await Promise.resolve()
+
+    nestedNames = ["fresh"]
+    onChanges?.([{ path: "/library/nested/fresh", kind: "create" }])
+    await expect(treeChanges).resolves.toMatchObject({
+      revision: 1,
+      generation: 2,
+      paths: ["/library/nested"],
+      reset: false,
+    })
+    await expect(listHeartbeat).resolves.toBeNull()
+    await expect(browser.list(opened.sessionId)).resolves.toMatchObject({ generation: 1, total: 1 })
+    await expect(browser.tree(opened.sessionId, "/library/nested")).resolves.toMatchObject({
+      generation: 2,
+      entries: [{ path: "/library/nested/fresh" }],
+    })
+
+    onChanges?.(Array.from({ length: 32 }, (_, index) => ({
+      path: `/library/branch-${index}/new`,
+      kind: "create" as const,
+    })))
+    await expect(browser.waitForTreeChanges(opened.sessionId, 1, 10)).resolves.toMatchObject({
+      revision: 2,
+      reset: false,
+      paths: expect.arrayContaining(["/library/branch-0", "/library/branch-31"]),
+    })
+    await expect(browser.waitForTreeChanges(opened.sessionId, 0, 10)).resolves.toMatchObject({
+      revision: 2,
+      reset: true,
+      paths: [],
+    })
+    await browser.close(opened.sessionId)
   })
 
   it("[neoview.folder.search-session-close] aborts and drains active recursive search handles with the browser session", async () => {

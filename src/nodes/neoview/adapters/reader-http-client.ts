@@ -210,6 +210,15 @@ export interface ReaderDirectoryTreePageDto {
   excludedPaths: string[]
 }
 
+export interface ReaderDirectoryTreeChangesDto {
+  sessionId: string
+  revision: number
+  generation: number
+  paths: string[]
+  reset: boolean
+  watchError?: string
+}
+
 export interface ReaderDirectoryRootDto {
   path: string
   label: string
@@ -405,6 +414,7 @@ export interface ReaderHttpClient {
     signal?: AbortSignal,
   ): Promise<ReaderDirectorySearchResultDto>
   treeDirectoryBrowser?(sessionId: string, path?: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderDirectoryTreePageDto>
+  watchDirectoryTreeBrowser?(sessionId: string, afterRevision: number, signal?: AbortSignal): Promise<ReaderDirectoryTreeChangesDto | undefined>
   listSearchHistory?(scope: ReaderSearchHistoryScopeDto, limit?: number, signal?: AbortSignal): Promise<readonly ReaderSearchHistoryDto[]>
   recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
   removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>
@@ -569,6 +579,10 @@ export function createReaderHttpClient(
         { signal },
       )
     },
+    watchDirectoryTreeBrowser: (sessionId, afterRevision, signal) => request<ReaderDirectoryTreeChangesDto | undefined>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/tree/changes?after=${afterRevision}`,
+      { signal },
+    ),
     listSearchHistory: (scope, limit = 20, signal) => request<{ entries: ReaderSearchHistoryDto[] }>(
       `/reader/browser/search-history?scope=${encodeURIComponent(scope)}&limit=${limit}`,
       { signal },

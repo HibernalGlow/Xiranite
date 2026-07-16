@@ -12,6 +12,7 @@ interface FolderTreeWorkspaceProps {
   client: ReaderHttpClient
   sessionId: string
   currentPath: string
+  watching: boolean
   disabled: boolean
   layout: ReaderFolderTreeLayout
   size: number
@@ -26,6 +27,7 @@ export default function FolderTreeWorkspace({
   client,
   sessionId,
   currentPath,
+  watching,
   disabled,
   layout,
   size,
@@ -61,6 +63,7 @@ export default function FolderTreeWorkspace({
           client={client}
           sessionId={sessionId}
           currentPath={currentPath}
+          watching={watching}
           disabled={disabled}
           pinnedPaths={pinnedPaths}
           onNavigate={onNavigate}

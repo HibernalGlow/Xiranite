@@ -344,6 +344,45 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   expect(platformRootRequests).toHaveLength(1)
   await expect(folderList).toBeVisible()
   await expect(folderCard.locator('[data-neoview-folder-tree-pane="true"]')).toBeVisible()
+  await expect(folderTree.getByTitle(fixture.directory, { exact: true })).toBeVisible()
+  const watchedTreePath = join(fixture.directory, "watch-tree-folder")
+  const treeCreatedResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith("/tree/changes") && response.status() === 200
+  ), { timeout: 20_000 })
+  const treeListCreatedResponse = page.waitForResponse((response) => {
+    const path = new URL(response.url()).pathname
+    return path.endsWith("/changes") && !path.endsWith("/tree/changes") && response.status() === 200
+  }, { timeout: 20_000 })
+  await mkdir(watchedTreePath)
+  expect((await treeCreatedResponse).status()).toBe(200)
+  expect((await treeListCreatedResponse).status()).toBe(200)
+  await expect(folderList.getByTitle(watchedTreePath, { exact: true })).toBeVisible()
+  await folderTree.focus()
+  const currentTreeRowAfterCreate = folderTree.locator('[data-current="true"]')
+  await expect(currentTreeRowAfterCreate).toHaveAttribute("data-focused", "true")
+  await folderTree.press("ArrowRight")
+  await expect(folderTree.locator('[data-focused="true"]')).toHaveAttribute("data-tree-path", join(fixture.directory, "nested-search"))
+  const watchedTreeRow = folderTree.locator('[data-focused="true"]')
+  let focusedTreePath = await watchedTreeRow.getAttribute("data-tree-path")
+  for (let step = 0; step < 32 && focusedTreePath !== watchedTreePath; step += 1) {
+    await folderTree.press("ArrowDown")
+    focusedTreePath = await watchedTreeRow.getAttribute("data-tree-path")
+  }
+  expect(focusedTreePath).toBe(watchedTreePath)
+  await expect(folderTree.getByTitle(watchedTreePath, { exact: true })).toBeVisible()
+  const treeRemovedResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith("/tree/changes") && response.status() === 200
+  ), { timeout: 20_000 })
+  const treeListRemovedResponse = page.waitForResponse((response) => {
+    const path = new URL(response.url()).pathname
+    return path.endsWith("/changes") && !path.endsWith("/tree/changes") && response.status() === 200
+  }, { timeout: 20_000 })
+  await rm(watchedTreePath, { recursive: true })
+  expect((await treeRemovedResponse).status()).toBe(200)
+  expect((await treeListRemovedResponse).status()).toBe(200)
+  await expect(folderTree.getByTitle(watchedTreePath, { exact: true })).toHaveCount(0)
+  await expect(folderList.getByTitle(watchedTreePath, { exact: true })).toHaveCount(0)
+  await expect(folderTree.locator('[data-current="true"]')).toHaveAttribute("data-focused", "true")
   const treeResizeHandle = folderCard.getByRole("separator", { name: "调整文件树大小" })
   const treeResizeBox = await treeResizeHandle.boundingBox()
   expect(treeResizeBox).not.toBeNull()

@@ -207,7 +207,7 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
-  it("[neoview.folder.watch-http] refreshes an explicitly watched session and releases its native subscription", async () => {
+  it("[neoview.folder.watch-http] [neoview.folder.tree-watch-http] refreshes an explicitly watched session and releases its native subscription", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-watch-"))
     directories.push(directory)
     await writeFile(join(directory, "a.cbz"), "a")
@@ -249,6 +249,25 @@ describe("ReaderDirectoryBrowserRoute", () => {
       )))!
       expect(heartbeat.status).toBe(204)
       expect(await heartbeat.text()).toBe("")
+
+      const nestedPath = join(directory, "nested")
+      const nestedFilePath = join(nestedPath, "inside.cbz")
+      await mkdir(nestedPath)
+      await writeFile(nestedFilePath, "nested")
+      const treeChangeResponse = route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}/tree/changes?after=1&wait=1000`,
+      ))
+      await Promise.resolve()
+      changes?.([{ path: nestedFilePath, kind: "create" }])
+      await expect((await treeChangeResponse)!.json()).resolves.toMatchObject({
+        revision: 2,
+        paths: [nestedPath],
+        reset: false,
+      })
+      const nestedListHeartbeat = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}/changes?after=2&wait=10`,
+      )))!
+      expect(nestedListHeartbeat.status).toBe(204)
 
       const closed = (await route.handle(new Request(
         `http://localhost/reader/browser/s/${initial.sessionId}`,
