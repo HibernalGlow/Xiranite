@@ -203,6 +203,10 @@ describe("FolderMainCard", () => {
     expect(host.getAttribute("data-focused-index")).toBe("2")
     fireEvent.keyDown(host, { key: "Home", shiftKey: true })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
+    fireEvent.keyDown(host, { key: "PageDown" })
+    expect(host.getAttribute("data-focused-index")).toBe("3")
+    fireEvent.keyDown(host, { key: "PageUp" })
+    expect(host.getAttribute("data-focused-index")).toBe("0")
 
     onOpen.mockClear()
     fireEvent.keyDown(host, { key: "Enter" })

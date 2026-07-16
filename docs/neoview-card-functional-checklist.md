@@ -670,7 +670,7 @@
   - 目标：ArrowUp/Down/Left/Right、Home/End、PageUp/PageDown 根据 list/grid 几何移动焦点并滚入视口；补齐原版未完成的上下箭头遗留。
   - 源码：`utils/keyboardHandler.ts`、`components/FolderList.svelte`
   - 测试：`neoview.folder.keyboard-navigation`
-  - 备注：list/details 使用单行步进，响应式 grid 根据当前容器列数处理四方向；Home/End 可直接定位稀疏全局索引并按需请求目标页。PageUp/PageDown、真实 100K Chromium 滚动和 TUI 对等命令仍待迁移。
+  - 备注：list/details 使用稳定行高计算 PageUp/PageDown 步长，响应式 grid 根据当前容器列数处理四方向与整页移动；Home/End 可直接定位稀疏全局索引并按需请求目标页。真实 100K Chromium 滚动和 TUI 对等命令仍待迁移。
 - [ ] `folder.keyboard.commands` 打开、返回、刷新、搜索、删除快捷键
   - 目标：Enter 打开、Backspace 后退、F5 刷新、Delete 按删除策略、Ctrl/Cmd+A 全选、Ctrl/Cmd+F 搜索、Escape 取消多选。
   - 源码：`utils/keyboardHandler.ts`

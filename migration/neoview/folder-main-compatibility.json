@@ -585,7 +585,7 @@
       "surfaces": ["GUI", "TUI"],
       "status": "partial",
       "testIds": ["neoview.folder.keyboard-navigation"],
-      "notes": "list/details 使用单行步进，响应式 grid 根据当前容器列数处理四方向；Home/End 可直接定位稀疏全局索引并按需请求目标页。PageUp/PageDown、真实 100K Chromium 滚动和 TUI 对等命令仍待迁移。"
+      "notes": "list/details 使用稳定行高计算 PageUp/PageDown 步长，响应式 grid 根据当前容器列数处理四方向与整页移动；Home/End 可直接定位稀疏全局索引并按需请求目标页。真实 100K Chromium 滚动和 TUI 对等命令仍待迁移。"
     },
     {
       "id": "folder.keyboard.commands",

@@ -499,12 +499,15 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       currentCatalog.total - 1,
     )
     const gridColumns = viewUsesGrid(viewMode) ? visibleGridColumnCount(listHostRef.current) : 1
+    const pageStep = visiblePageStep(viewMode, gridColumns)
     let targetIndex: number | undefined
 
     if (event.key === "ArrowUp") targetIndex = currentIndex - gridColumns
     else if (event.key === "ArrowDown") targetIndex = currentIndex + gridColumns
     else if (event.key === "ArrowLeft" && viewUsesGrid(viewMode)) targetIndex = currentIndex - 1
     else if (event.key === "ArrowRight" && viewUsesGrid(viewMode)) targetIndex = currentIndex + 1
+    else if (event.key === "PageUp") targetIndex = currentIndex - pageStep
+    else if (event.key === "PageDown") targetIndex = currentIndex + pageStep
     else if (event.key === "Home") targetIndex = 0
     else if (event.key === "End") targetIndex = currentCatalog.total - 1
     else if (event.key === "Enter") {
@@ -1028,6 +1031,13 @@ function viewUsesMosaic(mode: FolderViewMode): boolean {
 function visibleGridColumnCount(host: HTMLElement | null): number {
   const width = host?.clientWidth ?? 112
   return Math.max(1, Math.floor((width + 4) / 116))
+}
+
+function visiblePageStep(mode: FolderViewMode, gridColumns: number): number {
+  if (viewUsesGrid(mode)) return gridColumns * 2
+  if (mode === "compact") return Math.floor(LIST_HEIGHT / 34)
+  if (mode === "details") return Math.floor(LIST_HEIGHT / 36)
+  return Math.floor(LIST_HEIGHT / 76)
 }
 
 function viewUsesThumbnails(mode: FolderViewMode): boolean {
