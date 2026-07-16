@@ -81,8 +81,14 @@ describe("ReaderFileTreeService", () => {
     const sizes = browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/nested"])
     await vi.waitFor(() => expect(scanning).toBe(true))
 
-    expect(browser.releaseMemoryPressure()).toEqual({ clearedTreeEntries: 1, cancelledDirectorySizes: 1, clearedRandomSeeds: 0 })
-    expect(browser.memorySnapshot()).toMatchObject({ sessions: 1, listingEntries: 1, randomSeeds: 0, randomSeedPayloadBytes: 0 })
+    expect(browser.releaseMemoryPressure()).toEqual({
+      clearedTreeEntries: 1,
+      cancelledDirectorySizes: 1,
+      clearedRandomSeeds: 0,
+      releasedListingEntries: 0,
+      releasedListingPayloadBytes: 0,
+    })
+    expect(browser.memorySnapshot()).toMatchObject({ sessions: 1, listingEntries: 1, releasedListings: 0, randomSeeds: 0, randomSeedPayloadBytes: 0 })
     await expect(sizes).rejects.toMatchObject({ name: "AbortError" })
     await expect(browser.list(opened.sessionId)).resolves.toMatchObject({ generation: 1, total: 1, entries: [{ name: "nested" }] })
     expect(await browser.tree(opened.sessionId)).toMatchObject({ cacheHit: false })
@@ -91,11 +97,111 @@ describe("ReaderFileTreeService", () => {
       sessions: 0,
       listingEntries: 0,
       listingPayloadBytes: 0,
+      releasedListings: 0,
       navigationPaths: 0,
       navigationPayloadBytes: 0,
       randomSeeds: 0,
       randomSeedPayloadBytes: 0,
     })
+  })
+
+  it("[neoview.memory-pressure.file-tree-listing-budget] releases oversized idle listings and transparently reloads them", async () => {
+    const read = vi.fn(async (path: string) => ({
+      path,
+      parentPath: "C:/",
+      entries: Array.from({ length: 3 }, (_, index) => ({
+        name: `book-${index}.cbz`, path: `${path}/book-${index}.cbz`, kind: "file" as const, readerSupported: true,
+      })),
+    }))
+    const browser = new ReaderFileTreeService({ read }, undefined, undefined, { maxListingPayloadBytesUnderPressure: 0 })
+    const opened = await browser.open("C:/books")
+
+    expect(browser.releaseMemoryPressure()).toMatchObject({
+      releasedListingEntries: 3,
+      releasedListingPayloadBytes: expect.any(Number),
+    })
+    expect(browser.memorySnapshot()).toMatchObject({ listingEntries: 0, releasedListings: 1 })
+    await expect(browser.list(opened.sessionId, 0, 2)).resolves.toMatchObject({
+      generation: 2,
+      total: 3,
+      entries: [{ name: "book-0.cbz" }, { name: "book-1.cbz" }],
+      nextCursor: 2,
+    })
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(browser.memorySnapshot()).toMatchObject({ listingEntries: 3, releasedListings: 0 })
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.memory-pressure.file-tree-shared-reload] shares recovery while caller cancellation remains isolated", async () => {
+    let finishReload: (() => void) | undefined
+    let reads = 0
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        reads += 1
+        if (reads > 1) await new Promise<void>((resolve) => { finishReload = resolve })
+        return { path, entries: [{ name: "book.cbz", path: `${path}/book.cbz`, kind: "file", readerSupported: true }] }
+      },
+    }, undefined, undefined, { maxListingPayloadBytesUnderPressure: 0 })
+    const opened = await browser.open("C:/books")
+    browser.releaseMemoryPressure()
+    const controller = new AbortController()
+    const cancelled = browser.list(opened.sessionId, 0, 1, new Set(), controller.signal)
+    const surviving = browser.list(opened.sessionId)
+    await vi.waitFor(() => expect(finishReload).toBeTypeOf("function"))
+    controller.abort(new DOMException("caller left", "AbortError"))
+    await expect(cancelled).rejects.toMatchObject({ name: "AbortError" })
+    finishReload?.()
+    await expect(surviving).resolves.toMatchObject({ generation: 2, total: 1 })
+    expect(reads).toBe(2)
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.memory-pressure.file-tree-navigation] keeps navigation paths usable without reloading the released directory first", async () => {
+    const paths: string[] = []
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        paths.push(path)
+        return {
+          path,
+          parentPath: path === "C:/" ? undefined : "C:/",
+          entries: [{ name: "item", path: `${path}/item`, kind: "directory", readerSupported: true }],
+        }
+      },
+    }, undefined, undefined, { maxListingPayloadBytesUnderPressure: 0 })
+    const opened = await browser.open("C:/books")
+    browser.releaseMemoryPressure()
+
+    await expect(browser.navigate(opened.sessionId, { action: "up" })).resolves.toMatchObject({ path: "C:/", generation: 2 })
+    expect(paths).toEqual(["C:/books", "C:/"])
+    await expect(browser.navigate(opened.sessionId, { action: "back" })).resolves.toMatchObject({ path: "C:/books", generation: 3 })
+    expect(paths).toEqual(["C:/books", "C:/", "C:/books"])
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.memory-pressure.file-tree-watch-reload] lets watcher refresh supersede a released listing", async () => {
+    let onChanges: ((changes: readonly ReaderFileTreeChange[]) => void) | undefined
+    let name = "before.cbz"
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: [{ name, path: `${path}/${name}`, kind: "file", readerSupported: true }] }
+      },
+    }, undefined, undefined, {
+      maxListingPayloadBytesUnderPressure: 0,
+      watcher: {
+        async subscribe(_path, next) {
+          onChanges = next
+          return { close: async () => undefined }
+        },
+      },
+    })
+    const opened = await browser.open("C:/books", undefined, "folder-main", new Set(), undefined, true)
+    browser.releaseMemoryPressure()
+    name = "after.cbz"
+    onChanges?.([{ path: "C:/books/after.cbz", kind: "created" }])
+
+    await expect(browser.list(opened.sessionId)).resolves.toMatchObject({ generation: 2, entries: [{ name: "after.cbz" }] })
+    expect(browser.memorySnapshot()).toMatchObject({ listingEntries: 1, releasedListings: 0 })
+    await browser[Symbol.asyncDispose]()
   })
 
   it("[neoview.browser.navigation] pages stable snapshots and maintains navigation history", async () => {

@@ -9,6 +9,16 @@ describe("ReaderDiagnosticsService", () => {
     const service = new ReaderDiagnosticsService({
       activeSessions: () => 2,
       runtimeResources: () => ({ archiveProviders: 1, archiveIndexEntries: 8, archiveIndexPayloadBytes: 512, archiveActiveExtractions: 2 }),
+      browserMemory: () => ({
+        sessions: 1,
+        listingEntries: 0,
+        listingPayloadBytes: 24,
+        releasedListings: 1,
+        navigationPaths: 2,
+        navigationPayloadBytes: 32,
+        randomSeeds: 0,
+        randomSeedPayloadBytes: 0,
+      }),
       assets: () => ({
         activeTransformFlights: 1,
         presentation: { entries: 3, bytes: 30, activeLeases: 2, maxBytes: 100, maxEntryBytes: 50, hits: 4, misses: 2, evictions: 1 },
@@ -37,7 +47,11 @@ describe("ReaderDiagnosticsService", () => {
       sampledAtMs: 123,
       uptimeSeconds: 4.5,
       process: expect.objectContaining({ rssBytes: 100, heapUsedBytes: 50, availableMemoryBytes: 1_000, cpuUserMicros: 11 }),
-      reader: { activeSessions: 2, runtimeResources: { archiveProviders: 1, archiveIndexEntries: 8, archiveIndexPayloadBytes: 512, archiveActiveExtractions: 2 } },
+      reader: {
+        activeSessions: 2,
+        runtimeResources: { archiveProviders: 1, archiveIndexEntries: 8, archiveIndexPayloadBytes: 512, archiveActiveExtractions: 2 },
+        browserMemory: expect.objectContaining({ listingEntries: 0, releasedListings: 1 }),
+      },
       assets: expect.objectContaining({ activeTransformFlights: 1, presentation: expect.objectContaining({ bytes: 30 }) }),
       cache: {
         memory: { presentationBytes: 30, thumbnailBytes: 40, totalBytes: 70 },

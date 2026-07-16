@@ -159,7 +159,13 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     }
   }
 
-  releaseMemoryPressure(): { clearedTreeEntries: number; cancelledDirectorySizes: number; clearedRandomSeeds: number } {
+  releaseMemoryPressure(): {
+    clearedTreeEntries: number
+    cancelledDirectorySizes: number
+    clearedRandomSeeds: number
+    releasedListingEntries: number
+    releasedListingPayloadBytes: number
+  } {
     return this.#browser.releaseMemoryPressure()
   }
 

@@ -152,6 +152,7 @@ export const ReaderDiagnosticsWireSchema = loose({
       sessions: count,
       listingEntries: count,
       listingPayloadBytes: count,
+      releasedListings: count.optional(),
       navigationPaths: count,
       navigationPayloadBytes: count,
       randomSeeds: count,
