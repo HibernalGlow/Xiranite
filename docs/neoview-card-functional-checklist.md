@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json` 与 `migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/time-information-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -1013,7 +1013,7 @@
 | `infoOverlay` | 信息悬浮窗 | deferred | pending | `src/lib/cards/info/InfoOverlayCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
 | `imageInfo` | 图像信息 | core | partial | `src/lib/cards/info/ImageInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `image-information` |
 | `storage` | 存储信息 | core | partial | `src/lib/cards/info/StorageCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `storage-information` |
-| `time` | 时间信息 | core | partial | `src/lib/cards/info/TimeCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `time-information` |
+| `time` | 时间信息 | core | migrated | `src/lib/cards/info/TimeCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `time-information` |
 
 #### `preloadStatus` 预加载状态
 
@@ -1052,10 +1052,129 @@
 
 #### `time` 时间信息
 
-- [ ] 显示文件创建、修改和访问相关时间
-- [ ] 显示归档条目与书籍记录时间语义
-- [ ] 按本地时区格式化并处理未知时间
+- 细项清单：`migration/neoview/time-information-compatibility.json`
+- [x] 显示文件创建、修改和访问相关时间
+- [x] 显示归档条目与书籍记录时间语义
+- [x] 按本地时区格式化并处理未知时间
 - UI 基线：`src/lib/cards/info/TimeCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（5 组，37 项）
+
+- `time-ui.content` 时间字段与格式
+  - 源码：`src/lib/cards/info/TimeCard.svelte`
+  - 映射：`time.fields`、`time.format`、`time.ui-parity`
+  - [ ] 创建时间行
+  - [ ] 修改时间行
+  - [ ] zh-CN 本地时区格式
+  - [ ] 缺失时间 em dash
+  - [ ] 无法解析的旧字符串原样显示
+  - [ ] 两列 justify-between 布局
+  - [ ] 值使用较小字号
+- `time-ui.empty` 空数据状态
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`time.states`、`time.lifecycle`
+  - [ ] imageInfo 为空时不渲染字段
+  - [ ] 居中显示暂无时间信息
+  - [ ] 初始状态为空
+  - [ ] 无书/无页/关闭阅读器时清空
+- `time-ui.shell` 通用 Card 外壳与布局状态
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`、`src/lib/stores/cardConfig.svelte.ts`
+  - 映射：`time.shell`、`time.persistence`、`time.accessibility`、`time.lifecycle`、`time.performance`
+  - [ ] Time 图标与时间信息标题
+  - [ ] 默认 info Panel
+  - [ ] 默认显示并展开
+  - [ ] 允许隐藏
+  - [ ] 标题/箭头折叠
+  - [ ] 上移/下移
+  - [ ] 独立窗口
+  - [ ] 高度拖动最小 50px
+  - [ ] 双击或按钮恢复自动高度
+  - [ ] 折叠时内容不挂载
+  - [ ] 动态 import 加载状态
+  - [ ] 动态 import 失败状态
+  - [ ] visible/expanded/order/height 持久化
+- `time-ui.data-flow` 共享元数据生产与生命周期
+  - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/book/core.svelte.ts`、`src/lib/services/metadataService.ts`
+  - 映射：`time.data-contract`、`time.lifecycle`、`time.performance`
+  - [ ] Card 挂载订阅 store
+  - [ ] Card 销毁取消订阅
+  - [ ] 翻页后刷新当前页时间
+  - [ ] 快速翻页拒绝迟到结果
+  - [ ] 相同页面请求去重
+  - [ ] 关闭书籍清空状态
+  - [ ] 元数据失败稳定降级
+- `time-ui.target-extension` XR 明确扩展语义
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/types/metadata.ts`
+  - 映射：`time.access-source`、`time.deviations`、`time.data-contract`
+  - [ ] 访问时间为 XR 扩展而非旧控件
+  - [ ] 文件系统页面使用页面 stat 时间
+  - [ ] 归档页面只使用条目自身修改时间
+  - [ ] 未知归档创建/访问时间不得回退外层压缩包
+  - [ ] 书籍源 fallback 显式标记
+  - [ ] 非法时间不得传播 NaN 或 Invalid Date
+
+##### 专用源码级验收项
+
+- [x] `time.fields` 显示当前页创建与修改时间
+  - 目标：TimeInformation Card renders created and modified rows from the current page metadata without substituting unrelated values.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`
+  - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.cards`、`neoview.time-information.e2e`
+  - 备注：Filesystem and archive page timestamps are verified through the shared loader, HTTP and GUI contracts.
+- [x] `time.access-source` 访问时间与时间来源语义
+  - 目标：The shared DTO distinguishes filesystem, archive-entry and book-source timestamps; unavailable fields stay unknown.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/types/metadata.ts`
+  - 测试：`neoview.time-information.archive-source`、`neoview.time-information.archive-invalid`、`neoview.time-information.e2e`
+  - 备注：Intentional XR extension required by the frozen functional scope.
+- [x] `time.format` 本地时区与未知值格式
+  - 目标：Finite timestamps use zh-CN local time; missing or invalid values render an em dash.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`
+  - 测试：`neoview.time-information.format`
+  - 备注：The target rejects invalid numeric timestamps instead of exposing Invalid Date.
+- [x] `time.states` 加载、空、错误与重试
+  - 目标：The Card has stable loading, empty, error and retry states and never shows stale data as current.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/services/metadataService.ts`
+  - 测试：`neoview.time-information.states`、`neoview.time-information.retry`、`neoview.metadata.cancel`
+  - 备注：Loading/error/retry are XR accessibility improvements over the legacy silent failure.
+- [x] `time.shell` 共享 Card 外壳行为
+  - 目标：The Time Card remains independently lazy, dockable, hideable, collapsible, movable, resizable and window-capable through the shared shell.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：`neoview.card.collapse`、`neoview.card.resize-bounds`、`neoview.settings.card-docking`、`neoview.time-information.lazy-chunk`
+  - 备注：Shared shell tests apply and the Time-specific production chunk is independently gated.
+- [x] `time.data-contract` 共享可取消时间 DTO
+  - 目标：GUI, CLI and TUI receive the same bounded session metadata DTO with generation, cancellation and source semantics.
+  - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/book/core.svelte.ts`、`src/lib/services/metadataService.ts`
+  - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.client`、`neoview.metadata.cards`、`neoview.metadata.cancel`
+  - 备注：Page timestamps are captured during book load, avoiding a second content decode path.
+- [x] `time.lifecycle` 会话切换、取消与释放
+  - 目标：Hidden/unmounted Cards do no work; the final subscriber aborts; generation changes cannot publish old metadata.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/book/core.svelte.ts`
+  - 测试：`neoview.metadata.cancel`、`neoview.card.zero-mount`、`neoview.time-information.generation-stale`
+  - 备注：Final-subscriber cancellation and generation replacement are both covered.
+- [x] `time.persistence` 仅持久化共享 Card 布局
+  - 目标：Time content has no settings; panel/order/visible/expanded/height persist only through canonical [nodes.neoview] layout.
+  - 源码：`src/lib/stores/cardConfig.svelte.ts`
+  - 测试：`neoview.settings.card-layout`、`neoview.card.persist-react`
+  - 备注：No time data is written to xiranite.db or a second NeoView database.
+- [x] `time.accessibility` 语义字段与键盘等价操作
+  - 目标：The Card uses a semantic description list; shell and retry controls have keyboard operation and accessible names.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
+  - 测试：`neoview.time-information.states`、`neoview.time-information.retry`、`neoview.card.collapse`
+  - 备注：Legacy had no Time-specific shortcut.
+- [x] `time.ui-parity` 桌面、窄侧栏与窗口几何
+  - 目标：Two-column density, labels and long local-date values remain readable at desktop and 420x360 Card widths.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：`neoview.time-information.e2e`
+  - 备注：Desktop and 420x360 Playwright runs assert zero horizontal overflow and capture the target Card.
+- [x] `time.performance` 常量 DOM、共享请求与独立 chunk
+  - 目标：O(1) DOM, one metadata request per session generation, zero work while hidden and a deferred Time Card chunk under 8 KiB.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/services/metadataService.ts`
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.time-information.e2e`、`neoview.time-information.lazy-chunk`
+  - 备注：The production Time Card chunk is 1679 bytes and browser evidence confirms one request per generation.
+- [x] `time.deviations` 记录访问时间、来源与错误状态扩展
+  - 目标：Document that accessedAt, timeSource, loading/error/retry are intentional additions; archive outer-file times are never misrepresented as entry times.
+  - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/types/metadata.ts`
+  - 测试：`neoview.time-information.archive-source`、`neoview.time-information.retry`、`neoview.time-information.e2e`
+  - 备注：No legacy command or field is removed.
 
 ### Panel: `insights`（7）
 
