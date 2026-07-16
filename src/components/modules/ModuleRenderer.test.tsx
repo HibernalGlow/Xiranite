@@ -16,6 +16,7 @@ const testState = vi.hoisted(() => ({
   hostRequirements: undefined as NodeHostRequirements | undefined,
   childThrow: false,
   controlledInput: false,
+  loadFailuresRemaining: 0,
 }))
 
 const supportedCapabilities: readonly NodeCapabilityId[] = [
@@ -82,8 +83,12 @@ function TestNodeComponent(props: NodeComponentProps) {
 
 vi.mock("./packageModules.generated", () => ({
   packageModuleLoaders: {
-    "test-node": () => Promise.resolve({
-      default: {
+    "test-node": async () => {
+      if (testState.loadFailuresRemaining > 0) {
+        testState.loadFailuresRemaining -= 1
+        throw new Error("stale module graph")
+      }
+      return { default: {
         def: {
           id: "test-node",
           name: "Test",
@@ -97,8 +102,8 @@ vi.mock("./packageModules.generated", () => ({
         get host() {
           return testState.hostRequirements
         },
-      } as AppNodeEntry,
-    }),
+      } as AppNodeEntry }
+    },
     "headless-node": () => Promise.resolve({
       default: {
         def: {
@@ -128,6 +133,7 @@ afterEach(() => {
   testState.hostRequirements = undefined
   testState.childThrow = false
   testState.controlledInput = false
+  testState.loadFailuresRemaining = 0
 })
 
 describe("ModuleRenderer package node rendering", () => {
@@ -138,6 +144,21 @@ describe("ModuleRenderer package node rendering", () => {
     }
     render(<ModuleRenderer moduleId="test-node" compId="c1" />)
     expect(await screen.findByTestId("test-node-content")).toBeTruthy()
+  })
+
+  test("retries a package entry after a stale module graph fails to load", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {})
+    testState.loadFailuresRemaining = 1
+    render(<ModuleRenderer moduleId="test-node" compId="c1" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retry loading" }))
+
+    expect(await screen.findByTestId("test-node-content")).toBeTruthy()
+    expect(spy).toHaveBeenCalledWith(
+      "[module-renderer] failed to load entry for test-node",
+      expect.objectContaining({ message: "stale module graph" }),
+    )
+    spy.mockRestore()
   })
 
   test("rerenders controlled node inputs when stable host state changes", async () => {

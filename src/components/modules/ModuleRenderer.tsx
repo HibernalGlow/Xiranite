@@ -9,8 +9,9 @@ import type {
   NodeContractCapability,
   NodeHostRequirements,
 } from "@xiranite/contract"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
@@ -81,6 +82,7 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
   // The host hook subscribes this boundary to workspace changes, so this
   // boundary must recreate the child element even when its props are stable.
   const [entry, setEntry] = useState<PackageModuleEntry | null | undefined>(undefined)
+  const [loadRevision, setLoadRevision] = useState(0)
   const host = useNodeHostApi(compId, moduleId, entry && isRenderableNodeEntry(entry) ? entry.schemas : undefined)
 
   useEffect(() => {
@@ -101,15 +103,26 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
     return () => {
       cancelled = true
     }
-  }, [moduleId])
+  }, [loadRevision, moduleId])
 
   if (entry === undefined) {
     return <div className="p-4"><Skeleton className="h-32 w-full" /></div>
   }
   if (entry === null) {
     return (
-      <div className="flex items-center justify-center h-full text-xs font-mono text-muted-foreground">
-        Module &quot;{moduleId}&quot; failed to load
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-xs text-muted-foreground">
+        <span className="font-mono">Module &quot;{moduleId}&quot; failed to load</span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setEntry(undefined)
+            setLoadRevision((revision) => revision + 1)
+          }}
+        >
+          <RefreshCw />
+          Retry loading
+        </Button>
       </div>
     )
   }
