@@ -79,6 +79,15 @@ export {
 export type { ReaderProgressRecord, ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 export type { ReaderMediaProgressRecord, ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
 export { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "./application/reader/ReaderMediaProgressService.js"
+export {
+  ReaderClipboardMaterializationService,
+  type ReaderClipboardMaterialization,
+  type ReaderClipboardMaterializationServiceOptions,
+} from "./application/reader/ReaderClipboardMaterializationService.js"
+export type {
+  ReaderPageMaterializer,
+  ReaderPageMaterializationLease,
+} from "./ports/ReaderPageMaterializer.js"
 export type {
   ReaderThumbnailDatabaseBackupResult,
   ReaderThumbnailDatabaseCompatibility,

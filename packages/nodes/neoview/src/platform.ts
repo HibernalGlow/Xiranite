@@ -5,6 +5,7 @@ import type { ZipArchiveProviderOptions } from "./platform/archives/zip/ZipArchi
 import type { ReaderAssetRoute, ReaderAssetRouteOptions } from "./platform/asset-route/ReaderAssetRoute.js"
 import type { ReaderHttpController, ReaderHttpControllerOptions } from "./platform/asset-route/ReaderHttpController.js"
 import type { ReaderService } from "./application/reader/contracts.js"
+import type { ReaderClipboardMaterializationServiceOptions } from "./application/reader/ReaderClipboardMaterializationService.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
@@ -14,6 +15,7 @@ import type { ReaderSearchHistoryStore } from "./ports/ReaderSearchHistoryStore.
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
 import type { ResourceScheduler } from "./ports/ResourceScheduler.js"
+import type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 import type { ReaderPresentationDiskCache } from "./ports/ReaderPresentationDiskCache.js"
 import type { ReaderFileTreeWatcher } from "./ports/ReaderFileTreeWatcher.js"
 import type { ReaderFileTreeScanner } from "./ports/ReaderFileTreeScanner.js"
@@ -56,6 +58,7 @@ export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPip
 export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "./ports/VideoThumbnailProvider.js"
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
 export type { SqliteLegacyThumbnailDatabaseMaintenanceOptions } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
+export type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 export type {
   ReaderFileTreeChange,
   ReaderFileTreeChangeKind,
@@ -85,6 +88,7 @@ export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
 export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
   resourceScheduler?: ResourceScheduler
 }
+export type ReaderClipboardMaterializationCompositionOptions = ReaderClipboardMaterializationServiceOptions & PlatformReaderPageMaterializerOptions
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
   legacyThumbnailDatabasePath?: string | false
   loadLegacyThumbnailStore?: (databasePath?: string) => Promise<ReaderThumbnailStore>
@@ -173,6 +177,19 @@ export async function createReaderAssetRoute(
       return new SharpImageTransformer(options.resourceScheduler)
     },
   })
+}
+
+export async function createReaderClipboardMaterializationService(
+  readerService: ReaderService,
+  options: ReaderClipboardMaterializationCompositionOptions = {},
+) {
+  const { ReaderClipboardMaterializationService } = await import("./application/reader/ReaderClipboardMaterializationService.js")
+  const { PlatformReaderPageMaterializer } = await import("./platform/content/PlatformReaderPageMaterializer.js")
+  return new ReaderClipboardMaterializationService(
+    readerService,
+    new PlatformReaderPageMaterializer(options),
+    options,
+  )
 }
 
 export async function createReaderHttpController(

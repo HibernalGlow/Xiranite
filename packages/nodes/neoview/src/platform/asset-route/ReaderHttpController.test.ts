@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -532,7 +532,7 @@ describe("ReaderHttpController", () => {
     }
   })
 
-  it("[neoview.control.nested-archive] opens and streams an inner archive without exposing materialized paths", async () => {
+  it("[neoview.control.nested-archive] [neoview.clipboard.materialization-http] opens and streams an inner archive without exposing materialized paths", async () => {
     const nestedPassword = "nested-session-secret"
     const inner = await createZipFixture({
       name: "inner.cbz",
@@ -565,6 +565,20 @@ describe("ReaderHttpController", () => {
       expect(session.visiblePages[0]!.assetUrl).not.toContain(nestedPassword)
       const asset = (await controller.handle(new Request(session.visiblePages[0]!.assetUrl)))!
       expect(Buffer.from(await asset.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+      const materializedResponse = (await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/clipboard-materializations`,
+        { pageId: session.visiblePages[0]!.id },
+      )))!
+      expect(materializedResponse.status).toBe(201)
+      const materialized = await materializedResponse.json() as { token: string; path: string; byteLength: number }
+      expect(materialized.path).toMatch(/1\.png$/)
+      expect(materialized.byteLength).toBe(ONE_PIXEL_PNG.byteLength)
+      expect(Buffer.from(await readFile(materialized.path))).toEqual(ONE_PIXEL_PNG)
+      expect((await controller.handle(authorizedRequest(
+        `/reader/s/${session.sessionId}/clipboard-materializations/${materialized.token}`,
+        { method: "DELETE" },
+      )))?.status).toBe(204)
+      await expect(readFile(materialized.path)).rejects.toMatchObject({ code: "ENOENT" })
       await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" }))
       expect(await readdir(tempDirectory)).toEqual([])
     } finally {

@@ -15,6 +15,7 @@ import type { ReaderSearchHistoryStore } from "../../ports/ReaderSearchHistorySt
 import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJournalStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
+import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
@@ -38,6 +39,7 @@ import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpCont
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
+import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import {
   parseNeoviewFolderViewPatch,
@@ -67,6 +69,7 @@ const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
+const SESSION_CLIPBOARD_MATERIALIZATION_PATH = /^\/reader\/s\/([^/]+)\/clipboard-materializations(?:\/([^/]+))?$/
 const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
 const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
@@ -138,6 +141,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #disposeLibraryService: boolean
   readonly #cacheService: ReaderCacheService
   readonly #mediaProgress?: ReaderMediaProgressService
+  readonly #clipboardMaterializations: ReaderClipboardMaterializationService
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -199,6 +203,13 @@ export class ReaderHttpController implements AsyncDisposable {
       imageMetadataProbe,
       options.sessionOptions,
       options.progressStore || undefined,
+    )
+    this.#clipboardMaterializations = new ReaderClipboardMaterializationService(
+      this.#service,
+      new PlatformReaderPageMaterializer({
+        tempDirectory: options.archiveTempDirectory,
+        resourceScheduler: options.resourceScheduler,
+      }),
     )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),
@@ -310,6 +321,13 @@ export class ReaderHttpController implements AsyncDisposable {
     if (mediaProgressMatch && (request.method === "GET" || request.method === "PATCH")) {
       return this.#handleMediaProgress(mediaProgressMatch[1]!, request)
     }
+    const clipboardMaterializationMatch = SESSION_CLIPBOARD_MATERIALIZATION_PATH.exec(url.pathname)
+    if (clipboardMaterializationMatch && request.method === "POST" && !clipboardMaterializationMatch[2]) {
+      return this.#materializeClipboardPage(clipboardMaterializationMatch[1]!, request)
+    }
+    if (clipboardMaterializationMatch && request.method === "DELETE" && clipboardMaterializationMatch[2]) {
+      return this.#releaseClipboardMaterialization(clipboardMaterializationMatch[1]!, clipboardMaterializationMatch[2]!)
+    }
     const navigateMatch = SESSION_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
@@ -336,6 +354,11 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     try {
       await this.#mediaProgress?.close()
+    } catch (error) {
+      errors.push(error)
+    }
+    try {
+      await this.#clipboardMaterializations[Symbol.asyncDispose]()
     } catch (error) {
       errors.push(error)
     }
@@ -641,8 +664,35 @@ export class ReaderHttpController implements AsyncDisposable {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     await this.#mediaProgress?.flush(session.book.id)
+    await this.#clipboardMaterializations.releaseSession(session.id)
     await this.#service.closeSession(session.id)
     await this.#hibernateIfIdle()
+    return new Response(null, { status: 204 })
+  }
+
+  async #materializeClipboardPage(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    if (!body || typeof body.pageId !== "string" || !body.pageId) {
+      return jsonResponse({ error: "pageId must be a non-empty string" }, 400)
+    }
+    try {
+      const materialization = await this.#clipboardMaterializations.materialize(session.id, body.pageId, request.signal)
+      return jsonResponse(materialization, 201)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+  }
+
+  async #releaseClipboardMaterialization(encodedSessionId: string, encodedToken: string): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const token = safeDecode(encodedToken)
+    if (!token || !await this.#clipboardMaterializations.release(token, session.id)) {
+      return jsonResponse({ error: "Reader clipboard materialization not found" }, 404)
+    }
     return new Response(null, { status: 204 })
   }
 
