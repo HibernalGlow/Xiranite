@@ -2,7 +2,7 @@ import { spawn, type ChildProcessByStdio } from "node:child_process"
 import { createHash } from "node:crypto"
 import { createReadStream } from "node:fs"
 import { realpath, stat } from "node:fs/promises"
-import { Readable } from "node:stream"
+import { Readable, type Writable } from "node:stream"
 
 import type {
   ArchiveCapabilities,
@@ -21,13 +21,15 @@ import { SolidArchiveMaterializer } from "./SolidArchiveMaterializer.js"
 import {
   resolveSevenZipExecutable,
   runSevenZipTextCommand,
+  assertSevenZipPassword,
+  writeSevenZipPassword,
   type SevenZipExecutable,
 } from "./SevenZipExecutable.js"
 import { parseSevenZipSlt } from "./sevenzip-slt.js"
 import { archiveIndexPayloadBytes } from "../ArchiveIndexMetrics.js"
 
 const MAX_STDERR_BYTES = 256 * 1024
-type SevenZipChild = ChildProcessByStdio<null, Readable, Readable>
+type SevenZipChild = ChildProcessByStdio<Writable, Readable, Readable>
 
 export interface SevenZipArchiveProviderOptions {
   executable?: SevenZipExecutable
@@ -37,6 +39,7 @@ export interface SevenZipArchiveProviderOptions {
   tempDirectory?: string
   maxMaterializedBytes?: number
   solidArchiveCache?: SolidArchiveCache
+  rawPassword?: Uint8Array
   /** @deprecated Use tempDirectory. */
   solidTempDirectory?: string
   /** @deprecated Use maxMaterializedBytes. */
@@ -69,6 +72,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   readonly #tempDirectory?: string
   readonly #maxMaterializedBytes?: number
   readonly #solidArchiveCache?: SolidArchiveCache
+  readonly #rawPassword?: Uint8Array
   readonly #lifecycle = new AbortController()
   readonly #active = new Map<number, ActiveExtraction>()
   readonly #activeFileReads = new Set<Promise<void>>()
@@ -94,6 +98,10 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     this.#tempDirectory = options.tempDirectory ?? options.solidTempDirectory
     this.#maxMaterializedBytes = options.maxMaterializedBytes ?? options.maxSolidMaterializedBytes
     this.#solidArchiveCache = options.solidArchiveCache
+    if (options.rawPassword) {
+      assertSevenZipPassword(options.rawPassword)
+      this.#rawPassword = options.rawPassword.slice()
+    }
   }
 
   async list(signal?: AbortSignal): Promise<readonly ArchiveEntry[]> {
@@ -114,28 +122,25 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     const entry = this.#entriesById.get(entryId)
     if (!entry) throw new Error(`Archive entry not found: ${entryId}`)
     if (entry.kind !== "file") throw new Error(`Archive entry is not a file: ${entry.path}`)
-    if (this.capabilities.solid) {
-      if (this.#entries.some((candidate) => candidate.encrypted)) {
-        options.rawPassword?.fill(0)
-        throw new Error("Encrypted solid RAR/7z extraction is not available until secure password transport is implemented.")
-      }
-      return this.#openSolidEntry(entry, options.signal)
-    }
-    if (entry.encrypted) {
-      options.rawPassword?.fill(0)
-      throw new Error("Encrypted RAR/7z streaming is not available until secure password transport is implemented.")
-    }
-    const ownsLease = !options.resourceLease
-    const lease = options.resourceLease ?? await this.#resourceScheduler.acquire({
-      resource: "cpu",
-      kind: "neoview.archive-extract",
-      priority: "interactive",
-    }, options.signal)
+    const requiresPassword = entry.encrypted || (this.capabilities.solid && this.#entries.some((candidate) => candidate.encrypted))
+    const password = resolvePassword(options, this.#rawPassword)
     try {
-      return this.#streamEntry(entry, options.signal, lease, ownsLease)
-    } catch (error) {
-      if (ownsLease) lease.release()
-      throw error
+      if (requiresPassword && !password.bytes) throw new Error("Encrypted RAR/7z entry requires a password.")
+      if (this.capabilities.solid) return await this.#openSolidEntry(entry, options.signal, password.bytes)
+      const ownsLease = !options.resourceLease
+      const lease = options.resourceLease ?? await this.#resourceScheduler.acquire({
+        resource: "cpu",
+        kind: "neoview.archive-extract",
+        priority: "interactive",
+      }, options.signal)
+      try {
+        return this.#streamEntry(entry, options.signal, lease, ownsLease, requiresPassword ? password.bytes : undefined)
+      } catch (error) {
+        if (ownsLease) lease.release()
+        throw error
+      }
+    } finally {
+      password.release()
     }
   }
 
@@ -151,29 +156,32 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     const entry = this.#entriesById.get(entryId)
     if (!entry) throw new Error(`Archive entry not found: ${entryId}`)
     if (entry.kind !== "file") throw new Error(`Archive entry is not a file: ${entry.path}`)
-    if (entry.encrypted || (this.capabilities.solid && this.#entries.some((candidate) => candidate.encrypted))) {
-      options.rawPassword?.fill(0)
-      throw new Error("Encrypted RAR/7z materialization is not available until secure password transport is implemented.")
-    }
-    if (this.capabilities.solid) {
-      const combinedSignal = combineSignals(signal, this.#lifecycle.signal)
-      const materializer = await this.#solidMaterializerInstance()
-      const path = await this.#pathForSolidEntry(materializer, entry.id, combinedSignal)
-      const released = Promise.resolve()
-      const release = () => released
-      return {
-        path,
-        release,
-        [Symbol.asyncDispose]: release,
+    const requiresPassword = entry.encrypted || (this.capabilities.solid && this.#entries.some((candidate) => candidate.encrypted))
+    const password = resolvePassword(options, this.#rawPassword)
+    try {
+      if (requiresPassword && !password.bytes) throw new Error("Encrypted RAR/7z entry requires a password.")
+      if (this.capabilities.solid) {
+        const combinedSignal = combineSignals(signal, this.#lifecycle.signal)
+        const materializer = await this.#solidMaterializerInstance(password.bytes)
+        const path = await this.#pathForSolidEntry(materializer, entry.id, combinedSignal)
+        const released = Promise.resolve()
+        const release = () => released
+        return {
+          path,
+          release,
+          [Symbol.asyncDispose]: release,
+        }
       }
+      return await materializeArchiveEntry(this, entry, {
+        signal: combineSignals(signal, this.#lifecycle.signal),
+        tempDirectory: this.#tempDirectory,
+        maxBytes: this.#maxMaterializedBytes,
+        resourceScheduler: this.#resourceScheduler,
+        rawPassword: requiresPassword ? password.bytes : undefined,
+      })
+    } finally {
+      password.release()
     }
-    return materializeArchiveEntry(this, entry, {
-      signal: combineSignals(signal, this.#lifecycle.signal),
-      tempDirectory: this.#tempDirectory,
-      maxBytes: this.#maxMaterializedBytes,
-      resourceScheduler: this.#resourceScheduler,
-      rawPassword: options.rawPassword,
-    })
   }
 
   snapshot(): ArchiveProviderSnapshot {
@@ -200,6 +208,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     await this.#initializing?.catch(() => undefined)
     this.#entries = []
     this.#entriesById.clear()
+    this.#rawPassword?.fill(0)
     this.#initialized = false
   }
 
@@ -218,12 +227,23 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
         kind: "neoview.archive-index",
         priority: "interactive",
       }, this.#lifecycle.signal)
-      const result = await runSevenZipTextCommand(executable.path, [
-        "l", "-slt", "-sccUTF-8", "-spd", "--", this.sourcePath,
-      ], {
-        signal: this.#lifecycle.signal,
-        maxOutputBytes: this.#maxListingBytes,
-      }).finally(() => lease.release())
+      let result: { stdout: string; stderr: string }
+      try {
+        result = await runSevenZipTextCommand(executable.path, [
+          "l", "-slt", "-sccUTF-8", "-spd", "--", this.sourcePath,
+        ], {
+          signal: this.#lifecycle.signal,
+          maxOutputBytes: this.#maxListingBytes,
+          password: this.#rawPassword,
+        })
+      } catch (error) {
+        if (!this.#rawPassword && !this.#lifecycle.signal.aborted) {
+          throw new Error("7-Zip archive listing failed; encrypted headers may require a password.", { cause: error })
+        }
+        throw error
+      } finally {
+        lease.release()
+      }
       const index = parseSevenZipSlt(result.stdout)
       this.#assertOpen()
       this.#executable = executable
@@ -232,7 +252,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       this.capabilities.solid = index.solid
       this.capabilities.randomAccess = !index.solid
       this.capabilities.materialization = index.solid ? "required" : "optional"
-      if (index.solid && this.#solidArchiveCache) {
+      if (index.solid && this.#solidArchiveCache && !this.#entries.some((entry) => entry.encrypted)) {
         this.#solidFingerprint = await solidArchiveFingerprint(
           this.sourcePath,
           executable.version,
@@ -248,9 +268,9 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     }
   }
 
-  async #openSolidEntry(entry: ArchiveEntry, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+  async #openSolidEntry(entry: ArchiveEntry, signal?: AbortSignal, password?: Uint8Array): Promise<ReadableStream<Uint8Array>> {
     const combinedSignal = combineSignals(signal, this.#lifecycle.signal)
-    const materializer = await this.#solidMaterializerInstance()
+    const materializer = await this.#solidMaterializerInstance(password)
     const path = await this.#pathForSolidEntry(materializer, entry.id, combinedSignal)
     combinedSignal.throwIfAborted()
     const file = createReadStream(path, { highWaterMark: 64 * 1024, signal: combinedSignal })
@@ -260,7 +280,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     return Readable.toWeb(file) as ReadableStream<Uint8Array>
   }
 
-  #solidMaterializerInstance(): Promise<CacheableSolidArchiveMaterializer> {
+  #solidMaterializerInstance(password?: Uint8Array): Promise<CacheableSolidArchiveMaterializer> {
     if (this.#solidMaterializer) return Promise.resolve(this.#solidMaterializer)
     if (this.#solidMaterializerLoading) return this.#solidMaterializerLoading
     this.#solidMaterializerLoading = (async () => {
@@ -271,8 +291,10 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
         resourceScheduler: this.#resourceScheduler,
         tempDirectory: this.#tempDirectory,
         maxMaterializedBytes: this.#maxMaterializedBytes,
+        rawPassword: password,
       })
-      if (this.#solidArchiveCache && this.#solidFingerprint) {
+      const encrypted = this.#entries.some((entry) => entry.encrypted)
+      if (this.#solidArchiveCache && this.#solidFingerprint && !encrypted) {
         const lease = await this.#solidArchiveCache.acquire({ ...this.#solidFingerprint, create })
         if (this.#closed) {
           await lease.release()
@@ -306,6 +328,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   async #invalidateSolidMaterializer(): Promise<void> {
     const lease = this.#solidCacheLease
     if (lease) await lease.invalidate()
+    await this.#releaseSolidMaterializer()
   }
 
   async #releaseSolidMaterializer(): Promise<void> {
@@ -322,6 +345,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     signal: AbortSignal | undefined,
     lease: ResourceLease,
     ownsLease: boolean,
+    password?: Uint8Array,
   ): ReadableStream<Uint8Array> {
     const executable = this.#executable!
     const child = spawn(executable.path, [
@@ -329,8 +353,9 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     ], {
       shell: false,
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     })
+    const passwordWrite = writeSevenZipPassword(child.stdin, password)
     const stdout = Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>
     const reader = stdout.getReader()
     const extractionId = this.#nextExtractionId++
@@ -343,6 +368,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     const completion = Promise.all([
       processExit(child),
       readStderr(child, (value) => { stderr = value }),
+      passwordWrite,
     ]).then(([exit]) => {
       if (signal?.aborted) throw signal.reason
       if (exit.error) throw exit.error
@@ -464,4 +490,33 @@ function waitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T
 
 function combineSignals(first: AbortSignal | undefined, second: AbortSignal): AbortSignal {
   return first ? AbortSignal.any([first, second]) : second
+}
+
+function resolvePassword(
+  options: Pick<OpenArchiveEntryOptions, "password" | "rawPassword">,
+  fallback?: Uint8Array,
+): { bytes?: Uint8Array; release(): void } {
+  if (options.password !== undefined && options.rawPassword !== undefined) {
+    options.rawPassword.fill(0)
+    throw new Error("7-Zip extraction accepts exactly one of password or rawPassword.")
+  }
+  const encoded = options.password !== undefined ? new TextEncoder().encode(options.password) : undefined
+  const bytes = options.rawPassword ?? encoded ?? fallback
+  try {
+    if (bytes) assertSevenZipPassword(bytes)
+  } catch (error) {
+    options.rawPassword?.fill(0)
+    encoded?.fill(0)
+    throw error
+  }
+  let released = false
+  return {
+    bytes,
+    release: () => {
+      if (released) return
+      released = true
+      options.rawPassword?.fill(0)
+      encoded?.fill(0)
+    },
+  }
 }

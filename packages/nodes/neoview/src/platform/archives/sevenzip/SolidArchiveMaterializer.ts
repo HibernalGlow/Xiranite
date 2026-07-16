@@ -2,15 +2,16 @@ import { spawn, type ChildProcessByStdio } from "node:child_process"
 import { mkdir, open, mkdtemp, rm, type FileHandle } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { Readable } from "node:stream"
+import { Readable, type Writable } from "node:stream"
 
 import type { ArchiveEntry } from "../../../ports/ArchiveProvider.js"
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { appendCrc32 } from "./incremental-crc32.js"
 import type { SevenZipExecutable } from "./SevenZipExecutable.js"
+import { assertSevenZipPassword, writeSevenZipPassword } from "./SevenZipExecutable.js"
 
 const MAX_STDERR_BYTES = 256 * 1024
-type SevenZipChild = ChildProcessByStdio<null, Readable, Readable>
+type SevenZipChild = ChildProcessByStdio<Writable, Readable, Readable>
 
 interface DeferredPath {
   promise: Promise<string>
@@ -26,6 +27,7 @@ export interface SolidArchiveMaterializerOptions {
   resourceScheduler: ResourceScheduler
   tempDirectory?: string
   maxMaterializedBytes?: number
+  rawPassword?: Uint8Array
 }
 
 export class SolidArchiveMaterializer implements AsyncDisposable {
@@ -34,6 +36,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   readonly #entries: readonly ArchiveEntry[]
   readonly #resourceScheduler: ResourceScheduler
   readonly #tempDirectory?: string
+  readonly #rawPassword?: Uint8Array
   readonly #lifecycle = new AbortController()
   readonly #paths = new Map<string, DeferredPath>()
   readonly #awaitingProcessVerification: Array<{ entryId: string; path: string }> = []
@@ -49,6 +52,10 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     this.#entries = options.entries.filter((entry) => entry.kind === "file")
     this.#resourceScheduler = options.resourceScheduler
     this.#tempDirectory = options.tempDirectory
+    if (options.rawPassword) {
+      assertSevenZipPassword(options.rawPassword)
+      this.#rawPassword = options.rawPassword.slice()
+    }
     const maxMaterializedBytes = options.maxMaterializedBytes ?? 64 * 1024 * 1024 * 1024
     if (!Number.isSafeInteger(maxMaterializedBytes) || maxMaterializedBytes < 0) {
       throw new RangeError(`Invalid solid archive materialization budget: ${maxMaterializedBytes}`)
@@ -79,6 +86,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     const reason = new Error(`Solid archive materializer is closed: ${this.#sourcePath}`)
     this.#lifecycle.abort(reason)
     this.#child?.kill()
+    this.#rawPassword?.fill(0)
     await this.#run?.catch(() => undefined)
     this.#rejectPending(reason)
     if (this.#root) await rm(this.#root, { recursive: true, force: true })
@@ -114,20 +122,28 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
       ], {
         shell: false,
         windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe"],
       })
+      const passwordWrite = writeSevenZipPassword(child.stdin, this.#rawPassword)
+      this.#rawPassword?.fill(0)
       this.#child = child
       const onAbort = () => child.kill()
       signal.addEventListener("abort", onAbort, { once: true })
       try {
-        const [exit, stderr] = await Promise.all([
+        const [exit, stderr, demultiplexError] = await Promise.all([
           processExit(child),
           readStderr(child),
-          this.#demultiplex(child.stdout, signal),
-        ]).then(([exit, stderr]) => [exit, stderr] as const)
+          this.#demultiplex(child.stdout, signal).then(
+            () => undefined,
+            (error: unknown) => error,
+          ),
+          passwordWrite,
+        ]).then(([exit, stderr, demultiplexError]) => [exit, stderr, demultiplexError] as const)
         signal.throwIfAborted()
         if (exit.error) throw exit.error
-        if (exit.code !== 0) throw new Error(stderr.trim() || `7-Zip solid extraction exited with code ${exit.code}.`)
+        if (exit.code !== 0 && stderr.trim()) throw new Error(stderr.trim())
+        if (demultiplexError) throw demultiplexError
+        if (exit.code !== 0) throw new Error(`7-Zip solid extraction exited with code ${exit.code}.`)
         for (const pending of this.#awaitingProcessVerification) this.#resolve(pending.entryId, pending.path)
         this.#awaitingProcessVerification.length = 0
         this.#complete = true

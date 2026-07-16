@@ -20,6 +20,8 @@ let solidPath = ""
 let largePath = ""
 let solidLargePath = ""
 let encryptedPath = ""
+let encryptedSolidPath = ""
+let encryptedHeaderPath = ""
 
 beforeAll(async () => {
   if (!executable) return
@@ -35,11 +37,15 @@ beforeAll(async () => {
   largePath = join(directory, "large.7z")
   solidLargePath = join(directory, "solid-large.7z")
   encryptedPath = join(directory, "encrypted.7z")
+  encryptedSolidPath = join(directory, "encrypted-solid.7z")
+  encryptedHeaderPath = join(directory, "encrypted-header.7z")
   await createArchive(nonSolidPath, false, ["pages/001.jpg", "pages/002.jpg", "empty"])
   await createArchive(solidPath, true, ["pages/001.jpg", "pages/002.jpg", "pages/003.jpg"])
   await createArchive(largePath, false, ["large.jpg"])
   await createArchive(solidLargePath, true, ["large.jpg", "pages/001.jpg"])
   await createArchive(encryptedPath, false, ["pages/001.jpg"], "fixture-secret")
+  await createArchive(encryptedSolidPath, true, ["pages/001.jpg", "pages/002.jpg"], "fixture-secret")
+  await createArchive(encryptedHeaderPath, false, ["pages/001.jpg"], "fixture-secret", true)
 })
 
 afterAll(async () => {
@@ -226,22 +232,71 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     expect(await readdir(tempDirectory)).toEqual([])
   })
 
-  it("[neoview.sevenzip.encrypted-boundary] rejects encrypted CLI extraction before spawning and clears raw passwords", async () => {
+  it("[neoview.sevenzip.encrypted-stream] streams and materializes encrypted entries through stdin without retaining request passwords", async () => {
     const scheduler = new RecordingScheduler()
     const provider = createProvider(encryptedPath, scheduler)
     try {
       const first = (await provider.list()).find((entry) => entry.kind === "file")!
       expect(first.encrypted).toBe(true)
+      await expect(provider.openEntry(first.id)).rejects.toThrow("requires a password")
+      const wrongPassword = new TextEncoder().encode("wrong-password")
+      await expect(provider.openEntry(first.id, { rawPassword: wrongPassword }).then(collect)).rejects.toThrow(/password|data error/i)
+      expect(wrongPassword.every((byte) => byte === 0)).toBe(true)
       const streamPassword = new TextEncoder().encode("fixture-secret")
-      await expect(provider.openEntry(first.id, { rawPassword: streamPassword })).rejects.toThrow("secure password transport")
+      expect(await collect(await provider.openEntry(first.id, { rawPassword: streamPassword }))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
       expect(streamPassword.every((byte) => byte === 0)).toBe(true)
       const materializePassword = new TextEncoder().encode("fixture-secret")
-      await expect(provider.materializeEntry(first.id, { rawPassword: materializePassword })).rejects.toThrow("secure password transport")
+      const lease = await provider.materializeEntry(first.id, { rawPassword: materializePassword })
+      expect(new Uint8Array(await readFile(lease.path))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      await lease.release()
       expect(materializePassword.every((byte) => byte === 0)).toBe(true)
-      expect(scheduler.requests.some((request) => request.kind === "neoview.archive-extract")).toBe(false)
-      expect(scheduler.requests.some((request) => request.kind === "neoview.archive-materialize")).toBe(false)
+      const invalidPassword = new TextEncoder().encode("unsafe\npassword")
+      await expect(provider.openEntry(first.id, { rawPassword: invalidPassword })).rejects.toThrow("NUL, CR, or LF")
+      expect(invalidPassword.every((byte) => byte === 0)).toBe(true)
+      expect(scheduler.requests.some((request) => request.kind === "neoview.archive-extract")).toBe(true)
+      expect(scheduler.requests.some((request) => request.kind === "neoview.archive-materialize")).toBe(true)
     } finally {
       await provider.close()
+    }
+  })
+
+  it("[neoview.sevenzip.encrypted-solid] retries encrypted solid extraction and never publishes decrypted data to the shared cache", async () => {
+    const scheduler = new RecordingScheduler()
+    const cache = new SolidArchiveCache({ maxBytes: 1024 })
+    const tempDirectory = join(directory, "encrypted-solid-materialized")
+    await mkdir(tempDirectory)
+    const provider = createProvider(encryptedSolidPath, scheduler, { solidArchiveCache: cache, solidTempDirectory: tempDirectory })
+    try {
+      const first = (await provider.list()).find((entry) => entry.path === "pages/001.jpg")!
+      const wrong = new TextEncoder().encode("wrong-password")
+      await expect(provider.openEntry(first.id, { rawPassword: wrong }).then(collect)).rejects.toThrow(/password|data error/i)
+      expect(wrong.every((byte) => byte === 0)).toBe(true)
+      const correct = new TextEncoder().encode("fixture-secret")
+      expect(await collect(await provider.openEntry(first.id, { rawPassword: correct }))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      expect(correct.every((byte) => byte === 0)).toBe(true)
+      expect(cache.entryCount).toBe(0)
+    } finally {
+      await provider.close()
+      await cache.close()
+    }
+    expect(await readdir(tempDirectory)).toEqual([])
+  })
+
+  it("[neoview.sevenzip.encrypted-header] uses a session-scoped constructor password for indexing and extraction", async () => {
+    const unavailable = createProvider(encryptedHeaderPath)
+    await expect(unavailable.list()).rejects.toThrow(/password|encrypted/i)
+    await unavailable.close()
+
+    const password = new TextEncoder().encode("fixture-secret")
+    const provider = createProvider(encryptedHeaderPath, undefined, { rawPassword: password })
+    try {
+      const first = (await provider.list()).find((entry) => entry.kind === "file")!
+      expect(first.encrypted).toBe(true)
+      expect(await collect(await provider.openEntry(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      expect(password).toEqual(new TextEncoder().encode("fixture-secret"))
+    } finally {
+      await provider.close()
+      password.fill(0)
     }
   })
 
@@ -341,7 +396,7 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
 function createProvider(
   path: string,
   resourceScheduler?: ResourceScheduler,
-  options: Pick<SevenZipArchiveProviderOptions, "solidTempDirectory" | "maxSolidMaterializedBytes"> = {},
+  options: Pick<SevenZipArchiveProviderOptions, "solidTempDirectory" | "maxSolidMaterializedBytes" | "solidArchiveCache" | "rawPassword"> = {},
 ): SevenZipArchiveProvider {
   return new SevenZipArchiveProvider(path, { executable: executable!, resourceScheduler, ...options })
 }
@@ -365,9 +420,9 @@ class RecordingScheduler implements ResourceScheduler {
   }
 }
 
-async function createArchive(path: string, solid: boolean, entries: string[], password?: string): Promise<void> {
+async function createArchive(path: string, solid: boolean, entries: string[], password?: string, encryptHeaders = false): Promise<void> {
   await execFileAsync(executable!.path, [
-    "a", "-t7z", "-mx=1", solid ? "-ms=on" : "-ms=off", ...(password ? [`-p${password}`, "-mhe=off"] : []), "-bd", "-bb0", "--", path, ...entries,
+    "a", "-t7z", "-mx=1", solid ? "-ms=on" : "-ms=off", ...(password ? [`-p${password}`, encryptHeaders ? "-mhe=on" : "-mhe=off"] : []), "-bd", "-bb0", "--", path, ...entries,
   ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
 }
 

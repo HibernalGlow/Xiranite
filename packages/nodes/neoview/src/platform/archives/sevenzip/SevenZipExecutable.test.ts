@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
-import { parseSevenZipVersion, resolveSevenZipExecutable } from "./SevenZipExecutable.js"
+import { parseSevenZipVersion, resolveSevenZipExecutable, runSevenZipTextCommand } from "./SevenZipExecutable.js"
 
 describe("SevenZipExecutable resolver", () => {
   it("[neoview.sevenzip.capability] uses explicit configuration and parses the technical version banner", async () => {
@@ -31,5 +34,26 @@ describe("SevenZipExecutable resolver", () => {
     await expect(resolveSevenZipExecutable({ executablePath: "broken", probe: async () => "not seven zip" }))
       .rejects.toThrow("No usable")
     expect(() => parseSevenZipVersion("7-Zip unknown")).toThrow("version banner")
+  })
+
+  it("[neoview.sevenzip.password-stdin] sends bounded password bytes only through stdin", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-sevenzip-stdin-"))
+    const script = join(directory, "capture-password.mjs")
+    await writeFile(script, `
+const chunks = []
+for await (const chunk of process.stdin) chunks.push(chunk)
+process.stdout.write(JSON.stringify({ argv: process.argv.slice(2), stdin: Buffer.concat(chunks).toString("utf8") }))
+`)
+    try {
+      const password = new TextEncoder().encode("fixture-secret")
+      const result = await runSevenZipTextCommand(process.execPath, [script, "probe"], { password })
+      expect(JSON.parse(result.stdout)).toEqual({ argv: ["probe"], stdin: "fixture-secret\n" })
+      expect(password).toEqual(new TextEncoder().encode("fixture-secret"))
+      await expect(runSevenZipTextCommand(process.execPath, [script], {
+        password: new TextEncoder().encode("unsafe\npassword"),
+      })).rejects.toThrow("NUL, CR, or LF")
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 })

@@ -48,7 +48,13 @@ export async function loadArchiveBook(
     const archiveStats = await stat(archivePath)
     if (!archiveStats.isFile()) throw new Error(`Reader source is not an archive file: ${source.path}`)
     signal?.throwIfAborted()
-    let provider = await createArchiveProvider(archivePath, extension, options, maxMaterializedBytes)
+    const rootPassword = credentials.copyRawPassword([])
+    let provider: ArchiveProvider
+    try {
+      provider = await createArchiveProvider(archivePath, extension, options, maxMaterializedBytes, rootPassword)
+    } finally {
+      credentials.clearRawPassword(rootPassword)
+    }
     providers.push(provider)
     resources.push(provider.close.bind(provider))
     let materializedBytes = 0
@@ -80,12 +86,18 @@ export async function loadArchiveBook(
       resources.push(() => lease.release())
       chainVersions.push(entry.crc32?.toString(16) ?? entry.id)
       providerEntryPaths.push(entryPath)
-      provider = await createArchiveProvider(
-        lease.path,
-        nestedExtension,
-        options,
-        maxMaterializedBytes - materializedBytes,
-      )
+      const nestedPassword = credentials.copyRawPassword(providerEntryPaths)
+      try {
+        provider = await createArchiveProvider(
+          lease.path,
+          nestedExtension,
+          options,
+          maxMaterializedBytes - materializedBytes,
+          nestedPassword,
+        )
+      } finally {
+        credentials.clearRawPassword(nestedPassword)
+      }
       providers.push(provider)
       resources.push(provider.close.bind(provider))
     }
@@ -165,6 +177,7 @@ async function createArchiveProvider(
   extension: string,
   options: PlatformReaderBookLoaderOptions,
   maxMaterializedBytes: number,
+  rawPassword?: Uint8Array,
 ): Promise<ArchiveProvider> {
   if (extension === "zip" || extension === "cbz") {
     const { ZipArchiveProvider } = await import("./zip/ZipArchiveProvider.js")
@@ -176,6 +189,7 @@ async function createArchiveProvider(
     tempDirectory: options.archiveTempDirectory,
     maxMaterializedBytes,
     solidArchiveCache: options.solidArchiveCache,
+    rawPassword,
   })
 }
 

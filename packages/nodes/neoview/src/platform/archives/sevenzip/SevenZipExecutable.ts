@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import type { Writable } from "node:stream"
 
 const MAX_PROBE_OUTPUT_BYTES = 128 * 1024
 const DEFAULT_CANDIDATES = ["7zz", "7z", "7za"] as const
@@ -21,6 +22,7 @@ export interface SevenZipTextCommandOptions {
   signal?: AbortSignal
   maxOutputBytes?: number
   maxErrorBytes?: number
+  password?: Uint8Array
 }
 
 export async function resolveSevenZipExecutable(
@@ -99,7 +101,8 @@ export async function runSevenZipTextCommand(
   const maxErrorBytes = options.maxErrorBytes ?? 256 * 1024
   const signal = options.signal
   signal?.throwIfAborted()
-  const child = spawn(path, [...args], { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] })
+  if (options.password) assertSevenZipPassword(options.password)
+  const child = spawn(path, [...args], { shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] })
   const onAbort = () => child.kill()
   signal?.addEventListener("abort", onAbort, { once: true })
   try {
@@ -110,6 +113,7 @@ export async function runSevenZipTextCommand(
         child.once("error", (error) => resolve({ code: null, error }))
         child.once("close", (code) => resolve({ code }))
       }),
+      writeSevenZipPassword(child.stdin, options.password),
     ])
     signal?.throwIfAborted()
     if (exit.error) throw exit.error
@@ -118,6 +122,33 @@ export async function runSevenZipTextCommand(
   } finally {
     signal?.removeEventListener("abort", onAbort)
   }
+}
+
+export function assertSevenZipPassword(password: Uint8Array): void {
+  if (password.byteLength === 0) throw new Error("7-Zip password cannot be empty.")
+  if (password.byteLength > 4096) throw new Error("7-Zip password exceeds 4096 UTF-8 bytes.")
+  if (password.some((byte) => byte === 0 || byte === 10 || byte === 13)) {
+    throw new Error("7-Zip stdin password cannot contain NUL, CR, or LF bytes.")
+  }
+}
+
+export function writeSevenZipPassword(stdin: Writable, password?: Uint8Array): Promise<void> {
+  const input = password ? Buffer.allocUnsafe(password.byteLength + 1) : Buffer.alloc(0)
+  if (password) {
+    input.set(password)
+    input[input.byteLength - 1] = 10
+  }
+  return new Promise<void>((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      stdin.removeListener("error", finish)
+      resolve()
+    }
+    stdin.once("error", finish)
+    stdin.end(input, finish)
+  }).finally(() => input.fill(0))
 }
 
 async function readBoundedText(

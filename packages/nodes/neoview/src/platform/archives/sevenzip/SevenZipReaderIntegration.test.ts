@@ -25,6 +25,7 @@ let directory = ""
 let archivePath = ""
 let solidArchivePath = ""
 let solidNestedArchivePath = ""
+let encryptedSolidArchivePath = ""
 let innerFixture: ZipFixture | undefined
 
 beforeAll(async () => {
@@ -37,11 +38,15 @@ beforeAll(async () => {
   archivePath = join(directory, "reader-fixture.cb7")
   solidArchivePath = join(directory, "reader-solid.cb7")
   solidNestedArchivePath = join(directory, "reader-solid-nested.cb7")
+  encryptedSolidArchivePath = join(directory, "reader-encrypted-solid.cb7")
   await execFileAsync(executable.path, [
     "a", "-t7z", "-mx=1", "-ms=off", "-bd", "-bb0", "--", archivePath, "pages",
   ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
   await execFileAsync(executable.path, [
     "a", "-t7z", "-mx=1", "-ms=on", "-bd", "-bb0", "--", solidArchivePath, "pages",
+  ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
+  await execFileAsync(executable.path, [
+    "a", "-t7z", "-mx=1", "-ms=on", "-pfixture-secret", "-mhe=on", "-bd", "-bb0", "--", encryptedSolidArchivePath, "pages",
   ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
   innerFixture = await createZipFixture({
     name: "inner.cbz",
@@ -111,6 +116,37 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
       expect(session.book.pages[0]?.dimensions).toEqual({ width: 1, height: 1 })
       const page = session.book.pages[1]!
       const response = (await route.handle(new Request(route.pageUrl(session.id, page.id))))!
+      expect(response.status).toBe(200)
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+    } finally {
+      route.close()
+      await service[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.sevenzip.encrypted-reader-e2e] opens a header-encrypted solid CB7 through the shared Reader Core route", async () => {
+    const service = new CoreReaderService(
+      createPlatformReaderBookLoader(),
+      new StreamingImageMetadataProbe(),
+    )
+    const route = new ReaderAssetRoute(service, {
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+    })
+    try {
+      await expect(service.openViewSource(
+        { kind: "path", path: encryptedSolidArchivePath },
+        { archivePasswords: [{ password: "wrong-password" }] },
+      )).rejects.toThrow(/password|encrypted/i)
+      const session = await service.openViewSource(
+        { kind: "path", path: encryptedSolidArchivePath },
+        { archivePasswords: [{ password: "fixture-secret" }] },
+      )
+      expect(session.book.pages.map((page) => page.entryPath)).toEqual(["pages/2.png", "pages/10.png"])
+      const page = session.book.pages[0]!
+      const pageUrl = route.pageUrl(session.id, page.id)
+      expect(pageUrl).not.toContain("fixture-secret")
+      const response = (await route.handle(new Request(pageUrl)))!
       expect(response.status).toBe(200)
       expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
     } finally {
