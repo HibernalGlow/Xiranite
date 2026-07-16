@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Link, List, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Link, List, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Search, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -102,6 +102,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
+const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 
 interface SavedDirectoryState {
   viewMode: FolderViewMode
@@ -137,6 +138,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const historyStatesRef = useRef(new Map<string, SavedDirectoryState>())
   const [draftPath, setDraftPath] = useState(sourcePath ?? "")
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
+  const [searchOpen, setSearchOpen] = useState(false)
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
@@ -226,6 +228,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   async function openBrowser(path: string) {
     const normalized = path.trim()
     if (!normalized || !client.openDirectoryBrowser) return
+    setSearchOpen(false)
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
@@ -254,6 +257,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       return
     }
     if (!client.navigateDirectoryBrowser) return
+    setSearchOpen(false)
     captureCurrentState()
     const generation = beginNavigation()
     setLoading(true)
@@ -492,6 +496,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   }
 
   function handleDirectoryKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (searchOpen || isEditableKeyboardEvent(event)) return
     const currentCatalog = catalogRef.current
     if (!currentCatalog || currentCatalog.total <= 0 || disabled || loading) return
     const currentIndex = Math.min(
@@ -624,6 +629,13 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
       data-selection-total={catalog?.total ?? 0}
       data-selection-ranges={selection.ranges.length}
       data-selection-all={selection.allSelected || undefined}
+      onKeyDownCapture={(event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && !event.nativeEvent.isComposing) {
+          event.preventDefault()
+          event.stopPropagation()
+          setSearchOpen(true)
+        }
+      }}
     >
       <form
         className="flex gap-1"
@@ -655,6 +667,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           >
             <CheckSquare />
           </BrowserButton>
+          <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search /></BrowserButton>
           <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
         </div>
         <div className="flex min-w-0 items-center gap-1">
@@ -816,12 +829,23 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
         className="min-h-32 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-neoview-folder-list="true"
         data-focused-index={focusedIndex}
-        role="listbox"
-        aria-label="文件项目"
+        role={searchOpen ? undefined : "listbox"}
+        aria-label={searchOpen ? undefined : "文件项目"}
         tabIndex={0}
         onKeyDown={handleDirectoryKeyDown}
       >
-        {catalog && viewUsesVirtuosoList(viewMode) ? (
+        {searchOpen && sessionIdRef.current ? (
+          <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
+            <FolderSearchPanel
+              client={client}
+              sessionId={sessionIdRef.current}
+              disabled={disabled}
+              onActivate={activate}
+              onClose={() => setSearchOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {!searchOpen && catalog && viewUsesVirtuosoList(viewMode) ? (
           <Virtuoso
             key={virtualKey}
             ref={listRef}
@@ -852,7 +876,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             }}
           />
         ) : null}
-        {catalog && viewMode === "details" ? (
+        {!searchOpen && catalog && viewMode === "details" ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
             <FolderDetailsView
               key={virtualKey}
@@ -868,7 +892,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             />
           </Suspense>
         ) : null}
-        {catalog && viewUsesGrid(viewMode) ? (
+        {!searchOpen && catalog && viewUsesGrid(viewMode) ? (
           <VirtuosoGrid
             key={virtualKey}
             ref={gridRef}
@@ -1010,6 +1034,13 @@ function EntryIcon({ entry, className = "size-4" }: { entry: ReaderDirectoryEntr
 
 function BrowserButton({ label, disabled = false, active = false, onClick, children }: { label: string; disabled?: boolean; active?: boolean; onClick(): void; children: ReactNode }) {
   return <Button type="button" size="icon-sm" variant={active ? "default" : "ghost"} aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</Button>
+}
+
+function isEditableKeyboardEvent(event: ReactKeyboardEvent<HTMLElement>): boolean {
+  if (event.nativeEvent.isComposing) return true
+  const target = event.target
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || target.matches("input, textarea, select, [role='textbox'], [role='menu'], [role='dialog']")
 }
 
 function isAbortError(error: unknown): boolean {

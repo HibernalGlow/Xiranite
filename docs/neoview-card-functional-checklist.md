@@ -674,21 +674,21 @@
 - [ ] `folder.keyboard.commands` 打开、返回、刷新、搜索、删除快捷键
   - 目标：Enter 打开、Backspace 后退、F5 刷新、Delete 按删除策略、Ctrl/Cmd+A 全选、Ctrl/Cmd+F 搜索、Escape 取消多选。
   - 源码：`utils/keyboardHandler.ts`
-  - 测试：`neoview.folder.keyboard-navigation`
-  - 备注：Card 列表焦点面已支持 Enter、Backspace、F5、Ctrl/Cmd+A 和 Escape，事件不会从路径输入框触发。Delete 策略、Ctrl/Cmd+F 搜索、IME/菜单真实浏览器证据与 TUI 对等命令仍待迁移。
+  - 测试：`neoview.folder.keyboard-navigation`、`neoview.folder.search-shortcut`、`neoview.react.cbz-e2e`
+  - 备注：Card 列表焦点面已支持 Enter、Backspace、F5、Ctrl/Cmd+A、Ctrl/Cmd+F 和 Escape；搜索快捷键在真实 Chromium 中聚焦共享搜索，输入/可编辑区域与 IME 组合态不会泄漏目录命令。Delete 策略与 TUI 对等命令仍待迁移。
 
 ### search（3）
 
 - [ ] `folder.search.current` 当前目录搜索
   - 目标：按名称或路径搜索当前目录，支持清除、空态、加载态、错误态和搜索历史。
   - 源码：`components/SearchResultList.svelte`、`stores/folderTabStore/sortingFiltering.svelte.ts`
-  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`、`neoview.folder.search-history-service`、`neoview.folder.search-history-validation`、`neoview.folder.search-history-sqlite`、`neoview.folder.search-history-http`、`neoview.folder.search-history-composition`、`neoview.folder.search-history-headless`、`neoview.folder.search-history-cli`、`neoview.folder.search-history-tui`、`neoview.folder.search-history-codec`、`neoview.folder.search-history-codec-raw`、`neoview.folder.search-history-import`、`neoview.folder.search-history-import-cli`
-  - 备注：后端 depth=0 已提供同一 text/path 契约；四个 scope 的搜索历史通过统一 ReaderSearchHistoryService 非破坏性写入原 %APPDATA%/NeoView/thumbnails.db 的 xr_reader_search_history，HTTP、CLI 与通用 OpenTUI folder-ui 共用同一契约。zod codec 和显式确认 CLI 已覆盖 extended.searchHistory、四个 raw localStorage key、string[] 与 {query,timestamp}[]，merge 保留较新记录，overwrite 只清理成功解析的 scope。前端历史下拉、聚焦显示开关和清除状态仍待迁移。
+  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`、`neoview.folder.search-gui`、`neoview.folder.search-current`、`neoview.folder.search-stale`、`neoview.folder.search-cancel`、`neoview.folder.search-cancel-gui`、`neoview.folder.search-history-service`、`neoview.folder.search-history-validation`、`neoview.folder.search-history-sqlite`、`neoview.folder.search-history-http`、`neoview.folder.search-history-composition`、`neoview.folder.search-history-headless`、`neoview.folder.search-history-cli`、`neoview.folder.search-history-tui`、`neoview.folder.search-history-codec`、`neoview.folder.search-history-codec-raw`、`neoview.folder.search-history-import`、`neoview.folder.search-history-import-cli`、`neoview.folder.search-history-client`、`neoview.folder.search-history-gui`、`neoview.folder.search-shortcut`、`neoview.react.cbz-e2e`
+  - 备注：GUI 已通过鉴权 NDJSON 客户端复用 depth=0 text/path 契约，提供虚拟结果、文本/Glob、类型与大小写选项、清除、加载/空/错误/截断态、过期查询取消及 Ctrl/Cmd+F；四个 scope 的搜索历史通过统一 ReaderSearchHistoryService 非破坏性写入原 %APPDATA%/NeoView/thumbnails.db 的 xr_reader_search_history，GUI、HTTP、CLI 与通用 OpenTUI folder-ui 共用同一契约。zod codec 和显式确认 CLI 已覆盖 extended.searchHistory、四个 raw localStorage key、string[] 与 {query,timestamp}[]，merge 保留较新记录，overwrite 只清理成功解析的 scope。聚焦显示历史开关当前为 Card 会话态；TOML 持久化与独立路径搜索开关仍待迁移。
 - [ ] `folder.search.recursive` 包含子目录的流式搜索
   - 目标：递归搜索通过 readdirp stream 分批返回、可取消、可限制并发；不阻塞 Bun 事件循环。
   - 源码：`components/SearchResultList.svelte`、`components/FolderToolbar/ActionButtons.svelte`
-  - 测试：`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.file-tree.ignore`、`neoview.file-tree.scheduler`、`neoview.folder.search-stream`、`neoview.folder.search-glob`、`neoview.folder.search-validation`、`neoview.folder.search-http`、`neoview.folder.search-http-cancellation`、`neoview.folder.search-session-close`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`
-  - 备注：ReaderFileTreeService 已提供 session-scoped text/glob NDJSON 搜索、硬预算、背压、宿主 I/O lease 与四条取消/释放路径；CLI 文本流/有界 JSON 与通用 OpenTUI folder-ui 已复用同一 headless controller，GUI 搜索和搜索历史仍待完成。
+  - 测试：`neoview.file-tree.readdirp`、`neoview.file-tree.scan-limit`、`neoview.file-tree.ignore`、`neoview.file-tree.scheduler`、`neoview.folder.search-stream`、`neoview.folder.search-glob`、`neoview.folder.search-validation`、`neoview.folder.search-http`、`neoview.folder.search-http-cancellation`、`neoview.folder.search-session-close`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`、`neoview.folder.search-gui`、`neoview.folder.search-recursive`、`neoview.folder.search-stale`、`neoview.folder.search-cancel`、`neoview.folder.search-cancel-gui`、`neoview.react.cbz-e2e`
+  - 备注：ReaderFileTreeService 已提供 session-scoped text/glob NDJSON 搜索、硬预算、背压、宿主 I/O lease 与四条取消/释放路径；GUI、CLI 文本流/有界 JSON 与通用 OpenTUI folder-ui 复用同一服务，真实 Chromium 已覆盖 depth=0 与递归请求及活动阅读图像稳定。GUI 当前在 512 项硬上限内聚合完成后发布虚拟结果，逐批增量呈现仍待迁移。
 - [ ] `folder.search.emm-tags` EMM 标签、收藏标签与随机标签搜索
   - 目标：支持 EMM 标签条件、收藏标签快捷筛选和随机标签；标签组合修饰键行为与原版一致。
   - 源码：`components/FavoriteTagPanel.svelte`、`components/SearchResultList.svelte`

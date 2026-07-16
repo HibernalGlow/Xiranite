@@ -156,6 +156,39 @@ export interface ReaderDirectoryPageDto {
   suggestedSelection?: { path: string; index: number }
 }
 
+export type ReaderDirectorySearchModeDto = "text" | "glob"
+export type ReaderDirectorySearchKindDto = "all" | "file" | "directory"
+
+export interface ReaderDirectorySearchOptionsDto {
+  mode?: ReaderDirectorySearchModeDto
+  kind?: ReaderDirectorySearchKindDto
+  caseSensitive?: boolean
+  maximumDepth?: number
+  maximumResults?: number
+  excludePatterns?: readonly string[]
+}
+
+export interface ReaderDirectorySearchResultDto {
+  sessionId: string
+  rootPath: string
+  generation: number
+  query: string
+  mode: ReaderDirectorySearchModeDto
+  entries: ReaderDirectoryEntryDto[]
+  scanned: number
+  matched: number
+  truncated: boolean
+}
+
+export type ReaderSearchHistoryScopeDto = "folder" | "file" | "bookmark" | "history"
+
+export interface ReaderSearchHistoryDto {
+  scope: ReaderSearchHistoryScopeDto
+  query: string
+  usedAt: number
+  useCount: number
+}
+
 export interface ReaderLibraryThumbnailDto {
   id: string
   thumbnailUrl: string
@@ -304,6 +337,16 @@ export interface ReaderHttpClient {
     metadataFields?: readonly ReaderDirectoryMetadataFieldDto[],
   ): Promise<ReaderDirectoryPageDto>
   navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  searchDirectoryBrowser?(
+    sessionId: string,
+    query: string,
+    options?: ReaderDirectorySearchOptionsDto,
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectorySearchResultDto>
+  listSearchHistory?(scope: ReaderSearchHistoryScopeDto, limit?: number, signal?: AbortSignal): Promise<readonly ReaderSearchHistoryDto[]>
+  recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
+  removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>
+  clearSearchHistory?(scope: ReaderSearchHistoryScopeDto, signal?: AbortSignal): Promise<number>
   sortDirectoryBrowser?(sessionId: string, sort: ReaderDirectorySortDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   updateDirectorySortPreference?(
     sessionId: string,
@@ -424,6 +467,41 @@ export function createReaderHttpClient(
         signal,
       },
     ),
+    searchDirectoryBrowser: (sessionId, query, options = {}, signal) => {
+      const config = resolveConfig()
+      const search = new URLSearchParams({ q: query })
+      if (options.mode) search.set("mode", options.mode)
+      if (options.kind) search.set("kind", options.kind)
+      if (options.caseSensitive !== undefined) search.set("case", options.caseSensitive ? "1" : "0")
+      if (options.maximumDepth !== undefined) search.set("depth", String(options.maximumDepth))
+      if (options.maximumResults !== undefined) search.set("limit", String(options.maximumResults))
+      for (const pattern of options.excludePatterns ?? []) search.append("exclude", pattern)
+      return requestDirectorySearch(
+        new URL(`/reader/browser/s/${encodeURIComponent(sessionId)}/search?${search}`, config.baseUrl),
+        config.token,
+        options.maximumResults ?? 512,
+        signal,
+      )
+    },
+    listSearchHistory: (scope, limit = 20, signal) => request<{ entries: ReaderSearchHistoryDto[] }>(
+      `/reader/browser/search-history?scope=${encodeURIComponent(scope)}&limit=${limit}`,
+      { signal },
+    ).then((value) => value.entries),
+    recordSearchHistory: (scope, query, signal) => request<ReaderSearchHistoryDto>("/reader/browser/search-history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scope, query }),
+      signal,
+    }),
+    removeSearchHistory: (scope, query, signal) => {
+      const search = new URLSearchParams({ scope, query })
+      return request<{ removed: boolean }>(`/reader/browser/search-history?${search}`, { method: "DELETE", signal })
+        .then((value) => value.removed)
+    },
+    clearSearchHistory: (scope, signal) => request<{ cleared: number }>(
+      `/reader/browser/search-history?scope=${encodeURIComponent(scope)}`,
+      { method: "DELETE", signal },
+    ).then((value) => value.cleared),
     sortDirectoryBrowser: (sessionId, sort, focusPath, signal) => request<ReaderDirectoryPageDto>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/sort`,
       {
@@ -538,6 +616,93 @@ export function createReaderHttpClient(
       method: "DELETE",
       keepalive: true,
     }),
+  }
+}
+
+type ReaderDirectorySearchEvent =
+  | { type: "meta"; sessionId: string; rootPath: string; generation: number; query: string; mode: ReaderDirectorySearchModeDto }
+  | { type: "entry"; index: number; entry: { name: string; path: string; kind: "directory" | "file" | "other" } }
+  | { type: "complete"; scanned: number; matched: number; truncated: boolean }
+  | { type: "error"; error: string }
+
+async function requestDirectorySearch(
+  url: URL,
+  token: string | undefined,
+  maximumResults: number,
+  signal?: AbortSignal,
+): Promise<ReaderDirectorySearchResultDto> {
+  const headers = new Headers()
+  if (token) headers.set("x-xiranite-token", token)
+  const response = await fetch(url, { headers, cache: "no-store", signal })
+  signal?.throwIfAborted()
+  if (!response.ok) throw new ReaderHttpError(await responseError(response), response.status)
+  if (!response.body) throw new Error("Reader search response did not include a body.")
+  const reader = response.body.getReader()
+  const cancelOnAbort = () => { void reader.cancel(signal?.reason).catch(() => undefined) }
+  signal?.addEventListener("abort", cancelOnAbort, { once: true })
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let meta: Extract<ReaderDirectorySearchEvent, { type: "meta" }> | undefined
+  let complete: Extract<ReaderDirectorySearchEvent, { type: "complete" }> | undefined
+  const entries: ReaderDirectoryEntryDto[] = []
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      buffer += decoder.decode(chunk.value, { stream: !chunk.done })
+      let newline = buffer.indexOf("\n")
+      while (newline >= 0) {
+        const line = buffer.slice(0, newline).trim()
+        buffer = buffer.slice(newline + 1)
+        if (line) consumeDirectorySearchEvent(JSON.parse(line) as ReaderDirectorySearchEvent)
+        newline = buffer.indexOf("\n")
+      }
+      if (chunk.done) break
+    }
+    const tail = buffer.trim()
+    if (tail) consumeDirectorySearchEvent(JSON.parse(tail) as ReaderDirectorySearchEvent)
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined)
+    throw error
+  } finally {
+    signal?.removeEventListener("abort", cancelOnAbort)
+    reader.releaseLock()
+  }
+  signal?.throwIfAborted()
+  if (!meta || !complete) throw new Error("Reader search stream ended before completion.")
+  return {
+    sessionId: meta.sessionId,
+    rootPath: meta.rootPath,
+    generation: meta.generation,
+    query: meta.query,
+    mode: meta.mode,
+    entries,
+    scanned: complete.scanned,
+    matched: complete.matched,
+    truncated: complete.truncated,
+  }
+
+  function consumeDirectorySearchEvent(event: ReaderDirectorySearchEvent) {
+    if (complete) throw new Error("Reader search stream emitted data after completion.")
+    if (event.type === "error") throw new Error(event.error)
+    if (event.type === "meta") {
+      if (meta) throw new Error("Reader search stream emitted duplicate metadata.")
+      meta = event
+      return
+    }
+    if (!meta) throw new Error("Reader search stream emitted data before metadata.")
+    if (event.type === "entry") {
+      if (event.index !== entries.length) throw new Error("Reader search stream entry indexes are not contiguous.")
+      if (entries.length >= maximumResults) throw new Error("Reader search stream exceeded the requested result limit.")
+      entries.push({
+        name: event.entry.name,
+        path: event.entry.path,
+        kind: event.entry.kind,
+        readerSupported: event.entry.kind !== "other",
+      })
+      return
+    }
+    if (event.matched !== entries.length) throw new Error("Reader search stream result count does not match its entries.")
+    complete = event
   }
 }
 

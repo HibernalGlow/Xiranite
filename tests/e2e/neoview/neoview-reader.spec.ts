@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { expect, test } from "@playwright/test"
@@ -39,6 +39,8 @@ test.beforeAll(async () => {
       ...trailingPages,
     ],
   })
+  await mkdir(join(fixture.directory, "nested-search"), { recursive: true })
+  await writeFile(join(fixture.directory, "nested-search", "recursive-result.png"), ONE_PIXEL_PNG)
 
   const thumbnailDatabasePath = join(fixture.directory, "thumbnails.db")
   const database = new DatabaseSync(thumbnailDatabasePath)
@@ -293,6 +295,67 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await folderList.press("Escape")
   await expect(folderCard).toHaveAttribute("data-selection-count", "0")
   await expect(folderCard.locator('[data-neoview-folder-selection-bar="true"]')).toHaveCount(0)
+  await folderList.press("Control+f")
+  const folderSearch = folderCard.locator('[data-neoview-folder-search="true"]')
+  await expect(folderSearch).toBeVisible()
+  const folderSearchInput = folderSearch.getByRole("textbox", { name: "搜索文件" })
+  await expect(folderSearchInput).toBeFocused()
+  await folderSearchInput.fill("xiranite.config.toml")
+  const currentFolderSearchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname.endsWith("/search") && url.searchParams.get("q") === "xiranite.config.toml"
+  })
+  const currentSearchHistoryResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith("/search-history")
+    && response.request().method() === "POST"
+    && response.request().postData()?.includes('"query":"xiranite.config.toml"') === true
+  ))
+  await folderSearch.getByRole("button", { name: "执行搜索" }).click()
+  const currentFolderSearchUrl = new URL((await currentFolderSearchResponse).url())
+  expect(currentFolderSearchUrl.searchParams.get("depth")).toBe("0")
+  expect((await currentSearchHistoryResponse).status()).toBe(201)
+  await expect(folderSearch.getByText("xiranite.config.toml", { exact: true })).toBeVisible()
+  await folderSearch.getByRole("button", { name: "搜索历史", exact: true }).click()
+  await expect(folderSearch.getByRole("button", { name: "使用搜索历史：xiranite.config.toml" })).toBeVisible()
+  await folderSearch.getByRole("button", { name: "搜索历史", exact: true }).click()
+
+  await folderSearch.getByRole("button", { name: "子目录" }).click()
+  await folderSearchInput.fill("recursive-result.png")
+  const recursiveFolderSearchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname.endsWith("/search") && url.searchParams.get("q") === "recursive-result.png"
+  })
+  const recursiveSearchHistoryResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith("/search-history")
+    && response.request().method() === "POST"
+    && response.request().postData()?.includes('"query":"recursive-result.png"') === true
+  ))
+  await folderSearch.getByRole("button", { name: "执行搜索" }).click()
+  const recursiveFolderSearchUrl = new URL((await recursiveFolderSearchResponse).url())
+  expect(recursiveFolderSearchUrl.searchParams.has("depth")).toBe(false)
+  expect((await recursiveSearchHistoryResponse).status()).toBe(201)
+  await expect(folderSearch.getByText("recursive-result.png", { exact: true })).toBeVisible()
+  await folderSearch.getByRole("button", { name: "搜索历史", exact: true }).click()
+  const deleteSearchHistoryResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname.endsWith("/search-history")
+      && response.request().method() === "DELETE"
+      && url.searchParams.get("query") === "recursive-result.png"
+  })
+  await folderSearch.getByRole("button", { name: "删除搜索历史：recursive-result.png" }).click()
+  expect((await deleteSearchHistoryResponse).status()).toBe(200)
+  const clearSearchHistoryResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname.endsWith("/search-history")
+      && response.request().method() === "DELETE"
+      && !url.searchParams.has("query")
+  })
+  await folderSearch.getByRole("button", { name: "清空搜索历史" }).click()
+  expect((await clearSearchHistoryResponse).status()).toBe(200)
+  expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
+  await folderSearch.getByRole("button", { name: "关闭搜索" }).click()
+  await expect(folderSearch).toHaveCount(0)
+  await expect(folderCard.getByRole("listbox", { name: "文件项目" })).toBeVisible()
   const folderViewResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"
@@ -501,7 +564,7 @@ test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide"
   await page.waitForTimeout(1_000)
   expect(startupErrors).toEqual([])
   await page.getByRole("button", { name: "打开书籍" }).click()
-  await expect(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+  await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible()
 
   await page.locator('[data-reader-edge-trigger="left"]').hover()
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
@@ -544,7 +607,7 @@ test("[neoview.slideshow.config-e2e] loads and persists slideshow controls", asy
   }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: "打开书籍" }).click()
-  await expect(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+  await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible()
 
   const interval = page.getByRole("spinbutton", { name: "幻灯片间隔" })
   await expect(interval).toHaveValue("7")

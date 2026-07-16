@@ -221,6 +221,53 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.search-shortcut] opens and focuses shared search without leaking directory shortcuts into its input", async () => {
+    const opened = page({
+      total: 1,
+      entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }],
+    })
+    const navigateDirectoryBrowser = vi.fn(async () => opened)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      searchDirectoryBrowser: vi.fn(async () => ({
+        sessionId: "browser-1",
+        rootPath: "C:/books",
+        generation: 1,
+        query: "book",
+        mode: "text" as const,
+        entries: [],
+        scanned: 1,
+        matched: 0,
+        truncated: false,
+      })),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    const host = await currentView.findByRole("listbox", { name: "文件项目" })
+
+    fireEvent.keyDown(host, { key: "f", ctrlKey: true })
+    const searchInput = await currentView.findByRole("textbox", { name: "搜索文件" })
+    await waitFor(() => expect(document.activeElement).toBe(searchInput))
+    fireEvent.keyDown(searchInput, { key: "Backspace" })
+    fireEvent.keyDown(searchInput, { key: "F5" })
+    expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
+
+    fireEvent.change(searchInput, { target: { value: "book" } })
+    fireEvent.submit(searchInput.closest("form")!)
+    await waitFor(() => expect(client.searchDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      "book",
+      expect.objectContaining({ maximumDepth: 0, maximumResults: 512 }),
+      expect.any(AbortSignal),
+    ))
+  })
+
   it("[neoview.folder.sort-ui] reorders the backend snapshot and preserves the focused path", async () => {
     const opened = page({
       total: 1,

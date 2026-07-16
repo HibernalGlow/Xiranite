@@ -178,4 +178,103 @@ describe("reader-http-client", () => {
     expect(url.searchParams.get("limit")).toBe("128")
     expect(url.searchParams.get("fields")).toBe("date,size,dimensions,pageCount,tags")
   })
+
+  it("[neoview.folder.search-gui] parses authenticated NDJSON across UTF-8 and line chunk boundaries", async () => {
+    const source = [
+      JSON.stringify({ type: "meta", sessionId: "browser-1", rootPath: "D:/漫画", generation: 7, query: "封面", mode: "text" }),
+      JSON.stringify({ type: "entry", index: 0, entry: { name: "封面.cbz", path: "D:/漫画/封面.cbz", relativePath: "封面.cbz", depth: 0, kind: "file" } }),
+      JSON.stringify({ type: "complete", scanned: 12, matched: 1, truncated: false }),
+    ].join("\n") + "\n"
+    const bytes = new TextEncoder().encode(source)
+    const split = bytes.findIndex((value) => value >= 0x80) + 1
+    const fetchMock = vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, split))
+        controller.enqueue(bytes.slice(split, split + 3))
+        controller.enqueue(bytes.slice(split + 3))
+        controller.close()
+      },
+    }), { headers: { "content-type": "application/x-ndjson" } }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    const result = await client.searchDirectoryBrowser!("browser-1", "封面", {
+      kind: "file",
+      caseSensitive: true,
+      maximumDepth: 0,
+      maximumResults: 512,
+      excludePatterns: ["cache/**"],
+    })
+
+    expect(result).toEqual({
+      sessionId: "browser-1",
+      rootPath: "D:/漫画",
+      generation: 7,
+      query: "封面",
+      mode: "text",
+      entries: [{ name: "封面.cbz", path: "D:/漫画/封面.cbz", kind: "file", readerSupported: true }],
+      scanned: 12,
+      matched: 1,
+      truncated: false,
+    })
+    const [url, init] = fetchMock.mock.calls[0]!
+    const parsed = new URL(String(url))
+    expect(parsed.searchParams.get("depth")).toBe("0")
+    expect(parsed.searchParams.get("limit")).toBe("512")
+    expect(parsed.searchParams.getAll("exclude")).toEqual(["cache/**"])
+    expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
+  it("[neoview.folder.search-cancel] cancels the NDJSON reader when a search is aborted", async () => {
+    let cancelled = false
+    const started = deferred<void>()
+    const stream = new ReadableStream<Uint8Array>({
+      pull() { started.resolve() },
+      cancel() { cancelled = true },
+    })
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(stream)))
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000" }))
+    const controller = new AbortController()
+    const pending = client.searchDirectoryBrowser!("browser-1", "book", {}, controller.signal)
+    await started.promise
+    controller.abort()
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+    expect(cancelled).toBe(true)
+  })
+
+  it("[neoview.folder.search-history-client] uses the shared authenticated history resource", async () => {
+    const entry = { scope: "folder", query: "cover", usedAt: 123, useCount: 2 }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input))
+      if (init?.method === "POST") return Response.json(entry, { status: 201 })
+      if (init?.method === "DELETE") {
+        return Response.json(url.searchParams.has("query") ? { removed: true } : { cleared: 1 })
+      }
+      return Response.json({ scope: "folder", entries: [entry] })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.listSearchHistory!("folder", 20)).resolves.toEqual([entry])
+    await expect(client.recordSearchHistory!("folder", "cover")).resolves.toEqual(entry)
+    await expect(client.removeSearchHistory!("folder", "cover")).resolves.toBe(true)
+    await expect(client.clearSearchHistory!("folder")).resolves.toBe(1)
+
+    const [listUrl] = fetchMock.mock.calls[0]!
+    expect(new URL(String(listUrl)).search).toBe("?scope=folder&limit=20")
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST" })
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ scope: "folder", query: "cover" })
+    expect(new URL(String(fetchMock.mock.calls[2]?.[0])).searchParams.get("query")).toBe("cover")
+    expect(new URL(String(fetchMock.mock.calls[3]?.[0])).searchParams.has("query")).toBe(false)
+    for (const call of fetchMock.mock.calls) {
+      expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    }
+  })
 })
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => { resolve = done })
+  return { promise, resolve }
+}
