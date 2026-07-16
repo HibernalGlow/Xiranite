@@ -15,6 +15,7 @@ import type {
   ReaderFileMutation,
   ReaderLibraryHeadlessController,
   ReaderDiagnosticsService,
+  ReaderDiagnosticsSnapshot,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -101,6 +102,7 @@ export interface NeoviewCliDependencies {
   createSystemIntegrationService?: () => Promise<ReaderSystemIntegrationService>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
   createDiagnosticsService?: (options: ReaderCompositionOptions) => Promise<ReaderDiagnosticsService>
+  fetchRemoteDiagnostics?: (options: { baseUrl: string; token: string }) => Promise<ReaderDiagnosticsSnapshot>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
 
@@ -380,6 +382,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--yes", "--config"]))
     return
   }
+  if (command === "diagnostics") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env"]))
+    return
+  }
   if (command === "folder-tree") {
     rejectOptions(parsed, new Set(["--json", "--config", "--node", "--refresh"]))
     return
@@ -597,6 +603,17 @@ async function runDiagnostics(
   host: CliHost,
   dependencies: NeoviewCliDependencies,
 ): Promise<void> {
+  const connect = oneValue(parsed, "--connect")
+  const tokenVariable = oneValue(parsed, "--token-env")
+  if (!connect && tokenVariable) throw usage("--token-env requires --connect.")
+  if (connect && parsed.values.has("--config")) throw usage("--config cannot be combined with --connect because the running backend owns configuration.")
+  if (connect) {
+    const fetchDiagnostics = dependencies.fetchRemoteDiagnostics ?? (async (options: { baseUrl: string; token: string }) => {
+      const { fetchRemoteReaderDiagnostics } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+      return fetchRemoteReaderDiagnostics(options)
+    })
+    return printDiagnostics(await fetchDiagnostics({ baseUrl: connect, token: connectionToken(tokenVariable, host) }), parsed, host)
+  }
   const createService = dependencies.createDiagnosticsService ?? (async (options: ReaderCompositionOptions) => {
     const { createReaderDiagnosticsService } = await import("./platform.js")
     return createReaderDiagnosticsService(options)
@@ -607,16 +624,19 @@ async function runDiagnostics(
     env: host.env,
   })
   try {
-    const result = await service.snapshot()
-    if (parsed.booleans.has("--json")) return writeJson(host, result)
-    writeLine(host, `Reader diagnostics: sessions=${result.reader.activeSessions} uptime=${result.uptimeSeconds.toFixed(1)}s`)
-    writeLine(host, `Process: rss=${result.process.rssBytes} heap=${result.process.heapUsedBytes}/${result.process.heapTotalBytes} external=${result.process.externalBytes}`)
-    writeLine(host, `Assets: transforms=${result.assets.activeTransformFlights} L2=${result.assets.presentation?.bytes ?? 0} bytes thumbnails=${result.assets.thumbnails?.cachedBytes ?? 0} bytes`)
-    writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes}`)
-    writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${result.scheduler.cpu.active}/${result.scheduler.cpu.queued} io=${result.scheduler.io.active}/${result.scheduler.io.queued} gpu=${result.scheduler.gpu.active}/${result.scheduler.gpu.queued}` : "unavailable in standalone CLI"}`)
+    printDiagnostics(await service.snapshot(), parsed, host)
   } finally {
     await service.close()
   }
+}
+
+function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArguments, host: CliHost): void {
+  if (parsed.booleans.has("--json")) return writeJson(host, result)
+  writeLine(host, `Reader diagnostics: sessions=${result.reader.activeSessions} uptime=${result.uptimeSeconds.toFixed(1)}s`)
+  writeLine(host, `Process: rss=${result.process.rssBytes} heap=${result.process.heapUsedBytes}/${result.process.heapTotalBytes} external=${result.process.externalBytes}`)
+  writeLine(host, `Assets: transforms=${result.assets.activeTransformFlights} L2=${result.assets.presentation?.bytes ?? 0} bytes thumbnails=${result.assets.thumbnails?.cachedBytes ?? 0} bytes`)
+  writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes}`)
+  writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${result.scheduler.cpu.active}/${result.scheduler.cpu.queued} io=${result.scheduler.io.active}/${result.scheduler.io.queued} gpu=${result.scheduler.gpu.active}/${result.scheduler.gpu.queued}` : "unavailable in standalone CLI"}`)
 }
 
 function cacheMaintenanceReason(value: string | undefined): "age" | "budget" | "explicit" {

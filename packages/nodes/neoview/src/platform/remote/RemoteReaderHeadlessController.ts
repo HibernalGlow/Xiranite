@@ -4,6 +4,7 @@ import type {
   HeadlessReaderSnapshot,
   OpenHeadlessReaderInput,
 } from "../../application/headless/ReaderHeadlessController.js"
+import type { ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
 
 interface ReaderFrameDto {
@@ -24,6 +25,26 @@ export interface RemoteReaderHeadlessOptions {
   fetch?: typeof fetch
 }
 
+export async function fetchRemoteReaderDiagnostics(options: RemoteReaderHeadlessOptions): Promise<ReaderDiagnosticsSnapshot> {
+  const baseUrl = normalizeLoopbackBaseUrl(options.baseUrl)
+  const token = normalizeToken(options.token)
+  const response = await (options.fetch ?? globalThis.fetch)(new URL("/reader/diagnostics", baseUrl), {
+    headers: { "x-xiranite-token": token },
+  })
+  if (!response.ok) throw await responseError(response, "Reader diagnostics")
+  const snapshot = await response.json() as ReaderDiagnosticsSnapshot
+  if (
+    !snapshot
+    || snapshot.schemaVersion !== 1
+    || !snapshot.process
+    || !snapshot.reader
+    || !snapshot.assets
+    || !snapshot.presentationDiskCache
+    || !snapshot.solidArchiveCache
+  ) throw new Error("Xiranite Reader returned an invalid diagnostics response.")
+  return snapshot
+}
+
 /** Headless adapter over the running XR Reader controller. It owns only sessions it creates. */
 export class RemoteReaderHeadlessController implements AsyncDisposable {
   readonly #baseUrl: URL
@@ -36,8 +57,7 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
 
   constructor(options: RemoteReaderHeadlessOptions) {
     this.#baseUrl = normalizeLoopbackBaseUrl(options.baseUrl)
-    const token = options.token.trim()
-    if (!token) throw new Error("Xiranite backend token must be non-empty.")
+    const token = normalizeToken(options.token)
     this.#headers = { "x-xiranite-token": token }
     this.#fetch = options.fetch ?? globalThis.fetch
   }
@@ -259,6 +279,12 @@ function normalizeLoopbackBaseUrl(value: string): URL {
   if (url.username || url.password || url.search || url.hash) throw new Error("Xiranite backend URL cannot contain credentials, query or fragment.")
   url.pathname = url.pathname.replace(/\/*$/u, "/")
   return url
+}
+
+function normalizeToken(value: string): string {
+  const token = value.trim()
+  if (!token) throw new Error("Xiranite backend token must be non-empty.")
+  return token
 }
 
 function isLoopback(hostname: string): boolean {

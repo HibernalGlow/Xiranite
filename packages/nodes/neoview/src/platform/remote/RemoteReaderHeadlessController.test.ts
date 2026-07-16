@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ReaderHttpController } from "../asset-route/ReaderHttpController.js"
-import { RemoteReaderHeadlessController } from "./RemoteReaderHeadlessController.js"
+import { fetchRemoteReaderDiagnostics, RemoteReaderHeadlessController } from "./RemoteReaderHeadlessController.js"
 
 const cleanup: string[] = []
 
@@ -79,6 +79,20 @@ describe("RemoteReaderHeadlessController", () => {
     expect(requests.at(-1)?.method).toBe("DELETE")
     await remote[Symbol.asyncDispose]()
   })
+
+  it("[neoview.diagnostics.cli-connect] reads the authenticated running-backend snapshot without creating a Reader session", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(diagnosticsSnapshot()), {
+      headers: { "content-type": "application/json" },
+    }))
+    await expect(fetchRemoteReaderDiagnostics({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "diagnostics-token",
+      fetch: fetchMock,
+    })).resolves.toMatchObject({ reader: { activeSessions: 3 }, scheduler: { cpu: { active: 2 } } })
+    const request = new Request(fetchMock.mock.calls[0]![0], fetchMock.mock.calls[0]![1])
+    expect(request.url).toBe("http://127.0.0.1:41000/reader/diagnostics")
+    expect(request.headers.get("x-xiranite-token")).toBe("diagnostics-token")
+  })
 })
 
 function controllerFetch(controller: ReaderHttpController, requests: Request[]): typeof fetch {
@@ -110,5 +124,20 @@ function sessionDto(assetUrl: string) {
       contentVersion: "v1",
       assetUrl,
     }],
+  }
+}
+
+function diagnosticsSnapshot() {
+  const pool = { active: 2, queued: 1, queuedByPriority: { interactive: 0, view: 0, ahead: 1, background: 0 } }
+  return {
+    schemaVersion: 1,
+    sampledAtMs: 10,
+    uptimeSeconds: 5,
+    process: { rssBytes: 8, heapTotalBytes: 7, heapUsedBytes: 6, externalBytes: 5, arrayBuffersBytes: 4, cpuUserMicros: 3, cpuSystemMicros: 2 },
+    reader: { activeSessions: 3 },
+    assets: { activeTransformFlights: 0, presentation: null, thumbnails: null },
+    presentationDiskCache: { enabled: false },
+    solidArchiveCache: { entries: 0, retainedBytes: 0, maxBytes: 0 },
+    scheduler: { cpu: pool, io: pool, gpu: pool },
   }
 }

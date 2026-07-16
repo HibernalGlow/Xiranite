@@ -35,6 +35,20 @@ describe("NeoView CLI remote Reader", () => {
     )).rejects.toThrow("cannot be combined")
     expect(dependencies.createRemoteController).not.toHaveBeenCalled()
   })
+
+  it("[neoview.diagnostics.cli-connect] reports the running backend without constructing local diagnostics resources", async () => {
+    const output: unknown[] = []
+    const fetchRemoteDiagnostics = vi.fn(async () => diagnosticsSnapshot())
+    const createDiagnosticsService = vi.fn(async () => { throw new Error("local diagnostics must stay lazy") })
+    await runProgram(
+      ["diagnostics", "--connect", "http://127.0.0.1:41000", "--json"],
+      host(output, { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      { createController: async () => fakeRemoteReader(), fetchRemoteDiagnostics, createDiagnosticsService },
+    )
+    expect(fetchRemoteDiagnostics).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "runtime-token" })
+    expect(createDiagnosticsService).not.toHaveBeenCalled()
+    expect(JSON.parse(output.join(""))).toMatchObject({ reader: { activeSessions: 3 }, process: { rssBytes: 8 } })
+  })
 })
 
 function fakeRemoteReader(): CliReaderController {
@@ -68,4 +82,18 @@ function host(output: unknown[], env: Record<string, string> = {}): CliHost {
     stderr: { isTTY: false, write: (value: unknown) => { output.push(value); return true } },
     exitCode: 0,
   } as unknown as CliHost
+}
+
+function diagnosticsSnapshot() {
+  return {
+    schemaVersion: 1 as const,
+    sampledAtMs: 10,
+    uptimeSeconds: 5,
+    process: { rssBytes: 8, heapTotalBytes: 7, heapUsedBytes: 6, externalBytes: 5, arrayBuffersBytes: 4, cpuUserMicros: 3, cpuSystemMicros: 2 },
+    reader: { activeSessions: 3 },
+    assets: { activeTransformFlights: 0, presentation: null, thumbnails: null },
+    presentationDiskCache: { enabled: false as const },
+    solidArchiveCache: { entries: 0, retainedBytes: 0, maxBytes: 0 },
+    scheduler: null,
+  }
 }
