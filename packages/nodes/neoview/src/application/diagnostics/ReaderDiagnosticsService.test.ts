@@ -7,6 +7,7 @@ describe("ReaderDiagnosticsService", () => {
     const close = vi.fn(async () => undefined)
     const service = new ReaderDiagnosticsService({
       activeSessions: () => 2,
+      runtimeResources: () => ({ archiveProviders: 1, archiveIndexEntries: 8, archiveIndexPayloadBytes: 512, archiveActiveExtractions: 2 }),
       assets: () => ({
         activeTransformFlights: 1,
         presentation: { entries: 3, bytes: 30, maxBytes: 100, maxEntryBytes: 50, hits: 4, misses: 2, evictions: 1 },
@@ -31,7 +32,7 @@ describe("ReaderDiagnosticsService", () => {
       sampledAtMs: 123,
       uptimeSeconds: 4.5,
       process: expect.objectContaining({ rssBytes: 100, heapUsedBytes: 50, availableMemoryBytes: 1_000, cpuUserMicros: 11 }),
-      reader: { activeSessions: 2 },
+      reader: { activeSessions: 2, runtimeResources: { archiveProviders: 1, archiveIndexEntries: 8, archiveIndexPayloadBytes: 512, archiveActiveExtractions: 2 } },
       assets: expect.objectContaining({ activeTransformFlights: 1, presentation: expect.objectContaining({ bytes: 30 }) }),
       solidArchiveCache: { entries: 1, retainedBytes: 80, maxBytes: 200 },
       scheduler: expect.objectContaining({ cpu: expect.objectContaining({ active: 1, queued: 2 }) }),

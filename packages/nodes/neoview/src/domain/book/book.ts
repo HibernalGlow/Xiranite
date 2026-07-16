@@ -8,10 +8,18 @@ export type ViewSource =
   | { kind: "media"; path: string }
   | { kind: "document"; path: string; format: "pdf" | "epub" }
 
+export interface ReaderRuntimeResourceSnapshot {
+  archiveProviders: number
+  archiveIndexEntries: number
+  archiveIndexPayloadBytes: number
+  archiveActiveExtractions: number
+}
+
 export interface ReaderBook extends AsyncDisposable {
   id: string
   source: ViewSource
   displayName: string
   pages: readonly ReaderPage[]
+  runtimeResources?(): ReaderRuntimeResourceSnapshot
   close(): Promise<void>
 }

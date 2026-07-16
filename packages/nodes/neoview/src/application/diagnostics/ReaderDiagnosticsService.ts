@@ -3,6 +3,7 @@ import type { ReaderPresentationCacheSnapshot } from "../../ports/ReaderPresenta
 import type { ResourceClass, ResourcePriority } from "../../ports/ResourceScheduler.js"
 import type { ReaderMemoryPressureSnapshot } from "../../platform/memory/ReaderMemoryPressureMonitor.js"
 import type { ReaderPreloadDiagnostics } from "../preloading/PreloadTelemetry.js"
+import type { ReaderRuntimeResourceSnapshot } from "../../domain/book/book.js"
 
 export interface ReaderSchedulerPoolDiagnostics {
   active: number
@@ -45,7 +46,7 @@ export interface ReaderDiagnosticsSnapshot {
     cpuUserMicros: number
     cpuSystemMicros: number
   }
-  reader: { activeSessions: number; preload?: ReaderPreloadDiagnostics }
+  reader: { activeSessions: number; preload?: ReaderPreloadDiagnostics; runtimeResources?: ReaderRuntimeResourceSnapshot }
   assets: ReaderAssetDiagnostics
   presentationDiskCache: ReaderCacheStatus
   solidArchiveCache: { entries: number; retainedBytes: number; maxBytes: number }
@@ -55,6 +56,7 @@ export interface ReaderDiagnosticsSnapshot {
 export interface ReaderDiagnosticsSources {
   activeSessions(): number
   preload?(): ReaderPreloadDiagnostics
+  runtimeResources?(): ReaderRuntimeResourceSnapshot
   assets(): ReaderAssetDiagnostics
   presentationDiskCache(): Promise<ReaderCacheStatus>
   solidArchiveCache(): { entries: number; retainedBytes: number; maxBytes: number }
@@ -92,7 +94,11 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
         cpuUserMicros: cpu.user,
         cpuSystemMicros: cpu.system,
       },
-      reader: { activeSessions: this.sources.activeSessions(), preload: this.sources.preload?.() },
+      reader: {
+        activeSessions: this.sources.activeSessions(),
+        preload: this.sources.preload?.(),
+        runtimeResources: this.sources.runtimeResources?.(),
+      },
       assets: this.sources.assets(),
       presentationDiskCache: await this.sources.presentationDiskCache(),
       solidArchiveCache: this.sources.solidArchiveCache(),

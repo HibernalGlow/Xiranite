@@ -75,14 +75,18 @@ describe("CoreReaderService", () => {
   })
 
   it("[neoview.session.lifecycle] owns sessions and releases them on close/dispose", async () => {
-    const loader = vi.fn(async () => book(3))
+    const loaded = book(3)
+    loaded.runtimeResources = () => ({ archiveProviders: 1, archiveIndexEntries: 3, archiveIndexPayloadBytes: 96, archiveActiveExtractions: 0 })
+    const loader = vi.fn(async () => loaded)
     const service = new CoreReaderService(loader)
     const first = await service.openViewSource({ kind: "directory", path: "C:/book" }, { initialPage: 2 })
     expect(service.sessionCount).toBe(1)
+    expect(service.runtimeResourceDiagnostics()).toEqual({ archiveProviders: 1, archiveIndexEntries: 3, archiveIndexPayloadBytes: 96, archiveActiveExtractions: 0 })
     expect(first.snapshot().anchorPageIndex).toBe(2)
     expect(service.getSession(first.id)).toBe(first)
     await service.closeSession(first.id)
     expect(service.sessionCount).toBe(0)
+    expect(service.runtimeResourceDiagnostics()).toEqual({ archiveProviders: 0, archiveIndexEntries: 0, archiveIndexPayloadBytes: 0, archiveActiveExtractions: 0 })
     expect(service.getSession(first.id)).toBeUndefined()
     expect(first.book.close).toHaveBeenCalledOnce()
 

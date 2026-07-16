@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import type { Stats } from "node:fs"
 
-import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
+import type { ReaderBook, ReaderRuntimeResourceSnapshot, ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage, ReaderPageTimestamps } from "../../domain/page/page.js"
 
 export function stableOpaqueId(prefix: string, ...parts: Array<string | number>): string {
@@ -39,6 +39,7 @@ export function createReaderBook(input: {
   source: ViewSource
   displayName: string
   pages: readonly ReaderPage[]
+  runtimeResources?: () => ReaderRuntimeResourceSnapshot
   dispose?: () => Promise<void>
 }): ReaderBook {
   let closing: Promise<void> | undefined
@@ -53,6 +54,7 @@ export function createReaderBook(input: {
     source: input.source,
     displayName: input.displayName,
     pages: input.pages,
+    runtimeResources: input.runtimeResources,
     close,
     [Symbol.asyncDispose]: close,
   }

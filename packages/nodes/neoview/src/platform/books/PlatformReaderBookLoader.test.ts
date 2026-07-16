@@ -71,7 +71,7 @@ describe("PlatformReaderBookLoader", () => {
     }
   })
 
-  it("[neoview.book.archive] builds naturally ordered pages over the shared ZIP provider", async () => {
+  it("[neoview.book.archive] [neoview.archive.runtime-resources] builds naturally ordered pages over the shared ZIP provider", async () => {
     const fixture = await createZipFixture({
       entries: [
         { path: "pages/10.jpg", bytes: Uint8Array.of(10), level: 0 },
@@ -82,6 +82,12 @@ describe("PlatformReaderBookLoader", () => {
     })
     cleanupArchives.push(fixture)
     const book = await createPlatformReaderBookLoader()({ kind: "archive", path: fixture.path })
+    expect(book.runtimeResources?.()).toMatchObject({
+      archiveProviders: 1,
+      archiveIndexEntries: 4,
+      archiveIndexPayloadBytes: expect.any(Number),
+      archiveActiveExtractions: 0,
+    })
     expect(book.pages.map((page) => page.entryPath)).toEqual(["cover.avif", "pages/2.jpg", "pages/10.jpg"])
     expect(book.pages.map((page) => page.thumbnailSource)).toEqual([
       { key: `${fixture.path}::cover.avif#3`, category: "file" },
@@ -100,6 +106,7 @@ describe("PlatformReaderBookLoader", () => {
     await source.close()
     const unopened = await page.content.load()
     await book.close()
+    expect(book.runtimeResources?.()).toEqual({ archiveProviders: 0, archiveIndexEntries: 0, archiveIndexPayloadBytes: 0, archiveActiveExtractions: 0 })
     await expect(unopened.open()).rejects.toThrow("closed")
   })
 

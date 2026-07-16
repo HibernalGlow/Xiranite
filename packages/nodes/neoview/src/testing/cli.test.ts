@@ -672,6 +672,7 @@ describe("NeoView CLI", () => {
     const close = vi.fn(async () => undefined)
     const service = new ReaderDiagnosticsService({
       activeSessions: () => 0,
+      runtimeResources: () => ({ archiveProviders: 2, archiveIndexEntries: 12, archiveIndexPayloadBytes: 640, archiveActiveExtractions: 1 }),
       assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
       presentationDiskCache: async () => ({ enabled: false }),
       solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
@@ -707,6 +708,7 @@ describe("NeoView CLI", () => {
     }
     const service = new ReaderDiagnosticsService({
       activeSessions: () => 0,
+      runtimeResources: () => ({ archiveProviders: 2, archiveIndexEntries: 12, archiveIndexPayloadBytes: 640, archiveActiveExtractions: 1 }),
       assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
       presentationDiskCache: async () => ({ enabled: false }),
       solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
@@ -717,6 +719,7 @@ describe("NeoView CLI", () => {
       createDiagnosticsService: async () => service,
     })
     expect(output.join("")).toContain("cpu=1/2 waitAvg=2.5ms waitMax=6.0ms")
+    expect(output.join("")).toContain("archiveProviders=2 indexEntries=12 indexBytes=640 activeExtractions=1")
   })
 })
 

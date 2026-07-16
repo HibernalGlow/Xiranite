@@ -1,4 +1,4 @@
-import type { ViewSource } from "../../domain/book/book.js"
+import type { ReaderRuntimeResourceSnapshot, ViewSource } from "../../domain/book/book.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
@@ -37,6 +37,24 @@ export class CoreReaderService implements ReaderService {
 
   preloadDiagnostics(): ReaderPreloadDiagnostics {
     return aggregateReaderPreloadTelemetry([...this.#sessions.values()].map((session) => session.preloadTelemetry()))
+  }
+
+  runtimeResourceDiagnostics(): ReaderRuntimeResourceSnapshot {
+    const output: ReaderRuntimeResourceSnapshot = {
+      archiveProviders: 0,
+      archiveIndexEntries: 0,
+      archiveIndexPayloadBytes: 0,
+      archiveActiveExtractions: 0,
+    }
+    for (const session of this.#sessions.values()) {
+      const snapshot = session.book.runtimeResources?.()
+      if (!snapshot) continue
+      output.archiveProviders += snapshot.archiveProviders
+      output.archiveIndexEntries += snapshot.archiveIndexEntries
+      output.archiveIndexPayloadBytes += snapshot.archiveIndexPayloadBytes
+      output.archiveActiveExtractions += snapshot.archiveActiveExtractions
+    }
+    return output
   }
 
   async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {

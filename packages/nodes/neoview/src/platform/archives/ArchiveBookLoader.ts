@@ -2,7 +2,7 @@ import { realpath, stat } from "node:fs/promises"
 import { basename } from "node:path"
 
 import { ArchiveCredentialStore } from "../../application/reader/ArchiveCredentialStore.js"
-import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
+import type { ReaderBook, ReaderRuntimeResourceSnapshot, ViewSource } from "../../domain/book/book.js"
 import { normalizeArchivePath } from "../../domain/archive/archive-path.js"
 import { pageMediaType, pathExtension } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
@@ -38,6 +38,7 @@ export async function loadArchiveBook(
   )
   const credentials = new ArchiveCredentialStore(loadOptions.archivePasswords)
   const resources: Array<() => Promise<void>> = [credentials.close.bind(credentials)]
+  const providers: ArchiveProvider[] = []
   try {
     const archivePath = await realpath(source.path)
     const extension = pathExtension(archivePath)
@@ -48,6 +49,7 @@ export async function loadArchiveBook(
     if (!archiveStats.isFile()) throw new Error(`Reader source is not an archive file: ${source.path}`)
     signal?.throwIfAborted()
     let provider = await createArchiveProvider(archivePath, extension, options, maxMaterializedBytes)
+    providers.push(provider)
     resources.push(provider.close.bind(provider))
     let materializedBytes = 0
     const chainVersions: string[] = []
@@ -84,6 +86,7 @@ export async function loadArchiveBook(
         options,
         maxMaterializedBytes - materializedBytes,
       )
+      providers.push(provider)
       resources.push(provider.close.bind(provider))
     }
     const entries = await provider.list(signal)
@@ -126,6 +129,7 @@ export async function loadArchiveBook(
       source: normalizedSource,
       displayName: basename(entryPaths.at(-1) ?? archivePath),
       pages,
+      runtimeResources: () => aggregateArchiveResources(providers),
       dispose: () => releaseResources(resources),
     })
   } catch (error) {
@@ -136,6 +140,24 @@ export async function loadArchiveBook(
     }
     throw error
   }
+}
+
+function aggregateArchiveResources(providers: readonly ArchiveProvider[]): ReaderRuntimeResourceSnapshot {
+  const snapshot: ReaderRuntimeResourceSnapshot = {
+    archiveProviders: 0,
+    archiveIndexEntries: 0,
+    archiveIndexPayloadBytes: 0,
+    archiveActiveExtractions: 0,
+  }
+  for (const provider of providers) {
+    const current = provider.snapshot?.()
+    if (!current?.initialized) continue
+    snapshot.archiveProviders += 1
+    snapshot.archiveIndexEntries += current.indexEntries
+    snapshot.archiveIndexPayloadBytes += current.indexPayloadBytes
+    snapshot.archiveActiveExtractions += current.activeExtractions
+  }
+  return snapshot
 }
 
 async function createArchiveProvider(
