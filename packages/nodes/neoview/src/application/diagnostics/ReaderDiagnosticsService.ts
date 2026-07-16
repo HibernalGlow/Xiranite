@@ -15,6 +15,7 @@ export interface ReaderSchedulerPoolDiagnostics {
   queueWaitSamples?: number
   totalQueueWaitMs?: number
   maxQueueWaitMs?: number
+  oldestQueuedWaitMs?: number
 }
 
 export interface ReaderAssetDiagnostics {

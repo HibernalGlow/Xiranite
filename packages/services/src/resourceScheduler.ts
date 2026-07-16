@@ -35,6 +35,7 @@ export interface ResourcePoolSnapshot {
   queueWaitSamples: number
   totalQueueWaitMs: number
   maxQueueWaitMs: number
+  oldestQueuedWaitMs: number
 }
 
 const DEFAULT_POOLS: Record<ResourceClass, ResourcePoolOptions> = {
@@ -115,6 +116,9 @@ class PriorityResourcePool {
   }
 
   snapshot(): ResourcePoolSnapshot {
+    const oldestQueuedAtMs = Object.values(this.#queues)
+      .flatMap((queue) => queue.length ? [queue[0]!.enqueuedAtMs] : [])
+      .reduce<number | undefined>((oldest, value) => oldest === undefined ? value : Math.min(oldest, value), undefined)
     return {
       active: this.#active,
       queued: this.#queues.interactive.length + this.#queues.view.length
@@ -131,6 +135,7 @@ class PriorityResourcePool {
       queueWaitSamples: this.#queueWaitSamples,
       totalQueueWaitMs: this.#totalQueueWaitMs,
       maxQueueWaitMs: this.#maxQueueWaitMs,
+      oldestQueuedWaitMs: oldestQueuedAtMs === undefined ? 0 : Math.max(0, this.now() - oldestQueuedAtMs),
     }
   }
 

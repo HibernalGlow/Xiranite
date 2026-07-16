@@ -663,7 +663,8 @@ function schedulerPoolText(pool: ReaderSchedulerPoolDiagnostics): string {
   const wait = pool.queueWaitSamples && pool.totalQueueWaitMs !== undefined && pool.maxQueueWaitMs !== undefined
     ? ` waitAvg=${(pool.totalQueueWaitMs / pool.queueWaitSamples).toFixed(1)}ms waitMax=${pool.maxQueueWaitMs.toFixed(1)}ms`
     : ""
-  return `${pool.active}/${pool.queued}${wait}`
+  const currentWait = pool.oldestQueuedWaitMs ? ` waitNow=${pool.oldestQueuedWaitMs.toFixed(1)}ms` : ""
+  return `${pool.active}/${pool.queued}${wait}${currentWait}`
 }
 
 function cacheMaintenanceReason(value: string | undefined): "age" | "budget" | "explicit" {

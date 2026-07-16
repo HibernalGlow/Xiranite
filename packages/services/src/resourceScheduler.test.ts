@@ -71,6 +71,8 @@ describe("ResourceSchedulerService", () => {
     const active = await scheduler.acquire({ resource: "cpu", kind: "active", priority: "interactive" })
     now = 125
     const nextPromise = scheduler.acquire({ resource: "cpu", kind: "next", priority: "view" })
+    now = 145
+    expect(scheduler.snapshot().cpu.oldestQueuedWaitMs).toBe(20)
     now = 165
     active.release()
     active.release()
@@ -84,6 +86,7 @@ describe("ResourceSchedulerService", () => {
       queueWaitSamples: 2,
       totalQueueWaitMs: 40,
       maxQueueWaitMs: 40,
+      oldestQueuedWaitMs: 0,
     })
     next.release()
     expect(scheduler.snapshot().cpu).toMatchObject({ active: 0, released: 2 })

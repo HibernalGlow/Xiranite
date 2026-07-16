@@ -705,6 +705,7 @@ describe("NeoView CLI", () => {
       queueWaitSamples: 4,
       totalQueueWaitMs: 10,
       maxQueueWaitMs: 6,
+      oldestQueuedWaitMs: 3,
     }
     const service = new ReaderDiagnosticsService({
       activeSessions: () => 0,
@@ -718,7 +719,7 @@ describe("NeoView CLI", () => {
       createController: async () => fakeReader(),
       createDiagnosticsService: async () => service,
     })
-    expect(output.join("")).toContain("cpu=1/2 waitAvg=2.5ms waitMax=6.0ms")
+    expect(output.join("")).toContain("cpu=1/2 waitAvg=2.5ms waitMax=6.0ms waitNow=3.0ms")
     expect(output.join("")).toContain("archiveProviders=2 indexEntries=12 indexBytes=640 activeExtractions=1")
   })
 })
