@@ -12,6 +12,18 @@ describe("ReaderLibraryHttpController", () => {
     store.listBookmarkLists.mockResolvedValue([])
     store.deleteRecent.mockResolvedValue(true)
     store.clearRecentBefore.mockResolvedValue(3)
+    store.findBookmarkByPath
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({
+        id: "generated",
+        source: { kind: "archive", path: "D:/demo.cbz" },
+        name: "Demo",
+        kind: "file",
+        starred: false,
+        createdAt: 200,
+        updatedAt: 200,
+        listIds: ["default"],
+      })
     const service = new ReaderLibraryService(store, () => 200, () => "generated")
     const controller = new ReaderLibraryHttpController(service)
 
@@ -29,6 +41,12 @@ describe("ReaderLibraryHttpController", () => {
     })))!
     expect(created.status).toBe(201)
     expect(await created.json()).toMatchObject({ id: "generated", name: "Demo", listIds: ["default"] })
+    const repeated = (await controller.handle(jsonRequest("/reader/library/bookmarks", {
+      source: { kind: "archive", path: "d:\\DEMO.cbz" },
+      name: "Renamed",
+      listIds: ["reading"],
+    })))!
+    await expect(repeated.json()).resolves.toMatchObject({ id: "generated", name: "Renamed", listIds: ["default", "reading"] })
     expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites")))?.status).toBe(200)
     expect((await controller.handle(request("/reader/library/bookmark-lists")))?.status).toBe(200)
   })
@@ -40,6 +58,7 @@ function createStore() {
     deleteRecent: vi.fn<ReaderLibraryStore["deleteRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
+    findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<ReaderLibraryStore["upsertBookmark"]>(async () => undefined),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),

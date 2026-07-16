@@ -163,7 +163,7 @@
       "settingsKeys": ["history", "book.rememberProgress", "historySettings"],
       "dataStores": ["history", "bookmarks", "reading heatmap", "streak"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
         "behaviorCases": ["记录和恢复进度", "历史大小与自动清理", "书签排序/搜索", "历史与文件树联动", "热力图和连续阅读统计"],
-        "testIds": ["neoview.progress.restore", "neoview.progress.flush", "neoview.progress.sqlite"], "benchmarkIds": [], "knownDifferences": []
+        "testIds": ["neoview.progress.restore", "neoview.progress.flush", "neoview.progress.sqlite", "neoview.library.contract", "neoview.library.bookmark", "neoview.library.bookmark-dedupe", "neoview.library.bookmarks", "neoview.library.http", "neoview.library.headless", "neoview.library.headless-composition", "neoview.library.cli", "neoview.library.tui"], "benchmarkIds": [], "knownDifferences": []
     },
     {
       "id": "search-sort-filter-library",

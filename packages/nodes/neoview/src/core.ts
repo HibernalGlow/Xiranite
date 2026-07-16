@@ -120,6 +120,11 @@ export {
   type OpenHeadlessFileTreeInput,
 } from "./application/headless/ReaderFileTreeHeadlessController.js"
 export {
+  ReaderLibraryHeadlessController,
+  type ReaderLibrarySourceIdentity,
+  type SavePathBookmarkInput,
+} from "./application/headless/ReaderLibraryHeadlessController.js"
+export {
   DEFAULT_READER_SESSION_OPTIONS,
   type OpenViewSourceOptions,
   type ReaderService,

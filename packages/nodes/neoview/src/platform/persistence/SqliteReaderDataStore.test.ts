@@ -67,6 +67,7 @@ describe("SqliteReaderDataStore", () => {
     await expect(store.listBookmarkLists()).resolves.toEqual([
       { id: "reading", name: "Reading", isFavorite: true, createdAt: 1, updatedAt: 1 },
     ])
+    await expect(store.findBookmarkByPath("d:\\ONE.jpg")).resolves.toMatchObject({ id: "one", listIds: ["default"] })
     await expect(store.listBookmarks({ listId: "default", limit: 10, offset: 0 })).resolves.toEqual([
       expect.objectContaining({ id: "one", listIds: ["default"] }),
     ])

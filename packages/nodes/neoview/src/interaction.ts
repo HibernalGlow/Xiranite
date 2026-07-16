@@ -2,7 +2,8 @@ import type { InteractionValues, TerminalInteractionDefinition, TerminalInteract
 import { dirname } from "node:path"
 import type { HeadlessReaderSnapshot } from "./core.js"
 import type { ReaderFileTreeHeadlessController } from "./core.js"
-import { createReaderFileTreeController, createReaderHeadlessController } from "./platform.js"
+import type { ReaderLibraryHeadlessController } from "./core.js"
+import { createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
 
 export interface NeoviewTuiInput {
   path: string
@@ -33,6 +34,29 @@ export interface NeoviewFileTreeTuiResult {
   success: boolean
   message: string
   paths?: readonly string[]
+}
+
+export type NeoviewLibraryTuiAction =
+  | "list-recents" | "cleanup-recents" | "delete-recent"
+  | "list-bookmarks" | "add-bookmark" | "delete-bookmark"
+  | "list-bookmark-lists" | "add-bookmark-list" | "delete-bookmark-list"
+
+export interface NeoviewLibraryTuiInput {
+  action: NeoviewLibraryTuiAction
+  path?: string
+  id?: string
+  name?: string
+  listId?: string
+  before?: number
+  limit?: number
+  starred?: boolean
+  favorite?: boolean
+}
+
+export interface NeoviewLibraryTuiResult {
+  success: boolean
+  message: string
+  lines?: readonly string[]
 }
 
 export function createNeoviewTuiDefinition(
@@ -129,6 +153,48 @@ export function createNeoviewFileTreeTuiDefinition(
   }
 }
 
+export function createNeoviewLibraryTuiDefinition(
+  language: "zh" | "en" = "zh",
+  createController: () => Promise<ReaderLibraryHeadlessController> = createReaderLibraryHeadlessController,
+): TerminalInteractionDefinition<NeoviewLibraryTuiInput, NeoviewLibraryTuiResult> {
+  return {
+    schema: createNeoviewLibraryTuiSchema(language),
+    async run(input) {
+      const controller = await createController()
+      try {
+        const limit = input.limit ?? 100
+        if (input.action === "list-recents") return itemsResult(await controller.listRecent(limit), "recent entries")
+        if (input.action === "cleanup-recents") {
+          const deleted = await controller.clearRecentBefore(input.before ?? 0, Math.min(limit, 500))
+          return { success: true, message: `${deleted} recent entries deleted.` }
+        }
+        if (input.action === "delete-recent") return mutationResult(await controller.removeRecent(input.id ?? ""), "Recent entry")
+        if (input.action === "list-bookmarks") return itemsResult(await controller.listBookmarks(input.listId, limit), "bookmarks")
+        if (input.action === "add-bookmark") {
+          const item = await controller.savePathBookmark({
+            path: input.path ?? "",
+            name: input.name,
+            starred: input.starred,
+            listIds: input.listId ? [input.listId] : undefined,
+          })
+          return { success: true, message: "Bookmark saved.", lines: [JSON.stringify(item)] }
+        }
+        if (input.action === "delete-bookmark") return mutationResult(await controller.removeBookmark(input.id ?? ""), "Bookmark")
+        if (input.action === "list-bookmark-lists") return itemsResult(await controller.listBookmarkLists(), "bookmark lists")
+        if (input.action === "add-bookmark-list") {
+          const item = await controller.saveBookmarkList({ id: input.id, name: input.name ?? "", isFavorite: input.favorite })
+          return { success: true, message: "Bookmark list saved.", lines: [JSON.stringify(item)] }
+        }
+        return mutationResult(await controller.removeBookmarkList(input.id ?? ""), "Bookmark list")
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      } finally {
+        await controller[Symbol.asyncDispose]()
+      }
+    },
+  }
+}
+
 function createNeoviewTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewTuiInput, NeoviewTuiResult> {
   const zh = language === "zh"
   return {
@@ -217,6 +283,69 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
     }),
     result: (result) => ({ success: result.success, message: result.message, lines: result.paths }),
   }
+}
+
+function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewLibraryTuiInput, NeoviewLibraryTuiResult> {
+  const zh = language === "zh"
+  const actionIs = (...actions: NeoviewLibraryTuiAction[]) => (values: Readonly<InteractionValues>) => actions.includes(values.action as NeoviewLibraryTuiAction)
+  const destructive = new Set<NeoviewLibraryTuiAction>(["cleanup-recents", "delete-recent", "delete-bookmark", "delete-bookmark-list"])
+  return {
+    id: "neoview-library",
+    title: "NeoView Library",
+    description: zh ? "最近阅读、书签和书签列表" : "Recent reading, bookmarks and bookmark lists",
+    initialValues: { action: "list-recents", path: "", id: "", name: "", listId: "", before: Date.now(), limit: 100, starred: false, favorite: false },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: LIBRARY_ACTIONS.map(([value, en, cn]) => ({ value, label: zh ? cn : en })) },
+      { id: "path", label: zh ? "路径" : "Path", kind: "text", visibleWhen: actionIs("add-bookmark") },
+      { id: "id", label: "ID", kind: "text", visibleWhen: actionIs("delete-recent", "delete-bookmark", "add-bookmark-list", "delete-bookmark-list") },
+      { id: "name", label: zh ? "名称" : "Name", kind: "text", visibleWhen: actionIs("add-bookmark", "add-bookmark-list") },
+      { id: "listId", label: zh ? "书签列表 ID" : "Bookmark list ID", kind: "text", visibleWhen: actionIs("list-bookmarks", "add-bookmark") },
+      { id: "before", label: zh ? "早于时间戳" : "Before timestamp", kind: "number", min: 0, max: Number.MAX_SAFE_INTEGER, step: 1, visibleWhen: actionIs("cleanup-recents") },
+      { id: "limit", label: zh ? "数量上限" : "Limit", kind: "number", min: 1, max: 500, step: 1, visibleWhen: actionIs("list-recents", "cleanup-recents", "list-bookmarks") },
+      { id: "starred", label: zh ? "收藏" : "Starred", kind: "boolean", visibleWhen: actionIs("add-bookmark") },
+      { id: "favorite", label: zh ? "收藏列表" : "Favorite list", kind: "boolean", visibleWhen: actionIs("add-bookmark-list") },
+    ],
+    toInput: (values) => ({
+      action: isLibraryAction(values.action) ? values.action : "list-recents",
+      path: String(values.path ?? "").trim(),
+      id: String(values.id ?? "").trim(),
+      name: String(values.name ?? "").trim(),
+      listId: String(values.listId ?? "").trim() || undefined,
+      before: Number(values.before ?? 0),
+      limit: Number(values.limit ?? 100),
+      starred: values.starred === true,
+      favorite: values.favorite === true,
+    }),
+    validate: (_values, input) => input.action === "add-bookmark" && !input.path
+      ? (zh ? "请输入书签路径。" : "Enter a bookmark path.")
+      : input.action === "add-bookmark-list" && !input.name
+        ? (zh ? "请输入列表名称。" : "Enter a list name.")
+        : (input.action === "delete-recent" || input.action === "delete-bookmark" || input.action === "delete-bookmark-list") && !input.id
+          ? (zh ? "请输入 ID。" : "Enter an ID.")
+          : null,
+    preview: (input) => [input.action, input.path || input.id || input.name || ""].filter(Boolean),
+    isDangerous: (input) => destructive.has(input.action),
+    dangerPrompt: () => ({ title: zh ? "确认删除" : "Confirm deletion", body: zh ? "该操作会修改 NeoView 主数据库。" : "This operation modifies the NeoView primary database.", confirmLabel: zh ? "确认" : "Confirm" }),
+    result: (result) => ({ success: result.success, message: result.message, lines: result.lines }),
+  }
+}
+
+const LIBRARY_ACTIONS: ReadonlyArray<readonly [NeoviewLibraryTuiAction, string, string]> = [
+  ["list-recents", "List recents", "最近阅读"], ["cleanup-recents", "Cleanup recents", "清理历史"], ["delete-recent", "Delete recent", "删除历史项"],
+  ["list-bookmarks", "List bookmarks", "书签"], ["add-bookmark", "Add bookmark", "添加书签"], ["delete-bookmark", "Delete bookmark", "删除书签"],
+  ["list-bookmark-lists", "List bookmark lists", "书签列表"], ["add-bookmark-list", "Add bookmark list", "创建书签列表"], ["delete-bookmark-list", "Delete bookmark list", "删除书签列表"],
+]
+
+function isLibraryAction(value: unknown): value is NeoviewLibraryTuiAction {
+  return LIBRARY_ACTIONS.some(([action]) => action === value)
+}
+
+function itemsResult(items: readonly unknown[], name: string): NeoviewLibraryTuiResult {
+  return { success: true, message: `${items.length} ${name}.`, lines: items.map((item) => JSON.stringify(item)) }
+}
+
+function mutationResult(changed: boolean, name: string): NeoviewLibraryTuiResult {
+  return { success: true, message: changed ? `${name} removed.` : `${name} not found.` }
 }
 
 function isFileTreeAction(value: unknown): value is NeoviewFileTreeTuiAction {

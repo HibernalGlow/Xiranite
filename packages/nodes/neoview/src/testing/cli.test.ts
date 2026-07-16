@@ -10,6 +10,7 @@ import type {
   OpenHeadlessReaderInput,
   ReaderHeadlessController,
   ReaderFileTreeHeadlessController,
+  ReaderLibraryHeadlessController,
 } from "../core.js"
 import { runProgram } from "../cli.js"
 import { createReaderFileTreeController, createReaderHeadlessController } from "../platform.js"
@@ -22,6 +23,29 @@ const testPlatformDependencies = {
 }
 
 describe("NeoView CLI", () => {
+  it("[neoview.library.cli] adapts shared library operations and confirms destructive commands", async () => {
+    const dispose = vi.fn(async () => undefined)
+    const controller = {
+      listRecent: vi.fn(async () => [{ bookId: "book-1", displayName: "Book" }]),
+      savePathBookmark: vi.fn(async () => ({ id: "bookmark-1", name: "Demo" })),
+      removeBookmark: vi.fn(async () => true),
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderLibraryHeadlessController
+    const dependencies = { createController: async () => fakeReader(), createLibraryController: async () => controller }
+
+    const recents: unknown[] = []
+    await runProgram(["library-recents", "--limit", "20", "--json"], host(recents), dependencies)
+    expect(JSON.parse(recents.join(""))).toEqual({ items: [{ bookId: "book-1", displayName: "Book" }] })
+    expect(controller.listRecent).toHaveBeenCalledWith(20, 0)
+    const bookmark: unknown[] = []
+    await runProgram(["library-bookmark-add", "demo.cbz", "--list", "reading", "--starred", "--json"], host(bookmark), dependencies)
+    expect(controller.savePathBookmark).toHaveBeenCalledWith(expect.objectContaining({ starred: true, listIds: ["reading"] }))
+    await expect(runProgram(["library-bookmark-delete", "--id", "bookmark-1"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["library-bookmark-delete", "--id", "bookmark-1", "--yes"], host([]), dependencies)
+    expect(controller.removeBookmark).toHaveBeenCalledWith("bookmark-1")
+    expect(dispose).toHaveBeenCalledTimes(3)
+  })
+
   it("[neoview.folder.search-history-cli] shares headless history operations and confirms destructive commands", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {

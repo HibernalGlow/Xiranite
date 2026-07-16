@@ -24,6 +24,7 @@ import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistor
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
+import type { ReaderLibraryHeadlessController } from "./application/headless/ReaderLibraryHeadlessController.js"
 import type { ReaderFileTreeServiceOptions } from "./application/browser/ReaderFileTreeService.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
@@ -351,6 +352,19 @@ export async function createReaderLibraryService(databasePath?: string): Promise
   const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
   return new ReaderLibraryService(
     await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(databasePath)),
+  )
+}
+
+export async function createReaderLibraryHeadlessController(databasePath?: string): Promise<ReaderLibraryHeadlessController> {
+  const { basename } = await import("node:path")
+  const { ReaderLibraryHeadlessController } = await import("./application/headless/ReaderLibraryHeadlessController.js")
+  const { detectViewSource } = await import("./platform/filesystem/detectViewSource.js")
+  return new ReaderLibraryHeadlessController(
+    await createReaderLibraryService(databasePath),
+    async (path) => {
+      const source = await detectViewSource(path)
+      return { source, displayName: basename(source.path) || source.path }
+    },
   )
 }
 

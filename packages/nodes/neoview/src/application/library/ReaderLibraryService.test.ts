@@ -44,6 +44,34 @@ describe("ReaderLibraryService", () => {
     expect(store.upsertBookmark).toHaveBeenCalledWith(expect.objectContaining({ id: "bookmark-1", listIds: ["custom", "default"] }))
     await expect(service.saveBookmarkList({ id: "favorites", name: "duplicate" })).rejects.toThrow("reserved")
   })
+
+  it("[neoview.library.bookmark-dedupe] merges a repeated path into the existing bookmark", async () => {
+    const store = createStore()
+    store.findBookmarkByPath.mockResolvedValue({
+      id: "existing",
+      source: { kind: "path", path: "D:/Books/demo.cbz" },
+      name: "Old",
+      kind: "file",
+      starred: true,
+      createdAt: 100,
+      updatedAt: 100,
+      listIds: ["reading"],
+    })
+    const service = new ReaderLibraryService(store, () => 200)
+
+    await expect(service.saveBookmark({
+      source: { kind: "archive", path: "d:\\books\\DEMO.cbz" },
+      name: "Demo",
+      listIds: ["default"],
+    })).resolves.toMatchObject({
+      id: "existing",
+      name: "Demo",
+      starred: true,
+      createdAt: 100,
+      updatedAt: 200,
+      listIds: ["default", "reading"],
+    })
+  })
 })
 
 const customList: ReaderBookmarkListRecord = {
@@ -60,6 +88,7 @@ function createStore() {
     deleteRecent: vi.fn<ReaderLibraryStore["deleteRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
+    findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<(bookmark: ReaderBookmarkRecord) => Promise<void>>(async () => undefined),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),

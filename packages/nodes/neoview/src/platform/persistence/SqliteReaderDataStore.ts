@@ -245,6 +245,25 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     return rows.map((row) => parseBookmark(row, listsByBookmark.get(requireString(row.id, "bookmark id")) ?? []))
   }
 
+  async findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined> {
+    this.#assertOpen()
+    const normalizedPath = normalizeBookmarkPath(path)
+    const row = this.database.get(
+      `SELECT id, source_json, name, kind, starred, created_at, updated_at
+       FROM xr_reader_bookmarks
+       WHERE lower(replace(json_extract(source_json, '$.path'), char(92), '/')) = ?1
+       ORDER BY updated_at DESC, id ASC LIMIT 1`,
+      normalizedPath,
+    )
+    if (!row) return undefined
+    const id = requireString(row.id, "bookmark id")
+    const memberships = this.database.all(
+      "SELECT list_id FROM xr_reader_bookmark_memberships WHERE bookmark_id = ?1 ORDER BY list_id ASC",
+      id,
+    ).map((entry) => requireString(entry.list_id, "membership list id"))
+    return parseBookmark(row, memberships)
+  }
+
   async upsertBookmark(bookmark: ReaderBookmarkRecord): Promise<void> {
     this.#assertOpen()
     await this.#transaction(() => {
@@ -805,6 +824,12 @@ function requireFiniteNumber(value: unknown, name: string): number {
 
 function assertText(value: string, name: string): void {
   if (!value.trim() || value.length > 512) throw new Error(`Reader ${name} is invalid.`)
+}
+
+function normalizeBookmarkPath(path: string): string {
+  const normalized = path.trim().replaceAll("\\", "/").toLocaleLowerCase("en-US")
+  if (!normalized || normalized.length > 32_768 || normalized.includes("\0")) throw new Error("Reader bookmark path is invalid.")
+  return normalized
 }
 
 function parseSearchHistory(row: Record<string, unknown>): ReaderSearchHistoryRecord {

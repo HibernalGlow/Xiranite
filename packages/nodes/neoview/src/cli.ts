@@ -8,6 +8,7 @@ import type {
   HeadlessReaderSnapshot,
   ReaderCacheService,
   ReaderFileTreeHeadlessController,
+  ReaderLibraryHeadlessController,
   ReaderHeadlessController,
 } from "./core.js"
 import type {
@@ -29,6 +30,9 @@ const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
   "reader-data-inspect", "reader-data-import",
   "search-history-inspect", "search-history-import",
+  "library-recents", "library-recent-delete", "library-recent-cleanup",
+  "library-bookmarks", "library-bookmark-add", "library-bookmark-delete",
+  "library-bookmark-lists", "library-bookmark-list-add", "library-bookmark-list-delete",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
@@ -58,8 +62,13 @@ const VALUE_FLAGS = new Set([
   "--exclude",
   "--node",
   "--scope",
+  "--offset",
+  "--id",
+  "--name",
+  "--list",
+  "--before",
 ])
-const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--refresh"])
+const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--refresh", "--starred", "--favorite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 
@@ -75,6 +84,7 @@ export interface NeoviewCliDependencies {
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
   createSearchHistoryImporter?: (databasePath?: string) => Promise<LegacySearchHistoryImporter>
+  createLibraryController?: (databasePath?: string) => Promise<ReaderLibraryHeadlessController>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
 }
@@ -109,6 +119,10 @@ export async function runProgram(
     await runFolderUi(args.slice(1), host)
     return
   }
+  if (command === "library-ui") {
+    await runLibraryUi(args.slice(1), host)
+    return
+  }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
   const parsed = parseArguments(args.slice(1))
@@ -141,6 +155,10 @@ export async function runProgram(
   if (command.startsWith("search-history-")) {
     if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one legacy settings JSON path.`)
     await runSearchHistoryImportCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("library-")) {
+    await runLibraryCommand(command, parsed, host, dependencies)
     return
   }
   if (command.startsWith("folder-search-history")) {
@@ -217,6 +235,30 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "search-history-import") {
     rejectOptions(parsed, new Set(["--json", "--yes", "--database", "--strategy"]))
+    return
+  }
+  if (command === "library-recents" || command === "library-bookmarks") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--limit", "--offset", "--list"]))
+    return
+  }
+  if (command === "library-bookmark-lists") {
+    rejectOptions(parsed, new Set(["--json", "--database"]))
+    return
+  }
+  if (command === "library-bookmark-add") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--name", "--list", "--starred"]))
+    return
+  }
+  if (command === "library-bookmark-list-add") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--id", "--name", "--favorite"]))
+    return
+  }
+  if (command === "library-recent-delete" || command === "library-bookmark-delete" || command === "library-bookmark-list-delete") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--id", "--yes"]))
+    return
+  }
+  if (command === "library-recent-cleanup") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--before", "--limit", "--yes"]))
     return
   }
   if (command === "thumbnail-db-inspect") {
@@ -589,6 +631,106 @@ async function runSearchHistoryImportCommand(
   } finally {
     await importer[Symbol.asyncDispose]()
   }
+}
+
+async function runLibraryCommand(
+  command: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const pathCommand = command === "library-bookmark-add"
+  if (pathCommand ? parsed.positionals.length !== 1 : parsed.positionals.length !== 0) {
+    throw usage(pathCommand ? `${command} requires exactly one reader path.` : `${command} does not accept a path.`)
+  }
+  const destructive = command === "library-recent-delete"
+    || command === "library-recent-cleanup"
+    || command === "library-bookmark-delete"
+    || command === "library-bookmark-list-delete"
+  if (destructive && !parsed.booleans.has("--yes")) throw usage(`${command} requires --yes.`)
+  const databasePath = oneValue(parsed, "--database")
+    ? resolve(host.cwd, oneValue(parsed, "--database")!)
+    : undefined
+  const createController = dependencies.createLibraryController ?? (async (target?: string) => {
+    const { createReaderLibraryHeadlessController } = await import("./platform.js")
+    return createReaderLibraryHeadlessController(target)
+  })
+  const controller = await createController(databasePath)
+  const json = parsed.booleans.has("--json")
+  try {
+    if (command === "library-recents") {
+      const items = await controller.listRecent(
+        integerOption(parsed, "--limit", 1, 500, 100),
+        integerOption(parsed, "--offset", 0, Number.MAX_SAFE_INTEGER, 0),
+      )
+      return printLibraryItems("recents", items, json, host)
+    }
+    if (command === "library-recent-delete") {
+      const id = requiredValue(parsed, "--id", command)
+      return printLibraryMutation({ removed: await controller.removeRecent(id), id }, json, host)
+    }
+    if (command === "library-recent-cleanup") {
+      if (!oneValue(parsed, "--before")) throw usage(`${command} requires --before <timestamp>.`)
+      const before = integerOption(parsed, "--before", 0, Number.MAX_SAFE_INTEGER, 0)
+      const deleted = await controller.clearRecentBefore(before, integerOption(parsed, "--limit", 1, 500, 500))
+      return printLibraryMutation({ deleted, before }, json, host)
+    }
+    if (command === "library-bookmarks") {
+      const items = await controller.listBookmarks(
+        oneValue(parsed, "--list"),
+        integerOption(parsed, "--limit", 1, 500, 100),
+        integerOption(parsed, "--offset", 0, Number.MAX_SAFE_INTEGER, 0),
+      )
+      return printLibraryItems("bookmarks", items, json, host)
+    }
+    if (command === "library-bookmark-add") {
+      const item = await controller.savePathBookmark({
+        path: resolve(host.cwd, parsed.positionals[0]!),
+        name: oneValue(parsed, "--name"),
+        starred: parsed.booleans.has("--starred"),
+        listIds: parsed.values.get("--list"),
+      })
+      return printLibraryMutation({ item }, json, host)
+    }
+    if (command === "library-bookmark-delete") {
+      const id = requiredValue(parsed, "--id", command)
+      return printLibraryMutation({ removed: await controller.removeBookmark(id), id }, json, host)
+    }
+    if (command === "library-bookmark-lists") {
+      return printLibraryItems("bookmarkLists", await controller.listBookmarkLists(), json, host)
+    }
+    if (command === "library-bookmark-list-add") {
+      const item = await controller.saveBookmarkList({
+        id: oneValue(parsed, "--id"),
+        name: requiredValue(parsed, "--name", command),
+        isFavorite: parsed.booleans.has("--favorite"),
+      })
+      return printLibraryMutation({ item }, json, host)
+    }
+    const id = requiredValue(parsed, "--id", command)
+    return printLibraryMutation({ removed: await controller.removeBookmarkList(id), id }, json, host)
+  } finally {
+    await controller[Symbol.asyncDispose]()
+  }
+}
+
+function requiredValue(parsed: ParsedArguments, option: string, command: string): string {
+  const value = oneValue(parsed, option)
+  if (!value?.trim()) throw usage(`${command} requires ${option} <value>.`)
+  return value.trim()
+}
+
+function printLibraryItems(name: string, items: readonly unknown[], json: boolean, host: CliHost): void {
+  if (json) writeJson(host, { items })
+  else {
+    for (const item of items) writeLine(host, JSON.stringify(item))
+    writeLine(host, `${name}: ${items.length}`)
+  }
+}
+
+function printLibraryMutation(result: Record<string, unknown>, json: boolean, host: CliHost): void {
+  if (json) writeJson(host, result)
+  else writeLine(host, JSON.stringify(result))
 }
 
 function readerDataPreview(decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData) {
@@ -1062,6 +1204,27 @@ async function runFolderUi(args: readonly string[], host: CliHost): Promise<void
   })
 }
 
+async function runLibraryUi(args: readonly string[], host: CliHost): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView library-ui requires an interactive terminal.")
+  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
+  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+    throw usage(flags.error ?? `Unknown library-ui argument: ${flags.args[0]}`)
+  }
+  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+    throw usage(`Unknown terminal theme: ${flags.theme}.`)
+  }
+  const { createNeoviewLibraryTuiDefinition } = await import("./interaction.js")
+  await runTerminalUi(createNeoviewLibraryTuiDefinition(flags.language), {
+    host,
+    language: flags.language,
+    renderer: flags.renderer,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["library-ui", ...args] } : undefined,
+  })
+}
+
 function usage(message: string): CliUsageError {
   return new CliUsageError(`${message}\n\n${formatCliHelp()}`)
 }
@@ -1081,6 +1244,15 @@ function formatCliHelp(): string {
     "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
     "  search-history-inspect <json>  Preview legacy search-history migration",
     "  search-history-import <json>   Import search history into thumbnails.db",
+    "  library-recents                 List recent Reader entries",
+    "  library-recent-delete           Delete one recent entry (--id, --yes)",
+    "  library-recent-cleanup          Delete an old bounded batch (--before, --yes)",
+    "  library-bookmarks               List bookmarks, optionally by --list",
+    "  library-bookmark-add <path>     Add or merge a bookmark",
+    "  library-bookmark-delete         Delete one bookmark (--id, --yes)",
+    "  library-bookmark-lists          List system and custom bookmark lists",
+    "  library-bookmark-list-add       Create a custom bookmark list (--name)",
+    "  library-bookmark-list-delete    Delete a custom list (--id, --yes)",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
     "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
@@ -1100,6 +1272,7 @@ function formatCliHelp(): string {
     "  folder-include <path>           Remove a persisted directory exclusion",
     "  folder-tree-cache-clear <path>  Clear the bounded file-tree cache",
     "  folder-ui                        Open the shared file-tree terminal workbench",
+    "  library-ui                       Open recent/bookmark terminal management",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",

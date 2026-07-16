@@ -63,21 +63,22 @@ export class ReaderLibraryService implements AsyncDisposable {
     this.#assertOpen()
     const now = this.clock()
     assertTimestamp(now, "clock")
-    const id = input.id?.trim() || this.createId()
+    const existing = input.id ? undefined : await this.store.findBookmarkByPath(input.source.path)
+    const id = input.id?.trim() || existing?.id || this.createId()
     const name = input.name.trim()
     assertId(id, "bookmark id")
     if (!name) throw new Error("Reader bookmark name must not be empty.")
-    const createdAt = input.createdAt ?? now
+    const createdAt = input.createdAt ?? existing?.createdAt ?? now
     assertTimestamp(createdAt, "createdAt")
     const bookmark: ReaderBookmarkRecord = {
       id,
       source: input.source,
       name,
       kind: input.kind ?? (input.source.kind === "directory" ? "folder" : "file"),
-      starred: (input.starred ?? false) || input.listIds?.includes("favorites") === true,
+      starred: existing?.starred === true || input.starred === true || input.listIds?.includes("favorites") === true,
       createdAt,
       updatedAt: now,
-      listIds: normalizeStoredListIds(input.listIds ?? ["default"]),
+      listIds: normalizeStoredListIds([...(existing?.listIds ?? []), ...(input.listIds ?? ["default"])]),
     }
     await this.store.upsertBookmark(bookmark)
     return bookmark
