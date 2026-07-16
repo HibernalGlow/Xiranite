@@ -10,7 +10,7 @@ import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ArchiveEntry, ArchiveProvider, MaterializedEntryLease } from "../../ports/ArchiveProvider.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
-import { createReaderBook, stableOpaqueId, versionFromFile } from "../books/book-utils.js"
+import { createReaderBook, stableOpaqueId, timestampsFromArchiveEntry, versionFromFile } from "../books/book-utils.js"
 import { ArchivePageContent } from "../content/ArchivePageContent.js"
 import { materializeArchiveEntry } from "./materialize-entry.js"
 
@@ -109,6 +109,7 @@ export async function loadArchiveBook(
         mediaKind: media.kind,
         mimeType: media.mimeType,
         byteLength: entry.uncompressedSize,
+        timestamps: timestampsFromArchiveEntry(entry.modifiedAt),
         contentVersion: [archiveVersion, ...chainVersions, entry.crc32?.toString(16) ?? entry.id].join("-"),
         content: new ArchivePageContent(
           provider,

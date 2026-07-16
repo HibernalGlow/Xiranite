@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderMetadataDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
@@ -10,6 +10,16 @@ import TimeInformationCard from "./TimeInformationCard"
 afterEach(cleanup)
 
 describe("Reader metadata cards", () => {
+  it("[neoview.time-information.states] shows loading for an active session and zero DOM without one", () => {
+    const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
+    const active = render(<TimeInformationCard {...panelContext(clientWith(metadata), session())} />)
+    expect(screen.getByLabelText("正在加载时间信息")).toBeTruthy()
+    active.unmount()
+
+    const inactive = render(<TimeInformationCard {...panelContext(clientWith(metadata), undefined)} />)
+    expect(inactive.container.innerHTML).toBe("")
+  })
+
   it("[neoview.metadata.cards] shares one lazy metadata request across four independently dockable cards", async () => {
     const metadata = vi.fn(async () => metadataDto())
     const context = panelContext(clientWith(metadata), session())
@@ -27,6 +37,8 @@ describe("Reader metadata cards", () => {
     expect(screen.getByText("1920 x 1080")).toBeTruthy()
     expect(screen.getAllByText("2.00 MB").length).toBeGreaterThan(0)
     expect(screen.getByText("D:/books/pages/001.jpg")).toBeTruthy()
+    expect(screen.getByText("访问时间")).toBeTruthy()
+    expect(screen.getByText("文件系统")).toBeTruthy()
   })
 
   it("[neoview.metadata.cancel] aborts the shared request when the final metadata card unmounts", async () => {
@@ -41,9 +53,60 @@ describe("Reader metadata cards", () => {
     view.unmount()
     expect(signal?.aborted).toBe(true)
   })
+
+  it("[neoview.time-information.archive-source] keeps unavailable archive entry times unknown", async () => {
+    const value = metadataDto()
+    value.page = {
+      ...value.page!,
+      timeSource: "archive-entry",
+      createdAtMs: undefined,
+      modifiedAtMs: 1_704_164_646_000,
+      accessedAtMs: undefined,
+    }
+    render(<TimeInformationCard {...panelContext(clientWith(vi.fn(async () => value)), session())} />)
+
+    expect(await screen.findByText("压缩包条目")).toBeTruthy()
+    expect(screen.getAllByText("—")).toHaveLength(2)
+    expect(screen.getByText(new Date(1_704_164_646_000).toLocaleString("zh-CN"))).toBeTruthy()
+  })
+
+  it("[neoview.time-information.retry] retries one failed shared metadata request", async () => {
+    const metadata = vi.fn()
+      .mockRejectedValueOnce(new Error("metadata unavailable"))
+      .mockResolvedValueOnce(metadataDto())
+    render(<TimeInformationCard {...panelContext(clientWith(metadata), session())} />)
+
+    const retry = await screen.findByRole("button", { name: "重试" })
+    expect(screen.getByRole("alert").textContent).toContain("metadata unavailable")
+    fireEvent.click(retry)
+    expect(await screen.findByText("文件系统")).toBeTruthy()
+    expect(metadata).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.time-information.generation-stale] ignores metadata from an obsolete frame generation", async () => {
+    let resolveFirst!: (value: ReaderMetadataDto) => void
+    const first = new Promise<ReaderMetadataDto>((resolve) => { resolveFirst = resolve })
+    const current = metadataDto()
+    current.page = { ...current.page!, timeSource: "archive-entry", modifiedAtMs: 1_704_164_646_000 }
+    const metadata = vi.fn()
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce(current)
+    const initial = session()
+    const context = panelContext(clientWith(metadata), initial)
+    const view = render(<TimeInformationCard {...context} />)
+    await waitFor(() => expect(metadata).toHaveBeenCalledOnce())
+
+    const next = { ...initial, frame: { ...initial.frame, generation: initial.frame.generation + 1 } }
+    view.rerender(<TimeInformationCard {...panelContext(context.client, next)} />)
+    expect(await screen.findByText("压缩包条目")).toBeTruthy()
+    resolveFirst(metadataDto())
+    await Promise.resolve()
+    expect(screen.getByText("压缩包条目")).toBeTruthy()
+    expect(metadata).toHaveBeenCalledTimes(2)
+  })
 })
 
-function panelContext(client: ReaderHttpClient, currentSession: ReaderSessionDto) {
+function panelContext(client: ReaderHttpClient, currentSession: ReaderSessionDto | undefined) {
   return { client, session: currentSession, disabled: false, onGoTo: vi.fn() }
 }
 
@@ -84,6 +147,7 @@ function metadataDto(): ReaderMetadataDto {
       byteLength: 10 * 1_048_576,
       createdAtMs: 1_700_000_000_000,
       modifiedAtMs: 1_700_000_100_000,
+      accessedAtMs: 1_700_000_200_000,
     },
     page: {
       index: 1,
@@ -93,8 +157,10 @@ function metadataDto(): ReaderMetadataDto {
       mimeType: "image/jpeg",
       byteLength: 2 * 1_048_576,
       dimensions: { width: 1920, height: 1080 },
+      timeSource: "filesystem",
       createdAtMs: 1_700_000_000_000,
       modifiedAtMs: 1_700_000_100_000,
+      accessedAtMs: 1_700_000_200_000,
     },
   }
 }

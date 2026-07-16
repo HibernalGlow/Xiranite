@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto"
+import type { Stats } from "node:fs"
 
 import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
-import type { ReaderPage } from "../../domain/page/page.js"
+import type { ReaderPage, ReaderPageTimestamps } from "../../domain/page/page.js"
 
 export function stableOpaqueId(prefix: string, ...parts: Array<string | number>): string {
   const hash = createHash("sha256")
@@ -14,6 +15,23 @@ export function stableOpaqueId(prefix: string, ...parts: Array<string | number>)
 
 export function versionFromFile(size: number, modifiedAtMs: number): string {
   return `${size.toString(36)}-${Math.trunc(modifiedAtMs).toString(36)}`
+}
+
+export function timestampsFromFileStats(
+  stats: Pick<Stats, "atimeMs" | "birthtimeMs" | "mtimeMs">,
+): ReaderPageTimestamps {
+  return {
+    source: "filesystem",
+    createdAtMs: validTimestamp(stats.birthtimeMs),
+    modifiedAtMs: validTimestamp(stats.mtimeMs),
+    accessedAtMs: validTimestamp(stats.atimeMs),
+  }
+}
+
+export function timestampsFromArchiveEntry(modifiedAt?: string): ReaderPageTimestamps | undefined {
+  if (!modifiedAt) return undefined
+  const modifiedAtMs = Date.parse(modifiedAt)
+  return Number.isFinite(modifiedAtMs) ? { source: "archive-entry", modifiedAtMs } : undefined
 }
 
 export function createReaderBook(input: {
@@ -38,4 +56,8 @@ export function createReaderBook(input: {
     close,
     [Symbol.asyncDispose]: close,
   }
+}
+
+function validTimestamp(value: number): number | undefined {
+  return Number.isFinite(value) && value >= 0 ? value : undefined
 }

@@ -4,7 +4,7 @@ import { basename } from "node:path"
 import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
 import { pageMediaType } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
-import { createReaderBook, stableOpaqueId, versionFromFile } from "../books/book-utils.js"
+import { createReaderBook, stableOpaqueId, timestampsFromFileStats, versionFromFile } from "../books/book-utils.js"
 import { FilePageContent } from "../content/FilePageContent.js"
 
 type SingleFileSource = Extract<ViewSource, { kind: "image" | "media" }>
@@ -32,6 +32,7 @@ export async function loadSingleFileBook(source: SingleFileSource, signal?: Abor
     mediaKind: media.kind,
     mimeType: media.mimeType,
     byteLength: fileStats.size,
+    timestamps: timestampsFromFileStats(fileStats),
     contentVersion,
     content: new FilePageContent(filePath, fileStats.size, media.mimeType),
   }

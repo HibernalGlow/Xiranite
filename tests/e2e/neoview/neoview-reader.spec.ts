@@ -641,6 +641,53 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   })).status).toBe(404)
 })
 
+test("[neoview.time-information.e2e] renders source-aware archive times in the real Reader", async ({ page }, testInfo) => {
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.__XIRANITE_BACKEND__ = { baseUrl, token }
+  }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  const openedResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/sessions` && response.request().method() === "POST"
+  ))
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  const opened = await (await openedResponse).json() as { sessionId: string }
+  const image = page.locator('img[alt="001.jpg"]')
+  await expect(image).toBeVisible()
+  await image.evaluate((element) => element.setAttribute("data-neoview-time-card-image-instance", "stable"))
+
+  let metadataRequests = 0
+  page.on("request", (request) => {
+    if (request.url().endsWith(`/reader/s/${opened.sessionId}/metadata`)) metadataRequests += 1
+  })
+  const metadataResponse = page.waitForResponse((response) => response.url().endsWith(`/reader/s/${opened.sessionId}/metadata`))
+  const viewport = page.viewportSize()!
+  await page.mouse.move(viewport.width - 1, viewport.height / 2)
+  const rightSidebar = page.locator('[data-reader-sidebar="right"]')
+  await expect(rightSidebar).toBeVisible()
+  const timeCard = rightSidebar.locator('[data-reader-card="时间信息"]')
+  await expect(timeCard.locator('[data-time-source="archive-entry"]')).toBeVisible()
+  await expect(timeCard.getByText("压缩包条目")).toBeVisible()
+  await expect(timeCard.getByText("访问时间")).toBeVisible()
+  await expect(timeCard.getByText("—")).toHaveCount(2)
+  const metadata = await (await metadataResponse).json() as {
+    page: { timeSource?: string; createdAtMs?: number; modifiedAtMs?: number; accessedAtMs?: number }
+  }
+  expect(metadata.page).toMatchObject({ timeSource: "archive-entry", modifiedAtMs: expect.any(Number) })
+  expect(metadata.page.createdAtMs).toBeUndefined()
+  expect(metadata.page.accessedAtMs).toBeUndefined()
+  expect(metadataRequests).toBe(1)
+  expect(await timeCard.locator("dd").evaluateAll((nodes) => nodes.every((node) => node.scrollWidth <= node.clientWidth + 1))).toBe(true)
+  expect(await image.getAttribute("data-neoview-time-card-image-instance")).toBe("stable")
+  await timeCard.scrollIntoViewIfNeeded()
+  await timeCard.screenshot({ path: testInfo.outputPath(`neoview-time-information-${testInfo.project.name}.png`) })
+
+  const closed = await fetch(`${backend.url}/reader/s/${opened.sessionId}`, {
+    method: "DELETE",
+    headers: { "x-xiranite-token": backend.token },
+  })
+  expect(closed.status).toBe(204)
+})
+
 test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide", async ({ page }) => {
   const startupErrors: string[] = []
   page.on("pageerror", (error) => startupErrors.push(error.stack ?? error.message))

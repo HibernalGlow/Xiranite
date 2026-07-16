@@ -9,6 +9,15 @@ export interface PageDimensions {
   height: number
 }
 
+export type ReaderPageTimeSource = "filesystem" | "archive-entry"
+
+export interface ReaderPageTimestamps {
+  source: ReaderPageTimeSource
+  createdAtMs?: number
+  modifiedAtMs?: number
+  accessedAtMs?: number
+}
+
 export interface ReaderPage {
   id: PageId
   index: number
@@ -23,6 +32,7 @@ export interface ReaderPage {
   mimeType?: string
   byteLength?: number
   dimensions?: PageDimensions
+  timestamps?: ReaderPageTimestamps
   contentVersion: string
   content: PageContent
 }

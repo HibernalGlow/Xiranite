@@ -601,7 +601,9 @@ export class ReaderHttpController implements AsyncDisposable {
     const snapshot = session.snapshot()
     const page = session.book.pages[snapshot.anchorPageIndex]
     const sourcePath = session.book.source.path
-    const pageFilePath = page?.entryPath ? sourcePath : page?.sourcePath
+    const pageFilePath = page && !page.timestamps && !page.entryPath && page.sourcePath !== sourcePath
+      ? page.sourcePath
+      : undefined
     const [bookStats, pageStats] = await Promise.all([
       safeStat(sourcePath, signal),
       pageFilePath && pageFilePath !== sourcePath ? safeStat(pageFilePath, signal) : Promise.resolve(undefined),
@@ -618,18 +620,9 @@ export class ReaderHttpController implements AsyncDisposable {
         byteLength: bookStats?.isFile() ? bookStats.size : undefined,
         createdAtMs: validTime(bookStats?.birthtimeMs),
         modifiedAtMs: validTime(bookStats?.mtimeMs),
+        accessedAtMs: validTime(bookStats?.atimeMs),
       },
-      page: page ? {
-        index: page.index,
-        name: page.name,
-        displayPath: page.entryPath ?? page.sourcePath,
-        mediaKind: page.mediaKind,
-        mimeType: page.mimeType,
-        byteLength: page.byteLength ?? (pageStats?.isFile() ? pageStats.size : undefined),
-        dimensions: page.dimensions,
-        createdAtMs: validTime((pageStats ?? bookStats)?.birthtimeMs),
-        modifiedAtMs: validTime((pageStats ?? bookStats)?.mtimeMs),
-      } : undefined,
+      page: page ? pageMetadata(page, pageStats ?? (!page.timestamps && !page.entryPath ? bookStats : undefined)) : undefined,
     })
   }
 
@@ -896,6 +889,23 @@ async function safeStat(path: string, signal?: AbortSignal): Promise<Stats | und
   } catch (error) {
     if (signal?.aborted) throw error
     return undefined
+  }
+}
+
+function pageMetadata(page: ReaderPage, fallbackStats?: Stats): Record<string, unknown> {
+  const timestamps = page.timestamps
+  return {
+    index: page.index,
+    name: page.name,
+    displayPath: page.entryPath ?? page.sourcePath,
+    mediaKind: page.mediaKind,
+    mimeType: page.mimeType,
+    byteLength: page.byteLength ?? (fallbackStats?.isFile() ? fallbackStats.size : undefined),
+    dimensions: page.dimensions,
+    timeSource: timestamps?.source ?? (fallbackStats ? "book-source" : undefined),
+    createdAtMs: timestamps?.createdAtMs ?? validTime(fallbackStats?.birthtimeMs),
+    modifiedAtMs: timestamps?.modifiedAtMs ?? validTime(fallbackStats?.mtimeMs),
+    accessedAtMs: timestamps?.accessedAtMs ?? validTime(fallbackStats?.atimeMs),
   }
 }
 

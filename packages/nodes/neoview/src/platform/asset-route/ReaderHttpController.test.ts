@@ -461,8 +461,24 @@ describe("ReaderHttpController", () => {
 
       const metadata = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!
       expect(await metadata.json()).toMatchObject({
-        book: { sourceKind: "directory", sourcePath: directory, pageCount: 3, currentPage: 2 },
-        page: { index: 1, name: "2.jpg", byteLength: 1 },
+        book: {
+          sourceKind: "directory",
+          sourcePath: directory,
+          pageCount: 3,
+          currentPage: 2,
+          createdAtMs: expect.any(Number),
+          modifiedAtMs: expect.any(Number),
+          accessedAtMs: expect.any(Number),
+        },
+        page: {
+          index: 1,
+          name: "2.jpg",
+          byteLength: 1,
+          timeSource: "filesystem",
+          createdAtMs: expect.any(Number),
+          modifiedAtMs: expect.any(Number),
+          accessedAtMs: expect.any(Number),
+        },
       })
 
       const options = (await controller.handle(jsonRequest(
@@ -636,6 +652,15 @@ describe("ReaderHttpController", () => {
       const serialized = JSON.stringify(session)
       expect(serialized).not.toContain(password)
       expect(session.visiblePages[0]!.assetUrl).not.toContain(password)
+      const metadata = await (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!.json() as {
+        page: { timeSource?: string; createdAtMs?: number; modifiedAtMs?: number; accessedAtMs?: number }
+      }
+      expect(metadata.page).toMatchObject({
+        timeSource: "archive-entry",
+        modifiedAtMs: Date.parse("2024-01-02T03:04:06.000Z"),
+      })
+      expect(metadata.page.createdAtMs).toBeUndefined()
+      expect(metadata.page.accessedAtMs).toBeUndefined()
       const asset = (await controller.handle(new Request(session.visiblePages[0]!.assetUrl)))!
       expect(Buffer.from(await asset.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
       await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" }))

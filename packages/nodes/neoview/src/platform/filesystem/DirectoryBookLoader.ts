@@ -6,7 +6,7 @@ import type { ReaderBook } from "../../domain/book/book.js"
 import { pageMediaType } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
-import { createReaderBook, stableOpaqueId, versionFromFile } from "../books/book-utils.js"
+import { createReaderBook, stableOpaqueId, timestampsFromFileStats, versionFromFile } from "../books/book-utils.js"
 import { FilePageContent } from "../content/FilePageContent.js"
 
 const STAT_CONCURRENCY = 32
@@ -51,6 +51,7 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal): Pro
       mediaKind: media.kind,
       mimeType: media.mimeType,
       byteLength: file.stats.size,
+      timestamps: timestampsFromFileStats(file.stats),
       contentVersion,
       content: new FilePageContent(file.path, file.stats.size, media.mimeType),
     }

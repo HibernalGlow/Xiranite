@@ -35,6 +35,12 @@ describe("PlatformReaderBookLoader", () => {
         "image/jpeg",
         "video/mp4",
       ])
+      expect(first.pages.every((page) => (
+        page.timestamps?.source === "filesystem"
+        && Number.isFinite(page.timestamps.createdAtMs)
+        && Number.isFinite(page.timestamps.modifiedAtMs)
+        && Number.isFinite(page.timestamps.accessedAtMs)
+      ))).toBe(true)
       expect(first.pages.some((page) => page.name === "nested.png" || page.name === "notes.txt")).toBe(false)
     } finally {
       await first.close()
@@ -82,6 +88,12 @@ describe("PlatformReaderBookLoader", () => {
       { key: `${fixture.path}::pages/2.jpg#1`, category: "file" },
       { key: `${fixture.path}::pages/10.jpg#0`, category: "file" },
     ])
+    expect(book.pages.every((page) => (
+      page.timestamps?.source === "archive-entry"
+      && page.timestamps.createdAtMs === undefined
+      && page.timestamps.accessedAtMs === undefined
+      && page.timestamps.modifiedAtMs === Date.parse("2024-01-02T03:04:06.000Z")
+    ))).toBe(true)
     const page = book.pages[1]!
     const source = await page.content.load()
     expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(2))
@@ -99,6 +111,12 @@ describe("PlatformReaderBookLoader", () => {
     try {
       expect(book.pages).toHaveLength(1)
       expect(book.pages[0]).toMatchObject({ name: "standalone.jxl", mimeType: "image/jxl", byteLength: 3 })
+      expect(book.pages[0]!.timestamps).toMatchObject({
+        source: "filesystem",
+        createdAtMs: expect.any(Number),
+        modifiedAtMs: expect.any(Number),
+        accessedAtMs: expect.any(Number),
+      })
       expect(book.pages[0]!.thumbnailSource).toEqual({ key: path, category: "file" })
       const source = await book.pages[0]!.content.load()
       expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6))

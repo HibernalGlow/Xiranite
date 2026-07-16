@@ -22,7 +22,14 @@ export {
   type ReaderRotation,
 } from "./domain/presentation/presentation.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
-export type { PageDimensions, PageId, PageMediaKind, ReaderPage } from "./domain/page/page.js"
+export type {
+  PageDimensions,
+  PageId,
+  PageMediaKind,
+  ReaderPage,
+  ReaderPageTimestamps,
+  ReaderPageTimeSource,
+} from "./domain/page/page.js"
 export {
   ReaderSlideshow,
   type ReaderSlideshowConfig,

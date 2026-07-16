@@ -40,7 +40,8 @@ for (const chunk of new Set([readerFrameChunk, readerViewToolbarChunk])) {
   if (chunk.bytes > 16 * 1024) throw new Error(`NeoView deferred presentation chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 16 KiB.`)
 }
 const deferredPanelChunks = neoViewChunks.filter((chunk) => chunk !== neoViewChunk && chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]/i.test(module)))
-if (!deferredPanelChunks.some((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]ReaderSidebar\.tsx$/i.test(module)))) {
+const readerSidebarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]ReaderSidebar\.tsx$/i.test(module)))
+if (!readerSidebarChunk) {
   throw new Error("NeoView ReaderSidebar did not produce a deferred production chunk.")
 }
 if (!deferredPanelChunks.some((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]/i.test(module)))) {
@@ -48,6 +49,13 @@ if (!deferredPanelChunks.some((chunk) => chunk.modules.some((module) => /[/\\]fe
 }
 for (const chunk of deferredPanelChunks) {
   if (chunk.bytes > 32 * 1024) throw new Error(`NeoView deferred panel chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 32 KiB.`)
+}
+const timeInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]TimeInformationCard\.tsx$/i.test(module)))
+if (!timeInformationChunk || timeInformationChunk === readerSidebarChunk) {
+  throw new Error("NeoView TimeInformationCard did not produce an independent deferred production chunk.")
+}
+if (timeInformationChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView TimeInformationCard chunk ${timeInformationChunk.fileName} is ${timeInformationChunk.bytes} bytes, above 8 KiB.`)
 }
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
@@ -102,6 +110,7 @@ console.log(JSON.stringify({
   neoviewChunk: { fileName: neoViewChunk.fileName, bytes: neoViewChunk.bytes },
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
+  timeInformationChunk: { fileName: timeInformationChunk.fileName, bytes: timeInformationChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },

@@ -1,5 +1,7 @@
+import { RefreshCw } from "lucide-react"
+
 import type { ReaderPanelContext } from "../registry"
-import { formatDate } from "./reader-metadata-format"
+import { formatDate, formatTimeSource } from "./reader-metadata-format"
 import { useReaderMetadata } from "./useReaderMetadata"
 
 export default function TimeInformationCard({ session, client }: ReaderPanelContext) {
@@ -9,13 +11,37 @@ export default function TimeInformationCard({ session, client }: ReaderPanelCont
 
 function TimeInformationContent({ session, client }: { session: NonNullable<ReaderPanelContext["session"]>; client: ReaderPanelContext["client"] }) {
   const state = useReaderMetadata(client, session.sessionId, session.frame.generation)
-  if (state.loading) return <div className="h-10 animate-pulse rounded bg-muted" aria-label="正在加载时间信息" />
-  if (state.error) return <div role="alert" className="text-xs text-destructive">{state.error}</div>
+  if (state.loading) return <div className="h-14 animate-pulse rounded bg-muted" aria-label="正在加载时间信息" />
+  if (state.error) {
+    return (
+      <div className="grid justify-items-center gap-2 py-2 text-center text-xs" role="alert">
+        <span className="text-destructive">{state.error}</span>
+        <button className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground" type="button" onClick={state.retry}>
+          <RefreshCw className="size-3" aria-hidden="true" />
+          重试
+        </button>
+      </div>
+    )
+  }
   const page = state.value?.page
+  const book = state.value?.book
+  if (!page && !book) return <div className="py-2 text-center text-sm text-muted-foreground">暂无时间信息</div>
+  const source = page?.timeSource ?? (book ? "book-source" : undefined)
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs">
-      <dt className="text-muted-foreground">创建时间</dt><dd className="text-right text-[10px]">{formatDate(page?.createdAtMs ?? state.value?.book.createdAtMs)}</dd>
-      <dt className="text-muted-foreground">修改时间</dt><dd className="text-right text-[10px]">{formatDate(page?.modifiedAtMs ?? state.value?.book.modifiedAtMs)}</dd>
+    <dl className="space-y-2 text-sm" data-time-source={source}>
+      <MetadataRow label="创建时间" value={formatDate(page ? page.createdAtMs : book?.createdAtMs)} />
+      <MetadataRow label="修改时间" value={formatDate(page ? page.modifiedAtMs : book?.modifiedAtMs)} />
+      <MetadataRow label="访问时间" value={formatDate(page ? page.accessedAtMs : book?.accessedAtMs)} />
+      <MetadataRow label="时间来源" value={formatTimeSource(source)} />
     </dl>
+  )
+}
+
+function MetadataRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-start justify-between gap-3">
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-right text-xs tabular-nums" title={value}>{value}</dd>
+    </div>
   )
 }

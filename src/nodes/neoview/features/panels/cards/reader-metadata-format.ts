@@ -7,7 +7,16 @@ export function formatBytes(bytes?: number): string {
 }
 
 export function formatDate(timestamp?: number): string {
-  return timestamp === undefined ? "-" : new Date(timestamp).toLocaleString("zh-CN")
+  if (timestamp === undefined || !Number.isFinite(timestamp)) return "—"
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("zh-CN")
+}
+
+export function formatTimeSource(source?: "filesystem" | "archive-entry" | "book-source"): string {
+  if (source === "filesystem") return "文件系统"
+  if (source === "archive-entry") return "压缩包条目"
+  if (source === "book-source") return "书籍源文件"
+  return "未知"
 }
 
 export function formatSourceKind(kind: string): string {
