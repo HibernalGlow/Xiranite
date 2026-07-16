@@ -34,9 +34,41 @@ for (let index = 0; index < readCount; index += 1) {
 }
 const readMs = performance.now() - readStart
 const final = cache.snapshot()
+const retentionCount = Math.min(8, Math.max(1, Math.floor(budgetMiB / 4)))
+const retainedKeys = hotKeys.slice(0, retentionCount)
+const retainedLeases = retainedKeys.map((key) => {
+  const lease = cache.pin(key)
+  if (!lease) throw new Error(`Expected retention candidate was unavailable: ${key}`)
+  return lease
+})
+const retainedBeforeFlood = cache.snapshot()
+for (let index = 0; index < budgetMiB; index += 1) {
+  const bytes = new Uint8Array(entryMiB * mib)
+  bytes.fill((writeCount + index) & 0xff)
+  if (!cache.set(`retention-flood-${index}`, { bytes, contentType: "image/webp" })) {
+    throw new Error(`Cache rejected retention flood entry ${index}`)
+  }
+}
+const retainedAfterFlood = cache.snapshot()
+if (retainedAfterFlood.bytes > retainedAfterFlood.maxBytes) throw new Error("Retention scenario exceeded the hard byte budget")
+if (retainedAfterFlood.pinnedEntries !== retentionCount || retainedAfterFlood.activeLeases !== retentionCount) {
+  throw new Error("Retention leases were lost during eviction pressure")
+}
+const retentionReadStart = performance.now()
+for (let index = 0; index < readCount; index += 1) {
+  const key = retainedKeys[index % retainedKeys.length]!
+  if (!cache.get(key)) throw new Error(`Retained presentation was evicted: ${key}`)
+}
+const retentionReadMs = performance.now() - retentionReadStart
+for (const lease of retainedLeases) lease.release()
+const afterRetentionRelease = cache.snapshot()
+if (afterRetentionRelease.activeLeases !== 0 || afterRetentionRelease.pinnedEntries !== 0) {
+  throw new Error("Retention leases did not return to zero")
+}
 
 process.stdout.write(`${JSON.stringify({
   benchmark: "cache-memory-budget",
+  benchmarkIds: ["cache-memory-budget", "presentation-retention"],
   runtime: `Bun ${Bun.version}`,
   platform: `${process.platform}-${process.arch}`,
   configuration: {
@@ -47,6 +79,7 @@ process.stdout.write(`${JSON.stringify({
     writeCount,
     readCount,
     hotSetSize,
+    retentionFloodCount: budgetMiB,
   },
   writes: {
     milliseconds: round(writeMs),
@@ -57,6 +90,17 @@ process.stdout.write(`${JSON.stringify({
     milliseconds: round(readMs),
     operationsPerSecond: round(readCount / (readMs / 1000)),
     averageMicroseconds: round(readMs * 1000 / readCount),
+  },
+  retention: {
+    desiredEntries: retentionCount,
+    retainedMiBBeforeFlood: round((retainedBeforeFlood.pinnedBytes ?? 0) / mib),
+    retainedMiBAfterFlood: round((retainedAfterFlood.pinnedBytes ?? 0) / mib),
+    totalMiBAfterFlood: round(retainedAfterFlood.bytes / mib),
+    hardBudgetMiB: round(retainedAfterFlood.maxBytes / mib),
+    activeLeasesDuringFlood: retainedAfterFlood.activeLeases ?? 0,
+    survivedBudgetFlood: true,
+    hotReadAverageMicroseconds: round(retentionReadMs * 1000 / readCount),
+    activeLeasesAfterRelease: afterRetentionRelease.activeLeases ?? 0,
   },
   cache: {
     entries: final.entries,
@@ -69,7 +113,7 @@ process.stdout.write(`${JSON.stringify({
 }, null, 2)}\n`)
 
 function positiveInteger(value: number, name: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new RangeError(`${name} must be a positive integer`)
+  if (!Number.isSafeInteger(value) || value < 2) throw new RangeError(`${name} must be an integer >= 2`)
   return value
 }
 

@@ -1452,7 +1452,7 @@ L2 presentation 的跨响应保留继续复用 `WeightedLruPresentationCache.pin
 
 这仍不是第 12 节的全部完成状态：current listing 的预算降级策略、跨进程 active lease，以及真实 corpus 下 retention 命中收益与预算校准尚待实现。缓存产物物化是受字节预算约束的明确例外，禁止把同一机制扩展为“所有原图默认进 JS 堆”。
 
-`bun run benchmark:neoview-cache` 提供可重复的 `cache-memory-budget` JSON。2026-07-16 本机 `lru-cache@11` 实现以 32 MiB 预算连续写入 64 个 1 MiB 已触碰字节条目，最终严格保留 32 MiB、淘汰 32 条；写入约 `3804 MiB/s`，20,000 次热命中无 miss，平均约 `0.15 µs/次`。脚本支持 `NEOVIEW_CACHE_BENCH_MIB` 调整预算，报告 Bun/平台、配置、写入吞吐、热命中延迟、保留字节和淘汰数；这些数值用于同机回归，不作为跨硬件性能承诺。
+`bun run benchmark:neoview-cache` 复用同一个 `WeightedLruPresentationCache` runner，输出 `cache-memory-budget` 与 `presentation-retention` 两个 benchmark ID。2026-07-17 本机 Bun 1.4.0 / `lru-cache@11` 以 32 MiB 预算连续写入 64 个 1 MiB 已触碰字节条目，最终严格保留 32 MiB、淘汰 32 条；本轮写入约 `2911 MiB/s`，20,000 次普通热命中无 miss，平均约 `0.38 µs/次`。随后从热集合 pin 8 个 1 MiB presentation，再灌入完整 32 MiB 冷数据：8 MiB pinned bytes 和 8 个 active lease 全部存活，总量仍严格为 32 MiB，20,000 次 retained 热读平均约 `0.06 µs/次`，全部 release 后 active lease/pinned entry 均归零。脚本支持 `NEOVIEW_CACHE_BENCH_MIB>=2` 调整预算，并在异常淘汰、越界或 lease 泄漏时直接失败。该 corpus 使用确定尺寸字节项验证缓存与 lease 算法，不冒充真实 JPEG/WebP 解码、网络或 GPU 性能；真实图片 corpus 仍需单独校准。
 
 `bun run benchmark:neoview-disk-cache` 提供可重复的 `cacache-presentation-l3` JSON。缓存依赖或 override 变化后必须重新生成基线，不沿用 18.x 数值。2026-07-16 本机 Bun 1.4.0/Windows x64、`cacache@20.0.1`、64 MiB 预算样本中，首次含惰性 import 的写入为 `104.68 ms`，64 个唯一 1 MiB 产物写入为 `72.16 MiB/s`，128 次完整 SHA-256 校验读取为 `404.39 MiB/s`；随后 16 个同键并发写只形成一个 adapter flight。加入第 65 个产物时按 80% 目标淘汰 13 项，最终保留 `53,739,520` bytes、0 miss、0 rejected write。报告至少包含首次惰性加载、唯一内容写入吞吐、完整校验读取、同键 singleflight、预算淘汰、miss 和 rejected write；该基线包含本机文件系统缓存状态，只用于同机回归。
 
