@@ -1,11 +1,17 @@
-import { act, render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
+import type { ReaderHttpClient, ReaderSessionDto, ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
 import { ReaderPreloadStatusStore } from "../../reader/ReaderPreloadStatusStore"
-import { PreloadStatusView } from "./PreloadStatusCard"
+import PreloadStatusCard, { formatPreloadBytes, PreloadStatusView } from "./PreloadStatusCard"
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 describe("PreloadStatusCard", () => {
-  it("[neoview.card.preload-status-live] subscribes only while mounted and renders actual decode events", () => {
+  it("[neoview.preload-status.nearby-window] renders the bounded legacy page window and actual browser events", () => {
     const store = new ReaderPreloadStatusStore(4)
     const view = render(
       <PreloadStatusView sessionId="reader-1" currentPageIndex={4} totalPages={20} store={store} />,
@@ -13,7 +19,10 @@ describe("PreloadStatusCard", () => {
 
     expect(store.listenerCount("reader-1")).toBe(1)
     expect(screen.getByText("5 / 20")).toBeTruthy()
-    expect(screen.getByText("暂无相邻页预解码任务")).toBeTruthy()
+    expect(screen.getAllByLabelText(/第 \d+ 页/)).toHaveLength(9)
+    expect(screen.getByLabelText("第 2 页，未预解码")).toBeTruthy()
+    expect(screen.getByLabelText("第 5 页，当前")).toBeTruthy()
+    expect(screen.getByLabelText("第 10 页，未预解码")).toBeTruthy()
 
     act(() => {
       store.begin("reader-1", 5)
@@ -22,13 +31,151 @@ describe("PreloadStatusCard", () => {
       store.fail("reader-1", 3)
     })
 
-    expect(screen.getByText("2 / 4")).toBeTruthy()
-    expect(screen.getByText("P4")).toBeTruthy()
-    expect(screen.getByText("P6")).toBeTruthy()
-    expect(screen.getByText("ready")).toBeTruthy()
-    expect(screen.getByText("failed")).toBeTruthy()
+    expect(screen.getByLabelText("第 4 页，失败")).toBeTruthy()
+    expect(screen.getByLabelText("第 6 页，已预解码")).toBeTruthy()
+    expect(screen.getByLabelText("浏览器预解码状态").textContent).toContain("1")
 
     view.unmount()
     expect(store.listenerCount("reader-1")).toBe(0)
   })
+
+  it("[neoview.preload-status.memory] keeps server cache capacity separate from browser retention", () => {
+    const store = new ReaderPreloadStatusStore(4)
+    store.ready("reader-1", 3)
+    store.ready("reader-1", 5)
+    render(
+      <PreloadStatusView
+        sessionId="reader-1"
+        currentPageIndex={4}
+        totalPages={20}
+        store={store}
+        diagnostics={diagnosticsDto()}
+      />,
+    )
+
+    expect(screen.getByText("12 项")).toBeTruthy()
+    expect(screen.queryByText("2 / 4")).toBeNull()
+    expect(screen.getByText("64.00 MB / 256.00 MB")).toBeTruthy()
+    const progress = screen.getByRole("progressbar", { name: "服务端呈现缓存使用率" })
+    expect(progress.getAttribute("aria-valuenow")).toBe("25")
+    expect(screen.getByLabelText("服务端预加载队列").textContent).toContain("邻近3")
+  })
+
+  it("[neoview.preload-status.states] exposes sanitized retry without hiding the live predecode state", () => {
+    const retry = vi.fn()
+    const store = new ReaderPreloadStatusStore(4)
+    store.ready("reader-1", 5)
+    render(
+      <PreloadStatusView
+        sessionId="reader-1"
+        currentPageIndex={4}
+        totalPages={20}
+        store={store}
+        diagnosticsError="预加载诊断暂时不可用"
+        onRetry={retry}
+      />,
+    )
+
+    expect(screen.getByRole("alert").textContent).not.toContain("D:/private")
+    expect(screen.getByLabelText("第 6 页，已预解码")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "重试" }))
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.preload-status.refresh] polls only while mounted and aborts obsolete requests", async () => {
+    vi.useFakeTimers()
+    const signals: AbortSignal[] = []
+    const diagnostics = vi.fn(async (signal?: AbortSignal) => {
+      signals.push(signal!)
+      return diagnosticsDto()
+    })
+    const session = sessionDto()
+    const view = render(<PreloadStatusCard {...panelContext(diagnostics, session)} />)
+
+    await act(async () => Promise.resolve())
+    expect(diagnostics).toHaveBeenCalledOnce()
+    await act(async () => vi.advanceTimersByTimeAsync(1_999))
+    expect(diagnostics).toHaveBeenCalledOnce()
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(diagnostics).toHaveBeenCalledTimes(2)
+
+    view.rerender(<PreloadStatusCard {...panelContext(diagnostics, { ...session, frame: { ...session.frame, generation: 4 } })} />)
+    await act(async () => Promise.resolve())
+    expect(diagnostics).toHaveBeenCalledTimes(3)
+    expect(signals[0]).toBe(signals[1])
+    expect(signals[1]?.aborted).toBe(true)
+    view.unmount()
+    expect(signals[2]?.aborted).toBe(true)
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(diagnostics).toHaveBeenCalledTimes(3)
+  })
+
+  it("[neoview.preload-status.format] freezes legacy byte boundaries and invalid degradation", () => {
+    expect(formatPreloadBytes(undefined)).toBe("--")
+    expect(formatPreloadBytes(-1)).toBe("--")
+    expect(formatPreloadBytes(0)).toBe("0 B")
+    expect(formatPreloadBytes(1_023)).toBe("1023 B")
+    expect(formatPreloadBytes(1_024)).toBe("1.00 KB")
+    expect(formatPreloadBytes(1_048_576)).toBe("1.00 MB")
+    expect(formatPreloadBytes(1_073_741_824)).toBe("1.00 GB")
+  })
 })
+
+function panelContext(
+  diagnostics: NonNullable<ReaderHttpClient["diagnostics"]>,
+  session: ReaderSessionDto,
+) {
+  return {
+    session,
+    client: {
+      config: vi.fn(), updateSidebarLayout: vi.fn(), updateCardLayout: vi.fn(), updateBoardLayout: vi.fn(), updateViewDefaults: vi.fn(),
+      updateSlideshow: vi.fn(), open: vi.fn(), listPages: vi.fn(), navigate: vi.fn(), goTo: vi.fn(), updateSessionOptions: vi.fn(), close: vi.fn(), diagnostics,
+    } satisfies ReaderHttpClient,
+    disabled: false,
+    onGoTo: vi.fn(),
+  }
+}
+
+function sessionDto(): ReaderSessionDto {
+  return {
+    sessionId: "reader-1",
+    book: { id: "book-1", displayName: "demo.cbz", pageCount: 20 },
+    frame: {
+      generation: 3,
+      anchorPageIndex: 4,
+      direction: "left-to-right",
+      layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
+      pages: [{ pageId: "page-5", pageIndex: 4, side: "single" }],
+      pageCount: 20,
+      atStart: false,
+      atEnd: false,
+    },
+    visiblePages: [],
+  }
+}
+
+function diagnosticsDto(): ReaderStorageDiagnosticsDto {
+  return {
+    schemaVersion: 1,
+    reader: {
+      activeSessions: 1,
+      preload: {
+        sessions: 1,
+        candidates: { near: 3, ahead: 5, background: 1 },
+        active: 1,
+        plannedCandidates: 9,
+        started: 4,
+        ready: 2,
+        failed: 1,
+        cancelled: 0,
+        evicted: 0,
+      },
+    },
+    assets: {
+      presentation: { entries: 12, bytes: 64 * 1_048_576, maxBytes: 256 * 1_048_576, activeLeases: 1 },
+      thumbnails: null,
+    },
+    presentationDiskCache: { enabled: false },
+    solidArchiveCache: { retainedBytes: 0 },
+  }
+}

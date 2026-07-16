@@ -76,8 +76,27 @@ export interface ReaderPageMediaInformationDto {
 
 export interface ReaderStorageDiagnosticsDto {
   schemaVersion: 1
+  reader?: {
+    activeSessions: number
+    preload?: {
+      sessions: number
+      candidates: { near: number; ahead: number; background: number }
+      active: number
+      plannedCandidates: number
+      started: number
+      ready: number
+      failed: number
+      cancelled: number
+      evicted: number
+    }
+  }
   assets: {
-    presentation: { bytes: number } | null
+    presentation: {
+      entries?: number
+      bytes: number
+      maxBytes?: number
+      activeLeases?: number
+    } | null
     thumbnails: { cachedBytes: number } | null
   }
   presentationDiskCache: { enabled: boolean; bytes?: number }

@@ -101,6 +101,14 @@ if (!imageInformationChunk || imageInformationChunk === readerSidebarChunk) {
 if (imageInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView ImageInformationCard chunk ${imageInformationChunk.fileName} is ${imageInformationChunk.bytes} bytes, above 8 KiB.`)
 }
+// [neoview.preload-status.chunk]
+const preloadStatusChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PreloadStatusCard\.tsx$/i.test(module)))
+if (!preloadStatusChunk || preloadStatusChunk === neoViewChunk || preloadStatusChunk === readerSidebarChunk) {
+  throw new Error("NeoView PreloadStatusCard did not produce an independent deferred production chunk.")
+}
+if (preloadStatusChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView PreloadStatusCard chunk ${preloadStatusChunk.fileName} is ${preloadStatusChunk.bytes} bytes, above 8 KiB.`)
+}
 const sidebarControlCardChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]SidebarControlCard\.tsx$/i.test(module)))
 const sidebarFloatingControllerChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]shell[/\\]SidebarFloatingController\.tsx$/i.test(module)))
 if (!sidebarControlCardChunk || sidebarControlCardChunk === neoViewChunk || sidebarControlCardChunk === readerSidebarChunk) {
@@ -184,6 +192,7 @@ console.log(JSON.stringify({
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
   storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },
   imageInformationChunk: { fileName: imageInformationChunk.fileName, bytes: imageInformationChunk.bytes },
+  preloadStatusChunk: { fileName: preloadStatusChunk.fileName, bytes: preloadStatusChunk.bytes },
   sidebarControlCardChunk: { fileName: sidebarControlCardChunk.fileName, bytes: sidebarControlCardChunk.bytes },
   sidebarFloatingControllerChunk: { fileName: sidebarFloatingControllerChunk.fileName, bytes: sidebarFloatingControllerChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },

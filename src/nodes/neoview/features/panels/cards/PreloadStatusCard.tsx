@@ -6,19 +6,54 @@
 import { useCallback, useSyncExternalStore } from "react"
 
 import { cn } from "@/lib/utils"
-import type { ReaderPanelContext } from "../registry"
+import type { ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
 import {
   readerPreloadStatusStore,
+  type ReaderPreloadEntryStatus,
   type ReaderPreloadStatusStore,
 } from "../../reader/ReaderPreloadStatusStore"
+import type { ReaderPanelContext } from "../registry"
+import { useReaderPreloadDiagnostics } from "./useReaderPreloadDiagnostics"
 
-export default function PreloadStatusCard(context: ReaderPanelContext) {
-  if (!context.session) return null
+const PAGES_BEHIND = 3
+const PAGES_AHEAD = 5
+
+export default function PreloadStatusCard({ session, client }: ReaderPanelContext) {
+  if (!session) return null
+  return (
+    <PreloadStatusContent
+      client={client}
+      sessionId={session.sessionId}
+      frameGeneration={session.frame.generation}
+      currentPageIndex={session.frame.anchorPageIndex}
+      totalPages={session.book.pageCount}
+    />
+  )
+}
+
+function PreloadStatusContent({
+  client,
+  sessionId,
+  frameGeneration,
+  currentPageIndex,
+  totalPages,
+}: {
+  client: ReaderPanelContext["client"]
+  sessionId: string
+  frameGeneration: number
+  currentPageIndex: number
+  totalPages: number
+}) {
+  const diagnostics = useReaderPreloadDiagnostics(client, sessionId, frameGeneration)
   return (
     <PreloadStatusView
-      sessionId={context.session.sessionId}
-      currentPageIndex={context.session.frame.anchorPageIndex}
-      totalPages={context.session.book.pageCount}
+      sessionId={sessionId}
+      currentPageIndex={currentPageIndex}
+      totalPages={totalPages}
+      diagnostics={diagnostics.value}
+      diagnosticsLoading={diagnostics.loading}
+      diagnosticsError={diagnostics.error}
+      onRetry={diagnostics.retry}
     />
   )
 }
@@ -27,60 +62,114 @@ export function PreloadStatusView({
   sessionId,
   currentPageIndex,
   totalPages,
+  diagnostics,
+  diagnosticsLoading = false,
+  diagnosticsError,
+  onRetry,
   store = readerPreloadStatusStore,
 }: {
   sessionId: string
   currentPageIndex: number
   totalPages: number
+  diagnostics?: ReaderStorageDiagnosticsDto
+  diagnosticsLoading?: boolean
+  diagnosticsError?: string
+  onRetry?: () => void
   store?: ReaderPreloadStatusStore
 }) {
   const subscribe = useCallback((listener: () => void) => store.subscribe(sessionId, listener), [sessionId, store])
   const getSnapshot = useCallback(() => store.snapshot(sessionId), [sessionId, store])
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const presentation = diagnostics?.assets.presentation
+  const usagePercent = presentation?.maxBytes
+    ? Math.min(100, Math.max(0, presentation.bytes / presentation.maxBytes * 100))
+    : undefined
+  const predecodeByPage = new Map(snapshot.entries.map((entry) => [entry.pageIndex, entry.status]))
+  const nearbyPages = buildNearbyPages(currentPageIndex, totalPages)
+  const preload = diagnostics?.reader?.preload
 
   return (
     <div className="space-y-3 text-xs" data-neoview-preload-status="true">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2" aria-label="预加载摘要">
         <Metric label="当前页" value={`${totalPages > 0 ? currentPageIndex + 1 : 0} / ${totalPages}`} />
-        <Metric label="预解码保留" value={`${snapshot.entries.length} / ${snapshot.retainedLimit}`} />
+        <Metric label="内存池" value={presentation?.entries === undefined ? "--" : `${presentation.entries} 项`} />
       </div>
 
-      <div className="grid grid-cols-3 gap-1.5" aria-label="预解码状态汇总">
+      {presentation ? (
+        <div className="space-y-1.5" aria-label="服务端呈现缓存">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>{formatPreloadBytes(presentation.bytes)} / {formatPreloadBytes(presentation.maxBytes)}</span>
+            <span className="tabular-nums">{usagePercent === undefined ? "--" : `${usagePercent.toFixed(1)}%`}</span>
+          </div>
+          <div
+            className="h-1.5 overflow-hidden rounded bg-muted"
+            role="progressbar"
+            aria-label="服务端呈现缓存使用率"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={usagePercent}
+          >
+            <div className="h-full rounded bg-primary transition-[width]" style={{ width: `${usagePercent ?? 0}%` }} />
+          </div>
+        </div>
+      ) : null}
+
+      <section className="space-y-1.5" aria-labelledby="nearby-preload-heading">
+        <div className="flex items-center justify-between">
+          <h3 id="nearby-preload-heading" className="text-[10px] font-normal text-muted-foreground">附近页预解码</h3>
+          <span className="text-[10px] text-muted-foreground" aria-live="polite">
+            {diagnosticsLoading ? "刷新中" : diagnostics ? "已同步" : "等待诊断"}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {nearbyPages.map((pageIndex) => (
+            <PageStatus
+              key={pageIndex}
+              pageIndex={pageIndex}
+              current={pageIndex === currentPageIndex}
+              status={predecodeByPage.get(pageIndex)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className="grid grid-cols-3 gap-1.5" aria-label="浏览器预解码状态">
         <StatusMetric label="加载中" value={snapshot.loadingCount} tone="loading" />
         <StatusMetric label="已就绪" value={snapshot.readyCount} tone="ready" />
         <StatusMetric label="失败" value={snapshot.failedCount} tone="failed" />
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>相邻页预解码</span>
-          <span>事件同步</span>
+      {preload ? (
+        <div className="grid grid-cols-3 gap-1.5" aria-label="服务端预加载队列">
+          <QueueMetric label="邻近" value={preload.candidates.near} />
+          <QueueMetric label="前方" value={preload.candidates.ahead} />
+          <QueueMetric label="后台" value={preload.candidates.background} />
         </div>
-        {snapshot.entries.length ? (
-          <div className="grid grid-cols-3 gap-1.5">
-            {snapshot.entries.map((entry) => (
-              <div
-                key={entry.pageIndex}
-                className={cn(
-                  "rounded border px-2 py-1 text-center",
-                  entry.status === "ready" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
-                  entry.status === "loading" && "border-primary/40 bg-primary/10 text-primary",
-                  entry.status === "failed" && "border-destructive/40 bg-destructive/10 text-destructive",
-                )}
-              >
-                <span className="block text-[10px]">P{entry.pageIndex + 1}</span>
-                <span className="block text-[9px]">{statusLabel(entry.status)}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded border border-dashed p-3 text-center text-[10px] text-muted-foreground">
-            暂无相邻页预解码任务
-          </div>
-        )}
-      </div>
+      ) : null}
+
+      {diagnosticsError ? (
+        <div className="flex items-center justify-between gap-2 rounded border border-destructive/40 bg-destructive/10 p-2 text-[10px] text-destructive" role="alert">
+          <span>{diagnosticsError}</span>
+          {onRetry ? <button type="button" className="shrink-0 underline-offset-2 hover:underline" onClick={onRetry}>重试</button> : null}
+        </div>
+      ) : null}
     </div>
   )
+}
+
+function buildNearbyPages(currentPageIndex: number, totalPages: number): number[] {
+  if (totalPages <= 0) return []
+  const start = Math.max(0, Math.min(currentPageIndex, totalPages - 1) - PAGES_BEHIND)
+  const end = Math.min(totalPages - 1, Math.max(0, currentPageIndex) + PAGES_AHEAD)
+  return Array.from({ length: end - start + 1 }, (_, offset) => start + offset)
+}
+
+export function formatPreloadBytes(value: number | undefined): string {
+  if (!Number.isFinite(value) || value! < 0) return "--"
+  if (value! < 1_024) return `${value} B`
+  if (value! < 1_048_576) return `${(value! / 1_024).toFixed(2)} KB`
+  if (value! < 1_073_741_824) return `${(value! / 1_048_576).toFixed(2)} MB`
+  return `${(value! / 1_073_741_824).toFixed(2)} GB`
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -88,6 +177,26 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded border border-border/60 bg-muted/20 p-2">
       <div className="text-[10px] text-muted-foreground">{label}</div>
       <div className="mt-1 font-medium tabular-nums">{value}</div>
+    </div>
+  )
+}
+
+function PageStatus({ pageIndex, current, status }: { pageIndex: number; current: boolean; status?: ReaderPreloadEntryStatus }) {
+  const label = current ? "当前" : status === "ready" ? "已预解码" : status === "loading" ? "加载中" : status === "failed" ? "失败" : "未预解码"
+  return (
+    <div
+      className={cn(
+        "rounded border px-2 py-1 text-center",
+        current && "border-primary bg-primary/10 text-primary",
+        !current && status === "ready" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
+        !current && status === "loading" && "border-primary/40 bg-primary/10 text-primary",
+        !current && status === "failed" && "border-destructive/40 bg-destructive/10 text-destructive",
+        !current && !status && "border-border/60 bg-muted/20 text-muted-foreground",
+      )}
+      aria-label={`第 ${pageIndex + 1} 页，${label}`}
+    >
+      <span className="block text-[10px]">P{pageIndex + 1}</span>
+      <span className="block text-[9px]">{label}</span>
     </div>
   )
 }
@@ -106,8 +215,6 @@ function StatusMetric({ label, value, tone }: { label: string; value: number; to
   )
 }
 
-function statusLabel(status: "loading" | "ready" | "failed"): string {
-  if (status === "loading") return "loading"
-  if (status === "ready") return "ready"
-  return "failed"
+function QueueMetric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded border border-border/60 bg-muted/20 px-2 py-1 text-center"><span className="text-[9px] text-muted-foreground">{label}</span><span className="ml-1 tabular-nums">{value}</span></div>
 }

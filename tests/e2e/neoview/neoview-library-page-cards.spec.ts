@@ -62,10 +62,12 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] reuses bounded thumbnail surfaces", async ({ page }, testInfo) => {
+test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
   let pageMediaInformationRequests = 0
+  let diagnosticsRequests = 0
   page.on("request", (request) => {
     if (request.url().includes("/page-media-information")) pageMediaInformationRequests += 1
+    if (request.url().endsWith("/reader/diagnostics")) diagnosticsRequests += 1
   })
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
@@ -131,6 +133,26 @@ test("[neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neovie
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   expect(await imageInformationCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await imageInformationCard.screenshot({ path: testInfo.outputPath(`neoview-image-information-${testInfo.project.name}.png`) })
+
+  const preloadCard = rightSidebar.locator('[data-reader-card="预加载状态"]')
+  await expect(preloadCard).toBeVisible()
+  await expect(preloadCard.getByText("内存池", { exact: true })).toBeVisible()
+  await expect(preloadCard.getByRole("progressbar", { name: "服务端呈现缓存使用率" })).toBeVisible()
+  await expect(preloadCard.getByText("已同步", { exact: true })).toBeVisible()
+  await expect(preloadCard.getByLabel(/第 \d+ 页/)).toHaveCount(6)
+  expect(await preloadCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  await preloadCard.screenshot({ path: testInfo.outputPath(`neoview-preload-status-${testInfo.project.name}.png`) })
+
+  const requestsBeforeCollapse = diagnosticsRequests
+  await rightSidebar.getByRole("button", { name: "折叠预加载状态" }).click()
+  await expect(preloadCard.locator('[data-reader-card-content="预加载状态"]')).toHaveCount(0)
+  await page.waitForTimeout(2_200)
+  expect(diagnosticsRequests).toBe(requestsBeforeCollapse)
+
+  await rightSidebar.getByRole("button", { name: "展开预加载状态" }).click()
+  await expect.poll(() => diagnosticsRequests).toBe(requestsBeforeCollapse + 1)
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 })
 
 const CURRENT_THUMBNAIL_SCHEMA = `

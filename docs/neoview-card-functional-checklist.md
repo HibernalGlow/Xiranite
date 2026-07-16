@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -1017,10 +1017,258 @@
 
 #### `preloadStatus` 预加载状态
 
+- 细项清单：`migration/neoview/preload-status-compatibility.json`
 - [ ] 显示当前书籍预读队列、活跃任务和缓存命中
 - [ ] 区分当前页、相邻页、缩略图等优先级
 - [ ] 提供取消/清理并在会话关闭时归零
 - UI 基线：`src/lib/cards/info/PreloadStatusCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（9 组，124 项）
+
+- `preload-ui.summary` 当前页与内存池摘要
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/stores/book/core.svelte.ts`、`src/lib/api/pageManager.ts`
+  - 映射：`preload.current-page`、`preload.memory-pool`、`preload.states`、`preload.ui-parity`
+  - [ ] 当前页标签
+  - [ ] 1-based 当前页
+  - [ ] 总页数
+  - [ ] 零页显示 0 / 0
+  - [ ] 内存池标签
+  - [ ] entryCount 项
+  - [ ] 未知值显示 --
+  - [ ] 两列摘要网格
+  - [ ] 卡片型边框与背景
+  - [ ] tabular 数值
+- `preload-ui.memory-meter` 内存使用量与进度
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 映射：`preload.memory-pool`、`preload.format`、`preload.data-contract`、`preload.accessibility`、`preload.deviations`
+  - [ ] totalSize
+  - [ ] maxSize
+  - [ ] 1024 进制格式
+  - [ ] usagePercent 一位小数
+  - [ ] 使用率限制在 0..100
+  - [ ] 横向进度条
+  - [ ] 已用与上限左右布局
+  - [ ] maxSize=0 稳定降级
+  - [ ] lockedCount 或 lease 替代语义明确
+- `preload-ui.nearby-cache` 附近页缓存格
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 映射：`preload.nearby-window`、`preload.cache-state`、`preload.ui-parity`、`preload.performance`
+  - [ ] behind=3
+  - [ ] ahead=5
+  - [ ] 书籍边界 clamp
+  - [ ] 最多 9 格
+  - [ ] 三列网格
+  - [ ] P 加 1-based 页码
+  - [ ] current 状态
+  - [ ] cached 状态
+  - [ ] cold 状态
+  - [ ] 当前页优先视觉
+  - [ ] cached emerald 视觉
+  - [ ] cold muted 视觉
+  - [ ] 按 page 稳定 identity
+  - [ ] 查询不得读取或解码页面内容
+- `preload-ui.refresh` 刷新、同步与迟到结果
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 映射：`preload.refresh`、`preload.states`、`preload.lifecycle`、`preload.performance`
+  - [ ] 首次激活立即刷新
+  - [ ] 当前页变化立即刷新
+  - [ ] 总页数变化立即刷新
+  - [ ] 两秒周期刷新
+  - [ ] memory 与 status 并行请求
+  - [ ] 刷新中状态
+  - [ ] 已同步状态
+  - [ ] refreshToken 丢弃迟到响应
+  - [ ] 零页清空
+  - [ ] 失败后退出 refreshing
+  - [ ] 手动重试扩展
+- `preload-ui.states` 空、部分、错误与失败状态
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 映射：`preload.states`、`preload.cache-state`、`preload.data-contract`、`preload.deviations`
+  - [ ] 未打开书籍
+  - [ ] 初始加载
+  - [ ] 仅浏览器预解码可用
+  - [ ] 仅服务端 diagnostics 可用
+  - [ ] 两层数据均可用
+  - [ ] 错误不泄漏路径或 token
+  - [ ] 重试
+  - [ ] predecode loading
+  - [ ] predecode ready
+  - [ ] predecode failed
+  - [ ] server cached 与 cold 不和 browser ready 与 failed 混称
+  - [ ] session 切换清空
+- `preload-ui.queue-actions` 队列、优先级与控制扩展
+  - 源码：`src/lib/api/pageManager.ts`、`src/lib/cards/info/PreloadStatusCard.svelte`
+  - 映射：`preload.queue-priority`、`preload.cancel-clear`、`preload.states`、`preload.data-contract`、`preload.deviations`
+  - [ ] current 分类
+  - [ ] near 分类
+  - [ ] ahead 分类
+  - [ ] background 分类
+  - [ ] thumbnail 独立分类
+  - [ ] active
+  - [ ] ready
+  - [ ] failed
+  - [ ] cancelled
+  - [ ] evicted
+  - [ ] admission normal
+  - [ ] admission reduced
+  - [ ] admission paused
+  - [ ] 取消当前 session speculative work
+  - [ ] 清理当前 session retained cache
+  - [ ] pending
+  - [ ] disabled
+  - [ ] 确认
+  - [ ] 错误
+  - [ ] 回滚
+  - [ ] 不得清理其他 session 或全局缩略图
+  - [ ] GUI CLI TUI 同一命令语义
+- `preload-ui.shell` 通用 Card 外壳
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`、`src/lib/stores/cardConfig.svelte.ts`
+  - 映射：`preload.shell`、`preload.persistence`、`preload.lifecycle`、`preload.performance`
+  - [ ] Loader 图标
+  - [ ] 预加载状态标题
+  - [ ] 默认 info Panel
+  - [ ] 默认 visible=true
+  - [ ] 默认 expanded=true
+  - [ ] canHide=true
+  - [ ] 标题折叠
+  - [ ] 上下移动
+  - [ ] 独立窗口
+  - [ ] 高度调整与恢复 auto
+  - [ ] 折叠时内容零 DOM
+  - [ ] 动态 import
+  - [ ] 加载失败边界
+  - [ ] visible expanded order height 持久化
+- `preload-ui.shared-contract` 三层共享数据链
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 映射：`preload.data-contract`、`preload.lifecycle`、`preload.performance`、`preload.deviations`
+  - [ ] sessionId
+  - [ ] generation
+  - [ ] plan direction
+  - [ ] direction confidence
+  - [ ] tier candidates
+  - [ ] admission
+  - [ ] telemetry counters
+  - [ ] performance metrics
+  - [ ] presentation entries bytes maxBytes leases
+  - [ ] browser predecode bounded entries
+  - [ ] GUI CLI TUI 字段语义一致
+  - [ ] 取消
+  - [ ] 坏 DTO
+  - [ ] 旧 DTO
+  - [ ] 不暴露本地路径
+  - [ ] 不持久化采样
+- `preload-ui.accessible-responsive` 无障碍与响应式几何
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
+  - 映射：`preload.accessibility`、`preload.ui-parity`、`preload.image-stability`、`preload.performance`
+  - [ ] 摘要 group 名称
+  - [ ] 附近页 group 名称
+  - [ ] progressbar role
+  - [ ] progressbar min max value
+  - [ ] 同步状态 live region
+  - [ ] tile 可读页码与状态
+  - [ ] 刷新原生 button
+  - [ ] 取消原生 button
+  - [ ] 清理原生 button
+  - [ ] 稳定焦点顺序
+  - [ ] disabled
+  - [ ] pending
+  - [ ] desktop 几何
+  - [ ] 420x360 几何
+  - [ ] 零横向溢出
+  - [ ] 活动图片不重挂
+
+##### 专用源码级验收项
+
+- [x] `preload.current-page` 显示当前页与总页数
+  - 目标：The active frame anchor is displayed as a 1-based current page with the session book total; a zero-page book renders 0 / 0 without starting preload work.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/stores/book/core.svelte.ts`
+  - 测试：`neoview.preload-status.current-page`、`neoview.card.preload-status-live`、`neoview.preload-status.e2e`
+  - 备注：The current React Card already derives this field from the active session frame and book snapshot; dedicated boundary and Chromium evidence remain part of the final Card gate.
+- [ ] `preload.memory-pool` 显示服务端呈现缓存容量
+  - 目标：The Card displays server-owned presentation cache entries, bytes, maximum bytes, usage and leases from the shared diagnostics snapshot without presenting the browser predecode retained limit as the legacy memory pool.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.cli`、`neoview.preload-status.memory`、`neoview.preload-status.diagnostics-client`
+  - 备注：The browser DTO and Card now consume server presentation entries, bytes, maxBytes and leases separately from the bounded browser predecode store; complete status still requires CLI/TUI presentation and Chromium evidence.
+- [ ] `preload.format` 保持内存与百分比格式
+  - 目标：Bytes use the legacy 1024 thresholds and B/KB/MB/GB labels, usage renders one decimal place, and missing or zero-capacity metrics degrade without invalid percentages.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status.format`
+  - 备注：The React Card freezes byte thresholds, one-decimal usage and invalid-value degradation; CLI/TUI text projection remains pending.
+- [x] `preload.nearby-window` 显示有界附近页窗口
+  - 目标：The Card renders at most nine stable page-index tiles spanning three pages behind through five pages ahead, clamped to book boundaries and queried without loading page content.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status.nearby-window`、`neoview.preload-status.e2e`
+  - 备注：The Card renders the clamped three-behind/five-ahead window without loading page content, overlays bounded browser events and passes desktop plus 420x360 Chromium geometry evidence.
+- [ ] `preload.cache-state` 区分服务端缓存与浏览器预解码状态
+  - 目标：Server current/cached/cold truth and browser loading/ready/failed predecode state are separately labelled; a page may expose both layers without one being inferred from the other.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status-store`、`neoview.card.preload-status-live`、`neoview.preload-status.cache-state`、`neoview.preload-status.partial-metrics`
+  - 备注：Browser loading, ready and failed events exist; the server cached/cold window is not connected to the React Card.
+- [ ] `preload.queue-priority` 显示预读队列、优先级与 admission
+  - 目标：The Card truthfully exposes visible, near, ahead, background and separately owned thumbnail work together with normal, reduced and paused admission from the shared scheduler and preload plan.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload.plan-single`、`neoview.preload.plan-double`、`neoview.preload.viewport-session`、`neoview.preload.resource-admission`、`neoview.preload-status.priority`
+  - 备注：The Card renders aggregated near/ahead/background candidates from shared diagnostics; admission, current-visible ownership and thumbnail ownership remain pending and must stay distinct from browser predecode.
+- [ ] `preload.cancel-clear` 取消当前会话预读并清理保留缓存
+  - 目标：Explicit actions cancel only current-session speculative work or release current-session retained presentations with pending, disabled, confirmation, error and rollback states while preserving the visible frame and unrelated consumers.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status.cancel`、`neoview.preload-status.clear`、`neoview.preload-status.action-http`、`neoview.preload-status.e2e`
+  - 备注：The legacy API exposed global trigger and clear primitives, but the frozen XR scope requires safer current-session ownership rather than a global cache mutation.
+- [x] `preload.refresh` 刷新状态并拒绝迟到结果
+  - 目标：Activation and frame changes update immediately, browser predecode remains event-driven, diagnostics sample at most once every two seconds while active, and retry aborts any superseded request.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status.refresh`、`neoview.preload-status.diagnostics-cancel`、`neoview.preload-status.e2e`
+  - 备注：The Card refreshes diagnostics immediately and at most once per two seconds while mounted, aborts on frame/session changes, exposes sanitized retry, and proves zero polling while collapsed in both Chromium viewports.
+- [ ] `preload.states` 加载、空、部分、错误、重试与释放状态
+  - 目标：Diagnostics and browser predecode failures degrade independently through stable loading, empty, partial, error, retry and disposed states without showing stale previous-session metrics.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status.states`、`neoview.preload-status.retry`、`neoview.preload-status.partial-metrics`、`neoview.preload-status.session-switch`
+  - 备注：The Card covers loading, partial diagnostics, sanitized error, retry and live browser-event states without hiding retained values; session-switch and real-browser evidence remain pending.
+- [x] `preload.shell` 保持共享 Card 外壳行为
+  - 目标：Preload Status remains independently lazy, hideable, dockable, collapsible, movable, resizable and window-capable with its Loader icon, Info Panel default and visible/expanded defaults.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：`neoview.card.parallel-core`、`neoview.card.zero-mount`、`neoview.settings.card-layout`、`neoview.preload-status.chunk`、`neoview.preload-status.e2e`
+  - 备注：The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,157-byte production chunk are gated, including desktop and constrained Chromium.
+- [ ] `preload.data-contract` 共享有界 preload 与 diagnostics DTO
+  - 目标：GUI, CLI and TUI share one versioned, path-free contract for session generation, plan, telemetry, bounded performance metrics and server cache capacity with cancellation and stale-result semantics.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload.telemetry`、`neoview.preload.telemetry-generation`、`neoview.preload.performance-telemetry`、`neoview.preload.telemetry-http`、`neoview.diagnostics.wire-schema`、`neoview.preload-status.diagnostics-client`
+  - 备注：The browser DTO now consumes the shared diagnostics preload tiers and presentation capacity without a second endpoint; session plan/admission detail and explicit CLI/TUI Card projection remain pending.
+- [ ] `preload.lifecycle` 仅在激活时工作并释放所有观察者
+  - 目标：Hidden, collapsed and unmounted Cards perform no subscriptions or polling; session and frame generation changes abort obsolete requests, and session close clears browser state and server telemetry.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/stores/book/core.svelte.ts`
+  - 测试：`neoview.card.preload-status-live`、`neoview.preload-status-store`、`neoview.preload.telemetry-generation`、`neoview.card.zero-mount`、`neoview.preload-status.diagnostics-cancel`、`neoview.preload-status.session-close`
+  - 备注：Store unsubscribe, diagnostics polling cancellation on unmount/session/frame change, browser clear and core close are covered; collapsed/window shell and session-close integration evidence remain pending.
+- [x] `preload.persistence` 仅持久化共享 Card 布局
+  - 目标：Preload plans, cache snapshots and telemetry are never persisted; only panel, visible, expanded, order and height use canonical [nodes.neoview] Card layout, with no Reader business data written to xiranite.db or a second NeoView database.
+  - 源码：`src/lib/stores/cardConfig.svelte.ts`
+  - 测试：`neoview.settings.card-layout`、`neoview.card.persist-react`、`neoview.card.resize-patch`
+  - 备注：The Card has no content settings or legacy persistence key.
+- [ ] `preload.accessibility` 提供语义状态与键盘等价操作
+  - 目标：Named metric and nearby-page groups, a semantic progressbar, polite synchronization feedback and native stateful action buttons provide stable keyboard and screen-reader operation with focus preserved after retry, cancel and clear.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
+  - 测试：`neoview.preload-status.accessibility`、`neoview.preload-status.actions-keyboard`
+  - 备注：The Card now exposes named summary/nearby/queue groups, a semantic progressbar, live sync status and a native retry button; cancel/clear controls and full focus evidence remain pending.
+- [ ] `preload.ui-parity` 保持旧版密度与响应式几何
+  - 目标：The two-column summary, compact memory meter, three-column nearby grid and current/cached/cold hierarchy remain readable without overlap or horizontal overflow at desktop and 420x360 Card widths.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：`neoview.preload-status.ui`、`neoview.preload-status.e2e`
+  - 备注：The React Card restores the two-column summary, compact memory meter and three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending.
+- [ ] `preload.image-stability` 状态观察与控制不重挂活动媒体
+  - 目标：Event updates, diagnostics refresh, retry, cancel and clear preserve the active Reader media node and asset URL and issue zero duplicate requests for the active asset.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`
+  - 测试：`neoview.preload-status.image-stability`、`neoview.preload-status.e2e`
+  - 备注：This is a required XR regression boundary because cache controls must never rebuild the visible frame.
+- [ ] `preload.performance` 有界 DOM、请求、内存与 chunk
+  - 目标：The Card keeps at most nine nearby tiles and O(1) metrics, bounded event snapshots, at most one diagnostics sample per two seconds only while active, zero hidden work, no page decode or thumbnail blob reads, and an independent deferred chunk under 8 KiB outside Reader entry and sidebar base chunks.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status-store`、`neoview.preload.performance-telemetry`、`neoview.preload-status.poll-budget`、`neoview.preload-status.chunk`、`neoview.preload-status.e2e`
+  - 备注：The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, active media remains stable in two Chromium viewports, and the Card is an independent 6,157-byte chunk; the full Reader performance gate remains pending.
+- [ ] `preload.deviations` 记录 XR 三层状态、激活采样与安全控制扩展
+  - 目标：Document that legacy Tauri memory/cache polling is replaced by authenticated shared diagnostics, session preload plan/telemetry and a separately labelled browser predecode event store; polling is active-only, errors are sanitized and retryable, queue/admission/cancel/clear controls are frozen-scope extensions, cancel and clear are current-session scoped, and only Card layout is persisted.
+  - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
+  - 测试：`neoview.preload-status.deviations`、`neoview.preload-status.partial-metrics`、`neoview.preload-status.poll-budget`、`neoview.preload-status.e2e`
+  - 备注：The implementation and checklist explicitly separate server presentation cache, aggregate preload telemetry and bounded browser predecode; it preserves the three-behind/five-ahead window, uses active-only sanitized diagnostics, persists no telemetry and reserves cancel/clear for a future session-scoped contract.
 
 #### `bookInfo` 书籍信息
 
