@@ -268,7 +268,8 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "panels-toolbar-shell",
-      "status": "pending",
+      "status": "migrated",
+      "currentCardId": "sidebar-control",
       "sourceComponent": "src/lib/cards/info/SidebarControlCard.svelte",
       "sourceDisposition": "component"
     },

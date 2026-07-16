@@ -144,6 +144,10 @@ describe("loadNeoviewSessionOptions", () => {
       "reading_direction = \"right-to-left\"",
       "double_page_view = true",
       "default_zoom_mode = \"fitHeight\"",
+      "[nodes.neoview.panels.sidebar_control]",
+      "future_controller = \"keep\"",
+      "[nodes.neoview.panels.edges.top]",
+      "future_edge = \"keep\"",
       "",
     ].join("\n"), "utf8")
 
@@ -168,9 +172,49 @@ describe("loadNeoviewSessionOptions", () => {
       }))
       expect(await shellResponse?.json()).toMatchObject({
         schemaVersion: 1,
-        shell: { edges: { left: { triggerSize: 32 } } },
+        shell: { revision: 0, floatingControl: { enabled: true, position: { x: 100, y: 100 } }, edges: { left: { triggerSize: 32 } } },
         viewDefaults: { fitMode: "fit-height", pageMode: "double" },
         slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
+      })
+      const shellPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({
+          expectedRevision: 0,
+          shellControl: {
+            floating: { enabled: false, position: { x: 321, y: 123 } },
+            edges: { top: { enabled: false, initialVisible: false, pinned: false, triggerSize: 14, lockMode: "locked-hidden" } },
+          },
+        }),
+      }))
+      expect(await shellPatched?.json()).toMatchObject({ shell: {
+        revision: 1,
+        floatingControl: { enabled: false, position: { x: 321, y: 123 } },
+        edges: { top: { enabled: false, initialVisible: false, pinned: false, triggerSize: 14, lockMode: "locked-hidden" } },
+      } })
+      expect((await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ expectedRevision: 0, shellControl: { floating: { enabled: true } } }),
+      })))?.status).toBe(409)
+      const resetShell = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ expectedRevision: 1, shellControl: { reset: "known-defaults" } }),
+      }))
+      expect(await resetShell?.json()).toMatchObject({ shell: {
+        revision: 2,
+        floatingControl: { enabled: true, position: { x: 100, y: 100 } },
+        edges: { top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32, lockMode: "auto" } },
+      } })
+      const shellConfig = await readFile(configPath, "utf8")
+      expect(shellConfig).toContain("[nodes.neoview.panels.sidebar_control]")
+      expect(shellConfig).toContain("future_controller = \"keep\"")
+      expect(shellConfig).toContain("[nodes.neoview.panels.edges.top]")
+      expect(shellConfig).toContain("future_edge = \"keep\"")
+      expect((await loadNeoviewRuntimeConfig({ configPath })).shellOptions).toMatchObject({
+        floatingControl: { enabled: true, position: { x: 100, y: 100 } },
+        edges: { top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32, lockMode: "auto" } },
       })
       const viewPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",

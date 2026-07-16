@@ -71,6 +71,20 @@ if (!storageInformationChunk || storageInformationChunk === readerSidebarChunk) 
 if (storageInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView StorageInformationCard chunk ${storageInformationChunk.fileName} is ${storageInformationChunk.bytes} bytes, above 8 KiB.`)
 }
+const sidebarControlCardChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]SidebarControlCard\.tsx$/i.test(module)))
+const sidebarFloatingControllerChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]shell[/\\]SidebarFloatingController\.tsx$/i.test(module)))
+if (!sidebarControlCardChunk || sidebarControlCardChunk === neoViewChunk || sidebarControlCardChunk === readerSidebarChunk) {
+  throw new Error("NeoView SidebarControlCard did not produce an independent deferred production chunk.")
+}
+if (!sidebarFloatingControllerChunk || sidebarFloatingControllerChunk === neoViewChunk || sidebarFloatingControllerChunk === readerSidebarChunk) {
+  throw new Error("NeoView SidebarFloatingController did not produce an independent deferred production chunk.")
+}
+if (sidebarControlCardChunk === sidebarFloatingControllerChunk) {
+  throw new Error("NeoView Sidebar Control Card and floating layer were merged into one lifecycle chunk.")
+}
+for (const chunk of [sidebarControlCardChunk, sidebarFloatingControllerChunk]) {
+  if (chunk.bytes > 16 * 1024) throw new Error(`NeoView deferred Sidebar Control chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 16 KiB.`)
+}
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
@@ -136,6 +150,8 @@ console.log(JSON.stringify({
   timeInformationChunk: { fileName: timeInformationChunk.fileName, bytes: timeInformationChunk.bytes },
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
   storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },
+  sidebarControlCardChunk: { fileName: sidebarControlCardChunk.fileName, bytes: sidebarControlCardChunk.bytes },
+  sidebarFloatingControllerChunk: { fileName: sidebarFloatingControllerChunk.fileName, bytes: sidebarFloatingControllerChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },

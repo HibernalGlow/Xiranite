@@ -6,18 +6,20 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
 export type ReaderEdge = "top" | "right" | "bottom" | "left"
+export type ReaderEdgeInteraction = "auto" | "fixed-open" | "fixed-closed"
 
 export interface ReaderEdgeSlot {
   render(): ReactNode
   preload?(): void
   ariaLabel: string
+  open: boolean
+  interaction: ReaderEdgeInteraction
   pinned?: boolean
-  initialVisible?: boolean
   triggerSize?: number
   showDelayMs?: number
   hideDelayMs?: number
@@ -28,8 +30,10 @@ export interface ReaderEdgeShellProps {
   children: ReactNode
   edges?: Partial<Record<ReaderEdge, ReaderEdgeSlot>>
   className?: string
-  onEdgeVisibilityChange?(edge: ReaderEdge, visible: boolean): void
+  onEdgeOpenRequest?(edge: ReaderEdge, open: boolean, reason: ReaderEdgeOpenReason): void
 }
+
+export type ReaderEdgeOpenReason = "trigger" | "leave" | "escape"
 
 const EDGE_ORDER: readonly ReaderEdge[] = ["top", "right", "bottom", "left"]
 const DEFAULT_TRIGGER_SIZE = 32
@@ -39,7 +43,7 @@ export function ReaderEdgeShell({
   children,
   edges = {},
   className,
-  onEdgeVisibilityChange,
+  onEdgeOpenRequest,
 }: ReaderEdgeShellProps) {
   return (
     <div className={cn("relative isolate h-full min-h-0 w-full overflow-hidden", className)} data-testid="neoview-reader-edge-shell">
@@ -53,7 +57,7 @@ export function ReaderEdgeShell({
             key={edge}
             edge={edge}
             slot={slot}
-            onVisibilityChange={onEdgeVisibilityChange}
+            onOpenRequest={onEdgeOpenRequest}
           />
         ) : null
       })}
@@ -64,14 +68,18 @@ export function ReaderEdgeShell({
 function ReaderEdgeSurface({
   edge,
   slot,
-  onVisibilityChange,
+  onOpenRequest,
 }: {
   edge: ReaderEdge
   slot: ReaderEdgeSlot
-  onVisibilityChange?: (edge: ReaderEdge, visible: boolean) => void
+  onOpenRequest?: (edge: ReaderEdge, open: boolean, reason: ReaderEdgeOpenReason) => void
 }) {
-  const pinned = slot.pinned ?? false
-  const [visible, setVisible] = useState(() => pinned || (slot.initialVisible ?? false))
+  const visible = slot.interaction === "fixed-open"
+    ? true
+    : slot.interaction === "fixed-closed"
+      ? false
+      : slot.open
+  const automatic = slot.interaction === "auto"
   const surfaceRef = useRef<HTMLDivElement>(null)
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -79,17 +87,18 @@ function ReaderEdgeSurface({
   const composingRef = useRef(false)
   const protectedInteractionRef = useRef(false)
   const visibleRef = useRef(visible)
-  const callbackRef = useRef(onVisibilityChange)
+  const callbackRef = useRef(onOpenRequest)
   visibleRef.current = visible
-  callbackRef.current = onVisibilityChange
+  callbackRef.current = onOpenRequest
 
   useEffect(() => {
-    const next = pinned || (slot.initialVisible ?? false)
-    if (visibleRef.current === next) return
-    visibleRef.current = next
-    setVisible(next)
-    callbackRef.current?.(edge, next)
-  }, [edge, pinned, slot.initialVisible])
+    if (visible) clearTimer(showTimerRef)
+    else clearTimer(hideTimerRef)
+    if (!automatic) {
+      clearTimer(showTimerRef)
+      clearTimer(hideTimerRef)
+    }
+  }, [automatic, visible])
 
   useEffect(() => () => {
     clearTimer(showTimerRef)
@@ -97,7 +106,7 @@ function ReaderEdgeSurface({
   }, [])
 
   useEffect(() => {
-    if (!visible || pinned) return
+    if (!visible || !automatic) return
     const handlePointerMove = (event: PointerEvent) => {
       const previous = lastPointerRef.current
       lastPointerRef.current = { x: event.clientX, y: event.clientY }
@@ -120,15 +129,15 @@ function ReaderEdgeSurface({
     }
     window.addEventListener("pointermove", handlePointerMove, { passive: true })
     return () => window.removeEventListener("pointermove", handlePointerMove)
-  }, [edge, pinned, visible])
+  }, [automatic, edge, visible])
 
   useEffect(() => {
-    if (!visible || pinned) return
+    if (!visible || !automatic) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('[role="dialog"]'))) return
         protectedInteractionRef.current = false
-        commitVisible(false)
+        requestOpen(false, "escape")
       }
     }
     const handlePointerDown = (event: PointerEvent) => {
@@ -144,37 +153,35 @@ function ReaderEdgeSurface({
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("pointerdown", handlePointerDown, true)
     }
-  }, [pinned, visible])
+  }, [automatic, visible])
 
-  function commitVisible(next: boolean) {
+  function requestOpen(next: boolean, reason: ReaderEdgeOpenReason) {
     clearTimer(next ? hideTimerRef : showTimerRef)
     if (visibleRef.current === next) return
-    visibleRef.current = next
-    setVisible(next)
-    callbackRef.current?.(edge, next)
+    callbackRef.current?.(edge, next, reason)
   }
 
   function scheduleShow() {
     clearTimer(hideTimerRef)
-    if (pinned || visibleRef.current || showTimerRef.current !== undefined) return
+    if (!automatic || visibleRef.current || showTimerRef.current !== undefined) return
     slot.preload?.()
     const delay = slot.showDelayMs ?? 0
     if (delay <= 0) {
-      commitVisible(true)
+      requestOpen(true, "trigger")
       return
     }
     showTimerRef.current = setTimeout(() => {
       showTimerRef.current = undefined
-      commitVisible(true)
+      requestOpen(true, "trigger")
     }, delay)
   }
 
   function scheduleHide() {
     clearTimer(showTimerRef)
-    if (pinned || !visibleRef.current || hideTimerRef.current !== undefined || protectedInteractionRef.current || composingRef.current || isInputting()) return
+    if (!automatic || !visibleRef.current || hideTimerRef.current !== undefined || protectedInteractionRef.current || composingRef.current || isInputting()) return
     hideTimerRef.current = setTimeout(() => {
       hideTimerRef.current = undefined
-      if (!protectedInteractionRef.current && !composingRef.current && !isInputting() && !hasProtectedFloatingLayer()) commitVisible(false)
+      if (!protectedInteractionRef.current && !composingRef.current && !isInputting() && !hasProtectedFloatingLayer()) requestOpen(false, "leave")
     }, slot.hideDelayMs ?? DEFAULT_HIDE_DELAY)
   }
 
@@ -206,8 +213,14 @@ function ReaderEdgeSurface({
           role="region"
           aria-label={slot.ariaLabel}
           data-reader-edge={edge}
-          data-pinned={pinned ? "true" : "false"}
-          className={cn("absolute z-50 min-h-0 min-w-0", surfaceClass(edge), slot.className)}
+          data-pinned={slot.pinned ? "true" : "false"}
+          data-reader-edge-interaction={slot.interaction}
+          className={cn(
+            "absolute min-h-0 min-w-0",
+            edge === "left" || edge === "right" ? "z-[60]" : "z-50",
+            surfaceClass(edge),
+            slot.className,
+          )}
           onPointerEnter={() => clearTimer(hideTimerRef)}
           onPointerLeave={handleSurfaceLeave}
           onFocusCapture={() => clearTimer(hideTimerRef)}

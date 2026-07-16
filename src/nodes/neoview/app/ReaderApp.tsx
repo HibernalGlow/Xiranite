@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Settings2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
@@ -32,10 +32,15 @@ import {
   type ReaderFolderViewPatch,
   type ReaderSlideshowConfig,
   type ReaderSlideshowPatch,
+  type ReaderShellControlPatch,
+  type ReaderShellEdge,
+  type ReaderShellLockMode,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
-import { ReaderEdgeShell, type ReaderEdgeSlot } from "../features/shell/ReaderEdgeShell"
+import { ReaderControlledEdgeShell, type ReaderControlledEdgeSlot } from "../features/shell/ReaderControlledEdgeShell"
+import { createReaderShellControlStore, type ReaderShellControlHydration, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
+import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
@@ -99,6 +104,8 @@ function loadReaderViewToolbar(): Promise<ReaderViewToolbarModule> {
 }
 const LazyReaderViewToolbar = lazy(async () => ({ default: (await loadReaderViewToolbar()).ReaderViewToolbar }))
 
+const LazySidebarFloatingController = lazy(() => import("../features/shell/SidebarFloatingController"))
+
 function loadReaderPresentation(): Promise<unknown> {
   return Promise.all([loadReaderFrame(), loadReaderViewToolbar()])
 }
@@ -124,6 +131,7 @@ export function ReaderApp({
   const floatingFrame = useFloatingWindowFrame()
   const [client] = useState<ReaderHttpClient>(() => injectedClient ?? createReaderHttpClient())
   const clientRef = useRef(client)
+  const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
   const slideshowSessionRef = useRef<ReaderSessionDto | undefined>(undefined)
@@ -152,18 +160,38 @@ export function ReaderApp({
   const confirmedFolderViewRef = useRef<ReaderFolderViewConfig>(structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const folderViewWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const folderViewGenerationRef = useRef(0)
+  const shellControlWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const shellControlGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
+  const [shellControlStore] = useState(() => createReaderShellControlStore({
+    edges: {
+      top: { open: true },
+      left: { open: true, pinned: true },
+    },
+  }))
+  const [shellControl] = useState<ReaderShellControlPort>(() => ({
+    store: shellControlStore,
+    requestOpen: requestShellEdgeOpen,
+    setPinned: setShellEdgePinned,
+    cycleLock: cycleShellEdgeLock,
+    setLock: setShellEdgeLock,
+    setFloating: setShellFloatingControl,
+    setTriggerSize: setShellEdgeTriggerSize,
+    reset: resetShellControl,
+    persist: persistShellControl,
+  }))
   const [viewDefaults, setViewDefaults] = useState<ReaderRuntimeConfigDto["viewDefaults"]>(() => ({ ...INITIAL_VIEW_DEFAULTS }))
   const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
   slideshowSessionRef.current = session
+  shellRef.current = shell
 
   useEffect(() => () => {
     operationRef.current?.abort()
@@ -181,6 +209,7 @@ export function ReaderApp({
         setViewDefaults(config.viewDefaults)
       }
       setShell(config.shell)
+      shellControlStore.hydrate(shellControlHydration(config.shell))
       if (folderViewGenerationRef.current === 0) {
         folderViewRef.current = config.folderView
         confirmedFolderViewRef.current = config.folderView
@@ -428,11 +457,89 @@ export function ReaderApp({
     if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
   }
 
+  function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {
+    const previous = shellControlStore.getSnapshot()
+    shellControlStore.requestOpen(edge, open)
+    const next = shellControlStore.getSnapshot().edges[edge]
+    if (previous.edges[edge].lockMode !== next.lockMode) {
+      enqueueShellControl({ edges: { [edge]: { lockMode: next.lockMode, pinned: next.pinned } } }, previous)
+    }
+  }
+
+  function setShellEdgePinned(edge: ReaderShellEdge, pinned: boolean) {
+    const previous = shellControlStore.getSnapshot()
+    shellControlStore.setPinned(edge, pinned)
+    const next = shellControlStore.getSnapshot().edges[edge]
+    enqueueShellControl({ edges: { [edge]: { pinned: next.pinned, lockMode: next.lockMode } } }, previous)
+  }
+
+  function cycleShellEdgeLock(edge: ReaderShellEdge) {
+    const previous = shellControlStore.getSnapshot()
+    shellControlStore.cycleLock(edge)
+    const next = shellControlStore.getSnapshot().edges[edge]
+    enqueueShellControl({ edges: { [edge]: { pinned: next.pinned, lockMode: next.lockMode } } }, previous)
+  }
+
+  function setShellEdgeLock(edge: ReaderShellEdge, lockMode: ReaderShellLockMode) {
+    const previous = shellControlStore.getSnapshot()
+    shellControlStore.setLock(edge, lockMode)
+    const next = shellControlStore.getSnapshot().edges[edge]
+    enqueueShellControl({ edges: { [edge]: { pinned: next.pinned, lockMode: next.lockMode } } }, previous)
+  }
+
+  function setShellFloatingControl(patch: Partial<ReaderShellControlSnapshot["floating"]>) {
+    const previous = shellControlStore.getSnapshot()
+    shellControlStore.setFloating(patch)
+    enqueueShellControl({ floating: patch }, previous)
+  }
+
+  function setShellEdgeTriggerSize(edge: ReaderShellEdge, triggerSize: number) {
+    enqueueShellControl({ edges: { [edge]: { triggerSize } } })
+  }
+
+  function resetShellControl() {
+    const previous = shellControlStore.getSnapshot()
+    shellControlStore.replace(defaultShellControlSnapshot())
+    enqueueShellControl({ reset: "known-defaults" }, previous)
+  }
+
+  function persistShellControl(patch: ReaderShellControlPatch["shellControl"]) {
+    enqueueShellControl(patch)
+  }
+
+  function enqueueShellControl(patch: ReaderShellControlPatch["shellControl"], rollback?: ReaderShellControlSnapshot) {
+    const generation = ++shellControlGenerationRef.current
+    shellControlWriteQueueRef.current = shellControlWriteQueueRef.current.then(async () => {
+      const update = clientRef.current.updateShellControl
+      if (!update) return
+      try {
+        const updated = await update({ expectedRevision: shellRef.current?.revision ?? 0, shellControl: patch })
+        shellRef.current = updated
+        setShell(updated)
+        if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(updated))
+      } catch (cause) {
+        if (generation === shellControlGenerationRef.current && rollback) shellControlStore.replace(rollback)
+        if (cause instanceof ReaderHttpError && cause.status === 409) {
+          const latest = await clientRef.current.config().catch(() => undefined)
+          if (latest) {
+            shellRef.current = latest.shell
+            setShell(latest.shell)
+            if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(latest.shell))
+          }
+        }
+        setError(errorMessage(cause))
+      }
+    })
+  }
+
   async function commitSidebarLayout(patch: ReaderSidebarLayoutPatch) {
+    const previousControl = shellControlStore.getSnapshot()
+    if (patch.pinned !== undefined) shellControlStore.setPinned(patch.side, patch.pinned)
     try {
       const updated = await clientRef.current.updateSidebarLayout(patch)
       setShell(updated)
     } catch (cause) {
+      if (patch.pinned !== undefined) shellControlStore.replace(previousControl)
       setShell((current) => current ? { ...current, sidebars: { ...current.sidebars } } : current)
       setError(errorMessage(cause))
     }
@@ -491,10 +598,8 @@ export function ReaderApp({
     preload: prefetchPages,
   })
 
-  const topEdge: ReaderEdgeSlot = {
+  const topEdge: ReaderControlledEdgeSlot = {
     ariaLabel: "NeoView 顶部工具栏",
-    initialVisible: shell?.edges.top.initialVisible ?? true,
-    pinned: shell?.edges.top.pinned,
     triggerSize: shell?.edges.top.triggerSize,
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
@@ -541,10 +646,8 @@ export function ReaderApp({
     ),
   }
 
-  const bottomEdge: ReaderEdgeSlot | undefined = session && (shell?.edges.bottom.enabled ?? true) ? {
+  const bottomEdge: ReaderControlledEdgeSlot | undefined = session && (shell?.edges.bottom.enabled ?? true) ? {
     ariaLabel: "NeoView 底部缩略图与导航栏",
-    initialVisible: shell?.edges.bottom.initialVisible ?? true,
-    pinned: shell?.edges.bottom.pinned,
     triggerSize: shell?.edges.bottom.triggerSize,
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
@@ -589,6 +692,7 @@ export function ReaderApp({
     },
     onOpen: openPath,
     shell,
+    shellControl,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
     onViewDefaults: applyConfiguredViewDefaults,
@@ -596,13 +700,11 @@ export function ReaderApp({
     onFolderView: persistFolderView,
     ...(session ? { session } : {}),
   }
-  const leftEdge: ReaderEdgeSlot | undefined = (session || hasSessionlessPanel("left", shell)) && (shell?.edges.left.enabled ?? true) ? {
+  const leftEdge: ReaderControlledEdgeSlot | undefined = (session || hasSessionlessPanel("left", shell)) && (shell?.edges.left.enabled ?? true) ? {
     ariaLabel: "NeoView 左侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
     triggerSize: shell?.edges.left.triggerSize,
-    initialVisible: shell?.edges.left.initialVisible,
-    pinned: shell?.edges.left.pinned,
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
@@ -610,13 +712,11 @@ export function ReaderApp({
       </Suspense>
     ),
   } : undefined
-  const rightEdge: ReaderEdgeSlot | undefined = (session || hasSessionlessPanel("right", shell)) && (shell?.edges.right.enabled ?? true) ? {
+  const rightEdge: ReaderControlledEdgeSlot | undefined = (session || hasSessionlessPanel("right", shell)) && (shell?.edges.right.enabled ?? true) ? {
     ariaLabel: "NeoView 右侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
     triggerSize: shell?.edges.right.triggerSize,
-    initialVisible: shell?.edges.right.initialVisible,
-    pinned: shell?.edges.right.pinned,
     preload: () => void loadReaderSidebar(),
     render: () => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-l border-border/70 bg-background/85" aria-label="正在加载右侧面板" />}>
@@ -643,7 +743,7 @@ export function ReaderApp({
       }}
     >
       <FloatingWindowTitlebarReservation />
-      <ReaderEdgeShell edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
+      <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
         <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
           {!session ? (
             <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
@@ -655,8 +755,9 @@ export function ReaderApp({
             </Suspense>
           )}
           {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
+          {shell ? <DeferredSidebarFloatingController control={shellControl} disabled={busy} /> : null}
         </div>
-      </ReaderEdgeShell>
+      </ReaderControlledEdgeShell>
       {settingsOpen && shell ? (
         <Suspense fallback={null}>
           <LazyReaderSettingsWindow
@@ -670,6 +771,46 @@ export function ReaderApp({
       ) : null}
     </div>
   )
+}
+
+function DeferredSidebarFloatingController({ control, disabled }: { control: ReaderShellControlPort; disabled: boolean }) {
+  const enabled = useSyncExternalStore(
+    control.store.subscribe,
+    () => control.store.getSnapshot().floating.enabled,
+    () => control.store.getSnapshot().floating.enabled,
+  )
+  return enabled ? (
+    <Suspense fallback={null}>
+      <LazySidebarFloatingController control={control} disabled={disabled} />
+    </Suspense>
+  ) : null
+}
+
+function shellControlHydration(shell: ReaderShellConfigDto): ReaderShellControlHydration {
+  return {
+    edges: Object.fromEntries((Object.keys(shell.edges) as ReaderShellEdge[]).map((edge) => [edge, {
+      open: shell.edges[edge].initialVisible,
+      pinned: shell.edges[edge].pinned,
+      lockMode: shell.edges[edge].lockMode ?? "auto",
+    }])) as ReaderShellControlHydration["edges"],
+    floating: shell.floatingControl ?? { enabled: true, position: { x: 100, y: 100 } },
+  }
+}
+
+function shellControlSnapshot(shell: ReaderShellConfigDto): ReaderShellControlSnapshot {
+  return shellControlHydration(shell) as ReaderShellControlSnapshot
+}
+
+function defaultShellControlSnapshot(): ReaderShellControlSnapshot {
+  return {
+    edges: {
+      top: { open: true, pinned: false, lockMode: "auto" },
+      right: { open: false, pinned: false, lockMode: "auto" },
+      bottom: { open: false, pinned: false, lockMode: "auto" },
+      left: { open: true, pinned: true, lockMode: "auto" },
+    },
+    floating: { enabled: true, position: { x: 100, y: 100 } },
+  }
 }
 
 function hasSessionlessPanel(side: "left" | "right", shell: ReaderShellConfigDto | undefined): boolean {

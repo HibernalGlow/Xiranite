@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -258,6 +258,79 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
   })
 
+  it("[neoview.card.sidebar-control.data-contract] prefers canonical control tables and reads previously imported legacy values", () => {
+    const canonical = parseNeoviewRuntimeConfig({
+      reader: { view: { sidebar_control: { enabled: false, position: { x: 17, y: 19 } } } },
+      panels: {
+        auto_hide_toolbar: false,
+        hover_areas: { top_trigger_height: 7 },
+        sidebar_control: { enabled: true, position: { x: 120, y: 140 }, future: "preserved-on-disk" },
+        edges: {
+          top: { enabled: false, initial_visible: false, pinned: false, trigger_size: 11, lock_mode: "locked-hidden", future: 1 },
+        },
+      },
+    }).shellOptions
+    expect(canonical.floatingControl).toEqual({ enabled: true, position: { x: 120, y: 140 } })
+    expect(canonical.edges.top).toEqual({
+      enabled: false,
+      initialVisible: false,
+      pinned: false,
+      triggerSize: 11,
+      lockMode: "locked-hidden",
+    })
+
+    const legacy = parseNeoviewRuntimeConfig({
+      reader: { view: { sidebar_control: { enabled: false, position: { x: 23, y: 29 } } } },
+    }).shellOptions
+    expect(legacy.floatingControl).toEqual({ enabled: false, position: { x: 23, y: 29 } })
+  })
+
+  it("[neoview.card.sidebar-control.persistence] validates one revisioned control patch and emits canonical leaf tables", () => {
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 4,
+      shellControl: {
+        floating: { enabled: false, position: { x: 240, y: 180 } },
+        edges: {
+          top: { enabled: false, initialVisible: false, pinned: false, triggerSize: 12, lockMode: "locked-hidden" },
+          left: { pinned: true, lockMode: "locked-open" },
+        },
+      },
+    })).toEqual({
+      patch: {
+        expectedRevision: 4,
+        shellControl: {
+          floating: { enabled: false, position: { x: 240, y: 180 } },
+          edges: {
+            top: { enabled: false, initialVisible: false, pinned: false, triggerSize: 12, lockMode: "locked-hidden" },
+            left: { pinned: true, lockMode: "locked-open" },
+          },
+        },
+      },
+      tomlPatch: { panels: {
+        sidebar_control: { enabled: false, position: { x: 240, y: 180 } },
+        edges: {
+          top: { enabled: false, initial_visible: false, pinned: false, trigger_size: 12, lock_mode: "locked-hidden" },
+          left: { pinned: true, lock_mode: "locked-open" },
+        },
+      } },
+    })
+    const reset = parseNeoviewShellControlPatch({ expectedRevision: 5, shellControl: { reset: "known-defaults" } })
+    expect(reset.patch).toEqual({ expectedRevision: 5, shellControl: { reset: "known-defaults" } })
+    expect(reset.tomlPatch).toMatchObject({ panels: {
+      sidebar_control: { enabled: true, position: { x: 100, y: 100 } },
+      edges: {
+        top: { enabled: true, initial_visible: true, pinned: false, trigger_size: 32, lock_mode: "auto" },
+        left: { enabled: true, initial_visible: true, pinned: true, trigger_size: 32, lock_mode: "auto" },
+      },
+    } })
+    expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: {} })).toThrow("at least one")
+    expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { reset: "known-defaults", floating: { enabled: true } } })).toThrow("cannot be combined")
+    expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { floating: { position: { x: 1 } } } })).toThrow("requires x and y")
+    expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { edges: { center: { pinned: true } } } })).toThrow("unsupported edges")
+    expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { edges: { top: { triggerSize: 129 } } } })).toThrow("triggerSize")
+    expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { edges: { top: { lockMode: "forever" } } } })).toThrow("lockMode")
+  })
+
   it("rejects shell values outside safe rendering and timer limits", () => {
     expect(() => parseNeoviewRuntimeConfig({ panels: { hover_areas: { top_trigger_height: 0 } } })).toThrow("top trigger")
     expect(() => parseNeoviewRuntimeConfig({ panels: { auto_hide_timing: { hide_delay_sec: 6 } } })).toThrow("hide_delay_sec")
@@ -275,7 +348,10 @@ describe("parseNeoviewRuntimeConfig", () => {
       horizontalPosition: 18,
     })).toEqual({
       patch: { side: "right", pinned: false, width: 412, height: "two-thirds", customHeight: 72, verticalAlign: 35, horizontalPosition: 18 },
-      tomlPatch: { panels: { sidebars: { right: { pinned: false, width: 412, height: "2/3", custom_height: 72, vertical_align: 35, horizontal_position: 18 } } } },
+      tomlPatch: { panels: {
+        sidebars: { right: { pinned: false, width: 412, height: "2/3", custom_height: 72, vertical_align: 35, horizontal_position: 18 } },
+        edges: { right: { pinned: false } },
+      } },
     })
     expect(() => parseNeoviewSidebarLayoutPatch({ side: "left" })).toThrow("at least one")
     expect(() => parseNeoviewSidebarLayoutPatch({ side: "left", width: 199 })).toThrow("width")

@@ -13,7 +13,7 @@ describe("NeoView panel and card registries", () => {
   it("[neoview.shell.registry-lazy] reads metadata without invoking any card loader", () => {
     const loaders = CARD_DEFINITIONS.map((card) => vi.spyOn(card, "load"))
     expect(availablePanels("left").map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
-    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties"])
+    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties", "control"])
     for (const loader of loaders) expect(loader).not.toHaveBeenCalled()
     for (const loader of loaders) loader.mockRestore()
   })
@@ -40,7 +40,7 @@ describe("NeoView panel and card registries", () => {
         info: { visible: true, order: 10, position: "right" },
         properties: { visible: true, order: 1, position: "right" },
       },
-    } as never).map((panel) => panel.id)).toEqual(["properties", "info"])
+    } as never).map((panel) => panel.id)).toEqual(["properties", "control", "info"])
     expect(availablePanels("left", {
       panelLayout: {
         pageList: { visible: false, order: 20, position: "left" },

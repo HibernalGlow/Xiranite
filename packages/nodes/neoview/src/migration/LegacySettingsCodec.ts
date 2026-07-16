@@ -444,6 +444,7 @@ function resolveNativeTarget(targetPrefix: readonly string[], key: string): stri
   if (section === "performance" && key === "cacheMemorySize") return ["performance", "cache_memory_size_mb"]
   if (section === "performance" && key === "preLoadSize") return ["performance", "preload_items"]
   if (section === "reader.view" && key === "defaultZoomMode") return ["reader", "default_zoom_mode"]
+  if (section === "reader.view" && key === "sidebarControl") return ["panels", "sidebar_control"]
   if (section === "reader.book" && key === "readingDirection") return ["reader", "reading_direction"]
   if (section === "reader.book" && key === "doublePageView") return ["reader", "double_page_view"]
   if (section === "reader.book" && key === "tailOverflowBehavior") return ["reader", "tail_overflow_behavior"]

@@ -264,11 +264,15 @@ export interface ReaderShellConfigDto {
   hideDelayMs: number
   opacity: { top: number; bottom: number; sidebar: number }
   blur: { top: number; bottom: number; sidebar: number }
-  edges: Record<"top" | "right" | "bottom" | "left", { enabled: boolean; initialVisible: boolean; pinned: boolean; triggerSize: number }>
+  edges: Record<ReaderShellEdge, { enabled: boolean; initialVisible: boolean; pinned: boolean; triggerSize: number; lockMode?: ReaderShellLockMode }>
+  floatingControl?: { enabled: boolean; position: { x: number; y: number } }
   sidebars: Record<"left" | "right", { width: number; height: "full" | "two-thirds" | "half" | "one-third" | "custom"; customHeight: number; verticalAlign: number; horizontalPosition: number }>
   panelLayout: Record<string, { visible: boolean; order: number; position: "left" | "right" | "bottom" | "floating" }>
   cardLayout: Record<string, { panelId: string; visible: boolean; expanded: boolean; order: number; height?: number }>
 }
+
+export type ReaderShellEdge = "top" | "right" | "bottom" | "left"
+export type ReaderShellLockMode = "auto" | "locked-open" | "locked-hidden"
 
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
@@ -387,11 +391,27 @@ export interface ReaderBoardLayoutPatch {
   }
 }
 
+export interface ReaderShellControlPatch {
+  expectedRevision: number
+  shellControl: {
+    floating?: { enabled?: boolean; position?: { x: number; y: number } }
+    edges?: Partial<Record<ReaderShellEdge, {
+      enabled?: boolean
+      initialVisible?: boolean
+      pinned?: boolean
+      triggerSize?: number
+      lockMode?: ReaderShellLockMode
+    }>>
+    reset?: "known-defaults"
+  }
+}
+
 export interface ReaderHttpClient {
   config(signal?: AbortSignal): Promise<ReaderRuntimeConfigDto>
   updateSidebarLayout(patch: ReaderSidebarLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateCardLayout(patch: ReaderCardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateBoardLayout(patch: ReaderBoardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
+  updateShellControl?(patch: ReaderShellControlPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
   updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
@@ -489,6 +509,12 @@ export function createReaderHttpClient(
       signal,
     }).then((value) => value.shell),
     updateBoardLayout: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.shell),
+    updateShellControl: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),

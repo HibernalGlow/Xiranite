@@ -5,80 +5,706 @@
   "title": "边栏控制",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
-  "statusValues": ["pending", "partial", "complete"],
+  "statusValues": [
+    "pending",
+    "partial",
+    "complete"
+  ],
   "completionRule": "Complete only when the Card and floating controller share one Shell state, every legacy button/lock/drag state and frozen trigger/reset extension is covered, canonical TOML persistence is atomic, hidden work is zero and desktop/constrained Chromium proves the active image is not remounted.",
   "sourceUiInventory": [
     {
       "id": "sidebar-control-ui.card-controller",
       "title": "Card 浮动控制器设置",
-      "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/settings/settingsManager.ts"],
-      "acceptanceItems": ["启用浮动控制器标签", "启用 Switch", "Switch checked 状态", "Switch disabled 状态", "重置控制器位置 icon button", "RotateCcw 图标", "重置按钮 title", "重置到 x=100", "重置到 y=100", "说明文本", "控件行 justify-between", "Switch scale 0.75", "按钮 24x24", "Card 内操作不触发阅读快捷键"],
-      "mappedChecklistIds": ["sidebar-control.enabled", "sidebar-control.position-reset", "sidebar-control.states", "sidebar-control.accessibility", "sidebar-control.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/settings/settingsManager.ts"
+      ],
+      "acceptanceItems": [
+        "启用浮动控制器标签",
+        "启用 Switch",
+        "Switch checked 状态",
+        "Switch disabled 状态",
+        "重置控制器位置 icon button",
+        "RotateCcw 图标",
+        "重置按钮 title",
+        "重置到 x=100",
+        "重置到 y=100",
+        "说明文本",
+        "控件行 justify-between",
+        "Switch scale 0.75",
+        "按钮 24x24",
+        "Card 内操作不触发阅读快捷键"
+      ],
+      "mappedChecklistIds": [
+        "sidebar-control.enabled",
+        "sidebar-control.position-reset",
+        "sidebar-control.states",
+        "sidebar-control.accessibility",
+        "sidebar-control.ui-parity"
+      ]
     },
     {
       "id": "sidebar-control-ui.card-edges",
       "title": "Card 四边状态概览",
-      "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stores/ui.svelte.ts"],
-      "acceptanceItems": ["边栏状态 2x2 网格", "上按钮", "PanelTop 图标", "上按钮单击切换 pinned", "下按钮", "PanelBottom 图标", "下按钮单击切换 pinned", "左按钮", "PanelLeft 图标", "左按钮单击切换 open", "左按钮右键切换 pinned", "右按钮", "PanelRight 图标", "右按钮单击切换 open", "右按钮右键切换 pinned", "pinned 使用 default variant", "open 未 pinned 使用 secondary variant", "关闭未 pinned 使用 outline variant", "pinned 显示 Pin", "open 显示开", "关闭显示 PinOff", "按钮高度 32px", "左右右键 preventDefault", "说明点击/右键语义", "锁定后不会自动隐藏说明"],
-      "mappedChecklistIds": ["sidebar-control.card-edges", "sidebar-control.open", "sidebar-control.pin", "sidebar-control.states", "sidebar-control.accessibility", "sidebar-control.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stores/ui.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "边栏状态 2x2 网格",
+        "上按钮",
+        "PanelTop 图标",
+        "上按钮单击切换 pinned",
+        "下按钮",
+        "PanelBottom 图标",
+        "下按钮单击切换 pinned",
+        "左按钮",
+        "PanelLeft 图标",
+        "左按钮单击切换 open",
+        "左按钮右键切换 pinned",
+        "右按钮",
+        "PanelRight 图标",
+        "右按钮单击切换 open",
+        "右按钮右键切换 pinned",
+        "pinned 使用 default variant",
+        "open 未 pinned 使用 secondary variant",
+        "关闭未 pinned 使用 outline variant",
+        "pinned 显示 Pin",
+        "open 显示开",
+        "关闭显示 PinOff",
+        "按钮高度 32px",
+        "左右右键 preventDefault",
+        "说明点击/右键语义",
+        "锁定后不会自动隐藏说明"
+      ],
+      "mappedChecklistIds": [
+        "sidebar-control.card-edges",
+        "sidebar-control.open",
+        "sidebar-control.pin",
+        "sidebar-control.states",
+        "sidebar-control.accessibility",
+        "sidebar-control.ui-parity"
+      ]
     },
     {
       "id": "sidebar-control-ui.floating-shell",
       "title": "浮动控制器外壳与四边按钮",
-      "sourceEvidence": ["src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/stores/ui.svelte.ts"],
-      "acceptanceItems": ["enabled=false 时零 DOM", "role=group", "侧栏控制器 aria-label", "data-layer SidebarControlLayer", "data-layer-id sidebar-control", "z-index 85", "绝对定位 left/top", "半透明背景", "边框与阴影", "backdrop blur", "拖动控制器按钮", "GripVertical 图标", "四个无文字图标按钮", "PanelTop", "PanelBottom", "PanelLeft", "PanelRight", "单击切换 open", "右键循环 lock", "锁定时 Lock 角标", "每个按钮动态 title", "pointer-events-auto", "控制器 mousedown 不冒泡"],
-      "mappedChecklistIds": ["sidebar-control.floating-layer", "sidebar-control.open", "sidebar-control.lock-cycle", "sidebar-control.states", "sidebar-control.accessibility", "sidebar-control.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/stores/ui.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "enabled=false 时零 DOM",
+        "role=group",
+        "侧栏控制器 aria-label",
+        "data-layer SidebarControlLayer",
+        "data-layer-id sidebar-control",
+        "z-index 85",
+        "绝对定位 left/top",
+        "半透明背景",
+        "边框与阴影",
+        "backdrop blur",
+        "拖动控制器按钮",
+        "GripVertical 图标",
+        "四个无文字图标按钮",
+        "PanelTop",
+        "PanelBottom",
+        "PanelLeft",
+        "PanelRight",
+        "单击切换 open",
+        "右键循环 lock",
+        "锁定时 Lock 角标",
+        "每个按钮动态 title",
+        "pointer-events-auto",
+        "控制器 mousedown 不冒泡"
+      ],
+      "mappedChecklistIds": [
+        "sidebar-control.floating-layer",
+        "sidebar-control.open",
+        "sidebar-control.lock-cycle",
+        "sidebar-control.states",
+        "sidebar-control.accessibility",
+        "sidebar-control.ui-parity"
+      ]
     },
     {
       "id": "sidebar-control-ui.lock-cycle",
       "title": "四边三态锁定与视觉状态",
-      "sourceEvidence": ["src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/stores/ui.svelte.ts", "src/lib/components/layout/HoverWrapper.svelte"],
-      "acceptanceItems": ["null 自动状态", "true 锁定展开", "false 锁定隐藏", "右键 null->true", "右键 true->false", "右键 false->null", "锁定展开同步 pinned=true", "锁定隐藏同步 pinned=false", "左右锁定展开同步 open=true", "左右锁定隐藏同步 open=false", "单击解除 false 锁定再切 open", "锁定展开 primary 色", "锁定隐藏 destructive 色", "自动展开 secondary 色", "自动隐藏 muted 色", "状态文本隐藏", "状态文本展开", "状态文本锁定展开", "状态文本锁定隐藏"],
-      "mappedChecklistIds": ["sidebar-control.open", "sidebar-control.pin", "sidebar-control.lock-cycle", "sidebar-control.auto-hide", "sidebar-control.states", "sidebar-control.deviations"]
+      "sourceEvidence": [
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/stores/ui.svelte.ts",
+        "src/lib/components/layout/HoverWrapper.svelte"
+      ],
+      "acceptanceItems": [
+        "null 自动状态",
+        "true 锁定展开",
+        "false 锁定隐藏",
+        "右键 null->true",
+        "右键 true->false",
+        "右键 false->null",
+        "锁定展开同步 pinned=true",
+        "锁定隐藏同步 pinned=false",
+        "左右锁定展开同步 open=true",
+        "左右锁定隐藏同步 open=false",
+        "单击解除 false 锁定再切 open",
+        "锁定展开 primary 色",
+        "锁定隐藏 destructive 色",
+        "自动展开 secondary 色",
+        "自动隐藏 muted 色",
+        "状态文本隐藏",
+        "状态文本展开",
+        "状态文本锁定展开",
+        "状态文本锁定隐藏"
+      ],
+      "mappedChecklistIds": [
+        "sidebar-control.open",
+        "sidebar-control.pin",
+        "sidebar-control.lock-cycle",
+        "sidebar-control.auto-hide",
+        "sidebar-control.states",
+        "sidebar-control.deviations"
+      ]
     },
     {
       "id": "sidebar-control-ui.drag",
       "title": "浮动控制器拖动与位置持久化",
-      "sourceEvidence": ["src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/settings/settingsManager.ts"],
-      "acceptanceItems": ["mousedown 开始拖动", "记录起始鼠标 x/y", "记录起始位置 x/y", "mousemove 仅更新瞬态位置", "x 下限 0", "x 上限 viewport width-200", "y 下限 0", "y 上限 viewport height-50", "mouseup 结束拖动", "mouseup 单次保存", "mouseup 移除 window listeners", "拖动期间零设置写入", "卸载移除遗留 listeners", "窗口尺寸变化后位置重新钳制", "触摸 PointerEvent 等价拖动", "键盘位置调整等价入口"],
-      "mappedChecklistIds": ["sidebar-control.drag", "sidebar-control.persistence", "sidebar-control.lifecycle", "sidebar-control.accessibility", "sidebar-control.performance", "sidebar-control.deviations"]
+      "sourceEvidence": [
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/settings/settingsManager.ts"
+      ],
+      "acceptanceItems": [
+        "mousedown 开始拖动",
+        "记录起始鼠标 x/y",
+        "记录起始位置 x/y",
+        "mousemove 仅更新瞬态位置",
+        "x 下限 0",
+        "x 上限 viewport width-200",
+        "y 下限 0",
+        "y 上限 viewport height-50",
+        "mouseup 结束拖动",
+        "mouseup 单次保存",
+        "mouseup 移除 window listeners",
+        "拖动期间零设置写入",
+        "卸载移除遗留 listeners",
+        "窗口尺寸变化后位置重新钳制",
+        "触摸 PointerEvent 等价拖动",
+        "键盘位置调整等价入口"
+      ],
+      "mappedChecklistIds": [
+        "sidebar-control.drag",
+        "sidebar-control.persistence",
+        "sidebar-control.lifecycle",
+        "sidebar-control.accessibility",
+        "sidebar-control.performance",
+        "sidebar-control.deviations"
+      ]
     },
     {
       "id": "sidebar-control-ui.config",
       "title": "设置默认值、同步与 Shell 扩展",
-      "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/settings/settingsManager.ts", "src/lib/stores/sidebarConfig.svelte.ts", "src/lib/components/layout/HoverWrapper.svelte"],
-      "acceptanceItems": ["view.sidebarControl.enabled", "view.sidebarControl.position.x", "view.sidebarControl.position.y", "enabled 默认 true", "position 默认 100,100", "Card 与 Layer 监听同一设置", "外部设置更新实时同步", "Card 卸载取消 listener", "Layer 卸载取消 12 个 store subscriptions", "top enabled", "right enabled", "bottom enabled", "left enabled", "四边 initialVisible", "四边 pinned", "四边 triggerSize", "showDelay", "hideDelay", "自动隐藏切换", "触发区数值边界", "恢复四边默认布局", "未知未来 Shell 配置保留", "单次规范配置 PATCH", "TOML 原子写入", "旧 view.sidebarControl 导入"],
-      "mappedChecklistIds": ["sidebar-control.enabled", "sidebar-control.auto-hide", "sidebar-control.trigger", "sidebar-control.reset-layout", "sidebar-control.data-contract", "sidebar-control.persistence", "sidebar-control.lifecycle"]
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/settings/settingsManager.ts",
+        "src/lib/stores/sidebarConfig.svelte.ts",
+        "src/lib/components/layout/HoverWrapper.svelte"
+      ],
+      "acceptanceItems": [
+        "view.sidebarControl.enabled",
+        "view.sidebarControl.position.x",
+        "view.sidebarControl.position.y",
+        "enabled 默认 true",
+        "position 默认 100,100",
+        "Card 与 Layer 监听同一设置",
+        "外部设置更新实时同步",
+        "Card 卸载取消 listener",
+        "Layer 卸载取消 12 个 store subscriptions",
+        "top enabled",
+        "right enabled",
+        "bottom enabled",
+        "left enabled",
+        "四边 initialVisible",
+        "四边 pinned",
+        "四边 triggerSize",
+        "showDelay",
+        "hideDelay",
+        "自动隐藏切换",
+        "触发区数值边界",
+        "恢复四边默认布局",
+        "未知未来 Shell 配置保留",
+        "单次规范配置 PATCH",
+        "TOML 原子写入",
+        "旧 view.sidebarControl 导入"
+      ],
+      "mappedChecklistIds": [
+        "sidebar-control.enabled",
+        "sidebar-control.auto-hide",
+        "sidebar-control.trigger",
+        "sidebar-control.reset-layout",
+        "sidebar-control.data-contract",
+        "sidebar-control.persistence",
+        "sidebar-control.lifecycle"
+      ]
     },
     {
       "id": "sidebar-control-ui.card-shell",
       "title": "通用 Card 外壳与迁移边界",
-      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
-      "acceptanceItems": ["PanelLeft 图标与边栏控制标题", "默认 control Panel", "默认显示并展开", "允许隐藏", "标题折叠", "上移与下移", "独立窗口", "高度拖动与恢复自动", "折叠时 Card 内容零挂载", "浮动 Layer 不随 Card 折叠卸载", "Card 动态 import", "Layer 与 Reader 打开路径延迟边界", "visible/expanded/order/height 持久化", "活动阅读图像零重挂", "Reader 热翻页预算不回退"],
-      "mappedChecklistIds": ["sidebar-control.shell", "sidebar-control.lifecycle", "sidebar-control.persistence", "sidebar-control.performance", "sidebar-control.image-stability", "sidebar-control.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "acceptanceItems": [
+        "PanelLeft 图标与边栏控制标题",
+        "默认 control Panel",
+        "默认显示并展开",
+        "允许隐藏",
+        "标题折叠",
+        "上移与下移",
+        "独立窗口",
+        "高度拖动与恢复自动",
+        "折叠时 Card 内容零挂载",
+        "浮动 Layer 不随 Card 折叠卸载",
+        "Card 动态 import",
+        "Layer 与 Reader 打开路径延迟边界",
+        "visible/expanded/order/height 持久化",
+        "活动阅读图像零重挂",
+        "Reader 热翻页预算不回退"
+      ],
+      "mappedChecklistIds": [
+        "sidebar-control.shell",
+        "sidebar-control.lifecycle",
+        "sidebar-control.persistence",
+        "sidebar-control.performance",
+        "sidebar-control.image-stability",
+        "sidebar-control.deviations"
+      ]
     }
   ],
   "items": [
-    { "id": "sidebar-control.enabled", "category": "capabilities", "title": "启停浮动边栏控制器", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "The Card switch and floating layer share one enabled state; disabling removes the controller DOM without changing edge state.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.sidebar-control.floating"], "notes": "The present component proves only the isolated callback shape; runtime composition is pending." },
-    { "id": "sidebar-control.position-reset", "category": "capabilities", "title": "恢复浮动控制器默认位置", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "Reset restores the canonical bounded default position x=100,y=100 and persists it once without remounting the reader image.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.sidebar-control.floating"], "notes": "Runtime persistence and image identity evidence remain." },
-    { "id": "sidebar-control.card-edges", "category": "capabilities", "title": "Card 显示四边 open/pin 状态", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stores/ui.svelte.ts"], "targetContract": "The 2x2 Card grid displays and controls top/right/bottom/left edge state from the active Reader Shell.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.card.sidebar-control.edges", "neoview.card.sidebar-control.context-pin"], "notes": "Formal ReaderPanelContext and Shell composition are pending." },
-    { "id": "sidebar-control.floating-layer", "category": "capabilities", "title": "渲染可拖动浮动控制层", "sourceEvidence": ["src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "An enabled, deferred floating controller renders above the Reader viewport with one drag handle and four edge controls.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "The target currently has no floating layer." },
-    { "id": "sidebar-control.open", "category": "capabilities", "title": "切换四边瞬态展开状态", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/stores/ui.svelte.ts"], "targetContract": "Top, right, bottom and left controls open or close the same ReaderEdgeShell surface without mutating unrelated configuration.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.sidebar-control.edges", "neoview.shell.hover-delay"], "notes": "ReaderEdgeShell currently owns transient visibility internally and needs a controlled bridge." },
-    { "id": "sidebar-control.pin", "category": "capabilities", "title": "切换四边固定状态", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/stores/ui.svelte.ts"], "targetContract": "All four edges update canonical pinned configuration; keyboard/touch users receive an explicit equivalent to legacy right click.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.sidebar-control.edges", "neoview.card.sidebar-control.context-pin", "neoview.shell.pinned"], "notes": "Top/bottom callbacks exist only in the isolated Card and left/right runtime persistence is pending." },
-    { "id": "sidebar-control.lock-cycle", "category": "interaction-states", "title": "保持自动/锁定展开/锁定隐藏三态", "sourceEvidence": ["src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/stores/ui.svelte.ts"], "targetContract": "Each floating edge action cycles auto, locked-open and locked-hidden with stable color, icon, title and pinned/open effects.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "XR may use an explicit menu instead of right-click-only cycling but must preserve all three states." },
-    { "id": "sidebar-control.auto-hide", "category": "capabilities", "title": "配置自动隐藏与展开行为", "sourceEvidence": ["src/lib/components/layout/HoverWrapper.svelte", "src/lib/stores/sidebarConfig.svelte.ts", "src/lib/cards/info/SidebarControlCard.svelte"], "targetContract": "The Card can return each edge to automatic hover behavior and expose current open/initial-visible semantics without duplicating ReaderEdgeShell state.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Frozen target extension beyond the legacy Card controls." },
-    { "id": "sidebar-control.trigger", "category": "settings", "title": "配置四边触发区", "sourceEvidence": ["src/lib/components/layout/HoverWrapper.svelte", "src/lib/stores/sidebarConfig.svelte.ts"], "targetContract": "Four bounded trigger sizes use the canonical Shell configuration and update ReaderEdgeShell without reload.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Frozen target extension; numeric bounds and reset behavior require characterization." },
-    { "id": "sidebar-control.reset-layout", "category": "capabilities", "title": "恢复边栏控制默认布局", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/components/layout/HoverWrapper.svelte", "src/lib/stores/sidebarConfig.svelte.ts"], "targetContract": "One explicit reset restores controller position and known edge defaults while preserving unknown future Shell/Card configuration.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Frozen target extension; reset must be one atomic configuration PATCH." },
-    { "id": "sidebar-control.drag", "category": "capabilities", "title": "有界拖动浮动控制器", "sourceEvidence": ["src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "Pointer, touch and keyboard movement remain within the viewport, update only transient DOM during movement and persist once on completion.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "The legacy mouse-only implementation is expanded to PointerEvent and keyboard equivalence." },
-    { "id": "sidebar-control.states", "category": "interaction-states", "title": "默认、open、pinned、disabled 与错误状态", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "Card and layer expose coherent default, hover, focus, open, pinned, locked, disabled, pending, error and rollback states.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.card.sidebar-control.edges", "neoview.card.sidebar-control.context-pin"], "notes": "Pending/error/rollback and runtime states remain." },
-    { "id": "sidebar-control.shell", "category": "ui-parity", "title": "共享 Card 与 Shell 外壳行为", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"], "targetContract": "Sidebar Control is an independently lazy, hideable, collapsible, movable, resizable and window-capable control-panel Card.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "The component exists but is not registered in the formal Card manifest." },
-    { "id": "sidebar-control.data-contract", "category": "data-contract", "title": "共享规范 Shell 控制契约", "sourceEvidence": ["src/lib/stores/ui.svelte.ts", "src/lib/stores/sidebarConfig.svelte.ts", "src/lib/settings/settingsManager.ts"], "targetContract": "GUI, CLI and TUI share enabled, position, edge enabled/visible/pinned/trigger and lock semantics through one bounded application configuration contract.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Runtime Shell DTO lacks floating-controller and controlled-visibility fields." },
-    { "id": "sidebar-control.persistence", "category": "settings", "title": "导入并原子持久化到 nodes.neoview", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/settings/settingsManager.ts"], "targetContract": "Legacy view.sidebarControl imports once; canonical enabled/position/edge state lives under [nodes.neoview], with pointer completion and reset producing one atomic PATCH.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "No second runtime settings version or xiranite.db business table is allowed." },
-    { "id": "sidebar-control.lifecycle", "category": "lifecycle", "title": "懒加载、监听释放与取消", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/stores/ui.svelte.ts"], "targetContract": "Hidden Card content is unmounted, disabled layer is zero DOM, all global pointer/listener work is released and stale configuration responses cannot overwrite newer interaction.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "The target must not keep window pointer listeners after cancel/unmount." },
-    { "id": "sidebar-control.accessibility", "category": "keyboard-accessibility", "title": "键盘、触摸与语义等价操作", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "Every icon has an accessible name; open/pin/lock expose state; touch and keyboard can invoke legacy context actions and move the controller with focus preserved.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.card.sidebar-control.context-pin"], "notes": "The isolated Card has labels but the floating layer and explicit lock menu are pending." },
-    { "id": "sidebar-control.ui-parity", "category": "ui-parity", "title": "Card 与浮动层响应式几何", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "The legacy 2x2 Card density and compact horizontal floating controller remain readable and operable on desktop and 420x360 Card viewports without overlap.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "Both viewports require screenshots and zero overflow/occlusion assertions." },
-    { "id": "sidebar-control.image-stability", "category": "performance", "title": "边栏控制不重挂活动阅读图像", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte"], "targetContract": "Enable, drag, open, pin, lock, trigger and reset operations preserve the active Reader image node and asset URL.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "Required by the frozen functional scope." },
-    { "id": "sidebar-control.performance", "category": "performance", "title": "DOM、写入与 chunk 边界", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/cards/CardRenderer.svelte"], "targetContract": "O(1) Card/layer DOM, zero hidden work, DOM-only pointermove, one completion PATCH and independent deferred Card/layer chunks within explicit budgets.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Reader entry and hot page-turn budgets must remain green." },
-    { "id": "sidebar-control.deviations", "category": "deviations", "title": "记录受控 Shell 与可访问性扩展", "sourceEvidence": ["src/lib/cards/info/SidebarControlCard.svelte", "src/lib/stackview/layers/SidebarControlLayer.svelte", "src/lib/components/layout/HoverWrapper.svelte"], "targetContract": "Document controlled ReaderEdgeShell state, PointerEvent/keyboard movement, explicit lock actions, canonical TOML and trigger/reset controls as target improvements without removing legacy states.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Legacy right click remains supported but is not the only lock path." }
+    {
+      "id": "sidebar-control.enabled",
+      "category": "capabilities",
+      "title": "启停浮动边栏控制器",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "The Card switch and floating layer share one enabled state; disabling removes the controller DOM without changing edge state.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.card.sidebar-control.floating",
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.position-reset",
+      "category": "capabilities",
+      "title": "恢复浮动控制器默认位置",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "Reset restores the canonical bounded default position x=100,y=100 and persists it once without remounting the reader image.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.card.sidebar-control.floating",
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.card-edges",
+      "category": "capabilities",
+      "title": "Card 显示四边 open/pin 状态",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stores/ui.svelte.ts"
+      ],
+      "targetContract": "The 2x2 Card grid displays and controls top/right/bottom/left edge state from the active Reader Shell.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.card.sidebar-control.edges",
+        "neoview.card.sidebar-control.context-pin",
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.floating-layer",
+      "category": "capabilities",
+      "title": "渲染可拖动浮动控制层",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "An enabled, deferred floating controller renders above the Reader viewport with one drag handle and four edge controls.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.open",
+      "category": "capabilities",
+      "title": "切换四边瞬态展开状态",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/stores/ui.svelte.ts"
+      ],
+      "targetContract": "Top, right, bottom and left controls open or close the same ReaderEdgeShell surface without mutating unrelated configuration.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.card.sidebar-control.edges",
+        "neoview.shell.hover-delay",
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.pin",
+      "category": "capabilities",
+      "title": "切换四边固定状态",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/stores/ui.svelte.ts"
+      ],
+      "targetContract": "All four edges update canonical pinned configuration; keyboard/touch users receive an explicit equivalent to legacy right click.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.card.sidebar-control.edges",
+        "neoview.card.sidebar-control.context-pin",
+        "neoview.shell.pinned",
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.lock-cycle",
+      "category": "interaction-states",
+      "title": "保持自动/锁定展开/锁定隐藏三态",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/stores/ui.svelte.ts"
+      ],
+      "targetContract": "Each floating edge action cycles auto, locked-open and locked-hidden with stable color, icon, title and pinned/open effects.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.auto-hide",
+      "category": "capabilities",
+      "title": "配置自动隐藏与展开行为",
+      "sourceEvidence": [
+        "src/lib/components/layout/HoverWrapper.svelte",
+        "src/lib/stores/sidebarConfig.svelte.ts",
+        "src/lib/cards/info/SidebarControlCard.svelte"
+      ],
+      "targetContract": "The Card can return each edge to automatic hover behavior and expose current open/initial-visible semantics without duplicating ReaderEdgeShell state.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.trigger",
+      "category": "settings",
+      "title": "配置四边触发区",
+      "sourceEvidence": [
+        "src/lib/components/layout/HoverWrapper.svelte",
+        "src/lib/stores/sidebarConfig.svelte.ts"
+      ],
+      "targetContract": "Four bounded trigger sizes use the canonical Shell configuration and update ReaderEdgeShell without reload.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.reset-layout",
+      "category": "capabilities",
+      "title": "恢复边栏控制默认布局",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/components/layout/HoverWrapper.svelte",
+        "src/lib/stores/sidebarConfig.svelte.ts"
+      ],
+      "targetContract": "One explicit reset restores controller position and known edge defaults while preserving unknown future Shell/Card configuration.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.drag",
+      "category": "capabilities",
+      "title": "有界拖动浮动控制器",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "Pointer, touch and keyboard movement remain within the viewport, update only transient DOM during movement and persist once on completion.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.states",
+      "category": "interaction-states",
+      "title": "默认、open、pinned、disabled 与错误状态",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "Card and layer expose coherent default, hover, focus, open, pinned, locked, disabled, pending, error and rollback states.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.card.sidebar-control.edges",
+        "neoview.card.sidebar-control.context-pin",
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.shell",
+      "category": "ui-parity",
+      "title": "共享 Card 与 Shell 外壳行为",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "targetContract": "Sidebar Control is an independently lazy, hideable, collapsible, movable, resizable and window-capable control-panel Card.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.data-contract",
+      "category": "data-contract",
+      "title": "共享规范 Shell 控制契约",
+      "sourceEvidence": [
+        "src/lib/stores/ui.svelte.ts",
+        "src/lib/stores/sidebarConfig.svelte.ts",
+        "src/lib/settings/settingsManager.ts"
+      ],
+      "targetContract": "GUI, CLI and TUI share enabled, position, edge enabled/visible/pinned/trigger and lock semantics through one bounded application configuration contract.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.persistence",
+      "category": "settings",
+      "title": "导入并原子持久化到 nodes.neoview",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/settings/settingsManager.ts"
+      ],
+      "targetContract": "Legacy view.sidebarControl imports once; canonical enabled/position/edge state lives under [nodes.neoview], with pointer completion and reset producing one atomic PATCH.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.lifecycle",
+      "category": "lifecycle",
+      "title": "懒加载、监听释放与取消",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/stores/ui.svelte.ts"
+      ],
+      "targetContract": "Hidden Card content is unmounted, disabled layer is zero DOM, all global pointer/listener work is released and stale configuration responses cannot overwrite newer interaction.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "键盘、触摸与语义等价操作",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "Every icon has an accessible name; open/pin/lock expose state; touch and keyboard can invoke legacy context actions and move the controller with focus preserved.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.card.sidebar-control.context-pin",
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.ui-parity",
+      "category": "ui-parity",
+      "title": "Card 与浮动层响应式几何",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "The legacy 2x2 Card density and compact horizontal floating controller remain readable and operable on desktop and 420x360 Card viewports without overlap.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.image-stability",
+      "category": "performance",
+      "title": "边栏控制不重挂活动阅读图像",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte"
+      ],
+      "targetContract": "Enable, drag, open, pin, lock, trigger and reset operations preserve the active Reader image node and asset URL.",
+      "surfaces": [
+        "GUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.performance",
+      "category": "performance",
+      "title": "DOM、写入与 chunk 边界",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "O(1) Card/layer DOM, zero hidden work, DOM-only pointermove, one completion PATCH and independent deferred Card/layer chunks within explicit budgets.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    },
+    {
+      "id": "sidebar-control.deviations",
+      "category": "deviations",
+      "title": "记录受控 Shell 与可访问性扩展",
+      "sourceEvidence": [
+        "src/lib/cards/info/SidebarControlCard.svelte",
+        "src/lib/stackview/layers/SidebarControlLayer.svelte",
+        "src/lib/components/layout/HoverWrapper.svelte"
+      ],
+      "targetContract": "Document controlled ReaderEdgeShell state, PointerEvent/keyboard movement, explicit lock actions, canonical TOML and trigger/reset controls as target improvements without removing legacy states.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "status": "complete",
+      "testIds": [
+        "neoview.sidebar-control.e2e"
+      ],
+      "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
+    }
   ]
 }

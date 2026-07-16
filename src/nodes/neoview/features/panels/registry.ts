@@ -23,6 +23,7 @@ import type {
   ReaderViewDefaultsPatch,
   ReaderFolderViewPatch,
 } from "../../adapters/reader-http-client"
+import type { ReaderShellControlPort } from "../shell/ReaderShellControlPort"
 
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
@@ -45,6 +46,7 @@ export interface ReaderPanelContext {
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   folderView?: ReaderRuntimeConfigDto["folderView"]
   onFolderView?(patch: ReaderFolderViewPatch["folderView"]): Promise<void>
+  shellControl?: ReaderShellControlPort
 }
 
 export interface ReaderPanelDefinition {
@@ -113,6 +115,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "time-information": () => import("./cards/TimeInformationCard"),
   "preload-status": () => import("./cards/PreloadStatusCard"),
   "book-settings": () => import("./cards/BookSettingsCard"),
+  "sidebar-control": () => import("./cards/SidebarControlCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),

@@ -55,6 +55,7 @@ import {
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
+  parseNeoviewShellControlPatch,
   parseNeoviewSidebarLayoutPatch,
   parseNeoviewSlideshowPatch,
   parseNeoviewViewDefaultsPatch,
@@ -561,9 +562,11 @@ export class ReaderHttpController implements AsyncDisposable {
       }
     }
     if (!this.#updateShellOptions) return jsonResponse({ error: "Reader shell config is read-only" }, 405)
-    let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch> | ReturnType<typeof parseNeoviewCardLayoutPatch> | ReturnType<typeof parseNeoviewBoardLayoutPatch>
+    let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch> | ReturnType<typeof parseNeoviewCardLayoutPatch> | ReturnType<typeof parseNeoviewBoardLayoutPatch> | ReturnType<typeof parseNeoviewShellControlPatch>
     try {
-      parsed = Object.hasOwn(body, "board")
+      parsed = Object.hasOwn(body, "shellControl")
+        ? parseNeoviewShellControlPatch(body)
+        : Object.hasOwn(body, "board")
         ? parseNeoviewBoardLayoutPatch(body)
         : Object.hasOwn(body, "cardId")
           ? parseNeoviewCardLayoutPatch(body)

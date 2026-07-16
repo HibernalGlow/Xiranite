@@ -6,7 +6,7 @@ import { SidebarControlCard, type SidebarControlCardProps } from "./SidebarContr
 afterEach(cleanup)
 
 describe("SidebarControlCard", () => {
-  it("[neoview.card.sidebar-control.floating] keeps the legacy floating controller switch and reset contract", () => {
+  it("[neoview.card.sidebar-control.floating] keeps the floating controller switch and reset contract", () => {
     const onFloatingControlChange = vi.fn()
     renderCard({ onFloatingControlChange })
 
@@ -17,7 +17,7 @@ describe("SidebarControlCard", () => {
     expect(onFloatingControlChange).toHaveBeenLastCalledWith({ position: { x: 100, y: 100 } })
   })
 
-  it("[neoview.card.sidebar-control.edges] pins top and bottom while left-clicking sidebars changes transient visibility", () => {
+  it("[neoview.card.sidebar-control.edges] pins top and bottom while side clicks change transient visibility", () => {
     const onPinnedChange = vi.fn()
     const onOpenChange = vi.fn()
     renderCard({ onPinnedChange, onOpenChange })
@@ -33,7 +33,7 @@ describe("SidebarControlCard", () => {
     expect(onOpenChange).toHaveBeenNthCalledWith(2, "right", true)
   })
 
-  it("[neoview.card.sidebar-control.context-pin] preserves side-button right-click pinning without toggling open", () => {
+  it("[neoview.card.sidebar-control.context-pin] preserves right-click pinning without toggling open", () => {
     const onPinnedChange = vi.fn()
     const onOpenChange = vi.fn()
     renderCard({ onPinnedChange, onOpenChange })
@@ -45,20 +45,45 @@ describe("SidebarControlCard", () => {
     expect(onPinnedChange).toHaveBeenNthCalledWith(2, "right", false)
     expect(onOpenChange).not.toHaveBeenCalled()
   })
+
+  it("[neoview.card.sidebar-control.accessibility] exposes lock, trigger and reset actions without a context menu", () => {
+    const onLockModeChange = vi.fn()
+    const onTriggerSizeChange = vi.fn()
+    const onReset = vi.fn()
+    renderCard({ onLockModeChange, onTriggerSizeChange, onReset })
+
+    fireEvent.change(screen.getByRole("combobox", { name: "左边锁定模式" }), { target: { value: "locked-hidden" } })
+    fireEvent.change(screen.getByRole("spinbutton", { name: "右边触发区大小" }), { target: { value: "48" } })
+    fireEvent.click(screen.getByRole("button", { name: "恢复边栏默认布局" }))
+
+    expect(onLockModeChange).toHaveBeenCalledWith("left", "locked-hidden")
+    expect(onTriggerSizeChange).toHaveBeenCalledWith("right", 48)
+    expect(onReset).toHaveBeenCalledOnce()
+  })
 })
 
 function renderCard(overrides: Partial<SidebarControlCardProps> = {}) {
+  const edge = (pinned: boolean, open: boolean): SidebarControlCardProps["edges"]["left"] => ({
+    pinned,
+    open,
+    enabled: true,
+    triggerSize: 32,
+    lockMode: "auto",
+  })
   const props: SidebarControlCardProps = {
     floatingControl: { enabled: true, position: { x: 40, y: 60 } },
     edges: {
-      top: { pinned: true, open: true },
-      bottom: { pinned: false, open: false },
-      left: { pinned: false, open: true },
-      right: { pinned: true, open: false },
+      top: edge(true, true),
+      bottom: edge(false, false),
+      left: edge(false, true),
+      right: edge(true, false),
     },
     onFloatingControlChange: vi.fn(),
     onPinnedChange: vi.fn(),
     onOpenChange: vi.fn(),
+    onLockModeChange: vi.fn(),
+    onTriggerSizeChange: vi.fn(),
+    onReset: vi.fn(),
     ...overrides,
   }
   return render(<SidebarControlCard {...props} />)

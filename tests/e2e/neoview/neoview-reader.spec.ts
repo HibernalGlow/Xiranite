@@ -252,10 +252,11 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   const topEdge = page.getByRole("region", { name: "NeoView 顶部工具栏" })
   const bottomEdge = page.getByRole("region", { name: "NeoView 底部缩略图与导航栏" })
   await expect(topEdge).toBeVisible()
-  await page.locator('[data-reader-edge-trigger="bottom"]').hover()
+  const shellViewport = page.viewportSize()!
+  await page.mouse.move(shellViewport.width / 2, shellViewport.height - 1)
   await expect(bottomEdge).toBeVisible()
   await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
-  await page.locator('[data-reader-edge-trigger="left"]').hover()
+  await page.mouse.move(1, shellViewport.height / 2)
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
   await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
   const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
@@ -581,7 +582,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
   await page.keyboard.press("Escape")
   await expect(page.locator('[cmdk-item]')).toHaveCount(0)
-  if (!await leftSidebar.isVisible()) await page.locator('[data-reader-edge-trigger="left"]').hover()
+  await page.mouse.move(1, page.viewportSize()!.height / 2)
   await expect(leftSidebar).toBeVisible()
   await leftSidebar.getByRole("button", { name: "设置", exact: true }).click()
   await expect(page.locator('[data-reader-card="面板布局设置"]')).toBeVisible()
@@ -681,7 +682,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await page.locator('[data-reader-viewport="true"]').click({ position: { x: viewport.width / 2, y: viewport.height / 2 }, force: true })
   await page.keyboard.press("Escape")
   await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
-  await page.locator('[data-reader-edge-trigger="bottom"]').hover()
+  await page.mouse.move(viewport.width / 2, viewport.height - 1)
   await expect(bottomEdge).toBeVisible()
   await expect(bottomEdge).toHaveAttribute("data-pinned", "false")
   await page.locator('[data-reader-viewport="true"]').click({ position: { x: viewport.width / 2, y: viewport.height / 2 }, force: true })
@@ -691,7 +692,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect.poll(() => page.evaluate(({ mark, pageIndex }) => (
     performance.getEntriesByName(mark).some((entry) => (entry as PerformanceMark).detail === pageIndex)
   ), { mark: READER_PREFETCH_READY_MARK, pageIndex: 1 })).toBe(true)
-  await page.locator('[data-reader-edge-trigger="bottom"]').hover()
+  await page.mouse.move(viewport.width / 2, viewport.height - 1)
   await expect(bottomEdge).toBeVisible()
 
   const thumbnailViewport = page.getByTestId("neoview-thumbnail-viewport")
@@ -850,6 +851,115 @@ test("[neoview.time-information.e2e] renders source-aware archive times in the r
   expect(closed.status).toBe(204)
 })
 
+test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Reader Shell", async ({ page }, testInfo) => {
+  const pageErrors: string[] = []
+  page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message))
+  const initialConfig = await fetch(`${backend.url}/reader/config`, { headers: { "x-xiranite-token": backend.token } })
+    .then((response) => response.json()) as { shell: { revision: number } }
+  const resetSetup = await fetch(`${backend.url}/reader/config`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+    body: JSON.stringify({ expectedRevision: initialConfig.shell.revision, shellControl: { reset: "known-defaults" } }),
+  })
+  expect(resetSetup.status).toBe(200)
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.__XIRANITE_BACKEND__ = { baseUrl, token }
+  }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.locator('[data-reader-edge="top"] button').first().click()
+  const image = page.locator("img[data-reader-page-image]").first()
+  await expect(image).toBeVisible()
+  const assetUrl = await image.getAttribute("src")
+  await image.evaluate((element) => element.setAttribute("data-sidebar-control-image-instance", "stable"))
+
+  const viewport = page.viewportSize()!
+  await page.mouse.move(viewport.width - 1, viewport.height / 2)
+  const rightSidebar = page.locator('[data-reader-sidebar="right"]')
+  await expect(rightSidebar).toBeVisible()
+  await rightSidebar.locator("nav button[title]").last().click()
+  const card = rightSidebar.locator('[data-neoview-card="sidebar-control"]')
+  await expect(card).toBeVisible()
+
+  const keepOpenResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"right":{"pinned":true,"lockMode":"locked-open"}') === true)
+  await card.getByRole("combobox", { name: "右边锁定模式" }).selectOption("locked-open")
+  expect((await keepOpenResponse).status()).toBe(200)
+
+  const floating = page.locator('[data-layer-id="sidebar-control"]')
+  await expect(floating).toBeVisible()
+  const disableResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"floating":{"enabled":false') === true)
+  await card.getByRole("switch", { name: "启用浮动控制器" }).click()
+  expect((await disableResponse).status()).toBe(200)
+  await expect(floating).toHaveCount(0)
+
+  const enableResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"floating":{"enabled":true') === true)
+  await card.getByRole("switch", { name: "启用浮动控制器" }).click()
+  expect((await enableResponse).status()).toBe(200)
+  await expect(floating).toBeVisible()
+
+  let positionPatches = 0
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/config` && request.method() === "PATCH" && request.postData()?.includes('"position"')) positionPatches += 1
+  })
+  const dragResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"position"') === true)
+  const handle = floating.getByRole("button", { name: "拖动侧栏控制器" })
+  const handleBox = await handle.boundingBox()
+  expect(handleBox).not.toBeNull()
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handleBox!.x + 48, handleBox!.y + 36, { steps: 40 })
+  expect(positionPatches).toBe(0)
+  await page.mouse.up()
+  expect((await dragResponse).status()).toBe(200)
+  expect(positionPatches).toBe(1)
+
+  const lockResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"lockMode":"locked-hidden"') === true)
+  await card.getByRole("combobox", { name: "左边锁定模式" }).selectOption("locked-hidden")
+  expect((await lockResponse).status()).toBe(200)
+  await expect(page.locator('[data-reader-edge="left"]')).toHaveCount(0)
+
+  const triggerResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"triggerSize":48') === true)
+  await card.getByRole("spinbutton", { name: "右边触发区大小" }).fill("48")
+  expect((await triggerResponse).status()).toBe(200)
+  await page.screenshot({ path: testInfo.outputPath(`neoview-sidebar-control-${testInfo.project.name}.png`) })
+
+  const resetResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"reset":"known-defaults"') === true)
+  await card.getByRole("button", { name: "恢复边栏默认布局" }).click()
+  expect((await resetResponse).status()).toBe(200)
+  await expect(page.locator('[data-reader-edge="left"]')).toBeVisible()
+
+  expect(await image.getAttribute("data-sidebar-control-image-instance")).toBe("stable")
+  expect(await image.getAttribute("src")).toBe(assetUrl)
+  const config = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+  expect(config).toContain("[nodes.neoview.panels.sidebar_control]")
+  expect(config).toContain("[nodes.neoview.panels.edges.left]")
+  expect(pageErrors).toEqual([])
+  const finalConfig = await fetch(`${backend.url}/reader/config`, { headers: { "x-xiranite-token": backend.token } })
+    .then((response) => response.json()) as { shell: { revision: number } }
+  const cleanupResponse = await fetch(`${backend.url}/reader/config`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+    body: JSON.stringify({
+      expectedRevision: finalConfig.shell.revision,
+      shellControl: { edges: { left: { pinned: false, initialVisible: false, lockMode: "auto" } } },
+    }),
+  })
+  expect(cleanupResponse.status).toBe(200)
+})
+
 test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide", async ({ page }) => {
   const startupErrors: string[] = []
   page.on("pageerror", (error) => startupErrors.push(error.stack ?? error.message))
@@ -862,9 +972,9 @@ test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide"
   await page.getByRole("button", { name: "打开书籍" }).click()
   await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible()
 
-  await page.locator('[data-reader-edge-trigger="left"]').hover()
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
   const leftEdge = page.getByRole("region", { name: "NeoView 左侧面板" })
+  await page.mouse.move(1, page.viewportSize()!.height / 2)
   await expect(leftSidebar).toBeVisible()
 
   const pinResponse = page.waitForResponse((response) => (
@@ -891,7 +1001,7 @@ test("[neoview.shell.pin-e2e] persists pin state and restores sidebar auto-hide"
   await expect(leftSidebar).toHaveCount(0, { timeout: 1_500 })
   expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain("pinned = false")
 
-  await page.locator('[data-reader-edge-trigger="left"]').hover()
+  await page.mouse.move(1, viewport.height / 2)
   await expect(leftSidebar).toBeVisible()
   await expect(leftEdge).toHaveAttribute("data-pinned", "false")
   await expect(leftSidebar.getByRole("button", { name: "固定左侧栏" })).toBeVisible()

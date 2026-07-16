@@ -29,6 +29,7 @@ describe("LegacySettingsCodec", () => {
       view: {
         defaultZoomMode: "fitWidth",
         pageLayout: { splitHorizontalPages: true, widePageStretch: "uniformHeight" },
+        sidebarControl: { enabled: false, position: { x: 130, y: 170 } },
       },
       book: { readingDirection: "right-to-left", doublePageView: true, tailOverflowBehavior: "seamlessLoop" },
       subtitleFontSize: 1.2,
@@ -55,7 +56,9 @@ describe("LegacySettingsCodec", () => {
         view: { page_layout: { split_horizontal_pages: true, wide_page_stretch: "uniformHeight" } },
         subtitle: { font_size: 1.2 },
       },
+      panels: { sidebar_control: { enabled: false, position: { x: 130, y: 170 } } },
     })
+    expect(result.configPatch).not.toHaveProperty("reader.view.sidebar_control")
     expect(result.configPatch).not.toHaveProperty("theme")
     expect(result.report.entries).toContainEqual(expect.objectContaining({ sourcePath: "theme", disposition: "host-replaced" }))
     expect(result.report.fullyRecognized).toBe(true)

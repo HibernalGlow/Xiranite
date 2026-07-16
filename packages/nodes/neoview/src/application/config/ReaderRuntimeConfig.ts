@@ -114,6 +114,14 @@ export interface NeoviewShellEdgeConfig {
   initialVisible: boolean
   pinned: boolean
   triggerSize: number
+  lockMode: NeoviewShellEdgeLockMode
+}
+
+export type NeoviewShellEdgeLockMode = "auto" | "locked-open" | "locked-hidden"
+
+export interface NeoviewShellFloatingControlConfig {
+  enabled: boolean
+  position: { x: number; y: number }
 }
 
 export interface NeoviewShellSidebarConfig {
@@ -129,6 +137,7 @@ export interface NeoviewShellConfig {
   hideDelayMs: number
   opacity: { top: number; bottom: number; sidebar: number }
   blur: { top: number; bottom: number; sidebar: number }
+  floatingControl: NeoviewShellFloatingControlConfig
   edges: Record<"top" | "right" | "bottom" | "left", NeoviewShellEdgeConfig>
   sidebars: Record<"left" | "right", NeoviewShellSidebarConfig>
   panelLayout: Record<string, NeoviewPanelLayout>
@@ -176,7 +185,19 @@ export interface NeoviewBoardLayoutPatch {
   }
 }
 
-export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLayoutPatch | NeoviewBoardLayoutPatch
+export interface NeoviewShellControlPatch {
+  expectedRevision: number
+  shellControl: {
+    floating?: {
+      enabled?: boolean
+      position?: { x: number; y: number }
+    }
+    edges?: Partial<Record<"top" | "right" | "bottom" | "left", Partial<NeoviewShellEdgeConfig>>>
+    reset?: "known-defaults"
+  }
+}
+
+export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLayoutPatch | NeoviewBoardLayoutPatch | NeoviewShellControlPatch
 
 export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
@@ -244,11 +265,12 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   hideDelayMs: 0,
   opacity: { top: 85, bottom: 85, sidebar: 85 },
   blur: { top: 12, bottom: 12, sidebar: 12 },
+  floatingControl: { enabled: true, position: { x: 100, y: 100 } },
   edges: {
-    top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32 },
-    right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32 },
-    bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32 },
-    left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 },
+    top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32, lockMode: "auto" },
+    right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32, lockMode: "auto" },
+    bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32, lockMode: "auto" },
+    left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 32, lockMode: "auto" },
   },
   sidebars: {
     left: { width: 320, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
@@ -320,7 +342,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
         : { ...DEFAULT_READER_LAYOUT, pageMode: doublePage ? "double" : "single" },
       tailOverflow,
     },
-    shellOptions: parseShellOptions(panels),
+    shellOptions: parseShellOptions(panels, reader),
     viewDefaults: { fitMode, pageMode },
     folderView: parseFolderViewConfig(folder),
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
@@ -677,6 +699,113 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   return { patch, tomlPatch: { reader: readerPatch } }
 }
 
+export function parseNeoviewShellControlPatch(value: unknown): {
+  patch: NeoviewShellControlPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader shell control patch")
+  const unknownRoot = Object.keys(record).filter((key) => key !== "expectedRevision" && key !== "shellControl")
+  if (unknownRoot.length) throw new Error(`reader shell control patch contains unsupported fields: ${unknownRoot.join(", ")}.`)
+  const expectedRevision = boundedInteger(record.expectedRevision, 0, Number.MAX_SAFE_INTEGER, "reader shell control patch.expectedRevision")
+  const control = requireRecord(record.shellControl, "reader shell control patch.shellControl")
+  const unknownControl = Object.keys(control).filter((key) => key !== "floating" && key !== "edges" && key !== "reset")
+  if (unknownControl.length) throw new Error(`reader shell control patch contains unsupported fields: ${unknownControl.join(", ")}.`)
+  const reset = control.reset === undefined
+    ? undefined
+    : optionalEnum(control.reset, "reader shell control patch.reset", ["known-defaults"] as const)
+  if (reset && (control.floating !== undefined || control.edges !== undefined)) {
+    throw new Error("reader shell control patch.reset cannot be combined with floating or edges.")
+  }
+  if (reset) {
+    return {
+      patch: { expectedRevision, shellControl: { reset } },
+      tomlPatch: shellControlTomlPatch(
+        DEFAULT_NEOVIEW_SHELL_CONFIG.floatingControl,
+        DEFAULT_NEOVIEW_SHELL_CONFIG.edges,
+      ),
+    }
+  }
+
+  const patch: NeoviewShellControlPatch = { expectedRevision, shellControl: {} }
+  let floatingPatch: NeoviewShellControlPatch["shellControl"]["floating"]
+  if (control.floating !== undefined) {
+    const floating = requireRecord(control.floating, "reader shell control patch.floating")
+    const unknown = Object.keys(floating).filter((key) => key !== "enabled" && key !== "position")
+    if (unknown.length) throw new Error(`reader shell control patch.floating contains unsupported fields: ${unknown.join(", ")}.`)
+    floatingPatch = {}
+    if (floating.enabled !== undefined) floatingPatch.enabled = requiredBoolean(floating.enabled, "reader shell control patch.floating.enabled")
+    if (floating.position !== undefined) {
+      const position = requireRecord(floating.position, "reader shell control patch.floating.position")
+      const positionKeys = Object.keys(position)
+      if (positionKeys.some((key) => key !== "x" && key !== "y")) throw new Error("reader shell control patch.floating.position contains unsupported fields.")
+      if (position.x === undefined || position.y === undefined) throw new Error("reader shell control patch.floating.position requires x and y.")
+      floatingPatch.position = {
+        x: boundedInteger(position.x, 0, 32_767, "reader shell control patch.floating.position.x"),
+        y: boundedInteger(position.y, 0, 32_767, "reader shell control patch.floating.position.y"),
+      }
+    }
+    if (!Object.keys(floatingPatch).length) throw new Error("reader shell control patch.floating must change at least one field.")
+    patch.shellControl.floating = floatingPatch
+  }
+
+  let edgePatches: NeoviewShellControlPatch["shellControl"]["edges"]
+  if (control.edges !== undefined) {
+    const edges = requireRecord(control.edges, "reader shell control patch.edges")
+    const unknownEdges = Object.keys(edges).filter((edge) => !NEOVIEW_SHELL_EDGES.includes(edge as NeoviewShellEdge))
+    if (unknownEdges.length) throw new Error(`reader shell control patch.edges contains unsupported edges: ${unknownEdges.join(", ")}.`)
+    edgePatches = {}
+    for (const edge of NEOVIEW_SHELL_EDGES) {
+      if (edges[edge] === undefined) continue
+      const source = requireRecord(edges[edge], `reader shell control patch.edges.${edge}`)
+      const unknown = Object.keys(source).filter((key) => !["enabled", "initialVisible", "pinned", "triggerSize", "lockMode"].includes(key))
+      if (unknown.length) throw new Error(`reader shell control patch.edges.${edge} contains unsupported fields: ${unknown.join(", ")}.`)
+      const target: Partial<NeoviewShellEdgeConfig> = {}
+      if (source.enabled !== undefined) target.enabled = requiredBoolean(source.enabled, `${edge}.enabled`)
+      if (source.initialVisible !== undefined) target.initialVisible = requiredBoolean(source.initialVisible, `${edge}.initialVisible`)
+      if (source.pinned !== undefined) target.pinned = requiredBoolean(source.pinned, `${edge}.pinned`)
+      if (source.triggerSize !== undefined) target.triggerSize = boundedNumber(source.triggerSize, 1, 128, 32, `${edge}.triggerSize`)
+      if (source.lockMode !== undefined) target.lockMode = shellEdgeLockMode(source.lockMode, `${edge}.lockMode`)
+      if (!Object.keys(target).length) throw new Error(`reader shell control patch.edges.${edge} must change at least one field.`)
+      edgePatches[edge] = target
+    }
+    if (!Object.keys(edgePatches).length) throw new Error("reader shell control patch.edges must change at least one edge.")
+    patch.shellControl.edges = edgePatches
+  }
+  if (!patch.shellControl.floating && !patch.shellControl.edges) throw new Error("reader shell control patch must change at least one field.")
+  return {
+    patch,
+    tomlPatch: shellControlTomlPatch(floatingPatch, edgePatches),
+  }
+}
+
+const NEOVIEW_SHELL_EDGES = ["top", "right", "bottom", "left"] as const
+type NeoviewShellEdge = typeof NEOVIEW_SHELL_EDGES[number]
+
+function shellControlTomlPatch(
+  floating: Partial<NeoviewShellFloatingControlConfig> | undefined,
+  edges: Partial<Record<NeoviewShellEdge, Partial<NeoviewShellEdgeConfig>>> | undefined,
+): Record<string, unknown> {
+  const panels: Record<string, unknown> = {}
+  if (floating) {
+    const value: Record<string, unknown> = {}
+    if (floating.enabled !== undefined) value.enabled = floating.enabled
+    if (floating.position !== undefined) value.position = { x: floating.position.x, y: floating.position.y }
+    panels.sidebar_control = value
+  }
+  if (edges) {
+    panels.edges = Object.fromEntries(Object.entries(edges).map(([edge, source]) => {
+      const value: Record<string, unknown> = {}
+      if (source.enabled !== undefined) value.enabled = source.enabled
+      if (source.initialVisible !== undefined) value.initial_visible = source.initialVisible
+      if (source.pinned !== undefined) value.pinned = source.pinned
+      if (source.triggerSize !== undefined) value.trigger_size = source.triggerSize
+      if (source.lockMode !== undefined) value.lock_mode = source.lockMode
+      return [edge, value]
+    }))
+  }
+  return { panels }
+}
+
 export function parseNeoviewSidebarLayoutPatch(value: unknown): {
   patch: NeoviewSidebarLayoutPatch
   tomlPatch: Record<string, unknown>
@@ -702,7 +831,9 @@ export function parseNeoviewSidebarLayoutPatch(value: unknown): {
   if (patch.customHeight !== undefined) sidePatch.custom_height = patch.customHeight
   if (patch.verticalAlign !== undefined) sidePatch.vertical_align = patch.verticalAlign
   if (patch.horizontalPosition !== undefined) sidePatch.horizontal_position = patch.horizontalPosition
-  return { patch, tomlPatch: { panels: { sidebars: { [side]: sidePatch } } } }
+  const panelsPatch: Record<string, unknown> = { sidebars: { [side]: sidePatch } }
+  if (patch.pinned !== undefined) panelsPatch.edges = { [side]: { pinned: patch.pinned } }
+  return { patch, tomlPatch: { panels: panelsPatch } }
 }
 
 export function parseNeoviewCardLayoutPatch(value: unknown): {
@@ -798,14 +929,33 @@ export function parseNeoviewBoardLayoutPatch(value: unknown): {
   }
 }
 
-function parseShellOptions(panels: Record<string, unknown> | undefined): NeoviewShellConfig {
-  if (!panels) return DEFAULT_NEOVIEW_SHELL_CONFIG
+function parseShellOptions(
+  panels: Record<string, unknown> | undefined,
+  reader: Record<string, unknown> | undefined,
+): NeoviewShellConfig {
+  if (!panels && !reader) return DEFAULT_NEOVIEW_SHELL_CONFIG
+  panels ??= {}
   const hover = optionalRecord(panels.hover_areas, "[nodes.neoview.panels.hover_areas]")
   const timing = optionalRecord(panels.auto_hide_timing, "[nodes.neoview.panels.auto_hide_timing]")
   const sidebars = optionalRecord(panels.sidebars, "[nodes.neoview.panels.sidebars]")
   const left = optionalRecord(sidebars?.left, "[nodes.neoview.panels.sidebars.left]")
   const right = optionalRecord(sidebars?.right, "[nodes.neoview.panels.sidebars.right]")
   const autoHideToolbar = optionalBoolean(panels.auto_hide_toolbar, "[nodes.neoview.panels].auto_hide_toolbar")
+  const canonicalControl = optionalRecord(panels.sidebar_control, "[nodes.neoview.panels.sidebar_control]")
+  const canonicalPosition = optionalRecord(canonicalControl?.position, "[nodes.neoview.panels.sidebar_control.position]")
+  const legacyView = optionalRecord(reader?.view, "[nodes.neoview.reader.view]")
+  const legacyControl = optionalRecord(
+    legacyView?.sidebar_control ?? legacyView?.sidebarControl,
+    "[nodes.neoview.reader.view.sidebar_control]",
+  )
+  const legacyPosition = optionalRecord(legacyControl?.position, "[nodes.neoview.reader.view.sidebar_control.position]")
+  const canonicalEdges = optionalRecord(panels.edges, "[nodes.neoview.panels.edges]")
+  const legacyEdges = {
+    top: { enabled: true, initialVisible: autoHideToolbar === false, pinned: autoHideToolbar === false, trigger: hover?.top_trigger_height },
+    right: { enabled: optionalBoolean(panels.right_sidebar_visible, "right_sidebar_visible") ?? true, initialVisible: false, pinned: optionalBoolean(right?.pinned, "right.pinned") ?? false, trigger: hover?.right_trigger_width },
+    bottom: { enabled: optionalBoolean(panels.bottom_panel_visible, "bottom_panel_visible") ?? true, initialVisible: optionalBoolean(panels.bottom_panel_visible, "bottom_panel_visible") ?? false, pinned: false, trigger: hover?.bottom_trigger_height },
+    left: { enabled: optionalBoolean(panels.left_sidebar_visible, "left_sidebar_visible") ?? true, initialVisible: optionalBoolean(left?.open, "left.open") ?? true, pinned: optionalBoolean(left?.pinned, "left.pinned") ?? true, trigger: hover?.left_trigger_width },
+  } satisfies Record<NeoviewShellEdge, { enabled: boolean; initialVisible: boolean; pinned: boolean; trigger: unknown }>
   return {
     showDelayMs: secondsToMilliseconds(timing?.show_delay_sec, "[nodes.neoview.panels.auto_hide_timing].show_delay_sec"),
     hideDelayMs: secondsToMilliseconds(timing?.hide_delay_sec, "[nodes.neoview.panels.auto_hide_timing].hide_delay_sec"),
@@ -819,12 +969,19 @@ function parseShellOptions(panels: Record<string, unknown> | undefined): Neoview
       bottom: boundedNumber(panels.bottom_bar_blur, 0, 20, DEFAULT_NEOVIEW_SHELL_CONFIG.blur.bottom, "bottom_bar_blur"),
       sidebar: boundedNumber(panels.sidebar_blur, 0, 20, DEFAULT_NEOVIEW_SHELL_CONFIG.blur.sidebar, "sidebar_blur"),
     },
-    edges: {
-      top: edgeConfig("top", true, autoHideToolbar === false, autoHideToolbar === false, hover?.top_trigger_height),
-      right: edgeConfig("right", optionalBoolean(panels.right_sidebar_visible, "right_sidebar_visible") ?? true, false, optionalBoolean(right?.pinned, "right.pinned") ?? false, hover?.right_trigger_width),
-      bottom: edgeConfig("bottom", optionalBoolean(panels.bottom_panel_visible, "bottom_panel_visible") ?? true, optionalBoolean(panels.bottom_panel_visible, "bottom_panel_visible") ?? false, false, hover?.bottom_trigger_height),
-      left: edgeConfig("left", optionalBoolean(panels.left_sidebar_visible, "left_sidebar_visible") ?? true, optionalBoolean(left?.open, "left.open") ?? true, optionalBoolean(left?.pinned, "left.pinned") ?? true, hover?.left_trigger_width),
+    floatingControl: {
+      enabled: optionalBoolean(canonicalControl?.enabled, "sidebar_control.enabled")
+        ?? optionalBoolean(legacyControl?.enabled, "reader.view.sidebar_control.enabled")
+        ?? DEFAULT_NEOVIEW_SHELL_CONFIG.floatingControl.enabled,
+      position: {
+        x: boundedIntegerWithFallback(canonicalPosition?.x ?? legacyPosition?.x, 0, 32_767, DEFAULT_NEOVIEW_SHELL_CONFIG.floatingControl.position.x, "sidebar_control.position.x"),
+        y: boundedIntegerWithFallback(canonicalPosition?.y ?? legacyPosition?.y, 0, 32_767, DEFAULT_NEOVIEW_SHELL_CONFIG.floatingControl.position.y, "sidebar_control.position.y"),
+      },
     },
+    edges: Object.fromEntries(NEOVIEW_SHELL_EDGES.map((edge) => [
+      edge,
+      edgeConfig(edge, optionalRecord(canonicalEdges?.[edge], `[nodes.neoview.panels.edges.${edge}]`), legacyEdges[edge]),
+    ])) as NeoviewShellConfig["edges"],
     sidebars: { left: sidebarConfig("left", left), right: sidebarConfig("right", right) },
     panelLayout: parsePanelLayout(panels),
     cardLayout: parseCardLayout(panels),
@@ -900,8 +1057,22 @@ function parsePanelLayout(panels: Record<string, unknown>): Record<string, Neovi
   return result
 }
 
-function edgeConfig(edge: string, enabled: boolean, initialVisible: boolean, pinned: boolean, trigger: unknown): NeoviewShellEdgeConfig {
-  return { enabled, initialVisible, pinned, triggerSize: boundedNumber(trigger, 1, 128, 32, `${edge} trigger`) }
+function edgeConfig(
+  edge: NeoviewShellEdge,
+  canonical: Record<string, unknown> | undefined,
+  legacy: { enabled: boolean; initialVisible: boolean; pinned: boolean; trigger: unknown },
+): NeoviewShellEdgeConfig {
+  return {
+    enabled: optionalBoolean(canonical?.enabled, `${edge}.enabled`) ?? legacy.enabled,
+    initialVisible: optionalBoolean(canonical?.initial_visible, `${edge}.initial_visible`) ?? legacy.initialVisible,
+    pinned: optionalBoolean(canonical?.pinned, `${edge}.pinned`) ?? legacy.pinned,
+    triggerSize: boundedNumber(canonical?.trigger_size ?? legacy.trigger, 1, 128, 32, `${edge} trigger`),
+    lockMode: shellEdgeLockMode(canonical?.lock_mode, `${edge}.lock_mode`),
+  }
+}
+
+function shellEdgeLockMode(value: unknown, path: string): NeoviewShellEdgeLockMode {
+  return optionalEnum(value, path, ["auto", "locked-open", "locked-hidden"] as const) ?? "auto"
 }
 
 function sidebarConfig(side: "left" | "right", value: Record<string, unknown> | undefined): NeoviewShellSidebarConfig {
@@ -968,6 +1139,10 @@ function boundedInteger(value: unknown, min: number, max: number, path: string):
     throw new Error(`${path} must be an integer between ${min} and ${max}.`)
   }
   return value
+}
+
+function boundedIntegerWithFallback(value: unknown, min: number, max: number, fallback: number, path: string): number {
+  return value === undefined ? fallback : boundedInteger(value, min, max, path)
 }
 
 function mebibytes(value: unknown, min: number, max: number, fallbackBytes: number, path: string): number {

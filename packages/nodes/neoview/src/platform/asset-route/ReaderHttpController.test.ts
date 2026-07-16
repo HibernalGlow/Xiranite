@@ -137,11 +137,12 @@ describe("ReaderHttpController", () => {
       hideDelayMs: 200,
       opacity: { top: 80, bottom: 70, sidebar: 60 },
       blur: { top: 1, bottom: 2, sidebar: 3 },
+      floatingControl: { enabled: true, position: { x: 100, y: 100 } },
       edges: {
-        top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 4 },
-        right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5 },
-        bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 6 },
-        left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 7 },
+        top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 4, lockMode: "auto" as const },
+        right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5, lockMode: "auto" as const },
+        bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 6, lockMode: "auto" as const },
+        left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 7, lockMode: "auto" as const },
       },
       sidebars: {
         left: { width: "side" in patch && patch.side === "left" && patch.width ? patch.width : 333, height: "half" as const, customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
@@ -160,11 +161,12 @@ describe("ReaderHttpController", () => {
         hideDelayMs: 200,
         opacity: { top: 80, bottom: 70, sidebar: 60 },
         blur: { top: 1, bottom: 2, sidebar: 3 },
+        floatingControl: { enabled: true, position: { x: 100, y: 100 } },
         edges: {
-          top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 4 },
-          right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5 },
-          bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 6 },
-          left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 7 },
+          top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 4, lockMode: "auto" },
+          right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5, lockMode: "auto" },
+          bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 6, lockMode: "auto" },
+          left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 7, lockMode: "auto" },
         },
         sidebars: {
           left: { width: 333, height: "half", customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
@@ -212,8 +214,26 @@ describe("ReaderHttpController", () => {
         { cardId: "page-navigation", expanded: false },
         { panels: { card_state: { "page-navigation": { expanded: false } } } },
       )
-      const board = {
+      const shellControl = {
         expectedRevision: 2,
+        shellControl: {
+          floating: { enabled: false, position: { x: 220, y: 140 } },
+          edges: { right: { pinned: true, triggerSize: 18, lockMode: "locked-open" } },
+        },
+      }
+      const controlPatched = (await controller.handle(jsonRequest("/reader/config", shellControl, true, "PATCH")))!
+      expect(controlPatched.status).toBe(200)
+      expect(await controlPatched.json()).toMatchObject({ shell: { revision: 3 } })
+      expect(updateShellOptions).toHaveBeenLastCalledWith(shellControl, { panels: {
+        sidebar_control: { enabled: false, position: { x: 220, y: 140 } },
+        edges: { right: { pinned: true, trigger_size: 18, lock_mode: "locked-open" } },
+      } })
+      const staleControl = (await controller.handle(jsonRequest("/reader/config", shellControl, true, "PATCH")))!
+      expect(staleControl.status).toBe(409)
+      expect(await staleControl.json()).toMatchObject({ shell: { revision: 3 } })
+      expect(updateShellOptions).toHaveBeenCalledTimes(3)
+      const board = {
+        expectedRevision: 3,
         board: {
           panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
           cards: [{ cardId: "book-information", panelId: "pageList", visible: true, order: 0 }],
@@ -228,8 +248,8 @@ describe("ReaderHttpController", () => {
       })
       const staleBoard = (await controller.handle(jsonRequest("/reader/config", board, true, "PATCH")))!
       expect(staleBoard.status).toBe(409)
-      expect(await staleBoard.json()).toMatchObject({ shell: { revision: 3 } })
-      expect(updateShellOptions).toHaveBeenCalledTimes(3)
+      expect(await staleBoard.json()).toMatchObject({ shell: { revision: 4 } })
+      expect(updateShellOptions).toHaveBeenCalledTimes(4)
       const viewPatched = (await controller.handle(jsonRequest("/reader/config", {
         viewDefaults: { fitMode: "original", pageMode: "double" },
       }, true, "PATCH")))!

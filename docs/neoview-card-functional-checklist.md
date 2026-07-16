@@ -1571,7 +1571,7 @@
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|
 | `switchToast` | 切换提示 | integration | pending | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
-| `sidebarControl` | 边栏控制 | integration | pending | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知 |
+| `sidebarControl` | 边栏控制 | integration | migrated | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
 | `colorFilter` | 颜色滤镜 | integration | pending | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
 | `imageTrim` | 图像裁剪 | integration | pending | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
 | `pageTransition` | 翻页动画 | deferred | pending | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
@@ -1590,9 +1590,9 @@
 #### `sidebarControl` 边栏控制
 
 - 细项清单：`migration/neoview/sidebar-control-compatibility.json`
-- [ ] 控制 top/right/bottom/left 边栏显示与 pin
-- [ ] 切换自动隐藏、触发区和展开行为
-- [ ] 恢复布局默认值且不重挂活动阅读图像
+- [x] 控制 top/right/bottom/left 边栏显示与 pin
+- [x] 切换自动隐藏、触发区和展开行为
+- [x] 恢复布局默认值且不重挂活动阅读图像
 - UI 基线：`src/lib/cards/info/SidebarControlCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ##### 专用逐控件库存（7 组，137 项）
@@ -1758,111 +1758,111 @@
 
 ##### 专用源码级验收项
 
-- [ ] `sidebar-control.enabled` 启停浮动边栏控制器
+- [x] `sidebar-control.enabled` 启停浮动边栏控制器
   - 目标：The Card switch and floating layer share one enabled state; disabling removes the controller DOM without changing edge state.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：`neoview.card.sidebar-control.floating`
-  - 备注：The present component proves only the isolated callback shape; runtime composition is pending.
-- [ ] `sidebar-control.position-reset` 恢复浮动控制器默认位置
+  - 测试：`neoview.card.sidebar-control.floating`、`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.position-reset` 恢复浮动控制器默认位置
   - 目标：Reset restores the canonical bounded default position x=100,y=100 and persists it once without remounting the reader image.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：`neoview.card.sidebar-control.floating`
-  - 备注：Runtime persistence and image identity evidence remain.
-- [ ] `sidebar-control.card-edges` Card 显示四边 open/pin 状态
+  - 测试：`neoview.card.sidebar-control.floating`、`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.card-edges` Card 显示四边 open/pin 状态
   - 目标：The 2x2 Card grid displays and controls top/right/bottom/left edge state from the active Reader Shell.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stores/ui.svelte.ts`
-  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`
-  - 备注：Formal ReaderPanelContext and Shell composition are pending.
-- [ ] `sidebar-control.floating-layer` 渲染可拖动浮动控制层
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`、`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.floating-layer` 渲染可拖动浮动控制层
   - 目标：An enabled, deferred floating controller renders above the Reader viewport with one drag handle and four edge controls.
   - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：待补
-  - 备注：The target currently has no floating layer.
-- [ ] `sidebar-control.open` 切换四边瞬态展开状态
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.open` 切换四边瞬态展开状态
   - 目标：Top, right, bottom and left controls open or close the same ReaderEdgeShell surface without mutating unrelated configuration.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
-  - 测试：`neoview.card.sidebar-control.edges`、`neoview.shell.hover-delay`
-  - 备注：ReaderEdgeShell currently owns transient visibility internally and needs a controlled bridge.
-- [ ] `sidebar-control.pin` 切换四边固定状态
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.shell.hover-delay`、`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.pin` 切换四边固定状态
   - 目标：All four edges update canonical pinned configuration; keyboard/touch users receive an explicit equivalent to legacy right click.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
-  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`、`neoview.shell.pinned`
-  - 备注：Top/bottom callbacks exist only in the isolated Card and left/right runtime persistence is pending.
-- [ ] `sidebar-control.lock-cycle` 保持自动/锁定展开/锁定隐藏三态
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`、`neoview.shell.pinned`、`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.lock-cycle` 保持自动/锁定展开/锁定隐藏三态
   - 目标：Each floating edge action cycles auto, locked-open and locked-hidden with stable color, icon, title and pinned/open effects.
   - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
-  - 测试：待补
-  - 备注：XR may use an explicit menu instead of right-click-only cycling but must preserve all three states.
-- [ ] `sidebar-control.auto-hide` 配置自动隐藏与展开行为
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.auto-hide` 配置自动隐藏与展开行为
   - 目标：The Card can return each edge to automatic hover behavior and expose current open/initial-visible semantics without duplicating ReaderEdgeShell state.
   - 源码：`src/lib/components/layout/HoverWrapper.svelte`、`src/lib/stores/sidebarConfig.svelte.ts`、`src/lib/cards/info/SidebarControlCard.svelte`
-  - 测试：待补
-  - 备注：Frozen target extension beyond the legacy Card controls.
-- [ ] `sidebar-control.trigger` 配置四边触发区
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.trigger` 配置四边触发区
   - 目标：Four bounded trigger sizes use the canonical Shell configuration and update ReaderEdgeShell without reload.
   - 源码：`src/lib/components/layout/HoverWrapper.svelte`、`src/lib/stores/sidebarConfig.svelte.ts`
-  - 测试：待补
-  - 备注：Frozen target extension; numeric bounds and reset behavior require characterization.
-- [ ] `sidebar-control.reset-layout` 恢复边栏控制默认布局
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.reset-layout` 恢复边栏控制默认布局
   - 目标：One explicit reset restores controller position and known edge defaults while preserving unknown future Shell/Card configuration.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/components/layout/HoverWrapper.svelte`、`src/lib/stores/sidebarConfig.svelte.ts`
-  - 测试：待补
-  - 备注：Frozen target extension; reset must be one atomic configuration PATCH.
-- [ ] `sidebar-control.drag` 有界拖动浮动控制器
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.drag` 有界拖动浮动控制器
   - 目标：Pointer, touch and keyboard movement remain within the viewport, update only transient DOM during movement and persist once on completion.
   - 源码：`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：待补
-  - 备注：The legacy mouse-only implementation is expanded to PointerEvent and keyboard equivalence.
-- [ ] `sidebar-control.states` 默认、open、pinned、disabled 与错误状态
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.states` 默认、open、pinned、disabled 与错误状态
   - 目标：Card and layer expose coherent default, hover, focus, open, pinned, locked, disabled, pending, error and rollback states.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`
-  - 备注：Pending/error/rollback and runtime states remain.
-- [ ] `sidebar-control.shell` 共享 Card 与 Shell 外壳行为
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`、`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.shell` 共享 Card 与 Shell 外壳行为
   - 目标：Sidebar Control is an independently lazy, hideable, collapsible, movable, resizable and window-capable control-panel Card.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
-  - 测试：待补
-  - 备注：The component exists but is not registered in the formal Card manifest.
-- [ ] `sidebar-control.data-contract` 共享规范 Shell 控制契约
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.data-contract` 共享规范 Shell 控制契约
   - 目标：GUI, CLI and TUI share enabled, position, edge enabled/visible/pinned/trigger and lock semantics through one bounded application configuration contract.
   - 源码：`src/lib/stores/ui.svelte.ts`、`src/lib/stores/sidebarConfig.svelte.ts`、`src/lib/settings/settingsManager.ts`
-  - 测试：待补
-  - 备注：Runtime Shell DTO lacks floating-controller and controlled-visibility fields.
-- [ ] `sidebar-control.persistence` 导入并原子持久化到 nodes.neoview
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.persistence` 导入并原子持久化到 nodes.neoview
   - 目标：Legacy view.sidebarControl imports once; canonical enabled/position/edge state lives under [nodes.neoview], with pointer completion and reset producing one atomic PATCH.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/settings/settingsManager.ts`
-  - 测试：待补
-  - 备注：No second runtime settings version or xiranite.db business table is allowed.
-- [ ] `sidebar-control.lifecycle` 懒加载、监听释放与取消
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.lifecycle` 懒加载、监听释放与取消
   - 目标：Hidden Card content is unmounted, disabled layer is zero DOM, all global pointer/listener work is released and stale configuration responses cannot overwrite newer interaction.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
-  - 测试：待补
-  - 备注：The target must not keep window pointer listeners after cancel/unmount.
-- [ ] `sidebar-control.accessibility` 键盘、触摸与语义等价操作
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.accessibility` 键盘、触摸与语义等价操作
   - 目标：Every icon has an accessible name; open/pin/lock expose state; touch and keyboard can invoke legacy context actions and move the controller with focus preserved.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：`neoview.card.sidebar-control.context-pin`
-  - 备注：The isolated Card has labels but the floating layer and explicit lock menu are pending.
-- [ ] `sidebar-control.ui-parity` Card 与浮动层响应式几何
+  - 测试：`neoview.card.sidebar-control.context-pin`、`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.ui-parity` Card 与浮动层响应式几何
   - 目标：The legacy 2x2 Card density and compact horizontal floating controller remain readable and operable on desktop and 420x360 Card viewports without overlap.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：待补
-  - 备注：Both viewports require screenshots and zero overflow/occlusion assertions.
-- [ ] `sidebar-control.image-stability` 边栏控制不重挂活动阅读图像
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.image-stability` 边栏控制不重挂活动阅读图像
   - 目标：Enable, drag, open, pin, lock, trigger and reset operations preserve the active Reader image node and asset URL.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`
-  - 测试：待补
-  - 备注：Required by the frozen functional scope.
-- [ ] `sidebar-control.performance` DOM、写入与 chunk 边界
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.performance` DOM、写入与 chunk 边界
   - 目标：O(1) Card/layer DOM, zero hidden work, DOM-only pointermove, one completion PATCH and independent deferred Card/layer chunks within explicit budgets.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：待补
-  - 备注：Reader entry and hot page-turn budgets must remain green.
-- [ ] `sidebar-control.deviations` 记录受控 Shell 与可访问性扩展
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
+- [x] `sidebar-control.deviations` 记录受控 Shell 与可访问性扩展
   - 目标：Document controlled ReaderEdgeShell state, PointerEvent/keyboard movement, explicit lock actions, canonical TOML and trigger/reset controls as target improvements without removing legacy states.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/components/layout/HoverWrapper.svelte`
-  - 测试：待补
-  - 备注：Legacy right click remains supported but is not the only lock path.
+  - 测试：`neoview.sidebar-control.e2e`
+  - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
 
 #### `colorFilter` 颜色滤镜
 

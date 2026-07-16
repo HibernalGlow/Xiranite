@@ -1,8 +1,13 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { ReaderEdgeShell, type ReaderEdgeSlot } from "./ReaderEdgeShell"
+import {
+  ReaderEdgeShell,
+  type ReaderEdge,
+  type ReaderEdgeOpenReason,
+  type ReaderEdgeSlot,
+} from "./ReaderEdgeShell"
 
 afterEach(() => {
   cleanup()
@@ -21,66 +26,124 @@ describe("ReaderEdgeShell", () => {
     expect(document.querySelectorAll("[data-reader-edge-trigger]")).toHaveLength(4)
   })
 
-  it("[neoview.shell.hover-delay] opens and unmounts an edge through bounded timers", () => {
+  it("[neoview.shell.constrained-layering] keeps full-height sidebars operable above horizontal bars", () => {
+    render(<ReaderEdgeShell edges={{
+      right: { ...slot("right", <button>side action</button>), open: true },
+      bottom: { ...slot("bottom", <button>bottom action</button>), open: true },
+    }}><div>viewport</div></ReaderEdgeShell>)
+
+    expect(document.querySelector('[data-reader-edge="right"]')?.className).toContain("z-[60]")
+    expect(document.querySelector('[data-reader-edge="bottom"]')?.className).toContain("z-50")
+  })
+
+  it("[neoview.shell.controlled] requests visibility without owning a second open state", () => {
     vi.useFakeTimers()
-    const visibility = vi.fn()
+    const requests = vi.fn()
     render(
       <ReaderEdgeShell
-        edges={{ top: { ...slot("top", <div>toolbar</div>), showDelayMs: 40, hideDelayMs: 80 } }}
-        onEdgeVisibilityChange={visibility}
+        edges={{ top: { ...slot("top", <div>toolbar</div>), showDelayMs: 40 } }}
+        onEdgeOpenRequest={requests}
       >
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
 
+    fireEvent.pointerEnter(document.querySelector('[data-reader-edge-trigger="top"]')!)
+    act(() => vi.advanceTimersByTime(40))
+    expect(requests).toHaveBeenCalledWith("top", true, "trigger")
+    expect(screen.queryByText("toolbar")).toBeNull()
+  })
+
+  it("[neoview.shell.hover-delay] opens and unmounts through bounded controlled requests", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(<ControlledShell edge="top" requests={requests} showDelayMs={40} hideDelayMs={80} />)
+
     const trigger = document.querySelector('[data-reader-edge-trigger="top"]')!
     fireEvent.pointerEnter(trigger)
     act(() => vi.advanceTimersByTime(39))
-    expect(screen.queryByText("toolbar")).toBeNull()
+    expect(screen.queryByText("top content")).toBeNull()
     act(() => vi.advanceTimersByTime(1))
-    expect(screen.getByText("toolbar")).toBeTruthy()
+    expect(screen.getByText("top content")).toBeTruthy()
 
     fireEvent.pointerLeave(screen.getByRole("region", { name: "top edge" }))
     act(() => vi.advanceTimersByTime(79))
-    expect(screen.getByText("toolbar")).toBeTruthy()
+    expect(screen.getByText("top content")).toBeTruthy()
     act(() => vi.advanceTimersByTime(1))
-    expect(screen.queryByText("toolbar")).toBeNull()
-    expect(visibility.mock.calls).toEqual([["top", true], ["top", false]])
+    expect(screen.queryByText("top content")).toBeNull()
+    expect(requests.mock.calls).toEqual([
+      ["top", true, "trigger"],
+      ["top", false, "leave"],
+    ])
   })
 
-  it("[neoview.shell.pinned] mounts pinned content and never retracts it", () => {
+  it("[neoview.shell.fixed-open] mounts fixed content and never retracts it", () => {
     vi.useFakeTimers()
+    const requests = vi.fn()
     render(
-      <ReaderEdgeShell edges={{ left: { ...slot("left", <div>cards</div>), pinned: true, hideDelayMs: 1 } }}>
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <div>cards</div>), interaction: "fixed-open", hideDelayMs: 1 } }}
+        onEdgeOpenRequest={requests}
+      >
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
     fireEvent.pointerLeave(screen.getByRole("region", { name: "left edge" }))
+    fireEvent.keyDown(window, { key: "Escape" })
     act(() => vi.runAllTimers())
     expect(screen.getByText("cards")).toBeTruthy()
+    expect(requests).not.toHaveBeenCalled()
   })
 
-  it("[neoview.shell.unpin] restores auto-hide after a pinned edge is released", () => {
+  it("[neoview.shell.fixed-closed] ignores trigger requests and keeps content unmounted", () => {
+    const preload = vi.fn()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ right: { ...slot("right", <div>cards</div>), open: true, interaction: "fixed-closed", preload } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    fireEvent.pointerEnter(document.querySelector('[data-reader-edge-trigger="right"]')!)
+    expect(screen.queryByText("cards")).toBeNull()
+    expect(preload).not.toHaveBeenCalled()
+    expect(requests).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.shell.unpin] restores auto-hide after fixed-open is released", () => {
     vi.useFakeTimers()
+    const requests = vi.fn()
     const view = render(
-      <ReaderEdgeShell edges={{ left: { ...slot("left", <div>cards</div>), pinned: true, initialVisible: true, hideDelayMs: 20 } }}>
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <div>cards</div>), interaction: "fixed-open", hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
     view.rerender(
-      <ReaderEdgeShell edges={{ left: { ...slot("left", <div>cards</div>), pinned: false, initialVisible: true, hideDelayMs: 20 } }}>
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <div>cards</div>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
     fireEvent.pointerLeave(screen.getByRole("region", { name: "left edge" }))
     act(() => vi.advanceTimersByTime(20))
-    expect(screen.queryByText("cards")).toBeNull()
+    expect(requests).toHaveBeenCalledWith("left", false, "leave")
   })
 
-  it("[neoview.shell.input-protection] does not retract while a text control owns focus", () => {
+  it("[neoview.shell.input-protection] does not request retract while a text control owns focus", () => {
     vi.useFakeTimers()
+    const requests = vi.fn()
     render(
-      <ReaderEdgeShell edges={{ right: { ...slot("right", <input aria-label="filter" />), initialVisible: true, hideDelayMs: 20 } }}>
+      <ReaderEdgeShell
+        edges={{ right: { ...slot("right", <input aria-label="filter" />), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
@@ -88,35 +151,47 @@ describe("ReaderEdgeShell", () => {
     input.focus()
     fireEvent.pointerLeave(screen.getByRole("region", { name: "right edge" }))
     act(() => vi.advanceTimersByTime(100))
-    expect(input).toBeTruthy()
+    expect(requests).not.toHaveBeenCalled()
   })
 
-  it("[neoview.shell.escape] retracts transient edges for narrow and keyboard layouts", () => {
+  it("[neoview.shell.escape] requests retract for transient edges", () => {
+    const requests = vi.fn()
     render(
-      <ReaderEdgeShell edges={{ left: { ...slot("left", <div>cards</div>), initialVisible: true } }}>
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <div>cards</div>), open: true } }}
+        onEdgeOpenRequest={requests}
+      >
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
     fireEvent.keyDown(window, { key: "Escape" })
-    expect(screen.queryByText("cards")).toBeNull()
+    expect(requests).toHaveBeenCalledWith("left", false, "escape")
   })
 
-  it("[neoview.shell.modal-protection] lets a settings dialog own Escape without retracting edges", () => {
+  it("[neoview.shell.modal-protection] lets a settings dialog own Escape", () => {
+    const requests = vi.fn()
     render(
-      <ReaderEdgeShell edges={{ bottom: { ...slot("bottom", <div>thumbnails</div>), initialVisible: true } }}>
+      <ReaderEdgeShell
+        edges={{ bottom: { ...slot("bottom", <div>thumbnails</div>), open: true } }}
+        onEdgeOpenRequest={requests}
+      >
         <div role="dialog"><button type="button">modal control</button></div>
       </ReaderEdgeShell>,
     )
     const control = screen.getByRole("button", { name: "modal control" })
     control.focus()
     fireEvent.keyDown(control, { key: "Escape" })
-    expect(screen.getByText("thumbnails")).toBeTruthy()
+    expect(requests).not.toHaveBeenCalled()
   })
 
-  it("[neoview.shell.floating-protection] keeps an edge mounted while its context interaction is active", () => {
+  it("[neoview.shell.floating-protection] keeps an edge open while context interaction is active", () => {
     vi.useFakeTimers()
+    const requests = vi.fn()
     render(
-      <ReaderEdgeShell edges={{ right: { ...slot("right", <div>cards</div>), initialVisible: true, hideDelayMs: 20 } }}>
+      <ReaderEdgeShell
+        edges={{ right: { ...slot("right", <div>cards</div>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
@@ -124,16 +199,16 @@ describe("ReaderEdgeShell", () => {
     fireEvent.contextMenu(region)
     fireEvent.pointerLeave(region)
     act(() => vi.advanceTimersByTime(100))
-    expect(screen.getByText("cards")).toBeTruthy()
+    expect(requests).not.toHaveBeenCalled()
     fireEvent.pointerDown(window)
     act(() => vi.advanceTimersByTime(20))
-    expect(screen.queryByText("cards")).toBeNull()
+    expect(requests).toHaveBeenCalledWith("right", false, "leave")
   })
 
   it("[neoview.shell.pointer-commit] does not render React state on pointer movement", () => {
     const renders = vi.fn()
     render(
-      <ReaderEdgeShell edges={{ bottom: { ...slot("bottom", <RenderProbe onRender={renders} />), initialVisible: true } }}>
+      <ReaderEdgeShell edges={{ bottom: { ...slot("bottom", <RenderProbe onRender={renders} />), open: true } }}>
         <div>viewport</div>
       </ReaderEdgeShell>,
     )
@@ -144,7 +219,32 @@ describe("ReaderEdgeShell", () => {
 })
 
 function slot(edge: string, content: React.ReactNode): ReaderEdgeSlot {
-  return { ariaLabel: `${edge} edge`, render: () => content }
+  return { ariaLabel: `${edge} edge`, open: false, interaction: "auto", render: () => content }
+}
+
+function ControlledShell({
+  edge,
+  requests,
+  showDelayMs,
+  hideDelayMs,
+}: {
+  edge: ReaderEdge
+  requests: (edge: ReaderEdge, open: boolean, reason: ReaderEdgeOpenReason) => void
+  showDelayMs: number
+  hideDelayMs: number
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <ReaderEdgeShell
+      edges={{ [edge]: { ...slot(edge, <div>{edge} content</div>), open, showDelayMs, hideDelayMs } }}
+      onEdgeOpenRequest={(requestedEdge, next, reason) => {
+        requests(requestedEdge, next, reason)
+        setOpen(next)
+      }}
+    >
+      <div>viewport</div>
+    </ReaderEdgeShell>
+  )
 }
 
 function MountProbe({ onMount }: { onMount(): void }) {
