@@ -163,9 +163,11 @@ export interface ReaderDirectorySearchOptionsDto {
   mode?: ReaderDirectorySearchModeDto
   kind?: ReaderDirectorySearchKindDto
   caseSensitive?: boolean
+  searchInPath?: boolean
   maximumDepth?: number
   maximumResults?: number
   excludePatterns?: readonly string[]
+  onEntries?: (entries: readonly ReaderDirectoryEntryDto[]) => void
 }
 
 export interface ReaderDirectorySearchResultDto {
@@ -473,6 +475,7 @@ export function createReaderHttpClient(
       if (options.mode) search.set("mode", options.mode)
       if (options.kind) search.set("kind", options.kind)
       if (options.caseSensitive !== undefined) search.set("case", options.caseSensitive ? "1" : "0")
+      if (options.searchInPath !== undefined) search.set("path", options.searchInPath ? "1" : "0")
       if (options.maximumDepth !== undefined) search.set("depth", String(options.maximumDepth))
       if (options.maximumResults !== undefined) search.set("limit", String(options.maximumResults))
       for (const pattern of options.excludePatterns ?? []) search.append("exclude", pattern)
@@ -480,6 +483,7 @@ export function createReaderHttpClient(
         new URL(`/reader/browser/s/${encodeURIComponent(sessionId)}/search?${search}`, config.baseUrl),
         config.token,
         options.maximumResults ?? 512,
+        options.onEntries,
         signal,
       )
     },
@@ -629,6 +633,7 @@ async function requestDirectorySearch(
   url: URL,
   token: string | undefined,
   maximumResults: number,
+  onEntries: ((entries: readonly ReaderDirectoryEntryDto[]) => void) | undefined,
   signal?: AbortSignal,
 ): Promise<ReaderDirectorySearchResultDto> {
   const headers = new Headers()
@@ -645,6 +650,7 @@ async function requestDirectorySearch(
   let meta: Extract<ReaderDirectorySearchEvent, { type: "meta" }> | undefined
   let complete: Extract<ReaderDirectorySearchEvent, { type: "complete" }> | undefined
   const entries: ReaderDirectoryEntryDto[] = []
+  let publishedEntries = 0
   try {
     while (true) {
       const chunk = await reader.read()
@@ -699,6 +705,10 @@ async function requestDirectorySearch(
         kind: event.entry.kind,
         readerSupported: event.entry.kind !== "other",
       })
+      if (entries.length - publishedEntries >= 16) {
+        publishedEntries = entries.length
+        onEntries?.([...entries])
+      }
       return
     }
     if (event.matched !== entries.length) throw new Error("Reader search stream result count does not match its entries.")

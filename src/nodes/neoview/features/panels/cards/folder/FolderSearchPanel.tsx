@@ -50,12 +50,14 @@ export default function FolderSearchPanel({
   const [kind, setKind] = useState<ReaderDirectorySearchKindDto>("all")
   const [recursive, setRecursive] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [searchInPath, setSearchInPath] = useState(false)
   const [showHistoryOnFocus, setShowHistoryOnFocus] = useState(true)
   const [showHistory, setShowHistory] = useState(false)
   const [history, setHistory] = useState<readonly ReaderSearchHistoryDto[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string>()
   const [result, setResult] = useState<ReaderDirectorySearchResultDto>()
+  const [streamedEntries, setStreamedEntries] = useState<readonly ReaderDirectoryEntryDto[]>([])
   const [selectedPath, setSelectedPath] = useState<string>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -87,21 +89,29 @@ export default function FolderSearchPanel({
     requestRef.current = controller
     setShowHistory(false)
     setLoading(true)
+    setResult(undefined)
+    setStreamedEntries([])
     setError(undefined)
     try {
       const next = await client.searchDirectoryBrowser(sessionId, normalized, {
         mode,
         kind,
         caseSensitive,
+        searchInPath,
         maximumDepth: recursive ? undefined : 0,
         maximumResults: SEARCH_RESULT_LIMIT,
+        onEntries: (entries) => {
+          if (requestRef.current === controller) setStreamedEntries(entries)
+        },
       }, controller.signal)
       if (requestRef.current !== controller) return
       setResult(next)
+      setStreamedEntries([])
       setSelectedPath(undefined)
       void recordHistory(normalized)
     } catch (cause) {
       if (controller.signal.aborted) return
+      setStreamedEntries([])
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       if (requestRef.current === controller) {
@@ -193,6 +203,7 @@ export default function FolderSearchPanel({
     requestRef.current = undefined
     setQuery("")
     setResult(undefined)
+    setStreamedEntries([])
     setSelectedPath(undefined)
     setError(undefined)
     setLoading(false)
@@ -248,10 +259,16 @@ export default function FolderSearchPanel({
         <Button type="button" size="sm" variant={recursive ? "default" : "ghost"} className="h-7 gap-1 px-2 text-xs" aria-pressed={recursive} onClick={() => setRecursive((current) => !current)}><ListTree />子目录</Button>
         <Button type="button" size="icon-sm" variant={mode === "glob" ? "default" : "ghost"} aria-label="Glob 模式" aria-pressed={mode === "glob"} onClick={() => setMode((current) => current === "text" ? "glob" : "text")}><Asterisk /></Button>
         <Button type="button" size="icon-sm" variant={caseSensitive ? "default" : "ghost"} aria-label="区分大小写" aria-pressed={caseSensitive} onClick={() => setCaseSensitive((current) => !current)}><CaseSensitive /></Button>
-        <label className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
-          <input type="checkbox" checked={showHistoryOnFocus} onChange={(event) => setShowHistoryOnFocus(event.currentTarget.checked)} />
-          聚焦显示历史
-        </label>
+        <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground">
+          <label className="flex items-center gap-1" title="匹配相对路径">
+            <input type="checkbox" checked={searchInPath} onChange={(event) => setSearchInPath(event.currentTarget.checked)} />
+            匹配路径
+          </label>
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={showHistoryOnFocus} onChange={(event) => setShowHistoryOnFocus(event.currentTarget.checked)} />
+            聚焦显示历史
+          </label>
+        </div>
       </div>
 
       {showHistory ? (
@@ -285,18 +302,18 @@ export default function FolderSearchPanel({
       ) : null}
 
       <div className="min-h-0" aria-live="polite">
-        {loading ? <SearchState icon={<LoaderCircle className="size-5 animate-spin" />} label="正在搜索..." /> : null}
+        {loading && streamedEntries.length === 0 ? <SearchState icon={<LoaderCircle className="size-5 animate-spin" />} label="正在搜索..." /> : null}
         {!loading && error ? <SearchState label={error} tone="error" action={<Button type="button" size="sm" variant="outline" onClick={() => void search()}>重试</Button>} /> : null}
         {!loading && !error && result?.entries.length === 0 ? <SearchState label={`未找到“${result.query}”`} /> : null}
-        {!loading && !error && result?.entries.length ? (
+        {!error && (result?.entries.length || streamedEntries.length) ? (
           <div className="grid h-full min-h-0 grid-rows-[auto_1fr]">
             <div className="flex items-center justify-between border-b px-2 py-1 text-[10px] text-muted-foreground">
-              <span>{result.matched} 个结果 / 扫描 {result.scanned} 项</span>
-              {result.truncated ? <span className="text-amber-600">已截断至 {SEARCH_RESULT_LIMIT} 项</span> : null}
+              <span>{loading ? `已找到 ${streamedEntries.length} 项，正在搜索` : `${result!.matched} 个结果 / 扫描 ${result!.scanned} 项`}</span>
+              {result?.truncated ? <span className="text-amber-600">已截断至 {SEARCH_RESULT_LIMIT} 项</span> : null}
             </div>
             <Virtuoso
               style={{ height: "100%" }}
-              data={result.entries}
+              data={result?.entries ?? streamedEntries}
               fixedItemHeight={48}
               computeItemKey={(_, entry) => entry.path}
               itemContent={(_, entry) => (

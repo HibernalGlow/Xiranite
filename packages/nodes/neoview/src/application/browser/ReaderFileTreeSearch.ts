@@ -9,6 +9,7 @@ export interface ReaderFileTreeSearchOptions {
   mode?: ReaderFileTreeSearchMode
   kind?: ReaderFileTreeSearchKind
   caseSensitive?: boolean
+  searchInPath?: boolean
   maximumDepth?: number
   maximumResults?: number
   maximumEntries?: number
@@ -43,7 +44,7 @@ export function searchReaderFileTree(
     ? undefined
     : boundedInteger(options.maximumDepth, 0, 4_096, 0, "maximumDepth")
   const excludePatterns = validatePatterns(options.excludePatterns)
-  const matches = createMatcher(normalizedQuery, mode, options.caseSensitive ?? false)
+  const matches = createMatcher(normalizedQuery, mode, options.caseSensitive ?? false, options.searchInPath ?? false)
   return search(scanner, session, normalizedQuery, mode, kind, matches, {
     maximumDepth,
     maximumEntries,
@@ -92,7 +93,12 @@ async function* search(
   yield { type: "complete", scanned, matched, truncated }
 }
 
-function createMatcher(query: string, mode: ReaderFileTreeSearchMode, caseSensitive: boolean): (entry: ReaderFileTreeEntry) => boolean {
+function createMatcher(
+  query: string,
+  mode: ReaderFileTreeSearchMode,
+  caseSensitive: boolean,
+  searchInPath: boolean,
+): (entry: ReaderFileTreeEntry) => boolean {
   if (mode === "glob") {
     const matches = picomatch(query, { nocase: !caseSensitive, dot: true })
     return (entry) => matches(normalizeRelativePath(entry.relativePath))
@@ -102,7 +108,7 @@ function createMatcher(query: string, mode: ReaderFileTreeSearchMode, caseSensit
     const name = caseSensitive ? entry.name : entry.name.toLocaleLowerCase()
     const normalizedPath = normalizeRelativePath(entry.relativePath)
     const relativePath = caseSensitive ? normalizedPath : normalizedPath.toLocaleLowerCase()
-    return name.includes(expected) || relativePath.includes(expected)
+    return name.includes(expected) || (searchInPath && relativePath.includes(expected))
   }
 }
 

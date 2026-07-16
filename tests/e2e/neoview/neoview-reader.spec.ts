@@ -320,19 +320,23 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await folderSearch.getByRole("button", { name: "搜索历史", exact: true }).click()
 
   await folderSearch.getByRole("button", { name: "子目录" }).click()
-  await folderSearchInput.fill("recursive-result.png")
+  await folderSearch.getByRole("radio", { name: "仅文件", exact: true }).click()
+  await folderSearch.getByRole("checkbox", { name: "匹配路径" }).check()
+  await folderSearchInput.fill("nested-search")
   const recursiveFolderSearchResponse = page.waitForResponse((response) => {
     const url = new URL(response.url())
-    return url.pathname.endsWith("/search") && url.searchParams.get("q") === "recursive-result.png"
+    return url.pathname.endsWith("/search") && url.searchParams.get("q") === "nested-search"
   })
   const recursiveSearchHistoryResponse = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/search-history")
     && response.request().method() === "POST"
-    && response.request().postData()?.includes('"query":"recursive-result.png"') === true
+    && response.request().postData()?.includes('"query":"nested-search"') === true
   ))
   await folderSearch.getByRole("button", { name: "执行搜索" }).click()
   const recursiveFolderSearchUrl = new URL((await recursiveFolderSearchResponse).url())
   expect(recursiveFolderSearchUrl.searchParams.has("depth")).toBe(false)
+  expect(recursiveFolderSearchUrl.searchParams.get("kind")).toBe("file")
+  expect(recursiveFolderSearchUrl.searchParams.get("path")).toBe("1")
   expect((await recursiveSearchHistoryResponse).status()).toBe(201)
   await expect(folderSearch.getByText("recursive-result.png", { exact: true })).toBeVisible()
   await folderSearch.getByRole("button", { name: "搜索历史", exact: true }).click()
@@ -340,9 +344,9 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
     const url = new URL(response.url())
     return url.pathname.endsWith("/search-history")
       && response.request().method() === "DELETE"
-      && url.searchParams.get("query") === "recursive-result.png"
+      && url.searchParams.get("query") === "nested-search"
   })
-  await folderSearch.getByRole("button", { name: "删除搜索历史：recursive-result.png" }).click()
+  await folderSearch.getByRole("button", { name: "删除搜索历史：nested-search" }).click()
   expect((await deleteSearchHistoryResponse).status()).toBe(200)
   const clearSearchHistoryResponse = page.waitForResponse((response) => {
     const url = new URL(response.url())

@@ -4,7 +4,7 @@ import type { ReaderFileTreeHeadlessController } from "../core.js"
 import { createNeoviewFileTreeTuiDefinition } from "../interaction.js"
 
 describe("NeoView file-tree terminal interaction", () => {
-  it("[neoview.folder.tui] [neoview.folder.search-history-tui] uses the shared headless controller and marks persistent actions dangerous", async () => {
+  it("[neoview.folder.tui] [neoview.folder.search-history-tui] [neoview.folder.search-path-tui] uses the shared headless controller", async () => {
     const closeSearch = vi.fn(async () => undefined)
     const dispose = vi.fn(async () => undefined)
     const controller = {
@@ -36,9 +36,11 @@ describe("NeoView file-tree terminal interaction", () => {
       mode: "text",
       maximumDepth: 10,
       maximumResults: 20,
+      searchInPath: true,
     }, (event) => events.push(event.message))
     expect(result).toEqual({ success: true, message: "1 matches.", paths: ["/library/book.cbz"] })
     expect(events).toEqual(["/library/book.cbz"])
+    expect(controller.search).toHaveBeenCalledWith("book", expect.objectContaining({ searchInPath: true }))
     expect(closeSearch).toHaveBeenCalledOnce()
     expect(controller.recordSearchHistory).toHaveBeenCalledWith("folder", "book")
     expect(dispose).toHaveBeenCalledOnce()

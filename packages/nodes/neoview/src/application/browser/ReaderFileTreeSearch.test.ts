@@ -25,7 +25,7 @@ describe("searchReaderFileTree", () => {
     ])
   })
 
-  it("[neoview.folder.search-glob] delegates traversal bounds and uses picomatch for normalized case-insensitive paths", async () => {
+  it("[neoview.folder.search-glob] [neoview.folder.search-path] delegates traversal bounds and applies explicit path matching", async () => {
     const scan = vi.fn((_rootPath: string, _options?: unknown, _signal?: AbortSignal) => scannerOf([
       entry("Series\\Book.CBZ"),
       entry("Series/readme.txt"),
@@ -46,10 +46,18 @@ describe("searchReaderFileTree", () => {
       excludePatterns: ["private/", "*.tmp"],
     }), undefined)
 
+    const nameOnly = await collect(searchReaderFileTree(
+      scannerOf([entry("Series\\Book.CBZ")]),
+      { id: "browser-3", rootPath: "/library", generation: 1 },
+      "series/book",
+    ))
+    expect(nameOnly.some((event) => event.type === "entry")).toBe(false)
+
     const textPath = await collect(searchReaderFileTree(
       scannerOf([entry("Series\\Book.CBZ")]),
       { id: "browser-3", rootPath: "/library", generation: 1 },
       "series/book",
+      { searchInPath: true },
     ))
     expect(textPath.some((event) => event.type === "entry")).toBe(true)
   })

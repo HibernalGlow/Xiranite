@@ -296,12 +296,15 @@ function parseSearch(url: URL): { query: string; options: ReaderFileTreeSearchOp
   if (kind !== "all" && kind !== "file" && kind !== "directory") throw new Error("kind must be all, file, or directory")
   const caseValue = url.searchParams.get("case")
   if (caseValue !== null && caseValue !== "0" && caseValue !== "1") throw new Error("case must be 0 or 1")
+  const pathValue = url.searchParams.get("path")
+  if (pathValue !== null && pathValue !== "0" && pathValue !== "1") throw new Error("path must be 0 or 1")
   return {
     query: url.searchParams.get("q") ?? "",
     options: {
       mode,
       kind,
       caseSensitive: caseValue === "1",
+      searchInPath: pathValue === "1",
       maximumDepth: optionalInteger(url.searchParams.get("depth"), "depth", 0, 4_096),
       maximumResults: optionalInteger(url.searchParams.get("limit"), "limit", 1, 10_000),
       excludePatterns: url.searchParams.getAll("exclude"),

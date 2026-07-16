@@ -201,6 +201,7 @@ describe("reader-http-client", () => {
     const result = await client.searchDirectoryBrowser!("browser-1", "封面", {
       kind: "file",
       caseSensitive: true,
+      searchInPath: true,
       maximumDepth: 0,
       maximumResults: 512,
       excludePatterns: ["cache/**"],
@@ -220,9 +221,42 @@ describe("reader-http-client", () => {
     const [url, init] = fetchMock.mock.calls[0]!
     const parsed = new URL(String(url))
     expect(parsed.searchParams.get("depth")).toBe("0")
+    expect(parsed.searchParams.get("path")).toBe("1")
     expect(parsed.searchParams.get("limit")).toBe("512")
     expect(parsed.searchParams.getAll("exclude")).toEqual(["cache/**"])
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
+  it("[neoview.folder.search-incremental] publishes bounded entry batches before the stream completes", async () => {
+    let streamController!: ReadableStreamDefaultController<Uint8Array>
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller
+        const events = [
+          { type: "meta", sessionId: "browser-1", rootPath: "D:/books", generation: 4, query: "book", mode: "text" },
+          ...Array.from({ length: 16 }, (_, index) => ({
+            type: "entry",
+            index,
+            entry: { name: `book-${index}.cbz`, path: `D:/books/book-${index}.cbz`, kind: "file" },
+          })),
+        ]
+        controller.enqueue(encoder.encode(events.map((event) => JSON.stringify(event)).join("\n") + "\n"))
+      },
+    })
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(stream)))
+    const onEntries = vi.fn()
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000" }))
+    let completed = false
+    const pending = client.searchDirectoryBrowser!("browser-1", "book", { onEntries })
+      .finally(() => { completed = true })
+
+    await vi.waitFor(() => expect(onEntries).toHaveBeenCalledTimes(1))
+    expect(onEntries.mock.calls[0]?.[0]).toHaveLength(16)
+    expect(completed).toBe(false)
+    streamController.enqueue(encoder.encode(`${JSON.stringify({ type: "complete", scanned: 16, matched: 16, truncated: false })}\n`))
+    streamController.close()
+    await expect(pending).resolves.toMatchObject({ matched: 16, entries: expect.any(Array) })
   })
 
   it("[neoview.folder.search-cancel] cancels the NDJSON reader when a search is aborted", async () => {

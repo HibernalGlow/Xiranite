@@ -102,7 +102,7 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
-  it("[neoview.folder.search-http] streams glob results as backpressured NDJSON and prunes excluded directories", async () => {
+  it("[neoview.folder.search-http] [neoview.folder.search-path-http] streams glob results and validates explicit path matching", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-"))
     directories.push(directory)
     await mkdir(join(directory, "visible"), { recursive: true })
@@ -129,6 +129,21 @@ describe("ReaderDirectoryBrowserRoute", () => {
         expect.objectContaining({ type: "complete", matched: 1, truncated: false }),
       ])
       expect(JSON.stringify(events)).not.toContain("hidden.cbz")
+
+      const nameOnly = await readNdjson((await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?q=${encodeURIComponent("visible/Book")}&kind=file`,
+      )))!)
+      expect(nameOnly.some((event) => event.type === "entry")).toBe(false)
+      const pathMatches = await readNdjson((await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?q=${encodeURIComponent("visible/Book")}&kind=file&path=1`,
+      )))!)
+      expect(pathMatches).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: "entry", entry: expect.objectContaining({ name: "Book.CBZ" }) }),
+      ]))
+      const invalidPath = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?q=book&path=yes`,
+      )))!
+      expect(invalidPath.status).toBe(400)
     } finally {
       await route[Symbol.asyncDispose]()
     }

@@ -1,14 +1,14 @@
-import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react"
 import { VirtuosoMockContext } from "react-virtuoso"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderDirectorySearchResultDto, ReaderHttpClient, ReaderSearchHistoryDto } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectorySearchOptionsDto, ReaderDirectorySearchResultDto, ReaderHttpClient, ReaderSearchHistoryDto } from "../../../../adapters/reader-http-client"
 import FolderSearchPanel from "./FolderSearchPanel"
 
 afterEach(cleanup)
 
 describe("FolderSearchPanel", () => {
-  it("[neoview.folder.search-current] [neoview.folder.search-recursive] sends bounded shared search options", async () => {
+  it("[neoview.folder.search-current] [neoview.folder.search-recursive] [neoview.folder.search-path-gui] sends shared search options", async () => {
     const searchDirectoryBrowser = vi.fn(async (_sessionId: string, query: string) => result(query))
     const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient)
     const current = within(view.container)
@@ -19,7 +19,7 @@ describe("FolderSearchPanel", () => {
     await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
       "browser-1",
       "cover",
-      expect.objectContaining({ mode: "text", kind: "all", maximumDepth: 0, maximumResults: 512 }),
+      expect.objectContaining({ mode: "text", kind: "all", searchInPath: false, maximumDepth: 0, maximumResults: 512 }),
       expect.any(AbortSignal),
     ))
     await waitFor(() => expect(current.getByText("未找到“cover”")).toBeTruthy())
@@ -30,6 +30,15 @@ describe("FolderSearchPanel", () => {
       "browser-1",
       "cover",
       expect.objectContaining({ maximumDepth: undefined, maximumResults: 512 }),
+      expect.any(AbortSignal),
+    ))
+
+    fireEvent.click(current.getByRole("checkbox", { name: "匹配路径" }))
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
+      "browser-1",
+      "cover",
+      expect.objectContaining({ searchInPath: true }),
       expect.any(AbortSignal),
     ))
   })
@@ -59,6 +68,34 @@ describe("FolderSearchPanel", () => {
     fireEvent.change(input, { target: { value: "failure" } })
     fireEvent.submit(input.closest("form")!)
     await waitFor(() => expect(current.getByRole("alert").textContent).toContain("搜索服务不可用"))
+  })
+
+  it("[neoview.folder.search-incremental] virtualizes a settled batch while the NDJSON stream is still active", async () => {
+    const finished = deferred<ReaderDirectorySearchResultDto>()
+    let options: ReaderDirectorySearchOptionsDto | undefined
+    const searchDirectoryBrowser = vi.fn((_sessionId, _query, nextOptions: ReaderDirectorySearchOptionsDto) => {
+      options = nextOptions
+      return finished.promise
+    })
+    const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient)
+    const current = within(view.container)
+    const input = current.getByRole("textbox", { name: "搜索文件" })
+    fireEvent.change(input, { target: { value: "batch" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() => expect(options?.onEntries).toBeTypeOf("function"))
+    const entries = Array.from({ length: 16 }, (_, index) => ({
+      name: `batch-${index}.cbz`,
+      path: `D:/batch-${index}.cbz`,
+      kind: "file" as const,
+      readerSupported: true,
+    }))
+
+    act(() => options!.onEntries!(entries))
+    await waitFor(() => expect(current.getByText("batch-0.cbz")).toBeTruthy())
+    expect(current.queryByText("batch-15.cbz")).toBeNull()
+    expect(current.getByText("已找到 16 项，正在搜索")).toBeTruthy()
+    await act(async () => finished.resolve(result("batch", entries)))
+    await waitFor(() => expect(current.getByText("16 个结果 / 扫描 16 项")).toBeTruthy())
   })
 
   it("[neoview.folder.search-history-gui] loads, selects, records, removes and clears shared history", async () => {
