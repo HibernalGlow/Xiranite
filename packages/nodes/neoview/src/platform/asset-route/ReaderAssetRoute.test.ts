@@ -448,9 +448,14 @@ describe("ReaderAssetRoute", () => {
     expect(new Uint8Array(await first.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
 
     const third = (await route.handle(new Request(url)))!
+    expect(cache.snapshot()).toMatchObject({ pinnedEntries: 1, activeLeases: 1 })
     expect(new Uint8Array(await third.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
     expect(transform).toHaveBeenCalledOnce()
-    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4, hits: 1 })
+    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4, hits: 1, pinnedEntries: 0, activeLeases: 0 })
+    const cancelled = (await route.handle(new Request(url)))!
+    expect(cache.snapshot()).toMatchObject({ pinnedEntries: 1, activeLeases: 1 })
+    await cancelled.body!.cancel("no longer visible")
+    expect(cache.snapshot()).toMatchObject({ pinnedEntries: 0, activeLeases: 0 })
     await service[Symbol.asyncDispose]()
   })
 

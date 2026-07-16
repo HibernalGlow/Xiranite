@@ -17,7 +17,7 @@ import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
-import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
+import type { CachedPresentation, ReaderPresentationCache, ReaderPresentationCacheLease } from "../../ports/ReaderPresentationCache.js"
 import type { ReaderAssetDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import {
@@ -345,11 +345,14 @@ export class ReaderAssetRoute {
       "x-content-type-options": "nosniff",
     })
     if (matchesEtag(request.headers.get("if-none-match"), etag)) return new Response(null, { status: 304, headers })
-    const cached = this.#presentationCache?.get(cacheKey)
     if (request.method === "HEAD") {
+      const cached = this.#presentationCache?.get(cacheKey)
       if (cached) headers.set("content-length", String(cached.bytes.byteLength))
       return new Response(null, { status: 200, headers })
     }
+    const cacheLease = this.#presentationCache?.pin?.(cacheKey)
+    if (cacheLease) return cachedPresentationResponse(cacheLease.value, headers, cacheLease)
+    const cached = this.#presentationCache?.get(cacheKey)
     if (cached) return cachedPresentationResponse(cached, headers)
     const allowCacheAdmission = this.#memoryPressure.sample().level === "normal"
     if (!allowCacheAdmission) this.#memoryPressure.recordAdmissionRejection()
@@ -560,24 +563,38 @@ async function collectPresentation(
   }
 }
 
-function cachedPresentationResponse(presentation: CachedPresentation, sourceHeaders: Headers): Response {
+function cachedPresentationResponse(
+  presentation: CachedPresentation,
+  sourceHeaders: Headers,
+  lease?: ReaderPresentationCacheLease,
+): Response {
   const headers = new Headers(sourceHeaders)
   headers.set("content-type", presentation.contentType)
   headers.set("content-length", String(presentation.bytes.byteLength))
-  return new Response(streamCachedBytes(presentation.bytes), { status: 200, headers })
+  return new Response(streamCachedBytes(presentation.bytes, lease?.release), { status: 200, headers })
 }
 
-function streamCachedBytes(bytes: Uint8Array): ReadableStream<Uint8Array> {
+function streamCachedBytes(bytes: Uint8Array, releaseLease?: () => void): ReadableStream<Uint8Array> {
   let offset = 0
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    releaseLease?.()
+  }
   return new ReadableStream<Uint8Array>({
     pull(controller) {
       if (offset >= bytes.byteLength) {
+        release()
         controller.close()
         return
       }
       const end = Math.min(offset + 64 * 1024, bytes.byteLength)
       controller.enqueue(bytes.subarray(offset, end))
       offset = end
+    },
+    cancel() {
+      release()
     },
   })
 }

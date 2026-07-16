@@ -175,9 +175,9 @@
 - 设置：`performance.cacheMemorySize`
 - 数据：memory LRU、persistent cache、cache index DB
 - 行为：真实字节预算；pin 和方向淘汰；mtime/hash 失效；损坏恢复；80% hysteresis；session close/hibernate 回收
-- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.soft-trim`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.memory-pressure.hysteresis`、`neoview.memory-pressure.critical`、`neoview.memory-pressure.l2-trim`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-trim`、`neoview.memory-pressure.solid-http`、`neoview.http.e2e`、`neoview.sevenzip.solid-cache-singleflight`、`neoview.sevenzip.solid-cache-incomplete`、`neoview.sevenzip.solid-cache-lru`、`neoview.sevenzip.solid-cache-fingerprint`、`neoview.sevenzip.solid-cache-reuse`、`neoview.sevenzip.solid-session-cache`、`terminal.image.decode.byte-budget`、`neoview.tui.decode-cache`
+- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.soft-trim`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.cache.presentation-lease`、`neoview.cache.presentation-lease-pressure`、`neoview.memory-pressure.hysteresis`、`neoview.memory-pressure.critical`、`neoview.memory-pressure.l2-trim`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-trim`、`neoview.memory-pressure.solid-http`、`neoview.http.e2e`、`neoview.sevenzip.solid-cache-singleflight`、`neoview.sevenzip.solid-cache-incomplete`、`neoview.sevenzip.solid-cache-lru`、`neoview.sevenzip.solid-cache-fingerprint`、`neoview.sevenzip.solid-cache-reuse`、`neoview.sevenzip.solid-session-cache`、`terminal.image.decode.byte-budget`、`neoview.tui.decode-cache`
 - 性能基准：`cache-memory-budget`、`solid-cross-session`
-- 已知差异：无
+- 已知差异：L2 已对正在传输的 HTTP presentation response 使用引用计数 lease；跨响应的 current/adjacent frame pin 与方向/距离权重仍待 GUI 回报实际 transform profile
 
 ### 超分模型、预览、队列、缓存与保存（`super-resolution`）
 

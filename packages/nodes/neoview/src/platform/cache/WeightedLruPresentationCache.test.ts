@@ -51,6 +51,34 @@ describe("WeightedLruPresentationCache", () => {
     cache.trimTo(0)
     expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0, evictions: 4 })
   })
+
+  it("[neoview.cache.presentation-lease] preserves leased entries across eviction and releases them back to the same LRU", () => {
+    const cache = new WeightedLruPresentationCache({ maxBytes: 8, maxEntryBytes: 4, trimRatio: 1 })
+    cache.set("current", value(4))
+    cache.set("old", value(4))
+    const first = cache.pin("current")!
+    const second = cache.pin("current")!
+    expect(first.value.bytes).toHaveLength(4)
+    cache.set("next", value(4))
+    expect(cache.get("old")).toBeUndefined()
+    expect(cache.snapshot()).toMatchObject({ pinnedEntries: 1, pinnedBytes: 4, activeLeases: 2 })
+    first.release()
+    first.release()
+    expect(cache.snapshot()).toMatchObject({ pinnedEntries: 1, activeLeases: 1 })
+    second.release()
+    expect(cache.snapshot()).toMatchObject({ pinnedEntries: 0, pinnedBytes: 0, activeLeases: 0, entries: 2, bytes: 8 })
+  })
+
+  it("[neoview.cache.presentation-lease-pressure] keeps active bytes readable but drops them after release when pressure clears the cache", () => {
+    const cache = new WeightedLruPresentationCache({ maxBytes: 8, maxEntryBytes: 4 })
+    cache.set("current", value(4))
+    const lease = cache.pin("current")!
+    cache.clear()
+    expect(cache.get("current")).toBeDefined()
+    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4, pinnedEntries: 1, activeLeases: 1 })
+    lease.release()
+    expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0, pinnedEntries: 0, activeLeases: 0 })
+  })
 })
 
 function value(size: number) {
