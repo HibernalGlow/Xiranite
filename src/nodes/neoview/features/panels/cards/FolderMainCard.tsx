@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Link, List, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Search, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Link, List, ListTree, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Search, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -108,6 +108,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
+const FolderTreePanel = lazy(() => import("./folder/FolderTreePanel"))
 
 interface SavedDirectoryState {
   viewMode: FolderViewMode
@@ -144,6 +145,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
   const [draftPath, setDraftPath] = useState(sourcePath ?? "")
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [searchOpen, setSearchOpen] = useState(false)
+  const [treeOpen, setTreeOpen] = useState(false)
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
@@ -234,6 +236,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     const normalized = path.trim()
     if (!normalized || !client.openDirectoryBrowser) return
     setSearchOpen(false)
+    setTreeOpen(false)
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
@@ -255,7 +258,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     }
   }
 
-  async function navigate(navigation: ReaderDirectoryNavigationDto) {
+  async function navigate(navigation: ReaderDirectoryNavigationDto, options: { keepTree?: boolean } = {}) {
     const sessionId = sessionIdRef.current
     if (!sessionId) {
       if (navigation.action === "path") await openBrowser(navigation.path)
@@ -263,6 +266,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
     }
     if (!client.navigateDirectoryBrowser) return
     setSearchOpen(false)
+    if (!options.keepTree) setTreeOpen(false)
     captureCurrentState()
     const generation = beginNavigation()
     setLoading(true)
@@ -639,6 +643,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           event.preventDefault()
           event.stopPropagation()
           setSearchOpen(true)
+          setTreeOpen(false)
         }
       }}
     >
@@ -672,7 +677,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
           >
             <CheckSquare />
           </BrowserButton>
-          <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search /></BrowserButton>
+          <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={() => { setTreeOpen((current) => !current); setSearchOpen(false) }}><ListTree /></BrowserButton>
+          <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => { setSearchOpen((current) => !current); setTreeOpen(false) }}><Search /></BrowserButton>
           <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
         </div>
         <div className="flex min-w-0 items-center gap-1">
@@ -834,8 +840,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
         className="min-h-32 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-neoview-folder-list="true"
         data-focused-index={focusedIndex}
-        role={searchOpen ? undefined : "listbox"}
-        aria-label={searchOpen ? undefined : "文件项目"}
+        role={searchOpen || treeOpen ? undefined : "listbox"}
+        aria-label={searchOpen || treeOpen ? undefined : "文件项目"}
         tabIndex={0}
         onKeyDown={handleDirectoryKeyDown}
       >
@@ -852,7 +858,18 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             />
           </Suspense>
         ) : null}
-        {!searchOpen && catalog && viewUsesVirtuosoList(viewMode) ? (
+        {treeOpen && sessionIdRef.current && catalog ? (
+          <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载文件树" />}>
+            <FolderTreePanel
+              client={client}
+              sessionId={sessionIdRef.current}
+              currentPath={catalog.path}
+              disabled={disabled || loading}
+              onNavigate={(path) => { void navigate({ action: "path", path }, { keepTree: true }) }}
+            />
+          </Suspense>
+        ) : null}
+        {!searchOpen && !treeOpen && catalog && viewUsesVirtuosoList(viewMode) ? (
           <Virtuoso
             key={virtualKey}
             ref={listRef}
@@ -883,7 +900,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             }}
           />
         ) : null}
-        {!searchOpen && catalog && viewMode === "details" ? (
+        {!searchOpen && !treeOpen && catalog && viewMode === "details" ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
             <FolderDetailsView
               key={virtualKey}
@@ -899,7 +916,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, f
             />
           </Suspense>
         ) : null}
-        {!searchOpen && catalog && viewUsesGrid(viewMode) ? (
+        {!searchOpen && !treeOpen && catalog && viewUsesGrid(viewMode) ? (
           <VirtuosoGrid
             key={virtualKey}
             ref={gridRef}

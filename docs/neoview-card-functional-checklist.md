@@ -708,8 +708,8 @@
 - [ ] `folder.tree.panel` 文件树面板与展开/折叠
   - 目标：树节点按需加载、展开/折叠、选中同步、加载占位、错误重试和缓存失效完整迁移。
   - 源码：`components/FolderTree.svelte`、`utils/directoryTreeCache.ts`
-  - 测试：`neoview.folder.tree-lazy`、`neoview.folder.tree-http`
-  - 备注：后端 ReaderFileTreeIndex 已按显式 path 单节点读取，并使用 512 项、5 分钟 TTL 的 lru-cache 和 refresh/cache-clear/invalidation 契约；GUI 展开/折叠、选中同步、占位与重试仍待迁移。
+  - 测试：`neoview.folder.tree-lazy`、`neoview.folder.tree-http`、`neoview.folder.tree-client`、`neoview.folder.tree-card`、`neoview.folder.tree-panel`、`neoview.folder.tree-paths`、`neoview.folder.tree-path-identity`、`neoview.folder.tree-lifecycle`、`neoview.folder.tree-navigation-race`、`neoview.folder.tree-generation`
+  - 备注：GUI 已使用二级 lazy 的固定行高 Virtuoso 树，支持当前路径祖先自动展开、节点展开/折叠、活动路径同步、加载占位、逐节点错误重试和 Ctrl+F 切换搜索；请求随路径/session/root 取消，前端 pages/errors/expanded/并发请求有界并按 backend generation 重基。后端 ReaderFileTreeIndex 使用 512 项、5 分钟 TTL 的 lru-cache，规范 key 不改写 provider 路径。仍待 all-drive roots、完整 tree 键盘模型、右键菜单、pin/布局/尺寸和 watcher 实时呈现，因此保持 partial。
 - [ ] `folder.tree.layout-pin` 文件树位置、尺寸与 pin
   - 目标：文件树支持 left/right/top/bottom、尺寸拖动、固定/自动收起；状态持久化且与 Reader 侧栏 pin 语义协调。
   - 源码：`components/FolderTree.svelte`、`components/FolderToolbar/TreePanel.svelte`

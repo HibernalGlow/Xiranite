@@ -7,6 +7,18 @@ import type {
 import { ReaderFileTreeIndex } from "./ReaderFileTreeIndex.js"
 
 describe("ReaderFileTreeIndex", () => {
+  it("[neoview.folder.tree-path-identity] uses normalized keys without rewriting the provider path", async () => {
+    const requestedPath = process.platform === "win32" ? "D:\\" : "/Library/CaseSensitive"
+    const provider = providerOf({
+      [requestedPath]: { path: requestedPath, entries: [] },
+    })
+    const tree = new ReaderFileTreeIndex(provider)
+
+    await tree.read(requestedPath)
+
+    expect(provider.read).toHaveBeenCalledWith(requestedPath, expect.any(AbortSignal))
+  })
+
   it("[neoview.folder.tree-lazy] loads only the requested node and reuses a bounded LRU entry until refresh", async () => {
     const provider = providerOf({
       [resolved("/library")]: listing("/library", [directory("Series 10"), file("cover.jpg"), directory("Series 2")]),

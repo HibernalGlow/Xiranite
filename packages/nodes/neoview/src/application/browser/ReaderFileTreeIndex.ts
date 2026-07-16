@@ -35,7 +35,7 @@ export type ReaderFileTreeExclusionCommand = {
 }
 
 export class ReaderFileTreeIndex {
-  readonly #cache: LRUCache<string, ReaderDirectoryListing>
+  readonly #cache: LRUCache<string, ReaderDirectoryListing, string>
   readonly #updateExcludedPaths?: ReaderFileTreeIndexOptions["updateExcludedPaths"]
   #excludedPaths: string[]
   #generation = 1
@@ -47,10 +47,10 @@ export class ReaderFileTreeIndex {
   ) {
     this.#excludedPaths = normalizeExcludedPaths(options.excludedPaths ?? [])
     this.#updateExcludedPaths = options.updateExcludedPaths
-    this.#cache = new LRUCache<string, ReaderDirectoryListing>({
+    this.#cache = new LRUCache<string, ReaderDirectoryListing, string>({
       max: boundedInteger(options.maximumCacheEntries, 1, 4_096, DEFAULT_MAXIMUM_CACHE_ENTRIES),
       ttl: boundedInteger(options.cacheTtlMs, 1_000, 24 * 60 * 60 * 1_000, DEFAULT_CACHE_TTL_MS),
-      fetchMethod: async (path, _staleValue, { signal }) => this.provider.read(path, signal),
+      fetchMethod: async (_key, _staleValue, { signal, context }) => this.provider.read(context, signal),
     })
   }
 
@@ -60,7 +60,7 @@ export class ReaderFileTreeIndex {
     const key = pathKey(requestedPath)
     const cacheHit = !refresh && this.#cache.has(key)
     if (refresh) this.#cache.delete(key)
-    const listing = await this.#cache.fetch(key, { signal })
+    const listing = await this.#cache.fetch(key, { signal, context: requestedPath })
     if (!listing) throw new Error(`Reader file tree path is unavailable: ${requestedPath}`)
     signal?.throwIfAborted()
     const entries = sortReaderDirectoryEntries(

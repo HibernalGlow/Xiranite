@@ -263,9 +263,54 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(client.searchDirectoryBrowser).toHaveBeenCalledWith(
       "browser-1",
       "book",
-      expect.objectContaining({ maximumDepth: 0, maximumResults: 512 }),
+      expect.objectContaining({ maximumDepth: undefined, maximumResults: 512 }),
       expect.any(AbortSignal),
     ))
+  })
+
+  it("[neoview.folder.tree-card] keeps tree navigation open and switches to search on Ctrl+F", async () => {
+    const opened = page({
+      path: "C:\\books",
+      total: 1,
+      entries: [{ name: "series", path: "C:\\books\\series", kind: "directory", readerSupported: false }],
+    })
+    const navigated = page({ ...opened, path: "C:\\books\\series", generation: 2, entries: [], total: 0 })
+    const navigateDirectoryBrowser = vi.fn(async () => navigated)
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string) => ({
+      sessionId: "browser-1",
+      path: path ?? "C:\\books",
+      entries: path === "C:\\" ? [{ name: "books", path: "C:\\books", kind: "directory" as const, readerSupported: false }] : path === "C:\\books" ? opened.entries : [],
+      generation: 1,
+      cacheHit: false,
+      excludedPaths: [],
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      treeDirectoryBrowser,
+      searchDirectoryBrowser: vi.fn(async () => ({
+        sessionId: "browser-1", rootPath: "C:\\books", generation: 1, query: "", mode: "text" as const,
+        entries: [], scanned: 0, matched: 0, truncated: false,
+      })),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 30 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:\\books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    fireEvent.click(await currentView.findByRole("button", { name: "文件树" }))
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-tree="true"]')).toBeTruthy())
+    fireEvent.click(await currentView.findByTitle("C:\\books\\series"))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1", { action: "path", path: "C:\\books\\series" }, expect.any(AbortSignal),
+    ))
+    expect(view.container.querySelector('[data-neoview-folder-tree="true"]')).toBeTruthy()
+
+    fireEvent.keyDown(currentView.getByRole("tree", { name: "文件树" }), { key: "f", ctrlKey: true })
+    await waitFor(() => expect(currentView.getByRole("textbox", { name: "搜索文件" })).toBeTruthy())
+    expect(view.container.querySelector('[data-neoview-folder-tree="true"]')).toBeNull()
   })
 
   it("[neoview.folder.sort-ui] reorders the backend snapshot and preserves the focused path", async () => {

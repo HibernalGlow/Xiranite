@@ -51,12 +51,19 @@ for (const chunk of deferredPanelChunks) {
 }
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
+const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
 if (!folderMainChunk) throw new Error("NeoView FolderMainCard deferred chunk is missing.")
 if (!folderSearchChunk || folderSearchChunk === folderMainChunk) {
   throw new Error("NeoView FolderSearchPanel did not produce a second-level deferred production chunk.")
 }
 if (folderSearchChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView FolderSearchPanel chunk ${folderSearchChunk.fileName} is ${folderSearchChunk.bytes} bytes, above 16 KiB.`)
+}
+if (!folderTreeChunk || folderTreeChunk === folderMainChunk) {
+  throw new Error("NeoView FolderTreePanel did not produce a second-level deferred production chunk.")
+}
+if (folderTreeChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView FolderTreePanel chunk ${folderTreeChunk.fileName} is ${folderTreeChunk.bytes} bytes, above 16 KiB.`)
 }
 
 const settingsWindowChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]ReaderSettingsWindow\.tsx$/i.test(module)))
@@ -96,6 +103,7 @@ console.log(JSON.stringify({
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
+  folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },
   sidebarManagementSettingsCardChunk: { fileName: sidebarManagementSettingsCardChunk.fileName, bytes: sidebarManagementSettingsCardChunk.bytes },
   panelLayoutEditorChunk: { fileName: panelLayoutEditorChunk.fileName, bytes: panelLayoutEditorChunk.bytes },

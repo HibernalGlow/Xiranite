@@ -182,6 +182,16 @@ export interface ReaderDirectorySearchResultDto {
   truncated: boolean
 }
 
+export interface ReaderDirectoryTreePageDto {
+  sessionId: string
+  path: string
+  parentPath?: string
+  entries: ReaderDirectoryEntryDto[]
+  generation: number
+  cacheHit: boolean
+  excludedPaths: string[]
+}
+
 export type ReaderSearchHistoryScopeDto = "folder" | "file" | "bookmark" | "history"
 
 export interface ReaderSearchHistoryDto {
@@ -353,6 +363,7 @@ export interface ReaderHttpClient {
     options?: ReaderDirectorySearchOptionsDto,
     signal?: AbortSignal,
   ): Promise<ReaderDirectorySearchResultDto>
+  treeDirectoryBrowser?(sessionId: string, path?: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderDirectoryTreePageDto>
   listSearchHistory?(scope: ReaderSearchHistoryScopeDto, limit?: number, signal?: AbortSignal): Promise<readonly ReaderSearchHistoryDto[]>
   recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
   removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>
@@ -493,6 +504,16 @@ export function createReaderHttpClient(
         options.maximumResults ?? 512,
         options.onEntries,
         signal,
+      )
+    },
+    treeDirectoryBrowser: (sessionId, path, refresh = false, signal) => {
+      const search = new URLSearchParams()
+      if (path) search.set("path", path)
+      if (refresh) search.set("refresh", "1")
+      const suffix = search.size ? `?${search}` : ""
+      return request<ReaderDirectoryTreePageDto>(
+        `/reader/browser/s/${encodeURIComponent(sessionId)}/tree${suffix}`,
+        { signal },
       )
     },
     listSearchHistory: (scope, limit = 20, signal) => request<{ entries: ReaderSearchHistoryDto[] }>(

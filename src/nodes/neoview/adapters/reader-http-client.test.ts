@@ -227,6 +227,29 @@ describe("reader-http-client", () => {
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.folder.tree-client] requests an authenticated tree node with refresh semantics", async () => {
+    const tree = {
+      sessionId: "browser-1",
+      path: "D:\\books",
+      entries: [],
+      generation: 3,
+      cacheHit: false,
+      excludedPaths: [],
+    }
+    const fetchMock = vi.fn(async () => Response.json(tree))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.treeDirectoryBrowser!("browser/1", "D:\\books", true)).resolves.toEqual(tree)
+
+    const [input, init] = fetchMock.mock.calls[0]!
+    const url = new URL(String(input))
+    expect(url.pathname).toBe("/reader/browser/s/browser%2F1/tree")
+    expect(url.searchParams.get("path")).toBe("D:\\books")
+    expect(url.searchParams.get("refresh")).toBe("1")
+    expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.folder.search-incremental] publishes bounded entry batches before the stream completes", async () => {
     let streamController!: ReadableStreamDefaultController<Uint8Array>
     const encoder = new TextEncoder()
