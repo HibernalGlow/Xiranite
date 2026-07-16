@@ -29,8 +29,10 @@ interface FolderDetailsViewProps {
   disabled: boolean
   selectedPaths: ReadonlySet<string>
   initialIndex?: number
+  initialScrollTop?: number
   layout: ReaderFolderDetailsConfig
   onRangeChange(range: { startIndex: number; endIndex: number }): void
+  onScrollTopChange?(scrollTop: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
   onActivate(entry: ReaderDirectoryEntryDto): void
   onLayoutChange(patch: Partial<ReaderFolderDetailsConfig>): void
@@ -73,8 +75,10 @@ export default function FolderDetailsView({
   disabled,
   selectedPaths,
   initialIndex,
+  initialScrollTop,
   layout,
   onRangeChange,
+  onScrollTopChange,
   onSelect,
   onActivate,
   onLayoutChange,
@@ -178,8 +182,10 @@ export default function FolderDetailsView({
               useColumnSizing
               totalCount={catalog.total}
               initialIndex={initialIndex}
+              initialScrollTop={initialScrollTop}
               getVirtualRowId={(index) => directoryEntryAt(catalog, index)?.path}
               onRangeChange={onRangeChange}
+              onScroll={(event) => onScrollTopChange?.(event.scrollTop)}
               onRowClick={(row, event) => { if (!disabled) onSelect(row.entry, row.index, event) }}
               onRowDoubleClick={(row) => { if (!disabled) onActivate(row.entry) }}
             />

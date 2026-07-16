@@ -152,6 +152,7 @@ export type ReaderDirectorySortPreferenceCommandDto =
 
 export interface ReaderDirectoryPageDto {
   sessionId: string
+  navigationEntryId: number
   path: string
   parentPath?: string
   entries: ReaderDirectoryEntryDto[]

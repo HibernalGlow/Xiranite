@@ -34,6 +34,7 @@ function page(cursor: number, total: number): ReaderDirectoryPageDto {
   const length = Math.min(128, total - cursor)
   return {
     sessionId: "browser-1",
+    navigationEntryId: 1,
     path: "D:/library",
     entries: Array.from({ length }, (_, offset) => ({
       name: `item-${cursor + offset}`,

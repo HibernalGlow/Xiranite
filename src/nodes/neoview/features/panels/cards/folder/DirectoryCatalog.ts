@@ -7,11 +7,13 @@ import type {
   ReaderDirectorySortSourceDto,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
+import { rebaseDirectorySelection, type DirectorySelectionModel } from "./DirectorySelection"
 
 const DIRECTORY_VIEWPORT_HEIGHT = 288
 
 export interface DirectoryCatalog {
   sessionId: string
+  navigationEntryId: number
   path: string
   parentPath?: string
   total: number
@@ -33,9 +35,28 @@ export interface DirectoryCatalog {
   pageMetadataFields: ReadonlyMap<number, ReadonlySet<ReaderDirectoryMetadataFieldDto>>
 }
 
+export function restoreDirectoryVisitState<T extends { selection: DirectorySelectionModel }>(
+  page: ReaderDirectoryPageDto,
+  preferred: T | undefined,
+  states: ReadonlyMap<number, T>,
+  fallback: T,
+): T {
+  const restored = preferred ?? states.get(page.navigationEntryId) ?? fallback
+  return restored.selection.generation === page.generation
+    ? restored
+    : { ...restored, selection: rebaseDirectorySelection(restored.selection, page.generation) }
+}
+
+export function rememberDirectoryVisitState<T>(states: Map<number, T>, id: number, state: T, maximum = 50): void {
+  states.delete(id)
+  states.set(id, state)
+  while (states.size > maximum) states.delete(states.keys().next().value as number)
+}
+
 export function createDirectoryCatalog(page: ReaderDirectoryPageDto): DirectoryCatalog {
   return {
     sessionId: page.sessionId,
+    navigationEntryId: page.navigationEntryId,
     path: page.path,
     parentPath: page.parentPath,
     total: page.total,

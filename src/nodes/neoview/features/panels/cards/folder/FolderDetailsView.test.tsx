@@ -8,8 +8,9 @@ import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader
 afterEach(cleanup)
 
 describe("FolderDetailsView", () => {
-  it("[neoview.folder.details-niko-sparse] renders complete columns without materializing the remote directory", () => {
+  it("[neoview.folder.details-niko-sparse] renders complete columns and reports transient scroll without materializing the remote directory", async () => {
     const onRangeChange = vi.fn()
+    const onScrollTopChange = vi.fn()
     const onSelect = vi.fn()
     const onActivate = vi.fn()
     const view = render(
@@ -25,6 +26,7 @@ describe("FolderDetailsView", () => {
           columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
         }}
         onRangeChange={onRangeChange}
+        onScrollTopChange={onScrollTopChange}
         onSelect={onSelect}
         onActivate={onActivate}
         onLayoutChange={vi.fn()}
@@ -43,6 +45,10 @@ describe("FolderDetailsView", () => {
       [...catalog().pages.values()].flat().map((entry) => ({ entry })),
       new Set(["C:/books/book.cbz"]),
     )).toEqual({ "C:/books/book.cbz": true })
+    const scrollHost = tableHost.querySelector<HTMLElement>('[data-slot="table-container"]')!
+    Object.defineProperty(scrollHost, "scrollTop", { configurable: true, value: 640 })
+    fireEvent.scroll(scrollHost)
+    await waitFor(() => expect(onScrollTopChange).toHaveBeenCalledWith(640))
     view.unmount()
   })
 
@@ -109,6 +115,7 @@ describe("FolderDetailsView", () => {
 function catalog(): DirectoryCatalog {
   return {
     sessionId: "browser-1",
+    navigationEntryId: 1,
     path: "C:/books",
     total: 10_000,
     generation: 1,

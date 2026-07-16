@@ -148,6 +148,7 @@ describe("reader-http-client", () => {
   it("[neoview.file-browser.sort-client] sends sort rules and focus identity to the browser session", async () => {
     const fetchMock = vi.fn(async () => Response.json({
       sessionId: "browser-1",
+      navigationEntryId: 1,
       path: "D:/books",
       entries: [],
       cursor: 0,

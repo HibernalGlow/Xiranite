@@ -44,6 +44,8 @@ import {
   directoryPageHasMetadata,
   directoryPageCursors,
   mergeDirectoryPage,
+  rememberDirectoryVisitState,
+  restoreDirectoryVisitState,
   thumbnailPixelSize,
   trimDirectoryPages,
   viewUsesBanner,
@@ -72,7 +74,6 @@ import {
 
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
-const MAX_HISTORY_STATES = 64
 const MAX_THUMBNAILS = 64
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const LIST_HEIGHT = 288
@@ -135,6 +136,7 @@ interface SavedDirectoryState {
   anchorIndex: number
   listSnapshot?: StateSnapshot
   gridSnapshot?: GridStateSnapshot
+  detailsScrollTop?: number
 }
 
 export default function FolderMainCard({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView }: ReaderPanelContext) {
@@ -154,9 +156,10 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
   const gridRef = useRef<VirtuosoGridHandle>(null)
   const listHostRef = useRef<HTMLDivElement>(null)
   const gridSnapshotRef = useRef<GridStateSnapshot | undefined>(undefined)
+  const detailsScrollTopRef = useRef(0)
   const focusedIndexRef = useRef<number | undefined>(undefined)
   const chainAnchorIndexRef = useRef<number | undefined>(undefined)
-  const historyStatesRef = useRef(new Map<string, SavedDirectoryState>())
+  const navigationStatesRef = useRef(new Map<number, SavedDirectoryState>())
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [searchOpen, setSearchOpen] = useState(false)
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
@@ -321,9 +324,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       return
     }
     visibleRangeRef.current = { startIndex: 0, endIndex: 0 }
-    const saved = historyStatesRef.current.get(page.path)
     const suggested = page.suggestedSelection
-    const restored: SavedDirectoryState = preferredState ?? saved ?? {
+    const restored = restoreDirectoryVisitState(page, preferredState, navigationStatesRef.current, {
       viewMode,
       previewCount,
       multiSelectMode: false,
@@ -333,17 +335,16 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       focusedPath: suggested?.path,
       focusedIndex: suggested?.index,
       anchorIndex: suggested?.index ?? 0,
-    }
-    const restoredSelection = restored.selection.generation === page.generation
-      ? restored.selection
-      : rebaseDirectorySelection(restored.selection, page.generation)
+    })
+    gridSnapshotRef.current = restored.gridSnapshot
+    detailsScrollTopRef.current = restored.detailsScrollTop ?? 0
     focusedIndexRef.current = restored.focusedIndex
     setFocusedIndex(restored.focusedIndex)
     setViewMode(restored.viewMode)
     setPreviewCount(restored.previewCount)
     setMultiSelectMode(restored.multiSelectMode)
-    setRestoreState({ ...restored, selection: restoredSelection })
-    setSelection(restoredSelection)
+    setRestoreState(restored)
+    setSelection(restored.selection)
     setFocusedPath(restored.focusedPath)
   }
 
@@ -459,12 +460,13 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       focusedIndex: focusedIndexRef.current,
       anchorIndex: range.startIndex,
       gridSnapshot: viewUsesGrid(viewMode) ? gridSnapshotRef.current : undefined,
+      detailsScrollTop: viewMode === "details" ? detailsScrollTopRef.current : undefined,
     }
-    rememberState(current.path, state)
+    rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, state)
     if (viewUsesVirtuosoList(viewMode)) {
       listRef.current?.getState((snapshot) => {
-        const latest = historyStatesRef.current.get(current.path)
-        if (latest) rememberState(current.path, { ...latest, listSnapshot: snapshot })
+        const latest = navigationStatesRef.current.get(current.navigationEntryId)
+        if (latest) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, { ...latest, listSnapshot: snapshot })
       })
     }
   }
@@ -483,7 +485,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
       focusedIndex: focusedIndexRef.current,
       anchorIndex,
     }
-    if (current) rememberState(current.path, nextState)
+    if (current) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, nextState)
     if (!viewUsesThumbnails(next)) {
       releaseThumbnailContext()
       setThumbnailUrls(new Map())
@@ -649,13 +651,6 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
   function commitCatalog(next: DirectoryCatalog) {
     catalogRef.current = next
     setCatalog(next)
-  }
-
-  function rememberState(path: string, state: SavedDirectoryState) {
-    const states = historyStatesRef.current
-    states.delete(path)
-    states.set(path, state)
-    while (states.size > MAX_HISTORY_STATES) states.delete(states.keys().next().value as string)
   }
 
   function releaseThumbnailContext() {
@@ -1027,8 +1022,10 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen, s
               disabled={disabled}
               selectedPaths={selectedPaths}
               initialIndex={focusedIndex ?? (restoreState?.viewMode === "details" ? restoreState.focusedIndex ?? restoreState.anchorIndex : undefined)}
+              initialScrollTop={restoreState?.viewMode === "details" ? restoreState.detailsScrollTop : undefined}
               layout={folderView.details}
               onRangeChange={requestRange}
+              onScrollTopChange={(scrollTop) => { detailsScrollTopRef.current = scrollTop }}
               onSelect={selectEntry}
               onActivate={activate}
               onLayoutChange={(details) => { void onFolderView?.({ details }) }}

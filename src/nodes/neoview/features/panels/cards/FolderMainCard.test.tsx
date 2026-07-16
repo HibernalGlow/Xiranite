@@ -10,7 +10,7 @@ afterEach(cleanup)
 describe("FolderMainCard", () => {
   it("[neoview.browser.card] lazily opens, navigates, and disposes its shared browser session", async () => {
     const opened = page({ path: "C:/books", parentPath: "C:/" })
-    const parent = page({ path: "C:/", parentPath: undefined, generation: 2 })
+    const parent = page({ navigationEntryId: 2, path: "C:/", parentPath: undefined, generation: 2 })
     const openDirectoryBrowser = vi.fn(async () => opened)
     const navigateDirectoryBrowser = vi.fn(async () => parent)
     const closeDirectoryBrowser = vi.fn(async () => undefined)
@@ -29,6 +29,7 @@ describe("FolderMainCard", () => {
   it("[neoview.browser.restore-index] requests the sparse page containing the parent selection", async () => {
     const opened = page({ path: "C:/books", parentPath: "C:/" })
     const parent = page({
+      navigationEntryId: 2,
       path: "C:/",
       parentPath: undefined,
       generation: 2,
@@ -46,6 +47,77 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect((screen.getByRole("button", { name: "上级" }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole("button", { name: "上级" }))
     await waitFor(() => expect(listDirectoryBrowser).toHaveBeenCalledWith("browser-1", 896, 128, expect.any(AbortSignal)))
+  })
+
+  it("[neoview.folder.nav-history-ui] restores state by visit instead of merging repeated paths", async () => {
+    const entries = (path: string) => Array.from({ length: 4 }, (_, index) => ({
+      name: `item-${index}.cbz`,
+      path: `${path}/item-${index}.cbz`,
+      kind: "file" as const,
+      readerSupported: true,
+    }))
+    const firstA = page({ navigationEntryId: 1, path: "C:/A", entries: entries("C:/A"), total: 4 })
+    const b = page({ navigationEntryId: 2, path: "C:/B", entries: entries("C:/B"), total: 4, generation: 2, canGoBack: true })
+    const secondA = page({ navigationEntryId: 3, path: "C:/A", entries: entries("C:/A"), total: 4, generation: 3, canGoBack: true })
+    let backCount = 0
+    const navigateDirectoryBrowser = vi.fn(async (_sessionId: string, navigation: { action: string; path?: string }) => {
+      const normalizedPath = navigation.path?.replaceAll("\\", "/")
+      if (navigation.action === "path" && normalizedPath === "C:/B") return b
+      if (navigation.action === "path" && normalizedPath === "C:/A") return secondA
+      if (navigation.action === "back") {
+        backCount += 1
+        return backCount === 1
+          ? { ...b, generation: 4, canGoForward: true }
+          : { ...firstA, generation: 5, canGoForward: true }
+      }
+      throw new Error(`unexpected navigation ${JSON.stringify(navigation)}`)
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => firstA),
+      navigateDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/A" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoGridMockContext.Provider>
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const currentItem = (path: string, index: number) => ui.getByTitle(`${path}/item-${index}.cbz`)
+    const viewButton = (index: number) => view.container.querySelectorAll<HTMLButtonElement>('[data-slot="toggle-group-item"]')[index]!
+    const currentPath = () => view.container
+      .querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')
+      ?.getAttribute("title")
+      ?.replaceAll("\\", "/")
+    const navigatePath = async (path: string) => {
+      const breadcrumb = view.container.querySelector('[data-neoview-folder-breadcrumb="true"]')!
+      fireEvent.click(breadcrumb.querySelector("button[aria-label]")!)
+      const input = await within(breadcrumb as HTMLElement).findByRole("textbox")
+      fireEvent.change(input, { target: { value: path } })
+      fireEvent.submit(input.closest("form")!)
+      await waitFor(() => expect(currentPath()).toBe(path))
+    }
+
+    await waitFor(() => expect(currentItem("C:/A", 1)).toBeTruthy())
+    fireEvent.click(currentItem("C:/A", 1))
+    fireEvent.click(viewButton(4))
+    await waitFor(() => expect(currentItem("C:/A", 1).getAttribute("data-preview-mode")).toBe("cover-grid"))
+
+    await navigatePath("C:/B")
+    await navigatePath("C:/A")
+    fireEvent.click(viewButton(0))
+    fireEvent.click(currentItem("C:/A", 3))
+    expect(currentItem("C:/A", 3).getAttribute("aria-selected")).toBe("true")
+
+    fireEvent.click(view.container.querySelector("svg.lucide-arrow-left")!.closest("button")!)
+    await waitFor(() => expect(currentPath()).toBe("C:/B"))
+    fireEvent.click(view.container.querySelector("svg.lucide-arrow-left")!.closest("button")!)
+    await waitFor(() => expect(currentPath()).toBe("C:/A"))
+    await waitFor(() => expect(currentItem("C:/A", 1).getAttribute("data-preview-mode")).toBe("cover-grid"))
+    expect(currentItem("C:/A", 1).getAttribute("aria-selected")).toBe("true")
+    expect(currentItem("C:/A", 3).getAttribute("aria-selected")).toBe("false")
   })
 
   it("[neoview.folder.watch-gui] applies external changes without losing path selection and aborts the next wait on unmount", async () => {
@@ -688,6 +760,7 @@ describe("FolderMainCard", () => {
 function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDto {
   return {
     sessionId: "browser-1",
+    navigationEntryId: 1,
     path: "C:/books",
     entries: [],
     cursor: 0,

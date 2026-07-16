@@ -47,6 +47,7 @@ import {
 import { readerDirectoryListingPayloadBytes, stringPayloadBytes } from "./ReaderDirectoryListingMetrics.js"
 
 const MAXIMUM_TREE_WATCH_PATHS = 32
+const MAXIMUM_NAVIGATION_HISTORY = 50
 const DEFAULT_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 1024 * 1024
 const MAX_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 64 * 1024 * 1024
 
@@ -61,6 +62,7 @@ export type ReaderDirectorySortPreferenceCommand =
 
 export interface ReaderDirectoryPage {
   sessionId: string
+  navigationEntryId: number
   path: string
   parentPath?: string
   entries: readonly ReaderDirectoryEntry[]
@@ -124,8 +126,10 @@ export type ReaderDirectorySizeBatchItem =
 interface BrowserSession {
   id: string
   listing: ReaderDirectoryListing
-  back: string[]
-  forward: string[]
+  currentNavigation: BrowserNavigationEntry
+  back: BrowserNavigationEntry[]
+  forward: BrowserNavigationEntry[]
+  nextNavigationEntryId: number
   generation: number
   scopeId: string
   sort: ReaderDirectorySortRule
@@ -151,6 +155,12 @@ interface BrowserSession {
   treeWatchWaiters: Set<() => void>
   searches: Set<ReaderFileTreeSearchHandle>
   directorySizeOperations: Set<AbortController>
+}
+
+interface BrowserNavigationEntry {
+  id: number
+  path: string
+  temporarySort?: ReaderDirectoryTemporarySortRule
 }
 
 export class ReaderFileTreeService implements AsyncDisposable {
@@ -186,8 +196,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const session: BrowserSession = {
       id: `browser-${this.#nextSessionId++}`,
       listing,
+      currentNavigation: { id: 1, path: listing.path },
       back: [],
       forward: [],
+      nextNavigationEntryId: 2,
       generation: 1,
       scopeId,
       sort: sortPreference.sort,
@@ -298,7 +310,8 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
     const previousPath = session.listing.path
-    const target = targetPath(session, navigation)
+    const targetEntry = targetNavigationEntry(session, navigation)
+    const target = targetEntry?.path ?? targetPath(session, navigation)
     if (!target) return this.#page(session, 0, 128, displayFields, signal)
 
     abortDirectorySizeOperations(session)
@@ -311,7 +324,12 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const generation = session.generation + 1
     try {
       const rawListing = await this.provider.read(target, combinedSignal)
-      const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
+      const targetTemporarySort = navigation.action === "back" || navigation.action === "forward"
+        ? targetEntry?.temporarySort
+        : navigation.action === "refresh" || directoryWatchPathKey(target) === directoryWatchPathKey(session.listing.path)
+          ? session.currentNavigation.temporarySort
+          : undefined
+      const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, targetTemporarySort)
       this.#assertSortAvailable(sortPreference.sort)
       const hydratedEntries = await this.#hydrate(rawListing.entries, sortPreference.sort, combinedSignal)
       const listing = sortListing(
@@ -322,6 +340,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       combinedSignal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
       updateHistory(session, navigation, listing.path)
+      session.temporarySort = session.currentNavigation.temporarySort
       session.listing = listing
       session.listingReleased = false
       session.sort = sortPreference.sort
@@ -368,6 +387,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       session.sort = sort
       session.sortPreference = remembered.preference
       session.temporarySort = remembered.temporary
+      syncCurrentNavigationTemporarySort(session)
       session.listing = sortListing(
         { ...session.listing, entries },
         sort,
@@ -425,6 +445,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       session.sort = next.preference.sort
       session.sortPreference = next.preference
       session.temporarySort = next.temporary
+      syncCurrentNavigationTemporarySort(session)
       session.listing = sortListing(
         { ...session.listing, entries },
         session.sort,
@@ -534,7 +555,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       snapshot.listingPayloadBytes += readerDirectoryListingPayloadBytes(session.listing)
       if (session.listingReleased) snapshot.releasedListings += 1
       snapshot.navigationPaths += session.back.length + session.forward.length
-      snapshot.navigationPayloadBytes += stringPayloadBytes(session.back) + stringPayloadBytes(session.forward)
+      snapshot.navigationPayloadBytes += stringPayloadBytes(session.back.map((entry) => entry.path)) + stringPayloadBytes(session.forward.map((entry) => entry.path))
       snapshot.randomSeeds += session.randomSeeds.size
       snapshot.randomSeedPayloadBytes += stringPayloadBytes(session.randomSeeds.keys()) + stringPayloadBytes(session.randomSeeds.values())
     }
@@ -939,27 +960,48 @@ function directoryWatchPathKey(path: string): string {
 
 function targetPath(session: BrowserSession, navigation: ReaderDirectoryNavigation): string | undefined {
   if (navigation.action === "path") return navigation.path.trim() || undefined
-  if (navigation.action === "back") return session.back.at(-1)
-  if (navigation.action === "forward") return session.forward.at(-1)
+  if (navigation.action === "back") return session.back.at(-1)?.path
+  if (navigation.action === "forward") return session.forward.at(-1)?.path
   if (navigation.action === "up") return session.listing.parentPath
   return session.listing.path
 }
 
 function updateHistory(session: BrowserSession, navigation: ReaderDirectoryNavigation, resolvedPath: string): void {
   const currentPath = session.listing.path
-  if (navigation.action === "refresh" || resolvedPath === currentPath) return
+  if (navigation.action === "refresh") return
   if (navigation.action === "back") {
-    session.back.pop()
-    session.forward.push(currentPath)
+    const target = session.back.pop()
+    if (!target) return
+    pushNavigationEntry(session.forward, session.currentNavigation)
+    session.currentNavigation = { ...target, path: resolvedPath }
     return
   }
   if (navigation.action === "forward") {
-    session.forward.pop()
-    session.back.push(currentPath)
+    const target = session.forward.pop()
+    if (!target) return
+    pushNavigationEntry(session.back, session.currentNavigation)
+    session.currentNavigation = { ...target, path: resolvedPath }
     return
   }
-  session.back.push(currentPath)
+  if (resolvedPath === currentPath) return
+  pushNavigationEntry(session.back, session.currentNavigation)
   session.forward.length = 0
+  session.currentNavigation = { id: session.nextNavigationEntryId++, path: resolvedPath }
+}
+
+function targetNavigationEntry(session: BrowserSession, navigation: ReaderDirectoryNavigation): BrowserNavigationEntry | undefined {
+  if (navigation.action === "back") return session.back.at(-1)
+  if (navigation.action === "forward") return session.forward.at(-1)
+  if (navigation.action === "refresh") return session.currentNavigation
+}
+
+function pushNavigationEntry(stack: BrowserNavigationEntry[], entry: BrowserNavigationEntry): void {
+  stack.push(entry)
+  if (stack.length > MAXIMUM_NAVIGATION_HISTORY) stack.shift()
+}
+
+function syncCurrentNavigationTemporarySort(session: BrowserSession): void {
+  session.currentNavigation.temporarySort = session.sortPreference.temporary ? session.temporarySort : undefined
 }
 
 function pageOf(
@@ -973,6 +1015,7 @@ function pageOf(
   const entries = session.listing.entries.slice(cursor, cursor + limit)
   return {
     sessionId: session.id,
+    navigationEntryId: session.currentNavigation.id,
     path: session.listing.path,
     parentPath: session.listing.parentPath,
     entries,

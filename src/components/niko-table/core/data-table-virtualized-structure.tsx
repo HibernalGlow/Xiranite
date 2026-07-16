@@ -430,6 +430,8 @@ export interface DataTableVirtualizedBodyProps<TData> {
   onRangeChange?: (range: { startIndex: number; endIndex: number }) => void
   /** Global row index to reveal when the sparse body first mounts. */
   initialIndex?: number
+  /** Raw vertical scroll offset to seed before virtual row measurement settles. */
+  initialScrollTop?: number
   /** Stable first-render viewport height for SSR and layout-free hosts. */
   initialViewportHeight?: number
   /**
@@ -475,6 +477,7 @@ export function DataTableVirtualizedBody<TData>({
   getVirtualRowId,
   onRangeChange,
   initialIndex,
+  initialScrollTop,
   initialViewportHeight,
 }: DataTableVirtualizedBodyProps<TData>) {
   const { table, columns } = useDataTable()
@@ -685,14 +688,24 @@ export function DataTableVirtualizedBody<TData>({
     onRangeChangeRef.current?.({ startIndex: firstVirtualIndex, endIndex: lastVirtualIndex })
   }, [firstVirtualIndex, lastVirtualIndex])
 
-  const appliedInitialIndexRef = React.useRef<number | undefined>(undefined)
+  const appliedInitialPositionRef = React.useRef<string | undefined>(undefined)
   React.useEffect(() => {
-    if (!scrollElement || initialIndex === undefined || virtualCount <= 0) return
+    if (!scrollElement || virtualCount <= 0) return
+    if (initialScrollTop !== undefined) {
+      const normalizedOffset = Math.max(0, initialScrollTop)
+      const key = `offset:${normalizedOffset}`
+      if (appliedInitialPositionRef.current === key) return
+      appliedInitialPositionRef.current = key
+      scrollElement.scrollTo({ top: normalizedOffset })
+      return
+    }
+    if (initialIndex === undefined) return
     const normalized = Math.min(Math.max(0, initialIndex), virtualCount - 1)
-    if (appliedInitialIndexRef.current === normalized) return
-    appliedInitialIndexRef.current = normalized
+    const key = `index:${normalized}`
+    if (appliedInitialPositionRef.current === key) return
+    appliedInitialPositionRef.current = key
     rowVirtualizer.scrollToIndex(normalized, { align: "center" })
-  }, [initialIndex, rowVirtualizer, scrollElement, virtualCount])
+  }, [initialIndex, initialScrollTop, rowVirtualizer, scrollElement, virtualCount])
 
   // Calculate spacer heights for virtual scrolling
   const topSpacerHeight = hasVirtualItems ? virtualItems[0].start : 0

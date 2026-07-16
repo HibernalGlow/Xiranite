@@ -221,6 +221,7 @@ describe("ReaderFileTreeService", () => {
     }
     const browser = new ReaderFileTreeService(provider)
     const opened = await browser.open("C:/books")
+    expect(opened.navigationEntryId).toBe(1)
     expect(opened.entries).toHaveLength(128)
     expect((await browser.list(opened.sessionId, opened.nextCursor, 32))?.entries).toHaveLength(12)
     const parent = await browser.navigate(opened.sessionId, { action: "up" })
@@ -233,6 +234,60 @@ describe("ReaderFileTreeService", () => {
     })
     const back = await browser.navigate(opened.sessionId, { action: "back" })
     expect(back).toMatchObject({ path: "C:/books", canGoBack: false, canGoForward: true, generation: 3 })
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.folder.nav-history] restores distinct visits, branches, temporary sort, and a bounded history", async () => {
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        if (path === "C:/missing") throw new Error("missing directory")
+        return {
+          path,
+          parentPath: "C:/",
+          entries: [
+            { name: "book10.cbz", path: `${path}/book10.cbz`, kind: "file", readerSupported: true },
+            { name: "book2.cbz", path: `${path}/book2.cbz`, kind: "file", readerSupported: true },
+          ],
+        }
+      },
+    })
+    const opened = await browser.open("C:/A")
+    await browser.updateSortPreference(opened.sessionId, { action: "temporary", enabled: true })
+    const firstA = await browser.sort(opened.sessionId, { field: "name", order: "desc", directoriesFirst: true })
+    const b = await browser.navigate(opened.sessionId, { action: "path", path: "C:/B" })
+    const secondA = await browser.navigate(opened.sessionId, { action: "path", path: "C:/A" })
+
+    expect([firstA?.navigationEntryId, b?.navigationEntryId, secondA?.navigationEntryId]).toEqual([1, 2, 3])
+    expect(secondA).toMatchObject({ path: "C:/A", sortSource: "global-default", sortTemporary: false })
+    await expect(browser.navigate(opened.sessionId, { action: "back" })).resolves.toMatchObject({
+      navigationEntryId: 2,
+      path: "C:/B",
+    })
+    await expect(browser.navigate(opened.sessionId, { action: "back" })).resolves.toMatchObject({
+      navigationEntryId: 1,
+      path: "C:/A",
+      sortSource: "temporary",
+      sort: { field: "name", order: "desc" },
+    })
+    await expect(browser.navigate(opened.sessionId, { action: "forward" })).resolves.toMatchObject({
+      navigationEntryId: 2,
+      canGoForward: true,
+    })
+    const beforeFailure = await browser.list(opened.sessionId)
+    await expect(browser.navigate(opened.sessionId, { action: "path", path: "C:/missing" })).rejects.toThrow("missing directory")
+    await expect(browser.list(opened.sessionId)).resolves.toMatchObject({
+      navigationEntryId: beforeFailure?.navigationEntryId,
+      path: beforeFailure?.path,
+      canGoBack: beforeFailure?.canGoBack,
+      canGoForward: beforeFailure?.canGoForward,
+    })
+    const branched = await browser.navigate(opened.sessionId, { action: "path", path: "C:/branch" })
+    expect(branched).toMatchObject({ canGoForward: false, navigationEntryId: 4 })
+
+    for (let index = 0; index < 70; index += 1) {
+      await browser.navigate(opened.sessionId, { action: "path", path: `C:/visit-${index}` })
+    }
+    expect(browser.memorySnapshot().navigationPaths).toBe(50)
     await browser[Symbol.asyncDispose]()
   })
 

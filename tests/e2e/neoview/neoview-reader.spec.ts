@@ -804,6 +804,97 @@ test("[neoview.folder.path-navigation] keeps breadcrumb navigation scoped to the
   await expect(currentBreadcrumb).toHaveAttribute("title", fixture.directory)
 })
 
+test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory visit independently", async ({ page }) => {
+  const historyRoot = join(fixture.directory, "zz-history")
+  const firstPath = join(historyRoot, "A")
+  const secondPath = join(historyRoot, "B")
+  await mkdir(firstPath, { recursive: true })
+  await mkdir(secondPath, { recursive: true })
+  await Promise.all([
+    ...Array.from({ length: 120 }, (_, index) => writeFile(join(firstPath, `history-${String(index).padStart(3, "0")}.cbz`), "")),
+    ...Array.from({ length: 40 }, (_, index) => writeFile(join(secondPath, `branch-${String(index).padStart(3, "0")}.cbz`), "")),
+  ])
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    await expect(page.locator('img[alt="001.jpg"]')).toBeVisible()
+
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const currentBreadcrumb = breadcrumb.locator('[aria-current="page"]')
+    const navigatePath = async (path: string) => {
+      const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
+      await edit.focus()
+      await edit.press("Enter")
+      const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+      await input.fill(path)
+      await input.press("Enter")
+      await expect(currentBreadcrumb).toHaveAttribute("title", path)
+    }
+
+    await navigatePath(firstPath)
+    const folderList = folderCard.getByRole("listbox", { name: "文件项目" })
+    await expect(folderList.getByText("history-000.cbz", { exact: true })).toBeVisible()
+    await expect(folderList.getByText("branch-000.cbz", { exact: true })).toHaveCount(0)
+    await folderCard.getByRole("radio", { name: "详细信息" }).click()
+    const detailsHost = folderCard.getByTestId("folder-details-host")
+    const detailsScroll = detailsHost.locator('[data-slot="table-container"]')
+    await expect(detailsScroll).toBeVisible()
+    await detailsScroll.evaluate((element) => {
+      element.scrollTop = 960
+      element.dispatchEvent(new Event("scroll"))
+    })
+    await expect.poll(() => detailsScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(900)
+    const firstVisitRow = detailsHost.getByText("history-030.cbz", { exact: true }).locator("xpath=ancestor::tr")
+    await expect(firstVisitRow).toBeVisible()
+    await firstVisitRow.click()
+    await expect(firstVisitRow).toHaveAttribute("data-state", "selected")
+    await detailsScroll.evaluate((element) => {
+      element.scrollTop = 960
+      element.dispatchEvent(new Event("scroll"))
+    })
+    const savedScrollTop = await detailsScroll.evaluate((element) => element.scrollTop)
+
+    await navigatePath(secondPath)
+    await expect(folderCard.getByText("branch-000.cbz", { exact: true })).toBeVisible()
+    await expect(folderCard.getByText("history-000.cbz", { exact: true })).toHaveCount(0)
+    await navigatePath(firstPath)
+    await folderCard.getByRole("radio", { name: "紧凑列表" }).click()
+    const secondVisitItem = folderCard.getByTitle(join(firstPath, "history-000.cbz"), { exact: true })
+    await secondVisitItem.click()
+    await expect(secondVisitItem).toHaveAttribute("aria-selected", "true")
+
+    await currentBreadcrumb.focus()
+    await page.keyboard.press("Alt+ArrowLeft")
+    await expect(currentBreadcrumb).toHaveAttribute("title", secondPath)
+    await currentBreadcrumb.focus()
+    await page.keyboard.press("Alt+ArrowLeft")
+    await expect(currentBreadcrumb).toHaveAttribute("title", firstPath)
+    await expect(folderCard.getByRole("radio", { name: "详细信息" })).toHaveAttribute("data-state", "on")
+    await expect(detailsScroll).toBeVisible()
+    await expect.poll(async () => Math.abs(
+      await detailsScroll.evaluate((element) => element.scrollTop) - savedScrollTop,
+    )).toBeLessThanOrEqual(40)
+    await expect(firstVisitRow).toHaveAttribute("data-state", "selected")
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+
+    await currentBreadcrumb.focus()
+    await page.keyboard.press("Alt+ArrowRight")
+    await expect(currentBreadcrumb).toHaveAttribute("title", secondPath)
+    await navigatePath(historyRoot)
+    await expect(folderCard.getByRole("button", { name: "前进" })).toBeDisabled()
+  } finally {
+    await rm(historyRoot, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.time-information.e2e] renders source-aware archive times in the real Reader", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
