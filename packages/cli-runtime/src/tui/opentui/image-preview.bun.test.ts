@@ -9,6 +9,7 @@ import {
   resolveTerminalImageBackend,
   writeTerminalBytes,
 } from "./image-preview.js";
+import { TerminalImageDecodeService, type TerminalDecodedImageFrame } from "./terminal-image-decode-service.js";
 
 test("selects SIXEL before Kitty and half-block", () => {
   expect(
@@ -156,3 +157,88 @@ test("decodes a Web stream without collecting the original image in the caller",
   expect(frames[0]?.height).toBeLessThanOrEqual(8);
   expect(frames[0]?.png.length).toBeGreaterThan(0);
 });
+
+test("[terminal.image.decode.byte-budget] bounds decoded terminal frames by their actual RGBA and PNG bytes", async () => {
+  const service = new TerminalImageDecodeService({ maxBytes: 12, maxConcurrent: 1 });
+  let firstDecodes = 0;
+  const first = () => {
+    firstDecodes += 1;
+    return Promise.resolve([decodedFrame(4, 4)]);
+  };
+  await service.decode("first", first);
+  await service.decode("first", first);
+  expect(firstDecodes).toBe(1);
+  expect(service.snapshot()).toMatchObject({ cachedEntries: 1, cachedBytes: 8 });
+
+  await service.decode("second", async () => [decodedFrame(4, 4)]);
+  expect(service.snapshot()).toMatchObject({ cachedEntries: 1, cachedBytes: 8 });
+  await service.decode("first", first);
+  expect(firstDecodes).toBe(2);
+  service.clear();
+  expect(service.snapshot()).toMatchObject({ cachedEntries: 0, cachedBytes: 0 });
+});
+
+test("[terminal.image.decode.cancellation] removes an aborted terminal decode before it enters the bounded queue", async () => {
+  const service = new TerminalImageDecodeService({ maxBytes: 64, maxConcurrent: 1 });
+  const active = deferred<readonly TerminalDecodedImageFrame[]>();
+  const first = service.decode(undefined, () => active.promise);
+  let secondStarted = false;
+  const abort = new AbortController();
+  const second = service.decode(undefined, async () => {
+    secondStarted = true;
+    return [decodedFrame(4, 4)];
+  }, abort.signal);
+  await Bun.sleep(0);
+  expect(service.snapshot()).toMatchObject({ running: 1, queued: 1 });
+  abort.abort(new DOMException("not visible", "AbortError"));
+  await expect(second).rejects.toBeTruthy();
+  expect(secondStarted).toBe(false);
+  active.resolve([decodedFrame(4, 4)]);
+  await first;
+  expect(service.snapshot()).toMatchObject({ running: 0, queued: 0 });
+});
+
+test("[terminal.image.decode.scheduler] acquires and releases the injected host CPU pool", async () => {
+  let active = 0;
+  let peakActive = 0;
+  const requests: unknown[] = [];
+  const service = new TerminalImageDecodeService({
+    maxBytes: 64,
+    maxConcurrent: 2,
+    ownerId: "fixture:tui",
+    resourceScheduler: {
+      async acquire(request) {
+        requests.push(request);
+        active += 1;
+        peakActive = Math.max(peakActive, active);
+        let released = false;
+        return { release() { if (!released) { released = true; active -= 1; } } };
+      },
+    },
+  });
+  await service.decode("scheduled", async () => [decodedFrame(4, 4)]);
+  expect(requests).toEqual([{
+    resource: "cpu",
+    kind: "terminal.image.decode",
+    priority: "view",
+    ownerId: "fixture:tui",
+  }]);
+  expect(peakActive).toBe(1);
+  expect(active).toBe(0);
+});
+
+function decodedFrame(rgbaBytes: number, pngBytes: number): TerminalDecodedImageFrame {
+  return {
+    rgba: new Uint8Array(rgbaBytes),
+    png: new Uint8Array(pngBytes),
+    width: 1,
+    height: 1,
+    delayMs: 100,
+  };
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((current) => { resolve = current; });
+  return { promise, resolve };
+}

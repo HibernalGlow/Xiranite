@@ -2,11 +2,14 @@
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { InteractionField } from "@xiranite/cli-runtime/interaction"
+import { ResourceSchedulerService } from "@xiranite/services"
+import type { ResourceScheduler } from "@xiranite/contract"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import {
   ProgressBar,
   NumberInput,
+  TerminalImageDecodeService,
   TerminalImagePreview,
   TerminalThemeProvider,
   WorkbenchButton,
@@ -41,6 +44,7 @@ interface ReaderTuiPort extends AsyncDisposable {
 export interface NeoviewTuiProps extends TerminalUiScreenProps<NeoviewTuiInput, NeoviewTuiResult> {
   createController?: () => Promise<ReaderTuiPort>
   imageBackend?: TerminalImageBackend
+  resourceScheduler?: ResourceScheduler
 }
 
 export function NeoviewTui(props: NeoviewTuiProps) {
@@ -56,14 +60,22 @@ function ReaderWorkbench({
   definition,
   language,
   onExit,
-  createController = createReaderHeadlessController,
+  createController,
   imageBackend = "sixel",
+  resourceScheduler,
 }: NeoviewTuiProps) {
   const theme = useTerminalTheme()
   const dimensions = useTerminalDimensions()
   const t = createTerminalTranslator(language)
   const pathField = defaultPathField(language)
   const controller = useRef<ReaderTuiPort | undefined>(undefined)
+  const resources = useMemo(() => resourceScheduler ?? new ResourceSchedulerService(), [resourceScheduler])
+  const imageDecodeService = useMemo(() => new TerminalImageDecodeService({
+    maxBytes: 32 * 1024 * 1024,
+    maxConcurrent: 2,
+    resourceScheduler: resources,
+    ownerId: "neoview:tui",
+  }), [resources])
   const activeAbort = useRef<AbortController | undefined>(undefined)
   const [path, setPath] = useState(String(definition.schema.initialValues.path ?? ""))
   const [pageInput, setPageInput] = useState(1)
@@ -75,9 +87,13 @@ function ReaderWorkbench({
   const [status, setStatus] = useState(language === "zh" ? "等待打开" : "Ready to open")
 
   const ensureController = useCallback(async () => {
-    if (!controller.current) controller.current = await createController()
+    if (!controller.current) {
+      controller.current = createController
+        ? await createController()
+        : await createReaderHeadlessController({ resourceScheduler: resources })
+    }
     return controller.current
-  }, [createController])
+  }, [createController, resources])
 
   const applySnapshot = useCallback((value: HeadlessReaderSnapshot, port: ReaderTuiPort) => {
     const pageLimit = Math.min(value.book.pageCount, 100)
@@ -133,6 +149,7 @@ function ReaderWorkbench({
   const reset = useCallback(() => {
     activeAbort.current?.abort()
     void controller.current?.closeBook()
+    imageDecodeService.clear()
     setSnapshot(undefined)
     setPages([])
     setPageCursor(0)
@@ -140,22 +157,24 @@ function ReaderWorkbench({
     setPhase("ready")
     setStatus(language === "zh" ? "等待打开" : "Ready to open")
     setFocused("path")
-  }, [language])
+  }, [imageDecodeService, language])
 
   const exit = useCallback(() => {
     activeAbort.current?.abort()
+    imageDecodeService.clear()
     const value = controller.current
     controller.current = undefined
     if (value) void Promise.resolve(value[Symbol.asyncDispose]()).finally(onExit)
     else onExit()
-  }, [onExit])
+  }, [imageDecodeService, onExit])
 
   useTerminalChromeActions({ onReset: reset, onExit: exit })
   useEffect(() => () => {
     activeAbort.current?.abort()
+    imageDecodeService.clear()
     void controller.current?.[Symbol.asyncDispose]()
     controller.current = undefined
-  }, [])
+  }, [imageDecodeService])
 
   useKeyboard((key) => {
     if (key.name === "escape") {
@@ -245,6 +264,7 @@ function ReaderWorkbench({
                     height={previewHeight}
                     openPage={openPage}
                     backend={imageBackend}
+                    decodeService={imageDecodeService}
                   />
                 ))}
               </box>
@@ -269,12 +289,14 @@ function ReaderPagePreview({
   height,
   openPage,
   backend,
+  decodeService,
 }: {
   page: HeadlessReaderPageSnapshot
   width: number
   height: number
   openPage: (pageIndex: number, signal: AbortSignal) => Promise<HeadlessPageStream>
   backend: TerminalImageBackend
+  decodeService: TerminalImageDecodeService
 }) {
   const source = useMemo<TerminalImageStreamSource>(() => ({
     cacheKey: `neoview:${page.id}:${page.contentVersion}`,
@@ -288,6 +310,7 @@ function ReaderPagePreview({
       alt={page.name}
       fit="contain"
       backend={backend}
+      decodeService={decodeService}
       maxAnimationFrames={1}
     />
   )

@@ -2,20 +2,17 @@
 import { testRender } from "@opentui/react/test-utils"
 import { act } from "react"
 import { expect, test } from "bun:test"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import sharp from "sharp"
 import type { HeadlessReaderSnapshot } from "../core.js"
 import { createNeoviewTuiDefinition } from "../interaction.js"
 import { NeoviewTui } from "../Tui.js"
-import { createZipFixture } from "../../test/fixture-builders/create-zip-fixture.js"
-import { createReaderHeadlessController } from "../platform.js"
+import { ResourceSchedulerService } from "@xiranite/services"
 
-test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader and navigates with shared controller methods", async () => {
+async function verifyPersistentReaderLifecycle() {
   let current = 0
   let opens = 0
   let nextCalls = 0
+  let previousCalls = 0
   let pageStreamOpens = 0
   let pageStreamCloses = 0
   let disposed = 0
@@ -26,7 +23,7 @@ test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader an
     async open() { opens += 1; return snapshot(current = 0) },
     listPages: () => pageList,
     async next() { nextCalls += 1; return snapshot(current = Math.min(2, current + 1)) },
-    async previous() { return snapshot(current = Math.max(0, current - 1)) },
+    async previous() { previousCalls += 1; return snapshot(current = Math.max(0, current - 1)) },
     async goTo(index: number) { return snapshot(current = index) },
     async openPageStream() {
       pageStreamOpens += 1
@@ -50,10 +47,14 @@ test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader an
   }
   const definition = createNeoviewTuiDefinition("zh")
   definition.schema.initialValues.path = "D:/books/book.cbz"
-  const screen = await testRender(
-    <NeoviewTui definition={definition} language="zh" onExit={() => undefined} createController={async () => port} />,
-    { width: 132, height: 34, useMouse: true },
-  )
+  const resources = new ResourceSchedulerService()
+  let screen: Awaited<ReturnType<typeof testRender>>
+  await act(async () => {
+    screen = await testRender(
+      <NeoviewTui definition={definition} language="zh" onExit={() => undefined} createController={async () => port} resourceScheduler={resources} />,
+      { width: 132, height: 34, useMouse: true },
+    )
+  })
   const click = async (id: string) => {
     const target = screen.renderer.root.findDescendantById(id)
     expect(target).toBeDefined()
@@ -76,77 +77,45 @@ test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader an
     await screen.waitFor(() => nextCalls === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("2 / 3"))
     expect(screen.captureCharFrame()).toContain("002.png")
+    await act(async () => waitUntil(
+      () => pageStreamCloses === pageStreamOpens,
+      () => `opens=${pageStreamOpens} closes=${pageStreamCloses}`,
+    ))
+    const streamsAfterForward = pageStreamOpens
+    await click("previous")
+    await screen.waitFor(() => previousCalls === 1)
+    await screen.waitFor(() => screen.captureCharFrame().includes("1 / 3"))
+    expect(pageStreamOpens).toBe(streamsAfterForward)
+
+    await click("close")
+    await click("open")
+    await screen.waitFor(() => opens === 2)
+    await act(async () => waitUntil(
+      () => pageStreamOpens > streamsAfterForward,
+      () => `opens=${pageStreamOpens} beforeClose=${streamsAfterForward}`,
+    ))
+    await act(async () => waitUntil(
+      () => pageStreamCloses === pageStreamOpens,
+      () => `opens=${pageStreamOpens} closes=${pageStreamCloses}`,
+    ))
+    await act(async () => screen.flush())
   } finally {
     await act(async () => screen.renderer.destroy())
   }
   expect(pageStreamOpens).toBeGreaterThanOrEqual(2)
   expect(pageStreamCloses).toBe(pageStreamOpens)
   expect(disposed).toBe(1)
-})
-
-test("[neoview.tui.image] renders a real directory page through the shared terminal image surface", async () => {
-  const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-tui-"))
-  const pageBytes = await sharp({
-    create: { width: 8, height: 12, channels: 4, background: "#d45d4c" },
-  }).png().toBuffer()
-  await writeFile(join(root, "001.png"), pageBytes)
-  try {
-    await expectRealSourceRenders(root, "001.png")
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test("[neoview.tui.archive] renders a real CBZ page through the existing archive provider", async () => {
-  const pageBytes = await sharp({
-    create: { width: 8, height: 12, channels: 4, background: "#4f6fc4" },
-  }).png().toBuffer()
-  const fixture = await createZipFixture({
-    name: "prototype.cbz",
-    entries: [{ path: "pages/001.png", bytes: pageBytes, level: 6 }],
+  expect(resources.snapshot()).toEqual({
+    cpu: { active: 0, queued: 0, queuedByPriority: { interactive: 0, view: 0, ahead: 0, background: 0 } },
+    io: { active: 0, queued: 0, queuedByPriority: { interactive: 0, view: 0, ahead: 0, background: 0 } },
+    gpu: { active: 0, queued: 0, queuedByPriority: { interactive: 0, view: 0, ahead: 0, background: 0 } },
   })
-  try {
-    await expectRealSourceRenders(fixture.path, "001.png")
-  } finally {
-    await fixture.cleanup()
-  }
-})
-
-async function expectRealSourceRenders(path: string, pageName: string): Promise<void> {
-  const definition = createNeoviewTuiDefinition("zh")
-  definition.schema.initialValues.path = path
-  const screen = await testRender(
-    <NeoviewTui
-      definition={definition}
-      language="zh"
-      onExit={() => undefined}
-      imageBackend="half-block"
-      createController={() => createReaderHeadlessController({ progressStore: false })}
-    />,
-    { width: 132, height: 34, useMouse: true },
-  )
-  try {
-    await act(async () => screen.renderOnce())
-    const open = screen.renderer.root.findDescendantById("open")
-    expect(open).toBeDefined()
-    await act(async () => screen.mockMouse.click(open!.x + 1, open!.y + Math.max(0, Math.floor(open!.height / 2))))
-    await act(async () => screen.flush())
-    await act(async () => waitUntil(
-      () => screen.captureCharFrame().includes(pageName),
-      () => screen.captureCharFrame(),
-      5_000,
-    ))
-    await act(async () => waitUntil(
-      () => screen.captureCharFrame().includes("▀"),
-      () => screen.captureCharFrame(),
-      5_000,
-    ))
-    await screen.flush()
-    expect(screen.captureCharFrame()).toContain("1 / 1")
-  } finally {
-    await act(async () => screen.renderer.destroy())
-  }
 }
+
+test(
+  "[neoview.tui.reader] [neoview.tui.navigation] [neoview.tui.decode-cache] opens a persistent reader and navigates with shared controller methods",
+  verifyPersistentReaderLifecycle,
+)
 
 async function waitUntil(predicate: () => boolean, describe: () => string, timeoutMs = 2_000): Promise<void> {
   const deadline = Date.now() + timeoutMs

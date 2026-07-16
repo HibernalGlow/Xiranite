@@ -104,7 +104,7 @@
       "settingsKeys": ["performance.preLoadSize", "performance.adaptivePreload", "performance.preDecodeCacheSize", "performance.progressiveLoad", "image.preloadCount", "book.preloadPages"],
       "dataStores": ["priority queues", "request dedup"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["View/Ahead/Background 优先级", "方向感知预读", "渐进批次", "背压", "快速翻页取消", "多节点资源配额"],
-      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.scheduler.host-injection", "xiranite.scheduler.priority", "xiranite.scheduler.pools", "neoview.image.transform-cancellation", "neoview.cache.singleflight", "neoview.cache.waiter-cancellation", "neoview.sevenzip.scheduler", "neoview.archive.materialize-lease", "neoview.archive.materialize-cancellation", "neoview.react.predecode", "neoview.thumbnail.react-list", "neoview.thumbnail.scheduler-priority"], "benchmarkIds": ["scheduler-contention", "cancel-latency", "reader-hot-page-turn", "reader-loopback-pipeline"], "knownDifferences": []
+      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.scheduler.host-injection", "xiranite.scheduler.priority", "xiranite.scheduler.pools", "neoview.image.transform-cancellation", "neoview.cache.singleflight", "neoview.cache.waiter-cancellation", "neoview.sevenzip.scheduler", "neoview.archive.materialize-lease", "neoview.archive.materialize-cancellation", "neoview.react.predecode", "neoview.thumbnail.react-list", "neoview.thumbnail.scheduler-priority", "terminal.image.decode.cancellation", "terminal.image.decode.scheduler"], "benchmarkIds": ["scheduler-contention", "cancel-latency", "reader-hot-page-turn", "reader-loopback-pipeline"], "knownDifferences": []
     },
     {
       "id": "thumbnail-system",
@@ -124,7 +124,7 @@
       "settingsKeys": ["performance.cacheMemorySize"],
       "dataStores": ["memory LRU", "persistent cache", "cache index DB"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["真实字节预算", "pin 和方向淘汰", "mtime/hash 失效", "损坏恢复", "80% hysteresis", "session close/hibernate 回收"],
-      "testIds": ["neoview.cache.weighted-lru", "neoview.cache.byte-budget", "neoview.cache.singleflight", "neoview.cache.oversized-bypass", "neoview.cache.waiter-cancellation", "neoview.cache.failure-retry", "neoview.cache.lifecycle", "neoview.http.e2e", "neoview.sevenzip.solid-cache-singleflight", "neoview.sevenzip.solid-cache-incomplete", "neoview.sevenzip.solid-cache-lru", "neoview.sevenzip.solid-cache-fingerprint", "neoview.sevenzip.solid-cache-reuse", "neoview.sevenzip.solid-session-cache"], "benchmarkIds": ["cache-memory-budget", "solid-cross-session"], "knownDifferences": []
+      "testIds": ["neoview.cache.weighted-lru", "neoview.cache.byte-budget", "neoview.cache.singleflight", "neoview.cache.oversized-bypass", "neoview.cache.waiter-cancellation", "neoview.cache.failure-retry", "neoview.cache.lifecycle", "neoview.http.e2e", "neoview.sevenzip.solid-cache-singleflight", "neoview.sevenzip.solid-cache-incomplete", "neoview.sevenzip.solid-cache-lru", "neoview.sevenzip.solid-cache-fingerprint", "neoview.sevenzip.solid-cache-reuse", "neoview.sevenzip.solid-session-cache", "terminal.image.decode.byte-budget", "neoview.tui.decode-cache"], "benchmarkIds": ["cache-memory-budget", "solid-cross-session"], "knownDifferences": []
     },
     {
       "id": "super-resolution",

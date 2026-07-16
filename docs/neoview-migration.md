@@ -1547,7 +1547,7 @@ xneoview --connect inspect book.cbz
   -> 连接已运行的 Xiranite 后端，共享 session/index/cache
 ```
 
-`--connect` 是后续能力，不阻塞当前本地 CLI。现有 `ReaderHeadlessController` 位于 application 层，只依赖 `ReaderService`，由 `platform.ts` 延迟装配目录、ZIP、7-Zip 和流式元数据探测；CLI 与 OpenTUI React 工作台都调用这个 controller，不直接访问 provider。TUI 已支持路径打开、关闭、100 页有界页面列表、当前单/双页 frame、上一页、下一页和页码跳转；当前页面以可取消的 `HeadlessPageStream` 进入共享 `TerminalImagePreview`，原型默认使用 SIXEL，并保留 Kitty、auto 和 truecolor half-block 可注入后端，替换/退出时关闭 stream/source。自动化已覆盖 fake session 翻页资源归零、真实目录图片和真实 Deflate CBZ 的 half-block 像素显示；CBZ 测试只向默认 controller 传 archive path，不包含 TUI 专属 ZIP 分支。真实 SIXEL/Kitty 终端、7z/RAR 的 TUI 集成语料、缩略图 gallery、连接常驻 backend、设置与更多 feature 命令仍属于后续能力，不能把当前原型描述成完整 TUI。
+`--connect` 是后续能力，不阻塞当前本地 CLI。现有 `ReaderHeadlessController` 位于 application 层，只依赖 `ReaderService`，由 `platform.ts` 延迟装配目录、ZIP、7-Zip 和流式元数据探测；CLI 与 OpenTUI React 工作台都调用这个 controller，不直接访问 provider。TUI 已支持路径打开、关闭、100 页有界页面列表、当前单/双页 frame、上一页、下一页和页码跳转；当前页面以可取消的 `HeadlessPageStream` 进入共享 `TerminalImagePreview`，原型默认使用 SIXEL，并保留 Kitty、auto 和 truecolor half-block 可注入后端，替换/退出时关闭 stream/source。终端解码现统一由 `TerminalImageDecodeService` 管理：使用 `lru-cache` 按 RGBA 与 PNG 的实际字节计费，CLI runtime 默认上限 64 MiB，NeoView TUI session 上限 32 MiB；使用 `p-queue` 有界并发，NeoView 默认 2 个 decode task，并以 `terminal.image.decode` / `view` 请求宿主 `ResourceScheduler` 的 CPU lease。字符串路径和带 `cacheKey` 的 stream source 可复用解码结果，`Uint8Array` 不做隐式缓存；关闭书籍、退出或卸载会取消 source 并清空 session cache。自动化已覆盖字节预算、排队取消、scheduler lease、fake session 前后翻页命中与关闭失效、资源归零、真实目录图片和真实 Deflate CBZ 的 half-block 像素显示；CBZ 测试只向默认 controller 传 archive path，不包含 TUI 专属 ZIP 分支。真实 SIXEL/Kitty 终端、7z/RAR 的 TUI 集成语料、缩略图 gallery、连接常驻 backend、设置与更多 feature 命令仍属于后续能力，不能把当前原型描述成完整 TUI。
 
 CLI 密码参数只接受 `--password-env VAR` 或 `--archive-password-env entry.cbz::nested.cbz=VAR`。不提供明文 `--password`，密码不会进入 URL、JSON、日志或 TOML；环境变量值会复制为每次 open 独立的 `Uint8Array`，在 open 返回后由 session credential store 接管副本，CLI 临时字节在命令结束时主动覆零。JSON DTO 不包含本地 source path、临时物化路径或密码。`extract-page --output -` 的 stdout 专用于二进制数据；写文件默认使用排他创建，只有显式 `--force` 才覆盖。
 
@@ -1598,7 +1598,7 @@ contract 由 `ReaderHeadlessController` 暴露、由 platform 的 `ReaderPresent
 | ImageTransformer、目标像素限制、presentation/thumbnail singleflight、预读 admission、缓存与全局 CPU/I/O lease | `TerminalImagePreview` 的放置、协议图形擦除、滚动暂停/重画 |
 | Page/file/folder thumbnail source、批量命中和失效 | 列数、tile 大小、选择态、可见窗口 cursor |
 
-禁止 TUI import `node:fs`、`node:child_process`、sharp、archive provider、SQLite store 或缩略图库路径；禁止维护独立 `Map<page, Buffer>`、独立 worker queue 或第二套页面预读逻辑。当前 `TerminalImagePreview` 的全局 160 项解码 cache 和固定 3 decode tasks 也不能直接成为 Reader 缓存/调度策略：应改为可注入、按实际字节计费且可由 session/host 释放的 shared presentation cache，并将 decode work 接入 `ResourceScheduler`。否则 EngineV gallery、NeoView TUI 和 GUI 会在同一进程中绕过彼此的资源配额。
+禁止 TUI import `node:fs`、`node:child_process`、sharp、archive provider、SQLite store 或缩略图库路径；禁止维护独立 `Map<page, Buffer>`、独立 worker queue 或第二套页面预读逻辑。旧 `TerminalImagePreview` 的全局 160 项 `Map` 和固定 3 槽手写队列已经删除，现由可注入的 `TerminalImageDecodeService` 使用 `lru-cache`、`p-queue`、实际字节预算、AbortSignal 和宿主 `ResourceScheduler`；NeoView 只负责为 session 设置更小预算，并在 Close/Exit/unmount 释放。后续 gallery 必须继续复用该 service，不能重新引入按页数计费或绕过宿主配额的队列。
 
 Chafa 不作为 NeoView 的默认或 SIXEL/Kitty 主路径。现有 shared component 已可直接输出这些协议；为主阅读器另起 `chafa` 子进程会增加启动、stdout placement、取消和图形残留风险。它最多作为用户显式选择的 `chafa-symbols` cell fallback：由一个共享 terminal-image adapter 以有界目标尺寸数据喂给 stdin、取得 host CPU/process lease，并在 abort/exit 时终止。Chafa 不得接收 archive path、密码、原始 4K/8K 页面，也不得写入单独的临时/磁盘缓存。默认 fallback 仍为现有 zero-install truecolor half-block，UI 必须显示实际 backend。
 

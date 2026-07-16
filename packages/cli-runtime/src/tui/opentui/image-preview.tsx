@@ -10,6 +10,11 @@ import { Readable } from "node:stream";
 import { image2sixel } from "sixel";
 import sharp from "sharp";
 import {
+  defaultTerminalImageDecodeService,
+  type TerminalDecodedImageFrame,
+  type TerminalImageDecodeService,
+} from "./terminal-image-decode-service.js";
+import {
   Fragment,
   useEffect,
   useMemo,
@@ -41,24 +46,15 @@ export interface TerminalImagePreviewProps {
   drawingPausedRef?: RefObject<boolean>;
   drawingGenerationRef?: RefObject<number>;
   deferUntilVisible?: boolean;
+  decodeService?: TerminalImageDecodeService;
 }
-export interface TerminalImageFrame {
-  rgba: Uint8Array;
-  width: number;
-  height: number;
-  delayMs: number;
-  png: Uint8Array;
-}
+export interface TerminalImageFrame extends TerminalDecodedImageFrame {}
 interface HalfBlockCell {
   character: string;
   foreground: string;
   background: string;
 }
-const decodedFrameCache = new Map<string, Promise<TerminalImageFrame[]>>();
 const sixelPayloadCache = new WeakMap<TerminalImageFrame, Uint8Array>();
-const pendingDecodeTasks: Array<() => void> = [];
-let activeDecodeTasks = 0;
-const MAX_CONCURRENT_DECODES = 3;
 
 /** Shared image surface: SIXEL animation first, Kitty next, half-block fallback. */
 export function TerminalImagePreview({
@@ -74,6 +70,7 @@ export function TerminalImagePreview({
   drawingPausedRef,
   drawingGenerationRef,
   deferUntilVisible = false,
+  decodeService = defaultTerminalImageDecodeService,
 }: TerminalImagePreviewProps) {
   const renderer = useRenderer();
   const boxRef = useRef<BoxRenderable | null>(null);
@@ -82,7 +79,7 @@ export function TerminalImagePreview({
     renderer.capabilities,
   );
   const pixelSize = resolvePixelSize(renderer, width, height, resolvedBackend);
-  const [frames, setFrames] = useState<TerminalImageFrame[]>([]);
+  const [frames, setFrames] = useState<readonly TerminalImageFrame[]>([]);
   const [frameIndex, setFrameIndex] = useState(0);
   const [failed, setFailed] = useState(false);
 
@@ -104,6 +101,7 @@ export function TerminalImagePreview({
         pixelSize.height,
         fit,
         maxAnimationFrames,
+        decodeService,
         abort.signal,
       )
         .then((next) => {
@@ -138,6 +136,7 @@ export function TerminalImagePreview({
     };
   }, [
     deferUntilVisible,
+    decodeService,
     fit,
     height,
     maxAnimationFrames,
@@ -291,7 +290,7 @@ export async function decodeTerminalImageFrames(
   fit: "contain" | "cover",
   maxFrames: number,
   signal?: AbortSignal,
-): Promise<TerminalImageFrame[]> {
+): Promise<readonly TerminalImageFrame[]> {
   signal?.throwIfAborted();
   if (source instanceof ReadableStream) {
     return decodeTerminalImageStream(source, width, height, fit, signal);
@@ -329,7 +328,7 @@ async function decodeTerminalImageStream(
   height: number,
   fit: "contain" | "cover",
   signal?: AbortSignal,
-): Promise<TerminalImageFrame[]> {
+): Promise<readonly TerminalImageFrame[]> {
   signal?.throwIfAborted();
   const input = Readable.fromWeb(source as never);
   const pipeline = sharp({
@@ -375,74 +374,24 @@ function loadTerminalImageFrames(
   height: number,
   fit: "contain" | "cover",
   maxFrames: number,
+  decodeService: TerminalImageDecodeService,
   signal: AbortSignal,
-): Promise<TerminalImageFrame[]> {
-  if (typeof source === "string") {
-    return getCachedTerminalImageFrames(source, width, height, fit, maxFrames);
-  }
-  if (source instanceof Uint8Array) {
-    return scheduleDecodeTask(
-      () => decodeTerminalImageFrames(source, width, height, fit, maxFrames, signal),
-      signal,
-    );
-  }
-  return scheduleDecodeTask(async () => {
-    signal.throwIfAborted();
-    const handle = await source.open(signal);
+): Promise<readonly TerminalImageFrame[]> {
+  const cacheKey = source instanceof Uint8Array
+    ? undefined
+    : `${typeof source === "string" ? `path:${source}` : `stream:${source.cacheKey}`}\0${width}x${height}\0${fit}\0${maxFrames}`;
+  return decodeService.decode(cacheKey, async (decodeSignal) => {
+    if (typeof source === "string" || source instanceof Uint8Array) {
+      return decodeTerminalImageFrames(source, width, height, fit, maxFrames, decodeSignal);
+    }
+    decodeSignal.throwIfAborted();
+    const handle = await source.open(decodeSignal);
     try {
-      return await decodeTerminalImageFrames(handle.stream, width, height, fit, 1, signal);
+      return await decodeTerminalImageFrames(handle.stream, width, height, fit, 1, decodeSignal);
     } finally {
       await handle.close();
     }
   }, signal);
-}
-
-function getCachedTerminalImageFrames(
-  source: string,
-  width: number,
-  height: number,
-  fit: "contain" | "cover",
-  maxFrames: number,
-) {
-  const key = `${source}\0${width}x${height}\0${fit}\0${maxFrames}`;
-  let pending = decodedFrameCache.get(key);
-  if (!pending) {
-    pending = scheduleDecodeTask(() =>
-      decodeTerminalImageFrames(source, width, height, fit, maxFrames),
-    );
-    decodedFrameCache.set(key, pending);
-    pending.catch(() => decodedFrameCache.delete(key));
-    if (decodedFrameCache.size > 160)
-      decodedFrameCache.delete(decodedFrameCache.keys().next().value as string);
-  }
-  return pending;
-}
-
-function scheduleDecodeTask<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    pendingDecodeTasks.push(() => {
-      if (signal?.aborted) {
-        reject(signal.reason);
-        return;
-      }
-      activeDecodeTasks += 1;
-      void task()
-        .then(resolve, reject)
-        .finally(() => {
-          activeDecodeTasks -= 1;
-          runPendingDecodeTasks();
-        });
-    });
-    runPendingDecodeTasks();
-  });
-}
-
-function runPendingDecodeTasks() {
-  while (
-    activeDecodeTasks < MAX_CONCURRENT_DECODES &&
-    pendingDecodeTasks.length
-  )
-    pendingDecodeTasks.shift()?.();
 }
 
 export function projectRgbaToHalfBlocks(

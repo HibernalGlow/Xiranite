@@ -33,6 +33,13 @@ export {
   type TerminalImageStreamHandle,
   type TerminalImageStreamSource,
 } from "./image-preview.js";
+export {
+  TerminalImageDecodeService,
+  defaultTerminalImageDecodeService,
+  type TerminalDecodedImageFrame,
+  type TerminalImageDecodeServiceOptions,
+  type TerminalImageDecodeSnapshot,
+} from "./terminal-image-decode-service.js";
 export { TerminalPreferencesScreen } from "./app.js";
 export { TerminalTaskQueueScreen } from "./task-queue-screen.js";
 export { TerminalHelpScreen } from "./help-screen.js";

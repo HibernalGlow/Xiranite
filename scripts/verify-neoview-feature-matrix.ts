@@ -46,6 +46,7 @@ const head = git(["rev-parse", "HEAD"]).trim()
 if (head !== matrix.sourceRevision) errors.push(`NeoView HEAD ${head} differs from matrix ${matrix.sourceRevision}`)
 const sourceFiles = git(["ls-files"]).split(/\r?\n/).filter(Boolean)
 const testCorpus = await readTestCorpus([
+  resolve("packages/cli-runtime/src/tui/opentui"),
   resolve("packages/nodes/neoview"),
   resolve("packages/backend/src"),
   resolve("packages/services"),
