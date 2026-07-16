@@ -695,7 +695,7 @@ describe("NeoView CLI", () => {
       runtimeResources: () => ({ archiveProviders: 2, archiveIndexEntries: 12, archiveIndexPayloadBytes: 640, archiveActiveExtractions: 1 }),
       assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
       presentationDiskCache: async () => ({ enabled: false }),
-      solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
+      solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0, activeEntries: 0, activeLeases: 0 }),
       now: () => 10,
       uptime: () => 1,
       memoryUsage: () => ({ rss: 8, heapTotal: 7, heapUsed: 6, external: 5, arrayBuffers: 4 }),
@@ -752,7 +752,7 @@ describe("NeoView CLI", () => {
       runtimeResources: () => ({ archiveProviders: 2, archiveIndexEntries: 12, archiveIndexPayloadBytes: 640, archiveActiveExtractions: 1 }),
       assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
       presentationDiskCache: async () => ({ enabled: false }),
-      solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
+      solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0, activeEntries: 0, activeLeases: 0 }),
       scheduler: () => ({ cpu: pool, io: pool, gpu: pool }),
     })
     await runProgram(["diagnostics"], host(output), {
@@ -762,6 +762,7 @@ describe("NeoView CLI", () => {
     expect(output.join("")).toContain("cpu=1/2 waitAvg=2.5ms waitMax=6.0ms waitNow=3.0ms")
     expect(output.join("")).toContain("ttfbAvg=15.0ms decodeAvg=25.0ms retainedMax=300 leaseMax=4")
     expect(output.join("")).toContain("archiveProviders=2 indexEntries=12 indexBytes=640 activeExtractions=1")
+    expect(output.join("")).toContain("Cache totals: memory=0 disk=0 leases=0")
   })
 })
 

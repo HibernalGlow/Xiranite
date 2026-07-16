@@ -1448,7 +1448,9 @@ L2 presentation cache 现已在既有 `lru-cache` adapter 上提供引用计数 
 
 L2 presentation 的跨响应保留继续复用 `WeightedLruPresentationCache.pin()`，没有新增 cache、Buffer 副本或自定义淘汰器。Controller 从唯一 frame/preload plan 提取当前 frame 与 `near` candidate 的 opaque page ID，每 session 最多声明 8 个 desired page；AssetRoute 仅在这些页面的 transformed presentation 已经因真实请求进入 L2 后，为每页最近一次实际 cache key 持有一个现有引用计数 lease，因此不需要 GUI 猜测 transform profile，也不会为 retention 打开 PageContent、读取 archive、调用 sharp/WIC 或预解码邻页。导航、layout/context generation 变化会释放离开 current/near 集合的 lease，关书和 hibernate 删除整个 session desired set；critical pressure 与显式 cache clear 先释放 retention lease 再清 L2，正在向客户端传输的 response lease 仍按 Web Stream close/cancel 生命周期释放。diagnostics 的 `assets.presentationRetention` 只报告 session、desired page 和实际 retained presentation 三个计数，不保存 page ID、cache key 或路径。
 
-这仍不是第 12 节的全部完成状态：current listing 的预算降级策略、跨进程 active lease、所有缓存层的统一 lease 指标，以及真实 corpus 下 retention 命中收益与预算校准尚待实现。缓存产物物化是受字节预算约束的明确例外，禁止把同一机制扩展为“所有原图默认进 JS 堆”。
+`ReaderDiagnosticsService` 现在对同一次请求中的 L1/L2/L3/solid owner 快照做纯派生，新增 `cache.memory/cache.disk/cache.leases` 统一视图：memory 分开报告 presentation 与 thumbnail bytes，disk 分开报告 `cacache` presentation 与 solid materialization bytes，lease 分开报告 L2 response/retention、L3 acquire、solid references 与 thumbnail demands 并给出总数。`SolidArchiveCache.snapshot()` 直接遍历既有 entry `references` 计算 active entries/leases，不维护第二套计数；聚合器每个 owner 只读取一次，旧 `assets/presentationDiskCache/solidArchiveCache` 字段继续保留，远程旧后端缺少 `cache` 时 CLI 明确显示 unavailable。
+
+这仍不是第 12 节的全部完成状态：current listing 的预算降级策略、跨进程 active lease，以及真实 corpus 下 retention 命中收益与预算校准尚待实现。缓存产物物化是受字节预算约束的明确例外，禁止把同一机制扩展为“所有原图默认进 JS 堆”。
 
 `bun run benchmark:neoview-cache` 提供可重复的 `cache-memory-budget` JSON。2026-07-16 本机 `lru-cache@11` 实现以 32 MiB 预算连续写入 64 个 1 MiB 已触碰字节条目，最终严格保留 32 MiB、淘汰 32 条；写入约 `3804 MiB/s`，20,000 次热命中无 miss，平均约 `0.15 µs/次`。脚本支持 `NEOVIEW_CACHE_BENCH_MIB` 调整预算，报告 Bun/平台、配置、写入吞吐、热命中延迟、保留字节和淘汰数；这些数值用于同机回归，不作为跨硬件性能承诺。
 
@@ -2559,7 +2561,7 @@ scripts/
 - 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；可选 sharp transform 复用同一响应链；
 - 已接入 256 KiB 有界的流式图片尺寸探测，覆盖 PNG/GIF/JPEG/WebP/BMP/TIFF/AVIF 和裸 JXL codestream、JPEG/TIFF orientation、archive 提前取消及真实尺寸驱动的宽页布局；JXL container 与 AVIF 变换属性留给经验证的惰性 native fallback；
 - 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。NeoView 已从 backend 宿主共享 CPU 池取得 lease，其他高负载节点仍需迁入同一 scheduler；
-- 已接入 transform singleflight、96 MiB/单条 24 MiB 的 L2 weighted LRU，以及惰性 `cacache` L3；冷请求保持边响应边有界收集，L3 使用 opaque typed key、SHA-256 完整性、原子发布、active lease、字节/年龄/低磁盘策略和独立维护 API；request-bound 内存压力会定量收缩/清空 L2、释放 thumbnail L1、淘汰无 lease solid materialization、清空 tree metadata/目录大小后台批次并停止新 L2/L3/background admission。方向 pin、archive/listing 字节核算与跨进程 lease 仍待实现；
+- 已接入 transform singleflight、96 MiB/单条 24 MiB 的 L2 weighted LRU，以及惰性 `cacache` L3；冷请求保持边响应边有界收集，L3 使用 opaque typed key、SHA-256 完整性、原子发布、active lease、字节/年龄/低磁盘策略和独立维护 API；request-bound 内存压力会定量收缩/清空 L2、释放 thumbnail L1、淘汰无 lease solid materialization、清空 tree metadata/目录大小后台批次并停止新 L2/L3/background admission。current/near presentation retention、archive/listing 逻辑字节核算与统一 cache lease diagnostics 已接入；current listing 预算降级、跨进程 lease 和真实 corpus 校准仍待实现；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
 - 继续把 archive、thumbnail、超分和其他高负载节点迁入宿主 scheduler，并补 queue/cache 指标与 benchmark；
 - 已以原 `%APPDATA%\NeoView\thumbnails.db` 接入惰性单 writer、批量命中、受保护 HTTP URL、Page/file/folder/video/归档内视频生成、失败退避与有界在线维护；已完成 SQLite 原生一致性备份、XR writer/维护进程锁、显式离线 checkpoint/optimize/vacuum、验证备份恢复、`data_version` 外部写失效和 V1/V3/V4 调度行为收口；继续补真实大规模基准；

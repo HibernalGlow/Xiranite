@@ -21,6 +21,14 @@ export interface SolidArchiveCacheOptions {
   maxBytes?: number
 }
 
+export interface SolidArchiveCacheSnapshot {
+  entries: number
+  retainedBytes: number
+  maxBytes: number
+  activeEntries: number
+  activeLeases: number
+}
+
 interface CacheEntry {
   fingerprint: string
   sourceIdentity: string
@@ -60,8 +68,16 @@ export class SolidArchiveCache implements AsyncDisposable {
     return total
   }
 
-  snapshot(): { entries: number; retainedBytes: number; maxBytes: number } {
-    return { entries: this.entryCount, retainedBytes: this.retainedBytes, maxBytes: this.#maxBytes }
+  snapshot(): SolidArchiveCacheSnapshot {
+    let retainedBytes = 0
+    let activeEntries = 0
+    let activeLeases = 0
+    for (const entry of this.#entries.values()) {
+      retainedBytes += entry.materializedBytes
+      if (entry.references > 0) activeEntries += 1
+      activeLeases += entry.references
+    }
+    return { entries: this.#entries.size, retainedBytes, maxBytes: this.#maxBytes, activeEntries, activeLeases }
   }
 
   async trimTo(maxBytes: number): Promise<{ evictedEntries: number; retainedBytes: number; activeEntries: number }> {

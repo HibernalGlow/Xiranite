@@ -643,6 +643,10 @@ function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArgum
   writeLine(host, `Reader diagnostics: sessions=${result.reader.activeSessions} uptime=${result.uptimeSeconds.toFixed(1)}s`)
   writeLine(host, `Process: rss=${result.process.rssBytes} heap=${result.process.heapUsedBytes}/${result.process.heapTotalBytes} external=${result.process.externalBytes}`)
   writeLine(host, `Assets: transforms=${result.assets.activeTransformFlights} L2=${result.assets.presentation?.bytes ?? 0} bytes thumbnails=${result.assets.thumbnails?.cachedBytes ?? 0} bytes`)
+  const cache = result.cache
+  writeLine(host, cache
+    ? `Cache totals: memory=${cache.memory.totalBytes} disk=${cache.disk.totalBytes} leases=${cache.leases.total} (L2=${cache.leases.presentationMemory} L3=${cache.leases.presentationDisk} solid=${cache.leases.solidArchive} thumbnails=${cache.leases.thumbnailDemands})`
+    : "Cache totals: unavailable")
   const pressure = result.assets.memoryPressure
   writeLine(host, pressure
     ? `Memory pressure: ${pressure.level} available=${pressure.availableBytes ?? "unknown"} reliefs=${pressure.elevatedReliefs}/${pressure.criticalReliefs} rejected=${pressure.admissionRejections}`
@@ -659,7 +663,7 @@ function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArgum
   writeLine(host, resources
     ? `Reader resources: archiveProviders=${resources.archiveProviders} indexEntries=${resources.archiveIndexEntries} indexBytes=${resources.archiveIndexPayloadBytes} activeExtractions=${resources.archiveActiveExtractions}`
     : "Reader resources: unavailable")
-  writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes}`)
+  writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes} active=${result.solidArchiveCache.activeLeases ?? 0}`)
   writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${schedulerPoolText(result.scheduler.cpu)} io=${schedulerPoolText(result.scheduler.io)} gpu=${schedulerPoolText(result.scheduler.gpu)}` : "unavailable in standalone CLI"}`)
 }
 

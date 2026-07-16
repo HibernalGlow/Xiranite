@@ -304,7 +304,7 @@ export async function createReaderDiagnosticsService(
     activeSessions: () => 0,
     assets: () => ({ activeTransformFlights: 0, presentation: null, thumbnails: null }),
     presentationDiskCache: () => cache.status(),
-    solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0 }),
+    solidArchiveCache: () => ({ entries: 0, retainedBytes: 0, maxBytes: 0, activeEntries: 0, activeLeases: 0 }),
     scheduler: typeof scheduler?.snapshot === "function" ? () => scheduler.snapshot!() : undefined,
     close: () => cache.close(),
   })

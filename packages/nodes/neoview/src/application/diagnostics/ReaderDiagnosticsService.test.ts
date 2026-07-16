@@ -10,11 +10,14 @@ describe("ReaderDiagnosticsService", () => {
       runtimeResources: () => ({ archiveProviders: 1, archiveIndexEntries: 8, archiveIndexPayloadBytes: 512, archiveActiveExtractions: 2 }),
       assets: () => ({
         activeTransformFlights: 1,
-        presentation: { entries: 3, bytes: 30, maxBytes: 100, maxEntryBytes: 50, hits: 4, misses: 2, evictions: 1 },
+        presentation: { entries: 3, bytes: 30, activeLeases: 2, maxBytes: 100, maxEntryBytes: 50, hits: 4, misses: 2, evictions: 1 },
         thumbnails: { demands: 2, activeFlights: 1, queuedFlights: 0, runningFlights: 1, cachedEntries: 4, cachedBytes: 40 },
       }),
-      presentationDiskCache: async () => ({ enabled: false }),
-      solidArchiveCache: () => ({ entries: 1, retainedBytes: 80, maxBytes: 200 }),
+      presentationDiskCache: async () => ({
+        enabled: true, entries: 5, bytes: 70, maxBytes: 500, maxEntryBytes: 100, activeLeases: 3,
+        hits: 1, misses: 2, writes: 3, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
+      }),
+      solidArchiveCache: () => ({ entries: 1, retainedBytes: 80, maxBytes: 200, activeEntries: 1, activeLeases: 4 }),
       scheduler: () => ({
         cpu: pool(1, 2), io: pool(0, 1), gpu: pool(0, 0),
       }),
@@ -34,7 +37,12 @@ describe("ReaderDiagnosticsService", () => {
       process: expect.objectContaining({ rssBytes: 100, heapUsedBytes: 50, availableMemoryBytes: 1_000, cpuUserMicros: 11 }),
       reader: { activeSessions: 2, runtimeResources: { archiveProviders: 1, archiveIndexEntries: 8, archiveIndexPayloadBytes: 512, archiveActiveExtractions: 2 } },
       assets: expect.objectContaining({ activeTransformFlights: 1, presentation: expect.objectContaining({ bytes: 30 }) }),
-      solidArchiveCache: { entries: 1, retainedBytes: 80, maxBytes: 200 },
+      cache: {
+        memory: { presentationBytes: 30, thumbnailBytes: 40, totalBytes: 70 },
+        disk: { presentationBytes: 70, solidArchiveBytes: 80, totalBytes: 150 },
+        leases: { presentationMemory: 2, presentationDisk: 3, solidArchive: 4, thumbnailDemands: 2, total: 11 },
+      },
+      solidArchiveCache: { entries: 1, retainedBytes: 80, maxBytes: 200, activeEntries: 1, activeLeases: 4 },
       scheduler: expect.objectContaining({ cpu: expect.objectContaining({ active: 1, queued: 2 }) }),
     }))
     await service.close()

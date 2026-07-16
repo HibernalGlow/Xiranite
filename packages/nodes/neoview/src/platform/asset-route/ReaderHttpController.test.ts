@@ -744,6 +744,11 @@ describe("ReaderHttpController", () => {
           presentation: { pinnedEntries: 1, activeLeases: 1 },
           presentationRetention: { sessions: 1, desiredPages: 2, retainedPresentations: 1 },
         },
+        cache: {
+          memory: { presentationBytes: bytes.byteLength, totalBytes: bytes.byteLength },
+          disk: { totalBytes: 0 },
+          leases: { presentationMemory: 1, presentationDisk: 0, solidArchive: 0, thumbnailDemands: 0, total: 1 },
+        },
       })
       expect((await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" })))?.status).toBe(200)
       await expect((await controller.handle(authorizedRequest("/reader/diagnostics")))!.json()).resolves.toMatchObject({
@@ -751,6 +756,7 @@ describe("ReaderHttpController", () => {
           presentation: { pinnedEntries: 0, activeLeases: 0 },
           presentationRetention: { sessions: 1, retainedPresentations: 0 },
         },
+        cache: { memory: { presentationBytes: bytes.byteLength }, leases: { total: 0 } },
       })
       expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
       await expect((await controller.handle(authorizedRequest("/reader/diagnostics")))!.json()).resolves.toMatchObject({
@@ -758,6 +764,7 @@ describe("ReaderHttpController", () => {
           presentation: { pinnedEntries: 0, activeLeases: 0 },
           presentationRetention: { sessions: 0, desiredPages: 0, retainedPresentations: 0 },
         },
+        cache: { memory: { totalBytes: 0 }, disk: { totalBytes: 0 }, leases: { total: 0 } },
       })
     } finally {
       await controller[Symbol.asyncDispose]()

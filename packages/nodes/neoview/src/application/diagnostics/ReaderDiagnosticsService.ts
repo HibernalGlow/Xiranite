@@ -5,6 +5,7 @@ import type { ReaderMemoryPressureSnapshot } from "../../platform/memory/ReaderM
 import type { ReaderPreloadDiagnostics } from "../preloading/PreloadTelemetry.js"
 import type { ReaderRuntimeResourceSnapshot } from "../../domain/book/book.js"
 import type { ReaderFileTreeMemorySnapshot } from "../browser/ReaderFileTreeService.js"
+import type { SolidArchiveCacheSnapshot } from "../../platform/archives/sevenzip/SolidArchiveCache.js"
 
 export interface ReaderSchedulerPoolDiagnostics {
   active: number
@@ -60,9 +61,30 @@ export interface ReaderDiagnosticsSnapshot {
     browserMemory?: ReaderFileTreeMemorySnapshot
   }
   assets: ReaderAssetDiagnostics
+  cache?: ReaderUnifiedCacheDiagnostics
   presentationDiskCache: ReaderCacheStatus
-  solidArchiveCache: { entries: number; retainedBytes: number; maxBytes: number }
+  solidArchiveCache: SolidArchiveCacheSnapshot
   scheduler: Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>> | null
+}
+
+export interface ReaderUnifiedCacheDiagnostics {
+  memory: {
+    presentationBytes: number
+    thumbnailBytes: number
+    totalBytes: number
+  }
+  disk: {
+    presentationBytes: number
+    solidArchiveBytes: number
+    totalBytes: number
+  }
+  leases: {
+    presentationMemory: number
+    presentationDisk: number
+    solidArchive: number
+    thumbnailDemands: number
+    total: number
+  }
 }
 
 export interface ReaderDiagnosticsSources {
@@ -72,7 +94,7 @@ export interface ReaderDiagnosticsSources {
   browserMemory?(): ReaderFileTreeMemorySnapshot
   assets(): ReaderAssetDiagnostics
   presentationDiskCache(): Promise<ReaderCacheStatus>
-  solidArchiveCache(): { entries: number; retainedBytes: number; maxBytes: number }
+  solidArchiveCache(): SolidArchiveCacheSnapshot
   scheduler?(): Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>>
   close?(): void | Promise<void>
   now?(): number
@@ -92,6 +114,9 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
     if (this.#closed) throw new Error("Reader diagnostics service is closed.")
     const memory = (this.sources.memoryUsage ?? process.memoryUsage)()
     const cpu = (this.sources.cpuUsage ?? process.cpuUsage)()
+    const assets = this.sources.assets()
+    const presentationDiskCache = await this.sources.presentationDiskCache()
+    const solidArchiveCache = this.sources.solidArchiveCache()
     return {
       schemaVersion: 1,
       sampledAtMs: (this.sources.now ?? Date.now)(),
@@ -113,9 +138,10 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
         runtimeResources: this.sources.runtimeResources?.(),
         browserMemory: this.sources.browserMemory?.(),
       },
-      assets: this.sources.assets(),
-      presentationDiskCache: await this.sources.presentationDiskCache(),
-      solidArchiveCache: this.sources.solidArchiveCache(),
+      assets,
+      cache: unifiedCacheDiagnostics(assets, presentationDiskCache, solidArchiveCache),
+      presentationDiskCache,
+      solidArchiveCache,
       scheduler: this.sources.scheduler?.() ?? null,
     }
   }
@@ -128,6 +154,38 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
 
   [Symbol.asyncDispose](): Promise<void> {
     return this.close()
+  }
+}
+
+function unifiedCacheDiagnostics(
+  assets: ReaderAssetDiagnostics,
+  presentationDiskCache: ReaderCacheStatus,
+  solidArchiveCache: SolidArchiveCacheSnapshot,
+): ReaderUnifiedCacheDiagnostics {
+  const presentationBytes = assets.presentation?.bytes ?? 0
+  const thumbnailBytes = assets.thumbnails?.cachedBytes ?? 0
+  const diskPresentationBytes = presentationDiskCache.enabled ? presentationDiskCache.bytes : 0
+  const presentationMemory = assets.presentation?.activeLeases ?? 0
+  const presentationDisk = presentationDiskCache.enabled ? presentationDiskCache.activeLeases : 0
+  const thumbnailDemands = assets.thumbnails?.demands ?? 0
+  return {
+    memory: {
+      presentationBytes,
+      thumbnailBytes,
+      totalBytes: presentationBytes + thumbnailBytes,
+    },
+    disk: {
+      presentationBytes: diskPresentationBytes,
+      solidArchiveBytes: solidArchiveCache.retainedBytes,
+      totalBytes: diskPresentationBytes + solidArchiveCache.retainedBytes,
+    },
+    leases: {
+      presentationMemory,
+      presentationDisk,
+      solidArchive: solidArchiveCache.activeLeases,
+      thumbnailDemands,
+      total: presentationMemory + presentationDisk + solidArchiveCache.activeLeases + thumbnailDemands,
+    },
   }
 }
 
