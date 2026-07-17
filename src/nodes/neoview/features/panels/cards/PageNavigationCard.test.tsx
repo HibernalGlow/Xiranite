@@ -57,13 +57,75 @@ describe("PageNavigationCard", () => {
     render(<PageNavigationCard {...context(clientWith({ listPageCatalog }))} />)
     await waitFor(() => expect(listPageCatalog).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole("button", { name: "带图列表" }))
-    await waitFor(() => expect(listPageCatalog).toHaveBeenLastCalledWith(
+    await waitFor(() => expect(screen.getByRole("button", { name: "带图列表" }).getAttribute("aria-pressed")).toBe("true"))
+    expect(listPageCatalog).toHaveBeenCalledTimes(1)
+    expect(listPageCatalog).toHaveBeenLastCalledWith(
       "reader-1",
       0,
       64,
-      { query: "", thumbnails: true },
+      { query: "", thumbnails: false },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it("[neoview.page-list.sparse-active] opens a 100K catalog around the active page instead of cursor zero", async () => {
+    const listPageCatalog = vi.fn(async (_sessionId: string, cursor: number, limit: number) => ({
+      pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)),
+      total: 100_000,
+    }))
+    render(<PageNavigationCard {...context(clientWith({ listPageCatalog }), 80_123, 100_000)} />)
+
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledWith(
+      "reader-1",
+      80_128 - 64,
+      64,
+      { query: "", thumbnails: false },
       expect.any(AbortSignal),
     ))
+    expect(listPageCatalog.mock.calls.some((call) => call[1] === 0)).toBe(false)
+  })
+
+  it("[neoview.page-list.follow-preview] previews without navigation and navigates every followed Slider change", async () => {
+    const listPageCatalog = vi.fn(async (_sessionId: string, cursor: number, limit: number) => ({
+      pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)),
+      total: 100,
+    }))
+    const onGoTo = vi.fn(async () => undefined)
+    const globalKeyDown = vi.fn()
+    const view = render(<div onKeyDown={globalKeyDown}><PageNavigationCard {...context(clientWith({ listPageCatalog }), 0, 100, onGoTo)} /></div>)
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledOnce())
+
+    fireEvent.click(screen.getByRole("button", { name: "跟随阅读进度" }))
+    fireEvent.keyDown(screen.getByRole("slider", { name: "页面位置" }), { key: "ArrowRight" })
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-page-list="true"]')?.getAttribute("data-preview-index")).toBe("1"))
+    expect(onGoTo).not.toHaveBeenCalled()
+    expect(globalKeyDown).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "跟随阅读进度" }))
+    fireEvent.keyDown(screen.getByRole("slider", { name: "页面位置" }), { key: "ArrowRight" })
+    await waitFor(() => expect(onGoTo).toHaveBeenCalledWith(1))
+  })
+
+  it("[neoview.page-list.keyboard] loads the target batch and activates a roving keyboard focus", async () => {
+    const listPageCatalog = vi.fn(async (_sessionId: string, cursor: number, limit: number) => ({
+      pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)),
+      total: 100,
+    }))
+    const onGoTo = vi.fn(async () => undefined)
+    const view = render(<PageNavigationCard {...context(clientWith({ listPageCatalog }), 0, 100, onGoTo)} />)
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledOnce())
+    const viewport = screen.getByRole("listbox", { name: "页面" })
+
+    fireEvent.keyDown(viewport, { key: "End" })
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledWith(
+      "reader-1", 64, 36, { query: "", thumbnails: false }, expect.any(AbortSignal),
+    ))
+    expect(view.container.querySelector('[data-neoview-page-list="true"]')?.getAttribute("data-focused-position")).toBe("99")
+    fireEvent.keyDown(viewport, { key: "Enter" })
+    await waitFor(() => expect(onGoTo).toHaveBeenCalledWith(99))
+
+    fireEvent.keyDown(view.container.querySelector('[data-neoview-page-list="true"]')!, { key: "f", ctrlKey: true })
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "搜索页面" }))
   })
 
   it("[neoview.page-list.shared-thumbnail] uses the shared contain-fit page surface", () => {
@@ -100,8 +162,8 @@ describe("PageNavigationCard", () => {
   })
 })
 
-function context(client: ReaderHttpClient) {
-  return { client, disabled: false, session: session(), onGoTo: vi.fn() }
+function context(client: ReaderHttpClient, activePageIndex = 0, totalPages = 1_000, onGoTo = vi.fn()) {
+  return { client, disabled: false, session: session(activePageIndex, totalPages), onGoTo }
 }
 
 function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {
@@ -112,21 +174,21 @@ function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {
   }
 }
 
-function session(): ReaderSessionDto {
+function session(activePageIndex = 0, totalPages = 1_000): ReaderSessionDto {
   return {
     sessionId: "reader-1",
-    book: { id: "book-1", displayName: "book.cbz", pageCount: 1_000 },
+    book: { id: "book-1", displayName: "book.cbz", pageCount: totalPages },
     frame: {
       generation: 1,
-      anchorPageIndex: 0,
+      anchorPageIndex: activePageIndex,
       direction: "left-to-right",
       layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
-      pages: [{ pageId: "page-0", pageIndex: 0, side: "single" }],
-      pageCount: 1_000,
-      atStart: true,
-      atEnd: false,
+      pages: [{ pageId: `page-${activePageIndex}`, pageIndex: activePageIndex, side: "single" }],
+      pageCount: totalPages,
+      atStart: activePageIndex === 0,
+      atEnd: activePageIndex === totalPages - 1,
     },
-    visiblePages: [page(0)],
+    visiblePages: [page(activePageIndex)],
   }
 }
 

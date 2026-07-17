@@ -65,9 +65,11 @@ test.afterAll(async () => {
 test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
+  const pageCatalogRequests: string[] = []
   page.on("request", (request) => {
     if (request.url().includes("/page-media-information")) pageMediaInformationRequests += 1
     if (request.url().endsWith("/reader/diagnostics")) diagnosticsRequests += 1
+    if (/\/reader\/s\/[^/]+\/pages\?/.test(request.url())) pageCatalogRequests.push(request.url())
   })
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
@@ -179,9 +181,52 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   expect((await deleteListResponse).status()).toBe(204)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 
+  const pageCatalogRequestBaseline = pageCatalogRequests.length
   await sidebar.getByRole("button", { name: "页面列表", exact: true }).click()
   const pageListCard = sidebar.locator('[data-reader-card="页面导航"]')
+  const pageListContent = pageListCard.locator('[data-neoview-page-list="true"]')
   await expect(pageListCard).toBeVisible()
+  await expect.poll(() => pageCatalogRequests.length).toBeGreaterThan(pageCatalogRequestBaseline)
+  expect(pageCatalogRequests.slice(pageCatalogRequestBaseline).some((url) => {
+    const query = new URL(url).searchParams
+    return query.get("limit") === "12" && query.get("thumbnails") === "0"
+  })).toBe(true)
+
+  const followButton = pageListCard.getByRole("button", { name: "跟随阅读进度" })
+  await followButton.click()
+  await expect(followButton).toHaveAttribute("aria-pressed", "false")
+  const pageSlider = pageListCard.getByRole("slider", { name: "页面位置" })
+  await pageSlider.press("ArrowRight")
+  await expect(pageListContent).toHaveAttribute("data-preview-index", "1")
+  await expect(pageListCard.getByRole("option", { name: /转到第 2 页/ })).toHaveAttribute("aria-selected", "true")
+  await expect(readerImage).toBeVisible()
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+
+  await followButton.click()
+  await expect(followButton).toHaveAttribute("aria-pressed", "true")
+  const sliderRoot = pageSlider.locator("..")
+  const sliderBox = await sliderRoot.boundingBox()
+  const sliderThumbBox = await pageSlider.boundingBox()
+  expect(sliderBox).not.toBeNull()
+  expect(sliderThumbBox).not.toBeNull()
+  await page.mouse.move(sliderThumbBox!.x + sliderThumbBox!.width / 2, sliderThumbBox!.y + sliderThumbBox!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sliderBox!.x + sliderBox!.width * 0.7, sliderBox!.y + sliderBox!.height / 2, { steps: 8 })
+  await page.mouse.up()
+  await expect.poll(async () => Number(await pageSlider.getAttribute("aria-valuenow"))).toBeGreaterThan(0)
+  const followedPageIndex = Number(await pageSlider.getAttribute("aria-valuenow"))
+  await expect(page.locator(`img[alt="${String(followedPageIndex + 1).padStart(3, "0")}.png"]`)).toBeVisible()
+  const movedThumbBox = await pageSlider.boundingBox()
+  await page.mouse.move(movedThumbBox!.x + movedThumbBox!.width / 2, movedThumbBox!.y + movedThumbBox!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sliderBox!.x + 1, sliderBox!.y + sliderBox!.height / 2, { steps: 8 })
+  await page.mouse.up()
+  await expect(readerImage).toBeVisible()
+  await readerImage.evaluate((node) => node.setAttribute("data-library-page-card-image", "stable"))
+
+  await pageListCard.getByRole("listbox", { name: "页面" }).press("Control+f")
+  await expect(pageListCard.getByRole("textbox", { name: "搜索页面" })).toBeFocused()
+  const catalogRequestsBeforeImageModes = pageCatalogRequests.length
   await pageListCard.getByRole("button", { name: "带图列表" }).click()
   await expect(pageListCard.locator('[data-neoview-page-list="true"]')).toHaveAttribute("data-page-list-mode", "details")
   await expect(pageListCard.locator('[data-reader-entry-surface="true"]').first()).toHaveAttribute("data-entry-variant", "content")
@@ -199,6 +244,10 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const gridThumbnailBox = await pageListCard.locator('[data-page-thumbnail-tile]').first().locator('[data-reader-thumbnail-surface="true"]').boundingBox()
   expect(gridThumbnailBox).not.toBeNull()
   expect(Math.abs(gridThumbnailBox!.width / gridThumbnailBox!.height - 0.75)).toBeLessThan(0.03)
+  expect(pageCatalogRequests.length).toBe(catalogRequestsBeforeImageModes)
+  expect(pageCatalogRequests.slice(pageCatalogRequestBaseline)
+    .filter((url) => new URL(url).searchParams.get("limit") === "12")
+    .every((url) => new URL(url).searchParams.get("thumbnails") === "0")).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   expect(await pageListCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await pageListCard.screenshot({ path: testInfo.outputPath(`neoview-page-list-thumbnails-${testInfo.project.name}.png`) })
