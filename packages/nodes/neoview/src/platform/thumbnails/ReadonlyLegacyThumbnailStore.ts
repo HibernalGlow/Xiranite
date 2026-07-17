@@ -1,3 +1,5 @@
+import pMap from "p-map"
+
 import { openReadonlySqlite, type ReadonlySqliteConnection, type SqliteBinding } from "../sqlite/openReadonlySqlite.js"
 import {
   inspectLegacyThumbnailDatabase,
@@ -101,7 +103,10 @@ export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, Async
       `SELECT key, size, date, ghash, category, value FROM thumbs WHERE category = ?1 AND value IS NOT NULL AND key IN (${placeholders})`,
       ...bindings,
     )
-    const records = await mapConcurrent(rows, this.#decodeConcurrency, (row) => this.#decodeRow(row))
+    const records = await pMap(rows, (row) => this.#decodeRow(row), {
+      concurrency: this.#decodeConcurrency,
+      stopOnError: true,
+    })
     return new Map(records.map((record) => [record.key, record]))
   }
 
@@ -133,22 +138,6 @@ export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, Async
   #assertOpen(): void {
     if (this.#closed) throw new Error("Legacy thumbnail store is closed.")
   }
-}
-
-async function mapConcurrent<T, R>(
-  values: readonly T[],
-  concurrency: number,
-  map: (value: T) => Promise<R>,
-): Promise<R[]> {
-  const output = new Array<R>(values.length)
-  let cursor = 0
-  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-    while (cursor < values.length) {
-      const index = cursor++
-      output[index] = await map(values[index]!)
-    }
-  }))
-  return output
 }
 
 function assertKey(value: string): void {

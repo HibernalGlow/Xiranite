@@ -9,6 +9,7 @@ import type {
 } from "../../ports/ReaderThumbnailStore.js"
 import { stat } from "node:fs/promises"
 import { isAbsolute, parse, resolve } from "node:path"
+import pMap from "p-map"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
 import { SqliteDataVersionTracker } from "../sqlite/SqliteDataVersionTracker.js"
 import { inspectLegacyThumbnailDatabase, type LegacyThumbnailDatabaseReport } from "./LegacyThumbnailDatabaseInspector.js"
@@ -147,7 +148,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
       category,
       ...unique,
     )
-    const records = await mapConcurrent(rows, this.#decodeConcurrency, async (row): Promise<LegacyThumbnailRecord> => {
+    const records = await pMap(rows, async (row): Promise<LegacyThumbnailRecord> => {
       const bytes = requireBytes(row.value, "thumbs.value")
       return {
         key: requireString(row.key, "thumbs.key"),
@@ -157,7 +158,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
         generationHash: optionalInteger(row.ghash),
         ...await decodeLegacyThumbnailBlob(bytes, this.#maxThumbnailBytes),
       }
-    })
+    }, { concurrency: this.#decodeConcurrency, stopOnError: true })
     const output = new Map(records.map((record) => [record.key, record]))
     const requested = new Set(unique)
     for (const item of this.#pending) {
@@ -325,7 +326,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     const invalid: string[] = []
     const roots = new Map<string, ThumbnailPathState>()
     let unavailableVolumeRowsPreserved = 0
-    await mapConcurrent(keys, 32, async (key) => {
+    await pMap(keys, async (key) => {
       signal?.throwIfAborted()
       const source = thumbnailSourcePath(key)
       if (!source) {
@@ -347,7 +348,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
       signal?.throwIfAborted()
       if (sourceState === "missing") invalid.push(key)
       else if (sourceState === "unavailable") unavailableVolumeRowsPreserved += 1
-    })
+    }, { concurrency: 32, stopOnError: true })
     signal?.throwIfAborted()
     const deleteKeys = invalid.slice(0, options.deleteLimit)
     const deleted = deleteKeys.length ? await this.#runTransaction(() => {
@@ -599,16 +600,4 @@ function thumbnailSourcePath(key: string): string | undefined {
   const separator = trimmed.indexOf("::")
   const source = separator >= 0 ? trimmed.slice(0, separator) : trimmed
   return isAbsolute(source) ? resolve(source) : undefined
-}
-
-async function mapConcurrent<T, R>(values: readonly T[], concurrency: number, map: (value: T) => Promise<R>): Promise<R[]> {
-  const output = new Array<R>(values.length)
-  let cursor = 0
-  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-    while (cursor < values.length) {
-      const index = cursor++
-      output[index] = await map(values[index]!)
-    }
-  }))
-  return output
 }

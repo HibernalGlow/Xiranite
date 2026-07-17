@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto"
 import type { ThumbnailAsset, ThumbnailLease } from "@xiranite/services/thumbnail-coordinator"
+import pMap from "p-map"
 
 import {
   PlatformThumbnailPipeline,
@@ -78,10 +79,10 @@ export class LibraryThumbnailRoute {
 
     let described: Array<{ item: RegistrationItem; source: LibraryThumbnailSource }>
     try {
-      described = await mapConcurrent(parsed.items, 16, async (item) => ({
+      described = await pMap(parsed.items, async (item) => ({
         item,
         source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount),
-      }))
+      }), { concurrency: 16, stopOnError: true })
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: "One or more thumbnail sources are unavailable or have the wrong kind" }, 400)
@@ -237,18 +238,6 @@ async function readJson(request: Request): Promise<Record<string, unknown> | und
   const length = Number(request.headers.get("content-length") ?? 0)
   if (Number.isFinite(length) && length > 256 * 1024) return undefined
   return request.json().catch(() => undefined) as Promise<Record<string, unknown> | undefined>
-}
-
-async function mapConcurrent<T, R>(values: readonly T[], concurrency: number, map: (value: T) => Promise<R>): Promise<R[]> {
-  const output = new Array<R>(values.length)
-  let cursor = 0
-  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-    while (cursor < values.length) {
-      const index = cursor++
-      output[index] = await map(values[index]!)
-    }
-  }))
-  return output
 }
 
 function thumbnailEtag(record: LibraryAssetRecord, asset: ThumbnailAsset): string {
