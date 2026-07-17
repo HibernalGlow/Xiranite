@@ -78,10 +78,13 @@ import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCach
 import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 import {
   parseNeoviewFolderViewPatch,
+  DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG,
+  DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG,
   DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
   DEFAULT_NEOVIEW_MEDIA_CONFIG,
+  DEFAULT_NEOVIEW_PAGE_LIST_CONFIG,
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
@@ -89,6 +92,9 @@ import {
   parseNeoviewSidebarLayoutPatch,
   parseNeoviewSlideshowPatch,
   parseNeoviewMediaPatch,
+  parseNeoviewBookmarkListPatch,
+  parseNeoviewHistoryListPatch,
+  parseNeoviewPageListPatch,
   parseNeoviewViewDefaultsPatch,
   type NeoviewSlideshowConfig,
   type NeoviewSlideshowPatch,
@@ -98,6 +104,12 @@ import {
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
   type NeoviewViewDefaultsPatch,
+  type NeoviewBookmarkListConfig,
+  type NeoviewBookmarkListPatch,
+  type NeoviewHistoryListConfig,
+  type NeoviewHistoryListPatch,
+  type NeoviewPageListConfig,
+  type NeoviewPageListPatch,
   type NeoviewFolderViewConfig,
   type NeoviewFolderViewPatch,
   type NeoviewFileTreeConfig,
@@ -184,6 +196,12 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
   updateViewDefaults?: (patch: NeoviewViewDefaultsPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewViewDefaults>
+  pageList?: NeoviewPageListConfig
+  updatePageList?: (patch: NeoviewPageListPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewPageListConfig>
+  bookmarkList?: NeoviewBookmarkListConfig
+  updateBookmarkList?: (patch: NeoviewBookmarkListPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewBookmarkListConfig>
+  historyList?: NeoviewHistoryListConfig
+  updateHistoryList?: (patch: NeoviewHistoryListPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewHistoryListConfig>
   folderView?: NeoviewFolderViewConfig
   updateFolderView?: (patch: NeoviewFolderViewPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewFolderViewConfig>
   fileTree?: NeoviewFileTreeConfig
@@ -239,6 +257,9 @@ export class ReaderHttpController implements AsyncDisposable {
   #shellOptions: NeoviewShellConfig
   #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
+  #pageList: NeoviewPageListConfig
+  #bookmarkList: NeoviewBookmarkListConfig
+  #historyList: NeoviewHistoryListConfig
   #folderView: NeoviewFolderViewConfig
   #slideshow: NeoviewSlideshowConfig
   #media: NeoviewMediaConfig
@@ -246,6 +267,9 @@ export class ReaderHttpController implements AsyncDisposable {
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
+  readonly #updatePageList?: ReaderHttpControllerOptions["updatePageList"]
+  readonly #updateBookmarkList?: ReaderHttpControllerOptions["updateBookmarkList"]
+  readonly #updateHistoryList?: ReaderHttpControllerOptions["updateHistoryList"]
   readonly #updateFolderView?: ReaderHttpControllerOptions["updateFolderView"]
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   readonly #updateMedia?: ReaderHttpControllerOptions["updateMedia"]
@@ -387,7 +411,7 @@ export class ReaderHttpController implements AsyncDisposable {
       return new ReaderFileOperationService(new PlatformReaderFileMutationProvider({ scheduler: options.resourceScheduler }), {
         journal: options.fileUndoJournalStore,
       })
-    })
+    }, (sessionId, descriptor, signal) => this.#directoryBrowser.resolveSelection(sessionId, descriptor, signal))
     this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
       const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")
       const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
@@ -431,6 +455,9 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#baseUrl = options.baseUrl.replace(/\/$/, "")
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
     this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
+    this.#pageList = options.pageList ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG
+    this.#bookmarkList = options.bookmarkList ?? DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG
+    this.#historyList = options.historyList ?? DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG
     this.#folderView = options.folderView ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
     this.#media = initialMedia
@@ -438,6 +465,9 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
+    this.#updatePageList = options.updatePageList
+    this.#updateBookmarkList = options.updateBookmarkList
+    this.#updateHistoryList = options.updateHistoryList
     this.#updateFolderView = options.updateFolderView
     this.#updateSlideshow = options.updateSlideshow
     this.#updateMedia = options.updateMedia
@@ -561,6 +591,11 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#assets.close()
     this.#libraryThumbnails.close()
     const errors: unknown[] = []
+    try {
+      await this.#fileOperations[Symbol.asyncDispose]()
+    } catch (error) {
+      errors.push(error)
+    }
     try {
       await this.#directoryBrowser[Symbol.asyncDispose]()
     } catch (error) {
@@ -741,6 +776,69 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "historyList")) {
+      if (!this.#updateHistoryList) return jsonResponse({ error: "Reader history list config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewHistoryListPatch>
+      try {
+        parsed = parseNeoviewHistoryListPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewHistoryListConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateHistoryList!(parsed.patch, parsed.tomlPatch)
+        this.#historyList = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    if (Object.hasOwn(body, "bookmarkList")) {
+      if (!this.#updateBookmarkList) return jsonResponse({ error: "Reader bookmark list config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewBookmarkListPatch>
+      try {
+        parsed = parseNeoviewBookmarkListPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewBookmarkListConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateBookmarkList!(parsed.patch, parsed.tomlPatch)
+        this.#bookmarkList = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    if (Object.hasOwn(body, "pageList")) {
+      if (!this.#updatePageList) return jsonResponse({ error: "Reader page list config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewPageListPatch>
+      try {
+        parsed = parseNeoviewPageListPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewPageListConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updatePageList!(parsed.patch, parsed.tomlPatch)
+        this.#pageList = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "viewDefaults")) {
       if (!this.#updateViewDefaults) return jsonResponse({ error: "Reader view defaults are read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewViewDefaultsPatch>
@@ -831,6 +929,9 @@ export class ReaderHttpController implements AsyncDisposable {
       schemaVersion: 1 as const,
       shell: { ...this.#shellOptions, revision: this.#shellRevision },
       viewDefaults: this.#viewDefaults,
+      pageList: this.#pageList,
+      bookmarkList: this.#bookmarkList,
+      historyList: this.#historyList,
       folderView: this.#folderView,
       slideshow: this.#slideshow,
       media: this.#media,

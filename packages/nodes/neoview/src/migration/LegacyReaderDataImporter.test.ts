@@ -43,8 +43,8 @@ describe("LegacyReaderDataImporter", () => {
 function dataStore() {
   return {
     importData: vi.fn<ReaderDataStore["importData"]>(),
-    get: vi.fn(), save: vi.fn(), listRecent: vi.fn(), deleteRecent: vi.fn(), deleteRecentBatch: vi.fn(), deleteOldestRecent: vi.fn(), clearRecentBefore: vi.fn(), clearByPathPrefix: vi.fn(),
-    listBookmarks: vi.fn(), upsertBookmark: vi.fn(), updateBookmarkBatch: vi.fn(), deleteBookmark: vi.fn(), deleteBookmarkBatch: vi.fn(), listBookmarkLists: vi.fn(),
+    get: vi.fn(), save: vi.fn(), listRecent: vi.fn(), deleteRecent: vi.fn(), deleteRecentBatch: vi.fn(), deleteOldestRecent: vi.fn(), clearRecentBefore: vi.fn(), clearByPathPrefix: vi.fn(), clearAll: vi.fn(),
+    listBookmarks: vi.fn(), upsertBookmark: vi.fn(), updateBookmarkBatch: vi.fn(), deleteBookmark: vi.fn(), deleteBookmarkBatch: vi.fn(), deleteOldestBookmark: vi.fn(), clearBookmarkBefore: vi.fn(), listBookmarkLists: vi.fn(),
     upsertBookmarkList: vi.fn(), deleteBookmarkList: vi.fn(), close: vi.fn(), [Symbol.asyncDispose]: vi.fn(),
   }
 }

@@ -57,6 +57,10 @@ export interface ReaderOldestRecentCleanupResult extends ReaderRecentBatchRemove
   selectedIds: readonly string[]
 }
 
+export interface ReaderOldestBookmarkCleanupResult extends ReaderBookmarkBatchRemoveResult {
+  selectedIds: readonly string[]
+}
+
 export class ReaderLibraryService implements AsyncDisposable {
   #closed = false
 
@@ -106,10 +110,25 @@ export class ReaderLibraryService implements AsyncDisposable {
     return this.store.clearByPathPrefix(collection, normalizeFolderCleanupPath(folderPath))
   }
 
+  clearAll(collection: "recents" | "bookmarks"): Promise<number> {
+    this.#assertOpen()
+    if (collection !== "recents" && collection !== "bookmarks") {
+      throw new Error("Reader library collection is invalid.")
+    }
+    return this.store.clearAll(collection)
+  }
+
   listBookmarks(query: Partial<ReaderBookmarkQuery> = {}): Promise<readonly ReaderBookmarkRecord[]> {
     this.#assertOpen()
     const listId = query.listId?.trim()
     return this.store.listBookmarks({ ...normalizePage(query), ...(listId ? { listId } : {}) })
+  }
+
+  findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined> {
+    this.#assertOpen()
+    const normalized = path.trim()
+    if (!normalized || normalized.includes("\0")) throw new Error("Reader bookmark path must not be empty.")
+    return this.store.findBookmarkByPath(normalized)
   }
 
   async saveBookmark(input: SaveReaderBookmarkInput): Promise<ReaderBookmarkRecord> {
@@ -219,6 +238,20 @@ export class ReaderLibraryService implements AsyncDisposable {
     const normalized = normalizeBatchIds(ids, "bookmark")
     signal?.throwIfAborted()
     return this.store.deleteBookmarkBatch(normalized)
+  }
+
+  async removeOldestBookmarks(limit: number, signal?: AbortSignal): Promise<ReaderOldestBookmarkCleanupResult> {
+    this.#assertOpen()
+    const normalizedLimit = normalizeCleanupLimit(limit)
+    signal?.throwIfAborted()
+    const result = await this.store.deleteOldestBookmark(normalizedLimit)
+    return { ...result, missingIds: [] }
+  }
+
+  clearBookmarksBefore(timestamp: number, limit = 500): Promise<number> {
+    this.#assertOpen()
+    assertTimestamp(timestamp, "timestamp")
+    return this.store.clearBookmarkBefore(timestamp, normalizeLimit(limit, 500))
   }
 
   async listBookmarkLists(): Promise<readonly (ReaderBookmarkListRecord & { system?: boolean })[]> {

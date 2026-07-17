@@ -131,6 +131,39 @@ describe("NeoView CLI", () => {
     expect(dispose).toHaveBeenCalledTimes(2)
   })
 
+  it("[neoview.folder.emm-tags-cli] reuses shared EMM suggestions with bounded output and disposal", async () => {
+    const dispose = vi.fn(async () => undefined)
+    const suggestEmmTags = vi.fn(async () => [
+      { category: "artist", tag: "Alice", favorite: true, translatedTag: "爱丽丝" },
+      { category: "genre", tag: "Comedy", favorite: false },
+    ])
+    const controller = {
+      suggestEmmTags,
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderFileTreeHeadlessController
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createFileTreeController: async () => controller,
+    }
+
+    const jsonOutput: unknown[] = []
+    await runProgram(["folder-emm-tags", "--limit", "2", "--database", "private/thumbnails.db", "--json"], host(jsonOutput), dependencies)
+    expect(JSON.parse(jsonOutput.join(""))).toEqual({ suggestions: [
+      { category: "artist", tag: "Alice", favorite: true, translatedTag: "爱丽丝" },
+      { category: "genre", tag: "Comedy", favorite: false },
+    ] })
+    expect(suggestEmmTags).toHaveBeenLastCalledWith(2)
+
+    const textOutput: unknown[] = []
+    await runProgram(["folder-emm-tags"], host(textOutput), dependencies)
+    expect(textOutput.join("")).toContain("artist:Alice\tfavorite\t爱丽丝")
+    expect(textOutput.join("")).toContain("genre:Comedy\tcatalog")
+    expect(suggestEmmTags).toHaveBeenLastCalledWith(8)
+
+    await expect(runProgram(["folder-emm-tags", "--limit", "33"], host([]), dependencies)).rejects.toThrow("1 to 32")
+    expect(dispose).toHaveBeenCalledTimes(2)
+  })
+
   it("[neoview.folder.search-history-import-cli] inspects and imports legacy history through the dedicated importer", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-search-history-cli-"))
     const inputPath = join(directory, "settings.json")

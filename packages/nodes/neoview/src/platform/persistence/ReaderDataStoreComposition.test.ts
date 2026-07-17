@@ -173,6 +173,40 @@ describe("Reader data store composition", () => {
     verified.close()
   })
 
+  it("[neoview.history.cleanup-oldest-composition] deletes the oldest SQLite recents through authenticated HTTP", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-reader-history-cleanup-"))
+    roots.push(root)
+    const databasePath = join(root, "thumbnails.db")
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:43127",
+      token: "runtime-token",
+      configPath: join(root, "missing.toml"),
+      legacyThumbnailDatabasePath: databasePath,
+    })
+    try {
+      const database = await openDatabase(databasePath)
+      database.exec(`
+        INSERT INTO xr_reader_progress (book_id, source_json, display_name, page_index, page_count, updated_at) VALUES
+          ('latest', '{"kind":"archive","path":"D:/latest.cbz"}', 'Latest', 0, 1, 300),
+          ('old-b', '{"kind":"archive","path":"D:/old-b.cbz"}', 'Old B', 0, 1, 100),
+          ('old-a', '{"kind":"archive","path":"D:/old-a.cbz"}', 'Old A', 0, 1, 100);
+      `)
+      database.close()
+
+      const cleanup = await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "oldest", limit: 2 }))
+      expect(cleanup?.status).toBe(200)
+      await expect(cleanup!.json()).resolves.toEqual({
+        selectedIds: ["old-a", "old-b"],
+        deleted: 2,
+        missingIds: [],
+      })
+      const remaining = await controller.handle(authorized("/reader/library/recents?limit=10"))
+      await expect(remaining!.json()).resolves.toEqual({ items: [expect.objectContaining({ bookId: "latest", updatedAt: 300 })] })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.emm-headless-disabled] keeps ordinary browsing available without opening Reader SQLite", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-reader-folder-emm-disabled-"))
     roots.push(root)

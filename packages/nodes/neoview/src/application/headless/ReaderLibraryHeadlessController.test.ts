@@ -36,6 +36,12 @@ describe("ReaderLibraryHeadlessController", () => {
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 20, offset: 5 })
     await controller.clearByFolder("bookmarks", "D:\\Books")
     expect(store.clearByPathPrefix).toHaveBeenCalledWith("bookmarks", "d:/books")
+    await controller.removeOldestBookmarks(2)
+    await controller.clearBookmarksBefore(100, 20)
+    await controller.clearAll("recents")
+    expect(store.deleteOldestBookmark).toHaveBeenCalledWith(2)
+    expect(store.clearBookmarkBefore).toHaveBeenCalledWith(100, 20)
+    expect(store.clearAll).toHaveBeenCalledWith("recents")
     await controller.close()
     await controller.close()
     expect(store.close).toHaveBeenCalledOnce()
@@ -51,6 +57,7 @@ function fakeStore(): ReaderLibraryStore {
     deleteOldestRecent: vi.fn(async () => ({ selectedIds: [], deleted: 0 })),
     clearRecentBefore: vi.fn(async () => 0),
     clearByPathPrefix: vi.fn(async () => 0),
+    clearAll: vi.fn(async () => 0),
     listBookmarks: vi.fn(async () => []),
     findBookmarkByPath: vi.fn(async () => undefined),
     upsertBookmark: vi.fn(async () => undefined),
@@ -58,6 +65,8 @@ function fakeStore(): ReaderLibraryStore {
     updateBookmarkBatch: vi.fn(async () => ({ items: [], missingIds: [] })),
     deleteBookmark: vi.fn(async () => false),
     deleteBookmarkBatch: vi.fn(async () => ({ deleted: 0, missingIds: [] })),
+    deleteOldestBookmark: vi.fn(async () => ({ selectedIds: [], deleted: 0 })),
+    clearBookmarkBefore: vi.fn(async () => 0),
     listBookmarkLists: vi.fn(async () => []),
     upsertBookmarkList: vi.fn(async () => undefined),
     deleteBookmarkList: vi.fn(async () => false),
