@@ -98,6 +98,14 @@ export class ReaderLibraryService implements AsyncDisposable {
     return this.store.clearRecentBefore(timestamp, normalizeLimit(limit, 500))
   }
 
+  clearByFolder(collection: "recents" | "bookmarks", folderPath: string): Promise<number> {
+    this.#assertOpen()
+    if (collection !== "recents" && collection !== "bookmarks") {
+      throw new Error("Reader library collection is invalid.")
+    }
+    return this.store.clearByPathPrefix(collection, normalizeFolderCleanupPath(folderPath))
+  }
+
   listBookmarks(query: Partial<ReaderBookmarkQuery> = {}): Promise<readonly ReaderBookmarkRecord[]> {
     this.#assertOpen()
     const listId = query.listId?.trim()
