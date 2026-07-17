@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderBookmarkDto, ReaderHttpClient, SaveReaderBookmarkDto } from "../../../adapters/reader-http-client"
+import { publishReaderLibraryMutation } from "../../library/reader-library-mutations"
 import BookmarkListCard from "./BookmarkListCard"
 import HistoryListCard from "./HistoryListCard"
 
@@ -327,6 +328,52 @@ describe("Reader library cards", () => {
 
     view.unmount()
     await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(expect.stringMatching(/^bookmark:/)))
+  })
+
+  it("[neoview.bookmark.thumbnail-visible] keeps the visible thumbnail demand when list metadata refresh resolves late", async () => {
+    const bookmark: ReaderBookmarkDto = {
+      id: "bookmark-late-list",
+      source: { kind: "archive", path: "D:/books/late-list.cbz" },
+      name: "late-list.cbz",
+      kind: "file",
+      starred: false,
+      createdAt: 1_700_000_000_000,
+      updatedAt: 1_700_000_100_000,
+      listIds: [],
+    }
+    const lists = [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }]
+    let resolveMetadataRefresh: ((value: typeof lists) => void) | undefined
+    const listBookmarkLists = vi.fn()
+      .mockResolvedValueOnce(lists)
+      .mockImplementationOnce(() => new Promise<typeof lists>((resolve) => { resolveMetadataRefresh = resolve }))
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number) => ({
+      contextId,
+      generation,
+      items: [{ id: bookmark.id, thumbnailUrl: "/reader/library/bookmark-late-list", contentVersion: "v1" }],
+    }))
+    const view = render(
+      <BookmarkListCard
+        client={{
+          listBookmarkLists,
+          listBookmarks: vi.fn(async () => [bookmark]),
+          registerLibraryThumbnails,
+          releaseLibraryThumbnailContext: vi.fn(async () => undefined),
+        } as ReaderHttpClient}
+        disabled={false}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await screen.findByText("late-list.cbz")
+    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(1))
+    publishReaderLibraryMutation()
+    await waitFor(() => expect(listBookmarkLists).toHaveBeenCalledTimes(2))
+    resolveMetadataRefresh?.(lists)
+
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-visible-bookmarks")).toBe("1"))
+    expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-thumbnail-items")).toBe("1")
   })
 
   it("[neoview.bookmark.list-management] creates, renames, favorites and deletes custom lists without prompt state", async () => {
