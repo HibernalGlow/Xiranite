@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=39`，`complete=11`，`pending=24`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=37`，`complete=13`，`pending=24`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -643,16 +643,16 @@
 
 ### selection（4）
 
-- [ ] `folder.select.basic` 单选、Ctrl/Meta toggle 与焦点项
+- [x] `folder.select.basic` 单选、Ctrl/Meta toggle 与焦点项
   - 目标：单击单选，Ctrl/Meta 切换，focused item 与 selected set 分离，虚拟化卸载不丢身份。
   - 源码：`stores/folderPanelStore/selectionState.svelte.ts`、`components/FolderListItem.svelte`
-  - 测试：`neoview.folder.selection-basic`
-  - 备注：当前基础单选和 Ctrl/Meta 已有。
-- [ ] `folder.select.range` Shift 范围与链式选择
+  - 测试：`neoview.folder.selection-basic`、`neoview.folder.selection-focus-identity`、`neoview.folder.selection-virtual-e2e`、`neoview.folder.selection-tab-isolation-e2e`
+  - 备注：单击单选与 Ctrl/Meta toggle 使用同一有界 DirectorySelectionModel，focused path/index 与 selected ranges/explicit identities 分离。键盘跳到未加载全局 index 后按需请求分页，页返回时补齐稳定 focusedPath；可见行通过 browser-session + global-index ID 连接 aria-activedescendant。desktop 与 420x360 Chromium 在 260 项真实目录中验证首行被 Virtuoso 卸载、Ctrl+End 只移动焦点、Ctrl+Home 后原路径仍选中，活动阅读图片不重挂；list/grid/details 共用 loaded-path 投影，普通视图仍只处理当前目录 catalog，Folder Tree 不参与选择。
+- [x] `folder.select.range` Shift 范围与链式选择
   - 目标：Shift 以稳定 anchor index 范围选择；链式选择按标签隔离，跨未加载分页也正确。
   - 源码：`stores/chainSelectStore.svelte.ts`、`components/FolderStack/FolderSelectionHandler.ts`
-  - 测试：`neoview.folder.selection-range-sparse`、`neoview.folder.selection-range-ui`、`neoview.folder.selection-chain`、`neoview.folder.selection-chain-mode`、`neoview.folder.selection-chain-ui`
-  - 备注：当前使用索引区间 + 少量显式路径表达 Shift/Ctrl+Shift 选择；100K 范围不物化路径，list/grid/details 共用同一 selection model。SelectionBar 已支持独立链选开关和逐次推进 anchor；真正多标签隔离仍待标签宿主迁移。
+  - 测试：`neoview.folder.selection-range-sparse`、`neoview.folder.selection-range-ui`、`neoview.folder.selection-chain`、`neoview.folder.selection-chain-mode`、`neoview.folder.selection-chain-ui`、`neoview.folder.selection-focus-identity`、`neoview.folder.selection-virtual-e2e`、`neoview.folder.selection-tab-isolation-e2e`
+  - 备注：Shift/Ctrl+Shift 使用规范化全局索引区间 + 少量显式端点，不加载或物化范围内全部路径；100K 全范围仍为一个区间。链选模式按 FolderBrowserPane/标签隔离，独立 anchor 每次点击后推进，切到新标签时选择栏和 anchor 均为空，切回原标签完整恢复；复制标签只复制有界快照，后续状态继续隔离。desktop 与 420x360 Chromium 验证跨未加载分页 Shift+End、A/B 标签链选隔离和活动阅读图片稳定。链选与点击行为按钮公开 aria-pressed，FolderSelectionBar 保持独立延迟 chunk 1,746 bytes；FolderMainCard 为 32,734 bytes，NeoView entry 为 30,005 bytes，首屏 NeoView 模块为 0。
 - [ ] `folder.select.bulk` 全选、反选、取消与选择栏
   - 目标：全选/反选/取消作用于稳定 catalog，SelectionBar 显示数量与批量动作；大目录避免物化百万路径。
   - 源码：`components/SelectionBar.svelte`、`stores/folderPanelStore/selectionState.svelte.ts`
