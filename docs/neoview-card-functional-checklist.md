@@ -3750,8 +3750,8 @@
 - [ ] `page-list.prewarm` 可取消的全部缩略图预热
   - 目标：An explicit background action prewarms the complete page catalog with progress/error state and cancellation without delaying navigation.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/unifiedThumbnailStore.svelte.ts`
-  - 测试：待补
-  - 备注：Visible thumbnails exist; explicit all-page prewarm is absent.
+  - 测试：`neoview.page-list.prewarm`、`neoview.page-list.prewarm-lifecycle`、`neoview.page-list.prewarm-e2e`
+  - 备注：The source-compatible Sparkles action now prewarms the complete GUI catalog in sequential batches of at most 500 pages, publishes running/complete/error state, and cancels on session replacement or unmount. Explicit CLI/TUI commands and a 100K backend job corpus remain pending.
 - [ ] `page-list.context-actions` 页面上下文跳转与删除
   - 目标：Directory and archive pages expose shared, confirmable, resource-safe delete behavior and clamp navigation afterward.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
@@ -3775,13 +3775,13 @@
 - [ ] `page-list.states` 加载、空、错误、重试与预热状态
   - 目标：Catalog and optional thumbnail/prewarm failures degrade independently with stable loading, empty and retry states.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
-  - 测试：`neoview.page-list.retry`
-  - 备注：Catalog states exist; thumbnail and prewarm states are incomplete.
+  - 测试：`neoview.page-list.retry`、`neoview.page-list.empty`、`neoview.page-list.prewarm`、`neoview.page-list.prewarm-e2e`
+  - 备注：Empty books now settle to the empty state, catalog retry is bounded, and prewarm exposes running/complete/error feedback without hiding rows. Per-thumbnail retry and non-initial batch error isolation remain pending.
 - [ ] `page-list.lifecycle` 取消目录与缩略图并忽略迟到结果
   - 目标：Search, mode, session, collapse and unmount changes cancel obsolete catalog/thumbnail work and release owners.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.page-list.search`
-  - 备注：Catalog generation is safe; thumbnail owner release needs explicit proof.
+  - 测试：`neoview.page-list.search`、`neoview.page-list.prewarm-lifecycle`
+  - 备注：Catalog generations and background prewarm abort on replacement/unmount, while Slider navigation generations cannot continue into a replacement session. Explicit visible-thumbnail owner and collapsed request-count proof remain pending.
 - [ ] `page-list.shell` 保持页面列表 Card shell
   - 目标：Page List remains independently lazy, non-hideable, collapsible, movable, resizable and window-capable.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
@@ -3800,8 +3800,8 @@
 - [ ] `page-list.performance` 稀疏分页、可见缩略图与独立 chunk
   - 目标：10K/100K books retain bounded DOM and requests, list mode performs zero thumbnail work, and the Card remains a deferred chunk.
   - 源码：`src/lib/core/virtualPageList.ts`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.page-list.virtual`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.sparse-100k`、`neoview.page-list.sparse-active`、`neoview.page-list.sparse-protected`、`neoview.page-list.thumbnail-e2e`、`neoview.page-list.chunk`
-  - 备注：A 100K catalog retains at most eight batches, list catalog requests explicitly disable thumbnail prewarm, and the 13,809-byte Card remains deferred; a dedicated 100K Chromium scroll corpus remains pending.
+  - 测试：`neoview.page-list.virtual`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.sparse-100k`、`neoview.page-list.sparse-active`、`neoview.page-list.sparse-protected`、`neoview.page-list.prewarm`、`neoview.page-list.prewarm-e2e`、`neoview.page-list.thumbnail-e2e`、`neoview.page-list.chunk`
+  - 备注：A 100K catalog retains at most eight batches and list requests disable implicit prewarm. The Page Card remains a 13,714-byte deferred chunk; its 2,793-byte toolbar and 360-byte prewarm loop are second/third-level deferred chunks. A dedicated 100K Chromium scroll corpus remains pending.
 - [ ] `page-list.upscale` 共享页面超分与条件状态
   - 目标：The Card consumes one shared upscale snapshot for pending, processing, completed, skipped and failed states without starting another sampler.
   - 源码：`src/lib/cards/pageList/PageIndexBadge.svelte`、`src/lib/cards/pageList/PageListCard.svelte`
@@ -3825,8 +3825,8 @@
 - [ ] `page-list.image-stability` 列表交互不重挂活动媒体
   - 目标：Mode switches, scrolling, search and thumbnail loading preserve the active Reader media node and asset URL.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
-  - 测试：`neoview.page-list.thumbnail-e2e`
-  - 备注：Real Chromium proves thumbnail loading and mode switches preserve the active image; scrolling and search identity checks remain pending.
+  - 测试：`neoview.page-list.thumbnail-e2e`、`neoview.page-list.prewarm-e2e`
+  - 备注：Desktop and 420x360 Chromium prove complete-catalog prewarm and visible thumbnail decoding preserve the active image node, exact asset URL and request count; scrolling and search identity checks remain pending.
 - [x] `page-list.deviations` 记录 HTTP catalog 与共享 React 缩略图扩展
   - 目标：Document sparse authenticated HTTP catalog and shared thumbnail primitives as XR implementations without removing legacy modes or actions.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/core/virtualPageList.ts`
