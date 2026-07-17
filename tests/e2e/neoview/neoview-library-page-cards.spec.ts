@@ -62,7 +62,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.bookmark.thumbnail-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
+test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.bookmark.thumbnail-e2e] [neoview.bookmark.thumbnail-lease-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
   const pageCatalogRequests: string[] = []
@@ -145,6 +145,17 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(bookmarkThumbnail).toHaveAttribute("data-thumbnail-fit", "cover")
   await expect(bookmarkThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
   await expect(bookmarkRow).toContainText(fixture.path)
+
+  const compactRelease = page.waitForResponse((response) => (
+    response.request().method() === "DELETE"
+    && /\/reader\/library\/contexts\/bookmark%3Aall%3A\d+$/.test(response.url())
+  ))
+  await bookmarkCard.getByRole("button", { name: "列表", exact: true }).click()
+  expect((await compactRelease).status()).toBe(204)
+  await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "compact")
+  await expect(bookmarkRow.locator("img")).toHaveCount(0)
+  await bookmarkCard.getByRole("button", { name: "内容" }).click()
+  await expect(bookmarkThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
 
   const starResponse = page.waitForResponse((response) => response.url().includes("/reader/library/bookmarks/") && response.request().method() === "PATCH")
   await bookmarkRow.getByRole("button", { name: "收藏：fixture.cbz" }).click()

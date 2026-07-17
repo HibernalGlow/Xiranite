@@ -14,13 +14,14 @@ import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
 type BookmarkViewMode = "compact" | "content" | "banner" | "thumbnail"
+type VisibleBookmarks = { listId: string; items: readonly ReaderBookmarkDto[] }
 
 export default function BookmarkListCard({ client, disabled, onOpen, session, sourcePath }: ReaderPanelContext) {
   const [lists, setLists] = useState<readonly ReaderBookmarkListDto[]>([])
   const [activeListId, setActiveListId] = useState("all")
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string>()
-  const [visibleBookmarks, setVisibleBookmarks] = useState<readonly ReaderBookmarkDto[]>([])
+  const [visibleBookmarks, setVisibleBookmarks] = useState<VisibleBookmarks>(() => ({ listId: "all", items: [] }))
   const [loadedBookmarks, setLoadedBookmarks] = useState<readonly ReaderBookmarkDto[]>([])
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [listEditor, setListEditor] = useState<ListEditorState>()
@@ -38,13 +39,13 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
   )
   const activeList = lists.find((list) => list.id === activeListId)
   const editableLists = lists.filter((list) => list.id !== "all" && list.id !== "favorites")
-  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" ? [] : visibleBookmarks.map((item) => ({
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" || visibleBookmarks.listId !== activeListId ? [] : visibleBookmarks.items.map((item) => ({
     id: item.id,
     path: item.source.path,
     kind: item.kind,
     previewCount: item.kind === "folder" ? 4 : 1,
-  })), [viewMode, visibleBookmarks])
-  const thumbnails = useReaderLibraryThumbnails(client, "bookmark", thumbnailItems)
+  })), [activeListId, viewMode, visibleBookmarks])
+  const thumbnails = useReaderLibraryThumbnails(client, `bookmark:${activeListId}`, thumbnailItems)
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
     if (!client.listBookmarks) return Promise.reject(new Error("当前后端不支持书签"))
     return client.listBookmarks(offset, limit, activeListId, signal)
@@ -67,8 +68,12 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
       return sameSet(current, next) ? current : next
     })
   }, [])
+  const handleVisibleItems = useCallback((items: readonly ReaderBookmarkDto[]) => {
+    setVisibleBookmarks({ listId: activeListId, items })
+  }, [activeListId])
 
   function switchList(listId: string) {
+    setVisibleBookmarks({ listId, items: [] })
     setActiveListId(listId)
     setSelectedIds(new Set())
     anchorIndexRef.current = undefined
@@ -243,7 +248,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
         columns={viewMode === "banner" ? 2 : viewMode === "thumbnail" ? 3 : 1}
         gap={viewMode === "banner" || viewMode === "thumbnail" ? 4 : 0}
         getItemKey={(item) => item.id}
-        onVisibleItemsChange={setVisibleBookmarks}
+        onVisibleItemsChange={handleVisibleItems}
         onItemsChange={handleLoadedItems}
         renderRow={(item, index) => (
           <BookmarkRow
