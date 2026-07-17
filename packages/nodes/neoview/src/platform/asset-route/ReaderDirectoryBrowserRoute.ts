@@ -20,6 +20,7 @@ import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.j
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
 import { PlatformReaderDirectorySizeProvider } from "../filesystem/PlatformReaderDirectorySizeProvider.js"
 import { PlatformEmmCollectTagSource } from "../emm/PlatformEmmCollectTagSource.js"
+import { emmTranslationKey, PlatformEmmTranslationSource } from "../emm/PlatformEmmTranslationSource.js"
 import { PlatformDirectoryRootProvider } from "../filesystem/PlatformDirectoryRootProvider.js"
 import { platformReaderDirectoryEntryType } from "../filesystem/PlatformReaderDirectoryEntryClassifier.js"
 import type { ReaderDirectoryRootProvider } from "../../ports/ReaderDirectoryRootProvider.js"
@@ -81,6 +82,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #searchHistory?: ReaderSearchHistoryService
   readonly #emmEditor?: ReaderDirectoryEmmEditService
   readonly #emmTagSuggestions?: ReaderEmmTagSuggestionService
+  readonly #emmTranslations: PlatformEmmTranslationSource
 
   constructor(
     sortPreferenceStore?: ReaderDirectorySortPreferenceStore,
@@ -93,7 +95,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     mediaFormats?: ReaderMediaTypeResolver,
     emmOverrideStore?: ReaderEmmOverrideStore,
     collectTagSource = new PlatformEmmCollectTagSource(),
+    emmTranslations = new PlatformEmmTranslationSource(),
   ) {
+    this.#emmTranslations = emmTranslations
     this.#searchHistory = searchHistory
     this.#browser = new ReaderFileTreeService(
       new PlatformDirectoryListingProvider(mediaFormats),
@@ -111,7 +115,10 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       ? new ReaderDirectoryEmmEditService(new ReaderEmmMetadataService(emmOverrideStore), this.#browser)
       : undefined
     this.#emmTagSuggestions = isEmmTagCatalogStore(emmRecordStore)
-      ? new ReaderEmmTagSuggestionService(emmRecordStore, collectTagSource)
+      ? new ReaderEmmTagSuggestionService(emmRecordStore, collectTagSource, undefined, {
+          translate: (tags, signal) => emmTranslations.translate(tags, signal),
+          key: emmTranslationKey,
+        })
       : undefined
   }
 
@@ -201,6 +208,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
+    this.#emmTranslations.clear()
     await this.#browser[Symbol.asyncDispose]()
   }
 
@@ -220,6 +228,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     releasedListingEntries: number
     releasedListingPayloadBytes: number
   } {
+    this.#emmTranslations.clear()
     return this.#browser.releaseMemoryPressure()
   }
 

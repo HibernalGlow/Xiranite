@@ -25,6 +25,9 @@ describe("ReaderDirectoryBrowserRoute", () => {
       sampleEmmTags,
     }, undefined, {}, undefined, undefined, undefined, undefined, undefined, {
       load: async () => ({ tags: [], mixedGender: false }),
+    } as never, {
+      translate: async () => new Map(),
+      clear: () => false,
     } as never)
     try {
       const response = (await route.handle(new Request("http://localhost/reader/browser/emm-tags/suggestions?count=2")))!

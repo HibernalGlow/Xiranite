@@ -6,8 +6,14 @@ export interface ReaderEmmFavoriteTagSource {
   load(signal?: AbortSignal): Promise<{ tags: readonly ReaderEmmCatalogTag[] }>
 }
 
+export interface ReaderEmmTagTranslationSource {
+  translate(tags: readonly ReaderEmmCatalogTag[], signal?: AbortSignal): Promise<ReadonlyMap<string, string>>
+  key(tag: ReaderEmmCatalogTag): string
+}
+
 export interface ReaderEmmTagSuggestion extends ReaderEmmCatalogTag {
   favorite: boolean
+  translatedTag?: string
 }
 
 export class ReaderEmmTagSuggestionService {
@@ -15,6 +21,7 @@ export class ReaderEmmTagSuggestionService {
     private readonly catalog: ReaderEmmTagCatalogStore,
     private readonly favorites: ReaderEmmFavoriteTagSource,
     private readonly nextIndex: (maximum: number) => number = randomInt,
+    private readonly translations?: ReaderEmmTagTranslationSource,
   ) {}
 
   async suggest(count = 8, signal?: AbortSignal): Promise<readonly ReaderEmmTagSuggestion[]> {
@@ -27,10 +34,17 @@ export class ReaderEmmTagSuggestionService {
     signal?.throwIfAborted()
     const favoriteTags = sampleWithoutReplacement(dedupeTags(favoriteSnapshot.tags), Math.min(3, count), this.nextIndex)
     const favoriteKeys = new Set(favoriteTags.map(tagKey))
-    return [
+    const suggestions: ReaderEmmTagSuggestion[] = [
       ...favoriteTags.map((tag) => ({ ...tag, favorite: true })),
       ...dedupeTags(catalogTags).filter((tag) => !favoriteKeys.has(tagKey(tag))).map((tag) => ({ ...tag, favorite: false })),
     ].slice(0, count)
+    const translations = await this.translations?.translate(suggestions, signal).catch(() => undefined)
+    signal?.throwIfAborted()
+    if (!translations?.size || !this.translations) return suggestions
+    return suggestions.map((value) => ({
+      ...value,
+      translatedTag: translations.get(this.translations!.key(value)),
+    }))
   }
 }
 
