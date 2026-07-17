@@ -111,12 +111,34 @@ describe("ReaderLibraryHttpController", () => {
     })))!
     await expect(invalid.json()).resolves.toMatchObject({ scanned: 1, missing: 1, deleted: 1 })
   })
+
+  it("[neoview.history.cleanup-oldest-http] exposes strict oldest-count cleanup with exact selected identities", async () => {
+    const store = createStore()
+    store.deleteOldestRecent.mockResolvedValue({ selectedIds: ["old-a", "old-b"], deleted: 2 })
+    const controller = new ReaderLibraryHttpController(new ReaderLibraryService(store))
+
+    const response = (await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "oldest", limit: 2 })))!
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      selectedIds: ["old-a", "old-b"],
+      deleted: 2,
+      missingIds: [],
+    })
+    expect(store.deleteOldestRecent).toHaveBeenCalledWith(2)
+    expect(store.listRecent).not.toHaveBeenCalled()
+    expect(store.deleteRecent).not.toHaveBeenCalled()
+    expect((await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "oldest", limit: 0 })))?.status).toBe(400)
+    expect((await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "oldest", limit: 501 })))?.status).toBe(400)
+    expect((await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "future", limit: 2 })))?.status).toBe(400)
+    expect((await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "oldest", limit: 2, before: 10 })))?.status).toBe(400)
+  })
 })
 
 function createStore() {
   return {
     listRecent: vi.fn<ReaderLibraryStore["listRecent"]>(),
     deleteRecent: vi.fn<ReaderLibraryStore["deleteRecent"]>(),
+    deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),

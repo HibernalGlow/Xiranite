@@ -126,6 +126,8 @@ EMM 标签搜索后端纵切已接入现有搜索主链：`tag`/`excludeTag` 支
 
 `historyList/bookmarkList` 已接入统一 Reader library：两张 Card 各自保持独立 lazy loader，列表共同复用 100 项分页、`@tanstack/react-virtual` 可视窗口与 AbortController 生命周期；历史项可恢复原 source 并删除，书签支持 `all/default/favorites` 与自定义列表筛选、当前书籍添加、收藏切换、列表创建/删除。GUI 只通过鉴权 `/reader/library/*` 控制路由读写元数据，CLI 与通用 OpenTUI `library-ui` 复用 `ReaderLibraryHeadlessController`，不维护第二套 store。旧 `neoview-history`、`neoview-unified-history`、`neoview-bookmarks`、`neoview-bookmark-lists-v2` 的 backup/full-export/localStorage 三种 JSON 包装已可用 `reader-data-inspect/import` 预览并迁入；无效来源清理由共享 service 有界执行，权限/离线卷错误不会误删。两张 Card 仍为 `partial`，剩余批量选择/上下文文件操作、缩略图/评分呈现、GUI 首次清理触发和数据洞察。
 
+历史列表按数量清理不再把整个 `xr_reader_progress` 分页读入 JS 后排序并逐项删除；`ReaderLibraryStore.deleteOldestRecent()` 在原 `%APPDATA%/NeoView/thumbnails.db` 内使用单个 `BEGIN IMMEDIATE` 事务，以 `updated_at ASC, book_id ASC` 稳定选择最多 500 项并有界删除，HTTP 仍返回精确的 `selectedIds/deleted`。该优化不新增表、不修改旧表、`metadata.version`、`user_version` 或 journal mode，也不接触 `xiranite.db`。
+
 > 最后更新：2026-07-16；最近已提交基线：`897886a`（原图阅读/预解码/虚拟缩略图）、`880ccff`（复杂 Shell/Card AST scaffold）、`1e4f70c`（懒加载四边 Shell 与首批 Panel/Card）、`5064b82`（只读 Shell 配置链）、`444bdbc`（React Compiler 友好的侧栏 resize/drag 与 TOML PATCH 原子持久化）、`532b304`（旧 panel layout 兼容读取）、`f9467c4`（旧 v14 Card 状态导入与折叠原子持久化）。本节必须随每个 NeoView 实现提交同步更新；代码、feature matrix 和测试证据优先于文字。
 
 整体结论：**基础架构和高性能阅读纵切已经跑通，但完整功能迁移远未完成。** `feature-compatibility.json` 的 30 项 feature 当前全部保持 `pending`，因为每一项都包含旧 NeoView 的多组行为，不能用“一条 happy path 已运行”提前标记完成。

@@ -35,9 +35,15 @@ export interface ReaderBookmarkUpdate {
   updatedAt: number
 }
 
+export interface ReaderOldestRecentDeleteResult {
+  selectedIds: readonly string[]
+  deleted: number
+}
+
 export interface ReaderLibraryStore extends AsyncDisposable {
   listRecent(query: ReaderRecentQuery): Promise<readonly ReaderProgressRecord[]>
   deleteRecent(bookId: string): Promise<boolean>
+  deleteOldestRecent(limit: number): Promise<ReaderOldestRecentDeleteResult>
   clearRecentBefore(timestamp: number, limit: number): Promise<number>
   listBookmarks(query: ReaderBookmarkQuery): Promise<readonly ReaderBookmarkRecord[]>
   findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined>
