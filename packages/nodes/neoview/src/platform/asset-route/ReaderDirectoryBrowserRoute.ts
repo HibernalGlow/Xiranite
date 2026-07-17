@@ -48,6 +48,7 @@ const BROWSER_TREE_EXCLUSIONS_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/excl
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
 const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
+const BROWSER_CLONE_PATH = /^\/reader\/browser\/s\/([^/]+)\/clone$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
 const DISPLAY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>(["rating", "collectTagCount"])
 const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
@@ -109,6 +110,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (sortPreferencesMatch && request.method === "PATCH") return this.#sortPreferences(sortPreferencesMatch[1]!, request)
     const sortMatch = BROWSER_SORT_PATH.exec(url.pathname)
     if (sortMatch && request.method === "PATCH") return this.#sort(sortMatch[1]!, request)
+    const cloneMatch = BROWSER_CLONE_PATH.exec(url.pathname)
+    if (cloneMatch && request.method === "POST") return this.#clone(cloneMatch[1]!, request)
     const sessionMatch = BROWSER_SESSION_PATH.exec(url.pathname)
     if (sessionMatch && request.method === "DELETE") {
       const sessionId = safeDecode(sessionMatch[1]!)
@@ -206,6 +209,18 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       const result = await this.#browser.list(sessionId, cursor, limit, requestedMetadataFields(url), signal)
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #clone(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    try {
+      const result = await this.#browser.clone(sessionId, request.signal, DISPLAY_METADATA_FIELDS)
+      return result ? Response.json(result, responseInit(201)) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (request.signal.aborted) throw error
       return errorResponse(errorMessage(error), 400)
     }
   }

@@ -119,6 +119,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     searchInPath: false,
   },
   tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
+  tabs: { pinned: [] },
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
@@ -128,7 +129,7 @@ const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
 const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
 const FolderTabsHost = lazy(() => import("./folder/FolderTabsHost"))
 
-interface SavedDirectoryState {
+export interface SavedDirectoryState {
   total?: number
   viewMode: FolderViewMode
   previewCount: FolderPreviewCount
@@ -142,6 +143,15 @@ interface SavedDirectoryState {
   detailsScrollTop?: number
 }
 
+export interface FolderBrowserCloneSnapshot {
+  sourceSessionId: string
+  clonedPage?: ReaderDirectoryPageDto
+  currentState: SavedDirectoryState
+  navigationStates: ReadonlyMap<number, SavedDirectoryState>
+}
+
+export type FolderBrowserCloneProvider = () => Promise<FolderBrowserCloneSnapshot | undefined>
+
 export default function FolderMainCard(context: ReaderPanelContext) {
   const folderView = context.folderView ?? DEFAULT_FOLDER_VIEW
   return (
@@ -151,7 +161,8 @@ export default function FolderMainCard(context: ReaderPanelContext) {
   )
 }
 
-function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, onCurrentPathChange }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; onCurrentPathChange(path: string): void }) {
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, onCurrentPathChange, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; onCurrentPathChange(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+  const pendingInitialCloneRef = useRef(initialClone)
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
@@ -198,10 +209,18 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
 
   useEffect(() => {
     if (!sourcePath) return
-    void openBrowser(sourcePath)
+    const snapshot = pendingInitialCloneRef.current
+    pendingInitialCloneRef.current = undefined
+    if (snapshot?.clonedPage) restoreClonedBrowser(snapshot)
+    else void openBrowser(sourcePath)
   }, [sourcePath])
 
   useEffect(() => disposeBrowser, [])
+
+  useEffect(() => {
+    onCloneProvider(captureCloneSnapshot)
+    return () => onCloneProvider(undefined)
+  }, [onCloneProvider])
 
   useEffect(() => setViewMode(folderView.viewMode), [folderView.viewMode])
   useEffect(() => setPreviewCount(folderView.previewCount), [folderView.previewCount])
@@ -299,6 +318,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     } finally {
       if (generation === navigationGenerationRef.current) setLoading(false)
     }
+  }
+
+  function restoreClonedBrowser(snapshot: FolderBrowserCloneSnapshot) {
+    navigationStatesRef.current = new Map(snapshot.navigationStates)
+    sessionIdRef.current = snapshot.clonedPage!.sessionId
+    applyPage(snapshot.clonedPage!, snapshot.currentState)
   }
 
   async function navigate(navigation: ReaderDirectoryNavigationDto, options: { keepTree?: boolean } = {}) {
@@ -524,6 +549,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         resolve(next)
       })
     })
+  }
+
+  async function captureCloneSnapshot(): Promise<FolderBrowserCloneSnapshot | undefined> {
+    const current = catalogRef.current
+    const currentState = await captureRefreshState()
+    if (!current || !currentState || sessionIdRef.current !== current.sessionId) return undefined
+    return { sourceSessionId: current.sessionId, currentState, navigationStates: new Map(navigationStatesRef.current) }
   }
 
   async function applyWatchedPage(page: ReaderDirectoryPageDto) {

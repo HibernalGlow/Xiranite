@@ -49,6 +49,15 @@ export interface NeoviewFolderTreeViewConfig {
   pinnedPaths: string[]
 }
 
+export interface NeoviewFolderPinnedTab {
+  path: string
+  title: string
+}
+
+export interface NeoviewFolderTabsConfig {
+  pinned: NeoviewFolderPinnedTab[]
+}
+
 export interface NeoviewFolderViewConfig {
   homePath: string
   viewMode: NeoviewFolderViewMode
@@ -58,6 +67,7 @@ export interface NeoviewFolderViewConfig {
   details: NeoviewFolderDetailsConfig
   search: NeoviewFolderSearchConfig
   tree: NeoviewFolderTreeViewConfig
+  tabs: NeoviewFolderTabsConfig
 }
 
 export interface NeoviewFolderDetailsPatch {
@@ -78,6 +88,7 @@ export interface NeoviewFolderViewPatch {
     details?: NeoviewFolderDetailsPatch
     search?: Partial<NeoviewFolderSearchConfig>
     tree?: Partial<NeoviewFolderTreeViewConfig>
+    tabs?: Partial<NeoviewFolderTabsConfig>
   }
 }
 
@@ -241,6 +252,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     size: 200,
     pinnedPaths: [],
   },
+  tabs: { pinned: [] },
 }
 
 export const DEFAULT_NEOVIEW_FILE_TREE_CONFIG: NeoviewFileTreeConfig = {
@@ -378,7 +390,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search", "tree"])
+  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -492,6 +504,14 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     patch.folderView.tree = treePatch
     toml.tree_view = treeToml
   }
+  if (folder.tabs !== undefined) {
+    const tabs = requireRecord(folder.tabs, "reader folder view patch.tabs")
+    if (Object.keys(tabs).some((key) => key !== "pinned")) throw new Error("reader folder view patch.tabs contains unsupported fields.")
+    if (tabs.pinned === undefined) throw new Error("reader folder view patch.tabs must change pinned.")
+    const pinned = normalizedPinnedTabs(tabs.pinned, "reader folder view patch.tabs.pinned")
+    patch.folderView.tabs = { pinned }
+    toml.tabs = { pinned }
+  }
   if (!Object.keys(patch.folderView).length) throw new Error("reader folder view patch must change at least one field.")
   return { patch, tomlPatch: { folder: toml } }
 }
@@ -501,6 +521,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
   const details = optionalRecord(value.details, "[nodes.neoview.folder.details]")
   const search = optionalRecord(value.search, "[nodes.neoview.folder.search]")
   const tree = optionalRecord(value.tree_view, "[nodes.neoview.folder.tree_view]")
+  const tabs = optionalRecord(value.tabs, "[nodes.neoview.folder.tabs]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false)
     .filter((id) => id !== "name")
   const pinnedLeft = normalizedDetailColumns(details?.pinned_left ?? ["name"], "[nodes.neoview.folder.details].pinned_left", false, false)
@@ -550,7 +571,24 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
         : boundedInteger(tree.size, 100, 500, "[nodes.neoview.folder.tree_view].size"),
       pinnedPaths: normalizedTreePinnedPaths(tree?.pinned_paths ?? [], "[nodes.neoview.folder.tree_view].pinned_paths"),
     },
+    tabs: {
+      pinned: normalizedPinnedTabs(tabs?.pinned ?? [], "[nodes.neoview.folder.tabs].pinned"),
+    },
   }
+}
+
+function normalizedPinnedTabs(value: unknown, path: string): NeoviewFolderPinnedTab[] {
+  if (!Array.isArray(value) || value.length > 7) throw new Error(`${path} must be an array containing at most 7 tabs.`)
+  return value.map((item, index) => {
+    const tab = requireRecord(item, `${path}[${index}]`)
+    if (Object.keys(tab).some((key) => key !== "path" && key !== "title")) throw new Error(`${path}[${index}] contains unsupported fields.`)
+    const tabPath = normalizedFolderHomePath(tab.path, `${path}[${index}].path`)
+    if (!tabPath) throw new Error(`${path}[${index}].path must not be empty.`)
+    if (typeof tab.title !== "string") throw new Error(`${path}[${index}].title must be a string.`)
+    const title = tab.title.trim()
+    if (!title || title.length > 256 || title.includes("\0")) throw new Error(`${path}[${index}].title must be 1 to 256 characters without NUL.`)
+    return { path: tabPath, title }
+  })
 }
 
 function normalizedFolderHomePath(value: unknown, path: string): string {

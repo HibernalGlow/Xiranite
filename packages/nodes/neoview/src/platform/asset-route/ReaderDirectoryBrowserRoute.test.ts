@@ -121,6 +121,35 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
+  it("[neoview.folder.tabs-duplicate-http] clones a browser session without reopening a path", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-clone-"))
+    directories.push(directory)
+    await writeFile(join(directory, "book.cbz"), "book")
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const source = await opened.json() as { sessionId: string; path: string }
+      const clonedResponse = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${source.sessionId}/clone`,
+        { method: "POST" },
+      )))!
+      expect(clonedResponse.status).toBe(201)
+      const cloned = await clonedResponse.json() as { sessionId: string; path: string; entries: Array<{ name: string }> }
+      expect(cloned).toMatchObject({ path: source.path, entries: [{ name: "book.cbz" }] })
+      expect(cloned.sessionId).not.toBe(source.sessionId)
+
+      expect((await route.handle(new Request(`http://localhost/reader/browser/s/${source.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      expect((await route.handle(new Request(`http://localhost/reader/browser/s/${cloned.sessionId}/entries`)))?.status).toBe(200)
+      expect((await route.handle(new Request("http://localhost/reader/browser/s/missing/clone", { method: "POST" })))?.status).toBe(404)
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.search-http] [neoview.folder.search-path-http] streams glob results and validates explicit path matching", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-"))
     directories.push(directory)

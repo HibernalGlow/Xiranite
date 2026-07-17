@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Folder, Pin, PinOff, Plus, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Copy, Folder, Pin, PinOff, Plus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,13 +16,14 @@ export interface FolderTabBarItem {
   pinned: boolean
 }
 
-export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, onActivate, onCreate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight }: {
+export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, onActivate, onCreate, onDuplicate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight }: {
   tabs: readonly FolderTabBarItem[]
   activeTabId: string
   disabled: boolean
   maxTabs: number
   onActivate(id: string): void
   onCreate(): void
+  onDuplicate(id: string): void
   onClose(id: string): void
   onTogglePinned(id: string): void
   onCloseOthers(id: string): void
@@ -33,9 +34,8 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, onA
   return (
     <div className="flex h-8 min-w-0 items-center gap-1 overflow-x-auto rounded-md border bg-muted/30 p-0.5" data-folder-tab-bar="true">
       <div className="flex min-w-0 flex-1 items-center gap-1" role="tablist" aria-label="文件夹标签">
-        {tabs.map((tab) => {
+        {tabs.map((tab, tabIndex) => {
           const active = tab.id === activeTabId
-          const tabIndex = tabs.indexOf(tab)
           const canClose = tabs.length > 1 && (tab.pinned || unpinnedCount > 1)
           const hasClosableOthers = tabs.some((candidate) => candidate.id !== tab.id && !candidate.pinned)
           const hasClosableLeft = tabs.slice(0, tabIndex).some((candidate) => !candidate.pinned)
@@ -52,6 +52,7 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, onA
                   <DropdownMenuItem onSelect={() => onTogglePinned(tab.id)}>
                     {tab.pinned ? <PinOff /> : <Pin />}{tab.pinned ? "取消固定" : "固定标签"}
                   </DropdownMenuItem>
+                  <DropdownMenuItem disabled={tabs.length >= maxTabs} onSelect={() => onDuplicate(tab.id)}><Copy />复制标签</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem disabled={!canClose} onSelect={() => onClose(tab.id)}><X />关闭标签</DropdownMenuItem>
                   <DropdownMenuItem disabled={!hasClosableOthers} onSelect={() => onCloseOthers(tab.id)}><X />关闭其他标签</DropdownMenuItem>

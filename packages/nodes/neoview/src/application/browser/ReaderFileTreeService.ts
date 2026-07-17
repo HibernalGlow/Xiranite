@@ -247,6 +247,59 @@ export class ReaderFileTreeService implements AsyncDisposable {
     return this.#page(session, cursor, limit, displayFields, signal)
   }
 
+  async clone(
+    sessionId: string,
+    signal?: AbortSignal,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+  ): Promise<ReaderDirectoryPage | undefined> {
+    this.#assertOpen()
+    const source = this.#sessions.get(sessionId)
+    if (!source) return undefined
+    await this.#refreshWatchedSession(source, signal)
+    await this.#ensureListing(source, signal)
+    signal?.throwIfAborted()
+    const session: BrowserSession = {
+      id: `browser-${this.#nextSessionId++}`,
+      listing: { ...source.listing, entries: [...source.listing.entries] },
+      currentNavigation: cloneNavigationEntry(source.currentNavigation),
+      back: source.back.map(cloneNavigationEntry),
+      forward: source.forward.map(cloneNavigationEntry),
+      nextNavigationEntryId: source.nextNavigationEntryId,
+      generation: source.generation,
+      scopeId: source.scopeId,
+      sort: { ...source.sort },
+      sortPreference: cloneSortPreference(source.sortPreference),
+      temporarySort: source.temporarySort ? cloneTemporarySort(source.temporarySort) : undefined,
+      sortFields: [...source.sortFields],
+      randomSeeds: new Map(source.randomSeeds),
+      watchEnabled: source.watchEnabled,
+      watchRevision: 0,
+      watchAppliedRevision: 0,
+      listingReleased: false,
+      watchWaiters: new Set(),
+      treeWatchRevision: 0,
+      treeWatchResetRevision: 0,
+      treeWatchChanges: new Map(),
+      treeWatchWaiters: new Set(),
+      searches: new Set(),
+      directorySizeOperations: new Set(),
+    }
+    if (this.#sessions.size >= 8) {
+      const evictionId = [...this.#sessions.keys()].find((id) => id !== sessionId)
+      if (evictionId) await this.close(evictionId)
+    }
+    this.#sessions.set(session.id, session)
+    try {
+      await this.#startWatcher(session)
+      signal?.throwIfAborted()
+      if (this.#sessions.get(session.id) !== session) return undefined
+      return await this.#page(session, 0, 128, displayFields, signal)
+    } catch (error) {
+      await this.close(session.id)
+      throw error
+    }
+  }
+
   async waitForChanges(
     sessionId: string,
     afterGeneration: number,
@@ -998,6 +1051,26 @@ function targetNavigationEntry(session: BrowserSession, navigation: ReaderDirect
 function pushNavigationEntry(stack: BrowserNavigationEntry[], entry: BrowserNavigationEntry): void {
   stack.push(entry)
   if (stack.length > MAXIMUM_NAVIGATION_HISTORY) stack.shift()
+}
+
+function cloneNavigationEntry(entry: BrowserNavigationEntry): BrowserNavigationEntry {
+  return {
+    ...entry,
+    temporarySort: entry.temporarySort ? cloneTemporarySort(entry.temporarySort) : undefined,
+  }
+}
+
+function cloneTemporarySort(value: ReaderDirectoryTemporarySortRule): ReaderDirectoryTemporarySortRule {
+  return { ...value, sort: { ...value.sort } }
+}
+
+function cloneSortPreference(value: ReaderDirectorySortPreferenceSnapshot): ReaderDirectorySortPreferenceSnapshot {
+  return {
+    ...value,
+    sort: { ...value.sort },
+    globalDefault: { ...value.globalDefault },
+    tabDefault: { ...value.tabDefault },
+  }
 }
 
 function syncCurrentNavigationTemporarySort(session: BrowserSession): void {

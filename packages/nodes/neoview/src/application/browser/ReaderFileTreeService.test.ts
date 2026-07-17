@@ -237,6 +237,39 @@ describe("ReaderFileTreeService", () => {
     await browser[Symbol.asyncDispose]()
   })
 
+  it("[neoview.folder.tabs-duplicate-backend] clones navigation and sort state into an independently owned session", async () => {
+    const reads: Record<string, readonly string[]> = {
+      "C:/A": ["a.cbz"],
+      "C:/B": ["b.cbz"],
+      "C:/C": ["c.cbz"],
+    }
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return {
+          path,
+          parentPath: path === "C:/A" ? "C:/" : "C:/A",
+          entries: (reads[path] ?? []).map((name) => ({ name, path: `${path}/${name}`, kind: "file" as const, readerSupported: true })),
+        }
+      },
+    })
+    const opened = await browser.open("C:/A")
+    await browser.navigate(opened.sessionId, { action: "path", path: "C:/B" })
+    await browser.navigate(opened.sessionId, { action: "path", path: "C:/C" })
+
+    const cloned = await browser.clone(opened.sessionId)
+    expect(cloned).toMatchObject({ path: "C:/C", canGoBack: true, canGoForward: false })
+    expect(cloned?.sessionId).not.toBe(opened.sessionId)
+    expect(cloned?.navigationEntryId).toBe(3)
+
+    await expect(browser.navigate(opened.sessionId, { action: "back" })).resolves.toMatchObject({ path: "C:/B" })
+    await expect(browser.list(cloned!.sessionId)).resolves.toMatchObject({ path: "C:/C", canGoBack: true, canGoForward: false })
+    await expect(browser.navigate(cloned!.sessionId, { action: "back" })).resolves.toMatchObject({ path: "C:/B" })
+    await expect(browser.navigate(cloned!.sessionId, { action: "back" })).resolves.toMatchObject({ path: "C:/A", canGoBack: false, canGoForward: true })
+    await expect(browser.list(opened.sessionId)).resolves.toMatchObject({ path: "C:/B", canGoBack: true, canGoForward: true })
+
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.folder.parent-suggested-selection] locates the departed child in a sorted 10K parent without returning its page eagerly", async () => {
     const parentPath = "C:/library"
     const childPath = `${parentPath}/selected-child`

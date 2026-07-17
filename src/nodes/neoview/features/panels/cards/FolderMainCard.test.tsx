@@ -144,6 +144,70 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-e")
   })
 
+  it("[neoview.folder.tabs-pin-duplicate] persists pins, rolls back failures, and clones pane state into an independent session", async () => {
+    const source = page({
+      sessionId: "browser-source",
+      path: "C:/A",
+      entries: [{ name: "a.cbz", path: "C:/A/a.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const cloned = page({ ...source, sessionId: "browser-clone" })
+    const updateFolderView = vi.fn(async () => undefined)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => source),
+      cloneDirectoryBrowser: vi.fn(async () => cloned),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/A" onOpen={vi.fn()} onGoTo={vi.fn()} folderView={folderViewConfig()} onFolderView={updateFolderView} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const openMenu = async (tab: string, item: string) => {
+      fireEvent.pointerDown(ui.getByRole("button", { name: `标签操作 ${tab}` }), { button: 0, pointerType: "mouse" })
+      fireEvent.click(await screen.findByRole("menuitem", { name: item }))
+    }
+
+    await ui.findByTitle("C:/A/a.cbz")
+    fireEvent.click(ui.getByTitle("C:/A/a.cbz"))
+    fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
+    await openMenu("A", "复制标签")
+
+    await waitFor(() => expect(client.cloneDirectoryBrowser).toHaveBeenCalledWith("browser-source", expect.any(AbortSignal)))
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy())
+    expect(client.openDirectoryBrowser).toHaveBeenCalledTimes(1)
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+    expect(ui.getByRole("radio", { name: "详细信息" }).getAttribute("data-state")).toBe("on")
+
+    await openMenu("A", "固定标签")
+    await waitFor(() => expect(updateFolderView).toHaveBeenCalledWith({ tabs: { pinned: [{ path: "C:/A", title: "A" }] } }))
+
+    updateFolderView.mockRejectedValueOnce(new Error("disk full"))
+    await openMenu("A", "取消固定")
+    await waitFor(() => expect(ui.getAllByRole("tab", { name: "A" }).some((tab) => tab.closest('[data-pinned="true"]'))).toBe(true))
+
+    view.unmount()
+    expect(client.closeDirectoryBrowser).toHaveBeenCalledWith("browser-source")
+    expect(client.closeDirectoryBrowser).toHaveBeenCalledWith("browser-clone")
+  })
+
+  it("[neoview.folder.tabs-pinned-restore] restores persisted pins beside one unpinned working tab", async () => {
+    const client = {
+      openDirectoryBrowser: vi.fn(async (path: string) => page({ sessionId: `browser-${path.at(-1)}`, path })),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const configured = folderViewConfig()
+    configured.tabs = { pinned: [{ path: "C:/Pinned", title: "Pinned" }] }
+    const view = render(<FolderMainCard client={client} disabled={false} sourcePath="C:/Work" onOpen={vi.fn()} onGoTo={vi.fn()} folderView={configured} onFolderView={vi.fn(async () => undefined)} />)
+
+    await waitFor(() => expect(client.openDirectoryBrowser).toHaveBeenCalledTimes(2))
+    expect(within(view.container).getByRole("tab", { name: "Pinned" }).closest('[data-pinned="true"]')).toBeTruthy()
+    expect(within(view.container).getByRole("tab", { name: "Work" }).getAttribute("aria-selected")).toBe("true")
+    expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy()
+    view.unmount()
+  })
+
   it("[neoview.folder.home-refresh-ui] keeps Home navigation separate from the tree and preserves selection on refresh", async () => {
     const entries = [
       { name: "folder", path: "C:/current/folder", kind: "directory" as const, readerSupported: false },

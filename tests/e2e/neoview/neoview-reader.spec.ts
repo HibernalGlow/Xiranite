@@ -1064,7 +1064,7 @@ test("[neoview.folder.home-refresh-e2e] persists Home and refreshes only the cur
   }
 })
 
-test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] [neoview.folder.tabs-bulk-close-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
+test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] [neoview.folder.tabs-bulk-close-e2e] [neoview.folder.tabs-pin-duplicate-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
   const tabsRoot = join(fixture.directory, "zz-folder-tabs")
   const firstPath = join(tabsRoot, "A")
   const secondPath = join(tabsRoot, "B")
@@ -1084,7 +1084,7 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
   const configured = await fetch(`${backend.url}/reader/config`, {
     method: "PATCH",
     headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
-    body: JSON.stringify({ folderView: { homePath: secondPath } }),
+    body: JSON.stringify({ folderView: { homePath: secondPath, tabs: { pinned: [] } } }),
   })
   expect(configured.status).toBe(200)
 
@@ -1156,6 +1156,22 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await expect(folderCard.getByRole("radio", { name: "详细信息" })).toHaveAttribute("data-state", "on")
     await expect(folderCard).toHaveAttribute("data-selection-count", "1")
 
+    const clonedResponse = page.waitForResponse((response) => response.url().endsWith("/clone") && response.request().method() === "POST")
+    await folderCard.getByRole("button", { name: "标签操作 A" }).click()
+    await page.getByRole("menuitem", { name: "复制标签" }).click()
+    expect((await clonedResponse).status()).toBe(201)
+    await expect(folderCard.getByRole("tab", { name: "A (2)" })).toHaveAttribute("aria-selected", "true")
+    await expect(folderCard.getByRole("radio", { name: "详细信息" })).toHaveAttribute("data-state", "on")
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+    expect(browserOpens).toBe(3)
+    const closedClone = page.waitForResponse((response) => response.url().includes("/reader/browser/s/")
+      && response.request().method() === "DELETE")
+    const closeCloneTab = folderCard.getByRole("button", { name: "关闭标签 A (2)" })
+    await closeCloneTab.focus()
+    await closeCloneTab.press("Enter")
+    expect((await closedClone).status()).toBe(204)
+    await expect(folderCard.getByRole("tab", { name: "A" })).toHaveAttribute("aria-selected", "true")
+
     await folderCard.getByRole("tab", { name: "C" }).focus()
     await folderCard.getByRole("tab", { name: "C" }).press("Enter")
     await expect(currentBreadcrumb()).toHaveAttribute("title", thirdPath)
@@ -1191,7 +1207,7 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await activeTabMenu.focus()
     await activeTabMenu.press("Enter")
     await page.getByRole("menuitem", { name: "关闭左侧标签" }).click()
-    await expect.poll(() => browserCloses).toBe(2)
+    await expect.poll(() => browserCloses).toBe(3)
     await expect(folderCard.getByRole("tab", { name: "B" })).toHaveCount(2)
 
     await navigatePath(fifthPath)
@@ -1202,7 +1218,7 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await folderCard.getByRole("button", { name: "标签操作 E" }).focus()
     await folderCard.getByRole("button", { name: "标签操作 E" }).press("Enter")
     await page.getByRole("menuitem", { name: "关闭右侧标签" }).click()
-    await expect.poll(() => browserCloses).toBe(3)
+    await expect.poll(() => browserCloses).toBe(4)
     await expect(currentBreadcrumb()).toHaveAttribute("title", fifthPath)
 
     await newTabButton.focus()
@@ -1214,17 +1230,26 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await folderCard.getByRole("button", { name: "标签操作 F" }).focus()
     await folderCard.getByRole("button", { name: "标签操作 F" }).press("Enter")
     await page.getByRole("menuitem", { name: "关闭其他标签" }).click()
-    await expect.poll(() => browserCloses).toBe(5)
+    await expect.poll(() => browserCloses).toBe(6)
     await expect(folderCard.getByRole("tab", { name: "B" })).toHaveCount(1)
     await expect(folderCard.getByRole("tab", { name: "F" })).toHaveAttribute("aria-selected", "true")
     await expect(leftSidebar.locator('[data-folder-tab-count="2"]')).toBeVisible()
     expect(await image.getAttribute("data-folder-tabs-image-instance")).toBe("stable")
     expect(browserOpens).toBe(7)
+
+    await page.reload({ waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const restoredSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await restoredSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    const restoredFolderCard = restoredSidebar.locator('[data-neoview-folder-card="true"]')
+    await expect(restoredFolderCard.getByRole("tab", { name: "B", exact: true })).toBeVisible()
+    await expect(restoredFolderCard.getByRole("tab", { name: "B", exact: true }).locator("..")).toHaveAttribute("data-pinned", "true")
+    await expect(restoredSidebar.locator('[data-folder-tab-count="2"]')).toBeVisible()
   } finally {
     await fetch(`${backend.url}/reader/config`, {
       method: "PATCH",
       headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
-      body: JSON.stringify({ folderView: { homePath: "" } }),
+      body: JSON.stringify({ folderView: { homePath: "", tabs: { pinned: [] } } }),
     }).catch(() => undefined)
     await rm(tabsRoot, { recursive: true, force: true })
   }

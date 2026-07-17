@@ -75,6 +75,16 @@ describe("reader-http-client", () => {
     await expect(request).rejects.toMatchObject({ status: 400, name: "ReaderHttpError" } satisfies Partial<ReaderHttpError>)
   })
 
+  it("[neoview.folder.tabs-duplicate-client] clones the encoded browser session through the dedicated endpoint", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ sessionId: "browser-clone", path: "D:/Books", entries: [], cursor: 0, total: 0 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.cloneDirectoryBrowser!("browser/source")).resolves.toMatchObject({ sessionId: "browser-clone", path: "D:/Books" })
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/s/browser%2Fsource/clone")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
+  })
+
   it("[neoview.metadata.client] loads metadata only through the authenticated session route", async () => {
     const fetchMock = vi.fn(async () => Response.json({ book: { displayName: "demo.cbz" } }))
     vi.stubGlobal("fetch", fetchMock)

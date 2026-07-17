@@ -374,6 +374,15 @@ export interface ReaderFolderTreeViewConfig {
   pinnedPaths: string[]
 }
 
+export interface ReaderFolderPinnedTab {
+  path: string
+  title: string
+}
+
+export interface ReaderFolderTabsConfig {
+  pinned: ReaderFolderPinnedTab[]
+}
+
 export interface ReaderFolderViewConfig {
   homePath: string
   viewMode: ReaderFolderViewMode
@@ -383,6 +392,7 @@ export interface ReaderFolderViewConfig {
   details: ReaderFolderDetailsConfig
   search: ReaderFolderSearchConfig
   tree: ReaderFolderTreeViewConfig
+  tabs?: ReaderFolderTabsConfig
 }
 
 export interface ReaderFolderDetailsPatch {
@@ -403,6 +413,7 @@ export interface ReaderFolderViewPatch {
     details?: ReaderFolderDetailsPatch
     search?: Partial<ReaderFolderSearchConfig>
     tree?: Partial<ReaderFolderTreeViewConfig>
+    tabs?: Partial<ReaderFolderTabsConfig>
   }
 }
 
@@ -474,6 +485,7 @@ export interface ReaderHttpClient {
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
+  cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   watchDirectoryBrowser?(sessionId: string, afterGeneration: number, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto | undefined>
   listDirectoryRoots?(signal?: AbortSignal): Promise<readonly ReaderDirectoryRootDto[]>
   listDirectoryBrowser?(
@@ -612,6 +624,10 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path, scopeId, ...(watch ? { watch: true } : {}) }),
       signal,
     }),
+    cloneDirectoryBrowser: (sessionId, signal) => request<ReaderDirectoryPageDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/clone`,
+      { method: "POST", signal },
+    ),
     watchDirectoryBrowser: (sessionId, afterGeneration, focusPath, signal) => {
       const search = new URLSearchParams({ after: String(afterGeneration) })
       if (focusPath) search.set("focus", focusPath)
