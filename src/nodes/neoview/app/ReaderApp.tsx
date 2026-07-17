@@ -331,6 +331,15 @@ export function ReaderApp({
     ))
   }
 
+  async function updateCurrentBookReadingDirection(direction: "left-to-right" | "right-to-left") {
+    if (direction === session?.frame.direction) return
+    await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
+      sessionId,
+      { direction },
+      signal,
+    ))
+  }
+
   async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
     const next = { ...viewDefaultsRef.current, ...patch }
     viewDefaultsRef.current = next
@@ -691,6 +700,7 @@ export function ReaderApp({
     disabled: busy,
     onGoTo: goTo,
     onPageModeChange: updateCurrentBookPageMode,
+    onReadingDirectionChange: updateCurrentBookReadingDirection,
     sourcePath: path,
     systemActions: {
       copyText,

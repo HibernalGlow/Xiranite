@@ -544,7 +544,7 @@ export interface ReaderHttpClient {
   removeBookmarkList?(id: string, signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
-  updateSessionOptions(sessionId: string, patch: { layout: { pageMode: PageMode } }, signal?: AbortSignal): Promise<ReaderNavigationDto>
+  updateSessionOptions(sessionId: string, patch: { direction?: FrameSnapshot["direction"]; layout?: { pageMode: PageMode } }, signal?: AbortSignal): Promise<ReaderNavigationDto>
   close(sessionId: string): Promise<void>
 }
 

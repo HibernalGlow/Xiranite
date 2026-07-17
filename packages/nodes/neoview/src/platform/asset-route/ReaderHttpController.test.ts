@@ -630,6 +630,20 @@ describe("ReaderHttpController", () => {
         visiblePages: [{ index: 1 }, { index: 2 }],
         preload: { generation: 2, candidates: [{ tier: "background", pageIndexes: [0] }] },
       })
+      const direction = (await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { direction: "right-to-left" },
+        true,
+        "PATCH",
+      )))!
+      expect(direction.status).toBe(200)
+      expect(await direction.json()).toMatchObject({ frame: { direction: "right-to-left", pages: [{ pageIndex: 2 }, { pageIndex: 1 }] } })
+      expect((await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { direction: "top-to-bottom" },
+        true,
+        "PATCH",
+      )))?.status).toBe(400)
       expect((await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,
         { layout: { pageMode: "panorama" } },
@@ -677,7 +691,7 @@ describe("ReaderHttpController", () => {
       )))!
       expect(await navigated.json()).toMatchObject({
         frame: { anchorPageIndex: 2 },
-        preload: { generation: 4, direction: "forward", candidates: [{ tier: "background", pageIndexes: [1] }] },
+        preload: { generation: 5, direction: "forward", candidates: [{ tier: "background", pageIndexes: [1] }] },
       })
       const metadataAfterNavigation = await (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!.json()
       expect(metadataAfterNavigation).toMatchObject({ book: { currentPage: 3, emm: { translatedTitle: "译名" } } })
