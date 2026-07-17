@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { Grid3X3, ImageIcon, List, Navigation, Search } from "lucide-react"
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from "react"
+import { Navigation, Search } from "lucide-react"
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +26,7 @@ const THUMB_COLUMNS = 3
 const THUMBNAIL_ROW_HEIGHT = 148
 
 type PageListViewMode = "list" | "details" | "thumbnails"
+const PageListToolbar = lazy(() => import("./page-list/PageListToolbar"))
 
 export default function PageNavigationCard(context: ReaderPanelContext) {
   if (!context.session) return null
@@ -68,6 +69,7 @@ function PageListCard({
   const retentionPositionsRef = useRef<readonly number[]>([activePageIndex])
   const goToRef = useRef(onGoTo)
   const sliderNavigationRef = useRef<{ running: boolean; latest?: number }>({ running: false })
+  const navigationGenerationRef = useRef(0)
   const [catalog, setCatalog] = useState(() => catalogRef.current)
   const [resultCount, setResultCount] = useState(totalPages)
   const [searchQuery, setSearchQuery] = useState("")
@@ -102,6 +104,16 @@ function PageListCard({
   }, [onGoTo])
 
   useEffect(() => {
+    navigationGenerationRef.current += 1
+    sliderNavigationRef.current = { running: false }
+    setPendingNavigationIndex(undefined)
+    return () => {
+      navigationGenerationRef.current += 1
+      sliderNavigationRef.current = { running: false }
+    }
+  }, [client, sessionId])
+
+  useEffect(() => {
     retentionPositionsRef.current = deferredQuery
       ? [focusedPosition]
       : [activePageIndex, previewIndex ?? activePageIndex, focusedPosition]
@@ -121,6 +133,11 @@ function PageListCard({
     setCatalogError(undefined)
     const catalogKey = `${sessionId}\0${deferredQuery}\0${reloadVersion}`
     catalogKeyRef.current = catalogKey
+    if (totalPages < 1) {
+      initialAnchorPendingRef.current = false
+      setCatalogReady(true)
+      return () => abortRequests(requestsRef.current)
+    }
     const cursor = deferredQuery ? 0 : batchCursor(activePageIndex)
     requestCatalogBatch({
       client,
@@ -231,12 +248,13 @@ function PageListCard({
     })
   }
 
-  async function navigateTo(pageIndex: number) {
+  async function navigateTo(pageIndex: number, generation = navigationGenerationRef.current) {
+    const goTo = goToRef.current
     try {
-      setNavigationError(undefined)
-      await goToRef.current(pageIndex)
+      if (generation === navigationGenerationRef.current) setNavigationError(undefined)
+      await goTo(pageIndex)
     } catch (error) {
-      setNavigationError(errorMessage(error))
+      if (generation === navigationGenerationRef.current) setNavigationError(errorMessage(error))
     }
   }
 
@@ -245,12 +263,14 @@ function PageListCard({
     setPendingNavigationIndex(pageIndex)
     if (sliderNavigationRef.current.running) return
     sliderNavigationRef.current.running = true
+    const generation = navigationGenerationRef.current
     void (async () => {
-      while (sliderNavigationRef.current.latest !== undefined) {
+      while (generation === navigationGenerationRef.current && sliderNavigationRef.current.latest !== undefined) {
         const target = sliderNavigationRef.current.latest
         sliderNavigationRef.current.latest = undefined
-        await navigateTo(target)
+        await navigateTo(target, generation)
       }
+      if (generation !== navigationGenerationRef.current) return
       sliderNavigationRef.current.running = false
       setPendingNavigationIndex(undefined)
     })()
@@ -323,14 +343,18 @@ function PageListCard({
           onClick={() => setFollowProgress((value) => !value)}
         ><Navigation /></IconToggle>
       </div>
-      <div className="flex items-center gap-1">
-        <ViewModeButton label="列表" mode="list" current={viewMode} onChange={setViewMode}><List /></ViewModeButton>
-        <ViewModeButton label="带图列表" mode="details" current={viewMode} onChange={setViewMode}><ImageIcon /></ViewModeButton>
-        <ViewModeButton label="缩略图网格" mode="thumbnails" current={viewMode} onChange={setViewMode}><Grid3X3 /></ViewModeButton>
-        <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-          {deferredQuery ? `${resultCount} / ${totalPages}` : `${totalPages} 页`}
-        </span>
-      </div>
+      <Suspense fallback={<div className="h-8" aria-hidden="true" />}>
+        <PageListToolbar
+          client={client}
+          sessionId={sessionId}
+          totalPages={totalPages}
+          resultCount={resultCount}
+          filtered={Boolean(deferredQuery)}
+          viewMode={viewMode}
+          disabled={disabled}
+          onViewModeChange={setViewMode}
+        />
+      </Suspense>
       {navigationError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{navigationError}</div> : null}
       <div
         ref={viewportRef}
@@ -538,10 +562,6 @@ function PageIdentity({ page, position, active }: { page?: ReaderPageDto; positi
 
 function IconToggle({ label, pressed, onClick, children }: { label: string; pressed: boolean; onClick(): void; children: ReactNode }) {
   return <Button type="button" size="icon-sm" variant={pressed ? "default" : "ghost"} title={label} aria-label={label} aria-pressed={pressed} onClick={onClick}>{children}</Button>
-}
-
-function ViewModeButton({ label, mode, current, onChange, children }: { label: string; mode: PageListViewMode; current: PageListViewMode; onChange(mode: PageListViewMode): void; children: ReactNode }) {
-  return <Button type="button" size="icon-sm" variant={mode === current ? "default" : "ghost"} title={label} aria-label={label} aria-pressed={mode === current} onClick={() => onChange(mode)}>{children}</Button>
 }
 
 interface CatalogBatchRequest {

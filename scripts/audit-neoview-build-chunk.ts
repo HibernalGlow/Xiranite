@@ -54,6 +54,8 @@ for (const chunk of deferredPanelChunks) {
 const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
 const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
+const pageListToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]PageListToolbar\.tsx$/i.test(module)))
+const pagePrewarmChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]prewarmPageThumbnails\.ts$/i.test(module)))
 const thumbnailSurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]thumbnails[/\\]ReaderThumbnailSurface\.tsx$/i.test(module)))
 const entrySurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]shared[/\\]ReaderEntrySurface\.tsx$/i.test(module)))
 if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
@@ -64,6 +66,12 @@ if (!historyListChunk || historyListChunk === readerSidebarChunk) {
 }
 if (!pageNavigationChunk || pageNavigationChunk === readerSidebarChunk) {
   throw new Error("NeoView PageNavigationCard did not produce an independent deferred production chunk.")
+}
+if (!pageListToolbarChunk || pageListToolbarChunk === pageNavigationChunk || pageListToolbarChunk === readerSidebarChunk || pageListToolbarChunk === neoViewChunk || pageListToolbarChunk === initialChunk) {
+  throw new Error("NeoView Page List toolbar did not produce a second-level deferred production chunk.")
+}
+if (!pagePrewarmChunk || pagePrewarmChunk === pageListToolbarChunk || pagePrewarmChunk === pageNavigationChunk || pagePrewarmChunk === readerSidebarChunk || pagePrewarmChunk === neoViewChunk || pagePrewarmChunk === initialChunk) {
+  throw new Error("NeoView page thumbnail prewarm logic did not produce a second-level deferred production chunk.")
 }
 if (!thumbnailSurfaceChunk || thumbnailSurfaceChunk === neoViewChunk || thumbnailSurfaceChunk === readerSidebarChunk || thumbnailSurfaceChunk === initialChunk) {
   throw new Error("NeoView shared thumbnail surface leaked into an eager reader/sidebar/initial chunk.")
@@ -79,6 +87,12 @@ if (historyListChunk.bytes > 16 * 1024) {
 }
 if (pageNavigationChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView PageNavigationCard chunk ${pageNavigationChunk.fileName} is ${pageNavigationChunk.bytes} bytes, above 16 KiB.`)
+}
+if (pagePrewarmChunk.bytes > 4 * 1024) {
+  throw new Error(`NeoView page thumbnail prewarm chunk ${pagePrewarmChunk.fileName} is ${pagePrewarmChunk.bytes} bytes, above 4 KiB.`)
+}
+if (pageListToolbarChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Page List toolbar chunk ${pageListToolbarChunk.fileName} is ${pageListToolbarChunk.bytes} bytes, above 8 KiB.`)
 }
 if (thumbnailSurfaceChunk.bytes > 4 * 1024) {
   throw new Error(`NeoView shared thumbnail surface chunk ${thumbnailSurfaceChunk.fileName} is ${thumbnailSurfaceChunk.bytes} bytes, above 4 KiB.`)

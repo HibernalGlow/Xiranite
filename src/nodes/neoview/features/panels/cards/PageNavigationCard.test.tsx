@@ -160,6 +160,61 @@ describe("PageNavigationCard", () => {
     await waitFor(() => expect(listPageCatalog).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
   })
+
+  it("[neoview.page-list.prewarm] prewarms the complete catalog in bounded sequential batches", async () => {
+    let running = 0
+    let maximumRunning = 0
+    const listPageCatalog = vi.fn(async (_sessionId: string, cursor: number, limit: number, options: { thumbnails?: boolean }) => {
+      running += 1
+      maximumRunning = Math.max(maximumRunning, running)
+      await Promise.resolve()
+      running -= 1
+      const total = 1_200
+      return {
+        pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)),
+        nextCursor: cursor + limit < total ? cursor + limit : undefined,
+        total,
+        options,
+      }
+    })
+    render(<PageNavigationCard {...context(clientWith({ listPageCatalog }), 0, 1_200)} />)
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledWith(
+      "reader-1", 0, 64, { query: "", thumbnails: false }, expect.any(AbortSignal),
+    ))
+
+    fireEvent.click(screen.getByRole("button", { name: "预热全部缩略图" }))
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("全部缩略图已预加载"))
+    const prewarmCalls = listPageCatalog.mock.calls.filter((call) => call[3]?.thumbnails === true)
+    expect(prewarmCalls.map((call) => [call[1], call[2]])).toEqual([[0, 500], [500, 500], [1_000, 200]])
+    expect(maximumRunning).toBe(1)
+  })
+
+  it("[neoview.page-list.prewarm-lifecycle] cancels thumbnail prewarm when the Card unmounts", async () => {
+    let prewarmSignal: AbortSignal | undefined
+    const listPageCatalog = vi.fn((_sessionId: string, cursor: number, limit: number, options: { thumbnails?: boolean }, signal?: AbortSignal) => {
+      if (options.thumbnails) {
+        prewarmSignal = signal
+        return new Promise<never>(() => undefined)
+      }
+      return Promise.resolve({ pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)), total: 1_000 })
+    })
+    const view = render(<PageNavigationCard {...context(clientWith({ listPageCatalog }))} />)
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledOnce())
+    fireEvent.click(screen.getByRole("button", { name: "预热全部缩略图" }))
+    await waitFor(() => expect(prewarmSignal).toBeDefined())
+
+    view.unmount()
+    expect(prewarmSignal?.aborted).toBe(true)
+  })
+
+  it("[neoview.page-list.empty] reports an empty book instead of remaining in loading state", async () => {
+    const listPageCatalog = vi.fn()
+    render(<PageNavigationCard {...context(clientWith({ listPageCatalog }), 0, 0)} />)
+
+    expect(await screen.findByText("书籍没有页面")).toBeTruthy()
+    expect(listPageCatalog).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "预热全部缩略图" }).hasAttribute("disabled")).toBe(true)
+  })
 })
 
 function context(client: ReaderHttpClient, activePageIndex = 0, totalPages = 1_000, onGoTo = vi.fn()) {
