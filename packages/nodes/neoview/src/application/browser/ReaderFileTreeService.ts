@@ -52,6 +52,10 @@ const MAXIMUM_RECENTLY_CLOSED_SESSIONS = 10
 const DEFAULT_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 1024 * 1024
 const MAX_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 64 * 1024 * 1024
 
+export const READER_DIRECTORY_FILTERS = ["all", "archive", "directory", "video"] as const
+export type ReaderDirectoryFilter = typeof READER_DIRECTORY_FILTERS[number]
+export type ReaderDirectoryEntryType = Exclude<ReaderDirectoryFilter, "all"> | "other"
+
 export type ReaderDirectoryNavigation =
   | { action: "path"; path: string; focusPath?: string }
   | { action: "back" | "forward" | "up" | "refresh"; focusPath?: string }
@@ -73,6 +77,8 @@ export interface ReaderDirectoryPage {
   canGoBack: boolean
   canGoForward: boolean
   generation: number
+  filter: ReaderDirectoryFilter
+  filterOptions: readonly ReaderDirectoryFilter[]
   sort: ReaderDirectorySortRule
   sortFields: readonly ReaderDirectorySortField[]
   metadataFields: readonly ReaderDirectoryMetadataField[]
@@ -92,6 +98,7 @@ export interface ReaderFileTreeServiceOptions extends ReaderFileTreeIndexOptions
   directorySizeProvider?: ReaderDirectorySizeProvider
   directorySizeConcurrency?: number
   maxListingPayloadBytesUnderPressure?: number
+  classifyEntry?: (entry: ReaderDirectoryEntry) => ReaderDirectoryEntryType
 }
 
 export interface ReaderFileTreeMemorySnapshot {
@@ -134,6 +141,7 @@ interface BrowserSession {
   generation: number
   scopeId: string
   sort: ReaderDirectorySortRule
+  filter: ReaderDirectoryFilter
   sortPreference: ReaderDirectorySortPreferenceSnapshot
   temporarySort?: ReaderDirectoryTemporarySortRule
   sortFields: readonly ReaderDirectorySortField[]
@@ -173,6 +181,7 @@ interface ClosedBrowserSession {
   generation: number
   scopeId: string
   sort: ReaderDirectorySortRule
+  filter: ReaderDirectoryFilter
   sortPreference: ReaderDirectorySortPreferenceSnapshot
   temporarySort?: ReaderDirectoryTemporarySortRule
   randomSeeds: Map<string, string>
@@ -220,6 +229,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       generation: 1,
       scopeId,
       sort: sortPreference.sort,
+      filter: "all",
       sortPreference,
       sortFields: this.#availableSortFields(),
       randomSeeds: new Map(),
@@ -260,8 +270,38 @@ export class ReaderFileTreeService implements AsyncDisposable {
     if (!session) return undefined
     await this.#refreshWatchedSession(session, signal)
     await this.#ensureListing(session, signal)
-    assertPage(cursor, limit, session.listing.entries.length)
+    assertPage(cursor, limit, filteredEntries(session, this.options.classifyEntry).length)
     return this.#page(session, cursor, limit, displayFields, signal)
+  }
+
+  async setFilter(
+    sessionId: string,
+    filter: ReaderDirectoryFilter,
+    focusPath?: string,
+    signal?: AbortSignal,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+  ): Promise<ReaderDirectoryPage | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    assertDirectoryFilter(filter)
+    await this.#refreshWatchedSession(session, signal)
+    await this.#ensureListing(session, signal)
+    signal?.throwIfAborted()
+    if (session.filter !== filter) {
+      abortDirectorySizeOperations(session)
+      session.filter = filter
+      session.generation += 1
+    }
+    const entries = filteredEntries(session, this.options.classifyEntry)
+    const focusIndex = focusPath ? entries.findIndex((entry) => normalizePathKey(entry.path) === normalizePathKey(focusPath)) : -1
+    return this.#page(
+      session,
+      0,
+      128,
+      displayFields,
+      signal,
+      focusIndex < 0 ? undefined : { path: entries[focusIndex]!.path, index: focusIndex },
+    )
   }
 
   async clone(
@@ -285,6 +325,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       generation: source.generation,
       scopeId: source.scopeId,
       sort: { ...source.sort },
+      filter: source.filter,
       sortPreference: cloneSortPreference(source.sortPreference),
       temporarySort: source.temporarySort ? cloneTemporarySort(source.temporarySort) : undefined,
       sortFields: [...source.sortFields],
@@ -339,6 +380,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       generation: closed.generation,
       scopeId: closed.scopeId,
       sort: { ...closed.sort },
+      filter: closed.filter,
       sortPreference: cloneSortPreference(closed.sortPreference),
       temporarySort: closed.temporarySort ? cloneTemporarySort(closed.temporarySort) : undefined,
       sortFields: this.#availableSortFields(),
@@ -736,7 +778,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     if (generation !== session.generation) throw new Error(`Reader directory size generation is stale: ${generation}`)
     const uniquePaths = [...new Set(paths)]
     if (!uniquePaths.length || uniquePaths.length > 64) throw new RangeError("Directory size batch must contain 1 to 64 unique paths.")
-    const directories = new Set(session.listing.entries.filter((entry) => entry.kind === "directory").map((entry) => entry.path))
+    const directories = new Set(filteredEntries(session, this.options.classifyEntry).filter((entry) => entry.kind === "directory").map((entry) => entry.path))
     if (uniquePaths.some((path) => !directories.has(path))) throw new Error("Directory size paths must belong to the current browser listing.")
     const controller = new AbortController()
     const unlinkAbort = forwardAbort(signal, controller)
@@ -777,7 +819,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     await this.#ensureListing(session, signal)
     assertCurrentGeneration(session, generation, "metadata edit")
     signal?.throwIfAborted()
-    const entries = new Map(session.listing.entries.map((entry) => [normalizePathKey(entry.path), entry]))
+    const entries = new Map(filteredEntries(session, this.options.classifyEntry).map((entry) => [normalizePathKey(entry.path), entry]))
     return paths.map((path) => {
       const entry = entries.get(normalizePathKey(path))
       if (!entry) throw new RangeError("Reader directory metadata edit path is not in the current listing.")
@@ -801,7 +843,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     for (const field of readerDirectoryMetadataFields(session.sort.field)) requestedFields.add(field)
     if (!requestedFields.size) return session.generation
     const selected = new Set(paths.map(normalizePathKey))
-    const sourceEntries = session.listing.entries.filter((entry) => selected.has(normalizePathKey(entry.path)))
+    const sourceEntries = filteredEntries(session, this.options.classifyEntry).filter((entry) => selected.has(normalizePathKey(entry.path)))
     if (sourceEntries.length !== selected.size) throw new RangeError("Reader directory metadata edit path is not in the current listing.")
     const hydrated = await this.metadataProvider.hydrate(sourceEntries, requestedFields, signal)
     signal?.throwIfAborted()
@@ -863,6 +905,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       generation: session.generation,
       scopeId: session.scopeId,
       sort: { ...session.sort },
+      filter: session.filter,
       sortPreference: cloneSortPreference(session.sortPreference),
       temporarySort: session.temporarySort ? cloneTemporarySort(session.temporarySort) : undefined,
       randomSeeds: new Map(session.randomSeeds),
@@ -1043,7 +1086,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   ): Promise<ReaderDirectoryPage> {
     const metadataFields = [...requestedFields].filter((field) => this.metadataProvider?.supportedFields.has(field))
     const metadataCapabilities = [...(this.metadataProvider?.supportedFields ?? [])]
-    const page = pageOf(session, cursor, limit, suggestedSelectionValue, metadataFields, metadataCapabilities)
+    const page = pageOf(session, cursor, limit, this.options.classifyEntry, suggestedSelectionValue, metadataFields, metadataCapabilities)
     if (!metadataFields.length || !this.metadataProvider) return page
     const entries = await this.metadataProvider.hydrate(page.entries, new Set(metadataFields), signal)
     signal?.throwIfAborted()
@@ -1230,11 +1273,16 @@ function pageOf(
   session: BrowserSession,
   cursor: number,
   limit: number,
+  classifyEntry: ReaderFileTreeServiceOptions["classifyEntry"],
   suggestedSelectionValue?: ReaderDirectoryPage["suggestedSelection"],
   metadataFields: readonly ReaderDirectoryMetadataField[] = [],
   metadataCapabilities: readonly ReaderDirectoryMetadataField[] = [],
 ): ReaderDirectoryPage {
-  const entries = session.listing.entries.slice(cursor, cursor + limit)
+  const catalog = filteredEntries(session, classifyEntry)
+  const entries = catalog.slice(cursor, cursor + limit)
+  const suggestedIndex = suggestedSelectionValue
+    ? catalog.findIndex((entry) => normalizePathKey(entry.path) === normalizePathKey(suggestedSelectionValue.path))
+    : -1
   return {
     sessionId: session.id,
     navigationEntryId: session.currentNavigation.id,
@@ -1242,11 +1290,13 @@ function pageOf(
     parentPath: session.listing.parentPath,
     entries,
     cursor,
-    nextCursor: cursor + entries.length < session.listing.entries.length ? cursor + entries.length : undefined,
-    total: session.listing.entries.length,
+    nextCursor: cursor + entries.length < catalog.length ? cursor + entries.length : undefined,
+    total: catalog.length,
     canGoBack: session.back.length > 0,
     canGoForward: session.forward.length > 0,
     generation: session.generation,
+    filter: session.filter,
+    filterOptions: READER_DIRECTORY_FILTERS,
     sort: session.sort,
     sortFields: session.sortFields,
     metadataFields,
@@ -1255,9 +1305,26 @@ function pageOf(
     sortTemporary: session.sortPreference.temporary,
     globalDefaultSort: session.sortPreference.globalDefault,
     tabDefaultSort: session.sortPreference.tabDefault,
-    suggestedSelection: suggestedSelectionValue,
+    suggestedSelection: suggestedIndex < 0 ? undefined : { path: catalog[suggestedIndex]!.path, index: suggestedIndex },
     watching: Boolean(session.watch),
     watchError: session.watchError,
+  }
+}
+
+function filteredEntries(
+  session: BrowserSession,
+  classifyEntry: ReaderFileTreeServiceOptions["classifyEntry"],
+): readonly ReaderDirectoryEntry[] {
+  if (session.filter === "all") return session.listing.entries
+  return session.listing.entries.filter((entry) => {
+    if (session.filter === "directory") return entry.kind === "directory"
+    return classifyEntry?.(entry) === session.filter
+  })
+}
+
+function assertDirectoryFilter(value: string): asserts value is ReaderDirectoryFilter {
+  if (!(READER_DIRECTORY_FILTERS as readonly string[]).includes(value)) {
+    throw new Error(`Reader directory filter is invalid: ${value}`)
   }
 }
 

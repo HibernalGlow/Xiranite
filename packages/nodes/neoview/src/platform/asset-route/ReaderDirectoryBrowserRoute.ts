@@ -1,5 +1,6 @@
 import {
   ReaderFileTreeService,
+  READER_DIRECTORY_FILTERS,
   type ReaderFileTreeMemorySnapshot,
   type ReaderDirectoryNavigation,
   type ReaderDirectorySortPreferenceCommand,
@@ -19,6 +20,7 @@ import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.j
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
 import { PlatformReaderDirectorySizeProvider } from "../filesystem/PlatformReaderDirectorySizeProvider.js"
 import { PlatformDirectoryRootProvider } from "../filesystem/PlatformDirectoryRootProvider.js"
+import { platformReaderDirectoryEntryType } from "../filesystem/PlatformReaderDirectoryEntryClassifier.js"
 import type { ReaderDirectoryRootProvider } from "../../ports/ReaderDirectoryRootProvider.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type {
@@ -57,6 +59,7 @@ const BROWSER_TREE_EXCLUSIONS_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/excl
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
 const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
+const BROWSER_FILTER_PATH = /^\/reader\/browser\/s\/([^/]+)\/filter$/
 const BROWSER_CLONE_PATH = /^\/reader\/browser\/s\/([^/]+)\/clone$/
 const BROWSER_REOPEN_PATH = /^\/reader\/browser\/s\/([^/]+)\/reopen$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
@@ -64,6 +67,10 @@ const DISPLAY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>(["rating",
 const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
   "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
 ])
+const DirectoryFilterCommandSchema = z.object({
+  filter: z.enum(READER_DIRECTORY_FILTERS),
+  focusPath: z.string().trim().min(1).max(32_768).optional(),
+}).strict()
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: ReaderFileTreeService
@@ -91,6 +98,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         scanner: fileTreeOptions.scanner ?? new PlatformFileTreeScanner(resourceScheduler),
         watcher: fileTreeOptions.watcher ?? new PlatformFileTreeWatcher(),
         directorySizeProvider: fileTreeOptions.directorySizeProvider ?? new PlatformReaderDirectorySizeProvider({ resourceScheduler }),
+        classifyEntry: fileTreeOptions.classifyEntry ?? ((entry) => platformReaderDirectoryEntryType(entry, mediaFormats)),
       },
     )
     this.#emmEditor = emmOverrideStore
@@ -128,6 +136,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (sortPreferencesMatch && request.method === "PATCH") return this.#sortPreferences(sortPreferencesMatch[1]!, request)
     const sortMatch = BROWSER_SORT_PATH.exec(url.pathname)
     if (sortMatch && request.method === "PATCH") return this.#sort(sortMatch[1]!, request)
+    const filterMatch = BROWSER_FILTER_PATH.exec(url.pathname)
+    if (filterMatch && request.method === "PATCH") return this.#filter(filterMatch[1]!, request)
     const cloneMatch = BROWSER_CLONE_PATH.exec(url.pathname)
     if (cloneMatch && request.method === "POST") return this.#clone(cloneMatch[1]!, request)
     const reopenMatch = BROWSER_REOPEN_PATH.exec(url.pathname)
@@ -408,6 +418,26 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (!command) return errorResponse("Invalid browser sort", 400)
     try {
       const result = await this.#browser.sort(sessionId, command.sort, command.focusPath, request.signal, DISPLAY_METADATA_FIELDS)
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #filter(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const parsed = DirectoryFilterCommandSchema.safeParse(await request.json().catch(() => undefined))
+    if (!parsed.success) return errorResponse("Invalid browser filter", 400)
+    try {
+      const result = await this.#browser.setFilter(
+        sessionId,
+        parsed.data.filter,
+        parsed.data.focusPath,
+        request.signal,
+        DISPLAY_METADATA_FIELDS,
+      )
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       if (request.signal.aborted) throw error

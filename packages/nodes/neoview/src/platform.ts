@@ -141,14 +141,17 @@ export async function createReaderFileTreeController(
   const { PlatformFileTreeScanner } = await import("./platform/filesystem/PlatformFileTreeScanner.js")
   const { PlatformFileTreeWatcher } = await import("./platform/filesystem/PlatformFileTreeWatcher.js")
   const { PlatformReaderDirectorySizeProvider } = await import("./platform/filesystem/PlatformReaderDirectorySizeProvider.js")
+  const { platformReaderDirectoryEntryType } = await import("./platform/filesystem/PlatformReaderDirectoryEntryClassifier.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const { ReaderMediaFormatRegistry } = await import("./domain/page/media.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const mediaFormats = new ReaderMediaFormatRegistry(runtimeConfig.media)
   const updateExcludedPaths = async (paths: readonly string[]) => {
     const { commitNeoviewFileTreeExclusions } = await import("./platform/config/NeoviewFileTreeConfigStore.js")
     return commitNeoviewFileTreeExclusions(paths, options)
   }
   const service = new ReaderFileTreeService(
-    new PlatformDirectoryListingProvider(),
+    new PlatformDirectoryListingProvider(mediaFormats),
     undefined,
     undefined,
     {
@@ -159,6 +162,7 @@ export async function createReaderFileTreeController(
       cacheTtlMs: options.cacheTtlMs,
       excludedPaths: runtimeConfig.fileTree.excludedPaths,
       updateExcludedPaths,
+      classifyEntry: (entry) => platformReaderDirectoryEntryType(entry, mediaFormats),
     },
   )
   const externalSearchHistoryStore = options.searchHistoryStore || undefined

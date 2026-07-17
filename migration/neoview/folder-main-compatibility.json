@@ -640,8 +640,8 @@
       "targetContract": "支持全部、压缩包、文件夹、视频类型筛选，并与排序、搜索和虚拟源组合。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "pending",
-      "testIds": [],
-      "notes": "扩展名和 MIME 规则需单一共享定义。"
+      "testIds": ["neoview.folder.filter-service", "neoview.folder.filter-http", "neoview.folder.filter-media-registry", "neoview.folder.filter-headless"],
+      "notes": "后端已在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，archive helper 与 TOML media registry 是 GUI/Headless 唯一分类源。仍保持 pending，直到 TypeFilterBar GUI、搜索/虚拟源组合和显式 CLI/TUI 命令完成。"
     },
 
     {

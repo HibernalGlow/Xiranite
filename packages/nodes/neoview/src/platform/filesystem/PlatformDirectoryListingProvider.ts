@@ -7,8 +7,8 @@ import type {
   ReaderDirectoryListing,
   ReaderDirectoryListingProvider,
 } from "../../ports/ReaderDirectoryListingProvider.js"
+import { platformReaderBookFileKind } from "./PlatformReaderBookCandidate.js"
 
-const READER_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7", "pdf", "epub"])
 const MAX_DIRECTORY_ENTRIES = 100_000
 
 export class PlatformDirectoryListingProvider implements ReaderDirectoryListingProvider {
@@ -56,5 +56,5 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
 }
 
 function isReaderSupported(path: string, mediaFormats?: ReaderMediaTypeResolver): boolean {
-  return Boolean(pageMediaType(path, mediaFormats)) || READER_EXTENSIONS.has(pathExtension(path))
+  return Boolean(pageMediaType(path, mediaFormats)) || platformReaderBookFileKind(path, mediaFormats) !== undefined || pathExtension(path) === "pdf"
 }

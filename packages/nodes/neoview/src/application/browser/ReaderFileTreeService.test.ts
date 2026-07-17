@@ -832,4 +832,47 @@ describe("ReaderFileTreeService", () => {
     await expect(closing).resolves.toBe(true)
     expect(scanClosed).toBe(true)
   })
+
+  it("[neoview.folder.filter-service] filters the stable catalog before pagination without rescanning", async () => {
+    const read = vi.fn(async (path: string) => ({
+      path,
+      entries: [
+        { name: "Folder", path: `${path}/Folder`, kind: "directory" as const, readerSupported: true },
+        { name: "A.cbz", path: `${path}/A.cbz`, kind: "file" as const, readerSupported: true },
+        { name: "B.zip", path: `${path}/B.zip`, kind: "file" as const, readerSupported: true },
+        { name: "Clip.mp4", path: `${path}/Clip.mp4`, kind: "file" as const, readerSupported: true },
+        { name: "Cover.jpg", path: `${path}/Cover.jpg`, kind: "file" as const, readerSupported: true },
+      ],
+    }))
+    const browser = new ReaderFileTreeService({ read }, undefined, undefined, {
+      classifyEntry: (entry) => entry.kind === "directory"
+        ? "directory"
+        : entry.name.endsWith(".cbz") || entry.name.endsWith(".zip")
+          ? "archive"
+          : entry.name.endsWith(".mp4") ? "video" : "other",
+    })
+    const opened = await browser.open("/library")
+    expect(opened).toMatchObject({ filter: "all", filterOptions: ["all", "archive", "directory", "video"], total: 5 })
+
+    const archives = await browser.setFilter(opened.sessionId, "archive", "/library/B.zip")
+    expect(archives).toMatchObject({
+      generation: opened.generation + 1,
+      filter: "archive",
+      total: 2,
+      entries: [{ name: "A.cbz" }, { name: "B.zip" }],
+      suggestedSelection: { path: "/library/B.zip", index: 1 },
+    })
+    await expect(browser.list(opened.sessionId, 1, 1)).resolves.toMatchObject({
+      total: 2,
+      cursor: 1,
+      entries: [{ name: "B.zip" }],
+    })
+    const unchanged = await browser.setFilter(opened.sessionId, "archive")
+    expect(unchanged?.generation).toBe(archives?.generation)
+    await expect(browser.setFilter(opened.sessionId, "directory")).resolves.toMatchObject({ total: 1, entries: [{ name: "Folder" }] })
+    await expect(browser.setFilter(opened.sessionId, "video")).resolves.toMatchObject({ total: 1, entries: [{ name: "Clip.mp4" }] })
+    await expect(browser.setFilter(opened.sessionId, "invalid" as never)).rejects.toThrow("filter is invalid")
+    expect(read).toHaveBeenCalledOnce()
+    await browser[Symbol.asyncDispose]()
+  })
 })

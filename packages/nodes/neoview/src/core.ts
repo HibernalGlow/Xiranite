@@ -50,7 +50,10 @@ export type {
   ReaderEmmTag,
 } from "./ports/ReaderEmmOverrideStore.js"
 export {
+  READER_DIRECTORY_FILTERS,
   ReaderFileTreeService,
+  type ReaderDirectoryEntryType,
+  type ReaderDirectoryFilter,
   type ReaderDirectoryNavigation,
   type ReaderDirectoryPage,
   type ReaderDirectorySizeBatch,

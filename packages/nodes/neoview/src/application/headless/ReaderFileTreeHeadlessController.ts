@@ -1,5 +1,6 @@
 import type {
   ReaderDirectoryPage,
+  ReaderDirectoryFilter,
   ReaderFileTreeService,
 } from "../browser/ReaderFileTreeService.js"
 import type {
@@ -55,6 +56,10 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
 
   list(cursor = 0, limit = 128, signal?: AbortSignal): Promise<ReaderDirectoryPage | undefined> {
     return this.#service.list(this.#requireSession(), cursor, limit, new Set(), signal)
+  }
+
+  setFilter(filter: ReaderDirectoryFilter, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPage | undefined> {
+    return this.#service.setFilter(this.#requireSession(), filter, focusPath, signal)
   }
 
   tree(path?: string, refresh = false, signal?: AbortSignal): Promise<(ReaderFileTreeNodePage & { sessionId: string }) | undefined> {
