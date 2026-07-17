@@ -1,5 +1,6 @@
 export type ReaderLibraryThumbnailWarmupKind = "file" | "folder"
 export type ReaderLibraryThumbnailPreviewCount = 1 | 4 | 9 | 16
+export type ReaderLibraryThumbnailWarmupMode = "ensure" | "refresh"
 
 export interface ReaderLibraryThumbnailWarmupItem {
   id: string
@@ -11,6 +12,6 @@ export interface ReaderLibraryThumbnailWarmupItem {
 export interface ReaderLibraryThumbnailWarmupPort {
   warm(
     item: ReaderLibraryThumbnailWarmupItem,
-    options: { contextId: string; signal?: AbortSignal },
+    options: { contextId: string; mode: ReaderLibraryThumbnailWarmupMode; signal?: AbortSignal },
   ): Promise<void>
 }

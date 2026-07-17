@@ -64,6 +64,7 @@ interface LibraryThumbnailDemandSource {
   kind: "library"
   source: LibraryThumbnailSource
   profile: LibraryThumbnailProfile
+  refresh: boolean
 }
 
 type LibraryThumbnailProfile = "library-cover-v1" | `library-mosaic-${MosaicPreviewCount}-v1`
@@ -98,6 +99,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   #systemThumbnailProvider?: Promise<SystemThumbnailProvider>
   #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
   #mosaicImageComposer?: Promise<MosaicImageComposer>
+  #libraryCacheEpoch = 0
 
   constructor(options: PlatformThumbnailPipelineOptions = {}) {
     this.#loadImageTransformer = options.loadImageTransformer
@@ -220,7 +222,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         const record = records.get(source.path)
         if (!isValidLibraryThumbnail(record, source)) continue
         databaseHits += 1
-        const cacheKey = libraryThumbnailCacheKey(source, "library-cover-v1", revision)
+        const cacheKey = libraryThumbnailCacheKey(source, "library-cover-v1", revision, this.#libraryCacheEpoch)
         if (primedKeys.has(cacheKey)) continue
         primedKeys.add(cacheKey)
         if (this.#coordinator.prime(cacheKey, {
@@ -271,13 +273,35 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   acquireLibrary(source: LibraryThumbnailSource, options: PageThumbnailAcquireOptions): ThumbnailLease {
     const profile = libraryThumbnailProfile(source.previewCount)
     return this.#coordinator.acquire({
-      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision()),
-      source: { kind: "library", source, profile },
+      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision(), this.#libraryCacheEpoch),
+      source: { kind: "library", source, profile, refresh: false },
       lane: options.lane ?? (source.kind === "folder" ? "folder-preview" : "library-visible"),
       contextId: options.contextId,
       generation: options.generation ?? 0,
       signal: options.signal,
     })
+  }
+
+  async refreshLibrary(source: LibraryThumbnailSource, options: PageThumbnailAcquireOptions): Promise<ThumbnailAsset> {
+    if (source.previewCount === 1 && !this.#thumbnailStore?.put) throw new ThumbnailPersistenceUnavailableError()
+    const profile = libraryThumbnailProfile(source.previewCount)
+    const targetEpoch = this.#libraryCacheEpoch + 1
+    const lease = this.#coordinator.acquire({
+      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision(), targetEpoch),
+      source: { kind: "library", source, profile, refresh: true },
+      lane: options.lane ?? "background",
+      contextId: options.contextId,
+      generation: options.generation ?? 0,
+      signal: options.signal,
+    })
+    try {
+      const asset = await lease.ready
+      this.#libraryCacheEpoch = Math.max(this.#libraryCacheEpoch, targetEpoch)
+      this.#coordinator.evictUnpinned((key) => isLibraryThumbnailCacheKey(key) && !key.includes(`:local-${this.#libraryCacheEpoch}:`))
+      return asset
+    } finally {
+      lease.release()
+    }
   }
 
   advanceContext(contextId: string, generation: number): void {
@@ -436,7 +460,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const thumbnailStore = this.#thumbnailStore
     const category = descriptor.kind
     const expectedHash = thumbnailGenerationHash(descriptor.contentVersion)
-    if (thumbnailStore) {
+    if (thumbnailStore && !demandSource.refresh) {
       const stored = await thumbnailStore.get(descriptor.path, category)
       if (isValidLibraryThumbnail(stored, descriptor)) {
         return {
@@ -450,13 +474,13 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
       if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
     }
-    const cached = await this.#trySystemThumbnail({
+    const cached = !demandSource.refresh ? await this.#trySystemThumbnail({
       sourcePath: descriptor.path,
       maxEdge: 416,
       quality: 82,
       priority: thumbnailLanePriority(demand.lane),
       ownerId: demand.contextId,
-    }, signal)
+    }, signal) : undefined
     if (cached) {
       if (thumbnailStore?.put) {
         void thumbnailStore.put({
@@ -479,7 +503,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const page = book.pages.find((candidate) => candidate.mediaKind === "image" || candidate.mediaKind === "animated-image" || candidate.mediaKind === "video")
       if (!page) throw new ThumbnailUnavailableError()
 
-      const reusable = page.thumbnailSource && thumbnailStore
+      const reusable = !demandSource.refresh && page.thumbnailSource && thumbnailStore
         ? await thumbnailStore.get(page.thumbnailSource.key, page.thumbnailSource.category)
         : undefined
       const reusableMatches = reusable?.contentType === "image/webp"
@@ -512,18 +536,28 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       }
 
       if (thumbnailStore?.put) {
-        void thumbnailStore.put({
+        const write = thumbnailStore.put({
           key: descriptor.path,
           category,
           bytes,
           sourceSize: descriptor.kind === "file" ? descriptor.sourceSize : page.byteLength,
           date: sqliteTimestamp(new Date()),
           generationHash: expectedHash,
-        }).catch(() => undefined)
+        })
+        if (demandSource.refresh) {
+          try {
+            await write
+          } catch (error) {
+            throw new ThumbnailPersistenceError(error)
+          }
+        } else {
+          void write.catch(() => undefined)
+        }
       }
       return { bytes, contentType: "image/webp", version: demandSource.profile, cacheable: true }
     } catch (error) {
-      if (thumbnailStore?.recordFailure && !isAbortError(error) && !(error instanceof ThumbnailUnavailableError)) {
+      if (thumbnailStore?.recordFailure && !isAbortError(error)
+        && !(error instanceof ThumbnailUnavailableError) && !(error instanceof ThumbnailPersistenceError)) {
         void thumbnailStore.recordFailure({
           key: descriptor.path,
           reason: thumbnailFailureReason(error),
@@ -684,6 +718,20 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
 export class ThumbnailUnavailableError extends Error {}
 
+export class ThumbnailPersistenceUnavailableError extends Error {
+  constructor() {
+    super("Writable thumbnail persistence is unavailable.")
+    this.name = "ThumbnailPersistenceUnavailableError"
+  }
+}
+
+class ThumbnailPersistenceError extends Error {
+  constructor(readonly cause: unknown) {
+    super(`Thumbnail replacement was not committed: ${cause instanceof Error ? cause.message : String(cause)}`)
+    this.name = "ThumbnailPersistenceError"
+  }
+}
+
 export class ThumbnailRetryDeferredError extends Error {
   constructor(readonly retryAfterMs: number) {
     super(`Thumbnail retry is deferred for ${retryAfterMs}ms.`)
@@ -712,12 +760,16 @@ function thumbnailGenerationHash(contentVersion: string): number {
   return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
 }
 
-function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile, revision: number): string {
-  return `${source.kind}:${source.path}:${source.contentVersion}:db-${revision}:${profile}`
+function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile, revision: number, localEpoch: number): string {
+  return `${source.kind}:${source.path}:${source.contentVersion}:db-${revision}:local-${localEpoch}:${profile}`
 }
 
 function libraryThumbnailProfile(count: LibraryThumbnailPreviewCount): LibraryThumbnailProfile {
   return count === 1 ? "library-cover-v1" : `library-mosaic-${count}-v1`
+}
+
+function isLibraryThumbnailCacheKey(key: string): boolean {
+  return key.endsWith(":library-cover-v1") || /:library-mosaic-(?:4|9|16)-v1$/.test(key)
 }
 
 function isValidLibraryThumbnail(

@@ -134,6 +134,15 @@ export class LibraryThumbnailRoute {
     const service = new ReaderLibraryThumbnailWarmupService({
       warm: async (item, options) => {
         const source = await this.#pipeline.describeLibrarySource(item.path, item.kind, options.signal, item.previewCount)
+        if (options.mode === "refresh") {
+          await this.#pipeline.refreshLibrary(source, {
+            contextId: options.contextId,
+            generation: 0,
+            lane: "background",
+            signal: options.signal,
+          })
+          return
+        }
         const lease = this.#pipeline.acquireLibrary(source, {
           contextId: options.contextId,
           generation: 0,

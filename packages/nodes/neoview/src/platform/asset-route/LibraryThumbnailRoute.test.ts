@@ -196,6 +196,33 @@ describe("LibraryThumbnailRoute", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.library-refresh-http] exposes non-destructive replacement through the same GUI progress stream", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-refresh-route-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1, 2, 3))
+    const get = vi.fn(async () => ({ bytes: fixtureWebp(2), contentType: "image/webp", sourceSize: 3, date: "2099-01-01 00:00:00" }))
+    const put = vi.fn(async () => undefined)
+    const transform = vi.fn(async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(8)) }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(sourcePath),
+      thumbnailStore: { get, put },
+      loadImageTransformer: async () => ({ transform }),
+    })
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const response = (await route.handle(warmupRequest([
+      { id: "cover", path: sourcePath, kind: "file", previewCount: 1 },
+    ], true, "refresh")))!
+    const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
+
+    expect(events.at(-1)).toEqual({ type: "complete", total: 1, completed: 1, failed: 0 })
+    expect(get).not.toHaveBeenCalled()
+    expect(transform).toHaveBeenCalledOnce()
+    expect(put).toHaveBeenCalledOnce()
+    route.close()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library-warmup-http-cancel] cancels generation when the GUI route closes", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-warmup-cancel-"))
     roots.push(root)
@@ -255,6 +282,7 @@ function registerRequest(
 function warmupRequest(
   items: Array<{ id: string; path: string; kind: "file" | "folder"; previewCount: 1 | 4 | 9 | 16 }>,
   authorized: boolean,
+  mode: "ensure" | "refresh" = "ensure",
 ): Request {
   return new Request("http://127.0.0.1:41000/reader/library/thumbnails/prewarm", {
     method: "POST",
@@ -262,7 +290,7 @@ function warmupRequest(
       "content-type": "application/json",
       ...(authorized ? { "x-xiranite-token": "secret" } : {}),
     },
-    body: JSON.stringify({ items, concurrency: 2 }),
+    body: JSON.stringify({ items, mode, concurrency: 2 }),
   })
 }
 

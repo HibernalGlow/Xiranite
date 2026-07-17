@@ -183,6 +183,35 @@ describe("WritableLegacyThumbnailStore", () => {
     }
   })
 
+  it("[neoview.thumbnail.writer-replacement-rollback] preserves the previous blob when an atomic replacement cannot commit", async () => {
+    const path = await createFixture(roots)
+    const original = fixtureWebp(2)
+    const replacement = fixtureWebp(8)
+    const initial = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await initial.put({ key: "D:/replace.jpg", category: "file", bytes: original })
+    await initial.close()
+
+    const blocker = await openFixtureDatabase(path)
+    blocker.exec("PRAGMA busy_timeout = 0; BEGIN IMMEDIATE")
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 60_000,
+      busyTimeoutMs: 0,
+      writeBusyRetries: 1,
+      writeBusyBaseDelayMs: 1,
+    })
+    const pending = store.put({ key: "D:/replace.jpg", category: "file", bytes: replacement })
+    try {
+      await store.flush()
+      await expect(pending).rejects.toBeTruthy()
+      blocker.exec("ROLLBACK")
+      await expect(store.get("D:/replace.jpg", "file")).resolves.toMatchObject({ bytes: original })
+    } finally {
+      try { blocker.exec("ROLLBACK") } catch { /* released before verification */ }
+      blocker.close()
+      await store.close()
+    }
+  })
+
   it("[neoview.thumbnail.maintenance.online] reports aggregates and performs only bounded online cleanup", async () => {
     const path = await createFixture(roots)
     const seed = await openFixtureDatabase(path)

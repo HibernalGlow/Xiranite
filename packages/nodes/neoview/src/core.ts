@@ -147,6 +147,7 @@ export type {
   ReaderLibraryThumbnailPreviewCount,
   ReaderLibraryThumbnailWarmupItem,
   ReaderLibraryThumbnailWarmupKind,
+  ReaderLibraryThumbnailWarmupMode,
   ReaderLibraryThumbnailWarmupPort,
 } from "./ports/ReaderLibraryThumbnailWarmupPort.js"
 export {

@@ -25,6 +25,7 @@ export const ReaderLibraryThumbnailWarmupCommandSchema = z.object({
       ids.add(item.id)
     }
   }),
+  mode: z.enum(["ensure", "refresh"]).default("ensure"),
   concurrency: z.number().int().min(1).max(8).default(2),
 })
 
@@ -61,6 +62,7 @@ export class ReaderLibraryThumbnailWarmupService {
       try {
         await this.port.warm(item as ReaderLibraryThumbnailWarmupItem, {
           contextId: options.contextId,
+          mode: input.mode,
           signal: options.signal,
         })
         completed += 1

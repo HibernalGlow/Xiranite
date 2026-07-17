@@ -6,9 +6,11 @@ describe("ReaderLibraryThumbnailWarmupService", () => {
   it("[neoview.thumbnail.library-warmup] bounds concurrency and reports individual failures", async () => {
     let active = 0
     let maximumActive = 0
+    const modes: string[] = []
     const progress = vi.fn()
     const service = new ReaderLibraryThumbnailWarmupService({
-      async warm(item) {
+      async warm(item, options) {
+        modes.push(options.mode)
         active += 1
         maximumActive = Math.max(maximumActive, active)
         await Promise.resolve()
@@ -19,6 +21,7 @@ describe("ReaderLibraryThumbnailWarmupService", () => {
 
     await expect(service.run({
       concurrency: 2,
+      mode: "refresh",
       items: [
         { id: "one", path: "D:/one.jpg", kind: "file", previewCount: 1 },
         { id: "bad", path: "D:/bad.jpg", kind: "file", previewCount: 1 },
@@ -26,6 +29,8 @@ describe("ReaderLibraryThumbnailWarmupService", () => {
       ],
     }, { contextId: "gui:folder-main", onProgress: progress })).resolves.toEqual({ total: 3, completed: 2, failed: 1 })
     expect(maximumActive).toBeLessThanOrEqual(2)
+    expect(modes).toEqual(["refresh", "refresh", "refresh"])
+    expect(progress).toHaveBeenCalledTimes(3)
     expect(progress).toHaveBeenCalledWith(expect.objectContaining({ id: "bad", status: "failed", error: "decode failed" }))
   })
 

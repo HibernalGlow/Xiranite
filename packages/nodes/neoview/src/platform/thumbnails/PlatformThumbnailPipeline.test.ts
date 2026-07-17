@@ -71,6 +71,73 @@ describe("PlatformThumbnailPipeline", () => {
     expect(closeBook).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.thumbnail.library-refresh] bypasses every old cache source and waits for atomic persistence", async () => {
+    const old = fixtureWebp(2)
+    const refreshed = fixtureWebp(9)
+    let commit!: () => void
+    const committed = new Promise<void>((resolve) => { commit = resolve })
+    const get = vi.fn(async () => ({
+      bytes: old,
+      contentType: "image/webp",
+      sourceSize: 100,
+      date: "2099-01-01 00:00:00",
+    }))
+    const getCached = vi.fn(async () => ({ bytes: old, contentType: "image/webp" as const }))
+    const transform = vi.fn(async () => ({ contentType: "image/webp", stream: byteStream(refreshed) }))
+    const put = vi.fn(async () => committed)
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(fixturePage("D:/library/book/cover.png")),
+      thumbnailStore: { get, put },
+      loadSystemThumbnailProvider: async () => ({ getCached }),
+      loadImageTransformer: async () => ({ transform }),
+    })
+    const descriptor = librarySource("file", "D:/library/book.cbz", 100)
+    let settled = false
+    const refreshing = pipeline.refreshLibrary(descriptor, { contextId: "library:refresh" }).finally(() => { settled = true })
+    await vi.waitFor(() => expect(put).toHaveBeenCalledOnce())
+    expect(settled).toBe(false)
+    expect(get).not.toHaveBeenCalled()
+    expect(getCached).not.toHaveBeenCalled()
+    expect(transform).toHaveBeenCalledOnce()
+    commit()
+    await expect(refreshing).resolves.toMatchObject({ bytes: refreshed })
+
+    const normal = pipeline.acquireLibrary(descriptor, { contextId: "library:after-refresh" })
+    await expect(normal.ready).resolves.toMatchObject({ bytes: refreshed })
+    expect(get).not.toHaveBeenCalled()
+    normal.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.library-refresh-rollback] keeps the old database value addressable when replacement commit fails", async () => {
+    const old = fixtureWebp(3)
+    const refreshed = fixtureWebp(8)
+    const get = vi.fn(async () => ({
+      bytes: old,
+      contentType: "image/webp",
+      sourceSize: 100,
+      date: "2099-01-01 00:00:00",
+    }))
+    const recordFailure = vi.fn(async () => undefined)
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(fixturePage("D:/library/book/cover.png")),
+      thumbnailStore: { get, put: async () => { throw new Error("database is busy") }, recordFailure },
+      loadImageTransformer: async () => ({
+        transform: async () => ({ contentType: "image/webp", stream: byteStream(refreshed) }),
+      }),
+    })
+    const descriptor = librarySource("file", "D:/library/book.cbz", 100)
+    await expect(pipeline.refreshLibrary(descriptor, { contextId: "library:refresh-failed" }))
+      .rejects.toThrow("replacement was not committed")
+    expect(recordFailure).not.toHaveBeenCalled()
+
+    const normal = pipeline.acquireLibrary(descriptor, { contextId: "library:old-remains" })
+    await expect(normal.ready).resolves.toMatchObject({ bytes: old, cacheable: false })
+    expect(get).toHaveBeenCalledOnce()
+    normal.release()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library.external-epoch] bypasses a generated L1 entry after another database writer commits", async () => {
     const generated = fixtureWebp(7)
     const external = fixtureWebp(8)
