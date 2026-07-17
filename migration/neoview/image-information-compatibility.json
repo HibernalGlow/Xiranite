@@ -1,58 +1,577 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "featureId": "image-information",
   "legacyCardId": "imageInfo",
   "title": "图像信息",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
-  "statusValues": ["pending", "partial", "complete"],
   "completionRule": "Complete only when the image and video branches preserve every legacy field and formatter, media probing is deferred/cancellable and shared by GUI/CLI/TUI contracts, presentation-derived values are truthful, and desktop/constrained Chromium proves no active image remount or hot-path regression.",
   "sourceUiInventory": [
     {
       "id": "image-information-ui.base",
       "title": "媒体类型、名称与尺寸",
-      "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
-      "acceptanceItems": ["imageInfo 非空分支", "imageInfo 空态", "space-y-2 text-sm", "类型标签", "图片图标", "视频图标", "图片文本", "视频文本", "文件名标签", "文件名 max-width 150px", "文件名 truncate", "文件名 title", "文件名 monospace", "尺寸标签", "宽 x 高", "缺失尺寸破折号"],
-      "mappedChecklistIds": ["image-information.states", "image-information.base-fields", "image-information.ui-parity", "image-information.accessibility"]
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "imageInfo 非空分支",
+        "imageInfo 空态",
+        "space-y-2 text-sm",
+        "类型标签",
+        "图片图标",
+        "视频图标",
+        "图片文本",
+        "视频文本",
+        "文件名标签",
+        "文件名 max-width 150px",
+        "文件名 truncate",
+        "文件名 title",
+        "文件名 monospace",
+        "尺寸标签",
+        "宽 x 高",
+        "缺失尺寸破折号"
+      ],
+      "mappedChecklistIds": [
+        "image-information.states",
+        "image-information.base-fields",
+        "image-information.ui-parity",
+        "image-information.accessibility"
+      ]
     },
     {
       "id": "image-information-ui.image",
       "title": "图片格式与文件大小",
-      "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"],
-      "acceptanceItems": ["非视频分支", "格式标签", "格式缺失破折号", "fileSize 大于零才显示大小行", "B 格式", "KB 一位小数", "MB 两位小数", "GB 两位小数", "1024/1048576/1073741824 边界"],
-      "mappedChecklistIds": ["image-information.image-fields", "image-information.formatting", "image-information.states"]
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "acceptanceItems": [
+        "非视频分支",
+        "格式标签",
+        "格式缺失破折号",
+        "fileSize 大于零才显示大小行",
+        "B 格式",
+        "KB 一位小数",
+        "MB 两位小数",
+        "GB 两位小数",
+        "1024/1048576/1073741824 边界"
+      ],
+      "mappedChecklistIds": [
+        "image-information.image-fields",
+        "image-information.formatting",
+        "image-information.states"
+      ]
     },
     {
       "id": "image-information-ui.video",
       "title": "视频时长、帧率、码率与编码",
-      "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"],
-      "acceptanceItems": ["视频分支", "时长始终显示", "无效时长破折号", "分钟 mm:ss", "小时 h:mm:ss", "帧率存在才显示", "帧率四舍五入为整数 fps", "码率存在才显示", "bps 格式", "Kbps 整数", "Mbps 一位小数", "视频编码存在才显示", "音频编码存在才显示"],
-      "mappedChecklistIds": ["image-information.video-fields", "image-information.formatting", "image-information.media-probe", "image-information.degradation"]
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "acceptanceItems": [
+        "视频分支",
+        "时长始终显示",
+        "无效时长破折号",
+        "分钟 mm:ss",
+        "小时 h:mm:ss",
+        "帧率存在才显示",
+        "帧率四舍五入为整数 fps",
+        "码率存在才显示",
+        "bps 格式",
+        "Kbps 整数",
+        "Mbps 一位小数",
+        "视频编码存在才显示",
+        "音频编码存在才显示"
+      ],
+      "mappedChecklistIds": [
+        "image-information.video-fields",
+        "image-information.formatting",
+        "image-information.media-probe",
+        "image-information.degradation"
+      ]
     },
     {
       "id": "image-information-ui.target-extension",
       "title": "XR 共享契约与呈现有效信息",
-      "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
-      "acceptanceItems": ["displayPath", "MIME", "当前页索引", "媒体 kind", "source dimensions", "CSS rotation 后有效尺寸", "fit/manual scale 状态", "probe loading", "probe retry", "probe cancellation", "迟到 generation 忽略", "Card 无 session 零 DOM", "独立 lazy chunk", "活动图片节点稳定", "未知字段稳定降级"],
-      "mappedChecklistIds": ["image-information.data-contract", "image-information.presentation", "image-information.lifecycle", "image-information.performance", "image-information.image-stability", "image-information.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "displayPath",
+        "MIME",
+        "当前页索引",
+        "媒体 kind",
+        "source dimensions",
+        "CSS rotation 后有效尺寸",
+        "fit/manual scale 状态",
+        "probe loading",
+        "probe retry",
+        "probe cancellation",
+        "迟到 generation 忽略",
+        "Card 无 session 零 DOM",
+        "独立 lazy chunk",
+        "活动图片节点稳定",
+        "未知字段稳定降级"
+      ],
+      "mappedChecklistIds": [
+        "image-information.data-contract",
+        "image-information.presentation",
+        "image-information.lifecycle",
+        "image-information.performance",
+        "image-information.image-stability",
+        "image-information.deviations"
+      ]
     }
   ],
   "items": [
-    { "id": "image-information.states", "category": "interaction-states", "title": "空、加载、成功、失败与重试状态", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "No session is zero DOM; unavailable media is a stable empty state; base metadata and optional probe failures remain independently visible and retryable.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.metadata.cards", "neoview.image-information.zero-session", "neoview.image-information.probe-degradation"], "notes": "Base and probe loading, empty, error and independently named retry states are covered." },
-    { "id": "image-information.base-fields", "category": "capabilities", "title": "显示类型、名称和源尺寸", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "The active page exposes image/video/animated type, name and source dimensions with legacy labels and compact density.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.metadata.cards", "neoview.image-information.image-fields", "neoview.image-information.video-fields"], "notes": "GUI preserves the legacy base rows; CLI/TUI explicit media inspection remains pending." },
-    { "id": "image-information.image-fields", "category": "capabilities", "title": "显示图片格式与文件大小", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Non-video pages display normalized format and conditionally display positive source bytes using frozen boundaries.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.image-fields", "neoview.image-information.formatting", "neoview.image-information.image-e2e"], "notes": "GUI image format and conditional bytes match legacy behavior; headless projection remains pending." },
-    { "id": "image-information.video-fields", "category": "capabilities", "title": "显示完整视频媒体字段", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Video pages display duration and conditionally display frame rate, bitrate, video codec and audio codec from a shared probe contract.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.video-fields", "neoview.image-information.archive-video-http"], "notes": "GUI and shared HTTP DTO expose all legacy video fields; CLI/TUI commands remain pending." },
-    { "id": "image-information.formatting", "category": "ui-parity", "title": "保持旧时长、码率与大小格式", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Duration, bitrate and byte formatters preserve all legacy thresholds, precision and invalid-value degradation.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.formatting"], "notes": "Pure GUI formatters freeze every legacy boundary; headless text projection must reuse them before completion." },
-    { "id": "image-information.media-probe", "category": "data-contract", "title": "按需探测视频容器与流", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"], "targetContract": "A proven ffprobe-based platform adapter supplies bounded normalized media metadata only when requested for a video page.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.image-zero-ffprobe", "neoview.image-information.ffprobe-normalize", "neoview.image-information.ffprobe-stream", "neoview.image-information.video-cache-budget", "neoview.image-information.image-e2e"], "notes": "GUI demand and platform probing are bounded and image paths make zero probe requests; CLI/TUI demand entry points remain pending." },
-    { "id": "image-information.data-contract", "category": "data-contract", "title": "共享规范媒体信息 DTO", "sourceEvidence": ["src/lib/stores/infoPanel.svelte.ts"], "targetContract": "GUI, CLI and TUI share one path-safe DTO for kind, dimensions, bytes, MIME, duration, frame rate, bitrate and codecs.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.client", "neoview.image-information.archive-video-http"], "notes": "Base metadata and demand-only media DTOs are path-safe and shared with GUI; CLI/TUI still need explicit projection." },
-    { "id": "image-information.presentation", "category": "capabilities", "title": "显示当前呈现的有效尺寸与旋转", "sourceEvidence": ["src/lib/stores/infoPanel.svelte.ts"], "targetContract": "The Card distinguishes immutable source dimensions from CSS presentation rotation/fit/manual scale without generating a second asset.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.image-information.image-fields"], "notes": "The Card separately shows source size, truthful rotated size, fit mode and manual scale; it does not claim unavailable rendered-pixel metrics." },
-    { "id": "image-information.degradation", "category": "interaction-states", "title": "缺少 ffprobe 或字段时稳定降级", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Base metadata remains visible when probing is unsupported or fails; optional video rows remain absent and duration uses an em dash.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.probe-degradation", "neoview.image-information.ffprobe-normalize"], "notes": "GUI preserves base rows and offers an isolated probe retry; headless degradation output remains pending." },
-    { "id": "image-information.lifecycle", "category": "lifecycle", "title": "取消探测并忽略迟到页面结果", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"], "targetContract": "Unmount, navigation and session close abort active probing; obsolete generation results never replace the current page.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.navigation-cancel", "neoview.image-information.video-cancel", "neoview.image-information.session-release", "neoview.image-information.ffprobe-abort"], "notes": "GUI, application, route and process cancellation are covered; CLI/TUI consumers remain pending." },
-    { "id": "image-information.shell", "category": "ui-parity", "title": "复用通用 Card 外壳", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte"], "targetContract": "Image Information remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the info Panel.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.shell.registry-lazy", "neoview.image-information.chunk"], "notes": "The shared shell and independent 8 KiB deferred chunk are both gated." },
-    { "id": "image-information.accessibility", "category": "keyboard-accessibility", "title": "字段、错误与重试具有可访问语义", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Labels use semantic description lists, truncated values retain titles, and retry is keyboard/touch operable.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.image-information.image-fields", "neoview.image-information.probe-degradation"], "notes": "Semantic terms, complete titles, live probe status and separately named retry buttons are present." },
-    { "id": "image-information.ui-parity", "category": "ui-parity", "title": "保持旧版紧凑字段层级", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Legacy field order, conditional rows, label hierarchy and compact geometry remain readable on desktop and 420x360 viewports.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.image-information.image-fields", "neoview.image-information.video-fields", "neoview.image-information.image-e2e"], "notes": "Desktop and 420x360 Chromium prove the legacy order and compact geometry without clipping or horizontal overflow." },
-    { "id": "image-information.image-stability", "category": "performance", "title": "信息探测不重挂活动媒体", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Opening, retrying and navigating the Card preserve the active image/video node and asset URL.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.image-information.image-e2e", "neoview.image-information.navigation-cancel"], "notes": "Opening the image Card and navigation cancellation are covered; real video retry/navigation identity remains pending." },
-    { "id": "image-information.performance", "category": "performance", "title": "独立 chunk 与零热路径探测", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte"], "targetContract": "The Card remains below 8 KiB in an independent deferred chunk; image paths make no probe request and pointer/page-turn budgets remain green.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.image-information.chunk", "neoview.image-information.image-e2e", "neoview.image-information.video-cache-budget"], "notes": "The Card is 5,106 bytes, images issue zero probe requests, video cache is bounded and loopback navigation p95 is 3.80 ms; the full Reader gate remains pending outside this Card." },
-    { "id": "image-information.deviations", "category": "deviations", "title": "记录 ffprobe 与呈现扩展", "sourceEvidence": ["src/lib/cards/info/ImageInfoCard.svelte"], "targetContract": "Document the separate cancellable media endpoint and truthful presentation fields as XR extensions without removing legacy rows.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.image-information.client", "neoview.image-information.image-fields"], "notes": "XR uses an authenticated cancellable media endpoint and truthful CSS presentation fields while preserving every legacy row." }
+    {
+      "id": "image-information.states",
+      "category": "interaction-states",
+      "title": "空、加载、成功、失败与重试状态",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "No session is zero DOM; unavailable media is a stable empty state; base metadata and optional probe failures remain independently visible and retryable.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cards",
+        "neoview.image-information.zero-session",
+        "neoview.image-information.probe-degradation"
+      ],
+      "plannedTestIds": [],
+      "notes": "Base and probe loading, empty, error and independently named retry states are covered."
+    },
+    {
+      "id": "image-information.base-fields",
+      "category": "capabilities",
+      "title": "显示类型、名称和源尺寸",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "The active page exposes image/video/animated type, name and source dimensions with legacy labels and compact density.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cards",
+        "neoview.image-information.image-fields",
+        "neoview.image-information.video-fields"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI preserves the legacy base rows; CLI/TUI explicit media inspection remains pending."
+    },
+    {
+      "id": "image-information.image-fields",
+      "category": "capabilities",
+      "title": "显示图片格式与文件大小",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Non-video pages display normalized format and conditionally display positive source bytes using frozen boundaries.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.image-fields",
+        "neoview.image-information.formatting",
+        "neoview.image-information.image-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI image format and conditional bytes match legacy behavior; headless projection remains pending."
+    },
+    {
+      "id": "image-information.video-fields",
+      "category": "capabilities",
+      "title": "显示完整视频媒体字段",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Video pages display duration and conditionally display frame rate, bitrate, video codec and audio codec from a shared probe contract.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.video-fields",
+        "neoview.image-information.archive-video-http"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI and shared HTTP DTO expose all legacy video fields; CLI/TUI commands remain pending."
+    },
+    {
+      "id": "image-information.formatting",
+      "category": "ui-parity",
+      "title": "保持旧时长、码率与大小格式",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Duration, bitrate and byte formatters preserve all legacy thresholds, precision and invalid-value degradation.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.formatting"
+      ],
+      "plannedTestIds": [],
+      "notes": "Pure GUI formatters freeze every legacy boundary; headless text projection must reuse them before completion."
+    },
+    {
+      "id": "image-information.media-probe",
+      "category": "data-contract",
+      "title": "按需探测视频容器与流",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "A proven ffprobe-based platform adapter supplies bounded normalized media metadata only when requested for a video page.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.image-zero-ffprobe",
+        "neoview.image-information.ffprobe-normalize",
+        "neoview.image-information.ffprobe-stream",
+        "neoview.image-information.video-cache-budget",
+        "neoview.image-information.image-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI demand and platform probing are bounded and image paths make zero probe requests; CLI/TUI demand entry points remain pending."
+    },
+    {
+      "id": "image-information.data-contract",
+      "category": "data-contract",
+      "title": "共享规范媒体信息 DTO",
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "GUI, CLI and TUI share one path-safe DTO for kind, dimensions, bytes, MIME, duration, frame rate, bitrate and codecs.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.client",
+        "neoview.image-information.archive-video-http"
+      ],
+      "plannedTestIds": [],
+      "notes": "Base metadata and demand-only media DTOs are path-safe and shared with GUI; CLI/TUI still need explicit projection."
+    },
+    {
+      "id": "image-information.presentation",
+      "category": "capabilities",
+      "title": "显示当前呈现的有效尺寸与旋转",
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "The Card distinguishes immutable source dimensions from CSS presentation rotation/fit/manual scale without generating a second asset.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.image-fields"
+      ],
+      "plannedTestIds": [],
+      "notes": "The Card separately shows source size, truthful rotated size, fit mode and manual scale; it does not claim unavailable rendered-pixel metrics."
+    },
+    {
+      "id": "image-information.degradation",
+      "category": "interaction-states",
+      "title": "缺少 ffprobe 或字段时稳定降级",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Base metadata remains visible when probing is unsupported or fails; optional video rows remain absent and duration uses an em dash.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.probe-degradation",
+        "neoview.image-information.ffprobe-normalize"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI preserves base rows and offers an isolated probe retry; headless degradation output remains pending."
+    },
+    {
+      "id": "image-information.lifecycle",
+      "category": "lifecycle",
+      "title": "取消探测并忽略迟到页面结果",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "Unmount, navigation and session close abort active probing; obsolete generation results never replace the current page.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.navigation-cancel",
+        "neoview.image-information.video-cancel",
+        "neoview.image-information.session-release",
+        "neoview.image-information.ffprobe-abort"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI, application, route and process cancellation are covered; CLI/TUI consumers remain pending."
+    },
+    {
+      "id": "image-information.shell",
+      "category": "ui-parity",
+      "title": "复用通用 Card 外壳",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "Image Information remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the info Panel.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.shell.registry-lazy",
+        "neoview.image-information.chunk"
+      ],
+      "plannedTestIds": [],
+      "notes": "The shared shell and independent 8 KiB deferred chunk are both gated."
+    },
+    {
+      "id": "image-information.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "字段、错误与重试具有可访问语义",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Labels use semantic description lists, truncated values retain titles, and retry is keyboard/touch operable.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.image-fields",
+        "neoview.image-information.probe-degradation"
+      ],
+      "plannedTestIds": [],
+      "notes": "Semantic terms, complete titles, live probe status and separately named retry buttons are present."
+    },
+    {
+      "id": "image-information.ui-parity",
+      "category": "ui-parity",
+      "title": "保持旧版紧凑字段层级",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Legacy field order, conditional rows, label hierarchy and compact geometry remain readable on desktop and 420x360 viewports.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.image-information.image-fields",
+        "neoview.image-information.video-fields",
+        "neoview.image-information.image-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Chromium prove the legacy order and compact geometry without clipping or horizontal overflow."
+    },
+    {
+      "id": "image-information.image-stability",
+      "category": "performance",
+      "title": "信息探测不重挂活动媒体",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Opening, retrying and navigating the Card preserve the active image/video node and asset URL.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.image-e2e",
+        "neoview.image-information.navigation-cancel"
+      ],
+      "plannedTestIds": [],
+      "notes": "Opening the image Card and navigation cancellation are covered; real video retry/navigation identity remains pending."
+    },
+    {
+      "id": "image-information.performance",
+      "category": "performance",
+      "title": "独立 chunk 与零热路径探测",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "The Card remains below 8 KiB in an independent deferred chunk; image paths make no probe request and pointer/page-turn budgets remain green.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.chunk",
+        "neoview.image-information.image-e2e",
+        "neoview.image-information.video-cache-budget"
+      ],
+      "plannedTestIds": [],
+      "notes": "The Card is 5,106 bytes, images issue zero probe requests, video cache is bounded and loopback navigation p95 is 3.80 ms; the full Reader gate remains pending outside this Card."
+    },
+    {
+      "id": "image-information.deviations",
+      "category": "deviations",
+      "title": "记录 ffprobe 与呈现扩展",
+      "sourceEvidence": [
+        "src/lib/cards/info/ImageInfoCard.svelte"
+      ],
+      "targetContract": "Document the separate cancellable media endpoint and truthful presentation fields as XR extensions without removing legacy rows.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.image-information.client",
+        "neoview.image-information.image-fields"
+      ],
+      "plannedTestIds": [],
+      "notes": "XR uses an authenticated cancellable media endpoint and truthful CSS presentation fields while preserving every legacy row."
+    }
   ]
 }
