@@ -1,15 +1,10 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "featureId": "sidebar-control",
   "legacyCardId": "sidebarControl",
   "title": "边栏控制",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
-  "statusValues": [
-    "pending",
-    "partial",
-    "complete"
-  ],
   "completionRule": "Complete only when the Card and floating controller share one Shell state, every legacy button/lock/drag state and frozen trigger/reset extension is covered, canonical TOML persistence is atomic, hidden work is zero and desktop/constrained Chromium proves the active image is not remounted.",
   "sourceUiInventory": [
     {
@@ -297,11 +292,19 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.card.sidebar-control.floating",
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -318,11 +321,19 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.card.sidebar-control.floating",
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -337,12 +348,20 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.card.sidebar-control.edges",
         "neoview.card.sidebar-control.context-pin",
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -356,10 +375,18 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -377,12 +404,20 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.card.sidebar-control.edges",
         "neoview.shell.hover-delay",
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -400,12 +435,21 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.card.sidebar-control.edges",
         "neoview.card.sidebar-control.context-pin",
-        "neoview.shell.pinned",
         "neoview.sidebar-control.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.shell.pinned"
       ],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
@@ -421,10 +465,18 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -442,10 +494,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -462,10 +522,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -483,10 +551,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -500,10 +576,18 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -518,12 +602,20 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.card.sidebar-control.edges",
         "neoview.card.sidebar-control.context-pin",
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -540,10 +632,18 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -561,10 +661,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -582,10 +690,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -603,10 +719,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -621,11 +745,19 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.card.sidebar-control.context-pin",
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -640,10 +772,18 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -658,10 +798,18 @@
       "surfaces": [
         "GUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -679,10 +827,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     },
     {
@@ -700,10 +856,18 @@
         "CLI",
         "TUI"
       ],
-      "status": "complete",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "testIds": [
         "neoview.sidebar-control.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence."
     }
   ]

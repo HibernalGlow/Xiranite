@@ -1,75 +1,285 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "featureId": "preload-status",
   "legacyCardId": "preloadStatus",
   "title": "预加载状态",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
-  "statusValues": ["pending", "partial", "complete"],
   "completionRule": "Complete only when every legacy current-page, memory-pool and nearby-page cache field, the frozen queue/priority/cancel scope, shared GUI/CLI/TUI plan and telemetry contract, inactive-zero-work lifecycle, desktop/constrained geometry, active-media stability and deferred chunk budget have automated evidence; browser predecode, server presentation cache and preload-plan telemetry must remain separately labelled.",
   "sourceUiInventory": [
     {
       "id": "preload-ui.summary",
       "title": "当前页与内存池摘要",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/stores/book/core.svelte.ts", "src/lib/api/pageManager.ts"],
-      "acceptanceItems": ["当前页标签", "1-based 当前页", "总页数", "零页显示 0 / 0", "内存池标签", "entryCount 项", "未知值显示 --", "两列摘要网格", "卡片型边框与背景", "tabular 数值"],
-      "mappedChecklistIds": ["preload.current-page", "preload.memory-pool", "preload.states", "preload.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/stores/book/core.svelte.ts",
+        "src/lib/api/pageManager.ts"
+      ],
+      "acceptanceItems": [
+        "当前页标签",
+        "1-based 当前页",
+        "总页数",
+        "零页显示 0 / 0",
+        "内存池标签",
+        "entryCount 项",
+        "未知值显示 --",
+        "两列摘要网格",
+        "卡片型边框与背景",
+        "tabular 数值"
+      ],
+      "mappedChecklistIds": [
+        "preload.current-page",
+        "preload.memory-pool",
+        "preload.states",
+        "preload.ui-parity"
+      ]
     },
     {
       "id": "preload-ui.memory-meter",
       "title": "内存使用量与进度",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
-      "acceptanceItems": ["totalSize", "maxSize", "1024 进制格式", "usagePercent 一位小数", "使用率限制在 0..100", "横向进度条", "已用与上限左右布局", "maxSize=0 稳定降级", "lockedCount 或 lease 替代语义明确"],
-      "mappedChecklistIds": ["preload.memory-pool", "preload.format", "preload.data-contract", "preload.accessibility", "preload.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
+      "acceptanceItems": [
+        "totalSize",
+        "maxSize",
+        "1024 进制格式",
+        "usagePercent 一位小数",
+        "使用率限制在 0..100",
+        "横向进度条",
+        "已用与上限左右布局",
+        "maxSize=0 稳定降级",
+        "lockedCount 或 lease 替代语义明确"
+      ],
+      "mappedChecklistIds": [
+        "preload.memory-pool",
+        "preload.format",
+        "preload.data-contract",
+        "preload.accessibility",
+        "preload.deviations"
+      ]
     },
     {
       "id": "preload-ui.nearby-cache",
       "title": "附近页缓存格",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
-      "acceptanceItems": ["behind=3", "ahead=5", "书籍边界 clamp", "最多 9 格", "三列网格", "P 加 1-based 页码", "current 状态", "cached 状态", "cold 状态", "当前页优先视觉", "cached emerald 视觉", "cold muted 视觉", "按 page 稳定 identity", "查询不得读取或解码页面内容"],
-      "mappedChecklistIds": ["preload.nearby-window", "preload.cache-state", "preload.ui-parity", "preload.performance"]
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
+      "acceptanceItems": [
+        "behind=3",
+        "ahead=5",
+        "书籍边界 clamp",
+        "最多 9 格",
+        "三列网格",
+        "P 加 1-based 页码",
+        "current 状态",
+        "cached 状态",
+        "cold 状态",
+        "当前页优先视觉",
+        "cached emerald 视觉",
+        "cold muted 视觉",
+        "按 page 稳定 identity",
+        "查询不得读取或解码页面内容"
+      ],
+      "mappedChecklistIds": [
+        "preload.nearby-window",
+        "preload.cache-state",
+        "preload.ui-parity",
+        "preload.performance"
+      ]
     },
     {
       "id": "preload-ui.refresh",
       "title": "刷新、同步与迟到结果",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
-      "acceptanceItems": ["首次激活立即刷新", "当前页变化立即刷新", "总页数变化立即刷新", "两秒周期刷新", "memory 与 status 并行请求", "刷新中状态", "已同步状态", "refreshToken 丢弃迟到响应", "零页清空", "失败后退出 refreshing", "手动重试扩展"],
-      "mappedChecklistIds": ["preload.refresh", "preload.states", "preload.lifecycle", "preload.performance"]
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
+      "acceptanceItems": [
+        "首次激活立即刷新",
+        "当前页变化立即刷新",
+        "总页数变化立即刷新",
+        "两秒周期刷新",
+        "memory 与 status 并行请求",
+        "刷新中状态",
+        "已同步状态",
+        "refreshToken 丢弃迟到响应",
+        "零页清空",
+        "失败后退出 refreshing",
+        "手动重试扩展"
+      ],
+      "mappedChecklistIds": [
+        "preload.refresh",
+        "preload.states",
+        "preload.lifecycle",
+        "preload.performance"
+      ]
     },
     {
       "id": "preload-ui.states",
       "title": "空、部分、错误与失败状态",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
-      "acceptanceItems": ["未打开书籍", "初始加载", "仅浏览器预解码可用", "仅服务端 diagnostics 可用", "两层数据均可用", "错误不泄漏路径或 token", "重试", "predecode loading", "predecode ready", "predecode failed", "server cached 与 cold 不和 browser ready 与 failed 混称", "session 切换清空"],
-      "mappedChecklistIds": ["preload.states", "preload.cache-state", "preload.data-contract", "preload.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
+      "acceptanceItems": [
+        "未打开书籍",
+        "初始加载",
+        "仅浏览器预解码可用",
+        "仅服务端 diagnostics 可用",
+        "两层数据均可用",
+        "错误不泄漏路径或 token",
+        "重试",
+        "predecode loading",
+        "predecode ready",
+        "predecode failed",
+        "server cached 与 cold 不和 browser ready 与 failed 混称",
+        "session 切换清空"
+      ],
+      "mappedChecklistIds": [
+        "preload.states",
+        "preload.cache-state",
+        "preload.data-contract",
+        "preload.deviations"
+      ]
     },
     {
       "id": "preload-ui.queue-actions",
       "title": "队列、优先级与控制扩展",
-      "sourceEvidence": ["src/lib/api/pageManager.ts", "src/lib/cards/info/PreloadStatusCard.svelte"],
-      "acceptanceItems": ["current 分类", "near 分类", "ahead 分类", "background 分类", "thumbnail 独立分类", "active", "ready", "failed", "cancelled", "evicted", "admission normal", "admission reduced", "admission paused", "取消当前 session speculative work", "清理当前 session retained cache", "pending", "disabled", "确认", "错误", "回滚", "不得清理其他 session 或全局缩略图", "GUI CLI TUI 同一命令语义"],
-      "mappedChecklistIds": ["preload.queue-priority", "preload.cancel-clear", "preload.states", "preload.data-contract", "preload.deviations"]
+      "sourceEvidence": [
+        "src/lib/api/pageManager.ts",
+        "src/lib/cards/info/PreloadStatusCard.svelte"
+      ],
+      "acceptanceItems": [
+        "current 分类",
+        "near 分类",
+        "ahead 分类",
+        "background 分类",
+        "thumbnail 独立分类",
+        "active",
+        "ready",
+        "failed",
+        "cancelled",
+        "evicted",
+        "admission normal",
+        "admission reduced",
+        "admission paused",
+        "取消当前 session speculative work",
+        "清理当前 session retained cache",
+        "pending",
+        "disabled",
+        "确认",
+        "错误",
+        "回滚",
+        "不得清理其他 session 或全局缩略图",
+        "GUI CLI TUI 同一命令语义"
+      ],
+      "mappedChecklistIds": [
+        "preload.queue-priority",
+        "preload.cancel-clear",
+        "preload.states",
+        "preload.data-contract",
+        "preload.deviations"
+      ]
     },
     {
       "id": "preload-ui.shell",
       "title": "通用 Card 外壳",
-      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte", "src/lib/stores/cardConfig.svelte.ts"],
-      "acceptanceItems": ["Loader 图标", "预加载状态标题", "默认 info Panel", "默认 visible=true", "默认 expanded=true", "canHide=true", "标题折叠", "上下移动", "独立窗口", "高度调整与恢复 auto", "折叠时内容零 DOM", "动态 import", "加载失败边界", "visible expanded order height 持久化"],
-      "mappedChecklistIds": ["preload.shell", "preload.persistence", "preload.lifecycle", "preload.performance"]
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "Loader 图标",
+        "预加载状态标题",
+        "默认 info Panel",
+        "默认 visible=true",
+        "默认 expanded=true",
+        "canHide=true",
+        "标题折叠",
+        "上下移动",
+        "独立窗口",
+        "高度调整与恢复 auto",
+        "折叠时内容零 DOM",
+        "动态 import",
+        "加载失败边界",
+        "visible expanded order height 持久化"
+      ],
+      "mappedChecklistIds": [
+        "preload.shell",
+        "preload.persistence",
+        "preload.lifecycle",
+        "preload.performance"
+      ]
     },
     {
       "id": "preload-ui.shared-contract",
       "title": "三层共享数据链",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
-      "acceptanceItems": ["sessionId", "generation", "plan direction", "direction confidence", "tier candidates", "admission", "telemetry counters", "performance metrics", "presentation entries bytes maxBytes leases", "browser predecode bounded entries", "GUI CLI TUI 字段语义一致", "取消", "坏 DTO", "旧 DTO", "不暴露本地路径", "不持久化采样"],
-      "mappedChecklistIds": ["preload.data-contract", "preload.lifecycle", "preload.performance", "preload.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
+      "acceptanceItems": [
+        "sessionId",
+        "generation",
+        "plan direction",
+        "direction confidence",
+        "tier candidates",
+        "admission",
+        "telemetry counters",
+        "performance metrics",
+        "presentation entries bytes maxBytes leases",
+        "browser predecode bounded entries",
+        "GUI CLI TUI 字段语义一致",
+        "取消",
+        "坏 DTO",
+        "旧 DTO",
+        "不暴露本地路径",
+        "不持久化采样"
+      ],
+      "mappedChecklistIds": [
+        "preload.data-contract",
+        "preload.lifecycle",
+        "preload.performance",
+        "preload.deviations"
+      ]
     },
     {
       "id": "preload-ui.accessible-responsive",
       "title": "无障碍与响应式几何",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/components/cards/CollapsibleCard.svelte"],
-      "acceptanceItems": ["摘要 group 名称", "附近页 group 名称", "progressbar role", "progressbar min max value", "同步状态 live region", "tile 可读页码与状态", "刷新原生 button", "取消原生 button", "清理原生 button", "稳定焦点顺序", "disabled", "pending", "desktop 几何", "420x360 几何", "零横向溢出", "活动图片不重挂"],
-      "mappedChecklistIds": ["preload.accessibility", "preload.ui-parity", "preload.image-stability", "preload.performance"]
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte"
+      ],
+      "acceptanceItems": [
+        "摘要 group 名称",
+        "附近页 group 名称",
+        "progressbar role",
+        "progressbar min max value",
+        "同步状态 live region",
+        "tile 可读页码与状态",
+        "刷新原生 button",
+        "取消原生 button",
+        "清理原生 button",
+        "稳定焦点顺序",
+        "disabled",
+        "pending",
+        "desktop 几何",
+        "420x360 几何",
+        "零横向溢出",
+        "活动图片不重挂"
+      ],
+      "mappedChecklistIds": [
+        "preload.accessibility",
+        "preload.ui-parity",
+        "preload.image-stability",
+        "preload.performance"
+      ]
     }
   ],
   "items": [
@@ -77,198 +287,555 @@
       "id": "preload.current-page",
       "category": "capabilities",
       "title": "显示当前页与总页数",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/stores/book/core.svelte.ts"
+      ],
       "targetContract": "The active frame anchor is displayed as a 1-based current page with the session book total; a zero-page book renders 0 / 0 without starting preload work.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "complete",
-      "testIds": ["neoview.preload-status.current-page", "neoview.card.preload-status-live", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.current-page",
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.card.preload-status-live"
+      ],
       "notes": "The React Card derives this field from the active session frame and book snapshot; focused coverage freezes the zero-page 0 / 0 boundary without rendering nearby-page work, and Chromium covers an active book."
     },
     {
       "id": "preload.memory-pool",
       "category": "capabilities",
       "title": "显示服务端呈现缓存容量",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "The Card displays server-owned presentation cache entries, bytes, maximum bytes, usage and leases from the shared diagnostics snapshot without presenting the browser predecode retained limit as the legacy memory pool.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.diagnostics.snapshot", "neoview.diagnostics.http", "neoview.diagnostics.cli", "neoview.preload-status.memory", "neoview.preload-status.diagnostics-client"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "complete",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.diagnostics.snapshot",
+        "neoview.diagnostics.http",
+        "neoview.diagnostics.cli",
+        "neoview.preload-status.memory"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.diagnostics-client"
+      ],
       "notes": "The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; desktop and 420x360 Chromium prove the lease metric and responsive geometry, while complete status still requires CLI/TUI presentation."
     },
     {
       "id": "preload.format",
       "category": "ui-parity",
       "title": "保持内存与百分比格式",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "Bytes use the legacy 1024 thresholds and B/KB/MB/GB labels, usage renders one decimal place, and missing or zero-capacity metrics degrade without invalid percentages.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload-status.format"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.format"
+      ],
+      "plannedTestIds": [],
       "notes": "The React Card freezes byte thresholds, one-decimal usage and invalid-value degradation; CLI/TUI text projection remains pending."
     },
     {
       "id": "preload.nearby-window",
       "category": "capabilities",
       "title": "显示有界附近页窗口",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "The Card renders at most nine stable page-index tiles spanning three pages behind through five pages ahead, clamped to book boundaries and queried without loading page content.",
-      "surfaces": ["GUI"],
-      "status": "complete",
-      "testIds": ["neoview.preload-status.nearby-window", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.preload-status.nearby-window",
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [],
       "notes": "The Card renders the clamped three-behind/five-ahead window without loading page content, overlays bounded browser events and passes desktop plus 420x360 Chromium geometry evidence."
     },
     {
       "id": "preload.cache-state",
       "category": "capabilities",
       "title": "区分服务端缓存与浏览器预解码状态",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "Server current/cached/cold truth and browser loading/ready/failed predecode state are separately labelled; a page may expose both layers without one being inferred from the other.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload-status-store", "neoview.card.preload-status-live", "neoview.preload-status.cache-state", "neoview.preload-status.partial-metrics"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status-store"
+      ],
+      "plannedTestIds": [
+        "neoview.card.preload-status-live",
+        "neoview.preload-status.cache-state",
+        "neoview.preload-status.partial-metrics"
+      ],
       "notes": "Browser loading, ready and failed events exist; the server cached/cold window is not connected to the React Card."
     },
     {
       "id": "preload.queue-priority",
       "category": "capabilities",
       "title": "显示预读队列、优先级与 admission",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "The Card truthfully exposes visible, near, ahead, background and separately owned thumbnail work together with normal, reduced and paused admission from the shared scheduler and preload plan.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload.plan-single", "neoview.preload.plan-double", "neoview.preload.viewport-session", "neoview.preload.resource-admission", "neoview.preload-status.priority"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload.plan-single",
+        "neoview.preload.plan-double",
+        "neoview.preload.viewport-session",
+        "neoview.preload.resource-admission"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.priority"
+      ],
       "notes": "The Card renders aggregated near/ahead/background candidates from shared diagnostics; admission, current-visible ownership and thumbnail ownership remain pending and must stay distinct from browser predecode."
     },
     {
       "id": "preload.cancel-clear",
       "category": "capabilities",
       "title": "取消当前会话预读并清理保留缓存",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "Explicit actions cancel only current-session speculative work or release current-session retained presentations with pending, disabled, confirmation, error and rollback states while preserving the visible frame and unrelated consumers.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": ["neoview.preload-status.cancel", "neoview.preload-status.clear", "neoview.preload-status.action-http", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.cancel",
+        "neoview.preload-status.clear",
+        "neoview.preload-status.action-http"
+      ],
       "notes": "The legacy API exposed global trigger and clear primitives, but the frozen XR scope requires safer current-session ownership rather than a global cache mutation."
     },
     {
       "id": "preload.refresh",
       "category": "capabilities",
       "title": "刷新状态并拒绝迟到结果",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "Activation and frame changes update immediately, browser predecode remains event-driven, diagnostics sample at most once every two seconds while active, and retry aborts any superseded request.",
-      "surfaces": ["GUI"],
-      "status": "complete",
-      "testIds": ["neoview.preload-status.refresh", "neoview.preload-status.diagnostics-cancel", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.refresh",
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.diagnostics-cancel"
+      ],
       "notes": "The Card refreshes diagnostics immediately and at most once per two seconds while mounted, aborts on frame/session changes, exposes sanitized retry, and proves zero polling while collapsed in both Chromium viewports."
     },
     {
       "id": "preload.states",
       "category": "interaction-states",
       "title": "加载、空、部分、错误、重试与释放状态",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "Diagnostics and browser predecode failures degrade independently through stable loading, empty, partial, error, retry and disposed states without showing stale previous-session metrics.",
-      "surfaces": ["GUI"],
-      "status": "complete",
-      "testIds": ["neoview.preload-status.states", "neoview.preload-status.retry", "neoview.preload-status.partial-metrics", "neoview.preload-status.session-switch"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.states",
+        "neoview.preload-status.session-switch"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.retry",
+        "neoview.preload-status.partial-metrics"
+      ],
       "notes": "The Card covers loading, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish."
     },
     {
       "id": "preload.shell",
       "category": "ui-parity",
       "title": "保持共享 Card 外壳行为",
-      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
       "targetContract": "Preload Status remains independently lazy, hideable, dockable, collapsible, movable, resizable and window-capable with its Loader icon, Info Panel default and visible/expanded defaults.",
-      "surfaces": ["GUI"],
-      "status": "complete",
-      "testIds": ["neoview.card.parallel-core", "neoview.card.zero-mount", "neoview.settings.card-layout", "neoview.preload-status.chunk", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.card.parallel-core",
+        "neoview.card.zero-mount",
+        "neoview.settings.card-layout",
+        "neoview.preload-status.chunk",
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [],
       "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,857-byte production chunk are gated, including desktop and constrained Chromium."
     },
     {
       "id": "preload.data-contract",
       "category": "data-contract",
       "title": "共享有界 preload 与 diagnostics DTO",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "GUI, CLI and TUI share one versioned, path-free contract for session generation, plan, telemetry, bounded performance metrics and server cache capacity with cancellation and stale-result semantics.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload.telemetry", "neoview.preload.telemetry-generation", "neoview.preload.performance-telemetry", "neoview.preload.telemetry-http", "neoview.diagnostics.wire-schema", "neoview.preload-status.diagnostics-client"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload.telemetry",
+        "neoview.preload.telemetry-generation",
+        "neoview.preload.performance-telemetry",
+        "neoview.preload.telemetry-http",
+        "neoview.diagnostics.wire-schema"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.diagnostics-client"
+      ],
       "notes": "The browser DTO now consumes the shared diagnostics preload tiers and presentation capacity without a second endpoint; session plan/admission detail and explicit CLI/TUI Card projection remain pending."
     },
     {
       "id": "preload.lifecycle",
       "category": "lifecycle",
       "title": "仅在激活时工作并释放所有观察者",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/cards/CardRenderer.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/stores/book/core.svelte.ts"
+      ],
       "targetContract": "Hidden, collapsed and unmounted Cards perform no subscriptions or polling; session and frame generation changes abort obsolete requests, and session close clears browser state and server telemetry.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.card.preload-status-live", "neoview.preload-status-store", "neoview.preload.telemetry-generation", "neoview.card.zero-mount", "neoview.preload-status.diagnostics-cancel", "neoview.preload-status.session-switch", "neoview.preload-status.session-close"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status-store",
+        "neoview.preload.telemetry-generation",
+        "neoview.card.zero-mount",
+        "neoview.preload-status.session-switch"
+      ],
+      "plannedTestIds": [
+        "neoview.card.preload-status-live",
+        "neoview.preload-status.diagnostics-cancel",
+        "neoview.preload-status.session-close"
+      ],
       "notes": "Store unsubscribe, diagnostics polling cancellation on unmount/session/frame change, synchronous cross-session state isolation, browser clear and core close are covered; full session-close integration evidence remains pending."
     },
     {
       "id": "preload.persistence",
       "category": "settings",
       "title": "仅持久化共享 Card 布局",
-      "sourceEvidence": ["src/lib/stores/cardConfig.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
       "targetContract": "Preload plans, cache snapshots and telemetry are never persisted; only panel, visible, expanded, order and height use canonical [nodes.neoview] Card layout, with no Reader business data written to xiranite.db or a second NeoView database.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "complete",
-      "testIds": ["neoview.settings.card-layout", "neoview.card.persist-react", "neoview.card.resize-patch"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.settings.card-layout",
+        "neoview.card.persist-react",
+        "neoview.card.resize-patch"
+      ],
+      "plannedTestIds": [],
       "notes": "The Card has no content settings or legacy persistence key."
     },
     {
       "id": "preload.accessibility",
       "category": "keyboard-accessibility",
       "title": "提供语义状态与键盘等价操作",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/components/cards/CollapsibleCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte"
+      ],
       "targetContract": "Named metric and nearby-page groups, a semantic progressbar, polite synchronization feedback and native stateful action buttons provide stable keyboard and screen-reader operation with focus preserved after retry, cancel and clear.",
-      "surfaces": ["GUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload-status.accessibility", "neoview.preload-status.actions-keyboard"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.preload-status.accessibility",
+        "neoview.preload-status.actions-keyboard"
+      ],
       "notes": "The Card now exposes named summary/nearby/queue groups, a semantic progressbar, live sync status and a native retry button; cancel/clear controls and full focus evidence remain pending."
     },
     {
       "id": "preload.ui-parity",
       "category": "ui-parity",
       "title": "保持旧版密度与响应式几何",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
       "targetContract": "The two-column summary, compact memory meter, three-column nearby grid and current/cached/cold hierarchy remain readable without overlap or horizontal overflow at desktop and 420x360 Card widths.",
-      "surfaces": ["GUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload-status.ui", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.ui"
+      ],
       "notes": "The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending."
     },
     {
       "id": "preload.image-stability",
       "category": "performance",
       "title": "状态观察与控制不重挂活动媒体",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte"
+      ],
       "targetContract": "Event updates, diagnostics refresh, retry, cancel and clear preserve the active Reader media node and asset URL and issue zero duplicate requests for the active asset.",
-      "surfaces": ["GUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload-status.image-stability", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.image-stability"
+      ],
       "notes": "Desktop and 420x360 Chromium prove diagnostics refresh plus collapse/reopen preserve the active Reader media node and issue zero duplicate requests for its exact asset URL. Future cancel/clear actions still require the same evidence."
     },
     {
       "id": "preload.performance",
       "category": "performance",
       "title": "有界 DOM、请求、内存与 chunk",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/cards/CardRenderer.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "The Card keeps at most nine nearby tiles and O(1) metrics, bounded event snapshots, at most one diagnostics sample per two seconds only while active, zero hidden work, no page decode or thumbnail blob reads, and an independent deferred chunk under 8 KiB outside Reader entry and sidebar base chunks.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload-status-store", "neoview.preload.performance-telemetry", "neoview.preload-status.poll-budget", "neoview.preload-status.chunk", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status-store",
+        "neoview.preload.performance-telemetry",
+        "neoview.preload-status.chunk",
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.poll-budget"
+      ],
       "notes": "The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,857-byte chunk; the full Reader performance gate remains pending."
     },
     {
       "id": "preload.deviations",
       "category": "deviations",
       "title": "记录 XR 三层状态、激活采样与安全控制扩展",
-      "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PreloadStatusCard.svelte",
+        "src/lib/api/pageManager.ts"
+      ],
       "targetContract": "Document that legacy Tauri memory/cache polling is replaced by authenticated shared diagnostics, session preload plan/telemetry and a separately labelled browser predecode event store; polling is active-only, errors are sanitized and retryable, queue/admission/cancel/clear controls are frozen-scope extensions, cancel and clear are current-session scoped, and only Card layout is persisted.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "partial",
-      "testIds": ["neoview.preload-status.deviations", "neoview.preload-status.partial-metrics", "neoview.preload-status.poll-budget", "neoview.preload-status.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.preload-status.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.preload-status.deviations",
+        "neoview.preload-status.partial-metrics",
+        "neoview.preload-status.poll-budget"
+      ],
       "notes": "The implementation and checklist explicitly separate server presentation cache, aggregate preload telemetry and bounded browser predecode; it preserves the three-behind/five-ahead window, uses active-only sanitized diagnostics, persists no telemetry and reserves cancel/clear for a future session-scoped contract."
     }
   ]

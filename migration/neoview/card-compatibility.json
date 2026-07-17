@@ -1,16 +1,10 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": {
     "file": "src/lib/cards/registry.ts",
     "hash": "sha256:ab8c2e45a48e4b9cfcea9ce68e2ce9ba0d63dbd0e4581e74d9a516ab92a3d3a3",
     "cardCount": 77
   },
-  "statuses": [
-    "pending",
-    "partial",
-    "migrated",
-    "replaced"
-  ],
   "priorities": [
     "core",
     "integration",
@@ -23,7 +17,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/VisibilityCard.svelte",
       "sourceDisposition": "component"
     },
@@ -33,7 +35,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/LatencyCard.svelte",
       "sourceDisposition": "component"
     },
@@ -43,7 +53,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/RendererCard.svelte",
       "sourceDisposition": "component"
     },
@@ -53,7 +71,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/FilesCard.svelte",
       "sourceDisposition": "component"
     },
@@ -63,7 +89,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/DetailedCard.svelte",
       "sourceDisposition": "component"
     },
@@ -73,7 +107,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/LoadModeCard.svelte",
       "sourceDisposition": "component"
     },
@@ -83,7 +125,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/ArchivesCard.svelte",
       "sourceDisposition": "component"
     },
@@ -93,7 +143,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/RealWorldCard.svelte",
       "sourceDisposition": "component"
     },
@@ -103,7 +161,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/ImageSourceCard.svelte",
       "sourceDisposition": "component"
     },
@@ -113,7 +179,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceDisposition": "registry-only",
       "sourceNotes": "旧 CardRenderer 没有组件映射；迁移前必须显式补齐或记录替代决策。"
     },
@@ -123,7 +197,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/ResultsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -133,7 +215,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/SummaryCard.svelte",
       "sourceDisposition": "component"
     },
@@ -143,7 +233,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/PipelineLatencyCard.svelte",
       "sourceDisposition": "component"
     },
@@ -153,7 +251,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/TranscodeBenchmarkCard.svelte",
       "sourceDisposition": "component"
     },
@@ -163,7 +269,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/ThumbnailLatencyCard.svelte",
       "sourceDisposition": "component"
     },
@@ -173,7 +287,15 @@
       "panelId": "benchmark",
       "priority": "deferred",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/benchmark/PageFlipMonitorCard.svelte",
       "sourceDisposition": "component"
     },
@@ -183,7 +305,15 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "preload-stream-scheduler",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "preload-status",
       "sourceComponent": "src/lib/cards/info/PreloadStatusCard.svelte",
       "sourceDisposition": "component"
@@ -194,7 +324,15 @@
       "panelId": "insights",
       "priority": "integration",
       "featureId": "performance-benchmark-diagnostics",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/monitor/SystemMonitorCard.svelte",
       "sourceDisposition": "component"
     },
@@ -204,7 +342,15 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "migrated",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "book-information",
       "sourceComponent": "src/lib/cards/info/BookInfoCard.svelte",
       "sourceDisposition": "component"
@@ -215,7 +361,15 @@
       "panelId": "info",
       "priority": "deferred",
       "featureId": "metadata-dimensions-properties",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/InfoOverlayCard.svelte",
       "sourceDisposition": "component"
     },
@@ -225,7 +379,15 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "metadata-dimensions-properties",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/SwitchToastCard.svelte",
       "sourceDisposition": "component"
     },
@@ -235,7 +397,15 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "image-information",
       "sourceComponent": "src/lib/cards/info/ImageInfoCard.svelte",
       "sourceDisposition": "component"
@@ -246,7 +416,15 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "migrated",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "storage-information",
       "sourceComponent": "src/lib/cards/info/StorageCard.svelte",
       "sourceDisposition": "component"
@@ -257,7 +435,15 @@
       "panelId": "info",
       "priority": "core",
       "featureId": "metadata-dimensions-properties",
-      "status": "migrated",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "time-information",
       "sourceComponent": "src/lib/cards/info/TimeCard.svelte",
       "sourceDisposition": "component"
@@ -268,7 +454,15 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "panels-toolbar-shell",
-      "status": "migrated",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "sidebar-control",
       "sourceComponent": "src/lib/cards/info/SidebarControlCard.svelte",
       "sourceDisposition": "component"
@@ -279,7 +473,15 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "image-effects-transitions",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/ColorFilterCard.svelte",
       "sourceDisposition": "component"
     },
@@ -289,7 +491,15 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "image-effects-transitions",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/ImageTrimCard.svelte",
       "sourceDisposition": "component"
     },
@@ -299,7 +509,15 @@
       "panelId": "control",
       "priority": "deferred",
       "featureId": "image-effects-transitions",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/PageTransitionCard.svelte",
       "sourceDisposition": "component"
     },
@@ -309,7 +527,15 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "animated-image-video",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/AnimatedVideoModeCard.svelte",
       "sourceDisposition": "component"
     },
@@ -319,7 +545,15 @@
       "panelId": "control",
       "priority": "deferred",
       "featureId": "theme-background-empty-state",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/AmbientBackgroundCard.svelte",
       "sourceDisposition": "component"
     },
@@ -329,7 +563,15 @@
       "panelId": "control",
       "priority": "deferred",
       "featureId": "panels-toolbar-shell",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/info/SidebarHeightCard.svelte",
       "sourceDisposition": "component"
     },
@@ -339,7 +581,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/EmmTagsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -349,7 +599,15 @@
       "panelId": "properties",
       "priority": "core",
       "featureId": "settings-import-export-backup",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "book-settings",
       "sourceComponent": "src/lib/cards/properties/BookSettingsCard.svelte",
       "sourceDisposition": "component"
@@ -360,7 +618,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/FolderRatingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -370,7 +636,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/FavoriteTagsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -380,7 +654,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/EmmSyncCard.svelte",
       "sourceDisposition": "component"
     },
@@ -390,7 +672,15 @@
       "panelId": "control",
       "priority": "integration",
       "featureId": "thumbnail-system",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
       "sourceDisposition": "component"
     },
@@ -400,7 +690,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "thumbnail-system",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -410,7 +708,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/EmmRawDataCard.svelte",
       "sourceDisposition": "component"
     },
@@ -420,7 +726,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/EmmConfigCard.svelte",
       "sourceDisposition": "component"
     },
@@ -430,7 +744,15 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
       "sourceDisposition": "component"
     },
@@ -440,7 +762,15 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/upscale/UpscaleControlCard.svelte",
       "sourceDisposition": "component"
     },
@@ -450,7 +780,15 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/upscale/UpscaleModelCard.svelte",
       "sourceDisposition": "component"
     },
@@ -460,7 +798,15 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/upscale/UpscaleStatusCard.svelte",
       "sourceDisposition": "component"
     },
@@ -470,7 +816,15 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
       "sourceDisposition": "component"
     },
@@ -480,7 +834,15 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/upscale/UpscaleConditionsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -490,7 +852,15 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
       "sourceDisposition": "component"
     },
@@ -500,7 +870,15 @@
       "panelId": "history",
       "priority": "core",
       "featureId": "history-bookmarks-progress",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "history-list",
       "sourceComponent": "src/lib/cards/history/HistoryListCard.svelte",
       "sourceDisposition": "component"
@@ -511,7 +889,15 @@
       "panelId": "bookmark",
       "priority": "core",
       "featureId": "history-bookmarks-progress",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "bookmark-list",
       "sourceComponent": "src/lib/cards/bookmark/BookmarkListCard.svelte",
       "sourceDisposition": "component"
@@ -522,7 +908,15 @@
       "panelId": "pageList",
       "priority": "core",
       "featureId": "page-index-navigation",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "page-navigation",
       "sourceComponent": "src/lib/cards/pageList/PageListCard.svelte",
       "sourceDisposition": "component"
@@ -533,7 +927,15 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/insights/DailyTrendCard.svelte",
       "sourceDisposition": "component"
     },
@@ -543,7 +945,15 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/insights/ReadingStreakCard.svelte",
       "sourceDisposition": "component"
     },
@@ -553,7 +963,15 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/insights/ReadingHeatmapCard.svelte",
       "sourceDisposition": "component"
     },
@@ -563,7 +981,15 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/insights/BookmarkOverviewCard.svelte",
       "sourceDisposition": "component"
     },
@@ -573,7 +999,15 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/insights/SourceBreakdownCard.svelte",
       "sourceDisposition": "component"
     },
@@ -583,7 +1017,15 @@
       "panelId": "insights",
       "priority": "deferred",
       "featureId": "history-bookmarks-progress",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/insights/EmmTagsHotCard.svelte",
       "sourceDisposition": "component"
     },
@@ -593,7 +1035,15 @@
       "panelId": "folder",
       "priority": "core",
       "featureId": "file-browser-navigation",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "folder-main",
       "sourceComponent": "src/lib/cards/folder/FolderMainCard.svelte",
       "sourceDisposition": "component"
@@ -604,7 +1054,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/AiTagsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -614,7 +1072,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/properties/AiApiConfigCard.svelte",
       "sourceDisposition": "component"
     },
@@ -624,7 +1090,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/ai/AiTitleTranslationCard.svelte",
       "sourceDisposition": "component"
     },
@@ -634,7 +1108,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/ai/AiServiceConfigCard.svelte",
       "sourceDisposition": "component"
     },
@@ -644,7 +1126,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/ai/AiTranslationCacheCard.svelte",
       "sourceDisposition": "component"
     },
@@ -654,7 +1144,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/ai/AiTranslationTestCard.svelte",
       "sourceDisposition": "component"
     },
@@ -664,7 +1162,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/ai/TranslationOverlayCard.svelte",
       "sourceDisposition": "component"
     },
@@ -674,7 +1180,15 @@
       "panelId": "ai",
       "priority": "deferred",
       "featureId": "ai-ollama-translation",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/ai/VoiceControlCard.svelte",
       "sourceDisposition": "component"
     },
@@ -684,7 +1198,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/GeneralSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -694,7 +1216,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/SystemSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -704,7 +1234,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
       "currentCardId": "view-defaults-settings",
       "sourceComponent": "src/lib/cards/settings/ViewSettingsCard.svelte",
       "sourceDisposition": "component"
@@ -715,7 +1253,15 @@
       "panelId": "settings",
       "priority": "integration",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/ImageSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -725,7 +1271,15 @@
       "panelId": "settings",
       "priority": "integration",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/BookSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -735,7 +1289,15 @@
       "panelId": "settings",
       "priority": "integration",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/PerformanceSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -745,7 +1307,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/ThemeSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -755,7 +1325,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/NotificationSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -765,7 +1343,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
       "currentCardId": "sidebar-management-settings",
       "sourceComponent": "src/lib/cards/settings/PanelManagementCard.svelte",
       "sourceDisposition": "component"
@@ -776,7 +1362,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
       "currentCardId": "panel-layout-settings",
       "sourceComponent": "src/lib/cards/settings/CardManagementCard.svelte",
       "sourceDisposition": "component"
@@ -787,7 +1381,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "partial",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
       "currentCardId": "input-bindings-settings",
       "sourceComponent": "src/lib/cards/settings/BindingsSettingsCard.svelte",
       "sourceDisposition": "component"
@@ -798,7 +1400,15 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
       "sourceComponent": "src/lib/cards/settings/DataSettingsCard.svelte",
       "sourceDisposition": "component"
     }

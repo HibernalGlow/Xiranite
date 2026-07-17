@@ -1,39 +1,15 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 
-type Status = "pending" | "partial" | "complete" | "migrated" | "replaced"
-
-interface FolderItem {
-  id: string
-  category: string
-  title: string
-  sourceEvidence: string[]
-  targetContract: string
-  status: Status
-  testIds: string[]
-  notes: string
-}
-
-interface SourceUiInventoryGroup {
-  id: string
-  title: string
-  sourceEvidence: string[]
-  acceptanceItems: string[]
-  mappedChecklistIds: string[]
-}
-
-interface CardEntry {
-  legacyId: string
-  title: string
-  panelId: string
-  priority: string
-  featureId: string
-  status: Status
-  currentCardId?: string
-  sourceComponent?: string
-  sourceDisposition: "component" | "registry-only"
-  sourceNotes?: string
-}
+import {
+  blockedDimensions,
+  compactCapabilityStatus,
+  deriveOverallStatus,
+  overallCounts,
+  parseCardMatrix,
+  parseDetailedChecklist,
+  type DetailedChecklist,
+} from "./lib/neoview-capability-status"
 
 interface CardFunctionalScope {
   legacyId: string
@@ -41,22 +17,16 @@ interface CardFunctionalScope {
   checklistRef?: string
 }
 
-interface DetailedChecklist {
-  title?: string
-  legacyCardId: string
-  sourceUiInventory: SourceUiInventoryGroup[]
-  items: FolderItem[]
-}
-
 const root = resolve(import.meta.dir, "..")
-const folder = await readJson<{ sourceUiInventory: SourceUiInventoryGroup[]; items: FolderItem[] }>(resolve(root, "migration/neoview/folder-main-compatibility.json"))
-const cards = await readJson<{ cards: CardEntry[] }>(resolve(root, "migration/neoview/card-compatibility.json"))
+const cards = await parseCardMatrix(resolve(root, "migration/neoview/card-compatibility.json"))
 const scopes = await readJson<{ cards: CardFunctionalScope[] }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
 const detailedChecklists = new Map<string, DetailedChecklist>()
 for (const scope of scopes.cards) {
   if (!scope.checklistRef) continue
-  detailedChecklists.set(scope.checklistRef, await readJson<DetailedChecklist>(resolve(root, scope.checklistRef)))
+  detailedChecklists.set(scope.checklistRef, await parseDetailedChecklist(resolve(root, scope.checklistRef)))
 }
+const folder = [...detailedChecklists.values()].find((checklist) => checklist.legacyCardId === "folderMain")
+if (!folder) throw new Error("folderMain detailed checklist is missing")
 const features = await readJson<{ features: Array<{ id: string; title: string }> }>(resolve(root, "migration/neoview/feature-compatibility.json"))
 const featureTitles = new Map(features.features.map((feature) => [feature.id, feature.title]))
 const scopeByCard = new Map(scopes.cards.map((scope) => [scope.legacyId, scope]))
@@ -68,14 +38,18 @@ const lines: string[] = [
   "## 完成规则",
   "",
   "- 所有 Card 都执行“先冻结源码清单，再实现，再验收”；只有标题或后端 API 不算完成。",
-  "- `complete/migrated` 必须覆盖功能、UI 层级、控件与图标、交互状态、持久化、键盘/无障碍、共享 GUI/CLI/TUI 契约、生命周期、性能、测试和有意偏离。",
+  "- 派生 `complete` 必须覆盖所有适用维度：功能核心、传输、GUI/CLI/TUI 接线和证据；任一必需维度未闭环时总体只能是 partial/pending。",
   "- UI 默认保持旧版信息层级、密度和操作位置；只允许使用 XR 设计 token 和既有通用组件做等价适配。桌面侧栏、窄侧栏和独立 Card 窗口都要有截图或几何证据。",
-  "- `pending/partial` 是真实状态，不得为了提高数字提前改成完成；旧版自身缺失的能力必须标为 `registry-only` 或记录替代决策。",
+  "- 六维中的 `pending/partial` 是真实状态，不得为了提高数字提前改成 complete；旧版自身缺失的能力必须标为 `registry-only` 或记录替代决策。",
   "- Windows 重验证严格串行，Vitest 固定 `--maxWorkers=1`，防止清单验证本身触发内存耗尽。",
+  "",
+  "## 六维图例",
+  "",
+  "固定顺序为 `core / transport / gui / cli / tui / evidence`；`C`=complete，`P`=partial，`-`=pending，`N/A`=not-applicable。总体状态仅由六维派生，不在 JSON 中重复保存。",
   "",
   "## 文件浏览器 `folderMain`",
   "",
-  `共 ${folder.items.length} 项：${statusSummary(folder.items)}。以下是完整验收项，不是自然排序或单列表的缩减版。`,
+  `共 ${folder.items.length} 项：${overallSummary(folder.items)}。以下是完整验收项，不是自然排序或单列表的缩减版。`,
   "",
   `### 旧版源码 UI/控件库存（${folder.sourceUiInventory.length} 组，${folder.sourceUiInventory.reduce((total, group) => total + group.acceptanceItems.length, 0)} 项）`,
   "",
@@ -100,10 +74,12 @@ for (const [category, items] of groupBy(folder.items, (item) => item.category)) 
   lines.push(`### ${category}（${items.length}）`, "")
   for (const item of items) {
     lines.push(
-      `- ${statusMark(item.status)} \`${item.id}\` ${item.title}`,
+      `- ${statusMark(item.capabilityStatus)} \`${item.id}\` ${item.title}`,
+      `  - 六维：\`${compactCapabilityStatus(item.capabilityStatus)}\`；阻塞：${blockers(item.capabilityStatus)}`,
       `  - 目标：${item.targetContract}`,
       `  - 源码：${item.sourceEvidence.map((source) => `\`${source}\``).join("、")}`,
       `  - 测试：${item.testIds.length ? item.testIds.map((id) => `\`${id}\``).join("、") : "待补"}`,
+      `  - 计划测试：${item.plannedTestIds.length ? item.plannedTestIds.map((id) => `\`${id}\``).join("、") : "无"}`,
       `  - 备注：${item.notes || "无"}`,
     )
   }
@@ -119,18 +95,18 @@ lines.push(
 
 for (const [panelId, panelCards] of groupBy(cards.cards, (card) => card.panelId)) {
   lines.push(`### Panel: \`${panelId}\`（${panelCards.length}）`, "")
-  lines.push("| Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |", "|---|---|---:|---:|---|---|")
+  lines.push("| Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |", "|---|---|---:|---:|---|---|---|")
   for (const card of panelCards) {
     const source = card.sourceComponent ? `\`${card.sourceComponent}\`` : `**registry-only**：${card.sourceNotes ?? "无组件映射"}`
     const current = card.currentCardId ? `；XR \`${card.currentCardId}\`` : ""
-    lines.push(`| \`${card.legacyId}\` | ${escapeTable(card.title)} | ${card.priority} | ${card.status} | ${escapeTable(source)} | ${escapeTable(featureTitles.get(card.featureId) ?? card.featureId)}${current} |`)
+    lines.push(`| \`${card.legacyId}\` | ${escapeTable(card.title)} | ${card.priority} | ${deriveOverallStatus(card.capabilityStatus)} | \`${compactCapabilityStatus(card.capabilityStatus)}\` | ${escapeTable(source)} | ${escapeTable(featureTitles.get(card.featureId) ?? card.featureId)}${current} |`)
   }
   lines.push("")
   for (const card of panelCards) {
     const scope = scopeByCard.get(card.legacyId)
     lines.push(`#### \`${card.legacyId}\` ${card.title}`, "")
     if (scope?.checklistRef) lines.push(`- 细项清单：\`${scope.checklistRef}\``)
-    const capabilityMark = card.status === "migrated" || card.status === "replaced" ? "[x]" : "[ ]"
+    const capabilityMark = deriveOverallStatus(card.capabilityStatus) === "complete" ? "[x]" : "[ ]"
     for (const capability of scope?.capabilities ?? []) lines.push(`- ${capabilityMark} ${capability}`)
     lines.push(`- UI 基线：\`${card.sourceComponent ?? "registry-only"}\`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。`, "")
     const detailed = scope?.checklistRef ? detailedChecklists.get(scope.checklistRef) : undefined
@@ -181,14 +157,18 @@ function groupBy<T>(values: T[], keyOf: (value: T) => string): Map<string, T[]> 
   return groups
 }
 
-function statusSummary(values: Array<{ status: Status }>): string {
-  const counts = new Map<string, number>()
-  for (const value of values) counts.set(value.status, (counts.get(value.status) ?? 0) + 1)
-  return [...counts].map(([status, count]) => `\`${status}=${count}\``).join("，")
+function overallSummary(values: Array<{ capabilityStatus: DetailedChecklist["items"][number]["capabilityStatus"] }>): string {
+  const counts = overallCounts(values.map((value) => value.capabilityStatus))
+  return Object.entries(counts).map(([status, count]) => `\`${status}=${count}\``).join("，")
 }
 
-function statusMark(status: Status): string {
-  return status === "complete" || status === "migrated" || status === "replaced" ? "[x]" : "[ ]"
+function statusMark(status: DetailedChecklist["items"][number]["capabilityStatus"]): string {
+  return deriveOverallStatus(status) === "complete" ? "[x]" : "[ ]"
+}
+
+function blockers(status: DetailedChecklist["items"][number]["capabilityStatus"]): string {
+  const values = blockedDimensions(status)
+  return values.length ? values.map((dimension) => `\`${dimension}\``).join("、") : "无"
 }
 
 function escapeTable(value: string): string {
@@ -211,10 +191,12 @@ function appendDetailedChecklist(lines: string[], checklist: DetailedChecklist):
   lines.push("", "##### 专用源码级验收项", "")
   for (const item of checklist.items) {
     lines.push(
-      `- ${statusMark(item.status)} \`${item.id}\` ${item.title}`,
+      `- ${statusMark(item.capabilityStatus)} \`${item.id}\` ${item.title}`,
+      `  - 六维：\`${compactCapabilityStatus(item.capabilityStatus)}\`；阻塞：${blockers(item.capabilityStatus)}`,
       `  - 目标：${item.targetContract}`,
       `  - 源码：${item.sourceEvidence.map((source) => `\`${source}\``).join("、")}`,
       `  - 测试：${item.testIds.length ? item.testIds.map((id) => `\`${id}\``).join("、") : "待补"}`,
+      `  - 计划测试：${item.plannedTestIds.length ? item.plannedTestIds.map((id) => `\`${id}\``).join("、") : "无"}`,
       `  - 备注：${item.notes || "无"}`,
     )
   }
