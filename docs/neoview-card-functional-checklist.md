@@ -3175,16 +3175,16 @@
 
 ##### 专用源码级验收项
 
-- [ ] `bookmark.shared-renderer` 复用文件浏览器条目视觉契约
+- [x] `bookmark.shared-renderer` 复用文件浏览器条目视觉契约
   - 目标：Bookmark rows use a shared folder-entry visual primitive for compact/rich list and thumbnail surfaces instead of a divergent icon-only list.
   - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.shared-entry.variants`、`neoview.shared-entry.interaction`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`
-  - 备注：The default Bookmark content row now uses the shared React Folder entry surface with the authenticated visible-window thumbnail leaf. Bookmark-specific compact/banner/thumbnail switching and migration of Folder's local renderers to the primitive remain pending.
+  - 测试：`neoview.shared-entry.variants`、`neoview.shared-entry.interaction`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`
+  - 备注：Bookmark exposes the legacy 列表/内容/横幅/缩略图 controls and renders every mode through ReaderEntrySurface rather than a Bookmark-only item renderer; Folder migration remains owned by its separate checklist.
 - [ ] `bookmark.thumbnails` 显示可见书签缩略图
   - 目标：Only the virtual visible bookmark window registers authenticated file/folder thumbnails; stale batches cancel and contexts release on list change or unmount.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
-  - 备注：The visible virtual window now registers authenticated cover thumbnails and releases its owner; full folder-mode and invalid-path parity remain pending.
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
+  - 备注：Content, banner and thumbnail modes register authenticated cover thumbnails only for the virtual visible window; compact list mode performs zero thumbnail registration, folder entries request four-image preview semantics, and invalid-path parity remains pending.
 - [ ] `bookmark.lists` 切换系统与自定义书签列表
   - 目标：All, default, favorites and custom lists remain distinguishable and the active list filters the virtual source.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
@@ -3248,13 +3248,13 @@
 - [x] `bookmark.ui-parity` 保持旧版文件条目信息密度
   - 目标：Folder-style thumbnails, title/path hierarchy, action density and selection states fit desktop and 420x360 Cards without overlap.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.selection`
-  - 备注：Desktop and 420x360 Chromium capture both the folder-style thumbnail hierarchy and selected-row action density without overflow.
+  - 测试：`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.selection`
+  - 备注：Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, stable Reader media and zero horizontal overflow.
 - [ ] `bookmark.performance` 有界 DOM、可见缩略图与独立 chunk
   - 目标：The Card renders a bounded virtual window, registers only visible thumbnails, performs zero hidden work and stays in an independent deferred chunk.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.chunk`
-  - 备注：Visible registration and the deferred chunk are gated; a 10K Chromium request-count run and explicit collapsed-state proof remain pending.
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.chunk`
+  - 备注：Single- and multi-column modes share a bounded virtual row engine, compact mode performs zero thumbnail work, and the 13.57 KiB Card remains deferred; a 10K Chromium request-count run and explicit collapsed-state proof remain pending.
 - [ ] `bookmark.image-stability` 缩略图工作不重挂活动阅读图像
   - 目标：Opening the Card, scrolling thumbnails and switching lists preserve the active Reader media node and asset URL.
   - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/shared/FileListPanel.svelte`
@@ -3280,7 +3280,7 @@
 - [ ] 可见批次缩略图预热、超分状态与页面上下文删除
 - UI 基线：`src/lib/cards/pageList/PageListCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
-##### 专用逐控件库存（14 组，173 项）
+##### 专用逐控件库存（16 组，191 项）
 
 - `page-list-ui.toolbar` 搜索、跟随、视图与预热工具栏
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
@@ -3315,6 +3315,30 @@
   - [ ] 超分 glow
   - [ ] hover 状态
   - [ ] data-page-index
+- `page-list-ui.ordering` 原始页面顺序与无本地排序控件
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/book/pageNavigation.svelte.ts`
+  - 映射：`page-list.ordering`、`page-list.data-contract`、`page-list.modes`、`page-list.deviations`
+  - [ ] 无排序按钮
+  - [ ] 无排序菜单
+  - [ ] 无升降序选项
+  - [ ] 按 book.pages 原始顺序构建 items
+  - [ ] 搜索过滤保持相对顺序
+  - [ ] page.index 保持原始页面身份
+  - [ ] 列表/带图列表/缩略图网格使用同一顺序
+  - [ ] 阅读方向不在 Page List 内重排 catalog
+- `page-list-ui.thumbnail-sizing` 固定缩略图 profile 与显示几何
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/unifiedThumbnailStore.svelte.ts`
+  - 映射：`page-list.thumbnail-sizing`、`page-list.shared-thumbnail`、`page-list.ui-parity`、`page-list.deviations`
+  - [ ] 无缩略图尺寸选择器
+  - [ ] 无缩略图尺寸 Slider
+  - [ ] 统一 256px thumbnail key
+  - [ ] 请求 maxSize 256
+  - [ ] 带图列表缩略图 48x64
+  - [ ] 带图列表 object-contain
+  - [ ] 缩略图网格三列
+  - [ ] 缩略图网格 3:4 aspect-ratio
+  - [ ] 缩略图网格 object-contain
+  - [ ] 任何 XR profile 差异显式记录
 - `page-list-ui.navigation` 当前页跟随、Slider 与页码跳转
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/book/pageNavigation.svelte.ts`
   - 映射：`page-list.follow`、`page-list.navigation`、`page-list.current-state`、`page-list.accessibility`
@@ -3518,13 +3542,13 @@
 - [ ] `page-list.follow` 跟随进度与独立预览索引
   - 目标：Follow mode centers and navigates with the active page; preview mode changes only the local preview position until commit.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
-  - 测试：待补
-  - 备注：State exists but persistence and exact Slider semantics need coverage.
+  - 测试：`neoview.page-list.follow-preview`、`neoview.page-list.thumbnail-e2e`
+  - 备注：Focused and Chromium coverage freeze the legacy Slider split: follow-off changes preview only, while follow-on navigates each latest value. Canonical settings persistence remains pending.
 - [ ] `page-list.navigation` Slider、页码输入与页面跳转
   - 目标：Slider, numeric entry, Enter and row activation use the shared session navigation contract with strict bounds.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/book/pageNavigation.svelte.ts`
-  - 测试：`neoview.session.navigation`、`neoview.cli.pages`、`neoview.tui.navigation`
-  - 备注：GUI interaction details need focused tests.
+  - 测试：`neoview.page-list.follow-preview`、`neoview.page-list.keyboard`、`neoview.page-list.thumbnail-e2e`、`neoview.session.navigation`、`neoview.cli.pages`、`neoview.tui.navigation`
+  - 备注：Slider, row activation and bounded keyboard navigation are covered; the legacy numeric input and context actions remain incomplete.
 - [ ] `page-list.current-state` 当前页与超分状态
   - 目标：All renderers expose the active page consistently and show truthful upscale state only when backed by the current pipeline.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
@@ -3540,11 +3564,21 @@
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
   - 测试：待补
   - 备注：No React page context menu exists.
+- [x] `page-list.ordering` 保持原始 page.index 页面顺序
+  - 目标：The Card exposes no local sorting control and preserves the book page catalog's original page.index order across list, detail, thumbnail and filtered result views; reading direction affects frame composition rather than reordering this catalog.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/book/pageNavigation.svelte.ts`
+  - 测试：`neoview.page-list.ordering`、`neoview.page-list.thumbnail-e2e`
+  - 备注：The sparse catalog keeps result position separate from original page identity, and all three views consume that same ordered map without a local sorting control.
+- [x] `page-list.thumbnail-sizing` 保持固定 thumbnail profile 与 48x64 / 3:4 几何
+  - 目标：The Card exposes no thumbnail-size control, retains the legacy 256px request/key contract or records an explicit replacement profile, renders detail thumbnails at 48x64 with contain fit, and preserves a three-column 3:4 contain-fit thumbnail grid.
+  - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/unifiedThumbnailStore.svelte.ts`
+  - 测试：`neoview.page-list.shared-thumbnail`、`neoview.page-list.shared-renderer`、`neoview.page-list.thumbnail-e2e`
+  - 备注：Focused tests and both Chromium viewports freeze 48x64 contain-fit details and a three-column 3:4 contain-fit grid. XR intentionally reuses the canonical 320px page profile instead of the legacy 256px key to avoid a second thumbnail cache profile.
 - [ ] `page-list.data-contract` GUI/CLI/TUI 共用稀疏页面目录
-  - 目标：All surfaces share bounded page identity, index, name, media kind and thumbnail availability without materializing page content.
+  - 目标：All surfaces share bounded page identity, original index order, name, media kind and thumbnail availability without materializing page content.
   - 源码：`src/lib/core/virtualPageList.ts`、`src/lib/stores/book/pageNavigation.svelte.ts`
-  - 测试：`neoview.page-list.catalog`、`neoview.cli.pages`、`neoview.tui.navigation`
-  - 备注：Core catalog exists; context and prewarm commands remain incomplete.
+  - 测试：`neoview.page-list.catalog`、`neoview.page-list.sparse-100k`、`neoview.page-list.sparse-active`、`neoview.page-list.sparse-protected`、`neoview.page-list.ordering`、`neoview.cli.pages`、`neoview.tui.navigation`
+  - 备注：GUI uses a bounded eight-batch sparse catalog around the active page while preserving original identity; shared context and prewarm commands remain incomplete.
 - [ ] `page-list.states` 加载、空、错误、重试与预热状态
   - 目标：Catalog and optional thumbnail/prewarm failures degrade independently with stable loading, empty and retry states.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
@@ -3558,23 +3592,23 @@
 - [ ] `page-list.shell` 保持页面列表 Card shell
   - 目标：Page List remains independently lazy, non-hideable, collapsible, movable, resizable and window-capable.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.shell.registry-lazy`
-  - 备注：Dedicated chunk budget is not frozen.
+  - 测试：`neoview.shell.registry-lazy`、`neoview.page-list.chunk`
+  - 备注：The independent PageNavigationCard chunk is frozen below 16 KiB by page-list.chunk. Shell parity remains partial until full-height, hidden-header, Card Window and all shared layout states have focused evidence.
 - [ ] `page-list.accessibility` 命名视图、页面与上下文动作
   - 目标：Mode toggles, page rows, Slider, numeric jump and context actions have accessible names and full keyboard operation.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
-  - 测试：`neoview.page-list.virtual`
-  - 备注：Primary controls are named; context and focus restoration remain incomplete.
+  - 测试：`neoview.page-list.virtual`、`neoview.page-list.keyboard`、`neoview.page-list.thumbnail-e2e`
+  - 备注：Named listbox/option semantics, roving focus, Arrow/Home/End/PageUp/PageDown/Enter/Escape and Ctrl/Cmd+F are covered; the missing context menu keeps the item partial.
 - [x] `page-list.ui-parity` 保持缩略图比例、密度与当前页状态
-  - 目标：Legacy contain-fit thumbnails, page badges, current-page emphasis and responsive three-column geometry remain readable at desktop and 420x360.
+  - 目标：Legacy contain-fit thumbnails, exact 48x64 detail geometry, 3:4 grid tiles, page badges, current-page emphasis and responsive three-column geometry remain readable at desktop and 420x360.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
-  - 测试：`neoview.page-list.shared-thumbnail`、`neoview.page-list.thumbnail-e2e`
-  - 备注：Desktop and 420x360 Chromium screenshots prove contain fit, three-column geometry, page badges, current state and zero horizontal overflow.
+  - 测试：`neoview.page-list.shared-thumbnail`、`neoview.page-list.shared-renderer`、`neoview.page-list.thumbnail-e2e`
+  - 备注：Desktop and 420x360 Chromium measure the exact 48x64 detail box and 3:4 three-column grid while proving page badges, current state and zero horizontal overflow.
 - [ ] `page-list.performance` 稀疏分页、可见缩略图与独立 chunk
   - 目标：10K/100K books retain bounded DOM and requests, list mode performs zero thumbnail work, and the Card remains a deferred chunk.
   - 源码：`src/lib/core/virtualPageList.ts`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.page-list.virtual`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.thumbnail-e2e`、`neoview.page-list.chunk`
-  - 备注：Text mode remains thumbnail-free and the Card chunk is gated; 10K/100K Chromium evidence remains pending.
+  - 测试：`neoview.page-list.virtual`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.sparse-100k`、`neoview.page-list.sparse-active`、`neoview.page-list.sparse-protected`、`neoview.page-list.thumbnail-e2e`、`neoview.page-list.chunk`
+  - 备注：A 100K catalog retains at most eight batches, list catalog requests explicitly disable thumbnail prewarm, and the 13,809-byte Card remains deferred; a dedicated 100K Chromium scroll corpus remains pending.
 - [ ] `page-list.upscale` 共享页面超分与条件状态
   - 目标：The Card consumes one shared upscale snapshot for pending, processing, completed, skipped and failed states without starting another sampler.
   - 源码：`src/lib/cards/pageList/PageIndexBadge.svelte`、`src/lib/cards/pageList/PageListCard.svelte`
@@ -3600,11 +3634,11 @@
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
   - 测试：`neoview.page-list.thumbnail-e2e`
   - 备注：Real Chromium proves thumbnail loading and mode switches preserve the active image; scrolling and search identity checks remain pending.
-- [ ] `page-list.deviations` 记录 HTTP catalog 与共享 React 缩略图扩展
+- [x] `page-list.deviations` 记录 HTTP catalog 与共享 React 缩略图扩展
   - 目标：Document sparse authenticated HTTP catalog and shared thumbnail primitives as XR implementations without removing legacy modes or actions.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/core/virtualPageList.ts`
-  - 测试：待补
-  - 备注：No intentional legacy view is removed.
+  - 测试：`neoview.page-list.sparse-100k`、`neoview.page-list.shared-renderer`、`neoview.page-list.thumbnail-e2e`
+  - 备注：XR replaces the legacy in-process virtual list with an authenticated bounded sparse HTTP catalog, adds roving keyboard focus, and reuses the canonical 320px thumbnail profile while preserving all three legacy renderers and display geometry.
 
 ### Panel: `folder`（1）
 
