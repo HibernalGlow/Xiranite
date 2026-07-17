@@ -25,6 +25,12 @@ describe("ReaderInputRouter", () => {
     const input = document.createElement("input")
     dialog.append(input)
     expect(readerInputContexts(input)).toEqual(["editor"])
+    const settings = document.createElement("section")
+    settings.dataset.inputContext = "modal"
+    const settingsButton = document.createElement("button")
+    settings.append(settingsButton)
+    root.append(settings)
+    expect(readerInputContexts(settingsButton)).toEqual(["modal"])
     expect(readerInputContexts(root)).toEqual(["reader"])
   })
 
@@ -40,12 +46,14 @@ describe("ReaderInputRouter", () => {
     expect(execute).not.toHaveBeenCalled()
   })
 
-  it("[neoview.bindings.mouse-runtime] routes configured pointer buttons without stealing unbound clicks", () => {
+  it("[neoview.bindings.mouse-runtime] routes configured pointer buttons without stealing unbound or interactive clicks", () => {
     const execute = vi.fn()
     render(<Harness config={{ bindings: [
       { id: "next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 3, click: "single" } },
     ] }} execute={execute} />)
     fireEvent.pointerUp(screen.getByTestId("reader"), { pointerType: "mouse", button: 0, detail: 1 })
+    expect(execute).not.toHaveBeenCalled()
+    fireEvent.pointerUp(screen.getByRole("button", { name: "toolbar action" }), { pointerType: "mouse", button: 3, detail: 1 })
     expect(execute).not.toHaveBeenCalled()
     fireEvent.pointerUp(screen.getByTestId("reader"), { pointerType: "mouse", button: 3, detail: 1 })
     expect(execute).toHaveBeenCalledWith("reader.next-page")
@@ -60,6 +68,7 @@ function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execu
       onPointerUp={router.onPointerUp}
     >
       <input aria-label="editor" />
+      <button type="button">toolbar action</button>
     </div>
   )
 }

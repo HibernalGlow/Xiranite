@@ -12,6 +12,14 @@ export const READER_INPUT_ACTIONS = [
 export type ReaderInputContext = typeof READER_INPUT_CONTEXTS[number]
 export type ReaderInputAction = typeof READER_INPUT_ACTIONS[number]
 
+export const READER_INPUT_ACTION_CATEGORIES = ["navigation", "view", "session"] as const
+export type ReaderInputActionCategory = typeof READER_INPUT_ACTION_CATEGORIES[number]
+
+export interface ReaderInputActionMetadata {
+  label: string
+  category: ReaderInputActionCategory
+}
+
 export type ReaderInputDescriptor =
   | { device: "keyboard"; code: string; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
   | { device: "mouse"; button: number; click: "single" | "double" }
@@ -44,14 +52,24 @@ export const READER_INPUT_CONTEXT_PRIORITY: Readonly<Record<ReaderInputContext, 
   modal: 400,
 }
 
-export const READER_INPUT_ACTION_LABELS: Readonly<Record<ReaderInputAction, string>> = {
-  "reader.previous-page": "上一页",
-  "reader.next-page": "下一页",
-  "reader.zoom-in": "放大",
-  "reader.zoom-out": "缩小",
-  "reader.reset-view": "重置视图",
-  "reader.rotate-clockwise": "顺时针旋转",
-  "reader.open-settings": "打开设置",
+export const READER_INPUT_ACTION_METADATA: Readonly<Record<ReaderInputAction, ReaderInputActionMetadata>> = {
+  "reader.previous-page": { label: "上一页", category: "navigation" },
+  "reader.next-page": { label: "下一页", category: "navigation" },
+  "reader.zoom-in": { label: "放大", category: "view" },
+  "reader.zoom-out": { label: "缩小", category: "view" },
+  "reader.reset-view": { label: "重置视图", category: "view" },
+  "reader.rotate-clockwise": { label: "顺时针旋转", category: "view" },
+  "reader.open-settings": { label: "打开设置", category: "session" },
+}
+
+export const READER_INPUT_ACTION_LABELS: Readonly<Record<ReaderInputAction, string>> = Object.fromEntries(
+  READER_INPUT_ACTIONS.map((action) => [action, READER_INPUT_ACTION_METADATA[action].label]),
+) as Record<ReaderInputAction, string>
+
+export const READER_INPUT_ACTION_CATEGORY_LABELS: Readonly<Record<ReaderInputActionCategory, string>> = {
+  navigation: "导航",
+  view: "视图",
+  session: "会话",
 }
 
 export const READER_INPUT_CONTEXT_LABELS: Readonly<Record<ReaderInputContext, string>> = {
@@ -114,7 +132,8 @@ export function matchingReaderInputBinding(
   contexts: readonly ReaderInputContext[],
 ): ReaderInputBinding | undefined {
   const descriptor = readerInputDescriptorKey(input)
-  const active = new Set<ReaderInputContext>(["global", ...contexts])
+  const active = new Set<ReaderInputContext>(contexts)
+  if (!active.has("editor") && !active.has("modal")) active.add("global")
   return [...bindings]
     .filter((candidate) => candidate.enabled && active.has(candidate.context) && readerInputDescriptorKey(candidate.input) === descriptor)
     .sort((left, right) => READER_INPUT_CONTEXT_PRIORITY[right.context] - READER_INPUT_CONTEXT_PRIORITY[left.context])[0]
