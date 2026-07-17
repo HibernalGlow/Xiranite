@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import { dirname } from "node:path"
+import { lock } from "proper-lockfile"
 import {
   parseToml,
   resolveXiraniteConfigPath,
@@ -13,6 +14,7 @@ export type NeoviewConfigImportStrategy = "merge" | "overwrite"
 
 export interface CommitNeoviewConfigOptions extends ResolveConfigPathOptions {
   strategy: NeoviewConfigImportStrategy
+  lockRetries?: number
 }
 
 export interface CommitNeoviewConfigResult {
@@ -27,13 +29,29 @@ export async function commitNeoviewConfig(
   options: CommitNeoviewConfigOptions,
 ): Promise<CommitNeoviewConfigResult> {
   const configPath = resolveXiraniteConfigPath(options)
+  await mkdir(dirname(configPath), { recursive: true })
+  const lease = await acquireConfigLock(configPath, options.lockRetries)
+  try {
+    return await commitLocked(configPath, patch, options.strategy, lease.assertHeld)
+  } finally {
+    await lease.release()
+  }
+}
+
+async function commitLocked(
+  configPath: string,
+  patch: Record<string, unknown>,
+  strategy: NeoviewConfigImportStrategy,
+  assertLockHeld: () => void,
+): Promise<CommitNeoviewConfigResult> {
   const previousText = await readOptional(configPath)
+  assertLockHeld()
   const root = previousText === undefined
     ? {}
     : requireRecord(parseToml(stripBom(previousText)), "Xiranite config root")
   const nodes = isRecord(root.nodes) ? { ...root.nodes } : {}
   const current = isRecord(nodes.neoview) ? nodes.neoview : {}
-  const nextNode = options.strategy === "overwrite" ? cloneRecord(patch) : deepMerge(current, patch)
+  const nextNode = strategy === "overwrite" ? cloneRecord(patch) : deepMerge(current, patch)
   const changed = !deepEqual(current, nextNode)
 
   if (!changed) {
@@ -49,8 +67,10 @@ export async function commitNeoviewConfig(
   }
   let verifiedNode: Record<string, unknown>
   try {
+    assertLockHeld()
     await atomicReplace(configPath, nextText)
     const verifiedText = await readFile(configPath, "utf8")
+    assertLockHeld()
     const verifiedRoot = requireRecord(parseToml(stripBom(verifiedText)), "written Xiranite config root")
     const verifiedNodes = requireRecord(verifiedRoot.nodes, "written [nodes] section")
     verifiedNode = requireRecord(verifiedNodes.neoview, "written [nodes.neoview] section")
@@ -64,6 +84,48 @@ export async function commitNeoviewConfig(
   }
 
   return { configPath, backupPath, nodeConfig: verifiedNode, changed: true }
+}
+
+async function acquireConfigLock(configPath: string, retries = 20): Promise<{
+  assertHeld(): void
+  release(): Promise<void>
+}> {
+  if (!Number.isSafeInteger(retries) || retries < 0 || retries > 100) {
+    throw new RangeError("NeoView config lockRetries must be an integer between 0 and 100.")
+  }
+  let compromised: Error | undefined
+  let release: (() => Promise<void>) | undefined
+  try {
+    release = await lock(configPath, {
+      lockfilePath: `${configPath}.xr-write.lock`,
+      realpath: false,
+      stale: 30_000,
+      update: 10_000,
+      retries: {
+        retries,
+        factor: 1.25,
+        minTimeout: 20,
+        maxTimeout: 100,
+        randomize: true,
+      },
+      onCompromised: (error) => { compromised = error },
+    })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ELOCKED") {
+      throw new Error(`Timed out waiting for the Xiranite config writer: ${configPath}`, { cause: error })
+    }
+    throw error
+  }
+  if (compromised) {
+    await release().catch(() => undefined)
+    throw new Error(`Xiranite config writer lock was compromised: ${configPath}`, { cause: compromised })
+  }
+  return {
+    assertHeld() {
+      if (compromised) throw new Error(`Xiranite config writer lock was compromised: ${configPath}`, { cause: compromised })
+    },
+    release,
+  }
 }
 
 async function atomicReplace(path: string, content: string): Promise<void> {
