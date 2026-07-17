@@ -338,9 +338,9 @@
       "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/layoutSettings.svelte.ts"],
       "targetContract": "标签栏布局以及工具栏、面包屑位置可配置并持久化，窄侧栏下保持原版密度和溢出行为。",
       "surfaces": ["GUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "纳入截图与几何验收。"
+      "status": "complete",
+      "testIds": ["neoview.folder.tabs-layout-config", "neoview.folder.tabs-layout-ui", "neoview.folder.tabs-layout-e2e"],
+      "notes": "标签栏、面包屑和工具栏分别支持 none/top/bottom/left/right，纵向标签栏宽度限制为 100..400px；拖动期间只更新 DOM，结束时单次 PATCH 写入 [nodes.neoview.folder.tabs]。layout=none 时保留 28px 布局设置按钮，作为旧版完全隐藏后难以恢复的明确替代契约。Folder Tree 仍是独立层级导航，普通 list/grid/details 只展示当前目录直接子项，不注入磁盘根、树层级或递归结果。desktop 与 420x360 Chromium 验证三次位置 PATCH、一次宽度 PATCH、TOML 持久化、窄视口几何、递归子项缺席及活动阅读图片不重挂。生产 chunk 为 FolderMainCard 32,444 bytes、FolderChromeLayout 1,758 bytes、FolderSelectionBar 1,876 bytes、FolderTabBar 7,160 bytes；NeoView entry 29,866 bytes，首屏 NeoView 模块为 0。"
     },
 
     {
