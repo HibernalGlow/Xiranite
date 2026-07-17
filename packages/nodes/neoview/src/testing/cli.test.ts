@@ -423,6 +423,50 @@ describe("NeoView CLI", () => {
     }
   })
 
+  it("[neoview.settings.portable-cli] exports and round-trips the current node config without sensitive values", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-settings-portable-"))
+    const configPath = join(directory, "xiranite.config.toml")
+    const exportPath = join(directory, "portable.json")
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "secret = \"hidden\"",
+      "",
+      "[nodes.neoview.future]",
+      "enabled = true",
+      "",
+    ].join("\n"), "utf8")
+    try {
+      await runProgram(["settings-export", "--config", configPath, "--output", exportPath], host([]))
+      const content = await readFile(exportPath, "utf8")
+      expect(content).not.toContain("hidden")
+      expect(JSON.parse(content)).toMatchObject({
+        format: "Xiranite/NeoViewConfig",
+        version: 1,
+        nodeConfig: { schema_version: 1, future: { enabled: true } },
+        omittedSensitivePaths: ["secret"],
+      })
+      await expect(runProgram(["settings-export", "--config", configPath, "--output", exportPath], host([])))
+        .rejects.toMatchObject({ code: "EEXIST" })
+
+      const inspectOutput: unknown[] = []
+      await runProgram(["settings-portable-inspect", exportPath, "--json"], host(inspectOutput))
+      expect(JSON.parse(inspectOutput.join(""))).toMatchObject({ format: "Xiranite/NeoViewConfig", version: 1 })
+
+      await writeFile(configPath, "[nodes.neoview]\nold = true\n", "utf8")
+      const importOutput: unknown[] = []
+      await runProgram([
+        "settings-portable-import", exportPath, "--config", configPath, "--strategy", "overwrite", "--yes", "--json",
+      ], host(importOutput))
+      expect(JSON.parse(importOutput.join(""))).toMatchObject({ changed: true, backupCreated: true })
+      const restored = await readFile(configPath, "utf8")
+      expect(restored).toContain("[nodes.neoview.future]")
+      expect(restored).not.toContain("old = true")
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.reader-data.cli] previews safely and requires confirmation before shared-store import", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-reader-data-"))
     const inputPath = join(directory, "backup.json")

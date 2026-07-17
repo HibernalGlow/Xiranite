@@ -49,6 +49,7 @@ import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpCont
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import type { ReaderSettingsMigrationService } from "../../application/migration/ReaderSettingsMigrationService.js"
+import type { ReaderSettingsPortableService } from "../../application/migration/ReaderSettingsPortableService.js"
 import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
@@ -157,6 +158,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   maxSeekableMediaEntryBytes?: number
   maxSeekableMediaTotalBytes?: number
   loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>
+  loadSettingsPortableService?: () => Promise<ReaderSettingsPortableService>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -324,6 +326,7 @@ export class ReaderHttpController implements AsyncDisposable {
       ? new ReaderSettingsMigrationHttpController(
           options.loadSettingsMigrationService,
           (operation) => this.#runConfigMutation(operation),
+          options.loadSettingsPortableService,
         )
       : undefined
     this.#libraryService = options.libraryService

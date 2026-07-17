@@ -24,6 +24,17 @@ export interface CommitNeoviewConfigResult {
   changed: boolean
 }
 
+export async function readNeoviewConfig(
+  options: ResolveConfigPathOptions = {},
+): Promise<Record<string, unknown>> {
+  const configPath = resolveXiraniteConfigPath(options)
+  const text = await readOptional(configPath)
+  if (text === undefined) return {}
+  const root = requireRecord(parseToml(stripBom(text)), "Xiranite config root")
+  const nodes = isRecord(root.nodes) ? root.nodes : {}
+  return isRecord(nodes.neoview) ? cloneRecord(nodes.neoview) : {}
+}
+
 export async function commitNeoviewConfig(
   patch: Record<string, unknown>,
   options: CommitNeoviewConfigOptions,

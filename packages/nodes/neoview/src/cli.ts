@@ -27,7 +27,7 @@ import {
   type ReaderThumbnailMaintenancePort,
 } from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 import { help } from "./help.js"
-import { createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService } from "./platform.js"
+import { createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService, createReaderSettingsPortableService } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
@@ -35,6 +35,7 @@ import type { ReaderCompositionOptions } from "./platform.js"
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
+  "settings-export", "settings-portable-inspect", "settings-portable-import",
   "reader-data-inspect", "reader-data-import",
   "search-history-inspect", "search-history-import",
   "library-recents", "library-recent-delete", "library-recent-cleanup",
@@ -219,6 +220,11 @@ export async function runProgram(
     await runFolderCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
     return
   }
+  if (command === "settings-export") {
+    if (parsed.positionals.length) throw usage("settings-export does not accept an input path.")
+    await runPortableSettingsExport(parsed, host)
+    return
+  }
   const path = parsed.positionals[0]
   if (!path || parsed.positionals.length !== 1) {
     const kind = command.startsWith("settings-") ? "settings JSON path" : "book path"
@@ -270,6 +276,18 @@ export async function runProgram(
 }
 
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
+  if (command === "settings-export") {
+    rejectOptions(parsed, new Set(["--output", "--config", "--force"]))
+    return
+  }
+  if (command === "settings-portable-inspect") {
+    rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
+  if (command === "settings-portable-import") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--strategy"]))
+    return
+  }
   if (command === "settings-inspect") {
     rejectOptions(parsed, new Set(["--json", "--modules"]))
     return
@@ -1341,6 +1359,10 @@ async function runSettingsCommand(
   if (!inputStat.isFile()) throw usage(`Settings input is not a file: ${inputPath}`)
   if (inputStat.size > MAX_SETTINGS_BYTES) throw usage(`Settings input exceeds ${MAX_SETTINGS_BYTES} bytes.`)
   const content = await readFile(inputPath, "utf8")
+  if (command === "settings-portable-inspect" || command === "settings-portable-import") {
+    await runPortableSettingsCommand(command, content, parsed, host)
+    return
+  }
   const moduleOption = oneValue(parsed, "--modules")
   const modules = moduleOption?.split(",").map((value) => value.trim()).filter(Boolean)
   if (modules?.length === 0) throw usage("--modules requires at least one module name.")
@@ -1376,6 +1398,62 @@ async function runSettingsCommand(
     writeLine(host, `NeoView settings ${committed.changed ? "imported" : "already up to date"}: ${committed.configPath}`)
     if (committed.backupPath) writeLine(host, `Backup: ${committed.backupPath}`)
     printSettingsSummary(decoded.report.summary, decoded.report.fullyRecognized, host)
+  }
+}
+
+async function runPortableSettingsExport(parsed: ParsedArguments, host: CliHost): Promise<void> {
+  const output = oneValue(parsed, "--output")
+  if (!output) throw usage("settings-export requires --output <path|->.")
+  const service = await createReaderSettingsPortableService({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+  })
+  const content = `${JSON.stringify(await service.export(), null, 2)}\n`
+  if (output === "-") {
+    host.stdout.write(content)
+    return
+  }
+  const outputPath = resolve(host.cwd, output)
+  await writeTextExclusive(outputPath, content, parsed.booleans.has("--force"))
+  writeLine(host, `NeoView settings exported: ${outputPath}`)
+}
+
+async function runPortableSettingsCommand(
+  command: string,
+  content: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const service = await createReaderSettingsPortableService({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+  })
+  const payload = service.inspect(content)
+  if (command === "settings-portable-inspect") {
+    if (parsed.booleans.has("--json")) writeJson(host, payload)
+    else writeLine(host, `Portable NeoView settings v${payload.version}: ${Object.keys(payload.nodeConfig).length} root field(s), ${payload.omittedSensitivePaths.length} sensitive field(s) omitted.`)
+    return
+  }
+  if (!parsed.booleans.has("--yes")) throw usage("settings-portable-import requires --yes after inspection.")
+  const strategy = oneValue(parsed, "--strategy") ?? "merge"
+  if (strategy !== "merge" && strategy !== "overwrite") throw usage("--strategy must be merge or overwrite.")
+  const result = await service.import(content, strategy, true)
+  const output = { format: payload.format, version: payload.version, strategy, changed: result.changed, backupCreated: result.backupCreated }
+  if (parsed.booleans.has("--json")) writeJson(host, output)
+  else writeLine(host, `Portable NeoView settings ${result.changed ? "imported" : "already up to date"}.`)
+}
+
+async function writeTextExclusive(path: string, content: string, force: boolean): Promise<void> {
+  const handle = await open(path, force ? "w" : "wx")
+  let complete = false
+  try {
+    await handle.writeFile(content, "utf8")
+    complete = true
+  } finally {
+    await handle.close().catch(() => undefined)
+    if (!complete) await rm(path, { force: true }).catch(() => undefined)
   }
 }
 
@@ -1572,6 +1650,9 @@ function formatCliHelp(): string {
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
+    "  settings-export          Export current [nodes.neoview] as portable JSON",
+    "  settings-portable-inspect <json>  Validate a portable Xiranite settings export",
+    "  settings-portable-import <json>   Import a portable settings export",
     "  reader-data-inspect <json>  Preview legacy history/bookmark migration",
     "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
     "  search-history-inspect <json>  Preview legacy search-history migration",

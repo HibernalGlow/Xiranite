@@ -24,6 +24,7 @@ import type { ReaderCacheService } from "./application/cache/ReaderCacheService.
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderSettingsMigrationService } from "./application/migration/ReaderSettingsMigrationService.js"
+import type { ReaderSettingsPortableService } from "./application/migration/ReaderSettingsPortableService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
@@ -290,6 +291,7 @@ export async function createReaderHttpController(
       return parseNeoviewRuntimeConfig(committed.nodeConfig).media
     },
     loadSettingsMigrationService: () => createReaderSettingsMigrationService(options),
+    loadSettingsPortableService: () => createReaderSettingsPortableService(options),
     thumbnailStore,
     disposeThumbnailStore,
   })
@@ -310,6 +312,22 @@ export async function createReaderSettingsMigrationService(
       }
     },
   })
+}
+
+export async function createReaderSettingsPortableService(
+  options: NeoviewRuntimeLoadOptions = {},
+): Promise<ReaderSettingsPortableService> {
+  const { ReaderSettingsPortableService } = await import("./application/migration/ReaderSettingsPortableService.js")
+  const { commitNeoviewConfig, readNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+  return new ReaderSettingsPortableService(
+    { read: () => readNeoviewConfig(options) },
+    {
+      commit: async (patch, strategy) => {
+        const committed = await commitNeoviewConfig(patch, { ...options, strategy })
+        return { changed: committed.changed, configPath: committed.configPath, backupPath: committed.backupPath }
+      },
+    },
+  )
 }
 
 export async function createReaderCacheService(

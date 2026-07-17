@@ -65,6 +65,50 @@ describe("Reader settings migration HTTP integration", () => {
       await controller[Symbol.asyncDispose]()
     }
   })
+
+  it("[neoview.settings.portable-http-integration] downloads and restores the current TOML node config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-portable-http-"))
+    roots.push(root)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "token = \"hidden\"",
+      "",
+      "[nodes.neoview.future]",
+      "enabled = true",
+      "",
+    ].join("\n"), "utf8")
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "secret",
+      configPath,
+      legacyThumbnailDatabasePath: false,
+    })
+    try {
+      const unauthorized = await controller.handle(new Request("http://127.0.0.1:41000/reader/settings/portable"))
+      expect(unauthorized?.status).toBe(401)
+      const download = (await controller.handle(authorizedRequest("/reader/settings/portable")))!
+      const content = await download.text()
+      expect(content).not.toContain("hidden")
+      expect(download.headers.get("cache-control")).toBe("no-store")
+
+      await writeFile(configPath, "[nodes.neoview]\nold = true\n", "utf8")
+      const restored = (await controller.handle(jsonRequest("/reader/settings/portable", {
+        content,
+        strategy: "overwrite",
+        confirmed: true,
+      })))!
+      expect(restored.status).toBe(200)
+      await expect(restored.json()).resolves.toMatchObject({ changed: true, backupCreated: true })
+      const written = await readFile(configPath, "utf8")
+      expect(written).toContain("[nodes.neoview.future]")
+      expect(written).not.toContain("old = true")
+      expect(written).not.toContain("hidden")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
 })
 
 function jsonRequest(path: string, body: unknown, authorized = true): Request {
@@ -75,4 +119,8 @@ function jsonRequest(path: string, body: unknown, authorized = true): Request {
     headers,
     body: JSON.stringify(body),
   })
+}
+
+function authorizedRequest(path: string): Request {
+  return new Request(`http://127.0.0.1:41000${path}`, { headers: { "x-xiranite-token": "secret" } })
 }

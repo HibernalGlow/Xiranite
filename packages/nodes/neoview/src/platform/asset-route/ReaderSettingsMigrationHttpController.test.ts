@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { ReaderSettingsMigrationService } from "../../application/migration/ReaderSettingsMigrationService.js"
+import { ReaderSettingsPortableService } from "../../application/migration/ReaderSettingsPortableService.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 
 const content = JSON.stringify({ format: "NeoView/1.0", config: { system: { language: "en" } } })
@@ -50,6 +51,41 @@ describe("ReaderSettingsMigrationHttpController", () => {
     expect((await controller.handle(request("/reader/settings/migration/inspect", { content, extra: true })))?.status).toBe(400)
     expect((await controller.handle(request("/reader/settings/migration/inspect", { content, modules: "native-settings" })))?.status).toBe(400)
     expect((await controller.handle(new Request("http://localhost/reader/settings/migration/inspect", { method: "GET" })))?.status).toBe(405)
+  })
+
+  it("[neoview.settings.portable-http] downloads no-store JSON and imports through the shared mutation queue", async () => {
+    const commit = vi.fn(async () => ({ changed: true, backupPath: "private.bak" }))
+    const runMutation = vi.fn(async <T>(operation: () => Promise<T>) => operation())
+    const portable = new ReaderSettingsPortableService(
+      { read: async () => ({ schema_version: 1, future: { enabled: true }, secret: "hidden" }) },
+      { commit },
+    )
+    const controller = new ReaderSettingsMigrationHttpController(
+      async () => new ReaderSettingsMigrationService(),
+      runMutation,
+      async () => portable,
+    )
+    const download = (await controller.handle(new Request("http://localhost/reader/settings/portable")))!
+    expect(download.status).toBe(200)
+    expect(download.headers.get("content-disposition")).toMatch(/^attachment; filename="xiranite-neoview-settings-/)
+    expect(download.headers.get("cache-control")).toBe("no-store")
+    const content = await download.text()
+    expect(content).not.toContain("hidden")
+    expect(JSON.parse(content)).toMatchObject({
+      format: "Xiranite/NeoViewConfig",
+      version: 1,
+      nodeConfig: { schema_version: 1, future: { enabled: true } },
+      omittedSensitivePaths: ["secret"],
+    })
+
+    const imported = (await controller.handle(request("/reader/settings/portable", {
+      content,
+      strategy: "overwrite",
+      confirmed: true,
+    })))!
+    await expect(imported.json()).resolves.toMatchObject({ changed: true, backupCreated: true, strategy: "overwrite" })
+    expect(runMutation).toHaveBeenCalledOnce()
+    expect(commit).toHaveBeenCalledWith(expect.objectContaining({ future: { enabled: true } }), "overwrite")
   })
 })
 
