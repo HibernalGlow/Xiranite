@@ -48,3 +48,4 @@ output/playwright/*
 output/qa/*
 src/styles/.tailwind-candidates.txt
 output/backups/nodes-backup-before-ui-redesign-20260712.zip
+migration/czkawka/image.png

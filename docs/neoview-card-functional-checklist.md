@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=39`，`complete=16`，`pending=19`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=40`，`complete=16`，`pending=18`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -473,8 +473,8 @@
 - [x] `folder.nav.path` 路径输入与直接跳转
   - 目标：面包屑与可编辑路径输入可互换；Enter 确认、Escape 取消、blur 行为及无效路径反馈与原版一致。
   - 源码：`components/BreadcrumbBar.svelte`
-  - 测试：`neoview.folder.path-navigation`
-  - 备注：共享 FolderBreadcrumb 解析 Windows 盘符、UNC 与 POSIX 根路径，按宽度保留根和末段并将中间段折叠到菜单；面包屑与完整路径输入互换，Enter 确认、Escape/blur 取消，失败导航保留当前 catalog，支持复制路径及 Alt+Left/Right/Up、F5。真实 Chromium 验证进入子目录后 list/grid/details 仍只消费当前目录 direct children，Folder Tree 保持独立层级导航；新建标签仍归 folder.tabs.lifecycle。
+  - 测试：`neoview.folder.path-navigation`、`neoview.folder.windows-drive-root`
+  - 备注：共享 FolderBreadcrumb 解析 Windows 盘符、UNC 与 POSIX 根路径，按宽度保留根和末段并将中间段折叠到菜单；面包屑与完整路径输入互换，Enter 确认、Escape/blur 取消，失败导航保留当前 catalog，支持复制路径及 Alt+Left/Right/Up、F5。Windows 平台边界会在 realpath 前后把单独盘符规范为绝对盘符根，兼容 Bun 将 E:\ 的 realpath 错误返回 E: 的运行时差异；native 卷枚举、首次打开和后续导航复用同一规则。真实 Chromium 验证进入子目录后 list/grid/details 仍只消费当前目录 direct children，Folder Tree 保持独立层级导航；新建标签仍归 folder.tabs.lifecycle。
 - [x] `folder.nav.history` 前进、后退与导航历史
   - 目标：每标签维护分支正确的前进/后退历史，并恢复目录、滚动、焦点、选择和临时排序。
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderToolbar/NavigationButtons.svelte`
@@ -682,7 +682,7 @@
 - [ ] `folder.search.current` 当前目录搜索
   - 目标：按名称或路径搜索当前目录，支持清除、空态、加载态、错误态和搜索历史。
   - 源码：`components/SearchResultList.svelte`、`stores/folderTabStore/sortingFiltering.svelte.ts`
-  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`、`neoview.folder.search-path`、`neoview.folder.search-path-http`、`neoview.folder.search-path-gui`、`neoview.folder.search-path-cli`、`neoview.folder.search-path-tui`、`neoview.folder.search-settings`、`neoview.folder.search-settings-gui`、`neoview.folder.search-settings-toml`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`、`neoview.folder.search-gui`、`neoview.folder.search-current`、`neoview.folder.search-stale`、`neoview.folder.search-cancel`、`neoview.folder.search-cancel-gui`、`neoview.folder.search-history-service`、`neoview.folder.search-history-validation`、`neoview.folder.search-history-sqlite`、`neoview.folder.search-history-http`、`neoview.folder.search-history-composition`、`neoview.folder.search-history-headless`、`neoview.folder.search-history-cli`、`neoview.folder.search-history-tui`、`neoview.folder.search-history-codec`、`neoview.folder.search-history-codec-raw`、`neoview.folder.search-history-import`、`neoview.folder.search-history-import-cli`、`neoview.folder.search-history-client`、`neoview.folder.search-history-gui`、`neoview.folder.search-shortcut`、`neoview.react.cbz-e2e`
+  - 测试：`neoview.folder.search-stream`、`neoview.folder.search-http`、`neoview.folder.search-path`、`neoview.folder.search-path-http`、`neoview.folder.search-path-gui`、`neoview.folder.search-path-cli`、`neoview.folder.search-path-tui`、`neoview.folder.search-settings`、`neoview.folder.search-settings-gui`、`neoview.folder.search-settings-toml`、`neoview.folder.headless`、`neoview.folder.cli`、`neoview.folder.tui`、`neoview.folder.search-gui`、`neoview.folder.search-current`、`neoview.folder.search-listing-adapter`、`neoview.folder.search-current-no-rescan`、`neoview.folder.search-current-http`、`neoview.folder.search-stale`、`neoview.folder.search-cancel`、`neoview.folder.search-cancel-gui`、`neoview.folder.search-history-service`、`neoview.folder.search-history-validation`、`neoview.folder.search-history-sqlite`、`neoview.folder.search-history-http`、`neoview.folder.search-history-composition`、`neoview.folder.search-history-headless`、`neoview.folder.search-history-cli`、`neoview.folder.search-history-tui`、`neoview.folder.search-history-codec`、`neoview.folder.search-history-codec-raw`、`neoview.folder.search-history-import`、`neoview.folder.search-history-import-cli`、`neoview.folder.search-history-client`、`neoview.folder.search-history-gui`、`neoview.folder.search-shortcut`、`neoview.react.cbz-e2e`
   - 备注：GUI 已通过鉴权 NDJSON 客户端复用 text 契约，默认搜索子目录和名称；includeSubfolders、showHistoryOnFocus、searchInPath 三项旧 SearchSettings 通过唯一串行 Reader config PATCH 写入 [nodes.neoview.folder.search]，失败沿用父级乐观回滚。路径匹配同时贯通 HTTP path=0|1、CLI --search-in-path 与 OpenTUI。界面提供虚拟结果、文本/Glob、类型与大小写选项、清除、加载/空/错误/截断态、过期查询取消及 Ctrl/Cmd+F；四个 scope 的搜索历史通过统一 ReaderSearchHistoryService 非破坏性写入原 %APPDATA%/NeoView/thumbnails.db 的 xr_reader_search_history。zod codec 和显式确认 CLI 已覆盖旧搜索历史格式。搜索栏显隐、mode/kind/case 会话状态与旧 localStorage 一次性导入仍待迁移。
 - [ ] `folder.search.recursive` 包含子目录的流式搜索
   - 目标：递归搜索通过 readdirp stream 分批返回、可取消、可限制并发；不阻塞 Bun 事件循环。
@@ -692,16 +692,16 @@
 - [ ] `folder.search.emm-tags` EMM 标签、收藏标签与随机标签搜索
   - 目标：支持 EMM 标签条件、收藏标签快捷筛选和随机标签；标签组合修饰键行为与原版一致。
   - 源码：`components/FavoriteTagPanel.svelte`、`components/SearchResultList.svelte`
-  - 测试：待补
-  - 备注：查询走统一 EMM provider，不扫描 UI store。
+  - 测试：`neoview.folder.emm-search-batch`、`neoview.folder.emm-search-query`、`neoview.folder.emm-search-http`、`neoview.folder.emm-tag-suggestions`、`neoview.folder.emm-tag-sqlite`、`neoview.folder.emm-tag-suggestions-http`、`neoview.folder.emm-translation-source`、`neoview.folder.emm-tag-translation`
+  - 备注：结构化 include/exclude tag 与 all/any 组合已通过唯一 ReaderFileTreeSearch 契约；ReaderMetadataHydratingScanner 对当前 listing 和递归 scanner 都按 128 项调用现有 EMM metadata provider，继续使用旧库批量查询、NDJSON 背压和同一取消链，不扫描 UI store。随机普通标签由 SQLite JSON1 在最多 50 个旧 emm_json 行内展开去重，并与唯一 collect-tag source 的最多 3 个收藏标签合并。翻译由 8 MiB 有界、mtime 缓存且可释放的 platform source 惰性补充。完整 GUI、手动翻译路径、组合修饰键和显式 CLI/TUI surface 仍待完成。
 
 ### filtering（1）
 
 - [ ] `folder.filter.type` 类型筛选
   - 目标：支持全部、压缩包、文件夹、视频类型筛选，并与排序、搜索和虚拟源组合。
   - 源码：`components/FolderToolbar/TypeFilterBar.svelte`、`utils/virtualPathLoader.ts`
-  - 测试：待补
-  - 备注：扩展名和 MIME 规则需单一共享定义。
+  - 测试：`neoview.folder.filter-service`、`neoview.folder.filter-http`、`neoview.folder.filter-media-registry`、`neoview.folder.filter-headless`、`neoview.folder.filter-search`
+  - 备注：后端已在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，递归搜索继承同一 filter 并保留原 AsyncIterable 背压/取消链，archive helper 与 TOML media registry 是 GUI/Headless 唯一分类源。仍保持 pending，直到 TypeFilterBar GUI、虚拟源组合和显式 CLI/TUI 命令完成。
 
 ### tree（4）
 
@@ -736,8 +736,8 @@
 - [ ] `folder.virtual.cleanup` 无效书签/历史清理与同步
   - 目标：首次使用时有界清理无效项；支持 History/Bookmark 同步文件夹变化、单项删除和清空历史。
   - 源码：`utils/virtualPathLoader.ts`
-  - 测试：`neoview.library.http`、`neoview.library.cli`、`neoview.library.tui`
-  - 备注：共享 service 已支持单项删除和按时间、数量有界的历史清理，CLI 删除/清理与 TUI destructive action 都需显式确认。首次使用无效路径探测、批量清空和 GUI 同步仍待完成；清理失败不能阻断列表首屏。
+  - 测试：`neoview.library.http`、`neoview.library.cli`、`neoview.library.tui`、`neoview.library.cleanup-invalid`、`neoview.library.cleanup-cancel`、`neoview.library.path-status`、`neoview.library.headless-composition`
+  - 备注：ReaderLibraryCleanupService 使用 p-map 有界检查并为每次 stat 取得宿主后台 I/O lease；只有 ENOENT/ENOTDIR 才删除，权限、离线卷和瞬时失败计为 unknown 并保留，取消与 scan/delete/concurrency 预算贯穿 HTTP、CLI 和 TUI。单项删除和按时间清理继续复用相同 library service，destructive action 需显式确认。GUI 首次非阻塞触发、批量清空和文件夹变化同步仍待完成。
 
 ### operations（10）
 
@@ -764,8 +764,8 @@
 - [ ] `folder.op.rename` 重命名
   - 目标：内联/弹窗重命名保留扩展名策略、校验、冲突提示、取消和完成后选中项路径更新。
   - 源码：`components/FolderContextMenu.svelte`、`components/FolderListItem.svelte`
-  - 测试：待补
-  - 备注：watcher 事件不能造成重复项。
+  - 测试：`neoview.folder.rename-validation`、`neoview.folder.rename-client`、`neoview.folder.rename-context`、`neoview.folder.rename-ui`、`neoview.folder.rename-conflict`、`neoview.folder.rename-cancel`、`neoview.folder.rename-focus`
+  - 备注：GUI 右键菜单按需加载重命名弹窗，文件默认只选中名称主体并保留扩展名；Windows 保留名/非法字符、同名冲突、权限、源消失与取消均有明确反馈。成功后在同一 browser session 中以新路径刷新并重建 focus/selection，watcher generation 去重；内联入口、真实 Chromium 与 CLI/TUI surface 仍待完成。
 - [ ] `folder.op.delete` 回收站、永久删除与批量删除
   - 目标：删除策略可切换回收站/永久删除；单项/批量确认、进度、部分失败、焦点迁移和安全边界完整。
   - 源码：`components/FolderContextMenu.svelte`、`components/SelectionBar.svelte`、`components/FolderToolbar/FolderToolbar.svelte`
@@ -807,8 +807,8 @@
 - [ ] `folder.emm.edit` 编辑 EMM 标签与评分
   - 目标：单项/批量编辑标签与评分，乐观更新、失败回滚并让搜索/排序立即一致。
   - 源码：`components/FolderContextMenu.svelte`、`components/FavoriteTagPanel.svelte`
-  - 测试：待补
-  - 备注：与独立 EMM Card 共用命令服务。
+  - 测试：`neoview.folder.emm-edit-service`、`neoview.folder.emm-edit-conflict`、`neoview.folder.emm-edit-validation`、`neoview.folder.emm-edit-http`、`neoview.folder.emm-edit-boundary`
+  - 备注：后端已通过共享 ReaderEmmMetadataService 提供 generation-bound 单项/最多 64 项批量 rating/manualTags/translatedTitle 编辑、逐项 CAS 和一次目录 metadata 回填重排；仍保持 pending，直到 FolderMain/独立 EMM Card GUI、乐观回滚、收藏标签快捷应用和 CLI/TUI 命令完成。
 
 ### penetration（3）
 
@@ -2448,61 +2448,61 @@
 
 ##### 专用源码级验收项
 
-- [ ] `book-settings.identity` 使用规范书籍身份定位覆盖
+- [x] `book-settings.identity` 使用规范书籍身份定位覆盖
   - 目标：Per-book overrides use the canonical opened book identity and never an editable path field, transient page URL or display title.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-page-mode`
-  - 备注：The React Card receives the active session book but the canonical persistent book key is not yet exposed.
+  - 测试：`neoview.card.book-settings-page-mode`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`
+  - 备注：Core, HTTP and SQLite use the opened ReaderBook.id; remote DTOs expose that opaque identity and never accept a path as the settings key.
 - [ ] `book-settings.favorite` 查看和切换本书收藏
   - 目标：Favorite is a shared per-book boolean with inherited, explicit true and explicit false semantics and immediate optimistic feedback with rollback.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：待补
-  - 备注：Current React intentionally omits the control because no canonical read/write contract exists.
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 备注：The canonical nullable override and local/remote CLI/OpenTUI projections are implemented; the React star control remains pending.
 - [ ] `book-settings.rating` 编辑本书五星评分
   - 目标：Rating supports unset and integers 1..5 through one shared book metadata contract without diverging from Folder rating fields.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：待补
-  - 备注：Current React intentionally omits the five-star control until rating ownership is unified.
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 备注：The canonical unset/1..5 backend, CLI and OpenTUI contract is implemented without media rebuild; Folder rating unification and the five-star GUI remain pending.
 - [ ] `book-settings.direction` 覆盖本书阅读方向
   - 目标：Left-to-right and right-to-left update the active frame immediately, persist as a per-book override and can be reset to inherit the global default.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-direction`、`neoview.control.session`、`neoview.book-settings.direction-e2e`
-  - 备注：The authenticated session options route now strictly accepts direction, rebuilds the frame and reverses double-page presentation order; canonical per-book persistence and reset-to-inherit remain pending.
+  - 测试：`neoview.card.book-settings-direction`、`neoview.control.session`、`neoview.book-settings.direction-e2e`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 备注：The persistent route and shared CLI/OpenTUI controls apply immediately, restore on reopen and support null reset-to-inherit; the React Card still needs the canonical route.
 - [ ] `book-settings.page-mode` 覆盖本书单双页模式
   - 目标：Single and double page mode update the active frame immediately, persist only for this book and can be reset to inherit the global default.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-page-mode`
-  - 备注：The React Card updates the current session page mode, but does not distinguish or persist a per-book override.
+  - 测试：`neoview.card.book-settings-page-mode`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 备注：The backend and shared CLI/OpenTUI controls apply, persist, reopen and reset page-mode overrides; the React Card still uses the temporary session route.
 - [ ] `book-settings.horizontal-book` 覆盖横版本子策略
   - 目标：Horizontal-book is mapped to one documented wide-page/frame policy, applies immediately and does not create a parallel pairing algorithm.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：待补
-  - 备注：The legacy boolean has no canonical XR behavior yet.
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.horizontal-policy`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 备注：The legacy value was storage-only; XR maps it to ReaderLayout.treatWidePageAsSingle and exposes it through shared CLI/OpenTUI controls. The React control remains pending.
 - [ ] `book-settings.apply` 立即应用、串行提交与失败回滚
   - 目标：Each settled control change updates one active session, serializes persistence, ignores obsolete responses and restores the last confirmed value on failure.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-page-mode`、`neoview.card.book-settings-direction`、`neoview.book-settings.direction-e2e`
-  - 备注：Direction and page-mode changes serialize inside the Card, disable both groups while pending and surface failure without changing the confirmed controlled value; persistence revision conflicts and cross-book cancellation remain pending.
+  - 测试：`neoview.card.book-settings-page-mode`、`neoview.card.book-settings-direction`、`neoview.book-settings.direction-e2e`、`neoview.book-settings.revision`、`neoview.book-settings.cas-rollback`、`neoview.book-settings.rollback`、`neoview.book-settings.http`、`neoview.book-settings.http-rollback`
+  - 备注：Application updates serialize per canonical book, stale revisions fail before frame mutation, a late CAS loss adopts the winning database frame, and persistence failure returns 500 after rolling the active frame back; the React Card still needs to consume the persistent DTO and cancel across book switches.
 - [ ] `book-settings.states` 空、加载、继承、显式、保存与错误状态
   - 目标：No-book, loading, inherited, explicit, saving, failure and retry states preserve the last confirmed override without stale cross-book publication.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
-  - 测试：`neoview.card.book-settings-contract`
-  - 备注：No-session is zero DOM in the shared Card host; the current component lacks inherited, saving and failure states.
-- [ ] `book-settings.data-contract` 共享有界本书覆盖 DTO
+  - 测试：`neoview.card.book-settings-contract`、`neoview.book-settings.service`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.legacy-http`
+  - 备注：The DTO distinguishes inherited/explicit values, revision conflicts and migration inspection outcomes; the React loading, saving, retry and stale-book presentation remains pending.
+- [x] `book-settings.data-contract` 共享有界本书覆盖 DTO
   - 目标：GUI, CLI and TUI share one versioned bounded override DTO with optional fields, strict enums/ranges, revision conflict handling and no raw local paths in remote output.
   - 源码：`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：待补
-  - 备注：The legacy localStorage record is not a valid shared XR contract.
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.defaults`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless`、`neoview.book-settings.headless-rollback`、`neoview.book-settings.cli`、`neoview.book-settings.cli-validation`、`neoview.book-settings.cli-connect`、`neoview.book-settings.wire-schema`、`neoview.book-settings.tui`、`neoview.book-settings.tui-schema`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-envelope`、`neoview.book-settings.legacy-http`
+  - 备注：GUI HTTP, HeadlessController, local/loopback CLI and OpenTUI share the versioned Zod DTO, nullable inheritance, defaults, CAS queue and rollback without direct presentation-layer database access.
 - [ ] `book-settings.persistence` 迁移旧键并持久化规范覆盖
   - 目标：Legacy neoview-book-settings imports once into the compatible NeoView business database or canonical config ownership, saves atomically, supports reset-to-inherit and never creates Reader business tables in xiranite.db.
   - 源码：`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：待补
-  - 备注：Current React neither reads nor writes the legacy record; final ownership must be resolved before controls are exposed.
+  - 测试：`neoview.book-settings.sqlite`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless-composition`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-importer`、`neoview.book-settings.legacy-transaction`、`neoview.book-settings.legacy-http`
+  - 备注：GUI HTTP, headless, CLI and OpenTUI use the same non-destructive xr_reader_book_settings table in the original thumbnails.db; direct/localStorage backup envelopes import in one merge/overwrite transaction. React Card persistence wiring remains pending.
 - [ ] `book-settings.lifecycle` 切书、折叠、取消与关闭释放
   - 目标：Hidden/unmounted Cards do no work; switching books cancels obsolete reads/writes; session close releases pending updates and stale responses cannot affect the next book.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
-  - 测试：`neoview.card.book-settings-contract`
-  - 备注：The Card is lazy and no-session renders zero DOM; persistent request cancellation is not implemented.
+  - 测试：`neoview.card.book-settings-contract`、`neoview.book-settings.service`、`neoview.book-settings.http`、`neoview.book-settings.legacy-cancel`
+  - 备注：Reads, updates and migration resolution accept AbortSignal and queues are isolated by canonical book; explicit React unmount/switch cancellation evidence remains pending.
 - [x] `book-settings.shell` 复用通用 Card 外壳
   - 目标：Book Settings remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the Properties Panel.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
@@ -2521,8 +2521,8 @@
 - [ ] `book-settings.image-stability` 设置更新不重挂活动媒体
   - 目标：Metadata-only changes issue no media request; frame-affecting direction/page-mode changes reuse stable asset URLs and replace media nodes only when the visible page set actually changes.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
-  - 测试：`neoview.book-settings.direction-e2e`
-  - 备注：Real Chromium proves RTL reorders the same two visible asset URLs after double-page activation; metadata-only controls and duplicate-request counts remain pending.
+  - 测试：`neoview.book-settings.direction-e2e`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.http`
+  - 备注：The service skips frame updates for favorite/rating and the existing Chromium direction test preserves asset identity; final GUI favorite/rating request-count evidence remains pending.
 - [ ] `book-settings.performance` 常量 DOM、零隐藏工作与独立 chunk
   - 目标：The Card uses O(1) DOM, no polling or media decode, zero hidden work and an independent deferred chunk under 8 KiB outside Reader entry and sidebar base chunks.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/cards/CardRenderer.svelte`
@@ -2531,8 +2531,8 @@
 - [ ] `book-settings.deviations` 记录覆盖继承与旧 localStorage 替代
   - 目标：Document reset-to-inherit, canonical persistence, authenticated session updates and any horizontal-book mapping as XR extensions while preserving all five legacy controls.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-contract`
-  - 备注：Unsupported controls are deliberately hidden rather than presented as no-op; final replacement contracts remain pending.
+  - 测试：`neoview.card.book-settings-contract`、`neoview.book-settings.horizontal-policy`、`neoview.book-settings.sqlite`
+  - 备注：XR documents nullable inheritance, thumbnails.db ownership and maps the legacy storage-only horizontalBook flag to the existing wide-page-single policy; legacy import and final GUI copy remain pending.
 
 #### `folderRatings` 文件夹平均评分
 
@@ -3755,8 +3755,8 @@
 - [ ] `page-list.context-actions` 页面上下文跳转与删除
   - 目标：Directory and archive pages expose shared, confirmable, resource-safe delete behavior and clamp navigation afterward.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
-  - 测试：待补
-  - 备注：No React page context menu exists.
+  - 测试：`neoview.page-list.context-actions`、`neoview.page-list.action-client`、`neoview.page-list.action-http`、`neoview.page-list.archive-actions`、`neoview.page-list.thumbnail-e2e`
+  - 备注：All three React renderers expose one opaque page menu with legacy copy, go-to, reveal, open ordering and page-name footer; pointer and keyboard builders are covered, while confirmed directory/archive deletion, reopen and index clamping remain pending.
 - [x] `page-list.ordering` 保持原始 page.index 页面顺序
   - 目标：The Card exposes no local sorting control and preserves the book page catalog's original page.index order across list, detail, thumbnail and filtered result views; reading direction affects frame composition rather than reordering this catalog.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/stores/book/pageNavigation.svelte.ts`
@@ -3780,8 +3780,8 @@
 - [ ] `page-list.lifecycle` 取消目录与缩略图并忽略迟到结果
   - 目标：Search, mode, session, collapse and unmount changes cancel obsolete catalog/thumbnail work and release owners.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.page-list.search`、`neoview.page-list.prewarm-lifecycle`
-  - 备注：Catalog generations and background prewarm abort on replacement/unmount, while Slider navigation generations cannot continue into a replacement session. Explicit visible-thumbnail owner and collapsed request-count proof remain pending.
+  - 测试：`neoview.page-list.search`、`neoview.page-list.prewarm-lifecycle`、`neoview.page-list.action-lifecycle`、`neoview.clipboard.materialization-session-close`、`neoview.page-list.archive-actions`
+  - 备注：Catalog, prewarm, Slider and page-action generations abort on replacement; clipboard materialization close blocks new work, drains in-flight extraction and releases session leases, while successful copy/open retains only the latest required lease. Explicit collapsed thumbnail request-count proof and destructive mutation cleanup remain pending.
 - [ ] `page-list.shell` 保持页面列表 Card shell
   - 目标：Page List remains independently lazy, non-hideable, collapsible, movable, resizable and window-capable.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
@@ -3790,8 +3790,8 @@
 - [ ] `page-list.accessibility` 命名视图、页面与上下文动作
   - 目标：Mode toggles, page rows, Slider, numeric jump and context actions have accessible names and full keyboard operation.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageContextMenu.svelte`
-  - 测试：`neoview.page-list.virtual`、`neoview.page-list.keyboard`、`neoview.page-list.thumbnail-e2e`
-  - 备注：Named listbox/option semantics, roving focus, Arrow/Home/End/PageUp/PageDown/Enter/Escape and Ctrl/Cmd+F are covered; the missing context menu keeps the item partial.
+  - 测试：`neoview.page-list.virtual`、`neoview.page-list.keyboard`、`neoview.page-list.context-actions`、`neoview.context-menu.keyboard`、`neoview.page-list.thumbnail-e2e`
+  - 备注：Named listbox/option semantics, roving focus, navigation/search keys, Shift+F10/ContextMenu builders and named non-destructive menu actions are covered; delete confirmation and focus restoration keep this item partial.
 - [x] `page-list.ui-parity` 保持缩略图比例、密度与当前页状态
   - 目标：Legacy contain-fit thumbnails, exact 48x64 detail geometry, 3:4 grid tiles, page badges, current-page emphasis and responsive three-column geometry remain readable at desktop and 420x360.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/cards/pageList/PageIndexBadge.svelte`
@@ -3810,8 +3810,8 @@
 - [ ] `page-list.file-actions` 平台安全的页面文件动作
   - 目标：Copy, reveal, system-open and directory/archive deletion run through authenticated application commands and atomically update the session catalog.
   - 源码：`src/lib/cards/pageList/PageContextMenu.svelte`、`src/lib/cards/pageList/PageListCard.svelte`
-  - 测试：待补
-  - 备注：Must not expose Tauri invokes or raw archive mutations in React.
+  - 测试：`neoview.page-list.action-client`、`neoview.page-list.action-http`、`neoview.page-list.archive-actions`、`neoview.page-list.action-lifecycle`、`neoview.page-list.thumbnail-e2e`
+  - 备注：Authenticated opaque page actions copy local files directly, materialize bounded archive entries for clipboard/default-open, reveal the archive itself and retain at most the latest required lease. Directory trash, archive mutation, reopen, index clamp and CLI/TUI commands remain pending.
 - [ ] `page-list.settings` 持久化跟随与页面列表视图
   - 目标：Follow state and page-list-specific view preferences persist through canonical [nodes.neoview] settings.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
@@ -3826,12 +3826,12 @@
   - 目标：Mode switches, scrolling, search and thumbnail loading preserve the active Reader media node and asset URL.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`
   - 测试：`neoview.page-list.thumbnail-e2e`、`neoview.page-list.prewarm-e2e`
-  - 备注：Desktop and 420x360 Chromium prove complete-catalog prewarm and visible thumbnail decoding preserve the active image node, exact asset URL and request count; scrolling and search identity checks remain pending.
+  - 备注：Desktop and 420x360 Chromium prove prewarm, visible thumbnails, three renderer menus and real archive copy preserve the active image node, exact asset URL and request count; scrolling, search and future delete/reload identity checks remain pending.
 - [x] `page-list.deviations` 记录 HTTP catalog 与共享 React 缩略图扩展
   - 目标：Document sparse authenticated HTTP catalog and shared thumbnail primitives as XR implementations without removing legacy modes or actions.
   - 源码：`src/lib/cards/pageList/PageListCard.svelte`、`src/lib/core/virtualPageList.ts`
-  - 测试：`neoview.page-list.sparse-100k`、`neoview.page-list.shared-renderer`、`neoview.page-list.thumbnail-e2e`
-  - 备注：XR replaces the legacy in-process virtual list with an authenticated bounded sparse HTTP catalog, adds roving keyboard focus, and reuses the canonical 320px thumbnail profile while preserving all three legacy renderers and display geometry.
+  - 测试：`neoview.page-list.sparse-100k`、`neoview.page-list.shared-renderer`、`neoview.page-list.context-actions`、`neoview.page-list.thumbnail-e2e`
+  - 备注：XR uses an authenticated bounded sparse HTTP catalog, roving keyboard focus, the canonical 320px thumbnail profile and a shared linear context menu with host-capability disabled states; it preserves the legacy action order and page-name footer across all three renderers while destructive actions remain explicitly partial.
 
 ### Panel: `folder`（1）
 

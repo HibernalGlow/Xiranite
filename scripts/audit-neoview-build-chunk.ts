@@ -174,6 +174,7 @@ const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((
 const folderChromeLayoutChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderChromeLayout\.tsx$/i.test(module)))
 const folderSelectionBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSelectionBar\.tsx$/i.test(module)))
 const folderContextActionsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderContextActions\.tsx$/i.test(module)))
+const folderRenameDialogChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderRenameDialog\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
 const directoryWatchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]DirectoryWatch\.tsx$/i.test(module)))
@@ -195,6 +196,12 @@ if (!folderContextActionsChunk || folderContextActionsChunk === folderMainChunk 
 }
 if (folderContextActionsChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView Folder context actions chunk ${folderContextActionsChunk.fileName} is ${folderContextActionsChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!folderRenameDialogChunk || folderRenameDialogChunk === folderContextActionsChunk || folderRenameDialogChunk === folderMainChunk || folderRenameDialogChunk === readerSidebarChunk || folderRenameDialogChunk === neoViewChunk || folderRenameDialogChunk === initialChunk) {
+  throw new Error("NeoView Folder rename dialog did not produce a third-level deferred production chunk.")
+}
+if (folderRenameDialogChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Folder rename dialog chunk ${folderRenameDialogChunk.fileName} is ${folderRenameDialogChunk.bytes} bytes, above 8 KiB.`)
 }
 if (!folderSearchChunk || folderSearchChunk === folderMainChunk) {
   throw new Error("NeoView FolderSearchPanel did not produce a second-level deferred production chunk.")

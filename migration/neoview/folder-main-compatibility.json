@@ -206,8 +206,8 @@
       "targetContract": "面包屑与可编辑路径输入可互换；Enter 确认、Escape 取消、blur 行为及无效路径反馈与原版一致。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "complete",
-      "testIds": ["neoview.folder.path-navigation"],
-      "notes": "共享 FolderBreadcrumb 解析 Windows 盘符、UNC 与 POSIX 根路径，按宽度保留根和末段并将中间段折叠到菜单；面包屑与完整路径输入互换，Enter 确认、Escape/blur 取消，失败导航保留当前 catalog，支持复制路径及 Alt+Left/Right/Up、F5。真实 Chromium 验证进入子目录后 list/grid/details 仍只消费当前目录 direct children，Folder Tree 保持独立层级导航；新建标签仍归 folder.tabs.lifecycle。"
+      "testIds": ["neoview.folder.path-navigation", "neoview.folder.windows-drive-root"],
+      "notes": "共享 FolderBreadcrumb 解析 Windows 盘符、UNC 与 POSIX 根路径，按宽度保留根和末段并将中间段折叠到菜单；面包屑与完整路径输入互换，Enter 确认、Escape/blur 取消，失败导航保留当前 catalog，支持复制路径及 Alt+Left/Right/Up、F5。Windows 平台边界会在 realpath 前后把单独盘符规范为绝对盘符根，兼容 Bun 将 E:\\ 的 realpath 错误返回 E: 的运行时差异；native 卷枚举、首次打开和后续导航复用同一规则。真实 Chromium 验证进入子目录后 list/grid/details 仍只消费当前目录 direct children，Folder Tree 保持独立层级导航；新建标签仍归 folder.tabs.lifecycle。"
     },
     {
       "id": "folder.nav.history",
@@ -629,8 +629,8 @@
       "targetContract": "支持 EMM 标签条件、收藏标签快捷筛选和随机标签；标签组合修饰键行为与原版一致。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "pending",
-      "testIds": [],
-      "notes": "查询走统一 EMM provider，不扫描 UI store。"
+      "testIds": ["neoview.folder.emm-search-batch", "neoview.folder.emm-search-query", "neoview.folder.emm-search-http", "neoview.folder.emm-tag-suggestions", "neoview.folder.emm-tag-sqlite", "neoview.folder.emm-tag-suggestions-http", "neoview.folder.emm-translation-source", "neoview.folder.emm-tag-translation"],
+      "notes": "结构化 include/exclude tag 与 all/any 组合已通过唯一 ReaderFileTreeSearch 契约；ReaderMetadataHydratingScanner 对当前 listing 和递归 scanner 都按 128 项调用现有 EMM metadata provider，继续使用旧库批量查询、NDJSON 背压和同一取消链，不扫描 UI store。随机普通标签由 SQLite JSON1 在最多 50 个旧 emm_json 行内展开去重，并与唯一 collect-tag source 的最多 3 个收藏标签合并。翻译由 8 MiB 有界、mtime 缓存且可释放的 platform source 惰性补充。完整 GUI、手动翻译路径、组合修饰键和显式 CLI/TUI surface 仍待完成。"
     },
     {
       "id": "folder.filter.type",
@@ -708,8 +708,8 @@
       "targetContract": "首次使用时有界清理无效项；支持 History/Bookmark 同步文件夹变化、单项删除和清空历史。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
-      "testIds": ["neoview.library.http", "neoview.library.cli", "neoview.library.tui"],
-      "notes": "共享 service 已支持单项删除和按时间、数量有界的历史清理，CLI 删除/清理与 TUI destructive action 都需显式确认。首次使用无效路径探测、批量清空和 GUI 同步仍待完成；清理失败不能阻断列表首屏。"
+      "testIds": ["neoview.library.http", "neoview.library.cli", "neoview.library.tui", "neoview.library.cleanup-invalid", "neoview.library.cleanup-cancel", "neoview.library.path-status", "neoview.library.headless-composition"],
+      "notes": "ReaderLibraryCleanupService 使用 p-map 有界检查并为每次 stat 取得宿主后台 I/O lease；只有 ENOENT/ENOTDIR 才删除，权限、离线卷和瞬时失败计为 unknown 并保留，取消与 scan/delete/concurrency 预算贯穿 HTTP、CLI 和 TUI。单项删除和按时间清理继续复用相同 library service，destructive action 需显式确认。GUI 首次非阻塞触发、批量清空和文件夹变化同步仍待完成。"
     },
 
     {
@@ -763,9 +763,9 @@
       "sourceEvidence": ["components/FolderContextMenu.svelte", "components/FolderListItem.svelte"],
       "targetContract": "内联/弹窗重命名保留扩展名策略、校验、冲突提示、取消和完成后选中项路径更新。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "watcher 事件不能造成重复项。"
+      "status": "partial",
+      "testIds": ["neoview.folder.rename-validation", "neoview.folder.rename-client", "neoview.folder.rename-context", "neoview.folder.rename-ui", "neoview.folder.rename-conflict", "neoview.folder.rename-cancel", "neoview.folder.rename-focus"],
+      "notes": "GUI 右键菜单按需加载重命名弹窗，文件默认只选中名称主体并保留扩展名；Windows 保留名/非法字符、同名冲突、权限、源消失与取消均有明确反馈。成功后在同一 browser session 中以新路径刷新并重建 focus/selection，watcher generation 去重；内联入口、真实 Chromium 与 CLI/TUI surface 仍待完成。"
     },
     {
       "id": "folder.op.delete",

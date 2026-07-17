@@ -27,6 +27,7 @@
     "build:nodes": "bun scripts/run-turbo.ts build --filter=\"./packages/nodes/*\"",
     "build:packages": "bun run generate:node-registries && bun scripts/run-turbo.ts build --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "build:packages:legacy": "bun scripts/build-packages-lazy.ts",
+    "build:packages:local": "bun scripts/build-packages-lazy.ts --skip-failed-nodes",
     "build:desktop:packages": "bun scripts/build-desktop-packages.ts",
     "build:packages:turbo": "bun scripts/run-turbo.ts build --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "build:packages:tsc": "bun scripts/run-turbo.ts build:tsc --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
@@ -92,6 +93,7 @@
     "wails:dev": "bun run dev:desktop",
     "wails:syso": "go run -mod=mod github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.98 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out wails_windows_amd64.syso",
     "wails:build": "bun run build && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
+    "wails:build:local": "bun scripts/build-wails-local.ts",
     "wails:start": "go run -mod=mod ."
   },
   "dependencies": {
@@ -201,8 +203,8 @@
     "react-masonry-virtualized": "^2.3.2",
     "react-modern-audio-player": "^2.3.2",
     "react-resizable-panels": "^4.7.6",
-    "react-virtuoso": "^4.18.10",
     "react-rnd": "^10.5.3",
+    "react-virtuoso": "^4.18.10",
     "recharts": "3.8.0",
     "scheduler": "0.27.0",
     "sonner": "^2.0.7",
