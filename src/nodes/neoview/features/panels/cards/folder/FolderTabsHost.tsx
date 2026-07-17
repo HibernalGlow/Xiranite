@@ -337,7 +337,6 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     <div className="relative min-h-0" data-folder-tab-count={tabs.length}>
       {tabs.map((tab) => {
         const active = tab.id === activeTabId
-        const browserActive = active && context.panelActive !== false
         return (
           <div key={tab.id} className={active ? "contents" : "pointer-events-none invisible absolute inset-0"} aria-hidden={!active || undefined} data-folder-tab-pane={tab.id}>
             <BrowserPane
@@ -345,8 +344,8 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
               sourcePath={tab.sourcePath}
               folderView={{ ...folderView, viewMode: tab.viewMode, previewCount: tab.previewCount }}
               onFolderView={(patch) => updateTabFolderView(tab.id, patch)}
-              active={browserActive}
-              tabBar={browserActive ? tabBar : undefined}
+              active={active}
+              tabBar={active ? tabBar : undefined}
               initialClone={tab.initialClone}
               onCurrentPathChange={(path) => updateTabPath(tab.id, path)}
               onCloneProvider={(provider) => {

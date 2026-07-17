@@ -23,10 +23,9 @@ describe("ReaderControlledEdgeShell", () => {
     expect(screen.getByText("cards")).toBeTruthy()
 
     act(() => store.setLock("left", "locked-hidden"))
-    expect(screen.getByText("cards")).toBeTruthy()
-    expect(document.querySelector<HTMLElement>('[data-reader-edge="left"]')?.hidden).toBe(true)
+    expect(screen.queryByText("cards")).toBeNull()
     fireEvent.pointerEnter(document.querySelector('[data-reader-edge-trigger="left"]')!)
-    expect(screen.getByText("cards")).toBeTruthy()
+    expect(screen.queryByText("cards")).toBeNull()
 
     act(() => store.setLock("left", "locked-open"))
     expect(screen.getByText("cards")).toBeTruthy()

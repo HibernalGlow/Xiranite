@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderDirectoryPageDto, ReaderHttpClient, ReaderShellConfigDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderShellConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "./registry"
 import { ReaderSidebar } from "./ReaderSidebar"
 
@@ -90,41 +90,6 @@ describe("ReaderSidebar layout gestures", () => {
     expect(cardCommit).toHaveBeenCalledWith({ cardId: "page-navigation", height: 220 })
   })
 
-  it("[neoview.folder.panel-keepalive] keeps the File Card session and DOM while another panel is active", async () => {
-    const value = context()
-    const opened = folderPage()
-    const openDirectoryBrowser = vi.fn(async () => opened)
-    const closeDirectoryBrowser = vi.fn(async () => undefined)
-    const watchSignals: AbortSignal[] = []
-    const watchDirectoryBrowser = vi.fn((_sessionId: string, _generation: number, _focusPath?: string, signal?: AbortSignal) => {
-      watchSignals.push(signal!)
-      return new Promise<undefined>((resolve) => signal?.addEventListener("abort", () => resolve(undefined), { once: true }))
-    })
-    Object.assign(value.client, { openDirectoryBrowser, closeDirectoryBrowser, watchDirectoryBrowser })
-    value.sourcePath = opened.path
-
-    render(<ReaderSidebar side="left" context={value} shell={shell()} />)
-    await waitFor(() => expect(document.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy())
-    const folderCard = document.querySelector<HTMLElement>('[data-neoview-folder-card="true"]')!
-    folderCard.setAttribute("data-folder-card-instance", "stable")
-    await waitFor(() => expect(watchDirectoryBrowser).toHaveBeenCalledOnce())
-    const folderPanel = document.querySelector<HTMLElement>('[data-reader-panel-cache="folder"]')!
-
-    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
-    await waitFor(() => expect(folderPanel.hidden).toBe(true))
-    await waitFor(() => expect(watchSignals[0]?.aborted).toBe(true))
-    expect(folderCard.isConnected).toBe(true)
-    expect(openDirectoryBrowser).toHaveBeenCalledOnce()
-    expect(closeDirectoryBrowser).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole("button", { name: "文件夹" }))
-    await waitFor(() => expect(folderPanel.hidden).toBe(false))
-    await waitFor(() => expect(watchDirectoryBrowser).toHaveBeenCalledTimes(2))
-    expect(document.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-folder-card-instance")).toBe("stable")
-    expect(openDirectoryBrowser).toHaveBeenCalledOnce()
-    expect(closeDirectoryBrowser).not.toHaveBeenCalled()
-  })
-
   it("[neoview.settings.sessionless-card] exposes only docked setting cards when no book is open", () => {
     const config = shell()
     config.panelLayout.settings = { visible: true, order: 99, position: "left" }
@@ -196,29 +161,4 @@ function context(hasSession = true): ReaderPanelContext {
     close: vi.fn(),
   }
   return { client, disabled: false, onGoTo: vi.fn(), ...(hasSession ? { session } : {}) }
-}
-
-function folderPage(): ReaderDirectoryPageDto {
-  const sort = { field: "name" as const, order: "asc" as const, directoriesFirst: true }
-  return {
-    sessionId: "browser-keepalive",
-    navigationEntryId: 1,
-    path: "C:/books",
-    parentPath: "C:/",
-    entries: [{ name: "only.cbz", path: "C:/books/only.cbz", kind: "file", readerSupported: true }],
-    cursor: 0,
-    total: 1,
-    canGoBack: false,
-    canGoForward: false,
-    generation: 1,
-    sort,
-    sortFields: ["name"],
-    metadataFields: [],
-    metadataCapabilities: [],
-    sortSource: "global-default",
-    sortTemporary: false,
-    globalDefaultSort: sort,
-    tabDefaultSort: sort,
-    watching: true,
-  }
 }

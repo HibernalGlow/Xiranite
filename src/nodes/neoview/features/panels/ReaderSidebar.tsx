@@ -31,21 +31,18 @@ export function ReaderSidebar({
   side,
   context,
   shell,
-  active: edgeActive = true,
   onLayoutCommit,
   onCardLayoutCommit,
 }: {
   side: ReaderPanelSide
   context: ReaderPanelContext
   shell?: ReaderShellConfigDto
-  active?: boolean
   onLayoutCommit?(patch: ReaderSidebarLayoutPatch): void
   onCardLayoutCommit?(patch: ReaderCardLayoutPatch): void
 }) {
   const hasSession = Boolean(context.session)
   const panels = availablePanels(side, shell, hasSession)
   const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
-  const [mountedPanels, setMountedPanels] = useState<ReadonlySet<LegacyPanelId>>(() => new Set([activePanel]))
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]
   const asideRef = useRef<HTMLElement>(null)
@@ -100,67 +97,50 @@ export function ReaderSidebar({
               "grid size-9 place-items-center rounded-md text-sm transition-colors",
               panel.id === active?.id ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
             )}
-            onClick={() => {
-              setMountedPanels((current) => current.has(panel.id) ? current : new Set(current).add(panel.id))
-              setActivePanel(panel.id)
-            }}
+            onClick={() => setActivePanel(panel.id)}
           >
             <span aria-hidden="true">{panel.emoji}</span>
           </button>
         ))}
       </nav>
-      {panels.map((panel) => {
-        const panelActive = edgeActive && panel.id === active?.id
-        if (!panelActive && !mountedPanels.has(panel.id)) return null
-        return (
-          <div
-            key={panel.id}
-            className="min-w-0 flex-1 overflow-y-auto overscroll-contain"
-            hidden={!panelActive}
-            aria-hidden={!panelActive || undefined}
-            data-reader-panel={panelActive ? panel.id : undefined}
-            data-reader-panel-cache={panel.id}
-            data-context-menu={panelActive && panel.id === "info" ? "neoview-info" : undefined}
-          >
-            <div className="sticky top-0 z-10 flex min-h-11 items-center gap-2 border-b border-border/50 bg-background/88 px-3 py-2 backdrop-blur-xl">
-              <span aria-hidden="true">{panel.emoji}</span>
-              <h2 className="truncate text-sm font-semibold">{panel.title}</h2>
-              {panel.id === "info" ? <InfoPanelActions context={context} /> : null}
-              {layout?.height !== "full" ? (
-                <button
-                  type="button"
-                  aria-label={`移动${side === "left" ? "左" : "右"}侧栏`}
-                  className="ml-auto cursor-move touch-none rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted/70"
-                  onPointerDown={(event) => startGesture(event, "move")}
-                  onPointerMove={moveGesture}
-                  onPointerUp={endGesture}
-                  onPointerCancel={cancelGesture}
-                >↕</button>
-              ) : null}
-            </div>
-            <div className="grid px-3 pb-3">
-              {cardsForPanel(panel.id, shell, hasSession).map((card) => {
-                const Card = lazyReaderCard(card.id)
-                const cardLayout = shell?.cardLayout[card.id]
-                return Card ? (
-                  <CollapsibleReaderCard
-                    key={card.id}
-                    title={card.title}
-                    collapsed={cardLayout ? !cardLayout.expanded : false}
-                    height={cardLayout?.height}
-                    onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
-                    onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
-                  >
-                    <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} />}>
-                      <Card {...context} panelActive={panelActive} />
-                    </Suspense>
-                  </CollapsibleReaderCard>
-                ) : null
-              })}
-            </div>
-          </div>
-        )
-      })}
+      <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-2" data-reader-panel={active?.id} data-context-menu={active?.id === "info" ? "neoview-info" : undefined}>
+        <div className="mb-2 flex items-center gap-2 px-1 py-1">
+          <span aria-hidden="true">{active?.emoji}</span>
+          <h2 className="truncate text-sm font-semibold">{active?.title}</h2>
+          {active?.id === "info" ? <InfoPanelActions context={context} /> : null}
+          {layout?.height !== "full" ? (
+            <button
+              type="button"
+              aria-label={`移动${side === "left" ? "左" : "右"}侧栏`}
+              className="ml-auto cursor-move touch-none rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+              onPointerDown={(event) => startGesture(event, "move")}
+              onPointerMove={moveGesture}
+              onPointerUp={endGesture}
+              onPointerCancel={cancelGesture}
+            >↕</button>
+          ) : null}
+        </div>
+        <div className="grid gap-2">
+          {active ? cardsForPanel(active.id, shell, hasSession).map((card) => {
+            const Card = lazyReaderCard(card.id)
+            const cardLayout = shell?.cardLayout[card.id]
+            return Card ? (
+              <CollapsibleReaderCard
+                key={card.id}
+                title={card.title}
+                collapsed={cardLayout ? !cardLayout.expanded : false}
+                height={cardLayout?.height}
+                onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
+                onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
+              >
+                <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} />}>
+                  <Card {...context} />
+                </Suspense>
+              </CollapsibleReaderCard>
+            ) : null
+          }) : null}
+        </div>
+      </div>
       <button
         type="button"
         aria-label={`调整${side === "left" ? "左" : "右"}侧栏大小`}
