@@ -217,6 +217,43 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
+  it("[neoview.folder.search-current-http] serves depth-zero NDJSON search from the open listing", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-current-"))
+    directories.push(directory)
+    await writeFile(join(directory, "Book.cbz"), "book")
+    await writeFile(join(directory, "Private.cbz"), "private")
+    await writeFile(join(directory, "notes.txt"), "notes")
+    const scan = vi.fn(() => ({
+      async *[Symbol.asyncIterator]() {
+        throw new Error("recursive scanner must not run")
+      },
+    }))
+    const route = new ReaderDirectoryBrowserRoute(undefined, undefined, undefined, {
+      scanner: { scan },
+    })
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const session = await opened.json() as { sessionId: string; generation: number }
+      const response = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?q=${encodeURIComponent("*.cbz")}&mode=glob&kind=file&depth=0&exclude=${encodeURIComponent("Private.cbz")}`,
+      )))!
+
+      expect(response.status).toBe(200)
+      await expect(readNdjson(response)).resolves.toEqual([
+        expect.objectContaining({ type: "meta", sessionId: session.sessionId, generation: session.generation }),
+        expect.objectContaining({ type: "entry", index: 0, entry: expect.objectContaining({ name: "Book.cbz", depth: 0 }) }),
+        { type: "complete", scanned: 2, matched: 1, truncated: false },
+      ])
+      expect(scan).not.toHaveBeenCalled()
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.search-http-cancellation] aborts the shared scanner when the NDJSON consumer cancels", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-cancel-"))
     directories.push(directory)

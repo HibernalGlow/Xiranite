@@ -833,6 +833,51 @@ describe("ReaderFileTreeService", () => {
     expect(scanClosed).toBe(true)
   })
 
+  it("[neoview.folder.search-current-no-rescan] searches the filtered stable listing without invoking the recursive scanner", async () => {
+    const scan = vi.fn(() => ({
+      async *[Symbol.asyncIterator]() {
+        throw new Error("recursive scanner must not run")
+      },
+    }))
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: [
+          { name: "Folder", path: `${path}/Folder`, kind: "directory", readerSupported: true },
+          { name: "Book.cbz", path: `${path}/Book.cbz`, kind: "file", readerSupported: true },
+          { name: "Clip.mp4", path: `${path}/Clip.mp4`, kind: "file", readerSupported: true },
+          { name: "Private.cbz", path: `${path}/Private.cbz`, kind: "file", readerSupported: true },
+        ] }
+      },
+    }, undefined, undefined, {
+      scanner: { scan },
+      classifyEntry: (entry) => entry.name.endsWith(".cbz") ? "archive" : entry.name.endsWith(".mp4") ? "video" : "other",
+    })
+    const opened = await browser.open("/library")
+    const filtered = await browser.setFilter(opened.sessionId, "archive")
+    const search = browser.search(opened.sessionId, "*.cbz", {
+      mode: "glob",
+      maximumDepth: 0,
+      excludePatterns: ["Private.cbz"],
+    })
+
+    const events = []
+    for await (const event of search.events) events.push(event)
+    await search.close()
+
+    expect(scan).not.toHaveBeenCalled()
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: "meta",
+        sessionId: opened.sessionId,
+        generation: filtered?.generation,
+        filter: "archive",
+      }),
+      expect.objectContaining({ type: "entry", index: 0, entry: expect.objectContaining({ name: "Book.cbz", depth: 0 }) }),
+      { type: "complete", scanned: 2, matched: 1, truncated: false },
+    ])
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.folder.filter-service] filters the stable catalog before pagination without rescanning", async () => {
     const read = vi.fn(async (path: string) => ({
       path,

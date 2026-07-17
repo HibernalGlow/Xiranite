@@ -65,6 +65,7 @@ export {
   type ReaderDirectoryEntryType,
   type ReaderDirectoryFilter,
 } from "./application/browser/ReaderDirectoryFilter.js"
+export { ReaderDirectoryListingScanner } from "./application/browser/ReaderDirectoryListingScanner.js"
 export type { ReaderDirectorySize, ReaderDirectorySizeProvider } from "./ports/ReaderDirectorySizeProvider.js"
 export {
   ReaderFileTreeIndex,

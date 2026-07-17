@@ -52,6 +52,7 @@ import {
   type ReaderDirectoryEntryType,
   type ReaderDirectoryFilter,
 } from "./ReaderDirectoryFilter.js"
+import { ReaderDirectoryListingScanner } from "./ReaderDirectoryListingScanner.js"
 
 const MAXIMUM_TREE_WATCH_PATHS = 32
 const MAXIMUM_NAVIGATION_HISTORY = 50
@@ -634,10 +635,12 @@ export class ReaderFileTreeService implements AsyncDisposable {
     options?: ReaderFileTreeSearchOptions,
     signal?: AbortSignal,
   ): ReaderFileTreeSearchHandle {
-    const scanner = this.options.scanner
-    if (!scanner) throw new Error("Reader file tree scanning is unavailable.")
     const session = this.#sessions.get(sessionId)
     if (!session) throw new Error(`Reader file tree session not found: ${sessionId}`)
+    const scanner = options?.maximumDepth === 0
+      ? new ReaderDirectoryListingScanner(session.listing.entries)
+      : this.options.scanner
+    if (!scanner) throw new Error("Reader file tree scanning is unavailable.")
     const controller = new AbortController()
     const unlinkAbort = forwardAbort(signal, controller)
     let iterator: AsyncIterator<ReaderFileTreeSearchEvent>
