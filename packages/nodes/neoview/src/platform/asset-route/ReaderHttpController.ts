@@ -80,6 +80,7 @@ import {
 } from "../../application/config/ReaderRuntimeConfig.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
+const SESSION_RELOAD_PATH = /^\/reader\/s\/([^/]+)\/reload$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
@@ -431,6 +432,8 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     const navigateMatch = SESSION_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
+    const reloadMatch = SESSION_RELOAD_PATH.exec(url.pathname)
+    if (reloadMatch && request.method === "POST") return this.#reloadSession(reloadMatch[1]!, request)
     const preloadEventsMatch = SESSION_PRELOAD_EVENTS_PATH.exec(url.pathname)
     if (preloadEventsMatch && request.method === "POST") return this.#reportPreloadEvents(preloadEventsMatch[1]!, request)
     const preloadContextMatch = SESSION_PRELOAD_CONTEXT_PATH.exec(url.pathname)
@@ -865,14 +868,55 @@ export class ReaderHttpController implements AsyncDisposable {
   async #closeSession(encodedSessionId: string): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    await this.#releaseSession(session)
+    await this.#hibernateIfIdle()
+    return new Response(null, { status: 204 })
+  }
+
+  async #reloadSession(encodedSessionId: string, request: Request): Promise<Response> {
+    const current = this.#findSession(encodedSessionId)
+    if (!current) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    if (!body || Object.keys(body).some((key) => key !== "password" && key !== "archivePasswords")) {
+      return jsonResponse({ error: "Reader reload accepts only password or archivePasswords" }, 400)
+    }
+    const archivePasswords = parseArchivePasswords(body)
+    if (archivePasswords === "invalid") {
+      return jsonResponse({ error: "password/archivePasswords must contain valid, uniquely scoped password entries and cannot be combined" }, 400)
+    }
+
+    const frame = current.snapshot()
+    const anchor = current.book.pages[frame.anchorPageIndex]
+    let replacement: ReaderSession | undefined
+    try {
+      replacement = await this.#service.openViewSource(current.book.source, {
+        initialPage: 0,
+        direction: frame.direction,
+        layout: frame.layout,
+        signal: request.signal,
+        archivePasswords,
+      })
+      const target = reloadTargetPage(replacement.book.pages, anchor, frame.anchorPageIndex)
+      if (target !== 0) await replacement.goTo(target, request.signal)
+      request.signal.throwIfAborted()
+      this.#retainSessionFrame(replacement, replacement.snapshot())
+    } catch (error) {
+      await replacement?.close().catch(() => undefined)
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+
+    await this.#releaseSession(current)
+    return jsonResponse(this.#sessionDto(replacement), 201)
+  }
+
+  async #releaseSession(session: ReaderSession): Promise<void> {
     await this.#mediaProgress?.flush(session.book.id)
     await this.#clipboardMaterializations.releaseSession(session.id)
     await this.#pageMediaInformation.releaseSession(session.id)
     await this.#assets.releaseSession(session.id)
     this.#releaseBookMetadata(session.id)
     await this.#service.closeSession(session.id)
-    await this.#hibernateIfIdle()
-    return new Response(null, { status: 204 })
   }
 
   async #materializeClipboardPage(encodedSessionId: string, request: Request): Promise<Response> {
@@ -1165,6 +1209,18 @@ function parseArchivePasswords(body: Record<string, unknown>): readonly ArchiveP
     inputs.push({ password: record.password, entryPaths })
   }
   return inputs
+}
+
+function reloadTargetPage(pages: readonly ReaderPage[], anchor: ReaderPage | undefined, previousIndex: number): number {
+  if (!pages.length) return 0
+  if (anchor) {
+    const matched = pages.find((page) => (
+      (anchor.entryPath !== undefined && page.entryPath === anchor.entryPath)
+      || (anchor.entryPath === undefined && page.sourcePath === anchor.sourcePath)
+    ))
+    if (matched) return matched.index
+  }
+  return Math.min(previousIndex, pages.length - 1)
 }
 
 function boundedInteger(value: string | null, minimum: number, maximum: number, fallback: number): number {
