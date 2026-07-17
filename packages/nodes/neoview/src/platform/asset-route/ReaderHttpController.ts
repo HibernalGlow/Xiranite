@@ -57,15 +57,19 @@ import {
   DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
+  DEFAULT_NEOVIEW_MEDIA_CONFIG,
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewShellControlPatch,
   parseNeoviewSidebarLayoutPatch,
   parseNeoviewSlideshowPatch,
+  parseNeoviewMediaPatch,
   parseNeoviewViewDefaultsPatch,
   type NeoviewSlideshowConfig,
   type NeoviewSlideshowPatch,
+  type NeoviewMediaConfig,
+  type NeoviewMediaPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -145,6 +149,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateFileTreeExclusions?: (paths: readonly string[]) => Promise<readonly string[]>
   slideshow?: NeoviewSlideshowConfig
   updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
+  media?: NeoviewMediaConfig
+  updateMedia?: (patch: NeoviewMediaPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewMediaConfig>
   maxSeekableMediaEntryBytes?: number
   maxSeekableMediaTotalBytes?: number
 }
@@ -180,11 +186,13 @@ export class ReaderHttpController implements AsyncDisposable {
   #viewDefaults: NeoviewViewDefaults
   #folderView: NeoviewFolderViewConfig
   #slideshow: NeoviewSlideshowConfig
+  #media: NeoviewMediaConfig
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
   readonly #updateFolderView?: ReaderHttpControllerOptions["updateFolderView"]
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
+  readonly #updateMedia?: ReaderHttpControllerOptions["updateMedia"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
   readonly #bookMetadataLoads = new Map<string, {
@@ -337,11 +345,13 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
     this.#folderView = options.folderView ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
+    this.#media = options.media ?? DEFAULT_NEOVIEW_MEDIA_CONFIG
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
     this.#updateFolderView = options.updateFolderView
     this.#updateSlideshow = options.updateSlideshow
+    this.#updateMedia = options.updateMedia
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -549,6 +559,28 @@ export class ReaderHttpController implements AsyncDisposable {
   async #patchShellConfig(request: Request): Promise<Response> {
     const body = await readControlJson(request)
     if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    if (Object.hasOwn(body, "media")) {
+      if (!this.#updateMedia) return jsonResponse({ error: "Reader media config is read-only" }, 405)
+      let updated: NeoviewMediaConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        let parsed: ReturnType<typeof parseNeoviewMediaPatch>
+        try {
+          parsed = parseNeoviewMediaPatch(body, this.#media)
+        } catch (error) {
+          throw new ReaderConfigPatchInvalid(errorMessage(error))
+        }
+        updated = await this.#updateMedia!(parsed.patch, parsed.tomlPatch)
+        this.#media = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        if (error instanceof ReaderConfigPatchInvalid) return jsonResponse({ error: error.message }, 400)
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "slideshow")) {
       if (!this.#updateSlideshow) return jsonResponse({ error: "Reader slideshow config is read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewSlideshowPatch>
@@ -662,6 +694,7 @@ export class ReaderHttpController implements AsyncDisposable {
       viewDefaults: this.#viewDefaults,
       folderView: this.#folderView,
       slideshow: this.#slideshow,
+      media: this.#media,
     }
   }
 
@@ -1079,6 +1112,8 @@ class ReaderShellRevisionConflict extends Error {
     this.name = "ReaderShellRevisionConflict"
   }
 }
+
+class ReaderConfigPatchInvalid extends Error {}
 
 async function readControlJson(request: Request): Promise<Record<string, unknown> | undefined> {
   const length = Number(request.headers.get("content-length") ?? 0)

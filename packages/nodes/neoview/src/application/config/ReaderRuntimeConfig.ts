@@ -14,6 +14,7 @@ export interface NeoviewRuntimeConfig {
   folderView: NeoviewFolderViewConfig
   fileTree: NeoviewFileTreeConfig
   slideshow: NeoviewSlideshowConfig
+  media: NeoviewMediaConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
 }
 
@@ -120,6 +121,31 @@ export interface NeoviewSlideshowConfig {
 
 export interface NeoviewSlideshowPatch {
   slideshow: Partial<NeoviewSlideshowConfig>
+}
+
+export interface NeoviewSubtitleConfig {
+  fontSize: number
+  color: string
+  backgroundOpacity: number
+  bottomPercent: number
+}
+
+export interface NeoviewMediaConfig {
+  autoPlayAnimatedImages: boolean
+  videoMinPlaybackRate: number
+  videoMaxPlaybackRate: number
+  videoPlaybackRateStep: number
+  subtitle: NeoviewSubtitleConfig
+}
+
+export interface NeoviewMediaPatch {
+  media: {
+    autoPlayAnimatedImages?: boolean
+    videoMinPlaybackRate?: number
+    videoMaxPlaybackRate?: number
+    videoPlaybackRateStep?: number
+    subtitle?: Partial<NeoviewSubtitleConfig>
+  }
 }
 
 export interface NeoviewShellEdgeConfig {
@@ -266,6 +292,19 @@ export const DEFAULT_NEOVIEW_SLIDESHOW_CONFIG: NeoviewSlideshowConfig = {
   fadeTransition: true,
 }
 
+export const DEFAULT_NEOVIEW_MEDIA_CONFIG: NeoviewMediaConfig = {
+  autoPlayAnimatedImages: true,
+  videoMinPlaybackRate: 0.25,
+  videoMaxPlaybackRate: 16,
+  videoPlaybackRateStep: 0.25,
+  subtitle: {
+    fontSize: 1,
+    color: "#ffffff",
+    backgroundOpacity: 0.7,
+    bottomPercent: 5,
+  },
+}
+
 export const DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG: NeoviewPresentationDiskCacheConfig = {
   enabled: true,
   maxBytes: 2 * 1024 * 1024 * 1024,
@@ -313,6 +352,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     folderView: DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
     fileTree: DEFAULT_NEOVIEW_FILE_TREE_CONFIG,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
+    media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
   }
   const config = requireRecord(value, "[nodes.neoview]")
@@ -322,6 +362,8 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const panels = optionalRecord(config.panels, "[nodes.neoview.panels]")
   const slideshow = optionalRecord(config.slideshow, "[nodes.neoview.slideshow]")
   const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
+  const image = optionalRecord(config.image, "[nodes.neoview.image]")
+  const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
@@ -362,8 +404,141 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     folderView: parseFolderViewConfig(folder),
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
+    media: parseMediaConfig(image, subtitle),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
   }
+}
+
+function parseMediaConfig(
+  image: Record<string, unknown> | undefined,
+  subtitle: Record<string, unknown> | undefined,
+): NeoviewMediaConfig {
+  const videoMinPlaybackRate = boundedNumber(
+    image?.video_min_playback_rate,
+    0.05,
+    64,
+    DEFAULT_NEOVIEW_MEDIA_CONFIG.videoMinPlaybackRate,
+    "[nodes.neoview.image].video_min_playback_rate",
+  )
+  const videoMaxPlaybackRate = boundedNumber(
+    image?.video_max_playback_rate,
+    0.05,
+    64,
+    DEFAULT_NEOVIEW_MEDIA_CONFIG.videoMaxPlaybackRate,
+    "[nodes.neoview.image].video_max_playback_rate",
+  )
+  if (videoMaxPlaybackRate < videoMinPlaybackRate) {
+    throw new Error("[nodes.neoview.image].video_max_playback_rate must not be less than video_min_playback_rate.")
+  }
+  return {
+    autoPlayAnimatedImages: optionalBoolean(
+      image?.auto_play_animated_images,
+      "[nodes.neoview.image].auto_play_animated_images",
+    ) ?? DEFAULT_NEOVIEW_MEDIA_CONFIG.autoPlayAnimatedImages,
+    videoMinPlaybackRate,
+    videoMaxPlaybackRate,
+    videoPlaybackRateStep: boundedNumber(
+      image?.video_playback_rate_step,
+      0.01,
+      4,
+      DEFAULT_NEOVIEW_MEDIA_CONFIG.videoPlaybackRateStep,
+      "[nodes.neoview.image].video_playback_rate_step",
+    ),
+    subtitle: {
+      fontSize: boundedNumber(
+        subtitle?.font_size,
+        0.5,
+        3,
+        DEFAULT_NEOVIEW_MEDIA_CONFIG.subtitle.fontSize,
+        "[nodes.neoview.reader.subtitle].font_size",
+      ),
+      color: normalizedSubtitleColor(
+        subtitle?.color,
+        "[nodes.neoview.reader.subtitle].color",
+        DEFAULT_NEOVIEW_MEDIA_CONFIG.subtitle.color,
+      ),
+      backgroundOpacity: boundedNumber(
+        subtitle?.bg_opacity,
+        0,
+        1,
+        DEFAULT_NEOVIEW_MEDIA_CONFIG.subtitle.backgroundOpacity,
+        "[nodes.neoview.reader.subtitle].bg_opacity",
+      ),
+      bottomPercent: boundedNumber(
+        subtitle?.bottom,
+        0,
+        30,
+        DEFAULT_NEOVIEW_MEDIA_CONFIG.subtitle.bottomPercent,
+        "[nodes.neoview.reader.subtitle].bottom",
+      ),
+    },
+  }
+}
+
+export function parseNeoviewMediaPatch(
+  value: unknown,
+  current: NeoviewMediaConfig = DEFAULT_NEOVIEW_MEDIA_CONFIG,
+): { patch: NeoviewMediaPatch; tomlPatch: Record<string, unknown> } {
+  const record = requireRecord(value, "reader media patch")
+  if (Object.keys(record).some((key) => key !== "media")) throw new Error("reader media patch contains unsupported fields.")
+  const media = requireRecord(record.media, "reader media patch.media")
+  const allowed = new Set(["autoPlayAnimatedImages", "videoMinPlaybackRate", "videoMaxPlaybackRate", "videoPlaybackRateStep", "subtitle"])
+  const unknown = Object.keys(media).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader media patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: NeoviewMediaPatch = { media: {} }
+  const imageToml: Record<string, unknown> = {}
+  const readerToml: Record<string, unknown> = {}
+  if (media.autoPlayAnimatedImages !== undefined) {
+    patch.media.autoPlayAnimatedImages = requiredBoolean(media.autoPlayAnimatedImages, "reader media patch.autoPlayAnimatedImages")
+    imageToml.auto_play_animated_images = patch.media.autoPlayAnimatedImages
+  }
+  if (media.videoMinPlaybackRate !== undefined) {
+    patch.media.videoMinPlaybackRate = boundedNumber(media.videoMinPlaybackRate, 0.05, 64, current.videoMinPlaybackRate, "reader media patch.videoMinPlaybackRate")
+    imageToml.video_min_playback_rate = patch.media.videoMinPlaybackRate
+  }
+  if (media.videoMaxPlaybackRate !== undefined) {
+    patch.media.videoMaxPlaybackRate = boundedNumber(media.videoMaxPlaybackRate, 0.05, 64, current.videoMaxPlaybackRate, "reader media patch.videoMaxPlaybackRate")
+    imageToml.video_max_playback_rate = patch.media.videoMaxPlaybackRate
+  }
+  if (media.videoPlaybackRateStep !== undefined) {
+    patch.media.videoPlaybackRateStep = boundedNumber(media.videoPlaybackRateStep, 0.01, 4, current.videoPlaybackRateStep, "reader media patch.videoPlaybackRateStep")
+    imageToml.video_playback_rate_step = patch.media.videoPlaybackRateStep
+  }
+  const nextMinimum = patch.media.videoMinPlaybackRate ?? current.videoMinPlaybackRate
+  const nextMaximum = patch.media.videoMaxPlaybackRate ?? current.videoMaxPlaybackRate
+  if (nextMaximum < nextMinimum) throw new Error("reader media patch.videoMaxPlaybackRate must not be less than videoMinPlaybackRate.")
+  if (media.subtitle !== undefined) {
+    const subtitle = requireRecord(media.subtitle, "reader media patch.subtitle")
+    const subtitleAllowed = new Set(["fontSize", "color", "backgroundOpacity", "bottomPercent"])
+    const unknownSubtitle = Object.keys(subtitle).filter((key) => !subtitleAllowed.has(key))
+    if (unknownSubtitle.length) throw new Error(`reader media patch.subtitle contains unsupported fields: ${unknownSubtitle.join(", ")}.`)
+    const subtitlePatch: Partial<NeoviewSubtitleConfig> = {}
+    const subtitleToml: Record<string, unknown> = {}
+    if (subtitle.fontSize !== undefined) {
+      subtitlePatch.fontSize = boundedNumber(subtitle.fontSize, 0.5, 3, current.subtitle.fontSize, "reader media patch.subtitle.fontSize")
+      subtitleToml.font_size = subtitlePatch.fontSize
+    }
+    if (subtitle.color !== undefined) {
+      subtitlePatch.color = normalizedSubtitleColor(subtitle.color, "reader media patch.subtitle.color")
+      subtitleToml.color = subtitlePatch.color
+    }
+    if (subtitle.backgroundOpacity !== undefined) {
+      subtitlePatch.backgroundOpacity = boundedNumber(subtitle.backgroundOpacity, 0, 1, current.subtitle.backgroundOpacity, "reader media patch.subtitle.backgroundOpacity")
+      subtitleToml.bg_opacity = subtitlePatch.backgroundOpacity
+    }
+    if (subtitle.bottomPercent !== undefined) {
+      subtitlePatch.bottomPercent = boundedNumber(subtitle.bottomPercent, 0, 30, current.subtitle.bottomPercent, "reader media patch.subtitle.bottomPercent")
+      subtitleToml.bottom = subtitlePatch.bottomPercent
+    }
+    if (!Object.keys(subtitlePatch).length) throw new Error("reader media patch.subtitle must change at least one field.")
+    patch.media.subtitle = subtitlePatch
+    readerToml.subtitle = subtitleToml
+  }
+  if (!Object.keys(patch.media).length) throw new Error("reader media patch must change at least one field.")
+  const tomlPatch: Record<string, unknown> = {}
+  if (Object.keys(imageToml).length) tomlPatch.image = imageToml
+  if (Object.keys(readerToml).length) tomlPatch.reader = readerToml
+  return { patch, tomlPatch }
 }
 
 function parseFileTreeConfig(value: Record<string, unknown> | undefined): NeoviewFileTreeConfig {
@@ -596,6 +771,14 @@ function normalizedFolderHomePath(value: unknown, path: string): string {
   const normalized = value.trim()
   if (normalized.length > 4096 || normalized.includes("\0")) throw new Error(`${path} must be at most 4096 characters without NUL.`)
   return normalized
+}
+
+function normalizedSubtitleColor(value: unknown, path: string, fallback?: string): string {
+  if (value === undefined && fallback !== undefined) return fallback
+  if (typeof value !== "string" || !/^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{5})?$/.test(value)) {
+    throw new Error(`${path} must be a #RGB, #RRGGBB or #RRGGBBAA color.`)
+  }
+  return value.toLowerCase()
 }
 
 function normalizedTreePinnedPaths(value: unknown, path: string): string[] {
