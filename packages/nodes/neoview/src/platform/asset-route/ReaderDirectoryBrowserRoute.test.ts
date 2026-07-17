@@ -150,6 +150,26 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
+  it("[neoview.folder.tabs-reopen-http] remembers only explicit tab closes and reopens them through a new session", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-reopen-"))
+    directories.push(directory)
+    await writeFile(join(directory, "book.cbz"), "book")
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: directory }),
+      })))!
+      const source = await opened.json() as { sessionId: string }
+      expect((await route.handle(new Request(`http://localhost/reader/browser/s/${source.sessionId}?remember=1`, { method: "DELETE" })))?.status).toBe(204)
+      const reopened = (await route.handle(new Request(`http://localhost/reader/browser/s/${source.sessionId}/reopen`, { method: "POST" })))!
+      expect(reopened.status).toBe(201)
+      expect((await reopened.json() as { sessionId: string }).sessionId).not.toBe(source.sessionId)
+      expect((await route.handle(new Request(`http://localhost/reader/browser/s/${source.sessionId}/reopen`, { method: "POST" })))?.status).toBe(404)
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.search-http] [neoview.folder.search-path-http] streams glob results and validates explicit path matching", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-"))
     directories.push(directory)

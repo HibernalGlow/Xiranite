@@ -48,6 +48,7 @@ import { readerDirectoryListingPayloadBytes, stringPayloadBytes } from "./Reader
 
 const MAXIMUM_TREE_WATCH_PATHS = 32
 const MAXIMUM_NAVIGATION_HISTORY = 50
+const MAXIMUM_RECENTLY_CLOSED_SESSIONS = 10
 const DEFAULT_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 1024 * 1024
 const MAX_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 64 * 1024 * 1024
 
@@ -163,8 +164,23 @@ interface BrowserNavigationEntry {
   temporarySort?: ReaderDirectoryTemporarySortRule
 }
 
+interface ClosedBrowserSession {
+  currentNavigation: BrowserNavigationEntry
+  back: BrowserNavigationEntry[]
+  forward: BrowserNavigationEntry[]
+  nextNavigationEntryId: number
+  generation: number
+  scopeId: string
+  sort: ReaderDirectorySortRule
+  sortPreference: ReaderDirectorySortPreferenceSnapshot
+  temporarySort?: ReaderDirectoryTemporarySortRule
+  randomSeeds: Map<string, string>
+  watchEnabled: boolean
+}
+
 export class ReaderFileTreeService implements AsyncDisposable {
   readonly #sessions = new Map<string, BrowserSession>()
+  readonly #closedSessions = new Map<string, ClosedBrowserSession>()
   readonly #tree: ReaderFileTreeIndex
   #nextSessionId = 1
   #closed = false
@@ -294,6 +310,58 @@ export class ReaderFileTreeService implements AsyncDisposable {
       signal?.throwIfAborted()
       if (this.#sessions.get(session.id) !== session) return undefined
       return await this.#page(session, 0, 128, displayFields, signal)
+    } catch (error) {
+      await this.close(session.id)
+      throw error
+    }
+  }
+
+  async reopen(
+    closedSessionId: string,
+    signal?: AbortSignal,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+  ): Promise<ReaderDirectoryPage | undefined> {
+    this.#assertOpen()
+    if (this.#sessions.has(closedSessionId)) return this.clone(closedSessionId, signal, displayFields)
+    const closed = this.#closedSessions.get(closedSessionId)
+    if (!closed) return undefined
+    const rawListing = await this.provider.read(closed.currentNavigation.path, signal)
+    const entries = await this.#hydrate(rawListing.entries, closed.sort, signal)
+    signal?.throwIfAborted()
+    const session: BrowserSession = {
+      id: `browser-${this.#nextSessionId++}`,
+      listing: sortListing({ ...rawListing, entries }, closed.sort, closed.randomSeeds.get(normalizePathKey(rawListing.path)) ?? rawListing.path),
+      currentNavigation: cloneNavigationEntry(closed.currentNavigation),
+      back: closed.back.map(cloneNavigationEntry),
+      forward: closed.forward.map(cloneNavigationEntry),
+      nextNavigationEntryId: closed.nextNavigationEntryId,
+      generation: closed.generation,
+      scopeId: closed.scopeId,
+      sort: { ...closed.sort },
+      sortPreference: cloneSortPreference(closed.sortPreference),
+      temporarySort: closed.temporarySort ? cloneTemporarySort(closed.temporarySort) : undefined,
+      sortFields: this.#availableSortFields(),
+      randomSeeds: new Map(closed.randomSeeds),
+      watchEnabled: closed.watchEnabled,
+      watchRevision: 0,
+      watchAppliedRevision: 0,
+      listingReleased: false,
+      watchWaiters: new Set(),
+      treeWatchRevision: 0,
+      treeWatchResetRevision: 0,
+      treeWatchChanges: new Map(),
+      treeWatchWaiters: new Set(),
+      searches: new Set(),
+      directorySizeOperations: new Set(),
+    }
+    if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
+    this.#sessions.set(session.id, session)
+    try {
+      await this.#startWatcher(session)
+      signal?.throwIfAborted()
+      const page = await this.#page(session, 0, 128, displayFields, signal)
+      this.#closedSessions.delete(closedSessionId)
+      return page
     } catch (error) {
       await this.close(session.id)
       throw error
@@ -696,9 +764,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
     }
   }
 
-  async close(sessionId: string): Promise<boolean> {
+  async close(sessionId: string, remember = false): Promise<boolean> {
     const session = this.#sessions.get(sessionId)
     if (!session) return false
+    if (remember) this.#rememberClosedSession(session)
     session.operation?.abort()
     const listingReload = session.listingReload
     abortListingReload(session)
@@ -715,6 +784,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     this.#closed = true
     const sessions = [...this.#sessions.values()]
     this.#sessions.clear()
+    this.#closedSessions.clear()
     for (const session of sessions) {
       session.operation?.abort()
       const listingReload = session.listingReload
@@ -728,6 +798,26 @@ export class ReaderFileTreeService implements AsyncDisposable {
 
   #assertOpen(): void {
     if (this.#closed) throw new Error("Reader directory browser is closed.")
+  }
+
+  #rememberClosedSession(session: BrowserSession): void {
+    this.#closedSessions.delete(session.id)
+    this.#closedSessions.set(session.id, {
+      currentNavigation: cloneNavigationEntry(session.currentNavigation),
+      back: session.back.map(cloneNavigationEntry),
+      forward: session.forward.map(cloneNavigationEntry),
+      nextNavigationEntryId: session.nextNavigationEntryId,
+      generation: session.generation,
+      scopeId: session.scopeId,
+      sort: { ...session.sort },
+      sortPreference: cloneSortPreference(session.sortPreference),
+      temporarySort: session.temporarySort ? cloneTemporarySort(session.temporarySort) : undefined,
+      randomSeeds: new Map(session.randomSeeds),
+      watchEnabled: session.watchEnabled,
+    })
+    while (this.#closedSessions.size > MAXIMUM_RECENTLY_CLOSED_SESSIONS) {
+      this.#closedSessions.delete(this.#closedSessions.keys().next().value as string)
+    }
   }
 
   async #hydrate(

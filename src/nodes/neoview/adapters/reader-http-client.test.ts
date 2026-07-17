@@ -85,6 +85,20 @@ describe("reader-http-client", () => {
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
   })
 
+  it("[neoview.folder.tabs-reopen-client] marks explicit tab closes and restores the closed session", async () => {
+    const fetchMock = vi.fn(async (_request: RequestInfo | URL, init?: RequestInit) => init?.method === "DELETE"
+      ? new Response(null, { status: 204 })
+      : Response.json({ sessionId: "browser-restored", path: "D:/Books", entries: [], cursor: 0, total: 0 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000" }))
+
+    await client.closeDirectoryBrowser!("browser/source", true)
+    await client.reopenDirectoryBrowser!("browser/source")
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/browser%2Fsource?remember=1")
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/browser%2Fsource/reopen")
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST" })
+  })
+
   it("[neoview.metadata.client] loads metadata only through the authenticated session route", async () => {
     const fetchMock = vi.fn(async () => Response.json({ book: { displayName: "demo.cbz" } }))
     vi.stubGlobal("fetch", fetchMock)

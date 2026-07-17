@@ -270,6 +270,55 @@ describe("ReaderFileTreeService", () => {
     await browser[Symbol.asyncDispose]()
   })
 
+  it("[neoview.folder.tabs-reopen-backend] reopens a bounded resource-free session summary with navigation history", async () => {
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, parentPath: path === "C:/A" ? "C:/" : "C:/A", entries: [{ name: `${path.at(-1)}.cbz`, path: `${path}/book.cbz`, kind: "file", readerSupported: true }] }
+      },
+    })
+    const opened = await browser.open("C:/A")
+    await browser.navigate(opened.sessionId, { action: "path", path: "C:/B" })
+    await browser.navigate(opened.sessionId, { action: "path", path: "C:/C" })
+    expect(await browser.close(opened.sessionId, true)).toBe(true)
+    expect(await browser.list(opened.sessionId)).toBeUndefined()
+
+    const reopened = await browser.reopen(opened.sessionId)
+    expect(reopened).toMatchObject({ path: "C:/C", canGoBack: true, canGoForward: false, navigationEntryId: 3 })
+    expect(reopened?.sessionId).not.toBe(opened.sessionId)
+    await expect(browser.navigate(reopened!.sessionId, { action: "back" })).resolves.toMatchObject({ path: "C:/B", canGoBack: true, canGoForward: true })
+    await expect(browser.reopen(opened.sessionId)).resolves.toBeUndefined()
+
+    const disposable = await browser.open("C:/A")
+    await browser.close(disposable.sessionId)
+    await expect(browser.reopen(disposable.sessionId)).resolves.toBeUndefined()
+
+    let failReopen = true
+    const retryable = new ReaderFileTreeService({
+      async read(path) {
+        if (failReopen && path === "C:/retry") throw new Error("offline volume")
+        return { path, entries: [] }
+      },
+    })
+    failReopen = false
+    const retrySource = await retryable.open("C:/retry")
+    await retryable.close(retrySource.sessionId, true)
+    failReopen = true
+    await expect(retryable.reopen(retrySource.sessionId)).rejects.toThrow("offline volume")
+    failReopen = false
+    await expect(retryable.reopen(retrySource.sessionId)).resolves.toMatchObject({ path: "C:/retry" })
+    await retryable[Symbol.asyncDispose]()
+
+    const closedIds: string[] = []
+    for (let index = 0; index < 11; index += 1) {
+      const session = await browser.open(`C:/recent-${index}`)
+      closedIds.push(session.sessionId)
+      await browser.close(session.sessionId, true)
+    }
+    await expect(browser.reopen(closedIds[0]!)).resolves.toBeUndefined()
+    await expect(browser.reopen(closedIds[10]!)).resolves.toMatchObject({ path: "C:/recent-10" })
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.folder.parent-suggested-selection] locates the departed child in a sorted 10K parent without returning its page eagerly", async () => {
     const parentPath = "C:/library"
     const childPath = `${parentPath}/selected-child`

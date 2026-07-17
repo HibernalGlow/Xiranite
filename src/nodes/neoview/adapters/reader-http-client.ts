@@ -486,6 +486,7 @@ export interface ReaderHttpClient {
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
   cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  reopenDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   watchDirectoryBrowser?(sessionId: string, afterGeneration: number, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto | undefined>
   listDirectoryRoots?(signal?: AbortSignal): Promise<readonly ReaderDirectoryRootDto[]>
   listDirectoryBrowser?(
@@ -515,7 +516,7 @@ export interface ReaderHttpClient {
     focusPath?: string,
     signal?: AbortSignal,
   ): Promise<ReaderDirectoryPageDto>
-  closeDirectoryBrowser?(sessionId: string): Promise<void>
+  closeDirectoryBrowser?(sessionId: string, remember?: boolean): Promise<void>
   registerLibraryThumbnails?(
     contextId: string,
     generation: number,
@@ -628,6 +629,10 @@ export function createReaderHttpClient(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/clone`,
       { method: "POST", signal },
     ),
+    reopenDirectoryBrowser: (sessionId, signal) => request<ReaderDirectoryPageDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/reopen`,
+      { method: "POST", signal },
+    ),
     watchDirectoryBrowser: (sessionId, afterGeneration, focusPath, signal) => {
       const search = new URLSearchParams({ after: String(afterGeneration) })
       if (focusPath) search.set("focus", focusPath)
@@ -724,7 +729,7 @@ export function createReaderHttpClient(
         signal,
       },
     ),
-    closeDirectoryBrowser: (sessionId) => request<void>(`/reader/browser/s/${encodeURIComponent(sessionId)}`, {
+    closeDirectoryBrowser: (sessionId, remember = false) => request<void>(`/reader/browser/s/${encodeURIComponent(sessionId)}${remember ? "?remember=1" : ""}`, {
       method: "DELETE",
       keepalive: true,
     }),
