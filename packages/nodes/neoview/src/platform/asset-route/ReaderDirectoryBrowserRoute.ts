@@ -499,8 +499,17 @@ function parseSearch(url: URL): { query: string; options: ReaderFileTreeSearchOp
       maximumDepth: optionalInteger(url.searchParams.get("depth"), "depth", 0, 4_096),
       maximumResults: optionalInteger(url.searchParams.get("limit"), "limit", 1, 10_000),
       excludePatterns: url.searchParams.getAll("exclude"),
+      includeTags: url.searchParams.getAll("tag"),
+      excludeTags: url.searchParams.getAll("excludeTag"),
+      tagMode: tagMode(url.searchParams.get("tagMode")),
     },
   }
+}
+
+function tagMode(value: string | null): "all" | "any" | undefined {
+  if (value === null) return undefined
+  if (value === "all" || value === "any") return value
+  throw new Error("tagMode must be all or any")
 }
 
 function parseNavigation(body: { action?: unknown; path?: unknown; focusPath?: unknown } | undefined): ReaderDirectoryNavigation | undefined {

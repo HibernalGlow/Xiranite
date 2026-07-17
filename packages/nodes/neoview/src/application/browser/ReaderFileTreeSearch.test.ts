@@ -91,7 +91,33 @@ describe("searchReaderFileTree", () => {
     ])
     expect(scan).toHaveBeenCalledWith("/library", expect.objectContaining({ includeDirectories: false, includeFiles: true }), undefined)
   })
+
+  it("[neoview.folder.emm-search-query] combines normalized all/any and excluded tag predicates", async () => {
+    const tagged = (path: string, tags: string[]) => ({ ...entry(path), tags })
+    const scanner = scannerOf([
+      tagged("one.cbz", ["Artist:Alice", "female:Glasses"]),
+      tagged("two.cbz", ["artist:alice", "language:Chinese"]),
+      tagged("three.cbz", ["artist:bob"]),
+    ])
+    const all = await collect(searchReaderFileTree(scanner, session(), "", {
+      includeTags: ["artist:alice", "FEMALE:GLASSES"],
+      tagMode: "all",
+    }))
+    expect(all.flatMap((event) => event.type === "entry" ? [event.entry.name] : [])).toEqual(["one.cbz"])
+
+    const any = await collect(searchReaderFileTree(scanner, session(), "", {
+      includeTags: ["artist:alice", "artist:bob"],
+      excludeTags: ["language:chinese"],
+      tagMode: "any",
+    }))
+    expect(any.flatMap((event) => event.type === "entry" ? [event.entry.name] : [])).toEqual(["one.cbz", "three.cbz"])
+    expect(() => searchReaderFileTree(scanner, session(), "", { includeTags: Array(65).fill("tag") })).toThrow("64")
+  })
 })
+
+function session() {
+  return { id: "browser-tags", rootPath: "/library", generation: 1 }
+}
 
 function scannerOf(entries: readonly ReaderFileTreeEntry[]): ReaderFileTreeScanner {
   return {

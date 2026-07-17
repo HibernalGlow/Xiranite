@@ -254,6 +254,45 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
+  it("[neoview.folder.emm-search-http] streams tag-only matches through the shared metadata provider", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-emm-search-"))
+    directories.push(directory)
+    const first = join(directory, "first.cbz")
+    const second = join(directory, "second.cbz")
+    await writeFile(first, "first")
+    await writeFile(second, "second")
+    const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => new Map(paths.map((path) => [path, {
+      emmJson: JSON.stringify({ tags: path === first
+        ? [{ namespace: "artist", tag: "Alice" }, { namespace: "female", tag: "glasses" }]
+        : [{ namespace: "artist", tag: "Bob" }] }),
+    }])))
+    const route = new ReaderDirectoryBrowserRoute(undefined, {
+      directoryEmmAvailable: true,
+      readDirectoryEmmRecords,
+    })
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const session = await opened.json() as { sessionId: string }
+      readDirectoryEmmRecords.mockClear()
+      const response = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${session.sessionId}/search?depth=0&tag=${encodeURIComponent("artist:alice")}`,
+      )))!
+
+      expect(response.status).toBe(200)
+      const events = await readNdjson(response)
+      expect(events.filter((event) => event.type === "entry")).toEqual([
+        expect.objectContaining({ entry: expect.objectContaining({ name: "first.cbz", tags: expect.arrayContaining(["artist:Alice"]) }) }),
+      ])
+      expect(readDirectoryEmmRecords).toHaveBeenCalledOnce()
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.search-http-cancellation] aborts the shared scanner when the NDJSON consumer cancels", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-search-cancel-"))
     directories.push(directory)

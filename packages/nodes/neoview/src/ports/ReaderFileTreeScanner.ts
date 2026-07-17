@@ -6,6 +6,7 @@ export interface ReaderFileTreeEntry {
   relativePath: string
   depth: number
   kind: ReaderFileTreeEntryKind
+  tags?: readonly string[]
 }
 
 export interface ReaderFileTreeScanOptions {

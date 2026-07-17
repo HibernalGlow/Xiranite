@@ -19,6 +19,9 @@ export interface ReaderFileTreeSearchOptions {
   maximumResults?: number
   maximumEntries?: number
   excludePatterns?: readonly string[]
+  includeTags?: readonly string[]
+  excludeTags?: readonly string[]
+  tagMode?: "all" | "any"
 }
 
 export type ReaderFileTreeSearchEvent =
@@ -39,7 +42,9 @@ export function searchReaderFileTree(
   signal?: AbortSignal,
   classifyEntry?: (entry: ReaderFileTreeEntry) => ReaderDirectoryEntryType,
 ): AsyncIterable<ReaderFileTreeSearchEvent> {
-  const normalizedQuery = requireQuery(query)
+  const includeTags = validateTags(options.includeTags, "includeTags")
+  const excludeTags = validateTags(options.excludeTags, "excludeTags")
+  const normalizedQuery = requireQuery(query, Boolean(includeTags.length || excludeTags.length))
   const mode = options.mode ?? "text"
   const kind = options.kind ?? "all"
   if (mode !== "text" && mode !== "glob") throw new Error(`Unsupported file tree search mode: ${String(mode)}`)
@@ -51,7 +56,8 @@ export function searchReaderFileTree(
     : boundedInteger(options.maximumDepth, 0, 4_096, 0, "maximumDepth")
   const excludePatterns = validatePatterns(options.excludePatterns)
   const matches = createMatcher(normalizedQuery, mode, options.caseSensitive ?? false, options.searchInPath ?? false)
-  return search(scanner, session, normalizedQuery, mode, kind, matches, {
+  const matchesTags = createTagMatcher(includeTags, excludeTags, options.tagMode ?? "all")
+  return search(scanner, session, normalizedQuery, mode, kind, (entry) => matches(entry) && matchesTags(entry), {
     maximumDepth,
     maximumEntries,
     maximumResults,
@@ -118,6 +124,7 @@ function createMatcher(
   caseSensitive: boolean,
   searchInPath: boolean,
 ): (entry: ReaderFileTreeEntry) => boolean {
+  if (!query) return () => true
   if (mode === "glob") {
     const matches = picomatch(query, { nocase: !caseSensitive, dot: true })
     return (entry) => matches(normalizeRelativePath(entry.relativePath))
@@ -135,10 +142,38 @@ function normalizeRelativePath(path: string): string {
   return path.replaceAll("\\", "/")
 }
 
-function requireQuery(query: string): string {
+function requireQuery(query: string, tagOnly: boolean): string {
   const value = query.trim()
-  if (!value || value.length > 512 || value.includes("\0")) throw new Error("File tree search query must be 1..512 characters without NUL.")
+  if ((!value && !tagOnly) || value.length > 512 || value.includes("\0")) throw new Error("File tree search query must be 1..512 characters without NUL, unless tag filters are present.")
   return value
+}
+
+function createTagMatcher(include: readonly string[], exclude: readonly string[], mode: "all" | "any"): (entry: ReaderFileTreeEntry) => boolean {
+  if (mode !== "all" && mode !== "any") throw new Error("tagMode must be all or any.")
+  const included = include.map(normalizeTag)
+  const excluded = new Set(exclude.map(normalizeTag))
+  return (entry) => {
+    if (!included.length && !excluded.size) return true
+    const tags = new Set((entry.tags ?? []).map(normalizeTag))
+    if ([...excluded].some((tag) => tags.has(tag))) return false
+    return mode === "all" ? included.every((tag) => tags.has(tag)) : !included.length || included.some((tag) => tags.has(tag))
+  }
+}
+
+function validateTags(values: readonly string[] | undefined, name: string): string[] {
+  if (!values?.length) return []
+  if (values.length > 64) throw new Error(`${name} accepts at most 64 tags.`)
+  const output = new Set<string>()
+  for (const value of values) {
+    const tag = value.trim()
+    if (!tag || tag.length > 384 || tag.includes("\0")) throw new Error(`${name} values must be 1..384 characters without NUL.`)
+    output.add(tag)
+  }
+  return [...output]
+}
+
+function normalizeTag(value: string): string {
+  return value.normalize("NFKC").toLocaleLowerCase()
 }
 
 function validatePatterns(patterns: readonly string[] | undefined): readonly string[] | undefined {

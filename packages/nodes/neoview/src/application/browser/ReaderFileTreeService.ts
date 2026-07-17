@@ -53,6 +53,7 @@ import {
   type ReaderDirectoryFilter,
 } from "./ReaderDirectoryFilter.js"
 import { ReaderDirectoryListingScanner } from "./ReaderDirectoryListingScanner.js"
+import { ReaderMetadataHydratingScanner } from "./ReaderMetadataHydratingScanner.js"
 
 const MAXIMUM_TREE_WATCH_PATHS = 32
 const MAXIMUM_NAVIGATION_HISTORY = 50
@@ -637,10 +638,14 @@ export class ReaderFileTreeService implements AsyncDisposable {
   ): ReaderFileTreeSearchHandle {
     const session = this.#sessions.get(sessionId)
     if (!session) throw new Error(`Reader file tree session not found: ${sessionId}`)
-    const scanner = options?.maximumDepth === 0
+    let scanner = options?.maximumDepth === 0
       ? new ReaderDirectoryListingScanner(session.listing.entries)
       : this.options.scanner
     if (!scanner) throw new Error("Reader file tree scanning is unavailable.")
+    if (options?.includeTags?.length || options?.excludeTags?.length) {
+      if (!this.metadataProvider?.supportedFields.has("tags")) throw new Error("Reader EMM tag search is unavailable.")
+      scanner = new ReaderMetadataHydratingScanner(scanner, this.metadataProvider)
+    }
     const controller = new AbortController()
     const unlinkAbort = forwardAbort(signal, controller)
     let iterator: AsyncIterator<ReaderFileTreeSearchEvent>
