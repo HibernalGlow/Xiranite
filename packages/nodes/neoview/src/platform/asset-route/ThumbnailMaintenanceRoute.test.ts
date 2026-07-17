@@ -34,7 +34,10 @@ describe("ThumbnailMaintenanceRoute", () => {
       preserveFolders: true,
     }, true)))!
     expect(await expired.json()).toEqual({ deleted: 17, cutoff: "2026-06-15 00:00:00" })
-    expect(cleanup).toHaveBeenCalledWith({ kind: "expired", cutoff: "2026-06-15 00:00:00", limit: 250, preserveFolders: true })
+    expect(cleanup).toHaveBeenCalledWith(
+      { kind: "expired", cutoff: "2026-06-15 00:00:00", limit: 250, preserveFolders: true },
+      expect.any(AbortSignal),
+    )
     expect((await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
       kind: "expired", days: 30, preserveFolders: false,
     }, true)))?.status).toBe(400)
@@ -42,7 +45,7 @@ describe("ThumbnailMaintenanceRoute", () => {
       kind: "invalid", limit: 20, scanLimit: 500,
     }, true)))!
     expect(await invalid.json()).toEqual({ result: { scanned: 500, deleted: 2, unavailableVolumeRowsPreserved: 4, wrapped: false } })
-    expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 500, deleteLimit: 20 })
+    expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 500, deleteLimit: 20 }, expect.any(AbortSignal))
     expect((await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
       kind: "invalid", limit: 501,
     }, true)))?.status).toBe(400)
@@ -55,7 +58,29 @@ describe("ThumbnailMaintenanceRoute", () => {
       limit: 100,
     }, true)))!
     expect(await cleared.json()).toEqual({ deleted: 3 })
-    expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 100 })
+    expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 100 }, expect.any(AbortSignal))
+  })
+
+  it("[neoview.thumbnail.maintenance-cancel-http] propagates request cancellation instead of converting it to a database error", async () => {
+    const started = Promise.withResolvers<AbortSignal>()
+    const cleanupInvalid = vi.fn(async (_options: unknown, signal?: AbortSignal) => {
+      started.resolve(signal!)
+      return new Promise<never>((_resolve, reject) => {
+        signal!.addEventListener("abort", () => reject(signal!.reason), { once: true })
+      })
+    })
+    const route = new ThumbnailMaintenanceRoute({ token: "secret", thumbnailStore: store({ cleanupInvalid }) })
+    const cancellation = new AbortController()
+    const operation = route.handle(new Request("http://127.0.0.1:41000/reader/thumbnails/maintenance/cleanup", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-xiranite-token": "secret" },
+      body: JSON.stringify({ kind: "invalid", scanLimit: 20, limit: 10 }),
+      signal: cancellation.signal,
+    }))
+    const forwarded = await started.promise
+    cancellation.abort(new DOMException("cancelled", "AbortError"))
+    await expect(operation).rejects.toMatchObject({ name: "AbortError" })
+    expect(forwarded.aborted).toBe(true)
   })
 
   it("returns 501 when the active thumbnail store is read-only or disabled", async () => {

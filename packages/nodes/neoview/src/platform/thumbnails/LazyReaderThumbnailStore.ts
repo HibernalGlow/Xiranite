@@ -56,28 +56,32 @@ export class LazyReaderThumbnailStore implements ReaderThumbnailStore, AsyncDisp
     await (await this.#load())?.recordFailure?.(failure)
   }
 
-  async maintenanceSnapshot(): Promise<ReaderThumbnailMaintenanceSnapshot> {
+  async maintenanceSnapshot(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshot> {
+    signal?.throwIfAborted()
     const store = await this.#require("statistics")
     if (!store.maintenanceSnapshot) throw unavailable("statistics")
-    return store.maintenanceSnapshot()
+    return store.maintenanceSnapshot(signal)
   }
 
-  async clearFailures(options: { reason?: string; limit: number }): Promise<number> {
+  async clearFailures(options: { reason?: string; limit: number }, signal?: AbortSignal): Promise<number> {
+    signal?.throwIfAborted()
     const store = await this.#require("failure cleanup")
     if (!store.clearFailures) throw unavailable("failure cleanup")
-    return store.clearFailures(options)
+    return store.clearFailures(options, signal)
   }
 
-  async cleanup(request: ReaderThumbnailCleanupRequest): Promise<number> {
+  async cleanup(request: ReaderThumbnailCleanupRequest, signal?: AbortSignal): Promise<number> {
+    signal?.throwIfAborted()
     const store = await this.#require("cleanup")
     if (!store.cleanup) throw unavailable("cleanup")
-    return store.cleanup(request)
+    return store.cleanup(request, signal)
   }
 
-  async cleanupInvalid(options: { scanLimit: number; deleteLimit: number }): Promise<ReaderThumbnailInvalidCleanupResult> {
+  async cleanupInvalid(options: { scanLimit: number; deleteLimit: number }, signal?: AbortSignal): Promise<ReaderThumbnailInvalidCleanupResult> {
+    signal?.throwIfAborted()
     const store = await this.#require("invalid-path cleanup")
     if (!store.cleanupInvalid) throw unavailable("invalid-path cleanup")
-    return store.cleanupInvalid(options)
+    return store.cleanupInvalid(options, signal)
   }
 
   close(): Promise<void> {

@@ -37,13 +37,15 @@ export class ReaderThumbnailMaintenanceService {
     this.#now = options.now ?? Date.now
   }
 
-  async status(): Promise<ReaderThumbnailMaintenanceStatus> {
+  async status(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceStatus> {
+    signal?.throwIfAborted()
     const operation = this.#store?.maintenanceSnapshot
     if (!operation) return { enabled: false }
-    return { enabled: true, snapshot: await operation.call(this.#store) }
+    return { enabled: true, snapshot: await operation.call(this.#store, signal) }
   }
 
-  async cleanup(command: ReaderThumbnailCleanupCommand): Promise<ReaderThumbnailCleanupResult> {
+  async cleanup(command: ReaderThumbnailCleanupCommand, signal?: AbortSignal): Promise<ReaderThumbnailCleanupResult> {
+    signal?.throwIfAborted()
     if (command.kind === "invalid") {
       assertInteger(command.scanLimit, "scanLimit", 1, 2_000)
       assertInteger(command.deleteLimit, "deleteLimit", 1, 500)
@@ -55,7 +57,7 @@ export class ReaderThumbnailMaintenanceService {
         result: await operation.call(this.#store, {
           scanLimit: command.scanLimit,
           deleteLimit: command.deleteLimit,
-        }),
+        }, signal),
       }
     }
 
@@ -66,7 +68,7 @@ export class ReaderThumbnailMaintenanceService {
       return {
         enabled: true,
         kind: command.kind,
-        deleted: await operation.call(this.#store, { kind: command.kind, limit: command.limit }),
+        deleted: await operation.call(this.#store, { kind: command.kind, limit: command.limit }, signal),
       }
     }
 
@@ -80,13 +82,14 @@ export class ReaderThumbnailMaintenanceService {
         cutoff,
         limit: command.limit,
         preserveFolders: true,
-      }),
+      }, signal),
       cutoff,
       foldersPreserved: true,
     }
   }
 
-  async clearFailures(options: { reason?: string; limit: number }): Promise<ReaderThumbnailFailureCleanupResult> {
+  async clearFailures(options: { reason?: string; limit: number }, signal?: AbortSignal): Promise<ReaderThumbnailFailureCleanupResult> {
+    signal?.throwIfAborted()
     assertInteger(options.limit, "limit", 1, 10_000)
     if (options.reason !== undefined && (!options.reason || options.reason.length > 128)) {
       throw new RangeError("reason must be 1..128 characters when provided")
@@ -95,7 +98,7 @@ export class ReaderThumbnailMaintenanceService {
     if (!operation) return { enabled: false }
     return {
       enabled: true,
-      deleted: await operation.call(this.#store, { reason: options.reason, limit: options.limit }),
+      deleted: await operation.call(this.#store, { reason: options.reason, limit: options.limit }, signal),
     }
   }
 }

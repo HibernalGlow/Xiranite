@@ -249,6 +249,34 @@ describe("WritableLegacyThumbnailStore", () => {
     expect(await store.get("relative-invalid", "file")).toBeUndefined()
     await store.close()
   })
+
+  it("[neoview.thumbnail.maintenance-cancel-store] stops invalid-path cleanup before deleting scanned rows", async () => {
+    const path = await createFixture(roots)
+    const root = parse(resolve(path)).root
+    const missing = resolve(join(root, "xiranite-cancelled-missing.jpg"))
+    const started = Promise.withResolvers<void>()
+    const gate = Promise.withResolvers<void>()
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      pathState: async (candidate) => {
+        if (candidate === root) return "exists"
+        started.resolve()
+        await gate.promise
+        return "missing"
+      },
+    })
+    await store.put({ key: missing, category: "file", bytes: fixtureWebp(1) })
+    const cancellation = new AbortController()
+    const operation = store.cleanupInvalid({ scanLimit: 10, deleteLimit: 10 }, cancellation.signal)
+    await started.promise
+    cancellation.abort(new DOMException("cancelled", "AbortError"))
+    gate.resolve()
+    await expect(operation).rejects.toMatchObject({ name: "AbortError" })
+    expect(await store.get(missing, "file")).toBeDefined()
+    await expect(store.cleanupInvalid({ scanLimit: 10, deleteLimit: 10 })).resolves.toMatchObject({ scanned: 1, deleted: 1 })
+    expect(await store.get(missing, "file")).toBeUndefined()
+    await store.close()
+  })
 })
 
 async function createFixture(roots: string[]): Promise<string> {

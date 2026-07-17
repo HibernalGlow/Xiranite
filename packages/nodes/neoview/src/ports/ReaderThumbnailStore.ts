@@ -67,8 +67,8 @@ export interface ReaderThumbnailStore {
   put?(thumbnail: ReaderThumbnailWrite): Promise<void>
   getFailure?(key: string): Promise<ReaderThumbnailFailure | undefined>
   recordFailure?(failure: Omit<ReaderThumbnailFailure, "retryCount">): Promise<void>
-  maintenanceSnapshot?(): Promise<ReaderThumbnailMaintenanceSnapshot>
-  clearFailures?(options: { reason?: string; limit: number }): Promise<number>
-  cleanup?(request: ReaderThumbnailCleanupRequest): Promise<number>
-  cleanupInvalid?(options: { scanLimit: number; deleteLimit: number }): Promise<ReaderThumbnailInvalidCleanupResult>
+  maintenanceSnapshot?(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshot>
+  clearFailures?(options: { reason?: string; limit: number }, signal?: AbortSignal): Promise<number>
+  cleanup?(request: ReaderThumbnailCleanupRequest, signal?: AbortSignal): Promise<number>
+  cleanupInvalid?(options: { scanLimit: number; deleteLimit: number }, signal?: AbortSignal): Promise<ReaderThumbnailInvalidCleanupResult>
 }

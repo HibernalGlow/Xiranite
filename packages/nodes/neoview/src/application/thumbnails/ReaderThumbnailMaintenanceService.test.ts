@@ -29,7 +29,7 @@ describe("ReaderThumbnailMaintenanceService", () => {
       cutoff: "2026-06-15 00:00:00",
       limit: 250,
       preserveFolders: true,
-    })
+    }, undefined)
     expect(await service.cleanup({ kind: "invalid", scanLimit: 40, deleteLimit: 20 })).toEqual({
       enabled: true,
       kind: "invalid",
@@ -56,6 +56,20 @@ describe("ReaderThumbnailMaintenanceService", () => {
     await expect(service.cleanup({ kind: "empty", limit: 10_001 })).rejects.toThrow("limit")
     expect(cleanupInvalid).not.toHaveBeenCalled()
     expect(cleanup).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.thumbnail.maintenance-cancel-service] forwards cancellation and rejects pre-cancelled work before touching the store", async () => {
+    const cleanupInvalid = vi.fn(async () => ({ scanned: 0, deleted: 0, unavailableVolumeRowsPreserved: 0, wrapped: false }))
+    const service = new ReaderThumbnailMaintenanceService({ cleanupInvalid })
+    const active = new AbortController()
+    await service.cleanup({ kind: "invalid", scanLimit: 20, deleteLimit: 10 }, active.signal)
+    expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 20, deleteLimit: 10 }, active.signal)
+
+    const cancelled = new AbortController()
+    cancelled.abort(new DOMException("cancelled", "AbortError"))
+    await expect(service.cleanup({ kind: "invalid", scanLimit: 20, deleteLimit: 10 }, cancelled.signal))
+      .rejects.toMatchObject({ name: "AbortError" })
+    expect(cleanupInvalid).toHaveBeenCalledOnce()
   })
 })
 

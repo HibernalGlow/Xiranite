@@ -214,8 +214,9 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     }
   }
 
-  async maintenanceSnapshot(): Promise<ReaderThumbnailMaintenanceSnapshot> {
+  async maintenanceSnapshot(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshot> {
     this.#assertOpen()
+    signal?.throwIfAborted()
     await this.flush()
     const thumbs = this.#database.get(
       `SELECT COUNT(*) AS total_rows,
@@ -256,13 +257,15 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     }
   }
 
-  async clearFailures(options: { reason?: string; limit: number }): Promise<number> {
+  async clearFailures(options: { reason?: string; limit: number }, signal?: AbortSignal): Promise<number> {
     this.#assertOpen()
+    signal?.throwIfAborted()
     validateMaintenanceLimit(options.limit)
     if (options.reason !== undefined && (!options.reason || options.reason.length > 128)) {
       throw new Error("Thumbnail failure reason must be 1..128 characters.")
     }
     await this.flush()
+    signal?.throwIfAborted()
     return this.#runTransaction(() => options.reason === undefined
       ? this.#database.run(
           "DELETE FROM failed_thumbnails WHERE key IN (SELECT key FROM failed_thumbnails ORDER BY last_attempt LIMIT ?1)",
@@ -275,8 +278,9 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
         ).changes)
   }
 
-  async cleanup(request: ReaderThumbnailCleanupRequest): Promise<number> {
+  async cleanup(request: ReaderThumbnailCleanupRequest, signal?: AbortSignal): Promise<number> {
     this.#assertOpen()
+    signal?.throwIfAborted()
     validateMaintenanceLimit(request.limit)
     if (request.kind === "expired" && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(request.cutoff)) {
       throw new Error("Thumbnail cleanup cutoff must be a SQLite UTC timestamp.")
@@ -285,6 +289,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
       throw new Error("Online thumbnail cleanup must preserve folder thumbnails.")
     }
     await this.flush()
+    signal?.throwIfAborted()
     return this.#runTransaction(() => request.kind === "empty"
       ? this.#database.run(
           "DELETE FROM thumbs WHERE key IN (SELECT key FROM thumbs WHERE value IS NULL OR length(value) = 0 LIMIT ?1)",
@@ -297,28 +302,31 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
         ).changes)
   }
 
-  async cleanupInvalid(options: { scanLimit: number; deleteLimit: number }): Promise<ReaderThumbnailInvalidCleanupResult> {
+  async cleanupInvalid(options: { scanLimit: number; deleteLimit: number }, signal?: AbortSignal): Promise<ReaderThumbnailInvalidCleanupResult> {
     this.#assertOpen()
+    signal?.throwIfAborted()
     assertInteger(options.scanLimit, "invalid path scanLimit", 1, 2_000)
     assertInteger(options.deleteLimit, "invalid path deleteLimit", 1, 500)
     await this.flush()
+    signal?.throwIfAborted()
     let wrapped = false
+    const previousCursor = this.#invalidScanCursor
     let rows = this.#database.all(
       "SELECT key FROM thumbs WHERE key > ?1 ORDER BY key LIMIT ?2",
-      this.#invalidScanCursor,
+      previousCursor,
       options.scanLimit,
     )
-    if (!rows.length && this.#invalidScanCursor) {
-      this.#invalidScanCursor = ""
+    if (!rows.length && previousCursor) {
       wrapped = true
       rows = this.#database.all("SELECT key FROM thumbs ORDER BY key LIMIT ?1", options.scanLimit)
     }
     const keys = rows.map((row) => requireString(row.key, "thumbs.key"))
-    if (keys.length) this.#invalidScanCursor = keys.at(-1)!
+    const nextCursor = keys.at(-1) ?? (wrapped ? "" : previousCursor)
     const invalid: string[] = []
     const roots = new Map<string, ThumbnailPathState>()
     let unavailableVolumeRowsPreserved = 0
     await mapConcurrent(keys, 32, async (key) => {
+      signal?.throwIfAborted()
       const source = thumbnailSourcePath(key)
       if (!source) {
         invalid.push(key)
@@ -328,6 +336,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
       let rootState = roots.get(root)
       if (!rootState) {
         rootState = await this.#pathState(root)
+        signal?.throwIfAborted()
         roots.set(root, rootState)
       }
       if (rootState !== "exists") {
@@ -335,14 +344,17 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
         return
       }
       const sourceState = await this.#pathState(source)
+      signal?.throwIfAborted()
       if (sourceState === "missing") invalid.push(key)
       else if (sourceState === "unavailable") unavailableVolumeRowsPreserved += 1
     })
+    signal?.throwIfAborted()
     const deleteKeys = invalid.slice(0, options.deleteLimit)
     const deleted = deleteKeys.length ? await this.#runTransaction(() => {
       const placeholders = deleteKeys.map((_, index) => `?${index + 1}`).join(", ")
       return this.#database.run(`DELETE FROM thumbs WHERE key IN (${placeholders})`, ...deleteKeys).changes
     }) : 0
+    this.#invalidScanCursor = nextCursor
     return { scanned: keys.length, deleted, unavailableVolumeRowsPreserved, wrapped }
   }
 
