@@ -21,6 +21,18 @@ if (!initialChunk) throw new Error(`Initial chunk ${initialScript} is missing fr
 const neoViewChunks = chunks.filter((chunk) => chunk.modules.some((module) => /[/\\]src[/\\]nodes[/\\]neoview[/\\]/i.test(module)))
 const neoViewChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]src[/\\]nodes[/\\]neoview[/\\]entry\.tsx?$/i.test(module)))
 if (!neoViewChunk) throw new Error(`Unable to find the NeoView entry chunk among: ${neoViewChunks.map((chunk) => chunk.fileName).join(", ")}`)
+const browserExternalModules = chunks.flatMap((chunk) => chunk.modules
+  .filter((module) => /(?:^|[/\\])__vite-browser-external(?::|[/\\])|^node:/i.test(module))
+  .map((module) => `${chunk.fileName}: ${module}`))
+if (browserExternalModules.length) {
+  throw new Error(`Node built-ins were externalized into the browser build:\n${browserExternalModules.join("\n")}`)
+}
+const nodeOnlyNeoViewModules = neoViewChunks.flatMap((chunk) => chunk.modules
+  .filter((module) => /[/\\]packages[/\\]nodes[/\\]neoview[/\\](?:src|dist)[/\\](?:core|application[/\\]browser[/\\]ReaderDirectorySort)\.(?:js|ts)$/i.test(module))
+  .map((module) => `${chunk.fileName}: ${module}`))
+if (nodeOnlyNeoViewModules.length) {
+  throw new Error(`Node-only NeoView modules leaked into the browser build; import @xiranite/node-neoview/ui-core instead:\n${nodeOnlyNeoViewModules.join("\n")}`)
+}
 if (neoViewChunk.bytes > 40 * 1024) {
   throw new Error(`NeoView app chunk ${neoViewChunk.fileName} is ${neoViewChunk.bytes} bytes, above 40 KiB.`)
 }
@@ -247,4 +259,6 @@ console.log(JSON.stringify({
   panelLayoutEditorChunk: { fileName: panelLayoutEditorChunk.fileName, bytes: panelLayoutEditorChunk.bytes },
   kanbanRuntimeChunk: { fileName: kanbanRuntimeChunk.fileName, bytes: kanbanRuntimeChunk.bytes },
   zipJsFrontendModules: 0,
+  browserExternalModules: 0,
+  nodeOnlyNeoViewModules: 0,
 }, null, 2))
