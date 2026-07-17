@@ -260,9 +260,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
 
   useEffect(() => {
-    if (!catalog || !viewUsesThumbnails(viewMode)) return
+    if (!active || !catalog || !viewUsesThumbnails(viewMode)) return
     registerVisibleThumbnails()
-  }, [catalog?.sessionId, catalog?.generation, viewMode, previewCount])
+  }, [active, catalog?.sessionId, catalog?.generation, viewMode, previewCount])
 
   useEffect(() => {
     if (!catalog || viewMode !== "details") return
@@ -845,7 +845,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         }
       }}
     >
-      {catalog?.watching && client.watchDirectoryBrowser ? (
+      {active && catalog?.watching && client.watchDirectoryBrowser ? (
         <Suspense fallback={null}>
           <DirectoryWatch
             client={client}
@@ -1085,7 +1085,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                 client={client}
                 sessionId={sessionIdRef.current}
                 currentPath={catalog.path}
-                watching={catalog.watching}
+                watching={active && catalog.watching}
                 disabled={disabled || loading}
                 layout={treeLayout}
                 size={treeSize}

@@ -431,7 +431,6 @@ export function ReaderApp({
   }
 
   const inputRouter = useReaderInputRouter({ config: inputBindings, disabled: busy, execute: executeInputAction })
-  const inputTargetRef = useRef<HTMLDivElement | null>(null)
 
   async function persistSlideshow(patch: ReaderSlideshowPatch["slideshow"]) {
     slideshow.configure(patch)
@@ -811,10 +810,7 @@ export function ReaderApp({
 
   return (
     <div
-      ref={(element) => {
-        inputTargetRef.current = element
-        surface.ref(element)
-      }}
+      ref={surface.ref}
       data-reader-app="true"
       data-input-context="reader"
       className="h-full min-h-0 w-full touch-none overflow-hidden bg-background text-foreground"
@@ -822,7 +818,7 @@ export function ReaderApp({
       onPointerUp={inputRouter.onPointerUp}
     >
       <Suspense fallback={null}>
-        <LazyReaderGestureInputRuntime disabled={busy} target={inputTargetRef} dispatch={inputRouter.dispatch} />
+        <LazyReaderGestureInputRuntime disabled={busy} target={surface.ref} dispatch={inputRouter.dispatch} />
       </Suspense>
       <FloatingWindowTitlebarReservation />
       <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
