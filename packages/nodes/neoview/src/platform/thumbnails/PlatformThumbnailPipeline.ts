@@ -9,6 +9,7 @@ import {
   type ThumbnailLane,
   type ThumbnailLease,
 } from "@xiranite/services/thumbnail-coordinator"
+import { LRUCache } from "lru-cache"
 
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
@@ -99,7 +100,9 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   #systemThumbnailProvider?: Promise<SystemThumbnailProvider>
   #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
   #mosaicImageComposer?: Promise<MosaicImageComposer>
-  #libraryCacheEpoch = 0
+  readonly #libraryCacheEpochs: LRUCache<string, number>
+  #libraryCacheBaseEpoch = 0
+  #nextLibraryCacheEpoch = 1
 
   constructor(options: PlatformThumbnailPipelineOptions = {}) {
     this.#loadImageTransformer = options.loadImageTransformer
@@ -115,6 +118,12 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       maxMemoryBytes: options.maxMemoryBytes,
       maxEntryBytes: options.maxEntryBytes,
       resolver: { resolve: (demand, signal) => this.#resolve(demand, signal) },
+    })
+    this.#libraryCacheEpochs = new LRUCache<string, number>({
+      max: 4_096,
+      dispose: (_value, _key, reason) => {
+        if (reason === "evict") this.#libraryCacheBaseEpoch = this.#nextLibraryCacheEpoch++
+      },
     })
   }
 
@@ -222,7 +231,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         const record = records.get(source.path)
         if (!isValidLibraryThumbnail(record, source)) continue
         databaseHits += 1
-        const cacheKey = libraryThumbnailCacheKey(source, "library-cover-v1", revision, this.#libraryCacheEpoch)
+        const identity = libraryThumbnailCacheIdentity(source, "library-cover-v1")
+        const cacheKey = libraryThumbnailCacheKey(source, "library-cover-v1", revision, this.#libraryCacheEpoch(identity), identity)
         if (primedKeys.has(cacheKey)) continue
         primedKeys.add(cacheKey)
         if (this.#coordinator.prime(cacheKey, {
@@ -272,8 +282,9 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
   acquireLibrary(source: LibraryThumbnailSource, options: PageThumbnailAcquireOptions): ThumbnailLease {
     const profile = libraryThumbnailProfile(source.previewCount)
+    const identity = libraryThumbnailCacheIdentity(source, profile)
     return this.#coordinator.acquire({
-      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision(), this.#libraryCacheEpoch),
+      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision(), this.#libraryCacheEpoch(identity), identity),
       source: { kind: "library", source, profile, refresh: false },
       lane: options.lane ?? (source.kind === "folder" ? "folder-preview" : "library-visible"),
       contextId: options.contextId,
@@ -285,9 +296,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   async refreshLibrary(source: LibraryThumbnailSource, options: PageThumbnailAcquireOptions): Promise<ThumbnailAsset> {
     if (source.previewCount === 1 && !this.#thumbnailStore?.put) throw new ThumbnailPersistenceUnavailableError()
     const profile = libraryThumbnailProfile(source.previewCount)
-    const targetEpoch = this.#libraryCacheEpoch + 1
+    const identity = libraryThumbnailCacheIdentity(source, profile)
+    const targetEpoch = this.#nextLibraryCacheEpoch++
     const lease = this.#coordinator.acquire({
-      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision(), targetEpoch),
+      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision(), targetEpoch, identity),
       source: { kind: "library", source, profile, refresh: true },
       lane: options.lane ?? "background",
       contextId: options.contextId,
@@ -296,8 +308,9 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     })
     try {
       const asset = await lease.ready
-      this.#libraryCacheEpoch = Math.max(this.#libraryCacheEpoch, targetEpoch)
-      this.#coordinator.evictUnpinned((key) => isLibraryThumbnailCacheKey(key) && !key.includes(`:local-${this.#libraryCacheEpoch}:`))
+      this.#libraryCacheEpochs.set(identity, targetEpoch)
+      const prefix = `library:${identity}:`
+      this.#coordinator.evictUnpinned((key) => key.startsWith(prefix) && !key.includes(`:local-${targetEpoch}:`))
       return asset
     } finally {
       lease.release()
@@ -331,6 +344,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
   #thumbnailRevision(): number {
     return this.#thumbnailStore?.revision?.() ?? 0
+  }
+
+  #libraryCacheEpoch(identity: string): number {
+    return this.#libraryCacheEpochs.get(identity) ?? this.#libraryCacheBaseEpoch
   }
 
   async #resolve(
@@ -760,16 +777,26 @@ function thumbnailGenerationHash(contentVersion: string): number {
   return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
 }
 
-function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile, revision: number, localEpoch: number): string {
-  return `${source.kind}:${source.path}:${source.contentVersion}:db-${revision}:local-${localEpoch}:${profile}`
+function libraryThumbnailCacheIdentity(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile): string {
+  return createHash("sha256")
+    .update(source.kind).update("\0")
+    .update(source.path).update("\0")
+    .update(profile)
+    .digest("base64url")
+}
+
+function libraryThumbnailCacheKey(
+  source: LibraryThumbnailSource,
+  profile: LibraryThumbnailProfile,
+  revision: number,
+  localEpoch: number,
+  identity = libraryThumbnailCacheIdentity(source, profile),
+): string {
+  return `library:${identity}:${source.contentVersion}:db-${revision}:local-${localEpoch}:${profile}`
 }
 
 function libraryThumbnailProfile(count: LibraryThumbnailPreviewCount): LibraryThumbnailProfile {
   return count === 1 ? "library-cover-v1" : `library-mosaic-${count}-v1`
-}
-
-function isLibraryThumbnailCacheKey(key: string): boolean {
-  return key.endsWith(":library-cover-v1") || /:library-mosaic-(?:4|9|16)-v1$/.test(key)
 }
 
 function isValidLibraryThumbnail(

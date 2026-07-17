@@ -138,6 +138,32 @@ describe("PlatformThumbnailPipeline", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.library-refresh-isolation] invalidates only the refreshed source L1", async () => {
+    const transform = vi.fn(async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(6)) }))
+    const bookLoader = vi.fn(async () => fixtureBook(fixturePage("D:/library/page.png")))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader,
+      thumbnailStore: { get: async () => undefined, put: async () => undefined },
+      loadImageTransformer: async () => ({ transform }),
+    })
+    const leftSource = librarySource("file", "D:/library/left.cbz", 100)
+    const rightSource = librarySource("file", "D:/library/right.cbz", 100)
+    const left = pipeline.acquireLibrary(leftSource, { contextId: "library:left" })
+    const right = pipeline.acquireLibrary(rightSource, { contextId: "library:right" })
+    await Promise.all([left.ready, right.ready])
+    left.release()
+    right.release()
+
+    await pipeline.refreshLibrary(leftSource, { contextId: "library:left-refresh" })
+    const rightAgain = pipeline.acquireLibrary(rightSource, { contextId: "library:right-again" })
+    await rightAgain.ready
+    rightAgain.release()
+
+    expect(bookLoader).toHaveBeenCalledTimes(3)
+    expect(transform).toHaveBeenCalledTimes(3)
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library.external-epoch] bypasses a generated L1 entry after another database writer commits", async () => {
     const generated = fixtureWebp(7)
     const external = fixtureWebp(8)
