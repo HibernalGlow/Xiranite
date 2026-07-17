@@ -17,6 +17,8 @@ export function ReaderLibraryList<T>({
   getItemKey,
   onVisibleItemsChange,
   onItemsChange,
+  columns = 1,
+  gap = 0,
 }: {
   queryKey: string
   loadPage(offset: number, limit: number, signal: AbortSignal): Promise<readonly T[]>
@@ -28,7 +30,10 @@ export function ReaderLibraryList<T>({
   getItemKey?(item: T): string
   onVisibleItemsChange?(items: readonly T[]): void
   onItemsChange?(items: readonly T[]): void
+  columns?: number
+  gap?: number
 }) {
+  const columnCount = Math.max(1, Math.floor(columns))
   const viewportRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | undefined>(undefined)
   const generationRef = useRef(0)
@@ -39,8 +44,9 @@ export function ReaderLibraryList<T>({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [manualRevision, setManualRevision] = useState(0)
+  const rowCount = Math.ceil(items.length / columnCount)
   const virtualizer = useVirtualizer({
-    count: items.length + (hasMore ? 1 : 0),
+    count: rowCount + (hasMore ? 1 : 0),
     getScrollElement: () => viewportRef.current,
     estimateSize: () => itemSize,
     initialRect: { width: 320, height: 288 },
@@ -49,8 +55,8 @@ export function ReaderLibraryList<T>({
   const virtualItems = virtualizer.getVirtualItems()
   const lastVirtualIndex = virtualItems.at(-1)?.index
   const firstVirtualIndex = virtualItems[0]?.index
-  const visibleStart = firstVirtualIndex === undefined ? 0 : Math.min(firstVirtualIndex, items.length)
-  const visibleEnd = lastVirtualIndex === undefined ? 0 : Math.min(lastVirtualIndex + 1, items.length)
+  const visibleStart = firstVirtualIndex === undefined ? 0 : Math.min(firstVirtualIndex * columnCount, items.length)
+  const visibleEnd = lastVirtualIndex === undefined ? 0 : Math.min((lastVirtualIndex + 1) * columnCount, items.length)
 
   useEffect(() => {
     onVisibleItemsChange?.(items.slice(visibleStart, visibleEnd))
@@ -79,9 +85,9 @@ export function ReaderLibraryList<T>({
   }, [queryKey, revision, manualRevision, loadPage])
 
   useEffect(() => {
-    if (lastVirtualIndex === undefined || lastVirtualIndex < items.length - 8 || !hasMore) return
+    if (lastVirtualIndex === undefined || (lastVirtualIndex + 1) * columnCount < items.length - 8 || !hasMore) return
     void loadNextPage(false)
-  }, [hasMore, items.length, lastVirtualIndex])
+  }, [columnCount, hasMore, items.length, lastVirtualIndex])
 
   async function loadNextPage(reset: boolean) {
     if (loadingRef.current) return
@@ -131,16 +137,27 @@ export function ReaderLibraryList<T>({
         {items.length === 0 && !loading ? (
           <div className="grid h-24 place-items-center text-xs text-muted-foreground">{emptyLabel}</div>
         ) : (
-          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }} data-library-grid-columns={columnCount}>
             {virtualItems.map((virtualItem) => {
-              const item = items[virtualItem.index]
+              const firstItemIndex = virtualItem.index * columnCount
+              const rowItems = items.slice(firstItemIndex, firstItemIndex + columnCount)
               return (
                 <div
-                  key={item && getItemKey ? getItemKey(item) : virtualItem.key}
-                  className="absolute left-0 w-full border-b"
-                  style={{ height: virtualItem.size, transform: `translateY(${virtualItem.start}px)` }}
+                  key={virtualItem.key}
+                  className="absolute left-0 grid w-full"
+                  style={{
+                    gap,
+                    gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                    height: virtualItem.size,
+                    paddingBottom: gap,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
                 >
-                  {item ? renderRow(item, virtualItem.index) : <div className="h-full animate-pulse bg-muted/35" aria-label="正在加载更多" />}
+                  {rowItems.length ? rowItems.map((item, offset) => (
+                    <div key={getItemKey ? getItemKey(item) : firstItemIndex + offset} className="min-w-0 overflow-hidden">
+                      {renderRow(item, firstItemIndex + offset)}
+                    </div>
+                  )) : <div className="col-span-full h-full animate-pulse bg-muted/35" aria-label="正在加载更多" />}
                 </div>
               )
             })}

@@ -116,7 +116,7 @@ describe("Reader library cards", () => {
     })))
   })
 
-  it("[neoview.bookmark.thumbnail-visible] registers only the virtual bookmark window and releases its thumbnail context", async () => {
+  it("[neoview.bookmark.thumbnail-visible] [neoview.bookmark.view-modes] registers only the virtual bookmark window and reuses four entry surfaces", async () => {
     const bookmark: ReaderBookmarkDto = {
       id: "bookmark-1",
       source: { kind: "archive", path: "D:/books/demo.cbz" },
@@ -149,6 +149,10 @@ describe("Reader library cards", () => {
       />,
     )
 
+    await screen.findByText("demo.cbz")
+    expect(registerLibraryThumbnails).not.toHaveBeenCalled()
+    expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("compact")
+    fireEvent.click(screen.getByRole("button", { name: "内容" }))
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
       expect.stringMatching(/^bookmark:/),
       1,
@@ -160,6 +164,16 @@ describe("Reader library cards", () => {
     expect(screen.getByText("D:/books/demo.cbz")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "收藏：demo.cbz" }))
     await waitFor(() => expect(updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: true }))
+
+    fireEvent.click(screen.getByRole("button", { name: "横幅" }))
+    await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("banner"))
+    expect(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns")).toBe("2")
+    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("thumbnail"))
+    expect(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns")).toBe("3")
+    fireEvent.click(screen.getByRole("button", { name: "列表" }))
+    await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("compact"))
+    expect(view.container.querySelector('[data-bookmark-id="bookmark-1"] img')).toBeNull()
 
     view.unmount()
     await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(expect.stringMatching(/^bookmark:/)))

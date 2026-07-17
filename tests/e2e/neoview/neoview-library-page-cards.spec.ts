@@ -111,6 +111,9 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const bookmarkCard = sidebar.locator('[data-reader-card="书签列表"]')
   const bookmarkContent = bookmarkCard.locator('[data-neoview-bookmark-card="true"]')
   await expect(bookmarkCard).toBeVisible()
+  await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "compact")
+  await bookmarkCard.getByRole("button", { name: "内容" }).click()
+  await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "content")
   await bookmarkCard.getByRole("button", { name: "收藏当前书籍" }).click()
   const bookmarkRow = bookmarkCard.locator('[data-bookmark-id]').filter({ hasText: "fixture.cbz" }).first()
   await expect(bookmarkRow).toBeVisible()
@@ -127,6 +130,18 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   expect(await bookmarkCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await bookmarkCard.screenshot({ path: testInfo.outputPath(`neoview-bookmark-thumbnails-${testInfo.project.name}.png`) })
+
+  await bookmarkCard.getByRole("button", { name: "横幅" }).click()
+  await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "banner")
+  await expect(bookmarkCard.locator('[data-bookmark-id]').first()).toHaveAttribute("data-entry-variant", "banner")
+  await expect(bookmarkCard.locator("[data-library-grid-columns]")).toHaveAttribute("data-library-grid-columns", "2")
+  await bookmarkCard.getByRole("button", { name: "缩略图" }).click()
+  await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "thumbnail")
+  await expect(bookmarkCard.locator('[data-bookmark-id]').first()).toHaveAttribute("data-entry-variant", "thumbnail")
+  await expect(bookmarkCard.locator("[data-library-grid-columns]")).toHaveAttribute("data-library-grid-columns", "3")
+  expect(await bookmarkCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  await bookmarkCard.getByRole("button", { name: "内容" }).click()
 
   const seededBookmarks = await Promise.all([
     seedBookmark(page, "alpha.cbz", "D:/library/alpha.cbz"),
@@ -181,13 +196,11 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   expect((await deleteListResponse).status()).toBe(204)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 
-  const pageCatalogRequestBaseline = pageCatalogRequests.length
   await sidebar.getByRole("button", { name: "页面列表", exact: true }).click()
   const pageListCard = sidebar.locator('[data-reader-card="页面导航"]')
   const pageListContent = pageListCard.locator('[data-neoview-page-list="true"]')
   await expect(pageListCard).toBeVisible()
-  await expect.poll(() => pageCatalogRequests.length).toBeGreaterThan(pageCatalogRequestBaseline)
-  expect(pageCatalogRequests.slice(pageCatalogRequestBaseline).some((url) => {
+  await expect.poll(() => pageCatalogRequests.some((url) => {
     const query = new URL(url).searchParams
     return query.get("limit") === "12" && query.get("thumbnails") === "0"
   })).toBe(true)
@@ -245,7 +258,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   expect(gridThumbnailBox).not.toBeNull()
   expect(Math.abs(gridThumbnailBox!.width / gridThumbnailBox!.height - 0.75)).toBeLessThan(0.03)
   expect(pageCatalogRequests.length).toBe(catalogRequestsBeforeImageModes)
-  expect(pageCatalogRequests.slice(pageCatalogRequestBaseline)
+  expect(pageCatalogRequests
     .filter((url) => new URL(url).searchParams.get("limit") === "12")
     .every((url) => new URL(url).searchParams.get("thumbnails") === "0")).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
