@@ -1,18 +1,40 @@
 import type { ReaderFileMutation } from "../../ports/ReaderFileMutationProvider.js"
 import type { ReaderFileOperationService } from "../../application/files/ReaderFileOperationService.js"
+import {
+  ReaderDirectorySelectionOperationService,
+  type ReaderDirectorySelectionOperationKind,
+} from "../../application/files/ReaderDirectorySelectionOperationService.js"
+import {
+  ReaderDirectorySelectionStaleError,
+  type ReaderDirectorySelectionBatchSource,
+  type ReaderDirectorySelectionDescriptor,
+} from "../../application/browser/ReaderDirectorySelection.js"
 
 const OPERATIONS_PATH = "/reader/files/operations"
 const UNDO_PATH = "/reader/files/undo"
 const DISCARD_UNDO_PATH = "/reader/files/undo/discard"
+const SELECTION_OPERATIONS_PATH = "/reader/files/selection-operations"
+const SELECTION_OPERATION_PATH = /^\/reader\/files\/selection-operations\/([^/]+)$/
 const MAX_BODY_BYTES = 256 * 1024
 
 export class ReaderFileOperationHttpController {
   #service?: Promise<ReaderFileOperationService>
+  #selectionOperations?: Promise<ReaderDirectorySelectionOperationService>
 
-  constructor(private readonly loadService: () => Promise<ReaderFileOperationService>) {}
+  constructor(
+    private readonly loadService: () => Promise<ReaderFileOperationService>,
+    private readonly resolveSelection?: (
+      sessionId: string,
+      descriptor: ReaderDirectorySelectionDescriptor,
+      signal?: AbortSignal,
+    ) => Promise<ReaderDirectorySelectionBatchSource | undefined>,
+  ) {}
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
+    const selectionOperationMatch = SELECTION_OPERATION_PATH.exec(url.pathname)
+    if (url.pathname === SELECTION_OPERATIONS_PATH) return this.#startSelectionOperation(request)
+    if (selectionOperationMatch) return this.#selectionOperation(selectionOperationMatch[1]!, request)
     if (url.pathname !== OPERATIONS_PATH && url.pathname !== UNDO_PATH && url.pathname !== DISCARD_UNDO_PATH) return undefined
     if (url.pathname === OPERATIONS_PATH && request.method === "GET") {
       const service = await (this.#service ??= this.loadService())
@@ -56,6 +78,67 @@ export class ReaderFileOperationHttpController {
       return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400)
     }
   }
+
+  async close(): Promise<void> {
+    if (this.#selectionOperations) {
+      await (await this.#selectionOperations).close()
+    } else if (this.#service) {
+      await (await this.#service).close()
+    }
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.close()
+  }
+
+  async #startSelectionOperation(request: Request): Promise<Response> {
+    if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "POST" })
+    if (!this.resolveSelection) return jsonResponse({ error: "Directory selection operations are unavailable" }, 503)
+    const body = await readBody(request)
+    if (!body || typeof body.sessionId !== "string" || !body.sessionId || body.sessionId.length > 256
+      || !body.selection || typeof body.selection !== "object"
+      || (body.kind !== "delete" && body.kind !== "trash")) {
+      return jsonResponse({ error: "Selection operation requires sessionId, selection and delete/trash kind" }, 400)
+    }
+    if (body.confirmed !== true) return jsonResponse({ error: "Destructive file operations require confirmed=true" }, 409)
+    try {
+      const source = await this.resolveSelection(
+        body.sessionId,
+        body.selection as ReaderDirectorySelectionDescriptor,
+        request.signal,
+      )
+      if (!source) return jsonResponse({ error: "Browser session not found" }, 404)
+      const service = await this.#loadSelectionOperations()
+      return jsonResponse(service.start(source, body.kind as ReaderDirectorySelectionOperationKind), 202)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return jsonResponse(
+        { error: error instanceof Error ? error.message : String(error) },
+        error instanceof ReaderDirectorySelectionStaleError ? 409 : 400,
+      )
+    }
+  }
+
+  async #selectionOperation(encodedId: string, request: Request): Promise<Response> {
+    const id = safeDecode(encodedId)
+    if (!id) return jsonResponse({ error: "Invalid selection operation id" }, 400)
+    if (!this.#selectionOperations) return jsonResponse({ error: "Selection operation not found" }, 404)
+    const service = await this.#selectionOperations
+    const snapshot = service.get(id)
+    if (!snapshot) return jsonResponse({ error: "Selection operation not found" }, 404)
+    if (request.method === "GET") return jsonResponse(snapshot)
+    if (request.method === "DELETE") {
+      return service.cancel(id)
+        ? jsonResponse({ ...service.get(id), cancelRequested: true }, 202)
+        : jsonResponse({ ...snapshot, cancelRequested: false }, 409)
+    }
+    return jsonResponse({ error: "Method not allowed" }, 405, { allow: "GET, DELETE" })
+  }
+
+  async #loadSelectionOperations(): Promise<ReaderDirectorySelectionOperationService> {
+    return this.#selectionOperations ??= (this.#service ??= this.loadService())
+      .then((service) => new ReaderDirectorySelectionOperationService(service))
+  }
 }
 
 function isDestructive(value: unknown): boolean {
@@ -73,4 +156,12 @@ function jsonResponse(data: unknown, status = 200, headers?: Readonly<Record<str
     status,
     headers: { "cache-control": "no-store", "x-content-type-options": "nosniff", ...headers },
   })
+}
+
+function safeDecode(value: string): string | undefined {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return undefined
+  }
 }

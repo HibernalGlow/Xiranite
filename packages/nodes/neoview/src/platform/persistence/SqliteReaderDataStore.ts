@@ -357,7 +357,12 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
 
   async deleteRecent(bookId: string): Promise<boolean> {
     this.#assertOpen()
-    return this.#write(() => this.database.run("DELETE FROM xr_reader_progress WHERE book_id = ?1", bookId).changes > 0)
+    return this.#transaction(() => {
+      if (!this.database.get("SELECT book_id FROM xr_reader_progress WHERE book_id = ?1", bookId)) return false
+      this.database.run("DELETE FROM xr_reader_path_stacks WHERE book_id = ?1", bookId)
+      this.database.run("DELETE FROM xr_reader_media_progress WHERE book_id = ?1", bookId)
+      return this.database.run("DELETE FROM xr_reader_progress WHERE book_id = ?1", bookId).changes > 0
+    })
   }
 
   async deleteRecentBatch(bookIds: readonly string[]): Promise<{ deleted: number; missingIds: readonly string[] }> {
@@ -369,6 +374,20 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
          WHERE book_id IN (SELECT value FROM json_each(?1))`,
         encodedIds,
       ).map((row) => requireString(row.book_id, "recent book id")))
+      this.database.run(
+        `DELETE FROM xr_reader_path_stacks WHERE book_id IN (
+           SELECT book_id FROM xr_reader_progress
+           WHERE book_id IN (SELECT value FROM json_each(?1))
+         )`,
+        encodedIds,
+      )
+      this.database.run(
+        `DELETE FROM xr_reader_media_progress WHERE book_id IN (
+           SELECT book_id FROM xr_reader_progress
+           WHERE book_id IN (SELECT value FROM json_each(?1))
+         )`,
+        encodedIds,
+      )
       const deleted = this.database.run(
         `DELETE FROM xr_reader_progress
          WHERE book_id IN (SELECT value FROM json_each(?1))`,
@@ -390,12 +409,18 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         limit,
       ).map((row) => requireString(row.book_id, "recent book id"))
       if (!selectedIds.length) return { selectedIds, deleted: 0 }
+      const encodedIds = JSON.stringify(selectedIds)
+      this.database.run(
+        "DELETE FROM xr_reader_path_stacks WHERE book_id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
+      )
+      this.database.run(
+        "DELETE FROM xr_reader_media_progress WHERE book_id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
+      )
       const deleted = this.database.run(
-        `DELETE FROM xr_reader_progress WHERE book_id IN (
-           SELECT book_id FROM xr_reader_progress
-           ORDER BY updated_at ASC, book_id ASC LIMIT ?1
-         )`,
-        limit,
+        "DELETE FROM xr_reader_progress WHERE book_id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
       ).changes
       return { selectedIds, deleted }
     })
@@ -403,14 +428,22 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
 
   async clearRecentBefore(timestamp: number, limit: number): Promise<number> {
     this.#assertOpen()
-    return this.#write(() => this.database.run(
-      `DELETE FROM xr_reader_progress WHERE book_id IN (
-         SELECT book_id FROM xr_reader_progress
-         WHERE updated_at < ?1 ORDER BY updated_at ASC, book_id ASC LIMIT ?2
-       )`,
-      timestamp,
-      limit,
-    ).changes)
+    return this.#transaction(() => {
+      const selectedIds = this.database.all(
+        `SELECT book_id FROM xr_reader_progress
+         WHERE updated_at < ?1 ORDER BY updated_at ASC, book_id ASC LIMIT ?2`,
+        timestamp,
+        limit,
+      ).map((row) => requireString(row.book_id, "recent book id"))
+      if (!selectedIds.length) return 0
+      const encodedIds = JSON.stringify(selectedIds)
+      this.database.run("DELETE FROM xr_reader_path_stacks WHERE book_id IN (SELECT value FROM json_each(?1))", encodedIds)
+      this.database.run("DELETE FROM xr_reader_media_progress WHERE book_id IN (SELECT value FROM json_each(?1))", encodedIds)
+      return this.database.run(
+        "DELETE FROM xr_reader_progress WHERE book_id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
+      ).changes
+    })
   }
 
   async clearByPathPrefix(collection: ReaderLibraryCollection, normalizedPrefix: string): Promise<number> {
@@ -425,10 +458,12 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
       length(?1)
     ) = ?1 COLLATE NOCASE`
     if (collection === "recents") {
-      return this.#write(() => this.database.run(
-        `DELETE FROM xr_reader_progress WHERE ${matchesPrefix}`,
-        normalizedPrefix,
-      ).changes)
+      return this.#transaction(() => {
+        const matchingIds = `SELECT book_id FROM xr_reader_progress WHERE ${matchesPrefix}`
+        this.database.run(`DELETE FROM xr_reader_path_stacks WHERE book_id IN (${matchingIds})`, normalizedPrefix)
+        this.database.run(`DELETE FROM xr_reader_media_progress WHERE book_id IN (${matchingIds})`, normalizedPrefix)
+        return this.database.run(`DELETE FROM xr_reader_progress WHERE ${matchesPrefix}`, normalizedPrefix).changes
+      })
     }
     return this.#transaction(() => {
       this.database.run(
@@ -442,6 +477,24 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         normalizedPrefix,
       ).changes
     })
+  }
+
+  async clearAll(collection: ReaderLibraryCollection): Promise<number> {
+    this.#assertOpen()
+    if (collection === "recents") {
+      return this.#transaction(() => {
+        this.database.run("DELETE FROM xr_reader_path_stacks")
+        this.database.run("DELETE FROM xr_reader_media_progress")
+        return this.database.run("DELETE FROM xr_reader_progress").changes
+      })
+    }
+    if (collection === "bookmarks") {
+      return this.#transaction(() => {
+        this.database.run("DELETE FROM xr_reader_bookmark_memberships")
+        return this.database.run("DELETE FROM xr_reader_bookmarks").changes
+      })
+    }
+    throw new Error("Reader library collection is invalid.")
   }
 
   async listBookmarks(query: ReaderBookmarkQuery): Promise<readonly ReaderBookmarkRecord[]> {
@@ -688,6 +741,56 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         encodedIds,
       ).changes
       return { deleted, missingIds: ids.filter((id) => !existing.has(id)) }
+    })
+  }
+
+  async deleteOldestBookmark(limit: number): Promise<{ selectedIds: readonly string[]; deleted: number }> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+      throw new Error("Reader bookmark cleanup limit is invalid.")
+    }
+    return this.#transaction(() => {
+      const selectedIds = this.database.all(
+        `SELECT id FROM xr_reader_bookmarks
+         ORDER BY created_at ASC, id ASC LIMIT ?1`,
+        limit,
+      ).map((row) => requireString(row.id, "bookmark id"))
+      if (!selectedIds.length) return { selectedIds, deleted: 0 }
+      const encodedIds = JSON.stringify(selectedIds)
+      this.database.run(
+        "DELETE FROM xr_reader_bookmark_memberships WHERE bookmark_id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
+      )
+      const deleted = this.database.run(
+        "DELETE FROM xr_reader_bookmarks WHERE id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
+      ).changes
+      return { selectedIds, deleted }
+    })
+  }
+
+  async clearBookmarkBefore(timestamp: number, limit: number): Promise<number> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(timestamp) || timestamp < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+      throw new Error("Reader bookmark date cleanup is invalid.")
+    }
+    return this.#transaction(() => {
+      const selectedIds = this.database.all(
+        `SELECT id FROM xr_reader_bookmarks
+         WHERE created_at < ?1 ORDER BY created_at ASC, id ASC LIMIT ?2`,
+        timestamp,
+        limit,
+      ).map((row) => requireString(row.id, "bookmark id"))
+      if (!selectedIds.length) return 0
+      const encodedIds = JSON.stringify(selectedIds)
+      this.database.run(
+        "DELETE FROM xr_reader_bookmark_memberships WHERE bookmark_id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
+      )
+      return this.database.run(
+        "DELETE FROM xr_reader_bookmarks WHERE id IN (SELECT value FROM json_each(?1))",
+        encodedIds,
+      ).changes
     })
   }
 

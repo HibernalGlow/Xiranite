@@ -172,6 +172,27 @@ describe("ReaderLibraryService", () => {
     expect(() => service.clearByFolder("recents", "  ")).toThrow("folder path is invalid")
   })
 
+  it("[neoview.library.advanced-cleanup] delegates bookmark oldest/date and explicit collection clear operations", async () => {
+    const store = createStore()
+    store.deleteOldestBookmark.mockResolvedValue({ selectedIds: ["old-a", "old-b"], deleted: 2 })
+    store.clearBookmarkBefore.mockResolvedValue(3)
+    store.clearAll.mockResolvedValue(4)
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.removeOldestBookmarks(2)).resolves.toEqual({
+      selectedIds: ["old-a", "old-b"],
+      deleted: 2,
+      missingIds: [],
+    })
+    await expect(service.clearBookmarksBefore(100, 20)).resolves.toBe(3)
+    await expect(service.clearAll("recents")).resolves.toBe(4)
+    await expect(service.clearAll("bookmarks")).resolves.toBe(4)
+    expect(store.deleteOldestBookmark).toHaveBeenCalledWith(2)
+    expect(store.clearBookmarkBefore).toHaveBeenCalledWith(100, 20)
+    expect(store.clearAll.mock.calls).toEqual([["recents"], ["bookmarks"]])
+    await expect(service.removeOldestBookmarks(0)).rejects.toThrow("1 to 500")
+  })
+
   it("[neoview.bookmark.batch-contract] updates list memberships through one bounded shared command", async () => {
     const store = createStore()
     store.listBookmarkLists.mockResolvedValue([customList])
@@ -233,6 +254,7 @@ function createStore() {
     deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
     clearByPathPrefix: vi.fn<ReaderLibraryStore["clearByPathPrefix"]>(),
+    clearAll: vi.fn<ReaderLibraryStore["clearAll"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<(bookmark: ReaderBookmarkRecord) => Promise<void>>(async () => undefined),
@@ -240,6 +262,8 @@ function createStore() {
     updateBookmarkBatch: vi.fn<ReaderLibraryStore["updateBookmarkBatch"]>(),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     deleteBookmarkBatch: vi.fn<ReaderLibraryStore["deleteBookmarkBatch"]>(),
+    deleteOldestBookmark: vi.fn<ReaderLibraryStore["deleteOldestBookmark"]>(),
+    clearBookmarkBefore: vi.fn<ReaderLibraryStore["clearBookmarkBefore"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(),
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(),

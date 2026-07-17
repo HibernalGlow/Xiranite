@@ -53,7 +53,7 @@ const COMMANDS = new Set([
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "diagnostics",
-  "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
+  "folder-tree", "folder-search", "folder-emm-tags", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
   "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-open", "file-reveal", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
 ])
@@ -238,6 +238,11 @@ export async function runProgram(
   if (command.startsWith("folder-search-history")) {
     if (parsed.positionals.length) throw usage(`${command} does not accept a directory path.`)
     await runFolderSearchHistoryCommand(command, parsed, host, dependencies)
+    return
+  }
+  if (command === "folder-emm-tags") {
+    if (parsed.positionals.length) throw usage("folder-emm-tags does not accept a directory path.")
+    await runFolderEmmTags(parsed, host, dependencies)
     return
   }
   if (command.startsWith("folder-")) {
@@ -489,6 +494,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
     return
   }
+  if (command === "folder-emm-tags") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--database", "--limit"]))
+    return
+  }
   if (command === "folder-search-history") {
     rejectOptions(parsed, new Set(["--json", "--config", "--database", "--scope", "--limit"]))
     return
@@ -600,6 +609,33 @@ async function runFolderSearch(
   }
   if (json) writeJson(host, output)
   await controller.recordSearchHistory("folder", query).catch(() => undefined)
+}
+
+async function runFolderEmmTags(
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const limit = integerOption(parsed, "--limit", 1, 32, 8)
+  const createController = dependencies.createFileTreeController ?? createReaderFileTreeController
+  const controller = await createController({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+    legacyThumbnailDatabasePath: oneValue(parsed, "--database"),
+  })
+  try {
+    const suggestions = await controller.suggestEmmTags(limit)
+    if (parsed.booleans.has("--json")) writeJson(host, { suggestions })
+    else {
+      for (const suggestion of suggestions) {
+        const translation = suggestion.translatedTag ? `\t${suggestion.translatedTag}` : ""
+        writeLine(host, `${suggestion.category}:${suggestion.tag}\t${suggestion.favorite ? "favorite" : "catalog"}${translation}`)
+      }
+    }
+  } finally {
+    await controller[Symbol.asyncDispose]()
+  }
 }
 
 async function runFolderSearchHistoryCommand(
@@ -1949,6 +1985,7 @@ function formatCliHelp(): string {
     "  diagnostics                    Show process, scheduler, cache and queue diagnostics",
     "  folder-tree <path>              List one lazily loaded directory-tree node",
     "  folder-search <path>            Stream a bounded recursive directory search",
+    "  folder-emm-tags                 Suggest EMM catalog and favorite tags",
     "  folder-search-history            List persisted scoped search history",
     "  folder-search-history-delete     Delete one persisted search query (--yes)",
     "  folder-search-history-clear      Clear one persisted search scope (--yes)",
@@ -1964,7 +2001,7 @@ function formatCliHelp(): string {
     "Options:",
     "  --index N            Zero-based page index",
     "  --cursor N           Page-list cursor",
-    "  --limit N            Page-list limit (1..500)",
+    "  --limit N            Page-list, history, or EMM suggestion limit",
     "  --entry PATH         Repeat for each nested archive entry",
     "  --password-env VAR   Read the root archive password from VAR",
     "  --archive-password-env SCOPE=VAR  Scoped nested password; join scope with ::",

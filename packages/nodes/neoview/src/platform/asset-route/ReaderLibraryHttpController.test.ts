@@ -54,6 +54,13 @@ describe("ReaderLibraryHttpController", () => {
     const folderCleanup = (await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "folder", path: "D:/Books" })))!
     await expect(folderCleanup.json()).resolves.toEqual({ deleted: 4 })
     expect(store.clearByPathPrefix).toHaveBeenLastCalledWith("recents", "d:/books")
+    store.clearAll.mockResolvedValueOnce(7)
+    const clearAllRecents = (await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "all", confirmed: true })))!
+    await expect(clearAllRecents.json()).resolves.toEqual({ deleted: 7 })
+    expect(store.clearAll).toHaveBeenLastCalledWith("recents")
+    expect((await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "all", confirmed: false })))?.status).toBe(400)
+    await controller.handle(jsonRequest("/reader/library/recents/cleanup", { before: 100, limit: 501 }))
+    expect(store.clearRecentBefore).toHaveBeenLastCalledWith(100, 500)
 
     const created = (await controller.handle(jsonRequest("/reader/library/bookmarks", {
       source: { kind: "archive", path: "D:/demo.cbz" },
@@ -100,6 +107,17 @@ describe("ReaderLibraryHttpController", () => {
     await expect(bookmarkCleanup.json()).resolves.toEqual({ deleted: 2 })
     expect(store.clearByPathPrefix).toHaveBeenLastCalledWith("bookmarks", "d:/books")
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/cleanup", { kind: "folder", path: "D:/Books", future: true })))?.status).toBe(400)
+    store.deleteOldestBookmark.mockResolvedValueOnce({ selectedIds: ["old-a", "old-b"], deleted: 2 })
+    const oldestBookmarks = (await controller.handle(jsonRequest("/reader/library/bookmarks/cleanup", { kind: "oldest", limit: 2 })))!
+    await expect(oldestBookmarks.json()).resolves.toEqual({ selectedIds: ["old-a", "old-b"], deleted: 2, missingIds: [] })
+    store.clearBookmarkBefore.mockResolvedValueOnce(3)
+    const datedBookmarks = (await controller.handle(jsonRequest("/reader/library/bookmarks/cleanup", { kind: "before", before: 100, limit: 20 })))!
+    await expect(datedBookmarks.json()).resolves.toEqual({ deleted: 3 })
+    store.clearAll.mockResolvedValueOnce(5)
+    const clearAllBookmarks = (await controller.handle(jsonRequest("/reader/library/bookmarks/cleanup", { kind: "all", confirmed: true })))!
+    await expect(clearAllBookmarks.json()).resolves.toEqual({ deleted: 5 })
+    expect(store.clearAll).toHaveBeenLastCalledWith("bookmarks")
+    expect((await controller.handle(jsonRequest("/reader/library/bookmarks/cleanup", { kind: "all" })))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/batch", { updates: [] }, "PATCH")))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { starred: false, future: true }, "PATCH")))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { listIds: ["favorites"] }, "PATCH")))?.status).toBe(400)
@@ -154,6 +172,7 @@ function createStore() {
     deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
     clearByPathPrefix: vi.fn<ReaderLibraryStore["clearByPathPrefix"]>(),
+    clearAll: vi.fn<ReaderLibraryStore["clearAll"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<ReaderLibraryStore["upsertBookmark"]>(async () => undefined),
@@ -161,6 +180,8 @@ function createStore() {
     updateBookmarkBatch: vi.fn<ReaderLibraryStore["updateBookmarkBatch"]>(),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     deleteBookmarkBatch: vi.fn<ReaderLibraryStore["deleteBookmarkBatch"]>(),
+    deleteOldestBookmark: vi.fn<ReaderLibraryStore["deleteOldestBookmark"]>(),
+    clearBookmarkBefore: vi.fn<ReaderLibraryStore["clearBookmarkBefore"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(async () => undefined),
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(),

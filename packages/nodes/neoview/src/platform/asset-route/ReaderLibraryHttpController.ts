@@ -40,7 +40,13 @@ export class ReaderLibraryHttpController {
           }
           return jsonResponse({ deleted: await this.library.clearByFolder("recents", body.path) })
         }
-        if (body.kind !== undefined) return jsonResponse({ error: "kind must be oldest or folder when provided" }, 400)
+        if (body.kind === "all") {
+          if (body.confirmed !== true || Object.keys(body).some((key) => key !== "kind" && key !== "confirmed")) {
+            return jsonResponse({ error: "all cleanup requires only kind and confirmed=true" }, 400)
+          }
+          return jsonResponse({ deleted: await this.library.clearAll("recents") })
+        }
+        if (body.kind !== undefined) return jsonResponse({ error: "kind must be oldest, folder or all when provided" }, 400)
         if (!isTimestamp(body.before)) return jsonResponse({ error: "before must be a non-negative integer timestamp" }, 400)
         const limit = optionalPositiveInteger(body.limit, 500)
         if (limit === undefined) return jsonResponse({ error: "limit must be a positive integer" }, 400)
@@ -77,6 +83,11 @@ export class ReaderLibraryHttpController {
           : jsonResponse({ error: "Recent book not found" }, 404)
       }
 
+      if (url.pathname === "/reader/library/bookmarks/by-path" && request.method === "GET") {
+        const path = url.searchParams.get("path")
+        if (!path) return jsonResponse({ error: "path is required" }, 400)
+        return jsonResponse({ item: await this.library.findBookmarkByPath(path) ?? null })
+      }
       if (url.pathname === "/reader/library/bookmarks" && request.method === "GET") {
         return jsonResponse({
           items: await this.library.listBookmarks({ ...paging(url), listId: url.searchParams.get("listId") || undefined }),
@@ -102,11 +113,35 @@ export class ReaderLibraryHttpController {
       }
       if (url.pathname === "/reader/library/bookmarks/cleanup" && request.method === "POST") {
         const body = await readJson(request)
-        if (!body || body.kind !== "folder" || typeof body.path !== "string"
-          || Object.keys(body).some((key) => key !== "kind" && key !== "path")) {
-          return jsonResponse({ error: "Bookmark folder cleanup requires only kind and path" }, 400)
+        if (!body) return jsonResponse({ error: "Invalid bookmark cleanup request" }, 400)
+        if (body.kind === "folder") {
+          if (typeof body.path !== "string" || Object.keys(body).some((key) => key !== "kind" && key !== "path")) {
+            return jsonResponse({ error: "Bookmark folder cleanup requires only kind and path" }, 400)
+          }
+          return jsonResponse({ deleted: await this.library.clearByFolder("bookmarks", body.path) })
         }
-        return jsonResponse({ deleted: await this.library.clearByFolder("bookmarks", body.path) })
+        if (body.kind === "oldest") {
+          const limit = optionalBoundedInteger(body.limit, 500, 500)
+          if (limit === undefined || Object.keys(body).some((key) => key !== "kind" && key !== "limit")) {
+            return jsonResponse({ error: "Bookmark oldest cleanup requires only kind and a limit from 1 to 500" }, 400)
+          }
+          return jsonResponse(await this.library.removeOldestBookmarks(limit, request.signal))
+        }
+        if (body.kind === "before") {
+          const limit = optionalBoundedInteger(body.limit, 500, 500)
+          if (!isTimestamp(body.before) || limit === undefined
+            || Object.keys(body).some((key) => key !== "kind" && key !== "before" && key !== "limit")) {
+            return jsonResponse({ error: "Bookmark date cleanup requires only kind, before and limit" }, 400)
+          }
+          return jsonResponse({ deleted: await this.library.clearBookmarksBefore(body.before, limit) })
+        }
+        if (body.kind === "all") {
+          if (body.confirmed !== true || Object.keys(body).some((key) => key !== "kind" && key !== "confirmed")) {
+            return jsonResponse({ error: "Bookmark all cleanup requires only kind and confirmed=true" }, 400)
+          }
+          return jsonResponse({ deleted: await this.library.clearAll("bookmarks") })
+        }
+        return jsonResponse({ error: "Bookmark cleanup kind must be folder, oldest, before or all" }, 400)
       }
       const bookmarkMatch = BOOKMARK_ITEM_PATH.exec(url.pathname)
       if (bookmarkMatch && request.method === "PATCH") {

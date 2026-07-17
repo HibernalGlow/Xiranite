@@ -40,6 +40,11 @@ export interface ReaderOldestRecentDeleteResult {
   deleted: number
 }
 
+export interface ReaderOldestBookmarkDeleteResult {
+  selectedIds: readonly string[]
+  deleted: number
+}
+
 export interface ReaderLibraryBatchDeleteResult {
   deleted: number
   missingIds: readonly string[]
@@ -65,6 +70,7 @@ export interface ReaderLibraryStore extends AsyncDisposable {
   deleteOldestRecent(limit: number): Promise<ReaderOldestRecentDeleteResult>
   clearRecentBefore(timestamp: number, limit: number): Promise<number>
   clearByPathPrefix(collection: ReaderLibraryCollection, normalizedPrefix: string): Promise<number>
+  clearAll(collection: ReaderLibraryCollection): Promise<number>
   listBookmarks(query: ReaderBookmarkQuery): Promise<readonly ReaderBookmarkRecord[]>
   findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined>
   upsertBookmark(bookmark: ReaderBookmarkRecord): Promise<void>
@@ -72,6 +78,8 @@ export interface ReaderLibraryStore extends AsyncDisposable {
   updateBookmarkBatch(updates: readonly ReaderBookmarkBatchStoreUpdate[], updatedAt: number): Promise<ReaderBookmarkBatchStoreResult>
   deleteBookmark(id: string): Promise<boolean>
   deleteBookmarkBatch(ids: readonly string[]): Promise<ReaderLibraryBatchDeleteResult>
+  deleteOldestBookmark(limit: number): Promise<ReaderOldestBookmarkDeleteResult>
+  clearBookmarkBefore(timestamp: number, limit: number): Promise<number>
   listBookmarkLists(): Promise<readonly ReaderBookmarkListRecord[]>
   upsertBookmarkList(list: ReaderBookmarkListRecord): Promise<void>
   deleteBookmarkList(id: string): Promise<boolean>

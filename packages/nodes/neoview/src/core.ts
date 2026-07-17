@@ -226,6 +226,7 @@ export {
   type SaveReaderBookmarkListInput,
   type UpdateReaderBookmarkInput,
   type ReaderOldestRecentCleanupResult,
+  type ReaderOldestBookmarkCleanupResult,
 } from "./application/library/ReaderLibraryService.js"
 export type {
   ReaderBookmarkListRecord,
@@ -238,6 +239,7 @@ export type {
   ReaderLibraryBatchDeleteResult,
   ReaderLibraryCollection,
   ReaderOldestRecentDeleteResult,
+  ReaderOldestBookmarkDeleteResult,
   ReaderRecentQuery,
 } from "./ports/ReaderLibraryStore.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
