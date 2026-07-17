@@ -53,6 +53,10 @@ export interface ReaderRecentBatchRemoveResult {
   missingIds: readonly string[]
 }
 
+export interface ReaderOldestRecentCleanupResult extends ReaderRecentBatchRemoveResult {
+  selectedIds: readonly string[]
+}
+
 export class ReaderLibraryService implements AsyncDisposable {
   #closed = false
 
@@ -85,6 +89,14 @@ export class ReaderLibraryService implements AsyncDisposable {
     }
     signal?.throwIfAborted()
     return { deleted, missingIds }
+  }
+
+  async removeOldestRecents(limit: number, signal?: AbortSignal): Promise<ReaderOldestRecentCleanupResult> {
+    this.#assertOpen()
+    const normalizedLimit = normalizeCleanupLimit(limit)
+    signal?.throwIfAborted()
+    const result = await this.store.deleteOldestRecent(normalizedLimit)
+    return { ...result, missingIds: [] }
   }
 
   clearRecentBefore(timestamp: number, limit = 500): Promise<number> {
@@ -332,6 +344,13 @@ function normalizePage(query: Partial<ReaderRecentQuery>): ReaderRecentQuery {
   const offset = query.offset ?? 0
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Reader library offset is invalid.")
   return { limit: normalizeLimit(query.limit ?? 100, 100), offset }
+}
+
+function normalizeCleanupLimit(limit: number): number {
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 500) {
+    throw new Error("Reader recent cleanup limit must be an integer from 1 to 500.")
+  }
+  return limit
 }
 
 function normalizeLimit(limit: number, fallback: number): number {

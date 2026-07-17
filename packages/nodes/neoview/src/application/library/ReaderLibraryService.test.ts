@@ -130,6 +130,33 @@ describe("ReaderLibraryService", () => {
     await expect(service.removeRecents(["one"], controller.signal)).rejects.toMatchObject({ name: "AbortError" })
   })
 
+  it("[neoview.history.cleanup-oldest] delegates bounded oldest cleanup to the atomic store operation", async () => {
+    const store = createStore()
+    store.deleteOldestRecent.mockResolvedValue({ selectedIds: ["a-old", "z-old", "middle"], deleted: 3 })
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.removeOldestRecents(3)).resolves.toEqual({
+      selectedIds: ["a-old", "z-old", "middle"],
+      deleted: 3,
+      missingIds: [],
+    })
+    expect(store.deleteOldestRecent).toHaveBeenCalledWith(3)
+    expect(store.listRecent).not.toHaveBeenCalled()
+    expect(store.deleteRecent).not.toHaveBeenCalled()
+    await expect(service.removeOldestRecents(0)).rejects.toThrow("1 to 500")
+    await expect(service.removeOldestRecents(501)).rejects.toThrow("1 to 500")
+  })
+
+  it("[neoview.history.cleanup-oldest-cancel] rejects an already cancelled cleanup before opening a write transaction", async () => {
+    const store = createStore()
+    const controller = new AbortController()
+    controller.abort()
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.removeOldestRecents(2, controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+    expect(store.deleteOldestRecent).not.toHaveBeenCalled()
+  })
+
   it("[neoview.bookmark.batch-contract] updates list memberships through one bounded shared command", async () => {
     const store = createStore()
     store.listBookmarkLists.mockResolvedValue([customList])
@@ -178,6 +205,7 @@ function createStore() {
   return {
     listRecent: vi.fn<ReaderLibraryStore["listRecent"]>(),
     deleteRecent: vi.fn<ReaderLibraryStore["deleteRecent"]>(),
+    deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),

@@ -113,6 +113,43 @@ describe("SqliteReaderDataStore", () => {
     verified.close()
   })
 
+  it("[neoview.history.cleanup-oldest-sqlite] atomically deletes a bounded oldest set with stable ties", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    for (const [bookId, updatedAt] of [["newest", 300], ["z-old", 100], ["a-old", 100], ["middle", 200]] as const) {
+      await store.save({
+        bookId,
+        source: { kind: "archive", path: `D:/books/${bookId}.cbz` },
+        displayName: bookId,
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt,
+      })
+    }
+
+    await expect(store.deleteOldestRecent(2)).resolves.toEqual({
+      selectedIds: ["a-old", "z-old"],
+      deleted: 2,
+    })
+    await expect(store.listRecent({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "newest" }),
+      expect.objectContaining({ bookId: "middle" }),
+    ])
+    await expect(store.deleteOldestRecent(500)).resolves.toEqual({
+      selectedIds: ["middle", "newest"],
+      deleted: 2,
+    })
+    await expect(store.deleteOldestRecent(1)).resolves.toEqual({ selectedIds: [], deleted: 0 })
+    await expect(store.deleteOldestRecent(0)).rejects.toThrow("limit is invalid")
+    await store.close()
+
+    await expect(inspectLegacyThumbnailDatabase(path)).resolves.toMatchObject({
+      metadataVersion: "2.4",
+      userVersion: 7,
+      journalMode: "wal",
+    })
+  })
+
   it("[neoview.library.bookmarks] stores normalized lists and filters synthetic views", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)

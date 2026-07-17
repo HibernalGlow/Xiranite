@@ -358,6 +358,29 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     return this.#write(() => this.database.run("DELETE FROM xr_reader_progress WHERE book_id = ?1", bookId).changes > 0)
   }
 
+  async deleteOldestRecent(limit: number): Promise<{ selectedIds: readonly string[]; deleted: number }> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+      throw new Error("Reader recent cleanup limit is invalid.")
+    }
+    return this.#transaction(() => {
+      const selectedIds = this.database.all(
+        `SELECT book_id FROM xr_reader_progress
+         ORDER BY updated_at ASC, book_id ASC LIMIT ?1`,
+        limit,
+      ).map((row) => requireString(row.book_id, "recent book id"))
+      if (!selectedIds.length) return { selectedIds, deleted: 0 }
+      const deleted = this.database.run(
+        `DELETE FROM xr_reader_progress WHERE book_id IN (
+           SELECT book_id FROM xr_reader_progress
+           ORDER BY updated_at ASC, book_id ASC LIMIT ?1
+         )`,
+        limit,
+      ).changes
+      return { selectedIds, deleted }
+    })
+  }
+
   async clearRecentBefore(timestamp: number, limit: number): Promise<number> {
     this.#assertOpen()
     return this.#write(() => this.database.run(

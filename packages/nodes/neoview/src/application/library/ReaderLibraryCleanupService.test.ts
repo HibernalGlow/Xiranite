@@ -54,6 +54,7 @@ function fakeStore() {
   return {
     listRecent: vi.fn<ReaderLibraryStore["listRecent"]>(async () => []),
     deleteRecent: vi.fn<ReaderLibraryStore["deleteRecent"]>(async () => false),
+    deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(async () => ({ selectedIds: [], deleted: 0 })),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(async () => 0),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(async () => []),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(async () => undefined),

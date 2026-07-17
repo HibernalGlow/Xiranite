@@ -25,7 +25,17 @@ export class ReaderLibraryHttpController {
       }
       if (url.pathname === "/reader/library/recents/cleanup" && request.method === "POST") {
         const body = await readJson(request)
-        if (!body || !isTimestamp(body.before)) return jsonResponse({ error: "before must be a non-negative integer timestamp" }, 400)
+        if (!body) return jsonResponse({ error: "Invalid recent cleanup request" }, 400)
+        if (body.kind === "oldest") {
+          const limit = optionalBoundedInteger(body.limit, 500, 500)
+          if (limit === undefined) return jsonResponse({ error: "limit must be an integer from 1 to 500" }, 400)
+          if (Object.keys(body).some((key) => key !== "kind" && key !== "limit")) {
+            return jsonResponse({ error: "oldest cleanup accepts only kind and limit" }, 400)
+          }
+          return jsonResponse(await this.library.removeOldestRecents(limit, request.signal))
+        }
+        if (body.kind !== undefined) return jsonResponse({ error: "kind must be oldest when provided" }, 400)
+        if (!isTimestamp(body.before)) return jsonResponse({ error: "before must be a non-negative integer timestamp" }, 400)
         const limit = optionalPositiveInteger(body.limit, 500)
         if (limit === undefined) return jsonResponse({ error: "limit must be a positive integer" }, 400)
         return jsonResponse({ deleted: await this.library.clearRecentBefore(body.before, limit) })
