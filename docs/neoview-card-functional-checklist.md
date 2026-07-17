@@ -3376,8 +3376,8 @@
 - [ ] `bookmark.thumbnails` 显示可见书签缩略图
   - 目标：Only the virtual visible bookmark window registers authenticated file/folder thumbnails; stale batches cancel and contexts release on list change or unmount.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
-  - 备注：Content, banner and thumbnail modes register authenticated cover thumbnails only for the virtual visible window; compact list mode performs zero thumbnail registration, folder entries request four-image preview semantics, and invalid-path parity remains pending.
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.shared-thumbnail.fit`
+  - 备注：Content, banner and thumbnail modes reuse the Folder entry surface and register authenticated cover thumbnails only for the scoped virtual visible window; compact or empty modes release the active context immediately, folder entries request four-image preview semantics, and invalid-path parity remains pending.
 - [ ] `bookmark.lists` 切换系统与自定义书签列表
   - 目标：All, default, favorites and custom lists remain distinguishable and the active list filters the virtual source.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
@@ -3426,8 +3426,8 @@
 - [ ] `bookmark.lifecycle` 取消分页和缩略图并释放上下文
   - 目标：List switches, collapse, unmount and backend disposal abort stale loads and release thumbnail contexts.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-e2e`
-  - 备注：Visible batches abort and release on replacement/unmount, while real Chromium covers list switches; backend disposal and collapsed request-count evidence remain pending.
+  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-stale`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`
+  - 备注：Visible batches abort and use list-scoped rotating context IDs; compact/empty transitions and unmount release the active lease without allowing a late DELETE or registration response to affect the next scope. Backend disposal and a dedicated 10K corpus remain pending.
 - [x] `bookmark.shell` 保持共享 Card shell 行为
   - 目标：Bookmark remains independently lazy, hideable, collapsible, movable, resizable and window-capable.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
@@ -3446,8 +3446,8 @@
 - [ ] `bookmark.performance` 有界 DOM、可见缩略图与独立 chunk
   - 目标：The Card renders a bounded virtual window, registers only visible thumbnails, performs zero hidden work and stays in an independent deferred chunk.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.chunk`
-  - 备注：Single- and multi-column modes share a bounded virtual row engine, compact mode performs zero thumbnail work, and the 13.57 KiB Card remains deferred; a 10K Chromium request-count run and explicit collapsed-state proof remain pending.
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.bookmark.chunk`
+  - 备注：Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, and the 13.71 KiB Card remains deferred; a 10K Chromium request-count run and visited-page metadata eviction remain pending.
 - [ ] `bookmark.image-stability` 缩略图工作不重挂活动阅读图像
   - 目标：Opening the Card, scrolling thumbnails and switching lists preserve the active Reader media node and asset URL.
   - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/shared/FileListPanel.svelte`
