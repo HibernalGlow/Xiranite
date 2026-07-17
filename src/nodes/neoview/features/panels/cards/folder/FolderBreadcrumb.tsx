@@ -21,6 +21,7 @@ interface FolderBreadcrumbProps {
   path: string
   disabled?: boolean
   loading?: boolean
+  vertical?: boolean
   canGoBack?: boolean
   canGoForward?: boolean
   canGoUp?: boolean
@@ -29,7 +30,7 @@ interface FolderBreadcrumbProps {
   onCopyPath?: (path: string) => Promise<void> | void
 }
 
-export function FolderBreadcrumb({ path, disabled = false, loading = false, canGoBack, canGoForward, canGoUp, onNavigate, onNavigateAction, onCopyPath }: FolderBreadcrumbProps) {
+export function FolderBreadcrumb({ path, disabled = false, loading = false, vertical = false, canGoBack, canGoForward, canGoUp, onNavigate, onNavigateAction, onCopyPath }: FolderBreadcrumbProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -97,8 +98,11 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, canG
   return (
     <div
       ref={containerRef}
-      className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border bg-background px-1"
+      className={vertical
+        ? "flex h-full min-h-32 w-full flex-col items-stretch overflow-y-auto rounded-md border bg-background p-1"
+        : "flex h-8 min-w-0 items-center overflow-hidden rounded-md border bg-background px-1"}
       data-neoview-folder-breadcrumb="true"
+      data-orientation={vertical ? "vertical" : "horizontal"}
       onKeyDownCapture={(event) => {
         if (disabled || loading || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.shiftKey) return
         if (event.target instanceof HTMLElement && event.target.matches("input, textarea, [role='textbox'], [role='menu']")) return
@@ -140,21 +144,21 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, canG
         </form>
       ) : (
         <>
-          <nav aria-label="当前目录" className="flex min-w-0 flex-1 items-center overflow-hidden">
+          <nav aria-label="当前目录" className={vertical ? "flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto" : "flex min-w-0 flex-1 items-center overflow-hidden"}>
             {visible.visible.map((item, index) => {
               const current = item === items.at(-1)
               return (
-                <span key={item.path} className="flex min-w-0 items-center">
-                  {index > 0 || visible.collapsed.length > 0 ? <ChevronRight className="shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
+                <span key={item.path} className={vertical ? "flex min-w-0 flex-col items-stretch" : "flex min-w-0 items-center"}>
+                  {index > 0 || visible.collapsed.length > 0 ? <ChevronRight className={`shrink-0 text-muted-foreground ${vertical ? "mx-auto rotate-90" : ""}`} aria-hidden="true" /> : null}
                   {index === 1 && visible.collapsed.length > 0 ? (
                     <CollapsedSegments items={visible.collapsed} disabled={disabled || loading} onNavigate={onNavigate} />
                   ) : null}
-                  {index === 1 && visible.collapsed.length > 0 ? <ChevronRight className="shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
+                  {index === 1 && visible.collapsed.length > 0 ? <ChevronRight className={`shrink-0 text-muted-foreground ${vertical ? "mx-auto rotate-90" : ""}`} aria-hidden="true" /> : null}
                   <Button
                     type="button"
                     size="sm"
                     variant={current ? "secondary" : "ghost"}
-                    className="h-6 min-w-0 max-w-32 shrink px-1.5 text-xs"
+                    className={`h-6 min-w-0 shrink px-1.5 text-xs ${vertical ? "w-full max-w-none justify-start" : "max-w-32"}`}
                     aria-current={current ? "page" : undefined}
                     disabled={disabled || loading}
                     title={item.path}

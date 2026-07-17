@@ -138,10 +138,24 @@ for (const chunk of [sidebarControlCardChunk, sidebarFloatingControllerChunk]) {
   if (chunk.bytes > 16 * 1024) throw new Error(`NeoView deferred Sidebar Control chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 16 KiB.`)
 }
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
+const folderChromeLayoutChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderChromeLayout\.tsx$/i.test(module)))
+const folderSelectionBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSelectionBar\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
 const directoryWatchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]DirectoryWatch\.tsx$/i.test(module)))
 if (!folderMainChunk) throw new Error("NeoView FolderMainCard deferred chunk is missing.")
+if (!folderChromeLayoutChunk || folderChromeLayoutChunk === folderMainChunk) {
+  throw new Error("NeoView FolderChromeLayout did not produce a second-level deferred production chunk.")
+}
+if (folderChromeLayoutChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView FolderChromeLayout chunk ${folderChromeLayoutChunk.fileName} is ${folderChromeLayoutChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!folderSelectionBarChunk || folderSelectionBarChunk === folderMainChunk) {
+  throw new Error("NeoView FolderSelectionBar did not produce a second-level deferred production chunk.")
+}
+if (folderSelectionBarChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView FolderSelectionBar chunk ${folderSelectionBarChunk.fileName} is ${folderSelectionBarChunk.bytes} bytes, above 8 KiB.`)
+}
 if (!folderSearchChunk || folderSearchChunk === folderMainChunk) {
   throw new Error("NeoView FolderSearchPanel did not produce a second-level deferred production chunk.")
 }

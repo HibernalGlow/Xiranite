@@ -24,9 +24,11 @@ export interface NeoviewFileTreeConfig {
 
 export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
 export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
+export const NEOVIEW_FOLDER_REGION_POSITIONS = ["none", "top", "bottom", "left", "right"] as const
 export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
 export type NeoviewFolderViewMode = typeof NEOVIEW_FOLDER_VIEW_MODES[number]
 export type NeoviewFolderTreeLayout = typeof NEOVIEW_FOLDER_TREE_LAYOUTS[number]
+export type NeoviewFolderRegionPosition = typeof NEOVIEW_FOLDER_REGION_POSITIONS[number]
 export type NeoviewFolderDetailColumn = typeof NEOVIEW_FOLDER_DETAIL_COLUMNS[number]
 
 export interface NeoviewFolderDetailsConfig {
@@ -57,6 +59,10 @@ export interface NeoviewFolderPinnedTab {
 
 export interface NeoviewFolderTabsConfig {
   pinned: NeoviewFolderPinnedTab[]
+  layout: NeoviewFolderRegionPosition
+  width: number
+  breadcrumbPosition: NeoviewFolderRegionPosition
+  toolbarPosition: NeoviewFolderRegionPosition
 }
 
 export interface NeoviewFolderViewConfig {
@@ -278,7 +284,13 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     size: 200,
     pinnedPaths: [],
   },
-  tabs: { pinned: [] },
+  tabs: {
+    pinned: [],
+    layout: "top",
+    width: 160,
+    breadcrumbPosition: "top",
+    toolbarPosition: "top",
+  },
 }
 
 export const DEFAULT_NEOVIEW_FILE_TREE_CONFIG: NeoviewFileTreeConfig = {
@@ -681,11 +693,34 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.tabs !== undefined) {
     const tabs = requireRecord(folder.tabs, "reader folder view patch.tabs")
-    if (Object.keys(tabs).some((key) => key !== "pinned")) throw new Error("reader folder view patch.tabs contains unsupported fields.")
-    if (tabs.pinned === undefined) throw new Error("reader folder view patch.tabs must change pinned.")
-    const pinned = normalizedPinnedTabs(tabs.pinned, "reader folder view patch.tabs.pinned")
-    patch.folderView.tabs = { pinned }
-    toml.tabs = { pinned }
+    const tabKeys = new Set(["pinned", "layout", "width", "breadcrumbPosition", "toolbarPosition"])
+    const unknownTabs = Object.keys(tabs).filter((key) => !tabKeys.has(key))
+    if (unknownTabs.length) throw new Error(`reader folder view patch.tabs contains unsupported fields: ${unknownTabs.join(", ")}.`)
+    const tabPatch: Partial<NeoviewFolderTabsConfig> = {}
+    const tabToml: Record<string, unknown> = {}
+    if (tabs.pinned !== undefined) {
+      tabPatch.pinned = normalizedPinnedTabs(tabs.pinned, "reader folder view patch.tabs.pinned")
+      tabToml.pinned = tabPatch.pinned
+    }
+    if (tabs.layout !== undefined) {
+      tabPatch.layout = optionalEnum(tabs.layout, "reader folder view patch.tabs.layout", NEOVIEW_FOLDER_REGION_POSITIONS)
+      tabToml.layout = tabPatch.layout
+    }
+    if (tabs.width !== undefined) {
+      tabPatch.width = boundedInteger(tabs.width, 100, 400, "reader folder view patch.tabs.width")
+      tabToml.width = tabPatch.width
+    }
+    if (tabs.breadcrumbPosition !== undefined) {
+      tabPatch.breadcrumbPosition = optionalEnum(tabs.breadcrumbPosition, "reader folder view patch.tabs.breadcrumbPosition", NEOVIEW_FOLDER_REGION_POSITIONS)
+      tabToml.breadcrumb_position = tabPatch.breadcrumbPosition
+    }
+    if (tabs.toolbarPosition !== undefined) {
+      tabPatch.toolbarPosition = optionalEnum(tabs.toolbarPosition, "reader folder view patch.tabs.toolbarPosition", NEOVIEW_FOLDER_REGION_POSITIONS)
+      tabToml.toolbar_position = tabPatch.toolbarPosition
+    }
+    if (!Object.keys(tabPatch).length) throw new Error("reader folder view patch.tabs must change at least one field.")
+    patch.folderView.tabs = tabPatch
+    toml.tabs = tabToml
   }
   if (!Object.keys(patch.folderView).length) throw new Error("reader folder view patch must change at least one field.")
   return { patch, tomlPatch: { folder: toml } }
@@ -748,6 +783,15 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     },
     tabs: {
       pinned: normalizedPinnedTabs(tabs?.pinned ?? [], "[nodes.neoview.folder.tabs].pinned"),
+      layout: optionalEnum(tabs?.layout, "[nodes.neoview.folder.tabs].layout", NEOVIEW_FOLDER_REGION_POSITIONS)
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tabs.layout,
+      width: tabs?.width === undefined
+        ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tabs.width
+        : boundedInteger(tabs.width, 100, 400, "[nodes.neoview.folder.tabs].width"),
+      breadcrumbPosition: optionalEnum(tabs?.breadcrumb_position, "[nodes.neoview.folder.tabs].breadcrumb_position", NEOVIEW_FOLDER_REGION_POSITIONS)
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tabs.breadcrumbPosition,
+      toolbarPosition: optionalEnum(tabs?.toolbar_position, "[nodes.neoview.folder.tabs].toolbar_position", NEOVIEW_FOLDER_REGION_POSITIONS)
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tabs.toolbarPosition,
     },
   }
 }

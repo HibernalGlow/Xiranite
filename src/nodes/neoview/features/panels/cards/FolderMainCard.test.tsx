@@ -240,6 +240,51 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-restored")
   })
 
+  it("[neoview.folder.tabs-layout-ui] persists five-way nested layout and commits vertical width once", async () => {
+    const opened = page({ entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }], total: 1 })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const onFolderView = vi.fn(async () => undefined)
+    const layout = (overrides: Partial<NonNullable<ReaderFolderViewConfig["tabs"]>> = {}) => ({
+      pinned: [], layout: "top" as const, width: 160, breadcrumbPosition: "top" as const, toolbarPosition: "top" as const, ...overrides,
+    })
+    const renderCard = (tabs: NonNullable<ReaderFolderViewConfig["tabs"]>) => (
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} folderView={folderViewConfig({ tabs })} onFolderView={onFolderView} />
+      </VirtuosoMockContext.Provider>
+    )
+    const view = render(renderCard(layout()))
+    const ui = within(view.container)
+    await ui.findByTitle("C:/books/book.cbz")
+
+    fireEvent.pointerDown(ui.getByRole("button", { name: "标签栏布局设置" }), { button: 0, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("button", { name: "标签栏位置：左侧" }))
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ tabs: { layout: "left" } }))
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull())
+
+    view.rerender(renderCard(layout({ layout: "left" })))
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-layout="left"]')).toBeTruthy())
+    expect(view.container.querySelector('[data-folder-tab-position="left"]')).toBeTruthy()
+    const separator = ui.getByRole("separator", { name: "调整标签栏宽度" })
+    onFolderView.mockClear()
+    fireEvent.pointerDown(separator, { pointerId: 7, clientX: 100 })
+    fireEvent.pointerMove(separator, { pointerId: 7, clientX: 180 })
+    expect(view.container.querySelector<HTMLElement>('[data-folder-tab-layout="left"]')?.style.width).toBe("240px")
+    expect(onFolderView).not.toHaveBeenCalled()
+    fireEvent.pointerUp(separator, { pointerId: 7, clientX: 180 })
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledTimes(1))
+    expect(onFolderView).toHaveBeenCalledWith({ tabs: { width: 240 } })
+
+    view.rerender(renderCard(layout({ layout: "none", width: 240, breadcrumbPosition: "right", toolbarPosition: "bottom" })))
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-layout="none"]')).toBeTruthy())
+    expect(ui.queryByRole("tab", { name: "books" })).toBeNull()
+    expect(ui.getByRole("button", { name: "标签栏布局设置" })).toBeTruthy()
+    expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"]')?.getAttribute("data-orientation")).toBe("vertical")
+    expect((view.container.querySelector('[data-folder-layout-region="toolbar"]') as HTMLElement).style.order).toBe("2")
+  })
+
   it("[neoview.folder.tabs-pinned-restore] restores persisted pins beside one unpinned working tab", async () => {
     const client = {
       openDirectoryBrowser: vi.fn(async (path: string) => page({ sessionId: `browser-${path.at(-1)}`, path })),
@@ -548,6 +593,7 @@ describe("FolderMainCard", () => {
     expect(item(3).getAttribute("aria-selected")).toBe("true")
 
     fireEvent.click(currentView.getByLabelText("多选模式"))
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-selection-bar="true"]')).toBeTruthy())
     expect(currentView.getByText("2").closest('[data-neoview-folder-selection-bar="true"]')).toBeTruthy()
     fireEvent.click(currentView.getByLabelText("选择全部项目"))
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("4")

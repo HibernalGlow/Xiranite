@@ -381,7 +381,13 @@ export interface ReaderFolderPinnedTab {
 
 export interface ReaderFolderTabsConfig {
   pinned: ReaderFolderPinnedTab[]
+  layout: ReaderFolderRegionPosition
+  width: number
+  breadcrumbPosition: ReaderFolderRegionPosition
+  toolbarPosition: ReaderFolderRegionPosition
 }
+
+export type ReaderFolderRegionPosition = "none" | "top" | "bottom" | "left" | "right"
 
 export interface ReaderFolderViewConfig {
   homePath: string

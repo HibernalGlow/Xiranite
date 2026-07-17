@@ -1282,6 +1282,76 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
   }
 })
 
+test("[neoview.folder.tabs-layout-e2e] persists nested folder chrome without changing current-directory listing semantics", async ({ page }) => {
+  const resetLayout = async () => fetch(`${backend.url}/reader/config`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+    body: JSON.stringify({ folderView: { tabs: { layout: "top", width: 160, breadcrumbPosition: "top", toolbarPosition: "top" } } }),
+  })
+  expect((await resetLayout()).status).toBe(200)
+  try {
+    let layoutPatches = 0
+    page.on("request", (request) => {
+      if (request.url() !== `${backend.url}/reader/config` || request.method() !== "PATCH") return
+      if (request.postData()?.includes('"tabs"')) layoutPatches += 1
+    })
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const image = page.locator("img[data-reader-page-image]").first()
+    await expect(image).toBeVisible()
+    await image.evaluate((element) => element.setAttribute("data-folder-layout-image-instance", "stable"))
+
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    await expect(folderCard).toBeVisible()
+    const chooseLayout = async (name: string) => {
+      const settings = folderCard.getByRole("button", { name: "标签栏布局设置" })
+      await settings.focus()
+      await settings.press("Enter")
+      await page.getByRole("button", { name }).click()
+      await expect(page.getByRole("menu")).toHaveCount(0)
+    }
+    await chooseLayout("标签栏位置：左侧")
+    await chooseLayout("面包屑位置：右侧")
+    await chooseLayout("工具栏位置：底部")
+
+    await expect(folderCard).toHaveAttribute("data-folder-tab-position", "left")
+    await expect(folderCard).toHaveAttribute("data-folder-breadcrumb-position", "right")
+    await expect(folderCard).toHaveAttribute("data-folder-toolbar-position", "bottom")
+    await expect(folderCard.locator('[data-neoview-folder-breadcrumb="true"]')).toHaveAttribute("data-orientation", "vertical")
+    await expect(folderCard.locator('[data-folder-layout-region="toolbar"]')).toHaveCSS("order", "2")
+
+    const separator = folderCard.getByRole("separator", { name: "调整标签栏宽度" })
+    await separator.hover()
+    const box = await separator.boundingBox()
+    expect(box).toBeTruthy()
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    await page.mouse.down()
+    for (let offset = 4; offset <= 40; offset += 4) await page.mouse.move(box!.x + box!.width / 2 + offset, box!.y + box!.height / 2)
+    expect(layoutPatches).toBe(3)
+    await page.mouse.up()
+    await expect.poll(() => layoutPatches).toBe(4)
+    await expect(folderCard.locator('[data-folder-tab-layout="left"]')).toHaveCSS("width", "200px")
+
+    const persisted = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+    expect(persisted).toMatch(/\[nodes\.neoview\.folder\.tabs\][\s\S]*layout = "left"/)
+    expect(persisted).toMatch(/\[nodes\.neoview\.folder\.tabs\][\s\S]*width = 200/)
+    expect(persisted).toMatch(/\[nodes\.neoview\.folder\.tabs\][\s\S]*breadcrumb_position = "right"/)
+    expect(persisted).toMatch(/\[nodes\.neoview\.folder\.tabs\][\s\S]*toolbar_position = "bottom"/)
+    await expect(folderCard.getByText("recursive-result.png", { exact: true })).toHaveCount(0)
+    expect(await image.getAttribute("data-folder-layout-image-instance")).toBe("stable")
+    const cardBox = await folderCard.boundingBox()
+    expect(cardBox!.x).toBeGreaterThanOrEqual(0)
+    expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1)
+  } finally {
+    await resetLayout().catch(() => undefined)
+  }
+})
+
 test("[neoview.time-information.e2e] renders source-aware archive times in the real Reader", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }

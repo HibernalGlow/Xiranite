@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Home, Link, List, ListTree, Lock, MoreHorizontal, MousePointer2, PanelsTopLeft, RefreshCw, Rows3, Search, Square, SquareX, Star, TableProperties, Unlock, X } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, Star, TableProperties, Unlock } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,7 @@ import type {
   ReaderDirectorySortSourceDto,
   ReaderFolderViewMode,
   ReaderFolderViewConfig,
+  ReaderFolderRegionPosition,
   ReaderFolderTreeLayout,
 } from "../../../adapters/reader-http-client"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../adapters/reader-http-client"
@@ -119,7 +120,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     searchInPath: false,
   },
   tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
-  tabs: { pinned: [] },
+  tabs: { pinned: [], layout: "top", width: 160, breadcrumbPosition: "top", toolbarPosition: "top" },
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
@@ -128,6 +129,8 @@ const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
 const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
 const FolderTabsHost = lazy(() => import("./folder/FolderTabsHost"))
+const FolderChromeLayout = lazy(() => import("./folder/FolderChromeLayout"))
+const FolderSelectionBar = lazy(() => import("./folder/FolderSelectionBar"))
 
 export interface SavedDirectoryState {
   total?: number
@@ -153,7 +156,9 @@ export interface FolderBrowserCloneSnapshot {
 export type FolderBrowserCloneProvider = (close?: boolean) => Promise<FolderBrowserCloneSnapshot | undefined>
 
 export default function FolderMainCard(context: ReaderPanelContext) {
-  const folderView = context.folderView ?? DEFAULT_FOLDER_VIEW
+  const folderView = context.folderView
+    ? { ...context.folderView, tabs: context.folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs }
+    : DEFAULT_FOLDER_VIEW
   return (
     <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
       <FolderTabsHost context={context} folderView={folderView} BrowserPane={FolderBrowserPane} />
@@ -788,12 +793,16 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const loadedCount = catalog ? [...catalog.pages.values()].reduce((total, entries) => total + entries.length, 0) : 0
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
   const virtualKey = catalog ? `${catalog.sessionId}:${catalog.generation}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
+  const tabLayout = folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs!
 
   return (
     <div
-      className="grid min-h-0 gap-2"
+      className="flex min-h-0 min-w-0 gap-2"
       data-neoview-folder-card={active ? "true" : undefined}
       data-neoview-folder-pane="true"
+      data-folder-breadcrumb-position={tabLayout.breadcrumbPosition}
+      data-folder-toolbar-position={tabLayout.toolbarPosition}
+      data-folder-tab-position={tabLayout.layout}
       data-selection-count={selectedCount}
       data-selection-total={catalog?.total ?? 0}
       data-selection-ranges={selection.ranges.length}
@@ -807,7 +816,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         }
       }}
     >
-      {tabBar}
       {catalog?.watching && client.watchDirectoryBrowser ? (
         <Suspense fallback={null}>
           <DirectoryWatch
@@ -820,20 +828,31 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           />
         </Suspense>
       ) : null}
-      <Suspense fallback={<div className="h-8 rounded-md border bg-background" aria-label="正在加载路径导航" />}>
-        <FolderBreadcrumb
-          path={catalog?.path ?? sourcePath ?? ""}
-          disabled={disabled}
-          loading={loading}
-          canGoBack={catalog?.canGoBack}
-          canGoForward={catalog?.canGoForward}
-          canGoUp={Boolean(catalog?.parentPath)}
-          onNavigate={(path) => { void navigate({ action: "path", path }) }}
-          onNavigateAction={(action) => { void navigate({ action }) }}
-          onCopyPath={systemActions?.copyText}
-        />
-      </Suspense>
-      <div className="grid gap-1">
+      <Suspense fallback={<div className="min-h-0 min-w-0 flex-1" aria-label="正在加载文件浏览布局" />}>
+        <FolderChromeLayout
+          layout={tabLayout}
+          tabBar={tabBar}
+          breadcrumb={(
+            <Suspense fallback={<div className="h-8 rounded-md border bg-background" aria-label="正在加载路径导航" />}>
+            <FolderBreadcrumb
+              path={catalog?.path ?? sourcePath ?? ""}
+              disabled={disabled}
+              loading={loading}
+              vertical={isVerticalRegion(tabLayout.breadcrumbPosition)}
+              canGoBack={catalog?.canGoBack}
+              canGoForward={catalog?.canGoForward}
+              canGoUp={Boolean(catalog?.parentPath)}
+              onNavigate={(path) => { void navigate({ action: "path", path }) }}
+              onNavigateAction={(action) => { void navigate({ action }) }}
+              onCopyPath={systemActions?.copyText}
+            />
+            </Suspense>
+          )}
+        >
+      <div
+        className="contents"
+        data-folder-chrome-slot="toolbar"
+      >
         <div className="flex min-w-0 items-center gap-1">
           <BrowserButton label="后退" disabled={!catalog?.canGoBack || loading} onClick={() => void navigate({ action: "back" })}><ArrowLeft /></BrowserButton>
           <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
@@ -991,71 +1010,30 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           </div>
         ) : null}
       </div>
+      <div className="contents" data-folder-chrome-slot="content">
       {catalog && multiSelectMode ? (
-        <div
-          className="flex min-w-0 items-center gap-1 border-y px-1 py-1"
-          data-neoview-folder-selection-bar="true"
-        >
-          <span className="min-w-[4.5rem] text-xs font-medium tabular-nums">
-            <span className="text-primary">{selectedCount}</span> / {catalog.total}
-          </span>
-          <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto">
-            <BrowserButton
-              label="选择全部项目"
-              disabled={selectedCount === catalog.total}
-              onClick={() => setSelection(selectAllDirectoryEntries(catalog.generation))}
-            >
-              <CheckSquare />
-            </BrowserButton>
-            <BrowserButton
-              label="反转选择状态"
-              disabled={catalog.total === 0}
-              onClick={() => setSelection((current) => invertDirectorySelection(current, catalog.generation))}
-            >
-              <Square />
-            </BrowserButton>
-            <BrowserButton
-              label="链接选中模式"
-              active={chainSelectMode}
-              onClick={() => {
-                chainAnchorIndexRef.current = undefined
-                setChainSelectMode((current) => !current)
-              }}
-            >
-              <Link />
-            </BrowserButton>
-            <Button
-              type="button"
-              size="sm"
-              variant={checkModeClickBehavior === "select" ? "default" : "ghost"}
-              className="h-7 gap-1 px-2 text-xs"
-              aria-label={`点击行为：${checkModeClickBehavior === "select" ? "点选" : "点开"}`}
-              title={`点击卡片会${checkModeClickBehavior === "select" ? "选中或取消选中" : "打开项目"}`}
-              onClick={() => setCheckModeClickBehavior((current) => current === "open" ? "select" : "open")}
-            >
-              <MousePointer2 />
-              {checkModeClickBehavior === "select" ? "点选" : "点开"}
-            </Button>
-            <BrowserButton
-              label="取消全部选择"
-              disabled={selectedCount === 0}
-              onClick={() => setSelection(createDirectorySelection(catalog.generation))}
-            >
-              <SquareX />
-            </BrowserButton>
-            <BrowserButton
-              label="关闭多选模式"
-              onClick={() => {
-                setSelection(createDirectorySelection(catalog.generation))
-                chainAnchorIndexRef.current = undefined
-                setChainSelectMode(false)
-                setMultiSelectMode(false)
-              }}
-            >
-              <X />
-            </BrowserButton>
-          </div>
-        </div>
+        <Suspense fallback={<div className="h-9 border-y" aria-label="正在加载选择操作" />}>
+          <FolderSelectionBar
+            selectedCount={selectedCount}
+            total={catalog.total}
+            chainSelectMode={chainSelectMode}
+            clickBehavior={checkModeClickBehavior}
+            onSelectAll={() => setSelection(selectAllDirectoryEntries(catalog.generation))}
+            onInvert={() => setSelection((current) => invertDirectorySelection(current, catalog.generation))}
+            onToggleChain={() => {
+              chainAnchorIndexRef.current = undefined
+              setChainSelectMode((current) => !current)
+            }}
+            onToggleClickBehavior={() => setCheckModeClickBehavior((current) => current === "open" ? "select" : "open")}
+            onClear={() => setSelection(createDirectorySelection(catalog.generation))}
+            onClose={() => {
+              setSelection(createDirectorySelection(catalog.generation))
+              chainAnchorIndexRef.current = undefined
+              setChainSelectMode(false)
+              setMultiSelectMode(false)
+            }}
+          />
+        </Suspense>
       ) : null}
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div
@@ -1218,6 +1196,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         {!catalog ? <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div> : null}
         </div>
       </div>
+      </div>
+        </FolderChromeLayout>
+      </Suspense>
     </div>
   )
 }
@@ -1361,6 +1342,10 @@ function isEditableKeyboardEvent(event: ReactKeyboardEvent<HTMLElement>): boolea
   const target = event.target
   if (!(target instanceof HTMLElement)) return false
   return target.isContentEditable || target.matches("input, textarea, select, [role='textbox'], [role='menu'], [role='dialog']")
+}
+
+function isVerticalRegion(position: ReaderFolderRegionPosition): boolean {
+  return position === "left" || position === "right"
 }
 
 function isAbortError(error: unknown): boolean {

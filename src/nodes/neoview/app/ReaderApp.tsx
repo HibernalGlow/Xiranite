@@ -73,7 +73,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
     searchInPath: false,
   },
   tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
-  tabs: { pinned: [] },
+  tabs: { pinned: [], layout: "top", width: 160, breadcrumbPosition: "top", toolbarPosition: "top" },
 }
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {
@@ -429,7 +429,7 @@ export function ReaderApp({
         ...patch.tree,
       },
       tabs: {
-        ...(folderViewRef.current.tabs ?? { pinned: [] }),
+        ...(folderViewRef.current.tabs ?? DEFAULT_FOLDER_VIEW.tabs),
         ...patch.tabs,
       },
     }

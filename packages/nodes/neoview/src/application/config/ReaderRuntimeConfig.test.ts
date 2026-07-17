@@ -128,7 +128,13 @@ describe("parseNeoviewRuntimeConfig", () => {
       preview_count: 9,
       thumbnail_width_percent: 34,
       banner_width_percent: 70,
-      tabs: { pinned: [{ path: "D:/Books", title: "Books" }, { path: "D:/Books", title: "Books copy" }] },
+      tabs: {
+        pinned: [{ path: "D:/Books", title: "Books" }, { path: "D:/Books", title: "Books copy" }],
+        layout: "right",
+        width: 240,
+        breadcrumb_position: "left",
+        toolbar_position: "bottom",
+      },
       tree_view: { visible: true, layout: "right", size: 260, pinned_paths: ["D:\\Pinned", "d:/pinned"] },
       details: {
         column_order: ["name", "rating", "path"],
@@ -155,7 +161,13 @@ describe("parseNeoviewRuntimeConfig", () => {
       },
       search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
       tree: { visible: true, layout: "right", size: 260, pinnedPaths: ["D:\\Pinned"] },
-      tabs: { pinned: [{ path: "D:/Books", title: "Books" }, { path: "D:/Books", title: "Books copy" }] },
+      tabs: {
+        pinned: [{ path: "D:/Books", title: "Books" }, { path: "D:/Books", title: "Books copy" }],
+        layout: "right",
+        width: 240,
+        breadcrumbPosition: "left",
+        toolbarPosition: "bottom",
+      },
     })
     expect(parseNeoviewFolderViewPatch({ folderView: {
       homePath: " E:/Library ",
@@ -209,6 +221,12 @@ describe("parseNeoviewRuntimeConfig", () => {
       search_in_path: true,
     } } }).folderView.search).toEqual({ includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true })
     expect(parseNeoviewRuntimeConfig(undefined).folderView.homePath).toBe("")
+    expect(parseNeoviewFolderViewPatch({ folderView: { tabs: {
+      layout: "left", width: 220, breadcrumbPosition: "bottom", toolbarPosition: "right",
+    } } })).toEqual({
+      patch: { folderView: { tabs: { layout: "left", width: 220, breadcrumbPosition: "bottom", toolbarPosition: "right" } } },
+      tomlPatch: { folder: { tabs: { layout: "left", width: 220, breadcrumb_position: "bottom", toolbar_position: "right" } } },
+    })
     expect(parseNeoviewFolderViewPatch({ folderView: { homePath: "" } })).toEqual({
       patch: { folderView: { homePath: "" } },
       tomlPatch: { folder: { home_path: "" } },
@@ -230,9 +248,14 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { future: true } } })).toThrow("unsupported fields")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { pinnedPaths: Array(65).fill("D:/Books") } } })).toThrow("at most 64")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tree: { pinnedPaths: [""] } } })).toThrow("invalid path")
-    expect(parseNeoviewRuntimeConfig(undefined).folderView.tabs).toEqual({ pinned: [] })
+    expect(parseNeoviewRuntimeConfig(undefined).folderView.tabs).toEqual({
+      pinned: [], layout: "top", width: 160, breadcrumbPosition: "top", toolbarPosition: "top",
+    })
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tabs: { pinned: Array(8).fill({ path: "D:/Books", title: "Books" }) } } })).toThrow("at most 7")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { tabs: { pinned: [{ path: "D:/Books", title: "" }] } } })).toThrow("1 to 256")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { tabs: { layout: "center" } } })).toThrow("layout")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { tabs: { width: 99 } } })).toThrow("between 100 and 400")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { tabs: { future: true } } })).toThrow("unsupported fields")
   })
 
   it("[neoview.folder.tree-config] keeps persistent exclusions in the node TOML contract", () => {

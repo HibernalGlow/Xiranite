@@ -317,6 +317,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         activeTabId={activeTabId}
         disabled={context.disabled}
         maxTabs={MAX_FOLDER_TABS}
+        layout={folderView.tabs!}
         onActivate={activateTab}
         onCreate={createTab}
         onDuplicate={(id) => { void duplicateTab(id) }}
@@ -327,6 +328,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         onCloseRight={(id) => { void closeTabs(id, "right") }}
         recentlyClosed={recentlyClosed.map((item) => ({ id: item.id, title: item.source.title, currentPath: item.source.currentPath }))}
         onReopen={(id) => { void reopenTab(id) }}
+        onLayoutChange={(tabs) => { void context.onFolderView?.({ tabs }) }}
       />
     </Suspense>
   )
