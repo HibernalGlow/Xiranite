@@ -42,7 +42,7 @@ describe("Reader library cards", () => {
     await waitFor(() => expect(removeRecent).toHaveBeenCalledWith("book-1"))
   })
 
-  it("[neoview.history.thumbnail-visible] [neoview.history.selection] registers the virtual window, selects a range and sends one batch removal", async () => {
+  it("[neoview.history.thumbnail-visible] [neoview.history.views] [neoview.history.selection] reuses four entry surfaces and sends one batch removal", async () => {
     const recents = [recent("one"), recent("two"), recent("three")]
     const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number) => ({
       contextId,
@@ -65,6 +65,10 @@ describe("Reader library cards", () => {
       />,
     )
 
+    await screen.findByText("one.cbz")
+    expect(registerLibraryThumbnails).not.toHaveBeenCalled()
+    expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("compact")
+    fireEvent.click(screen.getByRole("button", { name: "内容" }))
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
       expect.stringMatching(/^history:/),
       1,
@@ -72,6 +76,15 @@ describe("Reader library cards", () => {
       expect.any(AbortSignal),
     ))
     await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(3))
+    expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("content")
+    fireEvent.click(screen.getByRole("button", { name: "横幅" }))
+    await waitFor(() => expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("banner"))
+    expect(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns")).toBe("2")
+    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    await waitFor(() => expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("thumbnail"))
+    expect(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns")).toBe("3")
+    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    await waitFor(() => expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("content"))
     fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!)
     fireEvent.click(view.container.querySelector('[data-history-row-button="2"]')!, { shiftKey: true })
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("3")

@@ -1,20 +1,22 @@
-import { BookOpen, Trash2, X } from "lucide-react"
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
+import { BookOpen, GalleryHorizontalEnd, Grid2X2, List, Rows3, Trash2, X } from "lucide-react"
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { cn } from "@/lib/utils"
 import type { ReaderRecentDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
 import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
+import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 
 interface PendingDelete {
   ids: readonly string[]
   batch: boolean
 }
+
+type HistoryViewMode = "compact" | "content" | "banner" | "thumbnail"
 
 export default function HistoryListCard({ client, disabled, onOpen }: ReaderPanelContext) {
   const [revision, setRevision] = useState(0)
@@ -23,13 +25,14 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
   const [visibleRecents, setVisibleRecents] = useState<readonly ReaderRecentDto[]>([])
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>()
+  const [viewMode, setViewMode] = useState<HistoryViewMode>("compact")
   const anchorIndexRef = useRef<number>()
-  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => visibleRecents.map((item) => ({
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" ? [] : visibleRecents.map((item) => ({
     id: item.bookId,
     path: item.source.path,
     kind: item.source.kind === "directory" ? "folder" : "file",
     previewCount: item.source.kind === "directory" ? 4 : 1,
-  })), [visibleRecents])
+  })), [viewMode, visibleRecents])
   const thumbnails = useReaderLibraryThumbnails(client, "history", thumbnailItems)
 
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
@@ -97,7 +100,13 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
   }
 
   return (
-    <div className="grid min-h-0 gap-2" data-neoview-history-card="true" data-selection-count={selectedIds.size}>
+    <div className="grid min-h-0 gap-2" data-neoview-history-card="true" data-selection-count={selectedIds.size} data-history-view-mode={viewMode}>
+      <div className="flex items-center gap-1" role="group" aria-label="历史记录视图">
+        <HistoryViewButton label="列表" mode="compact" current={viewMode} onChange={setViewMode}><List /></HistoryViewButton>
+        <HistoryViewButton label="内容" mode="content" current={viewMode} onChange={setViewMode}><Rows3 /></HistoryViewButton>
+        <HistoryViewButton label="横幅" mode="banner" current={viewMode} onChange={setViewMode}><GalleryHorizontalEnd /></HistoryViewButton>
+        <HistoryViewButton label="缩略图" mode="thumbnail" current={viewMode} onChange={setViewMode}><Grid2X2 /></HistoryViewButton>
+      </div>
       {selectedIds.size ? (
         <div className="flex min-w-0 items-center gap-1 rounded border bg-muted/30 px-2 py-1" aria-label="历史记录选择操作">
           <span className="mr-auto text-xs tabular-nums">已选 {selectedIds.size} 项</span>
@@ -122,7 +131,9 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
         loadPage={loadPage}
         emptyLabel="暂无阅读历史"
         refreshLabel="刷新历史记录"
-        itemSize={76}
+        itemSize={viewMode === "compact" ? 34 : viewMode === "content" ? 76 : viewMode === "banner" ? 100 : 148}
+        columns={viewMode === "banner" ? 2 : viewMode === "thumbnail" ? 3 : 1}
+        gap={viewMode === "banner" || viewMode === "thumbnail" ? 4 : 0}
         getItemKey={(item) => item.bookId}
         onVisibleItemsChange={setVisibleRecents}
         onItemsChange={handleLoadedItems}
@@ -130,6 +141,7 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
           <HistoryRow
             item={item}
             index={index}
+            viewMode={viewMode}
             selected={selectedIds.has(item.bookId)}
             disabled={disabled}
             canOpen={Boolean(onOpen)}
@@ -158,9 +170,10 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
   )
 }
 
-function HistoryRow({ item, index, selected, disabled, canOpen, thumbnailUrl, thumbnailLoading, onSelect, onOpen, onRemove }: {
+function HistoryRow({ item, index, viewMode, selected, disabled, canOpen, thumbnailUrl, thumbnailLoading, onSelect, onOpen, onRemove }: {
   item: ReaderRecentDto
   index: number
+  viewMode: HistoryViewMode
   selected: boolean
   disabled: boolean
   canOpen: boolean
@@ -197,29 +210,53 @@ function HistoryRow({ item, index, selected, disabled, canOpen, thumbnailUrl, th
   const progressPage = Math.min(item.pageIndex + 1, item.pageCount)
   const kind = item.source.kind === "directory" ? "folder" : "file"
   return (
-    <div className={cn("flex h-full min-w-0 items-center gap-1 px-1 hover:bg-muted/70", selected && "bg-primary/10")} data-history-id={item.bookId} data-selected={selected}>
-      <Checkbox checked={selected} aria-label={`选择历史记录：${item.displayName}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} />
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-        title={item.source.path}
-        aria-pressed={selected}
-        disabled={disabled}
-        data-history-row-button={index}
-        onClick={(event) => onSelect(item, index, event)}
-        onDoubleClick={canOpen ? onOpen : undefined}
-        onKeyDown={handleKeyDown}
-      >
-        <ReaderThumbnailSurface url={thumbnailUrl} kind={kind} fit="cover" loading={thumbnailLoading} className="size-16" />
-        <span className="grid min-w-0 flex-1 gap-1">
-          <span className="block truncate text-xs">{item.displayName}</span>
-          <span className="block truncate text-[10px] text-muted-foreground" title={item.source.path}>{item.source.path}</span>
-          <span className="block truncate text-[10px] tabular-nums text-muted-foreground">第 {progressPage} / {item.pageCount} 页 · {formatLibraryTime(item.updatedAt)}</span>
+    <ReaderEntrySurface
+      variant={viewMode}
+      selected={selected}
+      data-history-id={item.bookId}
+      leading={viewMode === "compact" || viewMode === "content" ? <Checkbox checked={selected} aria-label={`选择历史记录：${item.displayName}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
+      media={viewMode === "compact" ? undefined : (
+        <ReaderThumbnailSurface
+          url={thumbnailUrl}
+          kind={kind}
+          fit="cover"
+          loading={thumbnailLoading}
+          className={viewMode === "content" ? "size-16" : "size-full rounded-none"}
+        />
+      )}
+      primary={item.displayName}
+      secondary={viewMode === "thumbnail" ? undefined : <span title={item.source.path}>{item.source.path}</span>}
+      tertiary={viewMode === "content" || viewMode === "banner" ? `第 ${progressPage} / ${item.pageCount} 页 · ${formatLibraryTime(item.updatedAt)}` : undefined}
+      buttonProps={{
+        title: item.source.path,
+        "aria-pressed": selected,
+        disabled,
+        "data-history-row-button": index,
+        onClick: (event) => onSelect(item, index, event),
+        onDoubleClick: canOpen ? onOpen : undefined,
+        onKeyDown: handleKeyDown,
+      }}
+      trailing={viewMode === "compact" || viewMode === "content" ? (
+        <span className="flex shrink-0 items-center">
+          <Button type="button" size="icon-sm" variant="ghost" aria-label={`继续阅读：${item.displayName}`} title="继续阅读" disabled={disabled || !canOpen} onClick={onOpen}><BookOpen /></Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label={`删除历史：${item.displayName}`} title="删除历史" disabled={disabled} onClick={onRemove}><Trash2 /></Button>
         </span>
-      </button>
-      <Button type="button" size="icon-sm" variant="ghost" aria-label={`继续阅读：${item.displayName}`} title="继续阅读" disabled={disabled || !canOpen} onClick={onOpen}><BookOpen /></Button>
-      <Button type="button" size="icon-sm" variant="ghost" aria-label={`删除历史：${item.displayName}`} title="删除历史" disabled={disabled} onClick={onRemove}><Trash2 /></Button>
-    </div>
+      ) : undefined}
+    />
+  )
+}
+
+function HistoryViewButton({ label, mode, current, onChange, children }: {
+  label: string
+  mode: HistoryViewMode
+  current: HistoryViewMode
+  onChange(mode: HistoryViewMode): void
+  children: ReactNode
+}) {
+  return (
+    <Button type="button" size="icon-sm" variant={mode === current ? "default" : "ghost"} aria-label={label} title={label} aria-pressed={mode === current} onClick={() => onChange(mode)}>
+      {children}
+    </Button>
   )
 }
 
