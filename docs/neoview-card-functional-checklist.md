@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=39`，`complete=10`，`pending=25`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=39`，`complete=11`，`pending=24`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -533,11 +533,11 @@
   - 源码：`stores/folderTabStore/tabManagement.svelte.ts`
   - 测试：`neoview.folder.tabs-navigation-history`、`neoview.folder.tabs-navigation-history-e2e`
   - 备注：FolderTabsHost 使用最多 8 项的去重 MRU 访问栈；创建和显式切换记录访问，关闭任意标签同步移除记录，关闭活动标签优先激活仍存在的最近访问项，仅在历史无有效项时回退到数组邻居。访问栈保存在 ref 中，不触发普通目录 list/grid/details 或独立 Folder Tree 的额外渲染。单元与 desktop/420x360 Chromium 均使用 A/C/B 标签顺序、A→C 访问后关闭 C 的反例，证明结果回到 A 而非数组邻居 B，同时保持三条 browser session、关闭 DELETE 和活动阅读图片身份稳定。FolderTabsHost 二级延迟 chunk 为 2,668 bytes。
-- [ ] `folder.tabs.layout` 标签栏/工具栏/面包屑布局
+- [x] `folder.tabs.layout` 标签栏/工具栏/面包屑布局
   - 目标：标签栏布局以及工具栏、面包屑位置可配置并持久化，窄侧栏下保持原版密度和溢出行为。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/layoutSettings.svelte.ts`
-  - 测试：待补
-  - 备注：纳入截图与几何验收。
+  - 测试：`neoview.folder.tabs-layout-config`、`neoview.folder.tabs-layout-ui`、`neoview.folder.tabs-layout-e2e`
+  - 备注：标签栏、面包屑和工具栏分别支持 none/top/bottom/left/right，纵向标签栏宽度限制为 100..400px；拖动期间只更新 DOM，结束时单次 PATCH 写入 [nodes.neoview.folder.tabs]。layout=none 时保留 28px 布局设置按钮，作为旧版完全隐藏后难以恢复的明确替代契约。Folder Tree 仍是独立层级导航，普通 list/grid/details 只展示当前目录直接子项，不注入磁盘根、树层级或递归结果。desktop 与 420x360 Chromium 验证三次位置 PATCH、一次宽度 PATCH、TOML 持久化、窄视口几何、递归子项缺席及活动阅读图片不重挂。生产 chunk 为 FolderMainCard 32,444 bytes、FolderChromeLayout 1,758 bytes、FolderSelectionBar 1,876 bytes、FolderTabBar 7,160 bytes；NeoView entry 29,866 bytes，首屏 NeoView 模块为 0。
 
 ### view（4）
 
