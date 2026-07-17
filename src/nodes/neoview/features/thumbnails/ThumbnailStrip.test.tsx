@@ -13,6 +13,7 @@ describe("ThumbnailStrip", () => {
     }))
     const client = clientWith({ listPages })
     const onSelect = vi.fn()
+    const onPinnedChange = vi.fn()
     const view = render(
       <ThumbnailStrip
         sessionId="reader-1"
@@ -21,6 +22,8 @@ describe("ThumbnailStrip", () => {
         currentPages={[page(0)]}
         client={client}
         compact={false}
+        pinned={false}
+        onPinnedChange={onPinnedChange}
         onSelect={onSelect}
       />,
     )
@@ -32,6 +35,14 @@ describe("ThumbnailStrip", () => {
     expect(view.container.querySelectorAll("img").length).toBeLessThanOrEqual(24)
     fireEvent.click(screen.getByRole("button", { name: "转到第 5 页：005.jpg" }))
     expect(onSelect).toHaveBeenCalledWith(4)
+    fireEvent.click(screen.getByRole("button", { name: "钉住底栏" }))
+    expect(onPinnedChange).toHaveBeenCalledWith(true)
+    fireEvent.click(screen.getByRole("button", { name: "显示页码" }))
+    expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(0)
+    fireEvent.click(screen.getByRole("button", { name: "显示区域参考线" }))
+    expect(view.container.querySelector('[data-reader-area-guide="true"]')).not.toBeNull()
+    fireEvent.change(screen.getByRole("slider", { name: "阅读进度" }), { target: { value: "8" } })
+    expect(onSelect).toHaveBeenCalledWith(8)
   })
 
   it("[neoview.thumbnail.react-list] falls back without creating a second image transport", async () => {

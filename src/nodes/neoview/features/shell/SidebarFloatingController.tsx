@@ -120,7 +120,7 @@ export function SidebarFloatingController({
       aria-label="侧栏控制器"
       data-layer="SidebarControlLayer"
       data-layer-id="sidebar-control"
-      className="pointer-events-auto absolute z-[85] flex items-center gap-0.5 rounded border border-border/70 bg-background/85 p-1 shadow-lg backdrop-blur-md"
+      className="pointer-events-auto absolute z-[65] flex items-center gap-0.5 rounded border border-border/70 bg-background/85 p-1 shadow-lg backdrop-blur-md"
       style={{ left: position.x, top: position.y }}
     >
       <Button

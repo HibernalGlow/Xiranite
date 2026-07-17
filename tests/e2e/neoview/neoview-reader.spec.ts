@@ -1,5 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { basename, join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { expect, test } from "@playwright/test"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
@@ -1700,7 +1700,7 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
-  await page.locator('[data-reader-edge="top"] button').first().click()
+  await page.getByRole("button", { name: "打开书籍" }).click()
   const image = page.locator("img[data-reader-page-image]").first()
   await expect(image).toBeVisible()
   const assetUrl = await image.getAttribute("src")
@@ -1734,7 +1734,55 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
     await expect(chrome).toBeVisible()
     expect(await chrome.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
   }
+  const topChrome = page.locator('[data-reader-edge-chrome="top"]')
+  const windowBar = topChrome.locator('[data-reader-window-bar="true"]')
+  const breadcrumbBar = topChrome.locator('[data-reader-breadcrumb-bar="true"]')
+  const breadcrumbPath = breadcrumbBar.locator('[data-reader-breadcrumb-path="true"]')
+  await expect(windowBar).toBeVisible()
+  await expect(breadcrumbBar).toBeVisible()
+  const fixtureName = basename(fixture.path)
+  await expect(windowBar).not.toContainText(fixtureName)
+  await expect(breadcrumbBar).toContainText(fixtureName)
+  const windowBarBox = await windowBar.boundingBox()
+  const breadcrumbBarBox = await breadcrumbBar.boundingBox()
+  expect(windowBarBox).not.toBeNull()
+  expect(breadcrumbBarBox).not.toBeNull()
+  expect(breadcrumbBarBox!.y).toBeGreaterThanOrEqual(windowBarBox!.y + windowBarBox!.height - 1)
+  const breadcrumbPathBox = await breadcrumbPath.boundingBox()
+  expect(breadcrumbPathBox).not.toBeNull()
+  expect(Math.abs(
+    breadcrumbPathBox!.x + breadcrumbPathBox!.width / 2
+      - (breadcrumbBarBox!.x + breadcrumbBarBox!.width / 2),
+  )).toBeLessThanOrEqual(2)
+  await topChrome.getByRole("button", { name: "展开缩放设置" }).click()
+  await expect(topChrome.locator('[data-reader-toolbar-panel="zoom"]')).toBeVisible()
+  await topChrome.getByRole("button", { name: "展开旋转设置" }).click()
+  await expect(topChrome.locator('[data-reader-toolbar-panel="zoom"]')).toHaveCount(0)
+  await expect(topChrome.locator('[data-reader-toolbar-panel="rotate"]')).toBeVisible()
+
+  const bottomChrome = page.locator('[data-reader-edge-chrome="bottom"]')
+  const bottomControls = bottomChrome.locator('[data-reader-bottom-controls="true"]')
+  await expect(bottomControls.getByRole("button", { name: "显示页码" })).toBeVisible()
+  await expect(bottomControls.getByRole("button", { name: "显示区域参考线" })).toBeVisible()
+  await expect(bottomControls.getByRole("button", { name: "显示边栏触发区" })).toBeVisible()
+  await expect(bottomControls.getByRole("button", { name: "进度条荧光" })).toBeVisible()
+  await expect(bottomChrome.getByRole("slider", { name: "阅读进度" })).toHaveValue("0")
+  const pageNumberButton = bottomControls.getByRole("button", { name: "显示页码" })
+  if (testInfo.project.name === "chromium-card") {
+    await pageNumberButton.evaluate((element: HTMLButtonElement) => element.click())
+  } else {
+    await pageNumberButton.click()
+  }
+  await expect(bottomControls.getByRole("button", { name: "显示页码" })).toHaveAttribute("aria-pressed", "false")
   await page.screenshot({ path: testInfo.outputPath(`neoview-four-edge-shell-${testInfo.project.name}.png`) })
+  await topChrome.getByRole("button", { name: "展开旋转设置" }).click()
+  await expect(topChrome.locator('[data-reader-toolbar-row="expanded"]')).toHaveCount(0)
+  const hideTopResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"top":{"pinned":false,"lockMode":"locked-hidden"}') === true)
+  await card.getByRole("combobox", { name: "上边锁定模式" }).selectOption("locked-hidden")
+  expect((await hideTopResponse).status()).toBe(200)
+  await expect(page.locator('[data-reader-edge="top"]')).toBeHidden()
 
   const floating = page.locator('[data-layer-id="sidebar-control"]')
   await expect(floating).toBeVisible()
@@ -1751,6 +1799,24 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   await card.getByRole("switch", { name: "启用浮动控制器" }).click()
   expect((await enableResponse).status()).toBe(200)
   await expect(floating).toBeVisible()
+
+  const hideLeftForDragResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"left"') === true
+    && response.request().postData()?.includes('"lockMode":"locked-hidden"') === true)
+  await card.getByRole("combobox", { name: "左边锁定模式" }).selectOption("locked-hidden")
+  expect((await hideLeftForDragResponse).status()).toBe(200)
+  await expect(page.locator('[data-reader-sidebar="left"]')).toBeHidden()
+  const hideRightForDragResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"right"') === true
+    && response.request().postData()?.includes('"lockMode":"locked-hidden"') === true)
+  await card.getByRole("combobox", { name: "右边锁定模式" }).selectOption("locked-hidden")
+  expect((await hideRightForDragResponse).status()).toBe(200)
+  await expect(rightSidebar).toBeHidden()
+
+  const floatingRightButton = floating.getByRole("button", { name: /^右侧边栏：/ })
+  await expect(floatingRightButton).toHaveAttribute("aria-pressed", "false")
 
   let positionPatches = 0
   page.on("request", (request) => {
@@ -1770,12 +1836,28 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   expect((await dragResponse).status()).toBe(200)
   expect(positionPatches).toBe(1)
 
+  const reopenRightResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"right"') === true
+    && response.request().postData()?.includes('"lockMode":"locked-open"') === true)
+  await floating.getByRole("button", { name: "右侧边锁定模式" }).click()
+  await page.getByRole("menuitemradio", { name: "锁定展开" }).click()
+  expect((await reopenRightResponse).status()).toBe(200)
+  await expect(floatingRightButton).toHaveAttribute("aria-pressed", "true")
+  await expect(rightSidebar).toBeVisible()
+
+  const unlockLeftResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"left"') === true
+    && response.request().postData()?.includes('"lockMode":"auto"') === true)
+  await card.getByRole("combobox", { name: "左边锁定模式" }).selectOption("auto")
+  expect((await unlockLeftResponse).status()).toBe(200)
   const lockResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"
     && response.request().postData()?.includes('"lockMode":"locked-hidden"') === true)
   await card.getByRole("combobox", { name: "左边锁定模式" }).selectOption("locked-hidden")
   expect((await lockResponse).status()).toBe(200)
-  await expect(page.locator('[data-reader-edge="left"]')).toHaveCount(0)
+  await expect(page.locator('[data-reader-edge="left"]')).toBeHidden()
 
   const triggerResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"

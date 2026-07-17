@@ -1,5 +1,7 @@
 import { startTransition, useEffect, useRef, useState } from "react"
+import { Grid3X3, Hash, Pin, PinOff, Sparkles, Target } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "./ReaderThumbnailSurface"
@@ -17,6 +19,8 @@ export interface ThumbnailStripProps {
   client: ReaderHttpClient
   compact: boolean
   disabled?: boolean
+  pinned?: boolean
+  onPinnedChange?(pinned: boolean): void
   onSelect(pageIndex: number): void | Promise<void>
 }
 
@@ -33,6 +37,8 @@ export function ThumbnailStrip({
   client,
   compact,
   disabled = false,
+  pinned = false,
+  onPinnedChange,
   onSelect,
 }: ThumbnailStripProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -40,6 +46,10 @@ export function ThumbnailStrip({
   const pagesRef = useRef(new Map<number, ReaderPageDto>())
   const requestsRef = useRef(new Map<number, AbortController>())
   const [pages, setPages] = useState(() => new Map<number, ReaderPageDto>())
+  const [showPageNumbers, setShowPageNumbers] = useState(true)
+  const [showAreaGuide, setShowAreaGuide] = useState(false)
+  const [showEdgeGuide, setShowEdgeGuide] = useState(false)
+  const [progressGlow, setProgressGlow] = useState(true)
   const [renderWindow, setRenderWindow] = useState<RenderWindow>(() => ({
     start: 0,
     end: Math.min(totalPages, INITIAL_ITEMS),
@@ -129,6 +139,7 @@ export function ThumbnailStrip({
         index={index}
         page={pages.get(index)}
         active={index === activePageIndex}
+        showPageNumber={showPageNumbers}
         disabled={disabled}
         onSelect={onSelect}
       />,
@@ -136,18 +147,44 @@ export function ThumbnailStrip({
   }
 
   return (
-    <div
-      ref={viewportRef}
-      aria-label="页面缩略图"
-      className={cn(
-        "shrink-0 overflow-x-auto overflow-y-hidden bg-muted/15 px-1 py-1.5",
-        compact ? "h-[clamp(84px,24vh,124px)]" : "h-[clamp(104px,25vh,176px)]",
-      )}
-      data-testid="neoview-thumbnail-viewport"
-    >
-      <div className="relative h-full" style={{ width: totalPages * ITEM_SIZE }}>
-        {items}
+    <div className="relative" data-reader-bottom-bar="true">
+      <div className="flex min-h-10 items-center justify-center gap-1.5 border-b border-border/45 px-2 py-1" data-reader-bottom-controls="true">
+        <Button type="button" size="sm" variant={pinned ? "default" : "ghost"} aria-label={pinned ? "取消钉住底栏" : "钉住底栏"} aria-pressed={pinned} disabled={!onPinnedChange} onClick={() => onPinnedChange?.(!pinned)}>
+          {pinned ? <Pin /> : <PinOff />}<span className="text-xs">{pinned ? "已钉住" : "钉住"}</span>
+        </Button>
+        <Button type="button" size="sm" variant={showPageNumbers ? "default" : "ghost"} aria-label="显示页码" aria-pressed={showPageNumbers} onClick={() => setShowPageNumbers((value) => !value)}><Hash /><span className="text-xs">页码</span></Button>
+        <Button type="button" size="sm" variant={showAreaGuide ? "default" : "ghost"} aria-label="显示区域参考线" aria-pressed={showAreaGuide} onClick={() => setShowAreaGuide((value) => !value)}><Grid3X3 /><span className="text-xs">区域</span></Button>
+        <Button type="button" size="sm" variant={showEdgeGuide ? "default" : "ghost"} aria-label="显示边栏触发区" aria-pressed={showEdgeGuide} onClick={() => setShowEdgeGuide((value) => !value)}><Target /><span className="text-xs">边栏</span></Button>
+        <Button type="button" size="sm" variant={progressGlow ? "default" : "ghost"} aria-label="进度条荧光" aria-pressed={progressGlow} onClick={() => setProgressGlow((value) => !value)}><Sparkles /><span className="text-xs">荧光</span></Button>
       </div>
+      <div
+        ref={viewportRef}
+        aria-label="页面缩略图"
+        className={cn(
+          "relative shrink-0 overflow-x-auto overflow-y-hidden bg-muted/15 px-1 py-1.5",
+          compact ? "h-[clamp(84px,24vh,124px)]" : "h-[clamp(104px,25vh,176px)]",
+        )}
+        data-testid="neoview-thumbnail-viewport"
+      >
+        <div className="relative h-full" style={{ width: totalPages * ITEM_SIZE }}>
+          {items}
+        </div>
+        {showAreaGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-45" data-reader-area-guide="true">{Array.from({ length: 9 }, (_, index) => <span key={index} className="border border-primary/50" />)}</div> : null}
+        {showEdgeGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 border-4 border-primary/55" data-reader-edge-guide="true" /> : null}
+      </div>
+      <label className="sr-only" htmlFor={`neoview-bottom-progress-${sessionId}`}>阅读进度</label>
+      <input
+        id={`neoview-bottom-progress-${sessionId}`}
+        type="range"
+        aria-label="阅读进度"
+        className={cn("block h-2 w-full cursor-pointer accent-primary", progressGlow && "drop-shadow-[0_0_5px_color-mix(in_oklch,var(--primary)_75%,transparent)]")}
+        min={0}
+        max={Math.max(0, totalPages - 1)}
+        step={1}
+        value={Math.min(activePageIndex, Math.max(0, totalPages - 1))}
+        disabled={disabled || totalPages < 2}
+        onChange={(event) => void onSelect(Number(event.currentTarget.value))}
+      />
     </div>
   )
 }
@@ -156,12 +193,14 @@ function ThumbnailTile({
   index,
   page,
   active,
+  showPageNumber,
   disabled,
   onSelect,
 }: {
   index: number
   page?: ReaderPageDto
   active: boolean
+  showPageNumber: boolean
   disabled: boolean
   onSelect(pageIndex: number): void | Promise<void>
 }) {
@@ -180,9 +219,7 @@ function ThumbnailTile({
       style={{ transform: `translateX(${index * ITEM_SIZE + 2}px)` }}
     >
       <ReaderThumbnailSurface url={thumbnailUrl} kind="page" fit="contain" className="size-full rounded-none bg-black/90" />
-      <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-0.5 text-center text-[10px] tabular-nums">
-        {index + 1}
-      </span>
+      {showPageNumber ? <span className="absolute inset-x-0 bottom-0 bg-primary/85 px-1 py-0.5 text-center text-[10px] tabular-nums text-primary-foreground">{index + 1}</span> : null}
     </button>
   )
 }

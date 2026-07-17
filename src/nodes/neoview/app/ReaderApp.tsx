@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Settings2, X } from "lucide-react"
+import { BookOpen, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
@@ -45,6 +45,7 @@ import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloa
 import { ReaderControlledEdgeShell, type ReaderControlledEdgeSlot } from "../features/shell/ReaderControlledEdgeShell"
 import { createReaderShellControlStore, type ReaderShellControlHydration, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
 import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
+import { ReaderWindowBar } from "../features/shell/ReaderWindowBar"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
 
@@ -662,6 +663,7 @@ export function ReaderApp({
 
   const compact = surface.mode === "collapsed" || surface.mode === "compact" || surface.mode === "portrait"
   const frame = session?.frame
+  const pathSegments = readerPathSegments(path)
   useReaderAdjacentPagePreloader({
     client,
     sessionId: session?.sessionId,
@@ -677,33 +679,35 @@ export function ReaderApp({
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
       <div
-        className={cn("border-b border-border/55 bg-background/94 text-foreground shadow-[0_10px_30px_rgb(0_0_0/0.22)] backdrop-blur-xl", floatingFrame && "xiranite-app-region-drag")}
+        className="border-b border-border/55 bg-background/94 text-foreground shadow-[0_10px_30px_rgb(0_0_0/0.22)] backdrop-blur-xl"
         data-reader-edge-chrome="top"
         style={edgeSurfaceStyle(shell, "top")}
-        onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}
       >
-        <div className={cn("flex min-h-11 items-center gap-1.5 border-b border-border/45", compact ? "px-2" : "px-3")}>
-          <BookOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <Input
-            aria-label="漫画、图片或目录路径"
-            className="xiranite-app-region-no-drag h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 text-xs shadow-none hover:border-border/55 focus-visible:border-border"
-            value={path}
-            placeholder="选择 CBZ、ZIP、图片或目录"
-            onChange={(event) => setPath(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.stopPropagation()
-                void openPath()
-              }
-            }}
-          />
-          {pickFile ? <Button className="xiranite-app-region-no-drag" aria-label="选择漫画或图片文件" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
-          {pickDirectory ? <Button className="xiranite-app-region-no-drag" aria-label="选择图片目录" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
-          <Button className="xiranite-app-region-no-drag" aria-label="打开书籍" type="button" size={compact ? "icon-sm" : "sm"} onClick={() => void openPath()} disabled={!path.trim() || busy}>
-            {busy && !session ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
-            {compact ? null : "打开"}
-          </Button>
-          <Button className="xiranite-app-region-no-drag" aria-label="打开 NeoView 设置" type="button" size="icon-sm" variant="ghost" disabled={!shell} onClick={() => setSettingsOpen(true)}><Settings2 /></Button><FloatingWindowCaptionControls integrated />
+        <div className={cn(floatingFrame && "xiranite-app-region-drag")} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}>
+          <ReaderWindowBar control={shellControl} disabled={!shell} onOpenSettings={() => setSettingsOpen(true)} windowControls={<FloatingWindowCaptionControls integrated />} />
+        </div>
+        <div className={cn("xiranite-app-region-no-drag min-h-11 border-b border-border/45", compact ? "px-2" : "px-3")} data-reader-breadcrumb-bar="true">
+          {session ? (
+            <div className="grid min-h-11 grid-cols-[minmax(3.5rem,1fr)_minmax(0,3fr)_minmax(3.5rem,1fr)] items-center gap-1.5">
+              <Button className="justify-self-start" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
+              <nav className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-center" aria-label="当前书籍路径" data-reader-breadcrumb-path="true">
+                {pathSegments.map((segment, index) => (
+                  <span className="contents" key={`${segment}-${index}`}>
+                    {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" aria-hidden="true" /> : null}
+                    <span className={cn("truncate text-xs", index === pathSegments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{segment}</span>
+                  </span>
+                ))}
+              </nav>
+              <span className="justify-self-end text-[11px] tabular-nums text-muted-foreground">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
+            </div>
+          ) : (
+            <div className="flex min-h-11 items-center gap-1.5">
+              <Input aria-label="漫画、图片或目录路径" className="h-8 min-w-0 flex-1" value={path} placeholder="选择 CBZ、ZIP、图片或目录" onChange={(event) => setPath(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); void openPath() } }} />
+              {pickFile ? <Button aria-label="选择漫画或图片文件" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
+              {pickDirectory ? <Button aria-label="选择图片目录" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
+              <Button aria-label="打开书籍" type="button" size={compact ? "icon-sm" : "sm"} onClick={() => void openPath()} disabled={!path.trim() || busy}>{busy ? <LoaderCircle className="animate-spin" /> : <BookOpen />}{compact ? null : "打开"}</Button>
+            </div>
+          )}
         </div>
         {session ? (
           <Suspense fallback={null}>
@@ -734,29 +738,18 @@ export function ReaderApp({
         data-reader-edge-chrome="bottom"
         style={edgeSurfaceStyle(shell, "bottom")}
       >
-        <div className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/45 px-3 py-1.5">
-          <div className="min-w-0 truncate text-[11px] text-muted-foreground" title={session.book.displayName}>{session.book.displayName}</div>
-          <div className="flex shrink-0 items-center gap-1.5 rounded-md bg-muted/35 p-1">
-            <Button aria-label="上一页" type="button" size="icon-sm" variant="outline" disabled={busy || frame?.atStart} onClick={() => void navigate("previous")}><ChevronLeft /></Button>
-            <span className="min-w-16 text-center text-xs tabular-nums text-muted-foreground">
-              {(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}
-            </span>
-            <Button aria-label="下一页" type="button" size="icon-sm" variant="outline" disabled={busy || frame?.atEnd} onClick={() => void navigate("next")}><ChevronRight /></Button>
-          </div>
-          <Button className="justify-self-end" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
-        </div>
-        {session.book.pageCount > 1 ? (
-          <ThumbnailStrip
-            sessionId={session.sessionId}
-            totalPages={session.book.pageCount}
-            activePageIndex={session.frame.anchorPageIndex}
-            currentPages={session.visiblePages}
-            client={client}
-            compact={compact}
-            disabled={busy}
-            onSelect={goTo}
-          />
-        ) : null}
+        <ThumbnailStrip
+          sessionId={session.sessionId}
+          totalPages={session.book.pageCount}
+          activePageIndex={session.frame.anchorPageIndex}
+          currentPages={session.visiblePages}
+          client={client}
+          compact={compact}
+          disabled={busy}
+          pinned={shell?.edges.bottom.pinned ?? false}
+          onPinnedChange={(pinned) => shellControl.setPinned("bottom", pinned)}
+          onSelect={goTo}
+        />
       </div>
     ),
   } : undefined
@@ -913,6 +906,11 @@ function edgeSurfaceStyle(shell: ReaderShellConfigDto | undefined, edge: "top" |
     backgroundColor: `color-mix(in oklch, var(--background) ${shell.opacity[edge]}%, transparent)`,
     backdropFilter: `blur(${shell.blur[edge]}px)`,
   }
+}
+
+function readerPathSegments(path: string): string[] {
+  const segments = path.split(/[\\/]+/).filter(Boolean)
+  return segments.length ? segments : ["未选择"]
 }
 
 function applyNavigation(session: ReaderSessionDto, navigation: ReaderNavigationDto): ReaderSessionDto {
