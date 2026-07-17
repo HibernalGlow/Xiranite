@@ -191,6 +191,7 @@ export default function FolderDetailsView({
               onScroll={(event) => onScrollTopChange?.(event.scrollTop)}
               onRowClick={(row, event) => { if (!disabled) onSelect(row.entry, row.index, event) }}
               onRowDoubleClick={(row) => { if (!disabled) onActivate(row.entry) }}
+              getRowDataAttributes={folderDetailsContextAttributes}
             >
               {showReturnFooter ? (
                 <FolderDetailsReturnFooter
@@ -204,6 +205,17 @@ export default function FolderDetailsView({
       </DataTableRoot>
     </div>
   )
+}
+
+export function folderDetailsContextAttributes(row: DirectoryDetailsRow) {
+  return {
+    "data-context-menu": "neoview-folder-entry",
+    "data-folder-index": row.index,
+    "data-folder-path": row.entry.path,
+    "data-folder-name": row.entry.name,
+    "data-folder-kind": row.entry.kind,
+    "data-folder-reader-supported": row.entry.readerSupported,
+  } as const
 }
 
 export function folderDetailsRowSelection(

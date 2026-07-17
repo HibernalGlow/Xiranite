@@ -68,6 +68,7 @@ import {
   directorySelectionCount,
   extendDirectorySelection,
   invertDirectorySelection,
+  isDirectoryIndexSelected,
   rebaseDirectorySelection,
   selectedLoadedDirectoryPaths,
   selectAllDirectoryEntries,
@@ -144,6 +145,7 @@ const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
 const FolderTabsHost = lazy(() => import("./folder/FolderTabsHost"))
 const FolderChromeLayout = lazy(() => import("./folder/FolderChromeLayout"))
 const FolderSelectionBar = lazy(() => import("./folder/FolderSelectionBar"))
+const FolderContextActions = lazy(() => import("./folder/FolderContextActions"))
 
 export interface SavedDirectoryState {
   total?: number
@@ -183,7 +185,7 @@ export default function FolderMainCard(context: ReaderPanelContext) {
   )
 }
 
-function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, onCurrentPathChange, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; onCurrentPathChange(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
   const pendingInitialCloneRef = useRef(initialClone)
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
@@ -260,9 +262,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
 
   useEffect(() => {
-    if (!catalog || !viewUsesThumbnails(viewMode)) return
+    if (!active || !catalog || !viewUsesThumbnails(viewMode)) return
     registerVisibleThumbnails()
-  }, [catalog?.sessionId, catalog?.generation, viewMode, previewCount])
+  }, [active, catalog?.sessionId, catalog?.generation, viewMode, previewCount])
 
   useEffect(() => {
     if (!catalog || viewMode !== "details") return
@@ -770,7 +772,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index: nextIndex, align: "center" })
   }
 
-  function activate(entry: ReaderDirectoryEntryDto) {
+  function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "path" | "readerSupported">) {
     if (entry.kind === "directory") void navigate({ action: "path", path: entry.path })
     else if (entry.readerSupported) void onOpen?.(entry.path)
   }
@@ -836,8 +838,27 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       data-selection-total={catalog?.total ?? 0}
       data-selection-ranges={selection.ranges.length}
       data-selection-all={selection.allSelected || undefined}
+      onContextMenuCapture={(event) => {
+        const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-context-menu="neoview-folder-entry"]') : null
+        const index = Number(target?.dataset.folderIndex)
+        const path = target?.dataset.folderPath
+        if (!catalog || !path || !Number.isSafeInteger(index) || isDirectoryIndexSelected(selection, index, path)) return
+        focusedIndexRef.current = index
+        setFocusedIndex(index)
+        setFocusedPath(path)
+        setSelection(selectDirectorySingle(catalog.generation, path, index))
+      }}
       onKeyDownCapture={(event) => {
         if (isEditableKeyboardEvent(event)) return
+        if ((event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) && focusedIndex !== undefined) {
+          const target = listHostRef.current?.querySelector<HTMLElement>(`[data-folder-index="${focusedIndex}"]`)
+          if (target) {
+            event.preventDefault()
+            event.stopPropagation()
+            target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))
+          }
+          return
+        }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
           event.preventDefault()
           event.stopPropagation()
@@ -845,7 +866,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         }
       }}
     >
-      {catalog?.watching && client.watchDirectoryBrowser ? (
+      {active && catalog?.watching && client.watchDirectoryBrowser ? (
         <Suspense fallback={null}>
           <DirectoryWatch
             client={client}
@@ -854,6 +875,18 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             focusPath={focusedPath}
             onPage={(page) => { void applyWatchedPage(page) }}
             onError={(cause) => setError(`目录监听失败：${folderErrorMessage(cause)}`)}
+          />
+        </Suspense>
+      ) : null}
+      {active ? (
+        <Suspense fallback={null}>
+          <FolderContextActions
+            client={client}
+            disabled={disabled || loading}
+            copyText={systemActions?.copyText}
+            onActivate={activate}
+            onOpenInNewTab={onOpenInNewTab}
+            onOpenAsBook={onOpen}
           />
         </Suspense>
       ) : null}
@@ -1085,7 +1118,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                 client={client}
                 sessionId={sessionIdRef.current}
                 currentPath={catalog.path}
-                watching={catalog.watching}
+                watching={active && catalog.watching}
                 disabled={disabled || loading}
                 layout={treeLayout}
                 size={treeSize}
@@ -1265,6 +1298,12 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
       tabIndex={-1}
       data-preview-mode={visualMode}
       data-folder-entry="true"
+      data-context-menu="neoview-folder-entry"
+      data-folder-index={index}
+      data-folder-path={entry.path}
+      data-folder-name={entry.name}
+      data-folder-kind={entry.kind}
+      data-folder-reader-supported={entry.readerSupported}
     >
       {rich ? (
         <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30">
@@ -1296,6 +1335,12 @@ function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused
       tabIndex={-1}
       data-preview-mode={visualMode}
       data-folder-entry="true"
+      data-context-menu="neoview-folder-entry"
+      data-folder-index={index}
+      data-folder-path={entry.path}
+      data-folder-name={entry.name}
+      data-folder-kind={entry.kind}
+      data-folder-reader-supported={entry.readerSupported}
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
         {thumbnailUrl
@@ -1328,6 +1373,12 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
       tabIndex={-1}
       data-preview-mode={visualMode}
       data-folder-entry="true"
+      data-context-menu="neoview-folder-entry"
+      data-folder-index={index}
+      data-folder-path={entry.path}
+      data-folder-name={entry.name}
+      data-folder-kind={entry.kind}
+      data-folder-reader-supported={entry.readerSupported}
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
         {thumbnailUrl

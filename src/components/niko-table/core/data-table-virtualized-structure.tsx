@@ -252,6 +252,7 @@ interface VirtualizedBodyRowProps<TData> {
    * tracked props (e.g. inline edit mode, optimistic state).
    */
   rowMemoKey: string
+  rowDataAttributes?: Record<`data-${string}`, string | number | boolean | undefined>
   /**
    * Right-click menu items for this row. Must be a stable callback so
    * `React.memo` keeps holding. Return `null` to opt a specific row out.
@@ -271,6 +272,7 @@ const VirtualizedBodyRowInner = function VirtualizedBodyRow<TData>({
   onDoubleClick,
   columnLayoutSignature,
   rowMemoKey,
+  rowDataAttributes,
   renderRowContextMenu,
 }: VirtualizedBodyRowProps<TData>) {
   const expandCell =
@@ -301,6 +303,7 @@ const VirtualizedBodyRowInner = function VirtualizedBodyRow<TData>({
 
   const rowElement = (
     <TableRow
+      {...rowDataAttributes}
       ref={setRef}
       data-index={virtualIndex}
       data-row-id={row.id}
@@ -447,6 +450,8 @@ export interface DataTableVirtualizedBodyProps<TData> {
    * getRowMemoKey={(row) => (isEditing(row.id) ? "editing" : "")}
    */
   getRowMemoKey?: (row: TData) => string
+  /** Stable data attributes attached to a loaded row, for delegated behavior such as global context menus. */
+  getRowDataAttributes?: (row: TData) => Record<`data-${string}`, string | number | boolean | undefined>
   /**
    * Attach a native right-click context menu to each row. Return the menu
    * items for the given row, or `null` to give that row no menu. The popup
@@ -472,6 +477,7 @@ export function DataTableVirtualizedBody<TData>({
   onNearEnd,
   prefetchThreshold = 10,
   getRowMemoKey,
+  getRowDataAttributes,
   renderRowContextMenu,
   totalCount,
   getVirtualRowId,
@@ -840,6 +846,7 @@ export function DataTableVirtualizedBody<TData>({
             rowMemoKey={
               getRowMemoKey ? getRowMemoKey(row.original as TData) : ""
             }
+            rowDataAttributes={getRowDataAttributes?.(row.original as TData)}
             renderRowContextMenu={resolvedRenderRowContextMenu}
           />
         )

@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=36`，`complete=16`，`pending=22`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=39`，`complete=16`，`pending=19`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -744,13 +744,13 @@
 - [ ] `folder.op.open` 打开、浏览、新标签与作为书籍打开
   - 目标：按项目类型提供默认打开、浏览文件夹、新标签打开、文件夹作为书籍打开；禁用项和默认动作与原版一致。
   - 源码：`components/FolderContextMenu.svelte`
-  - 测试：`neoview.folder.activate-entry`、`neoview.folder.open-file-location`
-  - 备注：目录导航和受支持文件 onOpen 已接入；browser session 现在接受文件或目录路径，文件路径由平台 fs.stat/realpath 打开父目录并返回稳定 suggestedSelection，Reader 打开 CBZ 后文件浏览器可自动选中当前文件。新标签打开、系统默认动作和文件夹作为书籍的完整菜单仍待完成。
+  - 测试：`neoview.folder.activate-entry`、`neoview.folder.open-file-location`、`neoview.folder.context-actions`、`neoview.folder.context-actions-e2e`
+  - 备注：目录导航和受支持文件 onOpen 已接入；browser session 接受文件或目录路径，文件路径由平台 fs.stat/realpath 打开父目录并返回稳定 suggestedSelection。共享右键菜单现支持目录在当前/新标签打开和作为书籍打开，支持文件由 Reader 或默认软件打开；新标签仍保持独立 browser session。虚拟源特有默认动作与显式 CLI/TUI 命令仍待完成。
 - [ ] `folder.op.system` 系统默认程序与资源管理器定位
   - 目标：通过 platform capability 安全调用系统默认程序和 Explorer/Finder 定位，不在 core 中拼 shell 命令。
   - 源码：`components/FolderContextMenu.svelte`
-  - 测试：待补
-  - 备注：TUI 可暴露命令但需显式确认外部启动。
+  - 测试：`neoview.file-operations.system-http`、`neoview.folder.system-open-client`、`neoview.folder.context-system-open`、`neoview.folder.context-actions-e2e`
+  - 备注：list/grid/details 的同一菜单通过 authenticated /reader/files/open|reveal 调用平台 capability，不在 core 或 React 拼接 shell 命令；缺少宿主能力时动作显式 disabled。CLI 命令、TUI 外部启动确认和真实 Explorer/Finder characterization 仍待完成。
 - [ ] `folder.op.clipboard` 复制、剪切、粘贴
   - 目标：单项/批量复制剪切粘贴，处理冲突、跨卷、取消、进度、部分失败和 watcher 回写。
   - 源码：`components/FolderContextMenu.svelte`、`components/SelectionBar.svelte`
@@ -759,8 +759,8 @@
 - [ ] `folder.op.copy-metadata` 复制路径与名称
   - 目标：复制单项/多项路径或名称，换行格式和通知与原版一致。
   - 源码：`components/FolderContextMenu.svelte`
-  - 测试：待补
-  - 备注：GUI clipboard 走宿主 adapter。
+  - 测试：`neoview.folder.context-actions`、`neoview.folder.context-data`、`neoview.folder.context-actions-e2e`
+  - 备注：GUI 单项复制路径/名称通过宿主 copyText adapter，并提供成功/失败可访问反馈；右键未选中项先按 Explorer 语义聚焦和单选，已在多选中的项保持选择。跨稀疏分页的多项路径/名称投影和 CLI/TUI 仍待完成。
 - [ ] `folder.op.rename` 重命名
   - 目标：内联/弹窗重命名保留扩展名策略、校验、冲突提示、取消和完成后选中项路径更新。
   - 源码：`components/FolderContextMenu.svelte`、`components/FolderListItem.svelte`
@@ -789,8 +789,8 @@
 - [ ] `folder.op.context-menu` 完整右键菜单与可用性规则
   - 目标：菜单分组、图标、快捷键提示、嵌套项、单/多选上下文、虚拟源差异、disabled 与关闭行为尽量保持原版一致。
   - 源码：`components/FolderContextMenu.svelte`
-  - 测试：待补
-  - 备注：UI parity 必须截图和交互测试。
+  - 测试：`neoview.folder.context-actions`、`neoview.folder.context-system-open`、`neoview.folder.context-data`、`neoview.folder.context-actions-e2e`
+  - 备注：list/grid/details 通过 data-only row contract 使用同一全局 builder，保留分组、图标、能力 disabled、项目名称 footer、右键目标选择及 ContextMenu/Shift+F10；desktop/420x360 Chromium 验证新标签、details 键盘菜单和活动阅读图像稳定。批量动作、虚拟源差异、嵌套书签/删除菜单、原版截图与全部快捷键提示仍待完成。
 
 ### emm（3）
 

@@ -40,6 +40,7 @@ export type FolderBrowserPaneProps = ReaderPanelContext & {
   tabBar?: ReactNode
   initialClone?: FolderBrowserCloneSnapshot
   onCurrentPathChange(path: string): void
+  onOpenInNewTab(path: string): void
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
 }
 
@@ -110,6 +111,15 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     const path = folderView.homePath
     tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
     setTabs((current) => [...current, createFolderTab(id, path, folderView)])
+    setActiveTabId(id)
+  }
+
+  function openPathInNewTab(path: string) {
+    if (tabsRef.current.length >= MAX_FOLDER_TABS) return
+    const id = `folder-tab-${++tabSequenceRef.current}`
+    const next = createFolderTab(id, path, folderView)
+    tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
+    setTabs((current) => [...current, next])
     setActiveTabId(id)
   }
 
@@ -337,6 +347,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     <div className="relative min-h-0" data-folder-tab-count={tabs.length}>
       {tabs.map((tab) => {
         const active = tab.id === activeTabId
+        const browserActive = active && context.panelActive !== false
         return (
           <div key={tab.id} className={active ? "contents" : "pointer-events-none invisible absolute inset-0"} aria-hidden={!active || undefined} data-folder-tab-pane={tab.id}>
             <BrowserPane
@@ -344,10 +355,11 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
               sourcePath={tab.sourcePath}
               folderView={{ ...folderView, viewMode: tab.viewMode, previewCount: tab.previewCount }}
               onFolderView={(patch) => updateTabFolderView(tab.id, patch)}
-              active={active}
-              tabBar={active ? tabBar : undefined}
+              active={browserActive}
+              tabBar={browserActive ? tabBar : undefined}
               initialClone={tab.initialClone}
               onCurrentPathChange={(path) => updateTabPath(tab.id, path)}
+              onOpenInNewTab={openPathInNewTab}
               onCloneProvider={(provider) => {
                 if (provider) cloneProvidersRef.current.set(tab.id, provider)
                 else cloneProvidersRef.current.delete(tab.id)

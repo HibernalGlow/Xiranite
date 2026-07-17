@@ -173,6 +173,7 @@ for (const chunk of [sidebarControlCardChunk, sidebarFloatingControllerChunk]) {
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
 const folderChromeLayoutChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderChromeLayout\.tsx$/i.test(module)))
 const folderSelectionBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSelectionBar\.tsx$/i.test(module)))
+const folderContextActionsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderContextActions\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
 const directoryWatchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]DirectoryWatch\.tsx$/i.test(module)))
@@ -188,6 +189,12 @@ if (!folderSelectionBarChunk || folderSelectionBarChunk === folderMainChunk) {
 }
 if (folderSelectionBarChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView FolderSelectionBar chunk ${folderSelectionBarChunk.fileName} is ${folderSelectionBarChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!folderContextActionsChunk || folderContextActionsChunk === folderMainChunk || folderContextActionsChunk === readerSidebarChunk || folderContextActionsChunk === neoViewChunk || folderContextActionsChunk === initialChunk) {
+  throw new Error("NeoView Folder context actions did not produce a second-level deferred production chunk.")
+}
+if (folderContextActionsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Folder context actions chunk ${folderContextActionsChunk.fileName} is ${folderContextActionsChunk.bytes} bytes, above 8 KiB.`)
 }
 if (!folderSearchChunk || folderSearchChunk === folderMainChunk) {
   throw new Error("NeoView FolderSearchPanel did not produce a second-level deferred production chunk.")
@@ -270,6 +277,7 @@ console.log(JSON.stringify({
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },
+  folderContextActionsChunk: { fileName: folderContextActionsChunk.fileName, bytes: folderContextActionsChunk.bytes },
   settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },
   sidebarManagementSettingsCardChunk: { fileName: sidebarManagementSettingsCardChunk.fileName, bytes: sidebarManagementSettingsCardChunk.bytes },
   inputBindingsSettingsCardChunk: { fileName: inputBindingsSettingsCardChunk.fileName, bytes: inputBindingsSettingsCardChunk.bytes },

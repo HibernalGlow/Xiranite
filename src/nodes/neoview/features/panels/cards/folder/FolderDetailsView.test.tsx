@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { DirectoryCatalog } from "./DirectoryCatalog"
-import FolderDetailsView, { folderDetailsRowSelection } from "./FolderDetailsView"
+import FolderDetailsView, { folderDetailsContextAttributes, folderDetailsRowSelection } from "./FolderDetailsView"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader-http-client"
 
 afterEach(cleanup)
@@ -41,6 +41,12 @@ describe("FolderDetailsView", () => {
     expect(tableHost.getAttribute("data-loaded-rows")).toBe("2")
     expect(tableHost.getAttribute("data-total-rows")).toBe("10000")
     expect(tableHost.querySelectorAll("tbody tr").length).toBeLessThan(80)
+    const book = catalog().pages.get(0)![0]!
+    expect(folderDetailsContextAttributes({ index: 0, entry: book })).toMatchObject({
+      "data-context-menu": "neoview-folder-entry",
+      "data-folder-path": "C:/books/book.cbz",
+      "data-folder-index": 0,
+    })
     expect(folderDetailsRowSelection(
       [...catalog().pages.values()].flat().map((entry) => ({ entry })),
       new Set(["C:/books/book.cbz"]),

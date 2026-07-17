@@ -135,6 +135,18 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ path: "D:/books/demo.cbz" })
   })
 
+  it("[neoview.folder.system-open-client] posts a file or directory path to the authenticated default-open route", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.openSystemPath!("D:/books/demo.cbz")
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/files/open")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ path: "D:/books/demo.cbz" })
+  })
+
   it("[neoview.storage-information.diagnostics-client] reads the authenticated shared diagnostics snapshot", async () => {
     const snapshot = { schemaVersion: 1, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
     const fetchMock = vi.fn(async () => Response.json(snapshot))
