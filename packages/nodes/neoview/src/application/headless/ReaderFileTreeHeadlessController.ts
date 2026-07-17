@@ -1,8 +1,8 @@
 import type {
   ReaderDirectoryPage,
-  ReaderDirectoryFilter,
   ReaderFileTreeService,
 } from "../browser/ReaderFileTreeService.js"
+import type { ReaderDirectoryFilter } from "../browser/ReaderDirectoryFilter.js"
 import type {
   ReaderFileTreeExclusionCommand,
   ReaderFileTreeNodePage,

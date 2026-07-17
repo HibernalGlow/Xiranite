@@ -55,6 +55,14 @@ describe("Reader directory filter HTTP", () => {
         entries: [{ name: "B.zip" }],
       })
 
+      const archiveSearch = await readNdjson((await controller.handle(authorized(
+        `/reader/browser/s/${opened.sessionId}/search?q=${encodeURIComponent(".")}`,
+      )))!)
+      expect(archiveSearch[0]).toMatchObject({ type: "meta", filter: "archive" })
+      const archiveNames = archiveSearch.flatMap((event) => event.type === "entry" ? [String((event.entry as { name: string }).name)] : [])
+      expect(archiveNames).toEqual(expect.arrayContaining(["A.cbz", "B.zip", "Nested.cbz"]))
+      expect(archiveNames.every((name) => /\.(?:cbz|zip)$/iu.test(name))).toBe(true)
+
       const navigated = await json(controller, `/reader/browser/s/${opened.sessionId}/navigate`, "POST", { action: "path", path: nested }) as BrowserPage
       expect(navigated).toMatchObject({ filter: "archive", total: 1, entries: [{ name: "Nested.cbz" }] })
 
@@ -88,6 +96,13 @@ describe("Reader directory filter HTTP", () => {
       const opened = await json(controller, "/reader/browser/sessions", "POST", { path: root }, 201) as BrowserPage
       const filtered = await json(controller, `/reader/browser/s/${opened.sessionId}/filter`, "PATCH", { filter: "video" }) as BrowserPage
       expect(filtered).toMatchObject({ total: 1, entries: [{ name: "Custom.clipx" }] })
+      const search = await readNdjson((await controller.handle(authorized(
+        `/reader/browser/s/${opened.sessionId}/search?q=custom`,
+      )))!)
+      expect(search).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: "meta", filter: "video" }),
+        expect.objectContaining({ type: "entry", entry: expect.objectContaining({ name: "Custom.clipx" }) }),
+      ]))
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -120,4 +135,12 @@ async function json(
   }))
   expect(response?.status).toBe(status)
   return response ? response.json() : undefined
+}
+
+function authorized(path: string): Request {
+  return new Request(`http://127.0.0.1:41000${path}`, { headers: { "x-xiranite-token": "filter-token" } })
+}
+
+async function readNdjson(response: Response): Promise<Array<Record<string, unknown>>> {
+  return (await response.text()).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>)
 }

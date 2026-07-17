@@ -45,16 +45,19 @@ import {
   type ReaderFileTreeNodePage,
 } from "./ReaderFileTreeIndex.js"
 import { readerDirectoryListingPayloadBytes, stringPayloadBytes } from "./ReaderDirectoryListingMetrics.js"
+import {
+  assertReaderDirectoryFilter,
+  readerDirectoryEntryMatchesFilter,
+  READER_DIRECTORY_FILTERS,
+  type ReaderDirectoryEntryType,
+  type ReaderDirectoryFilter,
+} from "./ReaderDirectoryFilter.js"
 
 const MAXIMUM_TREE_WATCH_PATHS = 32
 const MAXIMUM_NAVIGATION_HISTORY = 50
 const MAXIMUM_RECENTLY_CLOSED_SESSIONS = 10
 const DEFAULT_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 1024 * 1024
 const MAX_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 64 * 1024 * 1024
-
-export const READER_DIRECTORY_FILTERS = ["all", "archive", "directory", "video"] as const
-export type ReaderDirectoryFilter = typeof READER_DIRECTORY_FILTERS[number]
-export type ReaderDirectoryEntryType = Exclude<ReaderDirectoryFilter, "all"> | "other"
 
 export type ReaderDirectoryNavigation =
   | { action: "path"; path: string; focusPath?: string }
@@ -98,7 +101,7 @@ export interface ReaderFileTreeServiceOptions extends ReaderFileTreeIndexOptions
   directorySizeProvider?: ReaderDirectorySizeProvider
   directorySizeConcurrency?: number
   maxListingPayloadBytesUnderPressure?: number
-  classifyEntry?: (entry: ReaderDirectoryEntry) => ReaderDirectoryEntryType
+  classifyEntry?: (entry: Pick<ReaderDirectoryEntry, "path" | "kind">) => ReaderDirectoryEntryType
 }
 
 export interface ReaderFileTreeMemorySnapshot {
@@ -283,7 +286,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
-    assertDirectoryFilter(filter)
+    assertReaderDirectoryFilter(filter)
     await this.#refreshWatchedSession(session, signal)
     await this.#ensureListing(session, signal)
     signal?.throwIfAborted()
@@ -643,13 +646,14 @@ export class ReaderFileTreeService implements AsyncDisposable {
         id: session.id,
         rootPath: session.listing.path,
         generation: session.generation,
+        filter: session.filter,
       }, query, {
         ...options,
         excludePatterns: [
           ...this.#tree.exclusionPatterns(session.listing.path),
           ...(options?.excludePatterns ?? []),
         ],
-      }, controller.signal)[Symbol.asyncIterator]()
+      }, controller.signal, this.options.classifyEntry)[Symbol.asyncIterator]()
     } catch (error) {
       unlinkAbort()
       throw error
@@ -1317,15 +1321,9 @@ function filteredEntries(
 ): readonly ReaderDirectoryEntry[] {
   if (session.filter === "all") return session.listing.entries
   return session.listing.entries.filter((entry) => {
-    if (session.filter === "directory") return entry.kind === "directory"
-    return classifyEntry?.(entry) === session.filter
+    const type = entry.kind === "directory" ? "directory" : classifyEntry?.(entry) ?? "other"
+    return readerDirectoryEntryMatchesFilter(type, session.filter)
   })
-}
-
-function assertDirectoryFilter(value: string): asserts value is ReaderDirectoryFilter {
-  if (!(READER_DIRECTORY_FILTERS as readonly string[]).includes(value)) {
-    throw new Error(`Reader directory filter is invalid: ${value}`)
-  }
 }
 
 function sortListing(

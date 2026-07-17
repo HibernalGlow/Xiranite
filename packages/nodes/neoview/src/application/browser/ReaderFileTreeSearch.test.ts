@@ -69,6 +69,28 @@ describe("searchReaderFileTree", () => {
     expect(() => searchReaderFileTree(scanner, session, "book", { maximumResults: 10_001 })).toThrow("maximumResults")
     expect(() => searchReaderFileTree(scanner, session, "book", { excludePatterns: Array(65).fill("tmp/") })).toThrow("64")
   })
+
+  it("[neoview.folder.filter-search] applies the session media filter before publishing matches", async () => {
+    const scan = vi.fn(() => scannerOf([
+      entry("Series/Book.cbz"),
+      entry("Series/Book.mp4"),
+      entry("Series/Book.jpg"),
+    ]).scan("/ignored"))
+    const events = await collect(searchReaderFileTree(
+      { scan },
+      { id: "browser-filtered", rootPath: "/library", generation: 4, filter: "archive" },
+      "book",
+      undefined,
+      undefined,
+      (candidate) => candidate.name.endsWith(".cbz") ? "archive" : candidate.name.endsWith(".mp4") ? "video" : "other",
+    ))
+    expect(events).toEqual([
+      { type: "meta", sessionId: "browser-filtered", rootPath: "/library", generation: 4, query: "book", mode: "text", filter: "archive" },
+      { type: "entry", index: 0, entry: entry("Series/Book.cbz") },
+      { type: "complete", scanned: 3, matched: 1, truncated: false },
+    ])
+    expect(scan).toHaveBeenCalledWith("/library", expect.objectContaining({ includeDirectories: false, includeFiles: true }), undefined)
+  })
 })
 
 function scannerOf(entries: readonly ReaderFileTreeEntry[]): ReaderFileTreeScanner {

@@ -1,6 +1,11 @@
 import picomatch from "picomatch"
 
 import type { ReaderFileTreeEntry, ReaderFileTreeScanner } from "../../ports/ReaderFileTreeScanner.js"
+import {
+  readerDirectoryEntryMatchesFilter,
+  type ReaderDirectoryEntryType,
+  type ReaderDirectoryFilter,
+} from "./ReaderDirectoryFilter.js"
 
 export type ReaderFileTreeSearchMode = "text" | "glob"
 export type ReaderFileTreeSearchKind = "all" | "file" | "directory"
@@ -17,7 +22,7 @@ export interface ReaderFileTreeSearchOptions {
 }
 
 export type ReaderFileTreeSearchEvent =
-  | { type: "meta"; sessionId: string; rootPath: string; generation: number; query: string; mode: ReaderFileTreeSearchMode }
+  | { type: "meta"; sessionId: string; rootPath: string; generation: number; query: string; mode: ReaderFileTreeSearchMode; filter?: ReaderDirectoryFilter }
   | { type: "entry"; index: number; entry: ReaderFileTreeEntry }
   | { type: "complete"; scanned: number; matched: number; truncated: boolean }
 
@@ -28,10 +33,11 @@ export interface ReaderFileTreeSearchHandle extends AsyncDisposable {
 
 export function searchReaderFileTree(
   scanner: ReaderFileTreeScanner,
-  session: { id: string; rootPath: string; generation: number },
+  session: { id: string; rootPath: string; generation: number; filter?: ReaderDirectoryFilter },
   query: string,
   options: ReaderFileTreeSearchOptions = {},
   signal?: AbortSignal,
+  classifyEntry?: (entry: ReaderFileTreeEntry) => ReaderDirectoryEntryType,
 ): AsyncIterable<ReaderFileTreeSearchEvent> {
   const normalizedQuery = requireQuery(query)
   const mode = options.mode ?? "text"
@@ -50,26 +56,35 @@ export function searchReaderFileTree(
     maximumEntries,
     maximumResults,
     excludePatterns,
-  }, signal)
+  }, signal, classifyEntry)
 }
 
 async function* search(
   scanner: ReaderFileTreeScanner,
-  session: { id: string; rootPath: string; generation: number },
+  session: { id: string; rootPath: string; generation: number; filter?: ReaderDirectoryFilter },
   query: string,
   mode: ReaderFileTreeSearchMode,
   kind: ReaderFileTreeSearchKind,
   matches: (entry: ReaderFileTreeEntry) => boolean,
   limits: { maximumDepth?: number; maximumEntries: number; maximumResults: number; excludePatterns?: readonly string[] },
   signal?: AbortSignal,
+  classifyEntry?: (entry: ReaderFileTreeEntry) => ReaderDirectoryEntryType,
 ): AsyncIterable<ReaderFileTreeSearchEvent> {
   signal?.throwIfAborted()
-  yield { type: "meta", sessionId: session.id, rootPath: session.rootPath, generation: session.generation, query, mode }
+  yield {
+    type: "meta",
+    sessionId: session.id,
+    rootPath: session.rootPath,
+    generation: session.generation,
+    query,
+    mode,
+    ...(session.filter ? { filter: session.filter } : {}),
+  }
   let scanned = 0
   let matched = 0
   let truncated = false
-  const includeDirectories = kind !== "file"
-  const includeFiles = kind !== "directory"
+  const includeDirectories = kind !== "file" && (session.filter === undefined || session.filter === "all" || session.filter === "directory")
+  const includeFiles = kind !== "directory" && session.filter !== "directory"
   for await (const entry of scanner.scan(session.rootPath, {
     maximumDepth: limits.maximumDepth,
     maximumEntries: limits.maximumEntries,
@@ -81,6 +96,10 @@ async function* search(
   }, signal)) {
     signal?.throwIfAborted()
     scanned += 1
+    if (session.filter && session.filter !== "all") {
+      const type = entry.kind === "directory" ? "directory" : classifyEntry?.(entry) ?? "other"
+      if (!readerDirectoryEntryMatchesFilter(type, session.filter)) continue
+    }
     if (!matches(entry)) continue
     if (matched >= limits.maximumResults) {
       truncated = true

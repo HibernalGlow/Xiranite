@@ -50,10 +50,7 @@ export type {
   ReaderEmmTag,
 } from "./ports/ReaderEmmOverrideStore.js"
 export {
-  READER_DIRECTORY_FILTERS,
   ReaderFileTreeService,
-  type ReaderDirectoryEntryType,
-  type ReaderDirectoryFilter,
   type ReaderDirectoryNavigation,
   type ReaderDirectoryPage,
   type ReaderDirectorySizeBatch,
@@ -61,6 +58,13 @@ export {
   type ReaderDirectorySortPreferenceCommand,
   type ReaderFileTreeServiceOptions,
 } from "./application/browser/ReaderFileTreeService.js"
+export {
+  assertReaderDirectoryFilter,
+  readerDirectoryEntryMatchesFilter,
+  READER_DIRECTORY_FILTERS,
+  type ReaderDirectoryEntryType,
+  type ReaderDirectoryFilter,
+} from "./application/browser/ReaderDirectoryFilter.js"
 export type { ReaderDirectorySize, ReaderDirectorySizeProvider } from "./ports/ReaderDirectorySizeProvider.js"
 export {
   ReaderFileTreeIndex,

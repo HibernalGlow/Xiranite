@@ -37,6 +37,7 @@ describe("ReaderFileTreeHeadlessController", () => {
     await expect(controller.directorySizes(opened.generation, ["/library/nested"]))
       .resolves.toMatchObject({ generation: opened.generation, results: [{ path: "/library/nested", status: "ok", bytes: 42, fileCount: 3 }] })
     await expect(controller.setFilter("directory")).resolves.toMatchObject({ filter: "directory", total: 1 })
+    await expect(controller.setFilter("all")).resolves.toMatchObject({ filter: "all", total: 1 })
     await expect(controller.tree()).resolves.toMatchObject({ sessionId: opened.sessionId, entries: [{ name: "nested" }] })
     const search = controller.search("book")
     const events = []

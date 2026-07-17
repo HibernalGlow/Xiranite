@@ -1,11 +1,11 @@
 import {
   ReaderFileTreeService,
-  READER_DIRECTORY_FILTERS,
   type ReaderFileTreeMemorySnapshot,
   type ReaderDirectoryNavigation,
   type ReaderDirectorySortPreferenceCommand,
   type ReaderFileTreeServiceOptions,
 } from "../../application/browser/ReaderFileTreeService.js"
+import { READER_DIRECTORY_FILTERS } from "../../application/browser/ReaderDirectoryFilter.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
