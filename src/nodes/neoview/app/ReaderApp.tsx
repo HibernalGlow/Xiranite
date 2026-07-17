@@ -23,8 +23,12 @@ import {
   READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
   ReaderHttpError,
   type ReaderHttpClient,
+  type ReaderBookmarkListPreferencesDto,
+  type ReaderHistoryListPreferencesDto,
   type ReaderNavigationDto,
+  type ReaderBookSettingsUpdateDto,
   type ReaderRuntimeConfigDto,
+  type ReaderPageListPreferencesDto,
   type ReaderSessionDto,
   type ReaderShellConfigDto,
   type ReaderSidebarLayoutPatch,
@@ -54,6 +58,16 @@ const INITIAL_VIEW_DEFAULTS = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: "single",
 } satisfies ReaderRuntimeConfigDto["viewDefaults"]
+const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
+  viewMode: "compact",
+}
+const INITIAL_BOOKMARK_LIST_PREFERENCES: ReaderBookmarkListPreferencesDto = {
+  activeListId: "all",
+}
+const INITIAL_PAGE_LIST_PREFERENCES: ReaderPageListPreferencesDto = {
+  viewMode: "list",
+  followProgress: true,
+}
 const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   intervalSeconds: 5,
   loop: false,
@@ -166,6 +180,12 @@ export function ReaderApp({
   const confirmedViewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const viewDefaultsWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const viewDefaultsGenerationRef = useRef(0)
+  const pageListPreferencesRef = useRef<ReaderPageListPreferencesDto>({ ...INITIAL_PAGE_LIST_PREFERENCES })
+  const confirmedPageListPreferencesRef = useRef<ReaderPageListPreferencesDto>({ ...INITIAL_PAGE_LIST_PREFERENCES })
+  const pageListPreferencesWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const pageListPreferencesGenerationRef = useRef(0)
+  const bookmarkListPreferencesGenerationRef = useRef(0)
+  const historyListPreferencesGenerationRef = useRef(0)
   const slideshowConfigRef = useRef<ReaderSlideshowConfig>({ ...INITIAL_SLIDESHOW_CONFIG })
   const confirmedSlideshowConfigRef = useRef<ReaderSlideshowConfig>({ ...INITIAL_SLIDESHOW_CONFIG })
   const slideshowWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -201,6 +221,9 @@ export function ReaderApp({
     persist: persistShellControl,
   }))
   const [viewDefaults, setViewDefaults] = useState<ReaderRuntimeConfigDto["viewDefaults"]>(() => ({ ...INITIAL_VIEW_DEFAULTS }))
+  const [pageListPreferences, setPageListPreferences] = useState<ReaderPageListPreferencesDto>(() => ({ ...INITIAL_PAGE_LIST_PREFERENCES }))
+  const [bookmarkListPreferences, setBookmarkListPreferences] = useState<ReaderBookmarkListPreferencesDto>(() => ({ ...INITIAL_BOOKMARK_LIST_PREFERENCES }))
+  const [historyListPreferences, setHistoryListPreferences] = useState<ReaderHistoryListPreferencesDto>(() => ({ ...INITIAL_HISTORY_LIST_PREFERENCES }))
   const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -224,6 +247,13 @@ export function ReaderApp({
         confirmedViewDefaultsRef.current = config.viewDefaults
         setViewDefaults(config.viewDefaults)
       }
+      if (pageListPreferencesGenerationRef.current === 0) {
+        pageListPreferencesRef.current = config.pageList
+        confirmedPageListPreferencesRef.current = config.pageList
+        setPageListPreferences(config.pageList)
+      }
+      if (bookmarkListPreferencesGenerationRef.current === 0) setBookmarkListPreferences(config.bookmarkList)
+      if (historyListPreferencesGenerationRef.current === 0) setHistoryListPreferences(config.historyList)
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (folderViewGenerationRef.current === 0) {
@@ -321,6 +351,11 @@ export function ReaderApp({
     }
   }
 
+  function applyBookSettingsUpdate(sessionId: string, update: ReaderBookSettingsUpdateDto) {
+    if (sessionRef.current !== sessionId) return
+    setSession((current) => current?.sessionId === sessionId ? applyNavigation(current, update) : current)
+  }
+
   function updatePresentation(next: ReaderPresentation) {
     const fitModeChanged = next.fitMode !== presentation.fitMode
     presentationTouchedRef.current = true
@@ -354,6 +389,60 @@ export function ReaderApp({
       { direction },
       signal,
     ))
+  }
+
+  async function persistHistoryListPreferences(patch: Partial<ReaderHistoryListPreferencesDto>): Promise<ReaderHistoryListPreferencesDto> {
+    const generation = ++historyListPreferencesGenerationRef.current
+    const next = { ...historyListPreferences, ...patch }
+    if (!clientRef.current.updateHistoryList) {
+      setHistoryListPreferences(next)
+      return next
+    }
+    const updated = await clientRef.current.updateHistoryList({ historyList: patch })
+    if (generation === historyListPreferencesGenerationRef.current) setHistoryListPreferences(updated)
+    return updated
+  }
+
+  async function persistBookmarkListPreferences(patch: Partial<ReaderBookmarkListPreferencesDto>): Promise<ReaderBookmarkListPreferencesDto> {
+    const generation = ++bookmarkListPreferencesGenerationRef.current
+    const next = { ...bookmarkListPreferences, ...patch }
+    if (!clientRef.current.updateBookmarkList) {
+      setBookmarkListPreferences(next)
+      return next
+    }
+    const updated = await clientRef.current.updateBookmarkList({ bookmarkList: patch })
+    if (generation === bookmarkListPreferencesGenerationRef.current) setBookmarkListPreferences(updated)
+    return updated
+  }
+
+  async function persistPageListPreferences(patch: Partial<ReaderPageListPreferencesDto>) {
+    const next = { ...pageListPreferencesRef.current, ...patch }
+    pageListPreferencesRef.current = next
+    setPageListPreferences(next)
+    if (!clientRef.current.updatePageList) {
+      confirmedPageListPreferencesRef.current = next
+      return
+    }
+    const generation = ++pageListPreferencesGenerationRef.current
+    const write = pageListPreferencesWriteQueueRef.current.then(async () => {
+      try {
+        const updated = await clientRef.current.updatePageList!({ pageList: patch })
+        confirmedPageListPreferencesRef.current = updated
+        if (generation === pageListPreferencesGenerationRef.current) {
+          pageListPreferencesRef.current = updated
+          setPageListPreferences(updated)
+        }
+      } catch (cause) {
+        if (generation === pageListPreferencesGenerationRef.current) {
+          const confirmed = confirmedPageListPreferencesRef.current
+          pageListPreferencesRef.current = confirmed
+          setPageListPreferences(confirmed)
+        }
+        throw cause
+      }
+    })
+    pageListPreferencesWriteQueueRef.current = write.catch(() => undefined)
+    await write
   }
 
   async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
@@ -760,6 +849,13 @@ export function ReaderApp({
     client,
     disabled: busy,
     onGoTo: goTo,
+    onBookSettingsUpdated: applyBookSettingsUpdate,
+    bookmarkListPreferences,
+    onBookmarkListPreferences: persistBookmarkListPreferences,
+    historyListPreferences,
+    onHistoryListPreferences: persistHistoryListPreferences,
+    pageListPreferences,
+    onPageListPreferences: persistPageListPreferences,
     onPageModeChange: updateCurrentBookPageMode,
     onReadingDirectionChange: updateCurrentBookReadingDirection,
     sourcePath: path,

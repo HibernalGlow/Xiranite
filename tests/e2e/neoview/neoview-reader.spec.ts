@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { basename, join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { expect, test } from "@playwright/test"
@@ -741,6 +741,126 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   })).status).toBe(404)
 })
 
+test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the File Card auto-hides", async ({ page }) => {
+  const operationRoot = join(fixture.directory, "zz-selection-operation")
+  await mkdir(operationRoot, { recursive: true })
+  await Promise.all(Array.from({ length: 3 }, (_, index) => writeFile(join(operationRoot, `batch-${index}.cbz`), "")))
+  let selectionOperationRequest: Record<string, unknown> | undefined
+  let selectionOperationPolls = 0
+  let browserSessionOpens = 0
+  let restorePinnedSidebar = false
+  const snapshot = (status: "running" | "completed", processed: number) => ({
+    id: "e2e-selection-operation",
+    kind: "trash",
+    status,
+    generation: 1,
+    total: 3,
+    processed,
+    succeeded: status === "completed" ? 3 : processed,
+    failed: 0,
+    cancelled: 0,
+    failureSamples: [],
+    failureSamplesTruncated: false,
+    startedAt: 1,
+    ...(status === "completed" ? { completedAt: 2 } : {}),
+  })
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname === "/reader/browser/sessions") browserSessionOpens += 1
+    })
+    await page.route("**/reader/files/selection-operations**", async (route) => {
+      const request = route.request()
+      const pathname = new URL(request.url()).pathname
+      if (request.method() === "POST" && pathname === "/reader/files/selection-operations") {
+        selectionOperationRequest = request.postDataJSON() as Record<string, unknown>
+        await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify(snapshot("running", 0)) })
+        return
+      }
+      if (request.method() === "GET" && pathname === "/reader/files/selection-operations/e2e-selection-operation") {
+        selectionOperationPolls += 1
+        if (selectionOperationPolls === 1) await new Promise((resolve) => setTimeout(resolve, 200))
+        const next = selectionOperationPolls < 2 ? snapshot("running", 1) : snapshot("completed", 3)
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(next) })
+        return
+      }
+      await route.fallback()
+    })
+
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const image = page.locator("img[data-reader-page-image]").first()
+    await expect(image).toBeVisible({ timeout: 20_000 })
+    await image.evaluate((element) => element.setAttribute("data-batch-image-instance", "stable"))
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const unpin = leftSidebar.getByRole("button", { name: "取消固定左侧栏" })
+    restorePinnedSidebar = await unpin.isVisible().catch(() => false)
+    if (restorePinnedSidebar) {
+      await unpin.click()
+      await expect(leftSidebar.getByRole("button", { name: "固定左侧栏" })).toBeVisible()
+    }
+    let folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    await folderCard.evaluate((element) => element.setAttribute("data-batch-card-instance", "stable"))
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const editPath = breadcrumb.getByRole("button", { name: "编辑路径" })
+    await editPath.focus()
+    await editPath.press("Enter")
+    const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+    await input.fill(operationRoot)
+    await input.press("Enter")
+    await expect(folderCard).toHaveAttribute("data-selection-total", "3")
+
+    await folderCard.getByRole("button", { name: "多选模式" }).click()
+    let selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
+    await selectionBar.getByRole("button", { name: "选择全部项目" }).click()
+    await expect(folderCard).toHaveAttribute("data-selection-count", "3")
+    await selectionBar.getByRole("button", { name: "将所选项目移到回收站" }).click()
+    const confirmation = page.getByRole("alertdialog")
+    await expect(confirmation).toContainText("将 3 个项目移到回收站？")
+    await confirmation.getByRole("button", { name: "移到回收站" }).click()
+    await page.mouse.move(page.viewportSize()!.width - 1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toHaveCount(0, { timeout: 1_500 })
+    await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
+    await expect(folderCard).toHaveAttribute("data-batch-card-instance", "stable")
+    await expect(selectionBar).toHaveAttribute("data-selection-operation", "running")
+
+    await page.mouse.move(page.viewportSize()!.width - 1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toHaveCount(0, { timeout: 1_500 })
+    await page.waitForTimeout(500)
+    await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
+    await expect(selectionBar.getByRole("status")).toContainText("已将 3 项移到回收站")
+    await expect(folderCard).toHaveAttribute("data-selection-count", "0")
+    await expect(folderCard).toHaveAttribute("data-batch-card-instance", "stable")
+    expect(await image.getAttribute("data-batch-image-instance")).toBe("stable")
+    expect(browserSessionOpens).toBe(1)
+    expect(selectionOperationPolls).toBeGreaterThanOrEqual(2)
+    expect(selectionOperationRequest).toMatchObject({
+      sessionId: expect.stringMatching(/^browser-/),
+      selection: { allSelected: true, ranges: [], explicit: [] },
+      kind: "trash",
+      confirmed: true,
+    })
+  } finally {
+    if (restorePinnedSidebar) {
+      await page.mouse.move(1, page.viewportSize()!.height / 2).catch(() => undefined)
+      const sidebar = page.locator('[data-reader-sidebar="left"]')
+      await sidebar.getByRole("button", { name: "固定左侧栏" }).click().catch(() => undefined)
+    }
+    await rm(operationRoot, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.folder.path-navigation] keeps breadcrumb navigation scoped to the current directory", async ({ page }) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
@@ -1225,7 +1345,87 @@ test("[neoview.folder.context-actions-e2e] keeps Explorer item context actions c
     await folderCard.locator('[data-neoview-folder-list="true"]').press("Shift+F10")
     await expect(page.getByRole("menuitem", { name: "作为书籍打开" })).toBeVisible()
     await page.keyboard.press("Escape")
+
+    const bookmarkRequests: Array<{ source?: unknown; name?: string; kind?: string }> = []
+    let directoryRefreshes = 0
+    page.on("request", (request) => {
+      if (request.url().includes("/reader/browser/s/") && request.url().endsWith("/navigate")) directoryRefreshes += 1
+    })
+    await page.route("**/reader/library/bookmarks", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue()
+        return
+      }
+      const request = route.request().postDataJSON() as { source?: unknown; name?: string; kind?: string }
+      bookmarkRequests.push(request)
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        id: "folder-context-bookmark",
+        source: request.source,
+        name: request.name,
+        kind: request.kind,
+        starred: false,
+        createdAt: 1,
+        updatedAt: 1,
+        listIds: [],
+      }) })
+    })
+    const refreshesBeforeBookmark = directoryRefreshes
+    await detailsRow.click({ button: "right" })
+    await page.getByRole("menuitem", { name: "添加到书签" }).click()
+    await expect.poll(() => bookmarkRequests).toEqual([{
+      source: { kind: "path", path: childDirectory },
+      name: "nested",
+      kind: "folder",
+    }])
+    expect(directoryRefreshes).toBe(refreshesBeforeBookmark)
+    await expect(folderCard.getByText("已将 nested 添加到书签", { exact: true })).toHaveAttribute("role", "status")
     expect(await image.getAttribute("data-context-actions-image")).toBe("stable")
+
+    const trashRequests: Array<{ operations?: unknown[]; confirmed?: boolean }> = []
+    await page.route("**/reader/files/operations", async (route) => {
+      trashRequests.push(route.request().postDataJSON())
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        results: [{ index: 0, operation: { kind: "trash", sourcePath: childDirectory }, status: "succeeded" }],
+        succeeded: 1,
+        failed: 0,
+        cancelled: 0,
+        undoable: 0,
+      }) })
+    })
+    await page.route("**/reader/browser/s/*/navigate", async (route) => {
+      const response = await route.fetch()
+      const body = await response.json() as { entries: Array<{ path: string }>; total: number; generation: number }
+      await route.fulfill({ response, json: {
+        ...body,
+        entries: body.entries.filter((entry) => entry.path !== childDirectory),
+        total: Math.max(0, body.total - 1),
+        generation: body.generation + 1,
+      } })
+    })
+
+    await detailsRow.click({ button: "right" })
+    await page.getByRole("menuitem", { name: "移到回收站" }).click()
+    const confirmation = page.getByRole("alertdialog")
+    await expect(confirmation).toContainText("NeoView 无法直接撤销此操作")
+    await confirmation.getByRole("button", { name: "取消" }).click()
+    expect(trashRequests).toHaveLength(0)
+    await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderList = folderCard.locator('[data-neoview-folder-list="true"]')
+    await expect(folderList).toBeFocused()
+
+    await folderList.press("Delete")
+    await expect(confirmation).toContainText("nested")
+    await confirmation.getByRole("button", { name: "移到回收站" }).click()
+    await expect.poll(() => trashRequests).toEqual([{
+      operations: [{ kind: "trash", sourcePath: childDirectory }],
+      confirmed: true,
+    }])
+    await expect(detailsRow).toHaveCount(0)
+    await expect(folderCard.getByText("已将 nested 移到回收站", { exact: true })).toHaveAttribute("role", "status")
+    await expect.poll(async () => stat(childDirectory).then(() => true, () => false)).toBe(true)
+    expect(await image.getAttribute("data-context-actions-image")).toBe("stable")
+    await page.screenshot({ path: "artifacts/playwright/neoview-folder-trash-confirmed.png", fullPage: true })
   } finally {
     await rm(contextRoot, { recursive: true, force: true })
   }

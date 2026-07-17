@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import type { ReaderBookmarkDto, ReaderBookmarkListDto } from "../../../adapters/reader-http-client"
+import { publishReaderLibraryMutation, subscribeReaderLibraryMutations } from "../../library/reader-library-mutations"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
 import type { ReaderPanelContext } from "../registry"
@@ -16,9 +17,12 @@ type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmark
 type BookmarkViewMode = "compact" | "content" | "banner" | "thumbnail"
 type VisibleBookmarks = { listId: string; items: readonly ReaderBookmarkDto[] }
 
-export default function BookmarkListCard({ client, disabled, onOpen, session, sourcePath }: ReaderPanelContext) {
+export default function BookmarkListCard({ client, disabled, onOpen, session, sourcePath, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
   const [lists, setLists] = useState<readonly ReaderBookmarkListDto[]>([])
-  const [activeListId, setActiveListId] = useState("all")
+  const [listsReady, setListsReady] = useState(false)
+  const [activeListId, setActiveListId] = useState(() => bookmarkListPreferences?.activeListId ?? "all")
+  const [confirmedListId, setConfirmedListId] = useState(() => bookmarkListPreferences?.activeListId ?? "all")
+  const [switchingList, setSwitchingList] = useState(false)
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string>()
   const [visibleBookmarks, setVisibleBookmarks] = useState<VisibleBookmarks>(() => ({ listId: "all", items: [] }))
@@ -51,14 +55,40 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     return client.listBookmarks(offset, limit, activeListId, signal)
   }, [activeListId, client])
 
+  useEffect(() => subscribeReaderLibraryMutations(() => setRevision((value) => value + 1)), [])
+
   useEffect(() => {
     if (!client.listBookmarkLists) return
     const controller = new AbortController()
-    void client.listBookmarkLists(controller.signal).then(setLists).catch((error) => {
+    void client.listBookmarkLists(controller.signal).then((value) => {
+      if (controller.signal.aborted) return
+      const configured = onBookmarkListPreferences ? bookmarkListPreferences?.activeListId ?? "all" : confirmedListId
+      const next = value.some((list) => list.id === configured) ? configured : "all"
+      setLists(value)
+      setActiveListId(next)
+      setConfirmedListId(next)
+      setVisibleBookmarks({ listId: next, items: [] })
+      setListsReady(true)
+      if (next !== configured && onBookmarkListPreferences) {
+        void onBookmarkListPreferences({ activeListId: next }).catch((error) => setActionError(errorMessage(error)))
+      }
+    }).catch((error) => {
       if (!controller.signal.aborted) setActionError(errorMessage(error))
     })
     return () => controller.abort()
   }, [client, revision])
+
+  useEffect(() => {
+    if (!listsReady || !onBookmarkListPreferences) return
+    const configured = bookmarkListPreferences?.activeListId ?? "all"
+    const next = lists.some((list) => list.id === configured) ? configured : "all"
+    setActiveListId(next)
+    setConfirmedListId(next)
+    setVisibleBookmarks({ listId: next, items: [] })
+    if (next !== configured) {
+      void onBookmarkListPreferences({ activeListId: next }).catch((error) => setActionError(errorMessage(error)))
+    }
+  }, [bookmarkListPreferences?.activeListId, lists, listsReady, onBookmarkListPreferences])
 
   const handleLoadedItems = useCallback((items: readonly ReaderBookmarkDto[]) => {
     setLoadedBookmarks(items)
@@ -72,11 +102,33 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     setVisibleBookmarks({ listId: activeListId, items })
   }, [activeListId])
 
-  function switchList(listId: string) {
+  async function switchList(listId: string, failureFallback = confirmedListId): Promise<boolean> {
+    if (listId === activeListId || switchingList) return true
     setVisibleBookmarks({ listId, items: [] })
     setActiveListId(listId)
     setSelectedIds(new Set())
     anchorIndexRef.current = undefined
+    if (!onBookmarkListPreferences) {
+      setConfirmedListId(listId)
+      return true
+    }
+    setSwitchingList(true)
+    setActionError(undefined)
+    try {
+      const updated = await onBookmarkListPreferences({ activeListId: listId })
+      setActiveListId(updated.activeListId)
+      setConfirmedListId(updated.activeListId)
+      setVisibleBookmarks({ listId: updated.activeListId, items: [] })
+      return true
+    } catch (error) {
+      setActiveListId(failureFallback)
+      setConfirmedListId(failureFallback)
+      setVisibleBookmarks({ listId: failureFallback, items: [] })
+      setActionError(errorMessage(error))
+      return false
+    } finally {
+      setSwitchingList(false)
+    }
   }
 
   async function addCurrent() {
@@ -112,7 +164,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
         name: listName.trim(),
         isFavorite: listFavorite,
       })
-      setActiveListId(list.id)
+      await switchList(list.id)
     })
     if (saved) setListEditor(undefined)
   }
@@ -121,7 +173,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     if (!client.removeBookmarkList || !deleteList || deleteList.system) return
     const deleted = await mutate(async () => {
       await client.removeBookmarkList!(deleteList.id)
-      if (activeListId === deleteList.id) setActiveListId("all")
+      if (activeListId === deleteList.id) await switchList("all", "all")
     })
     if (deleted) setDeleteList(undefined)
   }
@@ -190,7 +242,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     try {
       setActionError(undefined)
       await operation()
-      setRevision((value) => value + 1)
+      publishReaderLibraryMutation()
       return true
     } catch (error) {
       setActionError(errorMessage(error))
@@ -210,7 +262,8 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
                 ? "h-7 shrink-0 rounded-full border border-primary/60 bg-primary/15 px-3 text-xs text-primary"
                 : "h-7 shrink-0 rounded-full border border-border bg-background/80 px-3 text-xs hover:bg-accent"}
               aria-pressed={list.id === activeListId}
-              onClick={() => switchList(list.id)}
+              disabled={disabled || switchingList}
+              onClick={() => void switchList(list.id)}
             >
               {list.name}{list.isFavorite && !list.system ? <Star className="ml-1 inline size-3 fill-current" aria-label="收藏夹列表" /> : null}
             </button>
@@ -238,7 +291,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
       ) : null}
 
       {actionError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{actionError}</div> : null}
-      <ReaderLibraryList
+      {listsReady ? <ReaderLibraryList
         queryKey={`bookmarks:${activeListId}`}
         revision={revision}
         loadPage={loadPage}
@@ -266,7 +319,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
             onRemove={() => void remove(item)}
           />
         )}
-      />
+      /> : <div className="h-24 animate-pulse rounded bg-muted/35" aria-label="正在加载书签列表" />}
 
       <ListEditorDialog
         state={listEditor}
