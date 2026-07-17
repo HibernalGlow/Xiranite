@@ -31,13 +31,14 @@ import { createReaderBackupBundleService, createReaderFileTreeController, create
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
-import type { ReaderBackupBundleResult } from "./platform/backup/ReaderBackupBundleService.js"
+import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRestoreResult } from "./platform/backup/ReaderBackupBundleService.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
   "settings-backup",
+  "settings-backup-inspect", "settings-backup-restore",
   "reader-data-inspect", "reader-data-import",
   "search-history-inspect", "search-history-import",
   "library-recents", "library-recent-delete", "library-recent-cleanup",
@@ -83,6 +84,7 @@ const VALUE_FLAGS = new Set([
   "--concurrency",
   "--connect",
   "--token-env",
+  "--quarantine",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -110,6 +112,8 @@ export interface NeoviewCliDependencies {
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
   createBackupBundleService?: (options: ReaderCompositionOptions & { thumbnailDatabasePath?: string }) => Promise<{
     create(destinationPath: string, signal?: AbortSignal): Promise<ReaderBackupBundleResult>
+    inspect(bundlePath: string, signal?: AbortSignal): Promise<ReaderBackupInspection>
+    restore(bundlePath: string, options: { quarantinePath: string }, signal?: AbortSignal): Promise<ReaderBackupRestoreResult>
   }>
 }
 
@@ -235,6 +239,11 @@ export async function runProgram(
     await runSettingsBackup(resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
     return
   }
+  if (command === "settings-backup-inspect" || command === "settings-backup-restore") {
+    if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one backup bundle directory.`)
+    await runSettingsBackupRead(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
   const path = parsed.positionals[0]
   if (!path || parsed.positionals.length !== 1) {
     const kind = command.startsWith("settings-") ? "settings JSON path" : "book path"
@@ -292,6 +301,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "settings-backup") {
     rejectOptions(parsed, new Set(["--yes", "--config", "--database", "--json"]))
+    return
+  }
+  if (command === "settings-backup-inspect") {
+    rejectOptions(parsed, new Set(["--config", "--database", "--json"]))
+    return
+  }
+  if (command === "settings-backup-restore") {
+    rejectOptions(parsed, new Set(["--yes", "--offline", "--config", "--database", "--quarantine", "--json"]))
     return
   }
   if (command === "settings-portable-inspect") {
@@ -1460,6 +1477,58 @@ async function runSettingsBackup(
   else writeLine(host, `NeoView backup created: ${destination} (${output.settingsBytes + output.databaseBytes} bytes)`)
 }
 
+async function runSettingsBackupRead(
+  command: string,
+  bundle: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const service = await (dependencies.createBackupBundleService ?? createReaderBackupBundleService)({
+    configPath: oneValue(parsed, "--config"),
+    thumbnailDatabasePath: oneValue(parsed, "--database"),
+    cwd: host.cwd,
+    env: host.env,
+  })
+  if (command === "settings-backup-inspect") {
+    const inspected = await service.inspect(bundle)
+    const output = backupInspectionSummary(inspected)
+    if (parsed.booleans.has("--json")) writeJson(host, output)
+    else writeLine(host, `NeoView backup verified: ${output.settingsBytes + output.databaseBytes} bytes, quick_check=${output.databaseQuickCheck}`)
+    return
+  }
+  if (!parsed.booleans.has("--offline") || !parsed.booleans.has("--yes")) {
+    throw usage("settings-backup-restore requires --offline and --yes after stopping all NeoView/Xiranite database users.")
+  }
+  const quarantine = oneValue(parsed, "--quarantine")
+  if (!quarantine) throw usage("settings-backup-restore requires --quarantine <path>.")
+  const restored = await service.restore(bundle, { quarantinePath: resolve(host.cwd, quarantine) })
+  const output = {
+    restored: true,
+    format: restored.manifest.format,
+    version: restored.manifest.version,
+    settingsChanged: restored.settingsChanged,
+    databaseQuickCheck: restored.database.quickCheck,
+    originalQuarantined: true,
+  }
+  if (parsed.booleans.has("--json")) writeJson(host, output)
+  else writeLine(host, `NeoView backup restored; original database quarantined, quick_check=${output.databaseQuickCheck}.`)
+}
+
+function backupInspectionSummary(inspected: ReaderBackupInspection) {
+  return {
+    valid: true,
+    format: inspected.manifest.format,
+    version: inspected.manifest.version,
+    createdAt: inspected.manifest.createdAt,
+    settingsBytes: inspected.manifest.settings.bytes,
+    databaseBytes: inspected.manifest.database.bytes,
+    databaseCompatibility: inspected.database.compatibility,
+    databaseQuickCheck: inspected.database.quickCheck,
+    omittedSensitivePaths: inspected.settings.omittedSensitivePaths,
+  }
+}
+
 async function runPortableSettingsCommand(
   command: string,
   content: string,
@@ -1695,6 +1764,8 @@ function formatCliHelp(): string {
     "  settings-portable-inspect <json>  Validate a portable Xiranite settings export",
     "  settings-portable-import <json>   Import a portable settings export",
     "  settings-backup <directory>        Create a verified settings + thumbnails.db bundle",
+    "  settings-backup-inspect <directory> Verify a backup bundle without mutation",
+    "  settings-backup-restore <directory> Restore offline with explicit quarantine",
     "  reader-data-inspect <json>  Preview legacy history/bookmark migration",
     "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
     "  search-history-inspect <json>  Preview legacy search-history migration",
@@ -1765,6 +1836,7 @@ function formatCliHelp(): string {
     "  --search-in-path     Match text queries against relative paths",
     "  --refresh            Bypass one cached tree node",
     "  --database PATH      Override the legacy NeoView thumbnails.db path",
+    "  --quarantine PATH    Preserve the pre-restore thumbnails.db at PATH",
     "  --strategy MODE      Settings import mode: merge or overwrite",
     "  --modules LIST       Comma-separated settings modules:",
     "                       native-settings,keybindings,emm,file-browser,ui,panels,bookmarks,history,",

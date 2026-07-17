@@ -479,7 +479,18 @@ describe("NeoView CLI", () => {
         database: { name: "thumbnails.db", bytes: 60, sha256: "b".repeat(64), compatibility: "current", quickCheck: "ok" as const },
       },
     }))
-    const dependencies = { ...testPlatformDependencies, createBackupBundleService: async () => ({ create }) }
+    const inspect = vi.fn(async () => ({
+      bundlePath: "D:/private/backup",
+      manifest: (await create()).manifest,
+      settings: { format: "Xiranite/NeoViewConfig" as const, version: 1 as const, exportedAt: 1, nodeConfig: {}, omittedSensitivePaths: [] },
+      database: { sourcePath: "D:/private/db", verifiedPath: "D:/private/db", bytes: 60, compatibility: "current" as const, quickCheck: "ok" as const },
+    }))
+    const restore = vi.fn(async () => ({
+      manifest: (await create()).manifest,
+      settingsChanged: true,
+      database: { recovered: true as const, sourcePath: "private", backupPath: "private", quarantinedDatabasePath: "private", originalCompatibility: "current" as const, restoredBytes: 60, quickCheck: "ok" as const },
+    }))
+    const dependencies = { ...testPlatformDependencies, createBackupBundleService: async () => ({ create, inspect, restore }) }
     await expect(runProgram(["settings-backup", "backup"], host([]), dependencies)).rejects.toThrow("requires --yes")
     await runProgram(["settings-backup", "backup", "--yes", "--json"], host(output), dependencies)
     const text = output.join("")
@@ -494,6 +505,23 @@ describe("NeoView CLI", () => {
       databaseQuickCheck: "ok",
     })
     expect(create).toHaveBeenCalledWith(expect.stringContaining("backup"))
+    output.length = 0
+    await runProgram(["settings-backup-inspect", "backup", "--json"], host(output), dependencies)
+    expect(JSON.parse(output.join(""))).toMatchObject({ valid: true, databaseQuickCheck: "ok" })
+    await expect(runProgram(["settings-backup-restore", "backup", "--yes", "--quarantine", "old.db"], host([]), dependencies))
+      .rejects.toThrow("requires --offline")
+    output.length = 0
+    await runProgram([
+      "settings-backup-restore", "backup", "--offline", "--yes", "--quarantine", "old.db", "--json",
+    ], host(output), dependencies)
+    expect(JSON.parse(output.join(""))).toEqual({
+      restored: true,
+      format: "Xiranite/NeoViewBackup",
+      version: 1,
+      settingsChanged: true,
+      databaseQuickCheck: "ok",
+      originalQuarantined: true,
+    })
   })
 
   it("[neoview.reader-data.cli] previews safely and requires confirmation before shared-store import", async () => {

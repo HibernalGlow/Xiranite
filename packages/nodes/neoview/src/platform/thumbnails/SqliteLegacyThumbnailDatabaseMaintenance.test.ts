@@ -35,6 +35,18 @@ describe("SqliteLegacyThumbnailDatabaseMaintenance", () => {
     }
   })
 
+  it("[neoview.thumbnail.database-verify] validates a backup read-only without changing journal metadata", async () => {
+    const root = await temporaryRoot(roots)
+    const source = join(root, "thumbnails.db")
+    const seed = await openFixtureDatabase(source)
+    seed.exec(`${CURRENT_SCHEMA_SQL} PRAGMA user_version = 9;`)
+    seed.close()
+    const before = await readFile(source)
+    const result = await new SqliteLegacyThumbnailDatabaseMaintenance().verify(source)
+    expect(result).toMatchObject({ verifiedPath: source, compatibility: "current", metadataVersion: "2.4", userVersion: 9, quickCheck: "ok" })
+    expect(await readFile(source)).toEqual(before)
+  })
+
   it("[neoview.thumbnail.database-optimize] requires a verified backup and preserves schema metadata and journal mode", async () => {
     const root = await temporaryRoot(roots)
     const source = join(root, "thumbnails.db")

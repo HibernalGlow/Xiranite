@@ -33,6 +33,23 @@ export class SqliteLegacyThumbnailDatabaseMaintenance implements ReaderThumbnail
     }
   }
 
+  async verify(path: string, signal?: AbortSignal) {
+    signal?.throwIfAborted()
+    const source = await realpath(path)
+    const report = await verifyBackup(source)
+    signal?.throwIfAborted()
+    return {
+      sourcePath: source,
+      verifiedPath: source,
+      bytes: (await stat(source)).size,
+      compatibility: report.compatibility,
+      metadataVersion: report.metadataVersion,
+      userVersion: report.userVersion,
+      journalMode: report.journalMode,
+      quickCheck: "ok" as const,
+    }
+  }
+
   async backup(
     sourcePath: string,
     destinationPath: string,

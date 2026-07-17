@@ -14,6 +14,7 @@ export interface ReaderSettingsPortableImportResult {
 
 export interface ReaderSettingsBackupProvider {
   create(destinationPath: string, signal?: AbortSignal): Promise<{ manifest: unknown }>
+  inspect(bundlePath: string, signal?: AbortSignal): Promise<{ manifest: unknown; settings: { omittedSensitivePaths: string[] }; database: { compatibility: string; quickCheck: "ok"; metadataVersion?: string; userVersion?: number } }>
 }
 
 export class ReaderSettingsPortableService {
@@ -53,6 +54,11 @@ export class ReaderSettingsPortableService {
   async backup(destinationPath: string, signal?: AbortSignal): Promise<{ manifest: unknown }> {
     if (!this.backupProvider) throw new Error("Reader backup is not available in this runtime.")
     return this.backupProvider.create(destinationPath, signal)
+  }
+
+  async inspectBackup(bundlePath: string, signal?: AbortSignal) {
+    if (!this.backupProvider) throw new Error("Reader backup is not available in this runtime.")
+    return this.backupProvider.inspect(bundlePath, signal)
   }
 
   withBackupProvider(provider: ReaderSettingsBackupProvider): ReaderSettingsPortableService {

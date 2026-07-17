@@ -41,7 +41,14 @@ describe("ReaderBackupBundleService", () => {
     })
     expect(manifest.database.sha256).toBe(createHash("sha256").update(databaseBytes).digest("hex"))
     expect(await readFile(join(destination, "settings.json"), "utf8")).not.toContain("hidden")
+    await expect(service.inspect(destination)).resolves.toMatchObject({
+      manifest: { format: "Xiranite/NeoViewBackup" },
+      settings: { nodeConfig: { schema_version: 1, future: true } },
+      database: { quickCheck: "ok" },
+    })
     await expect(service.create(destination)).rejects.toThrow("already exists")
+    await writeFile(join(destination, "settings.json"), "{}", "utf8")
+    await expect(service.inspect(destination)).rejects.toThrow("does not match the manifest")
   })
 
   it("[neoview.settings.backup-rollback] removes staging when database backup or cancellation fails", async () => {
@@ -64,10 +71,46 @@ describe("ReaderBackupBundleService", () => {
     await expect(new ReaderBackupBundleService(settings, cancelling, sourceDatabase).create(destination, abort.signal)).rejects.toMatchObject({ name: "AbortError" })
     expect((await readdir(root)).filter((name) => name.includes("xr-staging"))).toEqual([])
   })
+
+  it("[neoview.settings.restore-rollback] restores previous settings when database recovery fails", async () => {
+    const root = await temporaryRoot()
+    const destination = join(root, "backup")
+    const sourceDatabase = join(root, "source.db")
+    const databaseBytes = Buffer.from("sqlite-snapshot")
+    const maintenance = fakeMaintenance(async (_source, target) => {
+      await writeFile(target, databaseBytes, { flag: "wx" })
+      return backupReceipt(sourceDatabase, target, databaseBytes.byteLength)
+    })
+    const targetSettings = new ReaderSettingsPortableService({ read: async () => ({ schema_version: 1, restored: true }) })
+    await new ReaderBackupBundleService(targetSettings, maintenance, sourceDatabase).create(destination)
+
+    let current: Record<string, unknown> = { schema_version: 1, current: true }
+    const restoringSettings = new ReaderSettingsPortableService(
+      { read: async () => current },
+      { commit: async (patch) => {
+        const changed = JSON.stringify(current) !== JSON.stringify(patch)
+        current = structuredClone(patch)
+        return { changed }
+      } },
+    )
+    maintenance.recover = vi.fn(async () => { throw new Error("database restore failed") })
+    const restoring = new ReaderBackupBundleService(restoringSettings, maintenance, sourceDatabase)
+    await expect(restoring.restore(destination, { quarantinePath: join(root, "quarantine.db") })).rejects.toThrow("database restore failed")
+    expect(current).toEqual({ schema_version: 1, current: true })
+  })
 })
 
 function fakeMaintenance(backup: ReaderThumbnailDatabaseMaintenance["backup"]): ReaderThumbnailDatabaseMaintenance {
   return {
+    verify: vi.fn(async (path) => ({
+      sourcePath: path,
+      verifiedPath: path,
+      bytes: (await stat(path)).size,
+      compatibility: "current",
+      metadataVersion: "2.4",
+      journalMode: "wal",
+      quickCheck: "ok",
+    })),
     backup: vi.fn(backup),
     optimize: vi.fn(),
     recover: vi.fn(),

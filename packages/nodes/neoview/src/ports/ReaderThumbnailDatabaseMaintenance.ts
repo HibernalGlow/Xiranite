@@ -16,6 +16,10 @@ export interface ReaderThumbnailDatabaseBackupResult {
   quickCheck: "ok"
 }
 
+export type ReaderThumbnailDatabaseVerificationResult = Omit<ReaderThumbnailDatabaseBackupResult, "destinationPath"> & {
+  verifiedPath: string
+}
+
 export interface ReaderThumbnailDatabaseOptimizeResult {
   backup: ReaderThumbnailDatabaseBackupResult
   checkpoint?: { busy: number; logFrames: number; checkpointedFrames: number }
@@ -41,6 +45,7 @@ export interface ReaderThumbnailDatabaseRecoveryResult {
 }
 
 export interface ReaderThumbnailDatabaseMaintenance {
+  verify(path: string, signal?: AbortSignal): Promise<ReaderThumbnailDatabaseVerificationResult>
   backup(sourcePath: string, destinationPath: string, signal?: AbortSignal): Promise<ReaderThumbnailDatabaseBackupResult>
   optimize(
     sourcePath: string,

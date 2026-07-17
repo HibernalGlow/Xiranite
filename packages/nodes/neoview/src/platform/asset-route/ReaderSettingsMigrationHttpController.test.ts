@@ -97,7 +97,12 @@ describe("ReaderSettingsMigrationHttpController", () => {
       database: { name: "thumbnails.db", bytes: 1, sha256: "b".repeat(64), compatibility: "current", quickCheck: "ok" as const },
     }
     const create = vi.fn(async () => ({ destinationPath: "D:/private/backup", manifest }))
-    const portable = new ReaderSettingsPortableService({ read: async () => ({}) }).withBackupProvider({ create })
+    const inspect = vi.fn(async () => ({
+      manifest,
+      settings: { omittedSensitivePaths: [] },
+      database: { compatibility: "current", quickCheck: "ok" as const, metadataVersion: "2.4" },
+    }))
+    const portable = new ReaderSettingsPortableService({ read: async () => ({}) }).withBackupProvider({ create, inspect })
     const controller = new ReaderSettingsMigrationHttpController(
       async () => new ReaderSettingsMigrationService(),
       (operation) => operation(),
@@ -109,6 +114,11 @@ describe("ReaderSettingsMigrationHttpController", () => {
     expect(text).not.toContain("D:/private")
     expect(JSON.parse(text)).toMatchObject({ created: true, manifest: { format: "Xiranite/NeoViewBackup" } })
     expect(create).toHaveBeenCalledWith("D:/private/backup", expect.any(AbortSignal))
+    const inspected = (await controller.handle(request("/reader/settings/backup/inspect", { bundle: "D:/private/backup" })))!
+    const inspectedText = await inspected.text()
+    expect(inspectedText).not.toContain("D:/private")
+    expect(JSON.parse(inspectedText)).toMatchObject({ database: { compatibility: "current", quickCheck: "ok" } })
+    expect(inspect).toHaveBeenCalledWith("D:/private/backup", expect.any(AbortSignal))
   })
 
   it("[neoview.settings.backup-http-validation] rejects unknown fields and methods without loading backup", async () => {

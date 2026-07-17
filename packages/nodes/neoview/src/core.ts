@@ -142,11 +142,13 @@ export {
   READER_SYSTEM_BOOKMARK_LIST_IDS,
   type SaveReaderBookmarkInput,
   type SaveReaderBookmarkListInput,
+  type UpdateReaderBookmarkInput,
 } from "./application/library/ReaderLibraryService.js"
 export type {
   ReaderBookmarkListRecord,
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
+  ReaderBookmarkUpdate,
   ReaderLibraryStore,
   ReaderRecentQuery,
 } from "./ports/ReaderLibraryStore.js"
