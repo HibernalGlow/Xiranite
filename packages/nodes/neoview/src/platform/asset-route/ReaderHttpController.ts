@@ -1,4 +1,5 @@
 import type { Stats } from "node:fs"
+import { createHash } from "node:crypto"
 import { stat } from "node:fs/promises"
 
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/frame.js"
@@ -17,6 +18,7 @@ import { ReaderSearchHistoryService } from "../../application/browser/ReaderSear
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
 import { ReaderSeekableMediaCache } from "../../application/reader/ReaderSeekableMediaCache.js"
+import { ReaderSubtitleService } from "../../application/reader/ReaderSubtitleService.js"
 import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../application/metadata/ReaderBookMetadataService.js"
 import { ReaderPageMediaInformationService } from "../../application/metadata/ReaderPageMediaInformationService.js"
@@ -82,6 +84,8 @@ const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const SESSION_PAGE_MEDIA_INFORMATION_PATH = /^\/reader\/s\/([^/]+)\/page-media-information$/
 const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
+const SESSION_SUBTITLES_PATH = /^\/reader\/s\/([^/]+)\/subtitles$/
+const SESSION_SUBTITLE_ASSET_PATH = /^\/reader\/s\/([^/]+)\/subtitle\/([^/]+)\/([^/]+)$/
 const SESSION_CLIPBOARD_MATERIALIZATION_PATH = /^\/reader\/s\/([^/]+)\/clipboard-materializations(?:\/([^/]+))?$/
 const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
 const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
@@ -161,11 +165,13 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #mediaProgress?: ReaderMediaProgressService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
   readonly #seekableMedia: ReaderSeekableMediaCache
+  readonly #subtitles: ReaderSubtitleService
   readonly #diagnostics: ReaderDiagnosticsService
   readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   readonly #bookMetadata: ReaderBookMetadataService
   readonly #pageMediaInformation: ReaderPageMediaInformationService
   readonly #token: string
+  readonly #baseUrl: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
   readonly #disposeThumbnailStore?: () => void | Promise<void>
@@ -257,6 +263,10 @@ export class ReaderHttpController implements AsyncDisposable {
         maxTotalBytes: options.maxSeekableMediaTotalBytes,
       },
     )
+    this.#subtitles = new ReaderSubtitleService(this.#service, async () => {
+      const { SubsrtSubtitleConverter } = await import("../subtitles/SubsrtSubtitleConverter.js")
+      return new SubsrtSubtitleConverter()
+    })
     const memoryPressureMonitor = options.memoryPressureMonitor ?? new ReaderMemoryPressureMonitor()
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),
@@ -322,6 +332,7 @@ export class ReaderHttpController implements AsyncDisposable {
       : undefined
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
+    this.#baseUrl = options.baseUrl.replace(/\/$/, "")
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
     this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
     this.#folderView = options.folderView ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
@@ -392,6 +403,14 @@ export class ReaderHttpController implements AsyncDisposable {
     const mediaProgressMatch = SESSION_MEDIA_PROGRESS_PATH.exec(url.pathname)
     if (mediaProgressMatch && (request.method === "GET" || request.method === "PATCH")) {
       return this.#handleMediaProgress(mediaProgressMatch[1]!, request)
+    }
+    const subtitlesMatch = SESSION_SUBTITLES_PATH.exec(url.pathname)
+    if (subtitlesMatch && request.method === "GET") {
+      return this.#subtitleTracks(subtitlesMatch[1]!, url)
+    }
+    const subtitleAssetMatch = SESSION_SUBTITLE_ASSET_PATH.exec(url.pathname)
+    if (subtitleAssetMatch && (request.method === "GET" || request.method === "HEAD")) {
+      return this.#subtitleAsset(subtitleAssetMatch[1]!, subtitleAssetMatch[2]!, subtitleAssetMatch[3]!, request, url)
     }
     const clipboardMaterializationMatch = SESSION_CLIPBOARD_MATERIALIZATION_PATH.exec(url.pathname)
     if (clipboardMaterializationMatch && request.method === "POST" && !clipboardMaterializationMatch[2]) {
@@ -887,6 +906,74 @@ export class ReaderHttpController implements AsyncDisposable {
     return jsonResponse({ progress, durable: Boolean(flush) }, flush ? 200 : 202)
   }
 
+  #subtitleTracks(encodedSessionId: string, url: URL): Response {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const pageId = url.searchParams.get("pageId")
+    if (!pageId) return jsonResponse({ error: "pageId is required" }, 400)
+    try {
+      const tracks = this.#subtitles.list(session.id, pageId).map((track) => ({
+        ...track,
+        assetUrl: this.#subtitleUrl(session.id, pageId, track.id, track.contentVersion),
+      }))
+      return jsonResponse({ tracks })
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 404)
+    }
+  }
+
+  async #subtitleAsset(
+    encodedSessionId: string,
+    encodedPageId: string,
+    encodedAssetId: string,
+    request: Request,
+    url: URL,
+  ): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    const pageId = safeDecode(encodedPageId)
+    const assetId = safeDecode(encodedAssetId)
+    if (!session || !pageId || !assetId) return jsonResponse({ error: "Reader subtitle track not found" }, 404)
+    let track: ReturnType<ReaderSubtitleService["list"]>[number] | undefined
+    try {
+      track = this.#subtitles.list(session.id, pageId).find((candidate) => candidate.id === assetId)
+    } catch {
+      return jsonResponse({ error: "Reader subtitle track not found" }, 404)
+    }
+    if (!track) return jsonResponse({ error: "Reader subtitle track not found" }, 404)
+    if (url.searchParams.get("version") !== track.contentVersion) {
+      return jsonResponse({ error: "Reader subtitle version is stale" }, 410)
+    }
+    const etag = subtitleEtag(session.id, pageId, track.id, track.contentVersion)
+    const headers = new Headers({
+      "cache-control": "private, max-age=31536000, immutable",
+      "content-type": "text/vtt; charset=utf-8",
+      "etag": etag,
+      "x-content-type-options": "nosniff",
+    })
+    if (request.headers.get("if-none-match")?.split(",").some((value) => value.trim() === etag)) {
+      return new Response(null, { status: 304, headers })
+    }
+    if (request.method === "HEAD") return new Response(null, { status: 200, headers })
+    try {
+      const rendered = await this.#subtitles.render(session.id, pageId, assetId, request.signal)
+      headers.set("content-length", String(rendered.bytes.byteLength))
+      return new Response(rendered.bytes, { status: 200, headers })
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 422)
+    }
+  }
+
+  #subtitleUrl(sessionId: string, pageId: string, assetId: string, version: string): string {
+    const url = new URL(
+      `/reader/s/${encodeURIComponent(sessionId)}/subtitle/${encodeURIComponent(pageId)}/${encodeURIComponent(assetId)}`,
+      this.#baseUrl,
+    )
+    url.searchParams.set("version", version)
+    url.searchParams.set("token", this.#token)
+    return url.href
+  }
+
   #hibernateIfIdle(): Promise<void> {
     if (this.#hibernateCheck) return this.#hibernateCheck
     const pending = Promise.resolve().then(() => {
@@ -1061,6 +1148,19 @@ function safeDecode(value: string): string | undefined {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function subtitleEtag(sessionId: string, pageId: string, assetId: string, version: string): string {
+  const digest = createHash("sha256")
+    .update(sessionId)
+    .update("\0")
+    .update(pageId)
+    .update("\0")
+    .update(assetId)
+    .update("\0")
+    .update(version)
+    .digest("base64url")
+  return `"${digest}"`
 }
 
 function isPreloadOutcome(value: unknown): value is ReaderPreloadOutcome {

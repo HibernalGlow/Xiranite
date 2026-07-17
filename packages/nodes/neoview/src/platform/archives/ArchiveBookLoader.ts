@@ -2,10 +2,11 @@ import { realpath, stat } from "node:fs/promises"
 import { basename } from "node:path"
 
 import { ArchiveCredentialStore } from "../../application/reader/ArchiveCredentialStore.js"
-import type { ReaderBook, ReaderRuntimeResourceSnapshot, ViewSource } from "../../domain/book/book.js"
+import type { ReaderBook, ReaderRuntimeResourceSnapshot, ReaderSubtitleAsset, ViewSource } from "../../domain/book/book.js"
 import { normalizeArchivePath } from "../../domain/archive/archive-path.js"
 import { pageMediaType, pathExtension } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import { subtitleFormatFromPath } from "../../domain/subtitle/subtitle.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ArchiveEntry, ArchiveProvider, MaterializedEntryLease } from "../../ports/ArchiveProvider.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
@@ -136,11 +137,36 @@ export async function loadArchiveBook(
         ),
       }
     })
+    const subtitleAssets = entries
+      .filter((entry) => entry.kind === "file" && subtitleFormatFromPath(entry.path))
+      .slice(0, 512)
+      .flatMap((entry): ReaderSubtitleAsset[] => {
+        const format = subtitleFormatFromPath(entry.path)
+        if (!format) return []
+        return [{
+          id: stableOpaqueId("subtitle", bookId, entry.id),
+          name: basename(entry.path),
+          sourcePath: archivePath,
+          entryPath: entry.path,
+          format,
+          byteLength: entry.uncompressedSize,
+          contentVersion: [archiveVersion, ...chainVersions, entry.crc32?.toString(16) ?? entry.id].join("-"),
+          content: new ArchivePageContent(
+            provider,
+            entry.id,
+            entry.uncompressedSize,
+            format === "vtt" ? "text/vtt" : "text/plain",
+            credentials,
+            providerEntryPaths,
+          ),
+        }]
+      })
     return createReaderBook({
       id: bookId,
       source: normalizedSource,
       displayName: basename(entryPaths.at(-1) ?? archivePath),
       pages,
+      subtitleAssets,
       runtimeResources: () => aggregateArchiveResources(providers),
       dispose: () => releaseResources(resources),
     })
