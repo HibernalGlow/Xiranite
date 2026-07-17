@@ -572,9 +572,9 @@
       "sourceEvidence": ["stores/folderTabStore/navigationHistory.svelte.ts", "components/FolderStack/FolderStackState.svelte.ts"],
       "targetContract": "保存 scrollTop/snapshot、selectedItemPath、focused path/index 和 pendingFocusPath；前进后退/标签切换后自动定位。",
       "surfaces": ["GUI"],
-      "status": "partial",
-      "testIds": ["neoview.folder.restore-snapshot", "neoview.folder.parent-suggested-selection"],
-      "notes": "当前单标签快照已覆盖基础路径。"
+      "status": "complete",
+      "testIds": ["neoview.folder.restore-snapshot", "neoview.folder.parent-suggested-selection", "neoview.folder.restore-focus-backend", "neoview.folder.restore-focus-client", "neoview.folder.restore-focus-ui", "neoview.folder.nav-history-ui", "neoview.folder.nav-history-e2e", "neoview.folder.tabs-state", "neoview.folder.tabs-clone-state"],
+      "notes": "每个 Explorer 风格 visit 独立保存 view、selection、focused path/index 与 list/grid/details viewport snapshot；标签切换与克隆保留各自状态。导航请求把离开目录的 focused path 交给共享 backend，back/forward/refresh 重扫当前目录直接子项并在排序后的 catalog 中返回新 global index，避免 100K 目录在浏览器逐页扫描。路径索引变化时保留路径身份并清除不兼容 viewport snapshot，再由虚拟 renderer 自动定位；up 仍优先定位刚离开的子目录。真实 Desktop/Card Chromium 覆盖目录插入项后的焦点迁移、选中行、历史分支和活动阅读图片稳定。"
     },
     {
       "id": "folder.keyboard.navigation",

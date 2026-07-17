@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=37`，`complete=13`，`pending=24`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=36`，`complete=14`，`pending=24`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -658,11 +658,11 @@
   - 源码：`components/SelectionBar.svelte`、`stores/folderPanelStore/selectionState.svelte.ts`
   - 测试：`neoview.folder.selection-bulk-sparse`、`neoview.folder.selection-bulk-rebase`、`neoview.folder.selection-bulk-ui`、`neoview.folder.selection-click-behavior`
   - 备注：当前使用 allSelected + 稀疏例外表达全选/反选/取消，100K 项不物化路径；选择栏显示数量并支持多选模式、点开/点选切换，排序 generation 变化后按路径保留例外。批量打开/复制/移动/删除等动作和 CLI/TUI 命令仍待迁移。
-- [ ] `folder.select.restore` 导航状态恢复与自动定位
+- [x] `folder.select.restore` 导航状态恢复与自动定位
   - 目标：保存 scrollTop/snapshot、selectedItemPath、focused path/index 和 pendingFocusPath；前进后退/标签切换后自动定位。
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderStack/FolderStackState.svelte.ts`
-  - 测试：`neoview.folder.restore-snapshot`、`neoview.folder.parent-suggested-selection`
-  - 备注：当前单标签快照已覆盖基础路径。
+  - 测试：`neoview.folder.restore-snapshot`、`neoview.folder.parent-suggested-selection`、`neoview.folder.restore-focus-backend`、`neoview.folder.restore-focus-client`、`neoview.folder.restore-focus-ui`、`neoview.folder.nav-history-ui`、`neoview.folder.nav-history-e2e`、`neoview.folder.tabs-state`、`neoview.folder.tabs-clone-state`
+  - 备注：每个 Explorer 风格 visit 独立保存 view、selection、focused path/index 与 list/grid/details viewport snapshot；标签切换与克隆保留各自状态。导航请求把离开目录的 focused path 交给共享 backend，back/forward/refresh 重扫当前目录直接子项并在排序后的 catalog 中返回新 global index，避免 100K 目录在浏览器逐页扫描。路径索引变化时保留路径身份并清除不兼容 viewport snapshot，再由虚拟 renderer 自动定位；up 仍优先定位刚离开的子目录。真实 Desktop/Card Chromium 覆盖目录插入项后的焦点迁移、选中行、历史分支和活动阅读图片稳定。
 
 ### keyboard（2）
 
