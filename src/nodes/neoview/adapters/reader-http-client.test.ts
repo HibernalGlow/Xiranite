@@ -13,7 +13,7 @@ describe("reader-http-client", () => {
       if (url.endsWith("/reader/config")) return Response.json({
         shell: { showDelayMs: 0, panelLayout: {}, cardLayout: {} },
         viewDefaults: { fitMode: "fit", pageMode: "single" },
-        folderView: { homePath: "D:/Books", viewMode: "compact", previewCount: 4, thumbnailWidthPercent: 20, bannerWidthPercent: 50, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false }, tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] } },
+        folderView: { homePath: "D:/Books", viewMode: "compact", previewCount: 4, thumbnailWidthPercent: 20, bannerWidthPercent: 50, emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false }, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false }, tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] } },
         slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
       })
       if (url.endsWith("/reader/sessions")) return Response.json({ sessionId: "reader-1" })
@@ -27,14 +27,14 @@ describe("reader-http-client", () => {
     expect(await client.config()).toEqual({
       shell: { showDelayMs: 0, panelLayout: {}, cardLayout: {} },
       viewDefaults: { fitMode: "fit", pageMode: "single" },
-      folderView: { homePath: "D:/Books", viewMode: "compact", previewCount: 4, thumbnailWidthPercent: 20, bannerWidthPercent: 50, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false }, tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] } },
+      folderView: { homePath: "D:/Books", viewMode: "compact", previewCount: 4, thumbnailWidthPercent: 20, bannerWidthPercent: 50, emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false }, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS }, search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false }, tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] } },
       slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
     })
     expect(await client.updateSidebarLayout({ side: "left", pinned: false, width: 360 })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateCardLayout({ cardId: "page-navigation", expanded: false })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateBoardLayout({ expectedRevision: 4, board: { panels: [], cards: [] } })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateViewDefaults({ viewDefaults: { fitMode: "fit-width" } })).toEqual({ fitMode: "fit", pageMode: "single" })
-    expect(await client.updateFolderView!({ folderView: { homePath: "D:/Books", viewMode: "details", previewCount: 9, details: { columnWidths: { name: 300 } }, search: { includeSubfolders: false, searchInPath: true }, tree: { visible: true, layout: "right", size: 240, pinnedPaths: ["D:/Pinned"] } } })).toMatchObject({ homePath: "D:/Books", viewMode: "compact", previewCount: 4 })
+    expect(await client.updateFolderView!({ folderView: { homePath: "D:/Books", viewMode: "details", previewCount: 9, emptyArea: { singleClickAction: "goBack", showBackButton: true }, details: { columnWidths: { name: 300 } }, search: { includeSubfolders: false, searchInPath: true }, tree: { visible: true, layout: "right", size: 240, pinnedPaths: ["D:/Pinned"] } } })).toMatchObject({ homePath: "D:/Books", viewMode: "compact", previewCount: 4 })
     expect(await client.updateSlideshow({ slideshow: { intervalSeconds: 8, loop: true } })).toEqual({ intervalSeconds: 5, loop: false, random: false, fadeTransition: true })
     await client.open("D:/books/demo.cbz")
     await client.listPages("reader-1", 64, 32)
@@ -51,7 +51,7 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ cardId: "page-navigation", expanded: false })
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ expectedRevision: 4, board: { panels: [], cards: [] } })
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ viewDefaults: { fitMode: "fit-width" } })
-    expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ folderView: { homePath: "D:/Books", viewMode: "details", previewCount: 9, details: { columnWidths: { name: 300 } }, search: { includeSubfolders: false, searchInPath: true }, tree: { visible: true, layout: "right", size: 240, pinnedPaths: ["D:/Pinned"] } } })
+    expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ folderView: { homePath: "D:/Books", viewMode: "details", previewCount: 9, emptyArea: { singleClickAction: "goBack", showBackButton: true }, details: { columnWidths: { name: 300 } }, search: { includeSubfolders: false, searchInPath: true }, tree: { visible: true, layout: "right", size: 240, pinnedPaths: ["D:/Pinned"] } } })
     expect(JSON.parse(String(fetchMock.mock.calls[6]?.[1]?.body))).toEqual({ slideshow: { intervalSeconds: 8, loop: true } })
     const [openUrl, openInit] = fetchMock.mock.calls[7]!
     expect(String(openUrl)).toBe("http://127.0.0.1:41000/reader/sessions")

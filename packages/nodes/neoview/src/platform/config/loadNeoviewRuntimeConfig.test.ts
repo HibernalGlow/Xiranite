@@ -242,6 +242,7 @@ describe("loadNeoviewSessionOptions", () => {
           previewCount: 9,
           thumbnailWidthPercent: 36,
           bannerWidthPercent: 70,
+          emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
           details: { columnOrder: ["name", "rating", "path"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
           tree: { visible: true, layout: "top", size: 240, pinnedPaths: ["D:/Pinned"] },
@@ -253,6 +254,7 @@ describe("loadNeoviewSessionOptions", () => {
           previewCount: 9,
           thumbnailWidthPercent: 36,
           bannerWidthPercent: 70,
+          emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
           details: { hiddenColumns: ["tags"], pinnedRight: ["rating"] },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
           tree: { visible: true, layout: "top", size: 240, pinnedPaths: ["D:/Pinned"] },
@@ -264,6 +266,10 @@ describe("loadNeoviewSessionOptions", () => {
       expect(folderConfig).toContain("preview_count = 9")
       expect(folderConfig).toContain("thumbnail_width_percent = 36")
       expect(folderConfig).toContain("banner_width_percent = 70")
+      expect(folderConfig).toContain("[nodes.neoview.folder.empty_area]")
+      expect(folderConfig).toContain('single_click_action = "goBack"')
+      expect(folderConfig).toContain('double_click_action = "none"')
+      expect(folderConfig).toContain("show_back_button = true")
       expect(folderConfig).toContain("[nodes.neoview.folder.details]")
       expect(folderConfig).toContain("[nodes.neoview.folder.details.column_widths]")
       expect(folderConfig).toContain("[nodes.neoview.folder.search]")
@@ -280,6 +286,7 @@ describe("loadNeoviewSessionOptions", () => {
         previewCount: 9,
         thumbnailWidthPercent: 36,
         bannerWidthPercent: 70,
+        emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
         details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
         tree: { visible: true, layout: "top", size: 240, pinnedPaths: ["D:/Pinned"] },

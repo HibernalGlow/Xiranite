@@ -5,6 +5,7 @@ import type {
   ReaderDirectorySortDto,
   ReaderDirectorySortFieldDto,
   ReaderDirectorySortSourceDto,
+  ReaderFolderRegionPosition,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
 import { rebaseDirectorySelection, type DirectorySelectionModel } from "./DirectorySelection"
@@ -211,4 +212,27 @@ export function visiblePageStep(mode: ReaderFolderViewMode, gridColumns: number)
 
 export function thumbnailPixelSize(percent: number): number {
   return Math.round(48 + (percent - 10) * 3)
+}
+
+export function formatFolderRating(value: number | undefined): string {
+  return Number.isFinite(value) ? value!.toFixed(1) : "-"
+}
+
+export function isEditableKeyboardEvent(event: { nativeEvent: { isComposing?: boolean }; target: EventTarget | null }): boolean {
+  if (event.nativeEvent.isComposing) return true
+  const target = event.target
+  return target instanceof HTMLElement
+    && (target.isContentEditable || target.matches("input, textarea, select, [role='textbox'], [role='menu'], [role='dialog']"))
+}
+
+export function isVerticalFolderRegion(position: ReaderFolderRegionPosition): boolean {
+  return position === "left" || position === "right"
+}
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError"
+}
+
+export function folderErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

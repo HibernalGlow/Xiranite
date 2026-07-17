@@ -388,6 +388,13 @@ export interface ReaderFolderTabsConfig {
 }
 
 export type ReaderFolderRegionPosition = "none" | "top" | "bottom" | "left" | "right"
+export type ReaderFolderEmptyAreaAction = "none" | "goUp" | "goBack"
+
+export interface ReaderFolderEmptyAreaConfig {
+  singleClickAction: ReaderFolderEmptyAreaAction
+  doubleClickAction: ReaderFolderEmptyAreaAction
+  showBackButton: boolean
+}
 
 export interface ReaderFolderViewConfig {
   homePath: string
@@ -395,6 +402,7 @@ export interface ReaderFolderViewConfig {
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
   bannerWidthPercent: number
+  emptyArea: ReaderFolderEmptyAreaConfig
   details: ReaderFolderDetailsConfig
   search: ReaderFolderSearchConfig
   tree: ReaderFolderTreeViewConfig
@@ -416,6 +424,7 @@ export interface ReaderFolderViewPatch {
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
+    emptyArea?: Partial<ReaderFolderEmptyAreaConfig>
     details?: ReaderFolderDetailsPatch
     search?: Partial<ReaderFolderSearchConfig>
     tree?: Partial<ReaderFolderTreeViewConfig>

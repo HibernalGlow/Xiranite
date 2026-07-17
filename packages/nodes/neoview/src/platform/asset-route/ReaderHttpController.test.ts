@@ -131,6 +131,10 @@ describe("ReaderHttpController", () => {
         ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search,
         ...patch.folderView.search,
       },
+      emptyArea: {
+        ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea,
+        ...patch.folderView.emptyArea,
+      },
     }))
     const updateShellOptions = vi.fn(async (patch) => ({
       showDelayMs: 50,
@@ -181,6 +185,7 @@ describe("ReaderHttpController", () => {
         previewCount: 4,
         details: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.details },
         search: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search },
+        emptyArea: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea },
       },
       updateFolderView,
       slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
@@ -264,6 +269,7 @@ describe("ReaderHttpController", () => {
           previewCount: 9,
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
+          emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
         },
       }, true, "PATCH")))!
       expect(await folderPatched.json()).toMatchObject({ folderView: {
@@ -271,6 +277,7 @@ describe("ReaderHttpController", () => {
         previewCount: 9,
         details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
+        emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
       } })
       expect(updateFolderView).toHaveBeenCalledWith(
         { folderView: {
@@ -278,12 +285,14 @@ describe("ReaderHttpController", () => {
           previewCount: 9,
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
+          emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
         } },
         { folder: {
           view_mode: "details",
           preview_count: 9,
           details: { hidden_columns: ["tags"], column_widths: { name: 310 } },
           search: { include_subfolders: false, show_history_on_focus: false, search_in_path: true },
+          empty_area: { single_click_action: "goBack", double_click_action: "none", show_back_button: true },
         } },
       )
       const slideshowPatched = (await controller.handle(jsonRequest("/reader/config", {

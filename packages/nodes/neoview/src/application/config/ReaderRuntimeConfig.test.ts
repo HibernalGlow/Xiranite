@@ -149,6 +149,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       previewCount: 9,
       thumbnailWidthPercent: 34,
       bannerWidthPercent: 70,
+      emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
         hiddenColumns: ["tags"],

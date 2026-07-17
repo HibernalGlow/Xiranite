@@ -28,10 +28,12 @@ export interface NeoviewFileTreeConfig {
 }
 
 export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
+export const NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS = ["none", "goUp", "goBack"] as const
 export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
 export const NEOVIEW_FOLDER_REGION_POSITIONS = ["none", "top", "bottom", "left", "right"] as const
 export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
 export type NeoviewFolderViewMode = typeof NEOVIEW_FOLDER_VIEW_MODES[number]
+export type NeoviewFolderEmptyAreaAction = typeof NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS[number]
 export type NeoviewFolderTreeLayout = typeof NEOVIEW_FOLDER_TREE_LAYOUTS[number]
 export type NeoviewFolderRegionPosition = typeof NEOVIEW_FOLDER_REGION_POSITIONS[number]
 export type NeoviewFolderDetailColumn = typeof NEOVIEW_FOLDER_DETAIL_COLUMNS[number]
@@ -48,6 +50,12 @@ export interface NeoviewFolderSearchConfig {
   includeSubfolders: boolean
   showHistoryOnFocus: boolean
   searchInPath: boolean
+}
+
+export interface NeoviewFolderEmptyAreaConfig {
+  singleClickAction: NeoviewFolderEmptyAreaAction
+  doubleClickAction: NeoviewFolderEmptyAreaAction
+  showBackButton: boolean
 }
 
 export interface NeoviewFolderTreeViewConfig {
@@ -76,6 +84,7 @@ export interface NeoviewFolderViewConfig {
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
   bannerWidthPercent: number
+  emptyArea: NeoviewFolderEmptyAreaConfig
   details: NeoviewFolderDetailsConfig
   search: NeoviewFolderSearchConfig
   tree: NeoviewFolderTreeViewConfig
@@ -97,6 +106,7 @@ export interface NeoviewFolderViewPatch {
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
+    emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
     details?: NeoviewFolderDetailsPatch
     search?: Partial<NeoviewFolderSearchConfig>
     tree?: Partial<NeoviewFolderTreeViewConfig>
@@ -266,6 +276,11 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   previewCount: 4,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
+  emptyArea: {
+    singleClickAction: "none",
+    doubleClickAction: "goUp",
+    showBackButton: false,
+  },
   details: {
     columnOrder: [...NEOVIEW_FOLDER_DETAIL_COLUMNS],
     hiddenColumns: [],
@@ -630,7 +645,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "details", "search", "tree", "tabs"])
+  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "emptyArea", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -658,6 +673,29 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     const percent = boundedInteger(folder.bannerWidthPercent, 20, 100, "reader folder view patch.bannerWidthPercent")
     patch.folderView.bannerWidthPercent = percent
     toml.banner_width_percent = percent
+  }
+  if (folder.emptyArea !== undefined) {
+    const emptyArea = requireRecord(folder.emptyArea, "reader folder view patch.emptyArea")
+    const allowedEmptyArea = new Set(["singleClickAction", "doubleClickAction", "showBackButton"])
+    const unknownEmptyArea = Object.keys(emptyArea).filter((key) => !allowedEmptyArea.has(key))
+    if (unknownEmptyArea.length) throw new Error(`reader folder view patch.emptyArea contains unsupported fields: ${unknownEmptyArea.join(", ")}.`)
+    const emptyAreaPatch: Partial<NeoviewFolderEmptyAreaConfig> = {}
+    const emptyAreaToml: Record<string, unknown> = {}
+    if (emptyArea.singleClickAction !== undefined) {
+      emptyAreaPatch.singleClickAction = optionalEnum(emptyArea.singleClickAction, "reader folder view patch.emptyArea.singleClickAction", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
+      emptyAreaToml.single_click_action = emptyAreaPatch.singleClickAction
+    }
+    if (emptyArea.doubleClickAction !== undefined) {
+      emptyAreaPatch.doubleClickAction = optionalEnum(emptyArea.doubleClickAction, "reader folder view patch.emptyArea.doubleClickAction", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
+      emptyAreaToml.double_click_action = emptyAreaPatch.doubleClickAction
+    }
+    if (emptyArea.showBackButton !== undefined) {
+      emptyAreaPatch.showBackButton = optionalBoolean(emptyArea.showBackButton, "reader folder view patch.emptyArea.showBackButton")
+      emptyAreaToml.show_back_button = emptyAreaPatch.showBackButton
+    }
+    if (!Object.keys(emptyAreaPatch).length) throw new Error("reader folder view patch.emptyArea must change at least one field.")
+    patch.folderView.emptyArea = emptyAreaPatch
+    toml.empty_area = emptyAreaToml
   }
   if (folder.details !== undefined) {
     const details = requireRecord(folder.details, "reader folder view patch.details")
@@ -783,6 +821,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
   if (!value) return DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
   const details = optionalRecord(value.details, "[nodes.neoview.folder.details]")
   const search = optionalRecord(value.search, "[nodes.neoview.folder.search]")
+  const emptyArea = optionalRecord(value.empty_area, "[nodes.neoview.folder.empty_area]")
   const tree = optionalRecord(value.tree_view, "[nodes.neoview.folder.tree_view]")
   const tabs = optionalRecord(value.tabs, "[nodes.neoview.folder.tabs]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false)
@@ -806,6 +845,14 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     bannerWidthPercent: value.banner_width_percent === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.bannerWidthPercent
       : boundedInteger(value.banner_width_percent, 20, 100, "[nodes.neoview.folder].banner_width_percent"),
+    emptyArea: {
+      singleClickAction: optionalEnum(emptyArea?.single_click_action, "[nodes.neoview.folder.empty_area].single_click_action", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea.singleClickAction,
+      doubleClickAction: optionalEnum(emptyArea?.double_click_action, "[nodes.neoview.folder.empty_area].double_click_action", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea.doubleClickAction,
+      showBackButton: optionalBoolean(emptyArea?.show_back_button, "[nodes.neoview.folder.empty_area].show_back_button")
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea.showBackButton,
+    },
     details: {
       columnOrder: normalizedDetailColumns(details?.column_order ?? NEOVIEW_FOLDER_DETAIL_COLUMNS, "[nodes.neoview.folder.details].column_order", true, false),
       hiddenColumns,

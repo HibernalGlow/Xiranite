@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, File, Folder, GalleryHorizontalEnd, Grid2X2, Heart, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, Star, TableProperties, Unlock } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -33,7 +33,6 @@ import type {
   ReaderDirectorySortSourceDto,
   ReaderFolderViewMode,
   ReaderFolderViewConfig,
-  ReaderFolderRegionPosition,
   ReaderFolderTreeLayout,
 } from "../../../adapters/reader-http-client"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../adapters/reader-http-client"
@@ -44,6 +43,10 @@ import {
   directoryLoadedEntries,
   directoryPageHasMetadata,
   directoryPageCursors,
+  folderErrorMessage,
+  isAbortError,
+  isEditableKeyboardEvent,
+  isVerticalFolderRegion,
   mergeDirectoryPage,
   rememberDirectoryVisitState,
   restoreDirectoryVisitState,
@@ -72,6 +75,15 @@ import {
   toggleDirectorySelection,
   type DirectorySelectionModel,
 } from "./folder/DirectorySelection"
+import { FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
+import {
+  EMPTY_VIRTUOSO_COMPONENTS,
+  FOLDER_GRID_COMPONENTS,
+  FOLDER_LIST_COMPONENTS,
+  FolderNavigationSettingsControl,
+  runFolderNavigation,
+  useFolderEmptyAreaNavigation,
+} from "./folder/FolderEmptyAreaBehavior"
 
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
@@ -107,6 +119,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   previewCount: 4,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
+  emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
     hiddenColumns: [],
@@ -157,7 +170,11 @@ export type FolderBrowserCloneProvider = (close?: boolean) => Promise<FolderBrow
 
 export default function FolderMainCard(context: ReaderPanelContext) {
   const folderView = context.folderView
-    ? { ...context.folderView, tabs: context.folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs }
+    ? {
+        ...context.folderView,
+        emptyArea: { ...DEFAULT_FOLDER_VIEW.emptyArea, ...context.folderView.emptyArea },
+        tabs: context.folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs,
+      }
     : DEFAULT_FOLDER_VIEW
   return (
     <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
@@ -215,6 +232,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const focusedItemId = catalog && focusedIndex !== undefined && viewMode !== "details" && directoryEntryAt(catalog, focusedIndex)
     ? `${itemIdPrefix}-item-${focusedIndex}`
     : undefined
+  const emptyAreaHandlers = useFolderEmptyAreaNavigation(folderView.emptyArea, (action) => {
+    runFolderNavigation(action, catalogRef.current, (command) => { void navigate(command) })
+  })
 
   useEffect(() => {
     if (!sourcePath) return
@@ -323,7 +343,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       applyPage(opened)
       if (previous && previous !== opened.sessionId) void client.closeDirectoryBrowser?.(previous).catch(() => undefined)
     } catch (cause) {
-      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(errorMessage(cause))
+      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
     } finally {
       if (generation === navigationGenerationRef.current) setLoading(false)
     }
@@ -354,7 +374,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         applyPage(result, navigation.action === "refresh" ? capturedState : undefined)
       }
     } catch (cause) {
-      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(errorMessage(cause))
+      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
     } finally {
       if (generation === navigationGenerationRef.current) setLoading(false)
     }
@@ -431,7 +451,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         anchorIndex: focusIndex ?? 0,
       })
     } catch (cause) {
-      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(errorMessage(cause))
+      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
     } finally {
       if (generation === navigationGenerationRef.current) setLoading(false)
     }
@@ -465,7 +485,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         anchorIndex: focusIndex ?? 0,
       })
     } catch (cause) {
-      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(errorMessage(cause))
+      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
     } finally {
       if (generation === navigationGenerationRef.current) setLoading(false)
     }
@@ -501,7 +521,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           queueMicrotask(registerVisibleThumbnails)
         })
         .catch((cause) => {
-          if (!requestSignal?.aborted && !isAbortError(cause)) setError(errorMessage(cause))
+          if (!requestSignal?.aborted && !isAbortError(cause)) setError(folderErrorMessage(cause))
         })
         .finally(() => {
           const latest = catalogRef.current
@@ -798,6 +818,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
   const virtualKey = catalog ? `${catalog.sessionId}:${catalog.generation}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
   const tabLayout = folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs!
+  const showReturnFooter = folderView.emptyArea.showBackButton && !searchOpen
+  const returnFooterContext = {
+    disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
+    onReturn: () => runFolderNavigation("return", catalogRef.current, (command) => { void navigate(command) }),
+  }
 
   return (
     <div
@@ -828,7 +853,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             generation={catalog.generation}
             focusPath={focusedPath}
             onPage={(page) => { void applyWatchedPage(page) }}
-            onError={(cause) => setError(`目录监听失败：${errorMessage(cause)}`)}
+            onError={(cause) => setError(`目录监听失败：${folderErrorMessage(cause)}`)}
           />
         </Suspense>
       ) : null}
@@ -842,7 +867,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               path={catalog?.path ?? sourcePath ?? ""}
               disabled={disabled}
               loading={loading}
-              vertical={isVerticalRegion(tabLayout.breadcrumbPosition)}
+              vertical={isVerticalFolderRegion(tabLayout.breadcrumbPosition)}
               canGoBack={catalog?.canGoBack}
               canGoForward={catalog?.canGoForward}
               canGoUp={Boolean(catalog?.parentPath)}
@@ -893,6 +918,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           </BrowserButton>
           <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={toggleTree}><ListTree /></BrowserButton>
           <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search /></BrowserButton>
+          <FolderNavigationSettingsControl
+            value={folderView.emptyArea}
+            disabled={!catalog || loading}
+            onChange={(emptyArea) => { void onFolderView?.({ emptyArea }) }}
+          />
           <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
         </div>
         <div className="flex min-w-0 items-center gap-1">
@@ -1077,6 +1107,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           aria-activedescendant={searchOpen ? undefined : focusedItemId}
           tabIndex={0}
           onKeyDown={handleDirectoryKeyDown}
+          {...emptyAreaHandlers}
           style={{ order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1, "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
         >
         {searchOpen && sessionIdRef.current ? (
@@ -1098,6 +1129,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             ref={listRef}
             style={{ height: LIST_HEIGHT }}
             totalCount={catalog.total}
+            components={showReturnFooter ? FOLDER_LIST_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
+            context={showReturnFooter ? returnFooterContext : undefined}
             fixedItemHeight={viewMode === "compact" ? 34 : 76}
             increaseViewportBy={{ top: viewMode === "compact" ? 68 : 152, bottom: viewMode === "compact" ? 136 : 304 }}
             computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
@@ -1142,6 +1175,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               onSelect={selectEntry}
               onActivate={activate}
               onLayoutChange={(details) => { void onFolderView?.({ details }) }}
+              showReturnFooter={showReturnFooter}
+              returnFooterContext={returnFooterContext}
             />
           </Suspense>
         ) : null}
@@ -1151,6 +1186,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             ref={gridRef}
             style={{ height: LIST_HEIGHT }}
             totalCount={catalog.total}
+            components={showReturnFooter ? FOLDER_GRID_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
+            context={showReturnFooter ? returnFooterContext : undefined}
             listClassName={viewUsesBanner(viewMode)
               ? "grid gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
               : "grid gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),5.5rem),1fr))]"}
@@ -1227,17 +1264,18 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
       onDoubleClick={() => onActivate(entry)}
       tabIndex={-1}
       data-preview-mode={visualMode}
+      data-folder-entry="true"
     >
       {rich ? (
         <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30">
-          {thumbnailUrl ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" /> : <EntryIcon entry={entry} className="size-7" />}
+          {thumbnailUrl ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" /> : <FolderEntryIcon entry={entry} className="size-7" />}
         </span>
-      ) : <EntryIcon entry={entry} />}
+      ) : <FolderEntryIcon entry={entry} />}
       <span className="grid min-w-0 flex-1 gap-1">
         <span className="truncate">{entry.name}</span>
         {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
       </span>
-      <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
+      <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
     </button>
   )
 }
@@ -1257,16 +1295,17 @@ function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused
       onDoubleClick={() => onActivate(entry)}
       tabIndex={-1}
       data-preview-mode={visualMode}
+      data-folder-entry="true"
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
         {thumbnailUrl
           ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
-          : <EntryIcon entry={entry} className="size-8" />}
+          : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="grid min-w-0 content-center gap-1 px-2 py-1.5">
         <span className="truncate font-medium">{entry.name}</span>
         <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span>
-        <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
+        <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
       </span>
     </button>
   )
@@ -1288,17 +1327,18 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
       onDoubleClick={() => onActivate(entry)}
       tabIndex={-1}
       data-preview-mode={visualMode}
+      data-folder-entry="true"
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
         {thumbnailUrl
           ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
-          : <EntryIcon entry={entry} className="size-8" />}
+          : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
-        <EntryIcon entry={entry} className="size-3.5" />
+        <FolderEntryIcon entry={entry} className="size-3.5" />
         <span className="truncate">{entry.name}</span>
       </span>
-      {showMetadata ? <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
+      {showMetadata ? <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
     </button>
   )
 }
@@ -1316,54 +1356,6 @@ interface DirectoryItemProps {
   onActivate(entry: ReaderDirectoryEntryDto): void
 }
 
-function EntryMetadata({
-  entry,
-  showRating,
-  showCollectTagCount,
-  className = "",
-}: {
-  entry: ReaderDirectoryEntryDto
-  showRating: boolean
-  showCollectTagCount: boolean
-  className?: string
-}) {
-  return (
-    <span className={`flex shrink-0 items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground ${className}`}>
-      {showRating ? <span className="inline-flex items-center gap-0.5" title={`评分 ${formatRating(entry.rating)}`}><Star className="size-3" />{formatRating(entry.rating)}</span> : null}
-      {showCollectTagCount ? <span className="inline-flex items-center gap-0.5" title={`收藏标签 ${entry.collectTagCount ?? 0}`}><Heart className="size-3" />{entry.collectTagCount ?? 0}</span> : null}
-    </span>
-  )
-}
-
-function formatRating(value: number | undefined): string {
-  return Number.isFinite(value) ? value!.toFixed(1) : "-"
-}
-
-function EntryIcon({ entry, className = "size-4" }: { entry: ReaderDirectoryEntryDto; className?: string }) {
-  return entry.kind === "directory"
-    ? <Folder className={`${className} shrink-0 text-amber-500`} />
-    : <File className={`${className} shrink-0 text-muted-foreground`} />
-}
-
 function BrowserButton({ label, disabled = false, clickDisabled = false, active = false, onClick, onContextMenu, children }: { label: string; disabled?: boolean; clickDisabled?: boolean; active?: boolean; onClick(): void; onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void; children: ReactNode }) {
   return <Button type="button" size="icon-sm" variant={active ? "default" : "ghost"} aria-label={label} title={label} aria-disabled={disabled || clickDisabled} aria-pressed={active || undefined} disabled={disabled} onClick={() => { if (!clickDisabled) onClick() }} onContextMenu={onContextMenu}>{children}</Button>
-}
-
-function isEditableKeyboardEvent(event: ReactKeyboardEvent<HTMLElement>): boolean {
-  if (event.nativeEvent.isComposing) return true
-  const target = event.target
-  if (!(target instanceof HTMLElement)) return false
-  return target.isContentEditable || target.matches("input, textarea, select, [role='textbox'], [role='menu'], [role='dialog']")
-}
-
-function isVerticalRegion(position: ReaderFolderRegionPosition): boolean {
-  return position === "left" || position === "right"
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError"
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

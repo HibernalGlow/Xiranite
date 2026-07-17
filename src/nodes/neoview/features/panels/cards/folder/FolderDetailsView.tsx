@@ -1,5 +1,4 @@
 import type { ColumnOrderState, ColumnSizingState, RowSelectionState, Updater, VisibilityState } from "@tanstack/react-table"
-import { File, Folder } from "lucide-react"
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react"
 
 import { DataTableColumnActions } from "@/components/niko-table/components/data-table-column-actions"
@@ -17,7 +16,9 @@ import type { DataTableColumnDef } from "@/components/niko-table/types"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryEntryDto, type ReaderFolderDetailColumn, type ReaderFolderDetailsConfig } from "../../../../adapters/reader-http-client"
 import type { DirectoryCatalog } from "./DirectoryCatalog"
-import { directoryEntryAt } from "./DirectoryCatalog"
+import { directoryEntryAt, formatFolderRating } from "./DirectoryCatalog"
+import { FolderDetailsReturnFooter, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
+import { FolderEntryIcon } from "./FolderEntryPresentation"
 
 interface DirectoryDetailsRow {
   index: number
@@ -36,6 +37,8 @@ interface FolderDetailsViewProps {
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
   onActivate(entry: ReaderDirectoryEntryDto): void
   onLayoutChange(patch: Partial<ReaderFolderDetailsConfig>): void
+  showReturnFooter: boolean
+  returnFooterContext: FolderReturnFooterContext
 }
 
 const DETAIL_COLUMN_IDS: readonly ReaderFolderDetailColumn[] = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"]
@@ -50,9 +53,7 @@ const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
       const entry = row.original.entry
       return (
         <div className="flex min-w-0 items-center gap-2" title={entry.path}>
-          {entry.kind === "directory"
-            ? <Folder className="size-4 shrink-0 text-amber-500" />
-            : <File className="size-4 shrink-0 text-muted-foreground" />}
+          <FolderEntryIcon entry={entry} />
           <span className="truncate text-xs font-medium">{entry.name}</span>
         </div>
       )
@@ -66,7 +67,7 @@ const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
   { id: "modifiedAt", accessorFn: (row) => row.entry.modifiedAt, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.modifiedAt, header: () => <DetailColumnHeader label="修改时间" />, cell: ({ row }) => <DetailText value={formatDate(row.original.entry.modifiedAt)} mono />, meta: { label: "修改时间" } },
   { id: "dimensions", accessorFn: (row) => formatDimensions(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.dimensions, header: () => <DetailColumnHeader label="尺寸" />, cell: ({ row }) => <DetailText value={formatDimensions(row.original.entry)} align="right" mono />, meta: { label: "尺寸" } },
   { id: "pageCount", accessorFn: (row) => row.entry.pageCount, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.pageCount, header: () => <DetailColumnHeader label="页数" />, cell: ({ row }) => <DetailText value={formatNumber(row.original.entry.pageCount)} align="right" mono />, meta: { label: "页数" } },
-  { id: "rating", accessorFn: (row) => row.entry.rating, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.rating, header: () => <DetailColumnHeader label="评分" />, cell: ({ row }) => <DetailText value={formatRating(row.original.entry.rating)} align="right" mono />, meta: { label: "评分" } },
+  { id: "rating", accessorFn: (row) => row.entry.rating, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.rating, header: () => <DetailColumnHeader label="评分" />, cell: ({ row }) => <DetailText value={formatFolderRating(row.original.entry.rating)} align="right" mono />, meta: { label: "评分" } },
   { id: "tags", accessorFn: (row) => formatTags(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.tags, header: () => <DetailColumnHeader label="标签" />, cell: ({ row }) => <DetailText value={formatTags(row.original.entry)} />, meta: { label: "标签" } },
 ].map((column) => ({ ...column, minSize: 48, maxSize: 800 }))
 
@@ -82,6 +83,8 @@ export default function FolderDetailsView({
   onSelect,
   onActivate,
   onLayoutChange,
+  showReturnFooter,
+  returnFooterContext,
 }: FolderDetailsViewProps) {
   const rows = useMemo(() => loadedRows(catalog), [catalog.pages])
   const rowSelection = useMemo(() => folderDetailsRowSelection(rows, selectedPaths), [rows, selectedPaths])
@@ -188,7 +191,14 @@ export default function FolderDetailsView({
               onScroll={(event) => onScrollTopChange?.(event.scrollTop)}
               onRowClick={(row, event) => { if (!disabled) onSelect(row.entry, row.index, event) }}
               onRowDoubleClick={(row) => { if (!disabled) onActivate(row.entry) }}
-            />
+            >
+              {showReturnFooter ? (
+                <FolderDetailsReturnFooter
+                  {...returnFooterContext}
+                  columnCount={DETAIL_COLUMN_IDS.length - layout.hiddenColumns.length}
+                />
+              ) : null}
+            </DataTableVirtualizedBody>
           </DataTable>
         </DataTableColumnDndProvider>
       </DataTableRoot>
@@ -269,10 +279,6 @@ function formatDimensions(entry: ReaderDirectoryEntryDto): string {
 
 function formatNumber(value: number | undefined): string {
   return Number.isFinite(value) ? String(value) : "-"
-}
-
-function formatRating(value: number | undefined): string {
-  return Number.isFinite(value) ? value!.toFixed(1) : "-"
 }
 
 function formatTags(entry: ReaderDirectoryEntryDto): string {

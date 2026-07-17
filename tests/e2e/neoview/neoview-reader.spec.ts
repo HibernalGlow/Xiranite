@@ -1145,6 +1145,114 @@ test("[neoview.folder.selection-virtual-e2e] preserves sparse selection and focu
   }
 })
 
+test("[neoview.folder.blank-action-e2e] [neoview.folder.bottom-return-e2e] persists Explorer empty-area actions without changing entry indexes", async ({ page }) => {
+  const root = join(fixture.directory, "zz-empty-area")
+  const parentPath = join(root, "parent")
+  const childPath = join(parentPath, "child")
+  await mkdir(childPath, { recursive: true })
+  await writeFile(join(childPath, "only.cbz"), "")
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const image = page.locator("img[data-reader-page-image]").first()
+    await expect(image).toBeVisible()
+    await image.evaluate((element) => element.setAttribute("data-empty-area-image-instance", "stable"))
+
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const currentBreadcrumb = breadcrumb.locator('[aria-current="page"]')
+    const navigatePath = async (path: string) => {
+      const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
+      await edit.focus()
+      await edit.press("Enter")
+      const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+      await input.fill(path)
+      await input.press("Enter")
+      await expect(currentBreadcrumb).toHaveAttribute("title", path)
+    }
+    const chooseAction = async (label: "单击空白" | "双击空白", action: "无操作" | "返回上级" | "后退") => {
+      await folderCard.getByRole("button", { name: "空白区域操作" }).click()
+      await page.getByRole("menuitem", { name: label }).hover()
+      const saved = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+        && response.request().method() === "PATCH"
+        && response.request().postData()?.includes("emptyArea") === true)
+      await page.getByRole("menuitemradio", { name: action }).click()
+      expect((await saved).status()).toBe(200)
+    }
+
+    await navigatePath(childPath)
+    await chooseAction("单击空白", "后退")
+    await chooseAction("双击空白", "无操作")
+    await chooseAction("双击空白", "返回上级")
+
+    const list = folderCard.getByRole("listbox", { name: "文件项目" })
+    await expect(folderCard).toHaveAttribute("data-selection-total", "1")
+    await expect(folderCard.getByTitle(join(childPath, "only.cbz"), { exact: true })).toHaveCount(1)
+
+    const navigationActions: string[] = []
+    page.on("request", (request) => {
+      if (request.method() !== "POST" || !request.url().endsWith("/navigate")) return
+      navigationActions.push((request.postDataJSON() as { action: string }).action)
+    })
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const blankPoint = await list.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const blocked = '[data-folder-entry="true"], [data-folder-return-footer="true"], [data-row-id], [data-index], button, input, select, textarea, a, [role="menu"]'
+      for (let y = bounds.bottom - 8; y > bounds.top + 8; y -= 8) {
+        for (let x = bounds.left + 8; x < bounds.right - 8; x += 8) {
+          const target = document.elementFromPoint(x, y)
+          if (target && element.contains(target) && !target.closest(blocked)) return { x, y }
+        }
+      }
+      throw new Error("folder list has no clickable blank area")
+    })
+    await page.mouse.dblclick(blankPoint.x, blankPoint.y)
+    await expect.poll(() => navigationActions).toEqual(["up"])
+    await page.waitForTimeout(260)
+    expect(navigationActions).toEqual(["up"])
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    await expect(currentBreadcrumb).toHaveAttribute("title", parentPath)
+
+    await navigatePath(childPath)
+    await folderCard.getByRole("button", { name: "空白区域操作" }).click()
+    const footerSaved = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+      && response.request().method() === "PATCH"
+      && response.request().postData()?.includes("showBackButton") === true)
+    await page.getByRole("menuitemcheckbox", { name: "显示底部返回按钮" }).click()
+    expect((await footerSaved).status()).toBe(200)
+    await expect(folderCard).toHaveAttribute("data-selection-total", "1")
+    await expect(folderCard.getByTitle(join(childPath, "only.cbz"), { exact: true })).toHaveCount(1)
+    await expect(folderCard.getByRole("button", { name: "返回上级目录" })).toBeVisible()
+    navigationActions.length = 0
+    await folderCard.getByRole("button", { name: "返回上级目录" }).click()
+    await expect(currentBreadcrumb).toHaveAttribute("title", parentPath)
+    expect(navigationActions).toEqual(["back"])
+    expect(await image.getAttribute("data-empty-area-image-instance")).toBe("stable")
+
+    const config = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+    expect(config).toContain("[nodes.neoview.folder.empty_area]")
+    expect(config).toContain('single_click_action = "goBack"')
+    expect(config).toContain('double_click_action = "goUp"')
+    expect(config).toContain("show_back_button = true")
+  } finally {
+    await fetch(`${backend.url}/reader/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+      body: JSON.stringify({ folderView: { emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false } } }),
+    }).catch(() => undefined)
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] [neoview.folder.tabs-bulk-close-e2e] [neoview.folder.tabs-pin-duplicate-e2e] [neoview.folder.tabs-reopen-e2e] [neoview.folder.selection-tab-isolation-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
   const tabsRoot = join(fixture.directory, "zz-folder-tabs")
   const firstPath = join(tabsRoot, "A")

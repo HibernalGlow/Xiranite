@@ -1166,6 +1166,91 @@ describe("FolderMainCard", () => {
     expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("50%")
     expect(view.container.querySelector('[data-preview-mode="mosaic-list"]')).toBeTruthy()
   })
+
+  it("[neoview.folder.blank-action-ui] gives a double-click precedence over the pending single-click action", async () => {
+    const opened = page({
+      path: "C:/books/child",
+      parentPath: "C:/books",
+      canGoBack: true,
+      total: 1,
+      entries: [{ name: "book.cbz", path: "C:/books/child/book.cbz", kind: "file", readerSupported: true }],
+    })
+    const navigateDirectoryBrowser = vi.fn(async (_sessionId, navigation) => page({
+      navigationEntryId: 2,
+      generation: 2,
+      path: navigation.action === "up" ? "C:/books" : "C:/previous",
+      parentPath: "C:/",
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books/child"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={folderViewConfig({ emptyArea: { singleClickAction: "goBack", doubleClickAction: "goUp", showBackButton: false } })}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const host = await ui.findByRole("listbox", { name: "文件项目" })
+
+    fireEvent.pointerDown(ui.getByRole("button", { name: "空白区域操作" }))
+    expect(await screen.findByText("显示底部返回按钮")).toBeTruthy()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
+
+    fireEvent.click(host)
+    fireEvent.doubleClick(host)
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal), undefined))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 260)))
+    expect(navigateDirectoryBrowser).toHaveBeenCalledTimes(1)
+  })
+
+  it("[neoview.folder.bottom-return-ui] renders a footer outside entry indexes in list and details views", async () => {
+    const opened = page({
+      path: "C:/books/child",
+      parentPath: "C:/books",
+      canGoBack: true,
+      total: 1,
+      entries: [{ name: "book.cbz", path: "C:/books/child/book.cbz", kind: "file", readerSupported: true }],
+    })
+    const navigateDirectoryBrowser = vi.fn(async () => page({ navigationEntryId: 2, generation: 2, path: "C:/books", parentPath: "C:/" }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books/child"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={folderViewConfig({ emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: true } })}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const folderCard = view.container.querySelector('[data-neoview-folder-card="true"]')
+    await ui.findByRole("button", { name: "返回上级目录" })
+    expect(folderCard?.getAttribute("data-selection-total")).toBe("1")
+    expect(ui.getAllByTitle("C:/books/child/book.cbz")).toHaveLength(1)
+
+    fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-details="true"] [data-folder-return-footer="true"]')).toBeTruthy())
+    expect(folderCard?.getAttribute("data-selection-total")).toBe("1")
+
+    fireEvent.click(ui.getByRole("button", { name: "返回上级目录" }))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "back" }, expect.any(AbortSignal), undefined))
+  })
 })
 
 function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDto {
@@ -1198,6 +1283,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     previewCount: 4,
     thumbnailWidthPercent: 20,
     bannerWidthPercent: 50,
+    emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
     details: {
       columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
       hiddenColumns: [],

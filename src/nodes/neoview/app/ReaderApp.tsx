@@ -60,6 +60,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   previewCount: 4,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
+  emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
     hiddenColumns: [],
@@ -423,6 +424,10 @@ export function ReaderApp({
       search: {
         ...folderViewRef.current.search,
         ...patch.search,
+      },
+      emptyArea: {
+        ...folderViewRef.current.emptyArea,
+        ...patch.emptyArea,
       },
       tree: {
         ...folderViewRef.current.tree,
