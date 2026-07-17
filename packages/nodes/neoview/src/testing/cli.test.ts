@@ -674,7 +674,7 @@ describe("NeoView CLI", () => {
     expect(JSON.parse(cleanupOutput.join(""))).toEqual({
       operation: "invalid", scanned: 10, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false,
     })
-    expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 10, deleteLimit: 20 })
+    expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 10, deleteLimit: 20 }, undefined)
     await expect(runProgram([
       "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "invalid", "--limit", "501", "--yes",
     ], host([]), dependencies)).rejects.toThrow("from 1 to 500")
@@ -684,7 +684,7 @@ describe("NeoView CLI", () => {
       "thumbnail-db-clear-failures", "private/thumbnails.db", "--reason", "decode-error", "--limit", "50", "--yes", "--json",
     ], host(failureOutput), dependencies)
     expect(JSON.parse(failureOutput.join(""))).toEqual({ operation: "clear-failures", deleted: 3 })
-    expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 50 })
+    expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 50 }, undefined)
     expect(dispose).toHaveBeenCalledTimes(3)
   })
 
