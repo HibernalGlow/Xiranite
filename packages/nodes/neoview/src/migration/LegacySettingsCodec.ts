@@ -49,6 +49,7 @@ export const LEGACY_SETTINGS_MODULES = [
   "panels",
   "bookmarks",
   "history",
+  "book-settings",
   "search-history",
   "upscale",
   "performance",
@@ -768,10 +769,11 @@ function dispositionForUnknownKey(key: string, sourcePath: string, entries: Lega
 }
 
 function isKnownPendingStorageKey(key: string): boolean {
-  return /(?:bookmark|history|rating|recent|progress|search-history|translation-cache)/i.test(key)
+  return key === "neoview-book-settings" || /(?:bookmark|history|rating|recent|progress|search-history|translation-cache)/i.test(key)
 }
 
 function pendingStorageModule(key: string): LegacySettingsModule {
+  if (key === "neoview-book-settings") return "book-settings"
   if (/bookmark/i.test(key)) return "bookmarks"
   if (/search-history/i.test(key)) return "search-history"
   if (/rating/i.test(key)) return "folder-ratings"

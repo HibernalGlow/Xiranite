@@ -295,6 +295,14 @@ export async function createReaderHttpController(
       return parseNeoviewRuntimeConfig(committed.nodeConfig).media
     },
     loadSettingsMigrationService: () => createReaderSettingsMigrationService(options),
+    loadBookSettingsMigrationService: options.loadBookSettingsMigrationService ?? (dataStore
+      ? async () => {
+          const { ReaderBookSettingsMigrationService } = await import("./application/migration/ReaderBookSettingsMigrationService.js")
+          const { LegacyBookSettingsImporter } = await import("./migration/LegacyBookSettingsImporter.js")
+          const { resolveLegacyReaderSource } = await import("./platform/migration/resolveLegacyReaderSource.js")
+          return new ReaderBookSettingsMigrationService(new LegacyBookSettingsImporter(dataStore, resolveLegacyReaderSource))
+        }
+      : undefined),
     loadSettingsPortableService: () => createReaderSettingsPortableService({
       ...options,
       thumbnailDatabasePath: options.legacyThumbnailDatabasePath === false
@@ -592,7 +600,8 @@ function isReaderMediaProgressStore(store: ReaderProgressStore | undefined): sto
 function isReaderBookSettingsStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderBookSettingsStore {
   return Boolean(store
     && typeof (store as Partial<ReaderBookSettingsStore>).getBookSettings === "function"
-    && typeof (store as Partial<ReaderBookSettingsStore>).saveBookSettings === "function")
+    && typeof (store as Partial<ReaderBookSettingsStore>).saveBookSettings === "function"
+    && typeof (store as Partial<ReaderBookSettingsStore>).importBookSettings === "function")
 }
 
 function isReaderDirectoryEmmRecordStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderDirectoryEmmRecordStore {

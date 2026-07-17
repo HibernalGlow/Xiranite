@@ -16,6 +16,17 @@ export interface ReaderBookSettingsRecord {
   updatedAt: number
 }
 
+export interface ReaderBookSettingsImportRecord {
+  bookId: string
+  overrides: ReaderBookSettingsOverrides
+}
+
+export interface ReaderBookSettingsImportResult {
+  inserted: number
+  updated: number
+  unchanged: number
+}
+
 export interface ReaderBookSettingsStore {
   getBookSettings(bookId: string): Promise<ReaderBookSettingsRecord | undefined>
   saveBookSettings(
@@ -24,4 +35,9 @@ export interface ReaderBookSettingsStore {
     expectedRevision: number,
     updatedAt: number,
   ): Promise<ReaderBookSettingsRecord | undefined>
+  importBookSettings(
+    records: readonly ReaderBookSettingsImportRecord[],
+    strategy: "merge" | "overwrite",
+    updatedAt: number,
+  ): Promise<ReaderBookSettingsImportResult>
 }

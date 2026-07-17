@@ -17,6 +17,8 @@ import type { ReaderFileUndoJournalRecord } from "../../ports/ReaderFileUndoJour
 import type {
   ReaderBookSettingsOverrides,
   ReaderBookSettingsRecord,
+  ReaderBookSettingsImportRecord,
+  ReaderBookSettingsImportResult,
 } from "../../ports/ReaderBookSettingsStore.js"
 import {
   isReaderDirectorySortField,
@@ -232,6 +234,64 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         updatedAt,
       )
       return { bookId, overrides: parsed, revision, updatedAt }
+    })
+  }
+
+  async importBookSettings(
+    records: readonly ReaderBookSettingsImportRecord[],
+    strategy: "merge" | "overwrite",
+    updatedAt: number,
+  ): Promise<ReaderBookSettingsImportResult> {
+    this.#assertOpen()
+    if (strategy !== "merge" && strategy !== "overwrite") throw new Error("Reader book settings import strategy is invalid.")
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Reader book settings import timestamp is invalid.")
+    if (records.length > 10_000) throw new Error("Reader book settings import exceeds 10000 records.")
+    const normalized = records.map((record) => {
+      assertBookSettingsBookId(record.bookId)
+      return { bookId: record.bookId, overrides: BookSettingsOverridesSchema.parse(record.overrides) }
+    })
+    return this.#transaction(() => {
+      const result: ReaderBookSettingsImportResult = { inserted: 0, updated: 0, unchanged: 0 }
+      for (const record of normalized) {
+        const row = this.database.get(
+          `SELECT book_id, favorite, rating, reading_direction, page_mode, horizontal_book, revision, updated_at
+           FROM xr_reader_book_settings WHERE book_id = ?1`,
+          record.bookId,
+        )
+        const current = row ? parseBookSettings(row) : undefined
+        const overrides = strategy === "merge"
+          ? { ...record.overrides, ...current?.overrides }
+          : record.overrides
+        if (current && sameBookSettingsOverrides(current.overrides, overrides)) {
+          result.unchanged += 1
+          continue
+        }
+        const revision = (current?.revision ?? 0) + 1
+        this.database.run(
+          `INSERT INTO xr_reader_book_settings (
+             book_id, favorite, rating, reading_direction, page_mode, horizontal_book, revision, updated_at
+           ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+           ON CONFLICT(book_id) DO UPDATE SET
+             favorite = excluded.favorite,
+             rating = excluded.rating,
+             reading_direction = excluded.reading_direction,
+             page_mode = excluded.page_mode,
+             horizontal_book = excluded.horizontal_book,
+             revision = excluded.revision,
+             updated_at = excluded.updated_at`,
+          record.bookId,
+          overrides.favorite === undefined ? null : overrides.favorite ? 1 : 0,
+          overrides.rating ?? null,
+          overrides.direction ?? null,
+          overrides.pageMode ?? null,
+          overrides.horizontalBook === undefined ? null : overrides.horizontalBook ? 1 : 0,
+          revision,
+          updatedAt,
+        )
+        if (current) result.updated += 1
+        else result.inserted += 1
+      }
+      return result
     })
   }
 
@@ -1106,6 +1166,14 @@ function parseBookSettings(row: Record<string, unknown>): ReaderBookSettingsReco
 
 function assertBookSettingsBookId(bookId: string): void {
   if (!bookId || bookId.length > 2_048 || bookId.includes("\0")) throw new Error("Reader book settings bookId is invalid.")
+}
+
+function sameBookSettingsOverrides(left: ReaderBookSettingsOverrides, right: ReaderBookSettingsOverrides): boolean {
+  return left.favorite === right.favorite
+    && left.rating === right.rating
+    && left.direction === right.direction
+    && left.pageMode === right.pageMode
+    && left.horizontalBook === right.horizontalBook
 }
 
 function isBusyError(error: unknown): boolean {

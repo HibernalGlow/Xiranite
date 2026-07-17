@@ -54,8 +54,10 @@ import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
+import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
 import type { ReaderSettingsMigrationService } from "../../application/migration/ReaderSettingsMigrationService.js"
 import type { ReaderSettingsPortableService } from "../../application/migration/ReaderSettingsPortableService.js"
+import type { ReaderBookSettingsMigrationService } from "../../application/migration/ReaderBookSettingsMigrationService.js"
 import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
@@ -167,6 +169,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   maxSeekableMediaTotalBytes?: number
   loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>
   loadSettingsPortableService?: () => Promise<ReaderSettingsPortableService>
+  loadBookSettingsMigrationService?: () => Promise<ReaderBookSettingsMigrationService>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -179,6 +182,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #fileOperations: ReaderFileOperationHttpController
   readonly #systemIntegration: ReaderSystemIntegrationHttpController
   readonly #settingsMigration?: ReaderSettingsMigrationHttpController
+  readonly #bookSettingsMigration?: ReaderBookSettingsMigrationHttpController
   readonly #library?: ReaderLibraryHttpController
   readonly #libraryService?: ReaderLibraryService
   readonly #disposeLibraryService: boolean
@@ -340,6 +344,9 @@ export class ReaderHttpController implements AsyncDisposable {
           options.loadSettingsPortableService,
         )
       : undefined
+    this.#bookSettingsMigration = options.loadBookSettingsMigrationService
+      ? new ReaderBookSettingsMigrationHttpController(options.loadBookSettingsMigrationService)
+      : undefined
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(
       options.libraryService,
@@ -398,6 +405,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (systemIntegrationResponse) return systemIntegrationResponse
     const settingsMigrationResponse = await this.#settingsMigration?.handle(request)
     if (settingsMigrationResponse) return settingsMigrationResponse
+    const bookSettingsMigrationResponse = await this.#bookSettingsMigration?.handle(request)
+    if (bookSettingsMigrationResponse) return bookSettingsMigrationResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
 

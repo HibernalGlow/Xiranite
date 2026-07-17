@@ -44,6 +44,31 @@ describe("SqliteReaderDataStore", () => {
     await expect(inspectLegacyThumbnailDatabase(path)).resolves.toMatchObject({ metadataVersion: "2.4", userVersion: 7, journalMode: "wal" })
   })
 
+  it("[neoview.book-settings.legacy-transaction] imports merge or overwrite in one canonical store transaction", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.saveBookSettings("book-1", { favorite: true, direction: "left-to-right" }, 0, 1)
+    await expect(store.importBookSettings([
+      { bookId: "book-1", overrides: { favorite: false, rating: 3, pageMode: "double" } },
+      { bookId: "book-2", overrides: { horizontalBook: true } },
+    ], "merge", 2)).resolves.toEqual({ inserted: 1, updated: 1, unchanged: 0 })
+    await expect(store.getBookSettings("book-1")).resolves.toMatchObject({
+      revision: 2,
+      overrides: { favorite: true, rating: 3, direction: "left-to-right", pageMode: "double" },
+    })
+    await expect(store.importBookSettings([
+      { bookId: "book-1", overrides: { favorite: false, rating: 3, pageMode: "double" } },
+    ], "merge", 3)).resolves.toEqual({ inserted: 0, updated: 0, unchanged: 1 })
+    await expect(store.importBookSettings([
+      { bookId: "book-1", overrides: { favorite: false, pageMode: "single" } },
+    ], "overwrite", 4)).resolves.toEqual({ inserted: 0, updated: 1, unchanged: 0 })
+    await expect(store.getBookSettings("book-1")).resolves.toMatchObject({
+      revision: 3,
+      overrides: { favorite: false, pageMode: "single" },
+    })
+    await store.close()
+  })
+
   it("[neoview.progress.sqlite] [neoview.library.sqlite] reuses progress for recents and preserves the legacy database", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)

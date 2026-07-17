@@ -103,6 +103,7 @@ describe("Reader book settings HTTP", () => {
     const store: ReaderBookSettingsStore = {
       getBookSettings: vi.fn(async (bookId) => ({ ...record, bookId })),
       saveBookSettings: vi.fn(async () => { throw new Error("database busy") }),
+      importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
     }
     const controller = new ReaderHttpController({
       baseUrl: "http://127.0.0.1:41000",
@@ -138,6 +139,7 @@ function memoryStore(initial?: ReaderBookSettingsRecord) {
       return record ? { ...structuredClone(record), bookId } : undefined
     },
     saveBookSettings,
+    importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
   }
 }
 

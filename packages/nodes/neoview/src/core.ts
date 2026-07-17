@@ -124,6 +124,8 @@ export type { ReaderMediaProgressRecord, ReaderMediaProgressStore } from "./port
 export type {
   ReaderBookSettingsOverrides,
   ReaderBookSettingsRecord,
+  ReaderBookSettingsImportRecord,
+  ReaderBookSettingsImportResult,
   ReaderBookSettingsStore,
 } from "./ports/ReaderBookSettingsStore.js"
 export {
@@ -136,6 +138,19 @@ export type {
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
 } from "./application/reader/ReaderBookSettingsService.js"
+export { ReaderBookSettingsMigrationService } from "./application/migration/ReaderBookSettingsMigrationService.js"
+export type { ReaderBookSettingsMigrationInspection } from "./application/migration/ReaderBookSettingsMigrationService.js"
+export { LegacyBookSettingsCodec } from "./migration/LegacyBookSettingsCodec.js"
+export type {
+  DecodedLegacyBookSettings,
+  LegacyBookSettingsEntry,
+  LegacyBookSettingsReport,
+} from "./migration/LegacyBookSettingsCodec.js"
+export { LegacyBookSettingsImporter } from "./migration/LegacyBookSettingsImporter.js"
+export type {
+  LegacyBookSettingsImportResult,
+  ResolvedBookSettingsIdentity,
+} from "./migration/LegacyBookSettingsImporter.js"
 export { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "./application/reader/ReaderMediaProgressService.js"
 export {
   ReaderClipboardMaterializationService,

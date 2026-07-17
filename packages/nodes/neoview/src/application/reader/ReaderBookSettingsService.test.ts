@@ -68,6 +68,7 @@ describe("ReaderBookSettingsService", () => {
     const store: ReaderBookSettingsStore = {
       getBookSettings: vi.fn(async () => reads++ === 0 ? original : winner),
       saveBookSettings: vi.fn(async () => undefined),
+      importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
     }
     const apply = vi.fn(async () => undefined)
     const service = new ReaderBookSettingsService(store)
@@ -89,6 +90,7 @@ describe("ReaderBookSettingsService", () => {
     const store: ReaderBookSettingsStore = {
       getBookSettings: vi.fn(async () => current),
       saveBookSettings: vi.fn(async () => { throw new Error("database busy") }),
+      importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
     }
     const apply = vi.fn(async () => undefined)
     const service = new ReaderBookSettingsService(store)
@@ -130,6 +132,9 @@ function memoryStore(initial?: ReaderBookSettingsRecord): ReaderBookSettingsStor
       if (actual !== expectedRevision) return undefined
       record = { bookId, overrides: structuredClone(overrides), revision: actual + 1, updatedAt }
       return structuredClone(record)
+    },
+    async importBookSettings() {
+      return { inserted: 0, updated: 0, unchanged: 0 }
     },
   }
 }

@@ -1839,7 +1839,7 @@ function formatCliHelp(): string {
     "  --quarantine PATH    Preserve the pre-restore thumbnails.db at PATH",
     "  --strategy MODE      Settings import mode: merge or overwrite",
     "  --modules LIST       Comma-separated settings modules:",
-    "                       native-settings,keybindings,emm,file-browser,ui,panels,bookmarks,history,",
+    "                       native-settings,keybindings,emm,file-browser,ui,panels,bookmarks,history,book-settings,",
     "                       search-history,upscale,performance,folder-ratings,voice-control",
     "  --yes                Confirm settings-import after preview",
     "                       Also required for thumbnail database mutations",
