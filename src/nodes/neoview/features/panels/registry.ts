@@ -71,7 +71,7 @@ export interface ReaderCardDefinition {
   defaultPanel: LegacyPanelId
   canHide: boolean
   requiresSession: boolean
-  settingsSectionId?: "view" | "sidebar" | "cards"
+  settingsSectionId?: "view" | "sidebar" | "cards" | "bindings"
   defaultSidebarVisible?: boolean
   load(): Promise<{ default: ComponentType<ReaderPanelContext> }>
   loadSettings?(): Promise<{ default: ComponentType<ReaderSettingsCardContext> }>
@@ -82,6 +82,8 @@ export interface ReaderSettingsCardContext {
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
   viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
+  inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
+  onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
 }
 
 export interface LegacyPanelConfig {
@@ -123,12 +125,14 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
+  "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
 }
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
   "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
   "sidebar-management-settings": async () => ({ default: (await import("../settings/cards/SidebarManagementSettingsCard")).SidebarManagementSettingsCard }),
+  "input-bindings-settings": async () => ({ default: (await import("../settings/cards/InputBindingsSettingsCard")).InputBindingsSettingsCard }),
 }
 
 export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = READER_CARD_MANIFEST.map((definition) => ({

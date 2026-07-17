@@ -68,6 +68,7 @@ const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some(
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
 const pageListToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]PageListToolbar\.tsx$/i.test(module)))
 const pagePrewarmChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]prewarmPageThumbnails\.ts$/i.test(module)))
+const pageContextActionsChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]PageListContextActions\.tsx$/i.test(module)))
 const thumbnailSurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]thumbnails[/\\]ReaderThumbnailSurface\.tsx$/i.test(module)))
 const entrySurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]shared[/\\]ReaderEntrySurface\.tsx$/i.test(module)))
 if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
@@ -85,6 +86,9 @@ if (!pageListToolbarChunk || pageListToolbarChunk === pageNavigationChunk || pag
 if (!pagePrewarmChunk || pagePrewarmChunk === pageListToolbarChunk || pagePrewarmChunk === pageNavigationChunk || pagePrewarmChunk === readerSidebarChunk || pagePrewarmChunk === neoViewChunk || pagePrewarmChunk === initialChunk) {
   throw new Error("NeoView page thumbnail prewarm logic did not produce a second-level deferred production chunk.")
 }
+if (!pageContextActionsChunk || pageContextActionsChunk === pageNavigationChunk || pageContextActionsChunk === readerSidebarChunk || pageContextActionsChunk === neoViewChunk || pageContextActionsChunk === initialChunk) {
+  throw new Error("NeoView Page List context actions did not produce a second-level deferred production chunk.")
+}
 if (!thumbnailSurfaceChunk || thumbnailSurfaceChunk === neoViewChunk || thumbnailSurfaceChunk === readerSidebarChunk || thumbnailSurfaceChunk === initialChunk) {
   throw new Error("NeoView shared thumbnail surface leaked into an eager reader/sidebar/initial chunk.")
 }
@@ -99,6 +103,9 @@ if (historyListChunk.bytes > 16 * 1024) {
 }
 if (pageNavigationChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView PageNavigationCard chunk ${pageNavigationChunk.fileName} is ${pageNavigationChunk.bytes} bytes, above 16 KiB.`)
+}
+if (pageContextActionsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Page List context actions chunk ${pageContextActionsChunk.fileName} is ${pageContextActionsChunk.bytes} bytes, above 8 KiB.`)
 }
 if (pagePrewarmChunk.bytes > 4 * 1024) {
   throw new Error(`NeoView page thumbnail prewarm chunk ${pagePrewarmChunk.fileName} is ${pagePrewarmChunk.bytes} bytes, above 4 KiB.`)
@@ -206,10 +213,17 @@ if (nativeWatcherModules.length) throw new Error(`Native @parcel/watcher leaked 
 const settingsWindowChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]ReaderSettingsWindow\.tsx$/i.test(module)))
 const sidebarManagementSettingsCardChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]SidebarManagementSettingsCard\.tsx$/i.test(module)))
 const panelLayoutEditorChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]PanelLayoutEditor\.tsx$/i.test(module)))
+const inputBindingsSettingsCardChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]InputBindingsSettingsCard\.tsx$/i.test(module)))
+const gamepadRuntimeChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]node_modules[/\\]gamepad\.js[/\\]/i.test(module)))
+// [neoview.bindings.chunk]
+const gestureInputRuntimeChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]input[/\\]ReaderGestureInputRuntime\.tsx$/i.test(module)))
 const kanbanRuntimeChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]src[/\\]components[/\\]ui[/\\]kanban\.tsx$/i.test(module)))
 if (!settingsWindowChunk) throw new Error("NeoView settings window did not produce a deferred production chunk.")
 if (!sidebarManagementSettingsCardChunk) throw new Error("NeoView SidebarManagementSettingsCard did not produce a deferred production chunk.")
 if (!panelLayoutEditorChunk) throw new Error("NeoView PanelLayoutEditor did not produce a second-level deferred production chunk.")
+if (!inputBindingsSettingsCardChunk || inputBindingsSettingsCardChunk === settingsWindowChunk || inputBindingsSettingsCardChunk === neoViewChunk) throw new Error("NeoView InputBindingsSettingsCard did not produce a second-level deferred production chunk.")
+if (!gamepadRuntimeChunk || gamepadRuntimeChunk === neoViewChunk || gamepadRuntimeChunk === initialChunk) throw new Error("gamepad.js leaked into an eager Reader/initial chunk.")
+if (!gestureInputRuntimeChunk || gestureInputRuntimeChunk === neoViewChunk || gestureInputRuntimeChunk === initialChunk) throw new Error("NeoView gesture input runtime leaked into an eager Reader/initial chunk.")
 if (!kanbanRuntimeChunk) throw new Error("Dice UI Kanban runtime chunk is missing from the PanelLayoutEditor build.")
 if (settingsWindowChunk === panelLayoutEditorChunk) throw new Error("NeoView PanelLayoutEditor leaked into the base settings window chunk.")
 if (initialChunk === kanbanRuntimeChunk || neoViewChunk === kanbanRuntimeChunk || settingsWindowChunk === kanbanRuntimeChunk) {
@@ -217,6 +231,8 @@ if (initialChunk === kanbanRuntimeChunk || neoViewChunk === kanbanRuntimeChunk |
 }
 if (panelLayoutEditorChunk.bytes > 64 * 1024) throw new Error(`NeoView PanelLayoutEditor chunk ${panelLayoutEditorChunk.fileName} is ${panelLayoutEditorChunk.bytes} bytes, above 64 KiB.`)
 if (sidebarManagementSettingsCardChunk.bytes > 16 * 1024) throw new Error(`NeoView SidebarManagementSettingsCard chunk ${sidebarManagementSettingsCardChunk.fileName} is ${sidebarManagementSettingsCardChunk.bytes} bytes, above 16 KiB.`)
+if (inputBindingsSettingsCardChunk.bytes > 24 * 1024) throw new Error(`NeoView InputBindingsSettingsCard chunk ${inputBindingsSettingsCardChunk.fileName} is ${inputBindingsSettingsCardChunk.bytes} bytes, above 24 KiB.`)
+if (gestureInputRuntimeChunk.bytes > 40 * 1024) throw new Error(`NeoView gesture input runtime chunk ${gestureInputRuntimeChunk.fileName} is ${gestureInputRuntimeChunk.bytes} bytes, above 40 KiB.`)
 if (kanbanRuntimeChunk.bytes > 64 * 1024) throw new Error(`Dice UI Kanban runtime chunk ${kanbanRuntimeChunk.fileName} is ${kanbanRuntimeChunk.bytes} bytes, above 64 KiB.`)
 const ordinaryReaderChunks = [neoViewChunk, ...deferredPanelChunks.filter((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]ReaderSidebar\.tsx$/i.test(module)))]
 const eagerEditorModules = ordinaryReaderChunks.flatMap((chunk) => chunk.modules
@@ -256,6 +272,9 @@ console.log(JSON.stringify({
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },
   settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },
   sidebarManagementSettingsCardChunk: { fileName: sidebarManagementSettingsCardChunk.fileName, bytes: sidebarManagementSettingsCardChunk.bytes },
+  inputBindingsSettingsCardChunk: { fileName: inputBindingsSettingsCardChunk.fileName, bytes: inputBindingsSettingsCardChunk.bytes },
+  gestureInputRuntimeChunk: { fileName: gestureInputRuntimeChunk.fileName, bytes: gestureInputRuntimeChunk.bytes },
+  gamepadRuntimeChunk: { fileName: gamepadRuntimeChunk.fileName, bytes: gamepadRuntimeChunk.bytes },
   panelLayoutEditorChunk: { fileName: panelLayoutEditorChunk.fileName, bytes: panelLayoutEditorChunk.bytes },
   kanbanRuntimeChunk: { fileName: kanbanRuntimeChunk.fileName, bytes: kanbanRuntimeChunk.bytes },
   zipJsFrontendModules: 0,

@@ -334,6 +334,20 @@ export interface ReaderRuntimeConfigDto {
   viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode }
   folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
+  inputBindings: ReaderInputBindingsConfig
+}
+
+export type {
+  ReaderInputAction,
+  ReaderInputBinding,
+  ReaderInputBindingsConfig,
+  ReaderInputContext,
+  ReaderInputDescriptor,
+} from "@xiranite/node-neoview/ui-core"
+import type { ReaderInputBindingsConfig } from "@xiranite/node-neoview/ui-core"
+
+export interface ReaderInputBindingsPatch {
+  inputBindings: { bindings?: ReaderInputBindingsConfig["bindings"]; reset?: "defaults" }
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
@@ -498,6 +512,7 @@ export interface ReaderHttpClient {
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
   updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
+  updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
   cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
@@ -628,6 +643,11 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.slideshow),
+    updateInputBindings: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.inputBindings),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },

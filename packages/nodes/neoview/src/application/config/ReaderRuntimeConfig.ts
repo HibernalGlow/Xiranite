@@ -8,6 +8,8 @@ import {
 } from "../../domain/page/media.js"
 import type { ReaderSessionOptions } from "../reader/contracts.js"
 import { READER_CARD_MANIFEST, READER_PANEL_MANIFEST, readerCardCanMoveTo } from "./ReaderLayoutManifest.js"
+import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
+import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -21,6 +23,7 @@ export interface NeoviewRuntimeConfig {
   slideshow: NeoviewSlideshowConfig
   media: NeoviewMediaConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
+  inputBindings: ReaderInputBindingsConfig
 }
 
 export interface NeoviewFileTreeConfig {
@@ -395,6 +398,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
+    inputBindings: parseNeoviewInputBindingsConfig(undefined),
   }
   const config = requireRecord(value, "[nodes.neoview]")
   const schemaVersion = config.schema_version ?? 1
@@ -408,6 +412,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
+  const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
   const presentationDiskCache = optionalRecord(
     performance?.presentation_disk_cache,
     "[nodes.neoview.performance.presentation_disk_cache]",
@@ -447,6 +452,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     media: parseMediaConfig(image, subtitle),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
+    inputBindings: parseNeoviewInputBindingsConfig(bindings),
   }
 }
 

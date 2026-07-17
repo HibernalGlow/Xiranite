@@ -102,6 +102,15 @@ import {
   type NeoviewFolderViewPatch,
   type NeoviewFileTreeConfig,
 } from "../../application/config/ReaderRuntimeConfig.js"
+import {
+  parseNeoviewInputBindingsPatch,
+  type NeoviewInputBindingsPatch,
+} from "../../application/config/ReaderInputBindingsConfig.js"
+import {
+  DEFAULT_READER_INPUT_BINDINGS,
+  cloneReaderInputBindings,
+  type ReaderInputBindingsConfig,
+} from "../../domain/input/ReaderInputBindings.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_RELOAD_PATH = /^\/reader\/s\/([^/]+)\/reload$/
@@ -182,6 +191,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
   media?: NeoviewMediaConfig
   updateMedia?: (patch: NeoviewMediaPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewMediaConfig>
+  inputBindings?: ReaderInputBindingsConfig
+  updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
   maxSeekableMediaEntryBytes?: number
   maxSeekableMediaTotalBytes?: number
   loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>
@@ -229,12 +240,14 @@ export class ReaderHttpController implements AsyncDisposable {
   #folderView: NeoviewFolderViewConfig
   #slideshow: NeoviewSlideshowConfig
   #media: NeoviewMediaConfig
+  #inputBindings: ReaderInputBindingsConfig
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
   readonly #updateFolderView?: ReaderHttpControllerOptions["updateFolderView"]
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   readonly #updateMedia?: ReaderHttpControllerOptions["updateMedia"]
+  readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
   readonly #bookMetadataLoads = new Map<string, {
@@ -419,12 +432,14 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#folderView = options.folderView ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
     this.#media = initialMedia
+    this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
     this.#updateFolderView = options.updateFolderView
     this.#updateSlideshow = options.updateSlideshow
     this.#updateMedia = options.updateMedia
+    this.#updateInputBindings = options.updateInputBindings
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -657,6 +672,27 @@ export class ReaderHttpController implements AsyncDisposable {
   async #patchShellConfig(request: Request): Promise<Response> {
     const body = await readControlJson(request)
     if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    if (Object.hasOwn(body, "inputBindings")) {
+      if (!this.#updateInputBindings) return jsonResponse({ error: "Reader input bindings are read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewInputBindingsPatch>
+      try {
+        parsed = parseNeoviewInputBindingsPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: ReaderInputBindingsConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateInputBindings!(parsed.patch, parsed.tomlPatch)
+        this.#inputBindings = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "media")) {
       if (!this.#updateMedia) return jsonResponse({ error: "Reader media config is read-only" }, 405)
       let updated: NeoviewMediaConfig | undefined
@@ -794,6 +830,7 @@ export class ReaderHttpController implements AsyncDisposable {
       folderView: this.#folderView,
       slideshow: this.#slideshow,
       media: this.#media,
+      inputBindings: this.#inputBindings,
     }
   }
 

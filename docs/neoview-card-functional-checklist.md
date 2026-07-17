@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -3930,7 +3930,7 @@
 | `settingsNotification` | 通知设置 | deferred | pending | `src/lib/cards/settings/NotificationSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 | `settingsPanels` | 边栏管理 | deferred | partial | `src/lib/cards/settings/PanelManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `sidebar-management-settings` |
 | `settingsCards` | 卡片管理 | deferred | partial | `src/lib/cards/settings/CardManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `panel-layout-settings` |
-| `settingsBindings` | 操作绑定 | deferred | pending | `src/lib/cards/settings/BindingsSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+| `settingsBindings` | 操作绑定 | deferred | partial | `src/lib/cards/settings/BindingsSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `input-bindings-settings` |
 | `settingsData` | 数据设置 | deferred | pending | `src/lib/cards/settings/DataSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 
 #### `settingsGeneral` 通用设置
@@ -4005,10 +4005,236 @@
 
 #### `settingsBindings` 操作绑定
 
+- 细项清单：`migration/neoview/input-bindings-compatibility.json`
 - [ ] 查看和编辑键盘、鼠标、触摸等操作绑定
 - [ ] 搜索、冲突检测、禁用和恢复默认
 - [ ] 导入导出并提供无障碍等价操作
 - UI 基线：`src/lib/cards/settings/BindingsSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（9 组，82 项）
+
+- `bindings-ui.shell` 设置 Card 与统一面板
+  - 源码：`src/lib/cards/settings/BindingsSettingsCard.svelte`、`src/lib/components/dialogs/UnifiedBindingPanel.svelte`
+  - 映射：`bindings.shell`、`bindings.states`、`bindings.ui-parity`
+  - [ ] 操作绑定标题
+  - [ ] 统一面板
+  - [ ] 搜索
+  - [ ] 类别/上下文筛选
+  - [ ] 恢复默认
+  - [ ] 保存反馈
+  - [ ] 空结果
+- `bindings-ui.keyboard` 键盘绑定与录制
+  - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
+  - 映射：`bindings.keyboard`、`bindings.recording`、`bindings.accessibility`、`bindings.context-routing`
+  - [ ] 键盘标签
+  - [ ] 组合键
+  - [ ] 修饰键
+  - [ ] 录制开始/取消/完成
+  - [ ] 禁用
+  - [ ] 删除
+  - [ ] 恢复默认
+  - [ ] IME 与输入框隔离
+- `bindings-ui.mouse` 鼠标按键、滚轮与区域
+  - 源码：`src/lib/components/dialogs/MouseSettingsPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`、`src/lib/components/dialogs/MouseRecordingArea.svelte`
+  - 映射：`bindings.mouse`、`bindings.wheel`、`bindings.area-click`、`bindings.recording`
+  - [ ] 左/中/右/侧键
+  - [ ] 单击/双击/按住
+  - [ ] 滚轮上下
+  - [ ] 修饰键
+  - [ ] 九宫格区域
+  - [ ] 录制
+  - [ ] 启停
+  - [ ] 删除
+  - [ ] 恢复默认
+- `bindings-ui.gesture` 鼠标与触控手势
+  - 源码：`src/lib/components/dialogs/GestureSettingsPanel.svelte`、`src/lib/components/dialogs/GestureVisualizer.svelte`、`src/lib/components/dialogs/MouseGestureRecorder.svelte`、`src/lib/stackview/layers/GestureLayer.svelte`
+  - 映射：`bindings.touch`、`bindings.mouse-gesture`、`bindings.recording`、`bindings.lifecycle`
+  - [ ] 手势启停
+  - [ ] 方向序列
+  - [ ] 触控滑动
+  - [ ] 鼠标轨迹
+  - [ ] 画布预览
+  - [ ] 最小距离
+  - [ ] 录制取消/完成
+  - [ ] 冲突
+  - [ ] 释放 pointer capture
+- `bindings-ui.context` 动作与上下文优先级
+  - 源码：`src/lib/stores/keybindings/constants.ts`、`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/keybindings/keyMappings.svelte.ts`
+  - 映射：`bindings.actions`、`bindings.context-routing`、`bindings.conflicts`、`bindings.data-contract`
+  - [ ] 动作 registry
+  - [ ] BindingContext
+  - [ ] CONTEXT_PRIORITY
+  - [ ] 同输入按活动上下文解析
+  - [ ] global fallback
+  - [ ] 面板/阅读器/编辑器/对话框模式
+  - [ ] 同上下文冲突
+- `bindings-ui.radial` 径向菜单
+  - 源码：`src/lib/components/dialogs/RadialMenuSettingsPanel.svelte`、`src/lib/components/radial/RadialInputLayer.svelte`、`src/lib/components/radial/RadialMenuOverlay.svelte`、`src/lib/stores/radialMenu/core.svelte.ts`
+  - 映射：`bindings.radial-menu`、`bindings.lifecycle`、`bindings.accessibility`
+  - [ ] 菜单组
+  - [ ] 槽位
+  - [ ] 动作选择
+  - [ ] 排序
+  - [ ] 触发输入
+  - [ ] 按住/切换模式
+  - [ ] 扇区命中
+  - [ ] 恢复默认
+  - [ ] 关闭释放
+- `bindings-ui.persistence` 旧设置与规范持久化
+  - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/radialMenu/core.svelte.ts`、`src/lib/cards/settings/BindingsSettingsCard.svelte`
+  - 映射：`bindings.persistence`、`bindings.legacy-import`、`bindings.data-contract`、`bindings.deviations`
+  - [ ] 旧 dynamic storage key
+  - [ ] appSettings.keybindings
+  - [ ] appSettings.radialMenus
+  - [ ] bindings.keybindings
+  - [ ] bindings.radial_menus
+  - [ ] 一次导入
+  - [ ] canonical TOML
+  - [ ] 不得双写 localStorage
+  - [ ] 严格校验
+  - [ ] 原子保存
+  - [ ] 恢复默认
+- `bindings-ui.gamepad` XR 标准手柄扩展
+  - 源码：`src/lib/stores/keybindings/types.ts`、`src/lib/components/dialogs/UnifiedBindingPanel.svelte`
+  - 映射：`bindings.gamepad`、`bindings.deviations`、`bindings.performance`
+  - [ ] 旧版无手柄控件
+  - [ ] 标准 Gamepad 按钮
+  - [ ] 连接/断开
+  - [ ] 只在存在绑定时轮询
+  - [ ] 页面不可见暂停
+  - [ ] 录制
+  - [ ] 可禁用
+  - [ ] 与其他设备共享动作/上下文
+- `bindings-ui.states` 状态、无障碍与响应式
+  - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`、`src/lib/components/dialogs/KeyBindingPanel.svelte`
+  - 映射：`bindings.states`、`bindings.accessibility`、`bindings.ui-parity`
+  - [ ] 默认
+  - [ ] hover
+  - [ ] focus
+  - [ ] enabled
+  - [ ] disabled
+  - [ ] recording
+  - [ ] conflict
+  - [ ] saving
+  - [ ] success
+  - [ ] error
+  - [ ] empty
+  - [ ] 键盘等价操作
+  - [ ] 可访问名称
+  - [ ] 桌面/420x360 无溢出
+
+##### 专用源码级验收项
+
+- [ ] `bindings.actions` 共享动作 registry
+  - 目标：All devices target stable action IDs; the initial Reader set covers previous/next, zoom in/out/reset, clockwise rotation and opening settings without embedding callbacks in persisted data.
+  - 源码：`src/lib/actions/actionRegistry.ts`、`src/lib/stores/keybindings/keyMappings.svelte.ts`
+  - 测试：`neoview.bindings.context-routing`、`neoview.bindings.config`
+  - 备注：Seven Reader actions use stable IDs. The full legacy action registry and explicit CLI/TUI dispatch commands remain pending.
+- [ ] `bindings.context-routing` 按活动操作上下文解析绑定
+  - 目标：Global, reader, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.
+  - 源码：`src/lib/stores/keybindings/constants.ts`、`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
+  - 测试：`neoview.bindings.context-routing`、`neoview.bindings.dom-context`
+  - 备注：The browser route derives editor/modal/panel/reader mode and falls back to global. CLI/TUI context-stack projection remains pending.
+- [ ] `bindings.keyboard` 键盘与修饰键绑定
+  - 目标：Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore repeat/composition and remain disabled in incompatible contexts.
+  - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 备注：react-hotkeys-hook owns the global listener and dynamic key set. Interactive recording and full modifier editor remain pending.
+- [ ] `bindings.mouse` 鼠标按键绑定
+  - 目标：Left/middle/right/side buttons and single/double variants resolve through the same action/context route without stealing unbound pointer input.
+  - 源码：`src/lib/components/dialogs/MouseSettingsPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 备注：Buttons 0..7 and single/double descriptors are editable and routed. Press/hold and recorder feedback remain pending.
+- [ ] `bindings.wheel` 滚轮方向绑定
+  - 目标：Up/down wheel gestures and modifiers use the maintained gesture engine and prevent default only when a binding handles the event.
+  - 源码：`src/lib/components/dialogs/MouseSettingsPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 备注：@use-gesture/react owns wheel recognition; modifier editing and browser E2E remain pending.
+- [ ] `bindings.area-click` 九宫格区域点击
+  - 目标：Configurable viewport areas resolve clicks without coupling bindings to pixel coordinates.
+  - 源码：`src/lib/components/dialogs/MouseRecordingArea.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
+  - 测试：待补
+  - 备注：Not included in the first route.
+- [ ] `bindings.touch` 触控滑动绑定
+  - 目标：One-to-three-finger directional swipes use the maintained gesture engine, respect active context and release all pointer work on unmount.
+  - 源码：`src/lib/components/dialogs/GestureSettingsPanel.svelte`、`src/lib/components/dialogs/GestureVisualizer.svelte`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 备注：Directional swipe descriptors and runtime routing use @use-gesture/react; multi-finger recording and real touch E2E remain pending.
+- [ ] `bindings.mouse-gesture` 鼠标轨迹手势
+  - 目标：Recorded direction sequences match with a bounded gesture engine and visual preview.
+  - 源码：`src/lib/components/dialogs/MouseGestureRecorder.svelte`、`src/lib/stackview/layers/GestureLayer.svelte`
+  - 测试：待补
+  - 备注：Not included in the first route.
+- [ ] `bindings.gamepad` 标准手柄按钮绑定
+  - 目标：XR adds standard Gamepad buttons through a maintained listener, starts polling only when an enabled gamepad binding exists and routes through the same action/context map.
+  - 源码：`src/lib/stores/keybindings/types.ts`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 备注：gamepad.js owns connection and button events; visual recording, connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity.
+- [ ] `bindings.radial-menu` 径向菜单配置与运行时
+  - 目标：Menu definitions, slots, trigger binding, hold/toggle mode and hit testing share the action registry and canonical persistence.
+  - 源码：`src/lib/components/dialogs/RadialMenuSettingsPanel.svelte`、`src/lib/components/radial/RadialInputLayer.svelte`、`src/lib/stores/radialMenu/core.svelte.ts`
+  - 测试：待补
+  - 备注：Legacy opaque data remains importable but no XR editor/runtime exists yet.
+- [x] `bindings.conflicts` 冲突检测、禁用与删除
+  - 目标：Enabled bindings with the same normalized input in one context are blocked; disabled collisions remain editable and every row can be enabled, disabled or deleted.
+  - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`、`src/lib/stores/keybindings/core.svelte.ts`
+  - 测试：`neoview.bindings.conflicts`、`neoview.bindings.validation`、`neoview.bindings.conflict-ui`
+  - 备注：Pure domain, backend validation and GUI share the same normalized conflict key.
+- [ ] `bindings.recording` 交互式输入录制
+  - 目标：Keyboard, pointer, touch and gamepad recorders capture one bounded input with cancel/clear and no action leakage.
+  - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`、`src/lib/components/dialogs/GestureVisualizer.svelte`
+  - 测试：待补
+  - 备注：The first Card exposes explicit descriptor editors; framework-backed recorders remain pending.
+- [x] `bindings.data-contract` 严格有界多设备 DTO
+  - 目标：A versioned bounded DTO accepts only known actions, contexts and device descriptors, rejects executable fields, duplicate IDs and ambiguous enabled bindings.
+  - 源码：`src/lib/stores/keybindings/types.ts`、`src/lib/stores/keybindings/core.svelte.ts`
+  - 测试：`neoview.bindings.config`、`neoview.bindings.validation`、`neoview.bindings.devices`
+  - 备注：The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP.
+- [ ] `bindings.persistence` 写入唯一 TOML 规范
+  - 目标：Runtime writes only [nodes.neoview.bindings].items through the atomic config store and restores defaults with one command.
+  - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/radialMenu/core.svelte.ts`
+  - 测试：`neoview.bindings.config`、`neoview.bindings.reset`、`neoview.bindings.reset-ui`
+  - 备注：GUI HTTP persists canonical items atomically. Explicit CLI/TUI edit commands and a real TOML roundtrip test remain pending.
+- [ ] `bindings.legacy-import` 一次性导入旧绑定与径向菜单
+  - 目标：Legacy appSettings.keybindings/radialMenus and bindings.keybindings/radial_menus import once with a report and never remain a second runtime store.
+  - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/radialMenu/core.svelte.ts`、`src/lib/cards/settings/BindingsSettingsCard.svelte`
+  - 测试：`neoview.settings.codec`、`neoview.bindings.reset`
+  - 备注：LegacySettingsCodec preserves the opaque source and canonical reads tolerate it; action-level conversion/reporting remains pending.
+- [ ] `bindings.states` 搜索、空、冲突、保存与错误状态
+  - 目标：The editor exposes search/filter, empty, enabled/disabled, conflict, saving, success, failure and reset states without replacing the confirmed runtime configuration on failure.
+  - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`
+  - 测试：`neoview.bindings.editor`、`neoview.bindings.conflict-ui`、`neoview.bindings.reset-ui`、`neoview.bindings.e2e`
+  - 备注：Core states and real PATCH success are covered in Chromium; interactive recording states and failed HTTP rollback E2E remain pending.
+- [ ] `bindings.accessibility` 输入保护与无障碍等价操作
+  - 目标：Every row/control is named and keyboard operable; editor, IME and recording contexts suppress Reader actions; touch/mouse-only operations have accessible equivalents.
+  - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`、`src/lib/components/dialogs/KeyBindingPanel.svelte`
+  - 测试：`neoview.bindings.dom-context`、`neoview.bindings.editor`
+  - 备注：Native controls and DOM context suppression are covered; focus restoration, recorder capture and screen-reader E2E remain pending.
+- [ ] `bindings.lifecycle` 按需监听并完整释放
+  - 目标：One keyboard listener and one gesture route are stable; gamepad polling exists only with enabled bindings and all listener/gesture/recording work stops on unmount or hidden document.
+  - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stackview/layers/GestureLayer.svelte`、`src/lib/components/radial/RadialInputLayer.svelte`
+  - 测试：`neoview.bindings.dom-context`
+  - 备注：Framework adapters clean up on unmount and gamepad is conditionally loaded; focused listener-count and visibility E2E remain pending.
+- [x] `bindings.shell` 延迟设置 Card 与旧层级
+  - 目标：Operations Binding remains a deferred Settings Card with the legacy search/filter/list hierarchy and no Reader-entry editor code.
+  - 源码：`src/lib/cards/settings/BindingsSettingsCard.svelte`、`src/lib/components/dialogs/UnifiedBindingPanel.svelte`、`src/lib/cards/registry.ts`
+  - 测试：`neoview.settings.window`、`neoview.bindings.editor`、`neoview.bindings.e2e`、`neoview.bindings.chunk`
+  - 备注：The Card is registered under Settings > Operations Binding, preserves the search/filter/list hierarchy and ships as a 7.6 KiB second-level deferred production chunk.
+- [x] `bindings.ui-parity` 保持紧凑绑定表与响应式布局
+  - 目标：Search, context filter, action/context/device editors, enable switch, conflict state and commands remain scan-friendly at desktop and 420x360.
+  - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`
+  - 测试：`neoview.bindings.editor`、`neoview.bindings.conflict-ui`、`neoview.bindings.e2e`
+  - 备注：Desktop and 420x360 Chromium cover editing, saving, immediate runtime replacement and zero horizontal overflow with captured screenshots.
+- [ ] `bindings.performance` 稳定监听、条件手柄轮询与独立 chunk
+  - 目标：Runtime adapters do not rerender Reader on raw input, settings editor is deferred, gamepad polling is conditional and explicit chunk/listener latency budgets pass.
+  - 源码：`src/lib/cards/settings/BindingsSettingsCard.svelte`、`src/lib/stores/keybindings/core.svelte.ts`
+  - 测试：`neoview.bindings.chunk`
+  - 备注：Ref-backed adapters avoid raw-input state updates; the 7.6 KiB editor, 29.1 KiB gesture runtime and 10.4 KiB conditional gamepad runtime are independent production chunks. Listener-count and input-dispatch latency benchmarks remain pending.
+- [x] `bindings.deviations` 记录框架替代与手柄扩展
+  - 目标：Document react-hotkeys-hook, @use-gesture/react and gamepad.js as maintained replacements for legacy custom listeners, and gamepad as an XR extension without removing legacy devices.
+  - 源码：`src/lib/stores/keybindings/types.ts`、`src/lib/components/dialogs/UnifiedBindingPanel.svelte`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.dom-context`
+  - 备注：The runtime delegates recognition to mature libraries; project code owns only action/context DTOs, persistence and conflict keys.
 
 #### `settingsData` 数据设置
 

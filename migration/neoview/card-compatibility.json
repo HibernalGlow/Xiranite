@@ -787,7 +787,8 @@
       "panelId": "settings",
       "priority": "deferred",
       "featureId": "settings-import-export-backup",
-      "status": "pending",
+      "status": "partial",
+      "currentCardId": "input-bindings-settings",
       "sourceComponent": "src/lib/cards/settings/BindingsSettingsCard.svelte",
       "sourceDisposition": "component"
     },

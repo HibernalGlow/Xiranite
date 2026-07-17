@@ -87,7 +87,7 @@
     { "legacyId": "settingsNotification", "capabilities": ["配置 Toast/系统通知类别、位置和持续时间", "控制声音、重复合并和安静模式", "测试、保存和重置"] },
     { "legacyId": "settingsPanels", "capabilities": ["管理四边 Panel 的显隐、顺序、位置、pin 和几何", "预览布局并恢复默认", "一次批量写入且不影响阅读热路径"] },
     { "legacyId": "settingsCards", "capabilities": ["管理 77 张 Card 的显隐、Panel、顺序和折叠", "拖动到隐藏/未停靠或任意 Panel", "保存/重置布局并支持设置 Card 停靠"] },
-    { "legacyId": "settingsBindings", "capabilities": ["查看和编辑键盘、鼠标、触摸等操作绑定", "搜索、冲突检测、禁用和恢复默认", "导入导出并提供无障碍等价操作"] },
+    { "legacyId": "settingsBindings", "checklistRef": "migration/neoview/input-bindings-compatibility.json", "capabilities": ["查看和编辑键盘、鼠标、触摸等操作绑定", "搜索、冲突检测、禁用和恢复默认", "导入导出并提供无障碍等价操作"] },
     { "legacyId": "settingsData", "capabilities": ["管理设置/阅读数据的导入、导出、备份和恢复", "显示数据库路径、大小、迁移和清理入口", "预览变更、原子提交、回滚并遵守 NeoView 数据库边界"] }
   ]
 }

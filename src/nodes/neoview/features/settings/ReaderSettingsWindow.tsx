@@ -2,7 +2,7 @@ import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Mon
 import { Suspense, useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderBoardLayoutPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
+import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
 
 export function ReaderSettingsWindow({
@@ -11,12 +11,16 @@ export function ReaderSettingsWindow({
   onClose,
   onBoardLayout,
   onViewDefaults,
+  inputBindings,
+  onInputBindings,
 }: {
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
   onClose(): void
   onBoardLayout(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
+  inputBindings: ReaderRuntimeConfigDto["inputBindings"]
+  onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
 }) {
   const [active, setActive] = useState<SettingsSectionId>("sidebar")
   return (
@@ -46,7 +50,7 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} onSave={onBoardLayout} onViewDefaults={onViewDefaults} />
+            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} />
           </div>
         </div>
       </DialogContent>
@@ -60,12 +64,16 @@ function SettingsSection({
   viewDefaults,
   onSave,
   onViewDefaults,
+  inputBindings,
+  onInputBindings,
 }: {
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
+  inputBindings: ReaderRuntimeConfigDto["inputBindings"]
+  onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
 }) {
   const definitions = settingsCardsForSection(sectionId)
   if (!definitions.length) return <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} />
@@ -73,7 +81,7 @@ function SettingsSection({
     const Card = lazyReaderSettingsCard(definition.id)
     return Card ? (
       <Suspense key={definition.id} fallback={<div className="h-24 animate-pulse rounded-md bg-muted/35" aria-label={`正在加载${definition.title}`} />}>
-        <Card shell={shell} viewDefaults={viewDefaults} onSave={onSave} onViewDefaults={onViewDefaults} />
+        <Card shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} onSave={onSave} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} />
       </Suspense>
     ) : null
   })

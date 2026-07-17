@@ -17,9 +17,11 @@ describe("ReaderSettingsWindow", () => {
       <ReaderSettingsWindow
         shell={shell()}
         viewDefaults={{ fitMode: "fit", pageMode: "single" }}
+        inputBindings={{ bindings: [] }}
         onClose={vi.fn()}
         onBoardLayout={save}
         onViewDefaults={saveViewDefaults}
+        onInputBindings={vi.fn(async () => ({ bindings: [] }))}
       />,
     )
     expect(screen.getByRole("dialog")).toBeTruthy()

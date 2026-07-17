@@ -267,6 +267,7 @@ export async function createReaderHttpController(
     fileTree: runtimeConfig.fileTree,
     slideshow: runtimeConfig.slideshow,
     media: runtimeConfig.media,
+    inputBindings: runtimeConfig.inputBindings,
     presentationDiskCache,
     disposePresentationDiskCache: Boolean(presentationDiskCache && !options.presentationDiskCache),
     updateShellOptions: async (_patch, tomlPatch) => {
@@ -299,6 +300,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).media
+    },
+    updateInputBindings: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).inputBindings
     },
     loadSettingsMigrationService: () => createReaderSettingsMigrationService(options),
     loadBookSettingsMigrationService: options.loadBookSettingsMigrationService ?? (dataStore

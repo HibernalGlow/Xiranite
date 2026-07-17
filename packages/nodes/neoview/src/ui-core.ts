@@ -22,6 +22,25 @@ export {
   type ReaderRotation,
 } from "./domain/presentation/presentation.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
+export {
+  cloneReaderInputBindings,
+  DEFAULT_READER_INPUT_BINDINGS,
+  matchingReaderInputBinding,
+  READER_INPUT_ACTION_LABELS,
+  READER_INPUT_ACTIONS,
+  READER_INPUT_CONTEXT_LABELS,
+  READER_INPUT_CONTEXT_PRIORITY,
+  READER_INPUT_CONTEXTS,
+  readerInputConflictKey,
+  readerInputConflicts,
+  readerInputDescriptorKey,
+  type ReaderInputAction,
+  type ReaderInputBinding,
+  type ReaderInputBindingsConfig,
+  type ReaderInputConflict,
+  type ReaderInputContext,
+  type ReaderInputDescriptor,
+} from "./domain/input/ReaderInputBindings.js"
 export type {
   PageDimensions,
   PageId,

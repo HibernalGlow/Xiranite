@@ -2,12 +2,15 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Settings2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
+  DEFAULT_READER_INPUT_BINDINGS,
   READER_CARD_MANIFEST,
   READER_PANEL_MANIFEST,
   ReaderSlideshow,
   rotateReaderPresentation,
   stepReaderManualScale,
   type ReaderPresentation,
+  type ReaderInputAction,
+  type ReaderInputBindingsConfig,
 } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
@@ -35,6 +38,7 @@ import {
   type ReaderShellControlPatch,
   type ReaderShellEdge,
   type ReaderShellLockMode,
+  type ReaderInputBindingsPatch,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -42,6 +46,7 @@ import { ReaderControlledEdgeShell, type ReaderControlledEdgeSlot } from "../fea
 import { createReaderShellControlStore, type ReaderShellControlHydration, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
 import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
+import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -82,6 +87,9 @@ function loadReaderSidebar(): Promise<ReaderSidebarModule> {
   return readerSidebarModule
 }
 const LazyReaderSidebar = lazy(async () => ({ default: (await loadReaderSidebar()).ReaderSidebar }))
+const LazyReaderGestureInputRuntime = lazy(async () => ({
+  default: (await import("../features/input/ReaderGestureInputRuntime")).ReaderGestureInputRuntime,
+}))
 
 type ReaderSettingsWindowModule = typeof import("../features/settings/ReaderSettingsWindow")
 let readerSettingsWindowModule: Promise<ReaderSettingsWindowModule> | undefined
@@ -163,6 +171,7 @@ export function ReaderApp({
   const confirmedFolderViewRef = useRef<ReaderFolderViewConfig>(structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const folderViewWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const folderViewGenerationRef = useRef(0)
+  const inputBindingsRef = useRef<ReaderInputBindingsConfig>(structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const shellControlWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const shellControlGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
@@ -190,6 +199,7 @@ export function ReaderApp({
   }))
   const [viewDefaults, setViewDefaults] = useState<ReaderRuntimeConfigDto["viewDefaults"]>(() => ({ ...INITIAL_VIEW_DEFAULTS }))
   const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
+  const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
@@ -223,6 +233,8 @@ export function ReaderApp({
         confirmedSlideshowConfigRef.current = config.slideshow
         slideshow.configure(config.slideshow)
       }
+      inputBindingsRef.current = config.inputBindings
+      setInputBindings(config.inputBindings)
       if (!presentationTouchedRef.current) {
         setPresentation((current) => ({ ...current, fitMode: config.viewDefaults.fitMode }))
       }
@@ -379,6 +391,47 @@ export function ReaderApp({
       else await persistViewDefaults({ pageMode: patch.pageMode })
     }
   }
+
+  async function persistInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderInputBindingsConfig> {
+    if (!clientRef.current.updateInputBindings) throw new Error("当前 Reader 后端不支持操作绑定设置。")
+    const updated = await clientRef.current.updateInputBindings({ inputBindings: patch })
+    inputBindingsRef.current = updated
+    setInputBindings(updated)
+    return updated
+  }
+
+  function executeInputAction(action: ReaderInputAction): void {
+    switch (action) {
+      case "reader.previous-page":
+        void navigate("previous")
+        break
+      case "reader.next-page":
+        void navigate("next")
+        break
+      case "reader.zoom-in":
+        presentationTouchedRef.current = true
+        setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, 1) }))
+        break
+      case "reader.zoom-out":
+        presentationTouchedRef.current = true
+        setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, -1) }))
+        break
+      case "reader.reset-view":
+        presentationTouchedRef.current = true
+        setPresentation({ ...DEFAULT_READER_PRESENTATION })
+        break
+      case "reader.rotate-clockwise":
+        presentationTouchedRef.current = true
+        setPresentation((current) => ({ ...current, rotation: rotateReaderPresentation(current.rotation, 1) }))
+        break
+      case "reader.open-settings":
+        setSettingsOpen(true)
+        break
+    }
+  }
+
+  const inputRouter = useReaderInputRouter({ config: inputBindings, disabled: busy, execute: executeInputAction })
+  const inputTargetRef = useRef<HTMLDivElement | null>(null)
 
   async function persistSlideshow(patch: ReaderSlideshowPatch["slideshow"]) {
     slideshow.configure(patch)
@@ -758,21 +811,19 @@ export function ReaderApp({
 
   return (
     <div
-      ref={surface.ref}
-      data-reader-app="true"
-      className="h-full min-h-0 w-full overflow-hidden bg-background text-foreground"
-      tabIndex={0}
-      onKeyDown={(event) => {
-        const target = event.target
-        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable) return
-        if (event.key === "ArrowLeft") void navigate("previous")
-        if (event.key === "ArrowRight") void navigate("next")
-        if (event.key === "+" || event.key === "=") setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, 1) }))
-        if (event.key === "-") setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, -1) }))
-        if (event.key.toLowerCase() === "r") setPresentation((current) => ({ ...current, rotation: rotateReaderPresentation(current.rotation, 1) }))
-        if (event.key === "0") setPresentation({ ...DEFAULT_READER_PRESENTATION })
+      ref={(element) => {
+        inputTargetRef.current = element
+        surface.ref(element)
       }}
+      data-reader-app="true"
+      data-input-context="reader"
+      className="h-full min-h-0 w-full touch-none overflow-hidden bg-background text-foreground"
+      tabIndex={0}
+      onPointerUp={inputRouter.onPointerUp}
     >
+      <Suspense fallback={null}>
+        <LazyReaderGestureInputRuntime disabled={busy} target={inputTargetRef} dispatch={inputRouter.dispatch} />
+      </Suspense>
       <FloatingWindowTitlebarReservation />
       <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
         <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
@@ -794,9 +845,11 @@ export function ReaderApp({
           <LazyReaderSettingsWindow
             shell={shell}
             viewDefaults={viewDefaults}
+            inputBindings={inputBindings}
             onClose={() => setSettingsOpen(false)}
             onBoardLayout={commitBoardLayout}
             onViewDefaults={applyConfiguredViewDefaults}
+            onInputBindings={persistInputBindings}
           />
         </Suspense>
       ) : null}
