@@ -187,6 +187,14 @@ export type {
 } from "./ports/ReaderLibraryStore.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
 export {
+  ReaderAdjacentBookService,
+  type ReaderAdjacentBookCandidate,
+  type ReaderAdjacentBookDirection,
+  type ReaderAdjacentBookRequest,
+  type ReaderBookCandidatePredicate,
+  type ReaderPathIdentity,
+} from "./application/reader/ReaderAdjacentBookService.js"
+export {
   ReaderSlideshow,
   type ReaderSlideshowConfig,
   type ReaderSlideshowOptions,

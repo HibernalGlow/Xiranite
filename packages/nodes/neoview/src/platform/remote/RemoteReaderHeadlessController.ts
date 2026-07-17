@@ -13,6 +13,8 @@ import {
 import type { ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
+import type { ReaderAdjacentBookDirection } from "../../application/reader/ReaderAdjacentBookService.js"
+import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import { z } from "zod"
 
 interface ReaderFrameDto {
@@ -130,6 +132,41 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
 
   goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
     return this.#navigate({ action: "goTo", pageIndex }, signal)
+  }
+
+  async openAdjacent(
+    direction: ReaderAdjacentBookDirection,
+    sort?: ReaderDirectorySortRule,
+    signal?: AbortSignal,
+  ): Promise<HeadlessReaderSnapshot | undefined> {
+    const current = this.#requireSession()
+    const response = await this.#fetch(new URL(
+      `/reader/s/${encodeURIComponent(current.sessionId)}/adjacent-book`,
+      this.#baseUrl,
+    ), {
+      method: "POST",
+      headers: { ...this.#headers, "content-type": "application/json" },
+      body: JSON.stringify({ direction, sort }),
+      signal,
+    })
+    if (response.status === 204) return undefined
+    if (!response.ok) throw await responseError(response, "Reader adjacent-book navigation")
+    const next = await response.json() as ReaderSessionDto
+    try {
+      assertSessionDto(next)
+      this.#assertAssetUrls(next.visiblePages)
+    } catch (error) {
+      if (next && typeof next.sessionId === "string") await this.#closeRemoteSession(next.sessionId).catch(() => undefined)
+      throw error
+    }
+    if (this.#session !== current) {
+      await this.#closeRemoteSession(next.sessionId).catch(() => undefined)
+      throw new Error("Remote reader session changed while opening the adjacent book.")
+    }
+    this.#session = next
+    this.#pageAssets.clear()
+    this.#replaceVisiblePages(next.visiblePages)
+    return snapshotOf(next)
   }
 
   async openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream> {

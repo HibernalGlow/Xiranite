@@ -555,8 +555,11 @@ export async function createReaderHeadlessController(
   const { createPlatformReaderBookLoader } = await import("./platform/books/PlatformReaderBookLoader.js")
   const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
   const { SolidArchiveCache } = await import("./platform/archives/sevenzip/SolidArchiveCache.js")
-  const { loadNeoviewSessionOptions } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
-  const sessionOptions = await loadNeoviewSessionOptions(options)
+  const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const { ReaderMediaFormatRegistry } = await import("./domain/page/media.js")
+  const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const sessionOptions = runtimeConfig.sessionOptions
+  const mediaFormats = new ReaderMediaFormatRegistry(runtimeConfig.media)
   const progressStore = options.progressStore === false
     ? undefined
     : options.progressStore ?? (options.legacyThumbnailDatabasePath === false
@@ -584,9 +587,18 @@ export async function createReaderHeadlessController(
   const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
     maxBytes: options.maxSolidArchiveCacheBytes,
   })
+  const { ReaderAdjacentBookService } = await import("./application/reader/ReaderAdjacentBookService.js")
+  const { PlatformDirectoryListingProvider } = await import("./platform/filesystem/PlatformDirectoryListingProvider.js")
+  const { PlatformDirectoryMetadataProvider } = await import("./platform/filesystem/PlatformDirectoryMetadataProvider.js")
+  const { platformReaderBookCandidate } = await import("./platform/filesystem/PlatformReaderBookCandidate.js")
+  const adjacentBooks = new ReaderAdjacentBookService(
+    new PlatformDirectoryListingProvider(mediaFormats),
+    new PlatformDirectoryMetadataProvider(isReaderDirectoryEmmRecordStore(progressStore) ? progressStore : undefined),
+    (entry) => platformReaderBookCandidate(entry, mediaFormats),
+  )
   return new ReaderHeadlessController(
     new CoreReaderService(
-      createPlatformReaderBookLoader({ ...options, solidArchiveCache }),
+      createPlatformReaderBookLoader({ ...options, solidArchiveCache, mediaFormats }),
       new StreamingImageMetadataProbe(),
       sessionOptions,
       progressStore,
@@ -599,6 +611,7 @@ export async function createReaderHeadlessController(
       service: bookSettings,
       defaults: bookSettingsModule.readerBookSettingsDefaults(sessionOptions),
     } : undefined,
+    adjacentBooks,
   )
 }
 

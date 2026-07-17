@@ -14,6 +14,11 @@ import type {
   ReaderBookSettingsService,
   ReaderBookSettingsSnapshot,
 } from "../reader/ReaderBookSettingsService.js"
+import type {
+  ReaderAdjacentBookDirection,
+  ReaderAdjacentBookService,
+} from "../reader/ReaderAdjacentBookService.js"
+import type { ReaderDirectorySortRule } from "../browser/ReaderDirectorySort.js"
 
 export interface OpenHeadlessReaderInput {
   path: string
@@ -83,6 +88,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     mediaProgress?: ReaderMediaProgressService,
     private readonly metadata?: ReaderBookMetadataService,
     private readonly bookSettings?: ReaderHeadlessBookSettingsOptions,
+    private readonly adjacentBooks?: ReaderAdjacentBookService,
   ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
@@ -149,6 +155,25 @@ export class ReaderHeadlessController implements AsyncDisposable {
     const session = this.#requireSession()
     await session.previous(signal)
     return snapshotOf(session, this.#bookMetadata)
+  }
+
+  async openAdjacent(
+    direction: ReaderAdjacentBookDirection,
+    sort?: ReaderDirectorySortRule,
+    signal?: AbortSignal,
+  ): Promise<HeadlessReaderSnapshot | undefined> {
+    const current = this.#requireSession()
+    if (!this.adjacentBooks) throw new Error("Reader adjacent-book navigation is unavailable.")
+    const candidate = await this.adjacentBooks.resolve({
+      source: current.book.source,
+      direction,
+      sort,
+      randomSeed: current.id,
+    }, signal)
+    signal?.throwIfAborted()
+    if (!candidate) return undefined
+    if (this.#session !== current) throw new Error("Reader session changed while resolving the adjacent book.")
+    return this.open({ path: candidate.path, signal })
   }
 
   async goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {

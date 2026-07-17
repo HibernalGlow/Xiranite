@@ -6,6 +6,7 @@ import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../po
 import { CoreReaderService } from "../reader/ReaderService.js"
 import { ReaderMediaProgressService } from "../reader/ReaderMediaProgressService.js"
 import { ReaderBookSettingsService } from "../reader/ReaderBookSettingsService.js"
+import type { ReaderAdjacentBookService } from "../reader/ReaderAdjacentBookService.js"
 import { ReaderBookMetadataService } from "../metadata/ReaderBookMetadataService.js"
 import { ReaderHeadlessController } from "./ReaderHeadlessController.js"
 
@@ -48,6 +49,33 @@ describe("ReaderHeadlessController", () => {
       expect((await controller.goTo(2)).visiblePages[0]?.index).toBe(2)
       expect(await controller.previous()).toMatchObject({ frame: { anchorPageIndex: 1 }, preload: { direction: "backward" } })
       expect(() => controller.listPages(0, 501)).toThrow("limit")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.headless.adjacent-book] resolves and atomically replaces a sibling book through the shared service", async () => {
+    const closed: string[] = []
+    const resolve = vi.fn(async () => ({ path: "D:/Library/Book 2", name: "Book 2", index: 1, total: 2 }))
+    const service = new CoreReaderService(async (source) => book("path" in source ? source.path : source.kind, closed))
+    const controller = new ReaderHeadlessController(
+      service,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { resolve } as unknown as ReaderAdjacentBookService,
+    )
+    try {
+      await controller.open({ path: "D:/Library/Book 1" })
+      const next = await controller.openAdjacent("next", { field: "name", order: "asc", directoriesFirst: true })
+      expect(next?.book.displayName).toBe("Book 2")
+      expect(closed).toEqual(["D:/Library/Book 1"])
+      expect(resolve).toHaveBeenCalledWith(expect.objectContaining({
+        source: { kind: "archive", path: "D:/Library/Book 1" },
+        direction: "next",
+        sort: { field: "name", order: "asc", directoriesFirst: true },
+      }), undefined)
     } finally {
       await controller[Symbol.asyncDispose]()
     }

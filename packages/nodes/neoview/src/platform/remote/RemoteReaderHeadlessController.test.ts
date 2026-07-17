@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -77,6 +77,34 @@ describe("RemoteReaderHeadlessController", () => {
         reader: { frame: { direction: "right-to-left", layout: { pageMode: "double" } } },
       })
       expect(requests.some((request) => request.method === "PATCH" && request.url.endsWith("/book-settings"))).toBe(true)
+    } finally {
+      await remote[Symbol.asyncDispose]()
+      await server[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.headless.adjacent-book-connect] shares sibling switching with the authenticated GUI controller", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-remote-adjacent-"))
+    cleanup.push(root)
+    const first = join(root, "Book 1")
+    const second = join(root, "Book 2")
+    await Promise.all([mkdir(first), mkdir(second)])
+    await Promise.all([
+      writeFile(join(first, "1.jpg"), Uint8Array.of(1)),
+      writeFile(join(second, "1.jpg"), Uint8Array.of(2)),
+    ])
+    const server = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "remote-token", progressStore: false })
+    const requests: Request[] = []
+    const remote = new RemoteReaderHeadlessController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      fetch: controllerFetch(server, requests),
+    })
+    try {
+      await remote.open({ path: first })
+      await expect(remote.openAdjacent("next")).resolves.toMatchObject({ book: { displayName: "Book 2" } })
+      await expect(remote.openAdjacent("next")).resolves.toBeUndefined()
+      expect(requests.filter((request) => request.url.endsWith("/adjacent-book"))).toHaveLength(2)
     } finally {
       await remote[Symbol.asyncDispose]()
       await server[Symbol.asyncDispose]()

@@ -23,6 +23,8 @@ import type { ReaderSearchHistoryStore } from "../../ports/ReaderSearchHistorySt
 import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJournalStore.js"
 import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
+import { ReaderAdjacentBookService } from "../../application/reader/ReaderAdjacentBookService.js"
+import { isReaderDirectorySortField, type ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
 import { ReaderSeekableMediaCache } from "../../application/reader/ReaderSeekableMediaCache.js"
@@ -45,6 +47,9 @@ import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoade
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
 import { PlatformDirectoryMediaMetadataProvider } from "../filesystem/PlatformDirectoryMediaMetadataProvider.js"
+import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
+import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
+import { platformReaderBookCandidate } from "../filesystem/PlatformReaderBookCandidate.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
@@ -99,6 +104,7 @@ const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_RELOAD_PATH = /^\/reader\/s\/([^/]+)\/reload$/
 const SESSION_SOURCE_CHANGES_PATH = /^\/reader\/s\/([^/]+)\/source-changes$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
+const SESSION_ADJACENT_BOOK_PATH = /^\/reader\/s\/([^/]+)\/adjacent-book$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
 const SESSION_PRELOAD_CONTEXT_PATH = /^\/reader\/s\/([^/]+)\/preload-context$/
@@ -204,6 +210,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   readonly #bookMetadata: ReaderBookMetadataService
   readonly #pageMediaInformation: ReaderPageMediaInformationService
+  readonly #adjacentBooks: ReaderAdjacentBookService
   readonly #mediaFormats: ReaderMediaFormatRegistryRef
   readonly #token: string
   readonly #baseUrl: string
@@ -280,6 +287,17 @@ export class ReaderHttpController implements AsyncDisposable {
       options.bookSettingsStore,
     )
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
+    const directoryMetadata = new PlatformDirectoryMetadataProvider(
+      options.directoryEmmRecordStore,
+      undefined,
+      undefined,
+      new PlatformDirectoryMediaMetadataProvider(bookLoader, imageMetadataProbe, this.#mediaFormats),
+    )
+    this.#adjacentBooks = new ReaderAdjacentBookService(
+      new PlatformDirectoryListingProvider(this.#mediaFormats),
+      directoryMetadata,
+      (entry) => platformReaderBookCandidate(entry, this.#mediaFormats),
+    )
     this.#sourceChanges = new ReaderSourceWatchService(options.sourceWatcher ?? new PlatformReaderSourceWatcher())
     this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore)
     this.#pageMediaInformation = new ReaderPageMediaInformationService(
@@ -455,6 +473,8 @@ export class ReaderHttpController implements AsyncDisposable {
 
     const pagesMatch = SESSION_PAGES_PATH.exec(url.pathname)
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
+    const adjacentBookMatch = SESSION_ADJACENT_BOOK_PATH.exec(url.pathname)
+    if (adjacentBookMatch && request.method === "POST") return this.#openAdjacentBook(adjacentBookMatch[1]!, request)
     const metadataMatch = SESSION_METADATA_PATH.exec(url.pathname)
     if (metadataMatch && request.method === "GET") return this.#metadata(metadataMatch[1]!, request.signal)
     const pageMediaInformationMatch = SESSION_PAGE_MEDIA_INFORMATION_PATH.exec(url.pathname)
@@ -1036,6 +1056,33 @@ export class ReaderHttpController implements AsyncDisposable {
     return jsonResponse(this.#sessionDto(replacement), 201)
   }
 
+  async #openAdjacentBook(encodedSessionId: string, request: Request): Promise<Response> {
+    const current = this.#findSession(encodedSessionId)
+    if (!current) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    const parsed = parseAdjacentBookRequest(body)
+    if (!parsed) return jsonResponse({ error: "Adjacent-book request must contain a valid direction and optional sort rule" }, 400)
+    let replacement: ReaderSession | undefined
+    try {
+      const candidate = await this.#adjacentBooks.resolve({
+        source: current.book.source,
+        direction: parsed.direction,
+        sort: parsed.sort,
+        randomSeed: current.id,
+      }, request.signal)
+      if (!candidate) return new Response(null, { status: 204 })
+      replacement = await this.#service.openViewSource({ kind: "path", path: candidate.path }, { signal: request.signal })
+      request.signal.throwIfAborted()
+      this.#retainSessionFrame(replacement, replacement.snapshot())
+    } catch (error) {
+      await replacement?.close().catch(() => undefined)
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+    await this.#releaseSession(current)
+    return jsonResponse(this.#sessionDto(replacement), 201)
+  }
+
   async #releaseSession(session: ReaderSession): Promise<void> {
     await this.#sourceChanges.release(session.id)
     await this.#mediaProgress?.flush(session.book.id)
@@ -1368,6 +1415,25 @@ function reloadTargetPage(pages: readonly ReaderPage[], anchor: ReaderPage | und
     if (matched) return matched.index
   }
   return Math.min(previousIndex, pages.length - 1)
+}
+
+function parseAdjacentBookRequest(body: Record<string, unknown> | undefined): {
+  direction: "next" | "previous"
+  sort?: ReaderDirectorySortRule
+} | undefined {
+  if (!body || Object.keys(body).some((key) => key !== "direction" && key !== "sort")) return undefined
+  if (body.direction !== "next" && body.direction !== "previous") return undefined
+  if (body.sort === undefined) return { direction: body.direction }
+  if (!body.sort || typeof body.sort !== "object" || Array.isArray(body.sort)) return undefined
+  const sort = body.sort as Record<string, unknown>
+  if (Object.keys(sort).some((key) => key !== "field" && key !== "order" && key !== "directoriesFirst")) return undefined
+  if (!isReaderDirectorySortField(sort.field)) return undefined
+  if (sort.order !== "asc" && sort.order !== "desc") return undefined
+  if (typeof sort.directoriesFirst !== "boolean") return undefined
+  return {
+    direction: body.direction,
+    sort: { field: sort.field, order: sort.order, directoriesFirst: sort.directoriesFirst },
+  }
 }
 
 function boundedInteger(value: string | null, minimum: number, maximum: number, fallback: number): number {
