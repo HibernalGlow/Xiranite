@@ -1,9 +1,15 @@
 import type {
   HeadlessPageStream,
+  HeadlessReaderBookSettingsUpdate,
   HeadlessReaderPageSnapshot,
   HeadlessReaderSnapshot,
   OpenHeadlessReaderInput,
 } from "../../application/headless/ReaderHeadlessController.js"
+import {
+  parseReaderBookSettingsSnapshot,
+  type ReaderBookSettingsPatch,
+  type ReaderBookSettingsSnapshot,
+} from "../../application/reader/ReaderBookSettingsService.js"
 import type { ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
@@ -139,6 +145,40 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     return new RemoteHeadlessPageStream(pageSnapshot(page), response.body, optionalLength(response), response.headers.get("content-type") ?? page.mimeType)
   }
 
+  async getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot> {
+    const session = this.#requireSession()
+    const result = await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/book-settings`,
+      { signal },
+    )
+    return parseReaderBookSettingsEnvelope(result)
+  }
+
+  async updateBookSettings(
+    expectedRevision: number,
+    patch: ReaderBookSettingsPatch,
+    signal?: AbortSignal,
+  ): Promise<HeadlessReaderBookSettingsUpdate> {
+    const session = this.#requireSession()
+    const result = await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/book-settings`,
+      { method: "PATCH", body: JSON.stringify({ expectedRevision, patch }), signal },
+    )
+    if (!result || typeof result !== "object") throw invalidBookSettingsResponse()
+    const response = result as Partial<ReaderFrameDto> & { settings?: unknown }
+    const settings = parseReaderBookSettingsEnvelope(result)
+    if (!response.frame || !Array.isArray(response.visiblePages)) throw invalidBookSettingsResponse()
+    for (const page of response.visiblePages) {
+      assertPageDto(page)
+      this.#assertAssetUrl(page)
+    }
+    session.frame = response.frame
+    session.visiblePages = response.visiblePages
+    session.preload = response.preload
+    this.#replaceVisiblePages(response.visiblePages)
+    return { settings, reader: snapshotOf(session) }
+  }
+
   async closeBook(): Promise<void> {
     const session = this.#session
     this.#session = undefined
@@ -258,6 +298,19 @@ function pageSnapshot(page: ReaderPageDto): HeadlessReaderPageSnapshot {
     dimensions: page.dimensions ? { ...page.dimensions } : undefined,
     contentVersion: page.contentVersion,
   }
+}
+
+function parseReaderBookSettingsEnvelope(value: unknown): ReaderBookSettingsSnapshot {
+  if (!value || typeof value !== "object" || !("settings" in value)) throw invalidBookSettingsResponse()
+  try {
+    return parseReaderBookSettingsSnapshot((value as { settings: unknown }).settings)
+  } catch {
+    throw invalidBookSettingsResponse()
+  }
+}
+
+function invalidBookSettingsResponse(): Error {
+  return new Error("Xiranite Reader returned an invalid book-settings response.")
 }
 
 function normalizeLoopbackBaseUrl(value: string): URL {

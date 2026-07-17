@@ -17,6 +17,9 @@ import type {
   ReaderDiagnosticsService,
   ReaderDiagnosticsSnapshot,
   ReaderSchedulerPoolDiagnostics,
+  HeadlessReaderBookSettingsUpdate,
+  ReaderBookSettingsPatch,
+  ReaderBookSettingsSnapshot,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -36,6 +39,7 @@ import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRest
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
+  "book-settings-get", "book-settings-set",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
   "settings-backup",
   "settings-backup-inspect", "settings-backup-restore",
@@ -85,6 +89,12 @@ const VALUE_FLAGS = new Set([
   "--connect",
   "--token-env",
   "--quarantine",
+  "--expected-revision",
+  "--favorite",
+  "--rating",
+  "--direction",
+  "--page-mode",
+  "--horizontal-book",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -123,6 +133,8 @@ export interface CliReaderController extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
   listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
+  getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
+  updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
 }
 
 export interface CliInteractiveReaderController extends CliReaderController {
@@ -174,7 +186,7 @@ export async function runProgram(
   }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
-  const parsed = parseArguments(args.slice(1))
+  const parsed = parseArguments(args.slice(1), command)
   validateCommandOptions(command, parsed)
   if (command === "thumbnail-db-inspect") {
     if (parsed.positionals.length > 1) throw usage("thumbnail-db-inspect accepts at most one database path.")
@@ -253,6 +265,10 @@ export async function runProgram(
     await runSettingsCommand(command, resolve(host.cwd, path), parsed, host)
     return
   }
+  const bookSettingsUpdate = command === "book-settings-set" ? {
+    expectedRevision: requiredIntegerOption(parsed, "--expected-revision", 0, Number.MAX_SAFE_INTEGER),
+    patch: bookSettingsPatch(parsed),
+  } : undefined
   const index = integerOption(parsed, "--index", 0, Number.MAX_SAFE_INTEGER, 0)
   const credentials = credentialsFromEnvironment(parsed, host)
   let controller: CliReaderController | undefined
@@ -284,6 +300,13 @@ export async function runProgram(
       const limit = integerOption(parsed, "--limit", 1, 500, 100)
       return printPages(await controller.listPages(cursor, limit), cursor, snapshot.book.pageCount, parsed.booleans.has("--json"), host)
     }
+    if (command === "book-settings-get") {
+      return printBookSettings(await controller.getBookSettings(), parsed.booleans.has("--json"), host)
+    }
+    if (command === "book-settings-set") {
+      const updated = await controller.updateBookSettings(bookSettingsUpdate!.expectedRevision, bookSettingsUpdate!.patch)
+      return printBookSettingsUpdate(updated, parsed.booleans.has("--json"), host)
+    }
     if (parsed.booleans.has("--json")) throw usage("extract-page does not support --json because its output is binary.")
     const output = oneValue(parsed, "--output")
     if (!output) throw usage("extract-page requires --output <path|->.")
@@ -295,6 +318,17 @@ export async function runProgram(
 }
 
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
+  if (command === "book-settings-get") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"]))
+    return
+  }
+  if (command === "book-settings-set") {
+    rejectOptions(parsed, new Set([
+      "--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index",
+      "--expected-revision", "--favorite", "--rating", "--direction", "--page-mode", "--horizontal-book",
+    ]))
+    return
+  }
   if (command === "settings-export") {
     rejectOptions(parsed, new Set(["--output", "--config", "--force"]))
     return
@@ -1240,7 +1274,7 @@ interface ParsedArguments {
   booleans: Set<string>
 }
 
-function parseArguments(args: readonly string[]): ParsedArguments {
+function parseArguments(args: readonly string[], command?: string): ParsedArguments {
   const parsed: ParsedArguments = { positionals: [], values: new Map(), booleans: new Set() }
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!
@@ -1248,7 +1282,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
       parsed.positionals.push(arg)
       continue
     }
-    if (BOOLEAN_FLAGS.has(arg)) {
+    if (BOOLEAN_FLAGS.has(arg) && !(command === "book-settings-set" && arg === "--favorite")) {
       if (parsed.booleans.has(arg)) throw usage(`Duplicate flag: ${arg}`)
       parsed.booleans.add(arg)
       continue
@@ -1327,6 +1361,69 @@ function printPages(pages: readonly HeadlessReaderPageSnapshot[], cursor: number
   if (json) return writeJson(host, { pages, cursor, nextCursor: cursor + pages.length < total ? cursor + pages.length : undefined, total })
   for (const page of pages) writeLine(host, pageLine(page))
   writeLine(host, `${pages.length} of ${total} page(s)`)
+}
+
+function printBookSettings(settings: ReaderBookSettingsSnapshot, json: boolean, host: CliHost): void {
+  if (json) return writeJson(host, settings)
+  writeLine(host, `Book settings revision ${settings.revision}`)
+  for (const key of ["favorite", "rating", "direction", "pageMode", "horizontalBook"] as const) {
+    const inherited = settings.inherited.includes(key)
+    writeLine(host, `${key}: ${String(settings.effective[key])} (${inherited ? "inherited" : "override"})`)
+  }
+}
+
+function printBookSettingsUpdate(result: HeadlessReaderBookSettingsUpdate, json: boolean, host: CliHost): void {
+  if (json) return writeJson(host, result)
+  printBookSettings(result.settings, false, host)
+  writeLine(host, frameLine(result.reader))
+}
+
+function bookSettingsPatch(parsed: ParsedArguments): ReaderBookSettingsPatch {
+  const patch: ReaderBookSettingsPatch = {}
+  const favorite = inheritedBooleanOption(parsed, "--favorite")
+  const horizontalBook = inheritedBooleanOption(parsed, "--horizontal-book")
+  const rating = inheritedRatingOption(parsed)
+  const direction = inheritedEnumOption(parsed, "--direction", ["left-to-right", "right-to-left"] as const)
+  const pageMode = inheritedEnumOption(parsed, "--page-mode", ["single", "double"] as const)
+  if (favorite !== undefined) patch.favorite = favorite
+  if (rating !== undefined) patch.rating = rating
+  if (direction !== undefined) patch.direction = direction
+  if (pageMode !== undefined) patch.pageMode = pageMode
+  if (horizontalBook !== undefined) patch.horizontalBook = horizontalBook
+  if (!Object.keys(patch).length) {
+    throw usage("book-settings-set requires at least one setting option.")
+  }
+  return patch
+}
+
+function inheritedBooleanOption(parsed: ParsedArguments, flag: string): boolean | null | undefined {
+  const value = oneValue(parsed, flag)
+  if (value === undefined) return undefined
+  if (value === "inherit") return null
+  if (value === "true") return true
+  if (value === "false") return false
+  throw usage(`${flag} must be true, false or inherit.`)
+}
+
+function inheritedRatingOption(parsed: ParsedArguments): number | null | undefined {
+  const value = oneValue(parsed, "--rating")
+  if (value === undefined) return undefined
+  if (value === "inherit") return null
+  const rating = Number(value)
+  if (!Number.isSafeInteger(rating) || rating < 1 || rating > 5) throw usage("--rating must be 1..5 or inherit.")
+  return rating
+}
+
+function inheritedEnumOption<T extends string>(
+  parsed: ParsedArguments,
+  flag: string,
+  allowed: readonly T[],
+): T | null | undefined {
+  const value = oneValue(parsed, flag)
+  if (value === undefined) return undefined
+  if (value === "inherit") return null
+  if (allowed.includes(value as T)) return value as T
+  throw usage(`${flag} must be ${allowed.join(", ")} or inherit.`)
 }
 
 function frameLine(snapshot: HeadlessReaderSnapshot): string {
@@ -1602,6 +1699,11 @@ function integerOption(parsed: ParsedArguments, flag: string, minimum: number, m
   return parsedValue
 }
 
+function requiredIntegerOption(parsed: ParsedArguments, flag: string, minimum: number, maximum: number): number {
+  if (!parsed.values.has(flag)) throw usage(`${flag} is required.`)
+  return integerOption(parsed, flag, minimum, maximum, minimum)
+}
+
 function oneValue(parsed: ParsedArguments, flag: string): string | undefined {
   const values = parsed.values.get(flag)
   if (!values?.length) return undefined
@@ -1766,6 +1868,8 @@ function formatCliHelp(): string {
     "  settings-backup <directory>        Create a verified settings + thumbnails.db bundle",
     "  settings-backup-inspect <directory> Verify a backup bundle without mutation",
     "  settings-backup-restore <directory> Restore offline with explicit quarantine",
+    "  book-settings-get <book>            Read inherited/effective per-book settings",
+    "  book-settings-set <book>            Update revisioned per-book settings",
     "  reader-data-inspect <json>  Preview legacy history/bookmark migration",
     "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
     "  search-history-inspect <json>  Preview legacy search-history migration",
@@ -1824,6 +1928,12 @@ function formatCliHelp(): string {
     "  --archive-password-env SCOPE=VAR  Scoped nested password; join scope with ::",
     "  --connect URL        Use the running loopback XR Reader backend",
     "  --token-env VAR      Read its token from VAR (default XIRANITE_BACKEND_TOKEN)",
+    "  --expected-revision N  Required CAS revision for book-settings-set",
+    "  --favorite VALUE      true|false|inherit for book-settings-set",
+    "  --rating VALUE        1..5|inherit for book-settings-set",
+    "  --direction VALUE     left-to-right|right-to-left|inherit",
+    "  --page-mode VALUE     single|double|inherit",
+    "  --horizontal-book VALUE  true|false|inherit",
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
     "  --config PATH        Xiranite TOML path for settings/cache commands",

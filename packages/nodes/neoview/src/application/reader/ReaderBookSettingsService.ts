@@ -35,6 +35,34 @@ export interface ReaderBookSettingsSnapshot {
   inherited: Array<keyof ReaderBookSettingsOverrides>
 }
 
+const ReaderBookSettingsOverridesSchema = z.object({
+  favorite: z.boolean().optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  direction: z.enum(["left-to-right", "right-to-left"]).optional(),
+  pageMode: z.enum(["single", "double"]).optional(),
+  horizontalBook: z.boolean().optional(),
+}).strict()
+
+export const ReaderBookSettingsSnapshotSchema: z.ZodType<ReaderBookSettingsSnapshot> = z.object({
+  schemaVersion: z.literal(1),
+  bookId: z.string().min(1).max(2_048).refine((value) => !value.includes("\0"), "bookId must not contain NUL"),
+  revision: z.number().int().nonnegative(),
+  updatedAt: z.number().finite().nonnegative().optional(),
+  overrides: ReaderBookSettingsOverridesSchema,
+  effective: z.object({
+    favorite: z.boolean(),
+    rating: z.number().int().min(0).max(5),
+    direction: z.enum(["left-to-right", "right-to-left"]),
+    pageMode: z.enum(["single", "double"]),
+    horizontalBook: z.boolean(),
+  }).strict(),
+  inherited: z.array(z.enum(["favorite", "rating", "direction", "pageMode", "horizontalBook"])).max(5),
+}).strict()
+
+export function parseReaderBookSettingsSnapshot(value: unknown): ReaderBookSettingsSnapshot {
+  return ReaderBookSettingsSnapshotSchema.parse(value)
+}
+
 export function readerBookSettingsDefaults(options: Partial<ReaderSessionOptions> = {}): ReaderBookSettingsDefaults {
   return {
     favorite: false,

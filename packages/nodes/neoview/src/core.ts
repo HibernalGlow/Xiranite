@@ -130,8 +130,10 @@ export type {
 } from "./ports/ReaderBookSettingsStore.js"
 export {
   ReaderBookSettingsPatchSchema,
+  ReaderBookSettingsSnapshotSchema,
   ReaderBookSettingsRevisionConflict,
   ReaderBookSettingsService,
+  parseReaderBookSettingsSnapshot,
   readerBookSettingsDefaults,
 } from "./application/reader/ReaderBookSettingsService.js"
 export type {

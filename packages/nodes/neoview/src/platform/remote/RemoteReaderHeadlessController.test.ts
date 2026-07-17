@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ReaderHttpController } from "../asset-route/ReaderHttpController.js"
+import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import { fetchRemoteReaderDiagnostics, RemoteReaderHeadlessController } from "./RemoteReaderHeadlessController.js"
 
 const cleanup: string[] = []
@@ -49,6 +50,55 @@ describe("RemoteReaderHeadlessController", () => {
       await server[Symbol.asyncDispose]()
     }
     expect(requests.at(-1)?.method).toBe("DELETE")
+  })
+
+  it("[neoview.book-settings.cli-connect] reuses authenticated HTTP, wire validation and frame projection", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-remote-settings-"))
+    cleanup.push(directory)
+    await writeFile(join(directory, "1.jpg"), Uint8Array.of(1, 2, 3))
+    const server = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      progressStore: false,
+      bookSettingsStore: memoryBookSettingsStore(),
+    })
+    const requests: Request[] = []
+    const remote = new RemoteReaderHeadlessController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      fetch: controllerFetch(server, requests),
+    })
+    try {
+      await remote.open({ path: directory })
+      await expect(remote.getBookSettings()).resolves.toMatchObject({ revision: 0, effective: { pageMode: "single" } })
+      const updated = await remote.updateBookSettings(0, { direction: "right-to-left", pageMode: "double" })
+      expect(updated).toMatchObject({
+        settings: { revision: 1, overrides: { direction: "right-to-left", pageMode: "double" } },
+        reader: { frame: { direction: "right-to-left", layout: { pageMode: "double" } } },
+      })
+      expect(requests.some((request) => request.method === "PATCH" && request.url.endsWith("/book-settings"))).toBe(true)
+    } finally {
+      await remote[Symbol.asyncDispose]()
+      await server[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.book-settings.wire-schema] rejects malformed settings without publishing them", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === "DELETE") return new Response(null, { status: 204 })
+      if (request.url.endsWith("/book-settings")) {
+        return Response.json({ settings: { schemaVersion: 1, bookId: "book-1", revision: -1, overrides: {}, effective: {}, inherited: [] } })
+      }
+      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1"), { status: 201 })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/book.cbz" })
+      await expect(remote.getBookSettings()).rejects.toThrow("invalid book-settings response")
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
   })
 
   it("[neoview.cli.connect-security] requires a token, loopback URL and valid authenticated responses", async () => {
@@ -216,5 +266,18 @@ function diagnosticsSnapshot() {
     solidArchiveCache: { entries: 0, retainedBytes: 0, maxBytes: 0 },
     scheduler: { cpu: pool, io: pool, gpu: pool },
     future: { metric: 7 },
+  }
+}
+
+function memoryBookSettingsStore(): ReaderBookSettingsStore {
+  let record: ReaderBookSettingsRecord | undefined
+  return {
+    getBookSettings: vi.fn(async () => record),
+    saveBookSettings: vi.fn(async (bookId, overrides, expectedRevision, updatedAt) => {
+      if ((record?.revision ?? 0) !== expectedRevision) return undefined
+      record = { bookId, overrides, revision: expectedRevision + 1, updatedAt }
+      return record
+    }),
+    importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
   }
 }

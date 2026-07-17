@@ -13,6 +13,7 @@ import type {
   ReaderFileOperationService,
   ReaderSystemIntegrationService,
   ReaderLibraryHeadlessController,
+  ReaderBookSettingsSnapshot,
 } from "../core.js"
 import { runProgram } from "../cli.js"
 import { createReaderFileTreeController, createReaderHeadlessController } from "../platform.js"
@@ -259,6 +260,49 @@ describe("NeoView CLI", () => {
       createController: async () => reader,
     })
     expect(JSON.parse(output.join(""))).toMatchObject({ frame: { anchorPageIndex: 2 }, visiblePages: [{ index: 2 }] })
+  })
+
+  it("[neoview.book-settings.cli] projects inherited CLI values into the shared revisioned controller", async () => {
+    const getBookSettings = vi.fn(async () => bookSettingsSnapshot())
+    const updateBookSettings = vi.fn(async () => ({
+      settings: {
+        ...bookSettingsSnapshot(),
+        revision: 4,
+        overrides: { favorite: true, horizontalBook: false },
+        effective: { ...bookSettingsSnapshot().effective, favorite: true, horizontalBook: false },
+      },
+      reader: snapshot(0),
+    }))
+    const reader = fakeReader({ getBookSettings, updateBookSettings })
+    const getOutput: unknown[] = []
+    await runProgram(["book-settings-get", "book.cbz", "--json"], host(getOutput), { createController: async () => reader })
+    expect(JSON.parse(getOutput.join(""))).toMatchObject({ schemaVersion: 1, revision: 3, effective: { pageMode: "single" } })
+
+    const setOutput: unknown[] = []
+    await runProgram([
+      "book-settings-set", "book.cbz", "--expected-revision", "3",
+      "--favorite", "true", "--rating", "inherit", "--direction", "inherit",
+      "--page-mode", "double", "--horizontal-book", "false", "--json",
+    ], host(setOutput), { createController: async () => reader })
+    expect(updateBookSettings).toHaveBeenCalledWith(3, {
+      favorite: true,
+      rating: null,
+      direction: null,
+      pageMode: "double",
+      horizontalBook: false,
+    })
+    expect(JSON.parse(setOutput.join(""))).toMatchObject({ settings: { revision: 4 }, reader: { frame: { anchorPageIndex: 0 } } })
+  })
+
+  it("[neoview.book-settings.cli-validation] requires CAS and validates projected settings", async () => {
+    const reader = fakeReader()
+    await expect(runProgram(["book-settings-set", "book.cbz", "--favorite", "true"], host([]), { createController: async () => reader }))
+      .rejects.toThrow("--expected-revision is required")
+    await expect(runProgram(["book-settings-set", "book.cbz", "--expected-revision", "0", "--rating", "6"], host([]), { createController: async () => reader }))
+      .rejects.toThrow("--rating must be 1..5 or inherit")
+    await expect(runProgram(["book-settings-set", "book.cbz", "--expected-revision", "0"], host([]), { createController: async () => reader }))
+      .rejects.toThrow("at least one setting option")
+    expect(reader.open).not.toHaveBeenCalled()
   })
 
   it("[neoview.cli.extract-page] writes only original page bytes to stdout", async () => {
@@ -923,6 +967,8 @@ function fakePresentationCache() {
 function fakeReader(overrides: Partial<{
   open: (input: OpenHeadlessReaderInput) => Promise<HeadlessReaderSnapshot>
   openPageStream: (index: number) => Promise<HeadlessPageStream>
+  getBookSettings: ReaderHeadlessController["getBookSettings"]
+  updateBookSettings: ReaderHeadlessController["updateBookSettings"]
 }> = {}): ReaderHeadlessController {
   let current = 0
   const dispose = vi.fn(async () => undefined)
@@ -938,9 +984,22 @@ function fakeReader(overrides: Partial<{
     previous: vi.fn(async () => snapshot(current = Math.max(0, current - 1))),
     goTo: vi.fn(async (index: number) => snapshot(current = index)),
     openPageStream: vi.fn(overrides.openPageStream ?? (async () => { throw new Error("not configured") })),
+    getBookSettings: vi.fn(overrides.getBookSettings ?? (async () => bookSettingsSnapshot())),
+    updateBookSettings: vi.fn(overrides.updateBookSettings ?? (async () => ({ settings: bookSettingsSnapshot(), reader: snapshot(current) }))),
     closeBook: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: dispose,
   } as unknown as ReaderHeadlessController
+}
+
+function bookSettingsSnapshot(): ReaderBookSettingsSnapshot {
+  return {
+    schemaVersion: 1,
+    bookId: "opaque-book",
+    revision: 3,
+    overrides: {},
+    effective: { favorite: false, rating: 0, direction: "left-to-right", pageMode: "single", horizontalBook: true },
+    inherited: ["favorite", "rating", "direction", "pageMode", "horizontalBook"],
+  }
 }
 
 function host(stdout: unknown[], env: Record<string, string | undefined> = {}): CliHost {
