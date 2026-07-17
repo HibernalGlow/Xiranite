@@ -3022,7 +3022,7 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `historyList` | 历史记录 | core | partial | `core=P transport=P gui=P cli=P tui=P evidence=P` | `src/lib/cards/history/HistoryListCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `history-list` |
+| `historyList` | 历史记录 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/history/HistoryListCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `history-list` |
 
 #### `historyList` 历史记录
 
@@ -3414,12 +3414,12 @@
   - 计划测试：无
   - 备注：Single/double-click and explicit resume plus confirmed single/batch history removal exist; browse, new-tab, reveal, copy, add-bookmark, tag and thumbnail-reload actions remain pending.
 - [ ] `history.cleanup` 清理失效、最旧、过期、目录与全部历史
-  - 六维：`core=P transport=P gui=P cli=P tui=P evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：Bounded, cancellable cleanup supports confirmed missing paths, oldest count, timestamp cutoff, folder scope and clear-all without deleting unrelated progress or bookmarks.
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte`、`src/lib/stores/unifiedHistory.svelte.ts`
-  - 测试：`neoview.library.cleanup-invalid`、`neoview.library.cleanup-cancel`、`neoview.library.cli`、`neoview.history.cleanup-oldest`、`neoview.history.cleanup-oldest-cancel`、`neoview.history.cleanup-oldest-http`、`neoview.history.cleanup-oldest-composition`
+  - 测试：`neoview.library.cleanup-invalid`、`neoview.library.cleanup-cancel`、`neoview.library.cli`、`neoview.history.cleanup-oldest`、`neoview.history.cleanup-oldest-cancel`、`neoview.history.cleanup-oldest-http`、`neoview.history.cleanup-oldest-composition`、`neoview.library.cleanup-folder`、`neoview.library.cleanup-folder-sqlite`、`neoview.library.advanced-cleanup`、`neoview.history.cleanup-state-sqlite`、`neoview.bookmark.advanced-cleanup-sqlite`
   - 计划测试：`neoview.history.cleanup`、`neoview.history.e2e`
-  - 备注：Core now supports bounded cancellable invalid-path, timestamp-cutoff and exact oldest-count cleanup. Oldest-count cleanup scans the existing descending paged contract with O(limit) retained candidates, deletes in deterministic updatedAt/bookId order and returns selectedIds/deleted/missingIds through strict HTTP transport. Folder-scope, clear-all, complete GUI/TUI controls and final E2E evidence remain pending.
+  - 备注：Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. Every History deletion path atomically clears progress, media progress and path-stack state without touching bookmarks or book settings; Bookmark cleanup removes memberships with rows while preserving custom list definitions. Complete GUI/CLI/TUI controls and final E2E evidence remain pending.
 - [ ] `history.sync-folder` 同步历史选择到文件夹 Panel
   - 六维：`core=N/A transport=N/A gui=- cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：A default-off History-specific toggle optionally reveals the selected source parent in the shared folder surface without changing the history source or opening duplicate sessions.
