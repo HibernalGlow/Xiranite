@@ -316,9 +316,9 @@
       "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/tabManagement.svelte.ts"],
       "targetContract": "持有最近关闭 10 项，支持菜单和快捷动作恢复，恢复路径、历史、视图和排序状态。",
       "surfaces": ["GUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "淘汰顺序与固定上限需测试。"
+      "status": "partial",
+      "testIds": ["neoview.folder.tabs-reopen-backend", "neoview.folder.tabs-reopen-http", "neoview.folder.tabs-reopen-client"],
+      "notes": "后端关闭摘要仅保留路径、back/forward、navigationEntryId、排序偏好、临时排序、随机种子和 watcher 开关，不保留 listing、watcher、Abort、search 或目录大小任务；显式 remember close 才进入最近关闭，最多 10 项并按最旧项淘汰，reopen 创建全新 session 和资源，完整首帧成功后才消费摘要，失败可重试。GUI 关闭时捕获 renderer、选择、焦点和虚拟滚动状态、最近关闭菜单、快捷键及 desktop/420x360 Chromium 仍待完成。普通 list/grid/details 继续只展示当前目录直接子项，Folder Tree 保持独立层级导航。"
     },
     {
       "id": "folder.tabs.navigation-history",
