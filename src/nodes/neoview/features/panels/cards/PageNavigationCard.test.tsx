@@ -8,6 +8,45 @@ import { buildPageListContextMenuItems, commitPageClipboardCopy } from "./page-l
 afterEach(cleanup)
 
 describe("PageNavigationCard", () => {
+  it("[neoview.page-list.settings] restores and persists view/follow preferences without navigating", async () => {
+    const listPageCatalog = vi.fn(async () => ({ pages: [page(0)], total: 100 }))
+    const onGoTo = vi.fn()
+    const onPageListPreferences = vi.fn(async () => undefined)
+    const props = context(clientWith({ listPageCatalog }), 0, 100, onGoTo)
+    render(<PageNavigationCard {...props} pageListPreferences={{ viewMode: "thumbnails", followProgress: false }} onPageListPreferences={onPageListPreferences} />)
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledOnce())
+
+    expect((await screen.findByRole("button", { name: "缩略图网格" })).getAttribute("aria-pressed")).toBe("true")
+    expect(screen.getByRole("button", { name: "跟随阅读进度" }).getAttribute("aria-pressed")).toBe("false")
+    fireEvent.click(screen.getByRole("button", { name: "带图列表" }))
+    fireEvent.click(screen.getByRole("button", { name: "跟随阅读进度" }))
+
+    await waitFor(() => expect(onPageListPreferences).toHaveBeenCalledTimes(2))
+    expect(onPageListPreferences.mock.calls.map(([patch]) => patch)).toEqual([
+      { viewMode: "details" },
+      { followProgress: true },
+    ])
+    expect(onGoTo).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.page-list.settings-rollback] restores confirmed preferences after persistence fails", async () => {
+    const listPageCatalog = vi.fn(async () => ({ pages: [page(0)], total: 100 }))
+    const onPageListPreferences = vi.fn().mockRejectedValue(new Error("偏好保存失败"))
+    render(
+      <PageNavigationCard
+        {...context(clientWith({ listPageCatalog }), 0, 100)}
+        pageListPreferences={{ viewMode: "list", followProgress: true }}
+        onPageListPreferences={onPageListPreferences}
+      />,
+    )
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledOnce())
+
+    await screen.findByRole("button", { name: "缩略图网格" })
+    fireEvent.click(screen.getByRole("button", { name: "缩略图网格" }))
+    expect((await screen.findByRole("alert")).textContent).toContain("偏好保存失败")
+    expect(screen.getByRole("button", { name: "列表" }).getAttribute("aria-pressed")).toBe("true")
+  })
+
   it("[neoview.page-list.virtual] requests only visible metadata and skips thumbnail prewarm in text mode", async () => {
     const listPageCatalog = vi.fn(async (_sessionId: string, cursor: number, limit: number) => ({
       pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)),

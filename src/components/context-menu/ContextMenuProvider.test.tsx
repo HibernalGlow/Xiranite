@@ -400,6 +400,27 @@ describe("ContextMenuProvider", () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 
+  test("[neoview.context-menu.confirm-focus] restores the trigger focus after cancelling confirmation", async () => {
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <ContextTarget items={[{
+          label: "Delete",
+          destructive: true,
+          confirm: { title: "Delete component?", cancelLabel: "Cancel" },
+          onSelect: vi.fn(),
+        }]} />
+      </ContextMenuProvider>,
+    )
+    const target = screen.getByTestId("context-target")
+    target.setAttribute("tabindex", "0")
+    target.focus()
+    fireEvent.contextMenu(target, { clientX: 10, clientY: 10 })
+    await user.click(await screen.findByText("Delete"))
+    await user.click(await screen.findByText("Cancel"))
+    await waitFor(() => expect(document.activeElement).toBe(target))
+  })
+
   test("keepOpen keeps menu open after selecting item", async () => {
     const onSelect = vi.fn()
     const onClose = vi.fn()

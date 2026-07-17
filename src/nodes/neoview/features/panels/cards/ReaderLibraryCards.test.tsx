@@ -43,6 +43,47 @@ describe("Reader library cards", () => {
     await waitFor(() => expect(removeRecent).toHaveBeenCalledWith("book-1"))
   })
 
+  it("[neoview.history.view-settings] restores and persists the History-specific view mode", async () => {
+    const onHistoryListPreferences = vi.fn(async ({ viewMode }: { viewMode?: "compact" | "content" | "banner" | "thumbnail" }) => ({ viewMode: viewMode ?? "compact" }))
+    const view = render(
+      <HistoryListCard
+        client={{ listRecent: vi.fn(async () => [recent("one")]) } as ReaderHttpClient}
+        disabled={false}
+        historyListPreferences={{ viewMode: "banner" }}
+        onHistoryListPreferences={onHistoryListPreferences}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await screen.findByText("one.cbz")
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("banner")
+    expect(screen.getByRole("button", { name: "横幅" }).getAttribute("aria-pressed")).toBe("true")
+    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    await waitFor(() => expect(onHistoryListPreferences).toHaveBeenCalledWith({ viewMode: "thumbnail" }))
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("thumbnail"))
+  })
+
+  it("[neoview.history.view-settings-rollback] restores the confirmed view after persistence fails", async () => {
+    const onHistoryListPreferences = vi.fn(async () => { throw new Error("保存历史视图失败") })
+    const view = render(
+      <HistoryListCard
+        client={{ listRecent: vi.fn(async () => [recent("one")]) } as ReaderHttpClient}
+        disabled={false}
+        historyListPreferences={{ viewMode: "content" }}
+        onHistoryListPreferences={onHistoryListPreferences}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await screen.findByText("one.cbz")
+    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    expect((await screen.findByRole("alert")).textContent).toContain("保存历史视图失败")
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("content")
+    expect(screen.getByRole("button", { name: "内容" }).getAttribute("aria-pressed")).toBe("true")
+  })
+
   it("[neoview.history.thumbnail-visible] [neoview.history.views] [neoview.history.selection] [neoview.history.selection-keyboard] reuses four entry surfaces and sends one batch removal", async () => {
     const recents = [recent("one"), recent("two"), recent("three")]
     const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number) => ({
@@ -148,6 +189,81 @@ describe("Reader library cards", () => {
       source: { kind: "path", path: "D:/books/demo.cbz" },
       name: "demo.cbz",
     })))
+  })
+
+  it("[neoview.bookmark.active-list-settings] restores and persists the active Bookmark List through the canonical config callback", async () => {
+    const lists = [
+      { id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
+      { id: "reading", name: "待读", isFavorite: false, createdAt: 1, updatedAt: 1 },
+      { id: "later", name: "稍后", isFavorite: false, createdAt: 2, updatedAt: 2 },
+    ]
+    const listBookmarks = vi.fn(async () => [])
+    const onBookmarkListPreferences = vi.fn(async ({ activeListId }: { activeListId?: string }) => ({ activeListId: activeListId ?? "all" }))
+    render(
+      <BookmarkListCard
+        client={{ listBookmarkLists: vi.fn(async () => lists), listBookmarks } as ReaderHttpClient}
+        disabled={false}
+        bookmarkListPreferences={{ activeListId: "reading" }}
+        onBookmarkListPreferences={onBookmarkListPreferences}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "reading", expect.any(AbortSignal)))
+    expect(screen.getByRole("button", { name: "待读" }).getAttribute("aria-pressed")).toBe("true")
+    fireEvent.click(screen.getByRole("button", { name: "稍后" }))
+    await waitFor(() => expect(onBookmarkListPreferences).toHaveBeenCalledWith({ activeListId: "later" }))
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "later", expect.any(AbortSignal)))
+    expect(screen.getByRole("button", { name: "稍后" }).getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it("[neoview.bookmark.active-list-fallback] repairs a deleted persisted list before loading bookmarks", async () => {
+    const listBookmarks = vi.fn(async () => [])
+    const onBookmarkListPreferences = vi.fn(async () => ({ activeListId: "all" }))
+    render(
+      <BookmarkListCard
+        client={{
+          listBookmarkLists: vi.fn(async () => [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }]),
+          listBookmarks,
+        } as ReaderHttpClient}
+        disabled={false}
+        bookmarkListPreferences={{ activeListId: "deleted" }}
+        onBookmarkListPreferences={onBookmarkListPreferences}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(onBookmarkListPreferences).toHaveBeenCalledWith({ activeListId: "all" }))
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "all", expect.any(AbortSignal)))
+    expect(listBookmarks).not.toHaveBeenCalledWith(0, 100, "deleted", expect.anything())
+  })
+
+  it("[neoview.bookmark.active-list-rollback] restores the confirmed list after persistence fails", async () => {
+    const onBookmarkListPreferences = vi.fn(async () => { throw new Error("保存活动列表失败") })
+    render(
+      <BookmarkListCard
+        client={{
+          listBookmarkLists: vi.fn(async () => [
+            { id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
+            { id: "reading", name: "待读", isFavorite: false, createdAt: 1, updatedAt: 1 },
+          ]),
+          listBookmarks: vi.fn(async () => []),
+        } as ReaderHttpClient}
+        disabled={false}
+        bookmarkListPreferences={{ activeListId: "all" }}
+        onBookmarkListPreferences={onBookmarkListPreferences}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole("button", { name: "待读" })
+    fireEvent.click(screen.getByRole("button", { name: "待读" }))
+    expect((await screen.findByRole("alert")).textContent).toContain("保存活动列表失败")
+    expect(screen.getByRole("button", { name: "全部" }).getAttribute("aria-pressed")).toBe("true")
+    expect(screen.getByRole("button", { name: "待读" }).getAttribute("aria-pressed")).toBe("false")
   })
 
   it("[neoview.bookmark.thumbnail-visible] [neoview.bookmark.view-modes] registers only the virtual bookmark window and reuses four entry surfaces", async () => {
