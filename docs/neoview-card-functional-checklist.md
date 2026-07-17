@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=39`，`complete=8`，`pending=27`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=39`，`complete=9`，`pending=26`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -518,11 +518,11 @@
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
   - 测试：`neoview.folder.tabs-bulk-close`、`neoview.folder.tabs-bulk-close-e2e`
   - 备注：二级延迟 FolderTabBar 使用旧版同层级图标菜单提供关闭标签、关闭其他、关闭左侧与关闭右侧；批量命令只移除未固定标签，目标与全部固定标签保持原顺序，活动标签被移除时切换到命令目标。FolderTabsHost 同步清理 MRU 并通过 pane 卸载释放 Abort、watcher、缩略图 context 和 browser session；直接关闭仍保护最后一个未固定工作标签。单元覆盖六个 pane 的三个命令，desktop/420x360 Chromium 覆盖 7 次 browser POST、5 次 DELETE、固定标签与活动阅读图片稳定。主 Card 保持 32,137 bytes，二级 host/menu chunk 为 3,207/3,149 bytes；普通 list/grid/details 仍仅显示当前目录直接子项，Folder Tree 保持独立。
-- [ ] `folder.tabs.pin-duplicate` 固定与复制标签
+- [x] `folder.tabs.pin-duplicate` 固定与复制标签
   - 目标：标签可固定/取消固定并复制完整浏览状态；固定状态持久化。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
-  - 测试：待补
-  - 备注：当前已有与侧栏/Folder Tree pin 明确分离的运行时固定状态和菜单，用于批量关闭保护；固定列表 TOML 恢复、失败回滚，以及复制 backend 导航历史、选择、焦点和 Virtuoso 视口到独立 session 仍待完成，因此保持 pending。
+  - 测试：`neoview.folder.tabs-pin-config`、`neoview.folder.tabs-duplicate-backend`、`neoview.folder.tabs-duplicate-http`、`neoview.folder.tabs-duplicate-client`、`neoview.folder.tabs-pin-duplicate`、`neoview.folder.tabs-pinned-restore`、`neoview.folder.tabs-pin-duplicate-e2e`
+  - 备注：固定标签以有序 {path,title} 数组原子写入 [nodes.neoview.folder.tabs].pinned，与 Folder Tree pinned_paths 和侧栏 pin 完全分离；最多 7 个固定标签并保留一个普通工作标签，配置失败回滚 UI，Reader 重开恢复固定标签。复制先由 backend clone 独立复制 listing、back/forward、navigationEntryId、临时排序和随机种子，并重新创建 watcher、Abort、waiter、search 与目录大小任务所有权；Host 再深拷贝 renderer、选择、焦点、导航访问状态和 Virtuoso/details 视口，副本使用唯一标题且不重复 open 当前路径。desktop/420x360 Chromium 验证专用 clone POST、独立 DELETE、刷新恢复、活动阅读图片稳定和普通 browser POST 计数不增加。普通 list/grid/details 仍只展示每个标签当前目录的直接子项，Folder Tree 保持独立层级导航。生产门禁为 FolderMainCard 32,621 bytes、FolderTabsHost 5,374 bytes、FolderTabBar 3,252 bytes，首屏 NeoView 模块为 0。
 - [ ] `folder.tabs.reopen` 最近关闭与恢复标签
   - 目标：持有最近关闭 10 项，支持菜单和快捷动作恢复，恢复路径、历史、视图和排序状态。
   - 源码：`components/FolderTabBar.svelte`、`stores/folderTabStore/tabManagement.svelte.ts`
