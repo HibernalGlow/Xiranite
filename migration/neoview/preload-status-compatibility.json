@@ -93,7 +93,7 @@
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
       "testIds": ["neoview.diagnostics.snapshot", "neoview.diagnostics.http", "neoview.diagnostics.cli", "neoview.preload-status.memory", "neoview.preload-status.diagnostics-client"],
-      "notes": "The browser DTO and Card now consume server presentation entries, bytes, maxBytes and leases separately from the bounded browser predecode store; complete status still requires CLI/TUI presentation and Chromium evidence."
+      "notes": "The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; desktop and 420x360 Chromium prove the lease metric and responsive geometry, while complete status still requires CLI/TUI presentation."
     },
     {
       "id": "preload.format",
@@ -181,7 +181,7 @@
       "surfaces": ["GUI"],
       "status": "complete",
       "testIds": ["neoview.card.parallel-core", "neoview.card.zero-mount", "neoview.settings.card-layout", "neoview.preload-status.chunk", "neoview.preload-status.e2e"],
-      "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,628-byte production chunk are gated, including desktop and constrained Chromium."
+      "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,857-byte production chunk are gated, including desktop and constrained Chromium."
     },
     {
       "id": "preload.data-contract",
@@ -236,7 +236,7 @@
       "surfaces": ["GUI"],
       "status": "partial",
       "testIds": ["neoview.preload-status.ui", "neoview.preload-status.e2e"],
-      "notes": "The React Card restores the two-column summary, compact memory meter and three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending."
+      "notes": "The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending."
     },
     {
       "id": "preload.image-stability",
@@ -258,7 +258,7 @@
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
       "testIds": ["neoview.preload-status-store", "neoview.preload.performance-telemetry", "neoview.preload-status.poll-budget", "neoview.preload-status.chunk", "neoview.preload-status.e2e"],
-      "notes": "The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,628-byte chunk; the full Reader performance gate remains pending."
+      "notes": "The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,857-byte chunk; the full Reader performance gate remains pending."
     },
     {
       "id": "preload.deviations",

@@ -298,6 +298,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const preloadCard = rightSidebar.locator('[data-reader-card="预加载状态"]')
   await expect(preloadCard).toBeVisible()
   await expect(preloadCard.getByText("内存池", { exact: true })).toBeVisible()
+  await expect(preloadCard.locator('[data-preload-metric="active-leases"]')).toContainText(/^活动租约 \d+$/)
   await expect(preloadCard.getByRole("progressbar", { name: "服务端呈现缓存使用率" })).toBeVisible()
   await expect(preloadCard.getByText("已同步", { exact: true })).toBeVisible()
   await expect(preloadCard.getByLabel(/第 \d+ 页/)).toHaveCount(6)

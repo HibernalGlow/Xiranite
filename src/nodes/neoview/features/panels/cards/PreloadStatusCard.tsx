@@ -99,7 +99,10 @@ export function PreloadStatusView({
         <div className="space-y-1.5" aria-label="服务端呈现缓存">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground">
             <span>{formatPreloadBytes(presentation.bytes)} / {formatPreloadBytes(presentation.maxBytes)}</span>
-            <span className="tabular-nums">{usagePercent === undefined ? "--" : `${usagePercent.toFixed(1)}%`}</span>
+            <span className="flex items-center gap-2">
+              <span data-preload-metric="active-leases">活动租约 <span className="tabular-nums">{presentation.activeLeases ?? "--"}</span></span>
+              <span className="tabular-nums">{usagePercent === undefined ? "--" : `${usagePercent.toFixed(1)}%`}</span>
+            </span>
           </div>
           <div
             className="h-1.5 overflow-hidden rounded bg-muted"

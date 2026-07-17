@@ -56,9 +56,30 @@ describe("PreloadStatusCard", () => {
     expect(screen.getByText("12 项")).toBeTruthy()
     expect(screen.queryByText("2 / 4")).toBeNull()
     expect(screen.getByText("64.00 MB / 256.00 MB")).toBeTruthy()
+    expect(screen.getByText("活动租约").textContent).toContain("1")
     const progress = screen.getByRole("progressbar", { name: "服务端呈现缓存使用率" })
     expect(progress.getAttribute("aria-valuenow")).toBe("25")
     expect(screen.getByLabelText("服务端预加载队列").textContent).toContain("邻近3")
+  })
+
+  it("[neoview.preload-status.memory] distinguishes zero and unavailable server presentation leases", () => {
+    const zero = diagnosticsDto()
+    zero.assets.presentation = { ...zero.assets.presentation!, activeLeases: 0 }
+    const view = render(
+      <PreloadStatusView sessionId="reader-1" currentPageIndex={0} totalPages={1} diagnostics={zero} />,
+    )
+
+    expect(view.container.querySelector('[data-preload-metric="active-leases"]')?.textContent).toContain("0")
+    const { activeLeases: _activeLeases, ...legacyPresentation } = zero.assets.presentation!
+    view.rerender(
+      <PreloadStatusView
+        sessionId="reader-1"
+        currentPageIndex={0}
+        totalPages={1}
+        diagnostics={{ ...zero, assets: { ...zero.assets, presentation: legacyPresentation as typeof zero.assets.presentation } }}
+      />,
+    )
+    expect(view.container.querySelector('[data-preload-metric="active-leases"]')?.textContent).toContain("--")
   })
 
   it("[neoview.preload-status.states] exposes sanitized retry without hiding the live predecode state", () => {
