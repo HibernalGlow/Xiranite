@@ -20,6 +20,9 @@ describe("Reader media runtime config", () => {
   it("[neoview.media.settings-schema] parses legacy-mapped TOML fields and emits one canonical patch", () => {
     expect(parseNeoviewRuntimeConfig({
       image: {
+        supported_formats: ["jpg", "comicimage"],
+        video_formats: ["mp4", "comicvideo"],
+        media_mime_types: { comicimage: "image/webp", comicvideo: "video/mp4" },
         auto_play_animated_images: false,
         video_min_playback_rate: 0.5,
         video_max_playback_rate: 8,
@@ -27,6 +30,9 @@ describe("Reader media runtime config", () => {
       },
       reader: { subtitle: { font_size: 1.5, color: "#FFFF00", bg_opacity: 0.8, bottom: 8 } },
     }).media).toEqual({
+      supportedImageFormats: ["jpg", "comicimage"],
+      videoFormats: ["mp4", "comicvideo"],
+      mediaMimeTypes: { comicimage: "image/webp", comicvideo: "video/mp4" },
       autoPlayAnimatedImages: false,
       videoMinPlaybackRate: 0.5,
       videoMaxPlaybackRate: 8,
@@ -35,6 +41,9 @@ describe("Reader media runtime config", () => {
     })
 
     expect(parseNeoviewMediaPatch({ media: {
+      supportedImageFormats: ["jpg", "comicimage"],
+      videoFormats: ["mp4", "comicvideo"],
+      mediaMimeTypes: { comicimage: "image/webp", comicvideo: "video/mp4" },
       autoPlayAnimatedImages: false,
       videoMinPlaybackRate: 0.5,
       videoMaxPlaybackRate: 8,
@@ -42,6 +51,9 @@ describe("Reader media runtime config", () => {
       subtitle: { fontSize: 1.5, color: "#ffff00", backgroundOpacity: 0.8, bottomPercent: 8 },
     } }).tomlPatch).toEqual({
       image: {
+        supported_formats: ["jpg", "comicimage"],
+        video_formats: ["mp4", "comicvideo"],
+        media_mime_types: { comicimage: "image/webp", comicvideo: "video/mp4" },
         auto_play_animated_images: false,
         video_min_playback_rate: 0.5,
         video_max_playback_rate: 8,
@@ -51,6 +63,7 @@ describe("Reader media runtime config", () => {
     })
     expect(() => parseNeoviewMediaPatch({ media: { videoMinPlaybackRate: 9, videoMaxPlaybackRate: 8 } })).toThrow("must not be less")
     expect(() => parseNeoviewMediaPatch({ media: { subtitle: { color: "red" } } })).toThrow("#RGB")
+    expect(() => parseNeoviewMediaPatch({ media: { videoFormats: ["unknown"] } })).toThrow("explicit video/* MIME")
   })
 
   it("[neoview.media.settings-http] persists non-destructively and validates concurrent patches against the latest TOML state", async () => {
@@ -118,6 +131,26 @@ describe("Reader media runtime config", () => {
         videoMaxPlaybackRate: 12,
         subtitle: { color: "#ffff00", bottomPercent: 8 },
       })
+
+      const customPath = join(root, "cover.comicimage")
+      await writeFile(customPath, Uint8Array.of(1, 2, 3))
+      const current = await (await request(controller, "GET")).json() as { media: {
+        supportedImageFormats: string[]
+        videoFormats: string[]
+        mediaMimeTypes: Record<string, string>
+      } }
+      const formats = await request(controller, "PATCH", { media: {
+        supportedImageFormats: [...current.media.supportedImageFormats, "comicimage"],
+        videoFormats: current.media.videoFormats,
+        mediaMimeTypes: { ...current.media.mediaMimeTypes, comicimage: "image/webp" },
+      } })
+      expect(formats.status).toBe(200)
+      const opened = await readerRequest(controller, "/reader/sessions", "POST", { path: customPath })
+      expect(opened.status).toBe(201)
+      const openedBody = await opened.json() as { sessionId: string }
+      const pages = await readerRequest(controller, `/reader/s/${encodeURIComponent(openedBody.sessionId)}/pages`, "GET")
+      expect(await pages.json()).toMatchObject({ pages: [{ name: "cover.comicimage", mimeType: "image/webp" }] })
+      await readerRequest(controller, `/reader/s/${encodeURIComponent(openedBody.sessionId)}`, "DELETE")
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -129,7 +162,16 @@ function request(
   method: "GET" | "PATCH",
   body?: unknown,
 ): Promise<Response> {
-  return controller.handle(new Request("http://127.0.0.1:43126/reader/config", {
+  return readerRequest(controller, "/reader/config", method, body)
+}
+
+function readerRequest(
+  controller: Awaited<ReturnType<typeof createReaderHttpController>>,
+  path: string,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  body?: unknown,
+): Promise<Response> {
+  return controller.handle(new Request(`http://127.0.0.1:43126${path}`, {
     method,
     headers: {
       "x-xiranite-token": "runtime-token",

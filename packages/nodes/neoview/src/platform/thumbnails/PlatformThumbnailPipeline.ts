@@ -12,6 +12,7 @@ import {
 
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import type { ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
@@ -37,6 +38,7 @@ export interface PlatformThumbnailPipelineOptions {
   folderRepresentativeIndex?: FolderRepresentativeIndex
   loadMosaicImageComposer?: MosaicImageComposerLoader
   resourceScheduler?: ResourceScheduler
+  mediaFormats?: ReaderMediaTypeResolver
 }
 
 interface PageThumbnailDemandSource {
@@ -106,7 +108,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#resourceScheduler = options.resourceScheduler
     this.#loadMosaicImageComposer = options.loadMosaicImageComposer
     this.#ownsFolderRepresentativeIndex = !options.folderRepresentativeIndex
-    this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex()
+    this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex({ mediaFormats: options.mediaFormats })
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
       maxMemoryBytes: options.maxMemoryBytes,
       maxEntryBytes: options.maxEntryBytes,

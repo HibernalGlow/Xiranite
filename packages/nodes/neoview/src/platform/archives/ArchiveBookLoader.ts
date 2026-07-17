@@ -104,7 +104,7 @@ export async function loadArchiveBook(
     }
     const entries = await provider.list(signal)
     const pageEntries = entries
-      .filter((entry) => entry.kind === "file" && pageMediaType(entry.path))
+      .filter((entry) => entry.kind === "file" && pageMediaType(entry.path, options.mediaFormats))
       .sort((left, right) => compareNaturalPath(left.path, right.path))
     const normalizedSource: Extract<ViewSource, { kind: "archive" }> = entryPaths.length
       ? { kind: "archive", path: archivePath, entryPaths }
@@ -112,7 +112,7 @@ export async function loadArchiveBook(
     const bookId = stableOpaqueId("book", normalizedSource.kind, archivePath, ...entryPaths)
     const archiveVersion = versionFromFile(archiveStats.size, archiveStats.mtimeMs)
     const pages = pageEntries.map((entry, index): ReaderPage => {
-      const media = pageMediaType(entry.path)!
+      const media = pageMediaType(entry.path, options.mediaFormats)!
       return {
         id: stableOpaqueId("page", bookId, entry.id),
         index,

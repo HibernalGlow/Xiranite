@@ -1,7 +1,7 @@
 import { opendir, realpath, stat } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
-import { pageMediaType, pathExtension } from "../../domain/page/media.js"
+import { pageMediaType, pathExtension, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type {
   ReaderDirectoryEntry,
   ReaderDirectoryListing,
@@ -12,6 +12,8 @@ const READER_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7", "pdf
 const MAX_DIRECTORY_ENTRIES = 100_000
 
 export class PlatformDirectoryListingProvider implements ReaderDirectoryListingProvider {
+  constructor(private readonly mediaFormats?: ReaderMediaTypeResolver) {}
+
   async canonicalize(path: string, signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted()
     const canonicalPath = await realpath(path)
@@ -40,7 +42,7 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
         name: entry.name,
         path: join(directoryPath, entry.name),
         kind,
-        readerSupported: kind === "directory" || (kind === "file" && isReaderSupported(entry.name)),
+        readerSupported: kind === "directory" || (kind === "file" && isReaderSupported(entry.name, this.mediaFormats)),
       })
     }
     signal?.throwIfAborted()
@@ -53,6 +55,6 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
   }
 }
 
-function isReaderSupported(path: string): boolean {
-  return Boolean(pageMediaType(path)) || READER_EXTENSIONS.has(pathExtension(path))
+function isReaderSupported(path: string, mediaFormats?: ReaderMediaTypeResolver): boolean {
+  return Boolean(pageMediaType(path, mediaFormats)) || READER_EXTENSIONS.has(pathExtension(path))
 }

@@ -2,7 +2,7 @@ import { readdir, realpath, stat } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 
 import type { ReaderBook, ReaderSubtitleAsset, ViewSource } from "../../domain/book/book.js"
-import { pageMediaType } from "../../domain/page/media.js"
+import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { subtitleFormatFromPath, subtitleMatchesVideo } from "../../domain/subtitle/subtitle.js"
 import { createReaderBook, stableOpaqueId, timestampsFromFileStats, versionFromFile } from "../books/book-utils.js"
@@ -10,10 +10,10 @@ import { FilePageContent } from "../content/FilePageContent.js"
 
 type SingleFileSource = Extract<ViewSource, { kind: "image" | "media" }>
 
-export async function loadSingleFileBook(source: SingleFileSource, signal?: AbortSignal): Promise<ReaderBook> {
+export async function loadSingleFileBook(source: SingleFileSource, signal?: AbortSignal, mediaFormats?: ReaderMediaTypeResolver): Promise<ReaderBook> {
   signal?.throwIfAborted()
   const filePath = await realpath(source.path)
-  const media = pageMediaType(filePath)
+  const media = pageMediaType(filePath, mediaFormats)
   if (!media || (source.kind === "image" && media.kind === "video") || (source.kind === "media" && media.kind !== "video")) {
     throw new Error(`Reader source does not match ${source.kind}: ${source.path}`)
   }

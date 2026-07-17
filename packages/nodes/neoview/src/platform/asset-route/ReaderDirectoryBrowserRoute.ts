@@ -30,6 +30,7 @@ import type {
   ReaderFileTreeSearchOptions,
 } from "../../application/browser/ReaderFileTreeSearch.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import type { ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import {
   ReaderSearchHistoryService,
   type ReaderSearchHistoryScope,
@@ -68,10 +69,11 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     resourceScheduler?: ResourceScheduler,
     searchHistory?: ReaderSearchHistoryService,
     private readonly directoryRootProvider: ReaderDirectoryRootProvider = new PlatformDirectoryRootProvider(),
+    mediaFormats?: ReaderMediaTypeResolver,
   ) {
     this.#searchHistory = searchHistory
     this.#browser = new ReaderFileTreeService(
-      new PlatformDirectoryListingProvider(),
+      new PlatformDirectoryListingProvider(mediaFormats),
       new PlatformDirectoryMetadataProvider(emmRecordStore, undefined, undefined, mediaMetadataProvider),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
       {

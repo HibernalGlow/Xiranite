@@ -1,6 +1,11 @@
 import { DEFAULT_READER_LAYOUT, type PageMode } from "../../domain/frame/frame.js"
 import type { TailOverflowBehavior } from "../../domain/navigation/navigation.js"
 import { DEFAULT_READER_PRESENTATION, type ReaderFitMode } from "../../domain/presentation/presentation.js"
+import {
+  DEFAULT_READER_IMAGE_FORMATS,
+  DEFAULT_READER_VIDEO_FORMATS,
+  ReaderMediaFormatRegistry,
+} from "../../domain/page/media.js"
 import type { ReaderSessionOptions } from "../reader/contracts.js"
 import { READER_CARD_MANIFEST, READER_PANEL_MANIFEST, readerCardCanMoveTo } from "./ReaderLayoutManifest.js"
 
@@ -137,6 +142,9 @@ export interface NeoviewSubtitleConfig {
 }
 
 export interface NeoviewMediaConfig {
+  supportedImageFormats: readonly string[]
+  videoFormats: readonly string[]
+  mediaMimeTypes: Readonly<Record<string, string>>
   autoPlayAnimatedImages: boolean
   videoMinPlaybackRate: number
   videoMaxPlaybackRate: number
@@ -146,6 +154,9 @@ export interface NeoviewMediaConfig {
 
 export interface NeoviewMediaPatch {
   media: {
+    supportedImageFormats?: readonly string[]
+    videoFormats?: readonly string[]
+    mediaMimeTypes?: Readonly<Record<string, string>>
     autoPlayAnimatedImages?: boolean
     videoMinPlaybackRate?: number
     videoMaxPlaybackRate?: number
@@ -305,6 +316,9 @@ export const DEFAULT_NEOVIEW_SLIDESHOW_CONFIG: NeoviewSlideshowConfig = {
 }
 
 export const DEFAULT_NEOVIEW_MEDIA_CONFIG: NeoviewMediaConfig = {
+  supportedImageFormats: DEFAULT_READER_IMAGE_FORMATS,
+  videoFormats: DEFAULT_READER_VIDEO_FORMATS,
+  mediaMimeTypes: Object.freeze({}),
   autoPlayAnimatedImages: true,
   videoMinPlaybackRate: 0.25,
   videoMaxPlaybackRate: 16,
@@ -425,6 +439,23 @@ function parseMediaConfig(
   image: Record<string, unknown> | undefined,
   subtitle: Record<string, unknown> | undefined,
 ): NeoviewMediaConfig {
+  const formats = new ReaderMediaFormatRegistry({
+    supportedImageFormats: optionalStringArray(
+      image?.supported_formats,
+      DEFAULT_NEOVIEW_MEDIA_CONFIG.supportedImageFormats,
+      "[nodes.neoview.image].supported_formats",
+    ),
+    videoFormats: optionalStringArray(
+      image?.video_formats,
+      DEFAULT_NEOVIEW_MEDIA_CONFIG.videoFormats,
+      "[nodes.neoview.image].video_formats",
+    ),
+    mediaMimeTypes: optionalStringRecord(
+      image?.media_mime_types,
+      DEFAULT_NEOVIEW_MEDIA_CONFIG.mediaMimeTypes,
+      "[nodes.neoview.image].media_mime_types",
+    ),
+  })
   const videoMinPlaybackRate = boundedNumber(
     image?.video_min_playback_rate,
     0.05,
@@ -443,6 +474,9 @@ function parseMediaConfig(
     throw new Error("[nodes.neoview.image].video_max_playback_rate must not be less than video_min_playback_rate.")
   }
   return {
+    supportedImageFormats: formats.supportedImageFormats,
+    videoFormats: formats.videoFormats,
+    mediaMimeTypes: formats.mediaMimeTypes,
     autoPlayAnimatedImages: optionalBoolean(
       image?.auto_play_animated_images,
       "[nodes.neoview.image].auto_play_animated_images",
@@ -494,12 +528,31 @@ export function parseNeoviewMediaPatch(
   const record = requireRecord(value, "reader media patch")
   if (Object.keys(record).some((key) => key !== "media")) throw new Error("reader media patch contains unsupported fields.")
   const media = requireRecord(record.media, "reader media patch.media")
-  const allowed = new Set(["autoPlayAnimatedImages", "videoMinPlaybackRate", "videoMaxPlaybackRate", "videoPlaybackRateStep", "subtitle"])
+  const allowed = new Set(["supportedImageFormats", "videoFormats", "mediaMimeTypes", "autoPlayAnimatedImages", "videoMinPlaybackRate", "videoMaxPlaybackRate", "videoPlaybackRateStep", "subtitle"])
   const unknown = Object.keys(media).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader media patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewMediaPatch = { media: {} }
   const imageToml: Record<string, unknown> = {}
   const readerToml: Record<string, unknown> = {}
+  if (media.supportedImageFormats !== undefined || media.videoFormats !== undefined || media.mediaMimeTypes !== undefined) {
+    const formats = new ReaderMediaFormatRegistry({
+      supportedImageFormats: media.supportedImageFormats === undefined
+        ? current.supportedImageFormats
+        : requiredStringArray(media.supportedImageFormats, "reader media patch.supportedImageFormats"),
+      videoFormats: media.videoFormats === undefined
+        ? current.videoFormats
+        : requiredStringArray(media.videoFormats, "reader media patch.videoFormats"),
+      mediaMimeTypes: media.mediaMimeTypes === undefined
+        ? current.mediaMimeTypes
+        : requiredStringRecord(media.mediaMimeTypes, "reader media patch.mediaMimeTypes"),
+    })
+    patch.media.supportedImageFormats = formats.supportedImageFormats
+    patch.media.videoFormats = formats.videoFormats
+    patch.media.mediaMimeTypes = formats.mediaMimeTypes
+    imageToml.supported_formats = formats.supportedImageFormats
+    imageToml.video_formats = formats.videoFormats
+    imageToml.media_mime_types = formats.mediaMimeTypes
+  }
   if (media.autoPlayAnimatedImages !== undefined) {
     patch.media.autoPlayAnimatedImages = requiredBoolean(media.autoPlayAnimatedImages, "reader media patch.autoPlayAnimatedImages")
     imageToml.auto_play_animated_images = patch.media.autoPlayAnimatedImages
@@ -1471,6 +1524,33 @@ function nestedValue(record: Record<string, unknown> | undefined, section: strin
   if (!record) return undefined
   const nested = record[section]
   return isRecord(nested) ? nested[key] : undefined
+}
+
+function optionalStringArray(value: unknown, fallback: readonly string[], path: string): readonly string[] {
+  return value === undefined ? fallback : requiredStringArray(value, path)
+}
+
+function requiredStringArray(value: unknown, path: string): string[] {
+  if (!Array.isArray(value) || value.length > 128 || value.some((entry) => typeof entry !== "string")) {
+    throw new Error(`${path} must be an array containing at most 128 strings.`)
+  }
+  return value
+}
+
+function optionalStringRecord(
+  value: unknown,
+  fallback: Readonly<Record<string, string>>,
+  path: string,
+): Readonly<Record<string, string>> {
+  return value === undefined ? fallback : requiredStringRecord(value, path)
+}
+
+function requiredStringRecord(value: unknown, path: string): Record<string, string> {
+  const record = requireRecord(value, path)
+  if (Object.keys(record).length > 128 || Object.values(record).some((entry) => typeof entry !== "string")) {
+    throw new Error(`${path} must contain at most 128 string values.`)
+  }
+  return record as Record<string, string>
 }
 
 function optionalBoolean(value: unknown, path: string): boolean | undefined {

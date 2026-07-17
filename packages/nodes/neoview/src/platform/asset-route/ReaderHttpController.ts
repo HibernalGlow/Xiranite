@@ -6,6 +6,7 @@ import { z } from "zod"
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/frame.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import { ReaderMediaFormatRegistryRef } from "../../domain/page/media.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
@@ -203,6 +204,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   readonly #bookMetadata: ReaderBookMetadataService
   readonly #pageMediaInformation: ReaderPageMediaInformationService
+  readonly #mediaFormats: ReaderMediaFormatRegistryRef
   readonly #token: string
   readonly #baseUrl: string
   readonly #solidArchiveCache: SolidArchiveCache
@@ -229,11 +231,13 @@ export class ReaderHttpController implements AsyncDisposable {
   }>()
 
   constructor(options: ReaderHttpControllerOptions) {
+    const initialMedia = options.media ?? DEFAULT_NEOVIEW_MEDIA_CONFIG
+    this.#mediaFormats = new ReaderMediaFormatRegistryRef(initialMedia)
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
     this.#solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
       maxBytes: options.maxSolidArchiveCacheBytes,
     })
-    const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache })
+    const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache, mediaFormats: this.#mediaFormats })
     const imageMetadataProbe = new StreamingImageMetadataProbe()
     const loadImageTransformer = async () => {
       const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
@@ -266,6 +270,7 @@ export class ReaderHttpController implements AsyncDisposable {
       maxMemoryBytes: 32 * 1024 * 1024,
       maxEntryBytes: 512 * 1024,
       resourceScheduler: options.resourceScheduler,
+      mediaFormats: this.#mediaFormats,
     })
     this.#service = new CoreReaderService(
       bookLoader,
@@ -325,13 +330,15 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#directoryBrowser = new ReaderDirectoryBrowserRoute(
       options.directorySortPreferenceStore,
       options.directoryEmmRecordStore,
-      new PlatformDirectoryMediaMetadataProvider(bookLoader, imageMetadataProbe),
+      new PlatformDirectoryMediaMetadataProvider(bookLoader, imageMetadataProbe, this.#mediaFormats),
       {
         excludedPaths: options.fileTree?.excludedPaths,
         updateExcludedPaths: options.updateFileTreeExclusions,
       },
       options.resourceScheduler,
       options.searchHistoryStore ? new ReaderSearchHistoryService(options.searchHistoryStore) : undefined,
+      undefined,
+      this.#mediaFormats,
     )
     this.#fileOperations = new ReaderFileOperationHttpController(async () => {
       const { ReaderFileOperationService } = await import("../../application/files/ReaderFileOperationService.js")
@@ -385,7 +392,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
     this.#folderView = options.folderView ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
-    this.#media = options.media ?? DEFAULT_NEOVIEW_MEDIA_CONFIG
+    this.#media = initialMedia
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
@@ -630,6 +637,7 @@ export class ReaderHttpController implements AsyncDisposable {
         }
         updated = await this.#updateMedia!(parsed.patch, parsed.tomlPatch)
         this.#media = updated
+        this.#mediaFormats.replace(updated)
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {

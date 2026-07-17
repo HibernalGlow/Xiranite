@@ -3,7 +3,7 @@ import { readdir, realpath, stat } from "node:fs/promises"
 import { basename, join } from "node:path"
 
 import type { ReaderBook, ReaderSubtitleAsset } from "../../domain/book/book.js"
-import { pageMediaType } from "../../domain/page/media.js"
+import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import { subtitleFormatFromPath } from "../../domain/subtitle/subtitle.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
@@ -18,7 +18,7 @@ interface DirectoryFile {
   stats: Stats
 }
 
-export async function loadDirectoryBook(path: string, signal?: AbortSignal): Promise<ReaderBook> {
+export async function loadDirectoryBook(path: string, signal?: AbortSignal, mediaFormats?: ReaderMediaTypeResolver): Promise<ReaderBook> {
   signal?.throwIfAborted()
   const directoryPath = await realpath(path)
   signal?.throwIfAborted()
@@ -27,7 +27,7 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal): Pro
   const source = { kind: "directory" as const, path: directoryPath }
   const bookId = stableOpaqueId("book", source.kind, directoryPath)
   const entries = await readdir(directoryPath, { withFileTypes: true })
-  const candidates = entries.filter((entry) => entry.isFile() && (pageMediaType(entry.name) || subtitleFormatFromPath(entry.name)))
+  const candidates = entries.filter((entry) => entry.isFile() && (pageMediaType(entry.name, mediaFormats) || subtitleFormatFromPath(entry.name)))
   const files = (await mapWithConcurrency(candidates, STAT_CONCURRENCY, async (entry) => {
     signal?.throwIfAborted()
     const filePath = join(directoryPath, entry.name)
@@ -40,9 +40,9 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal): Pro
   })).filter((file): file is DirectoryFile => Boolean(file?.stats.isFile()))
   signal?.throwIfAborted()
   files.sort((left, right) => compareNaturalPath(left.name, right.name))
-  const pageFiles = files.filter((file) => pageMediaType(file.name))
+  const pageFiles = files.filter((file) => pageMediaType(file.name, mediaFormats))
   const pages = pageFiles.map((file, index): ReaderPage => {
-    const media = pageMediaType(file.name)!
+    const media = pageMediaType(file.name, mediaFormats)!
     const contentVersion = versionFromFile(file.stats.size, file.stats.mtimeMs)
     return {
       id: stableOpaqueId("page", bookId, file.name),

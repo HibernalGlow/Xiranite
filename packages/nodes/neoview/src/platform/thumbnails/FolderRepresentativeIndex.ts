@@ -1,7 +1,7 @@
 import { readdir, stat } from "node:fs/promises"
 import { join } from "node:path"
 
-import { pageMediaType } from "../../domain/page/media.js"
+import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 
 interface DirectoryEntryLike {
@@ -19,6 +19,7 @@ export interface FolderRepresentativeIndexOptions {
   maxEntries?: number
   readDirectory?: (path: string) => Promise<readonly DirectoryEntryLike[]>
   statPath?: (path: string) => Promise<FileStatsLike>
+  mediaFormats?: ReaderMediaTypeResolver
 }
 
 interface RepresentativeEntry {
@@ -45,6 +46,7 @@ export class FolderRepresentativeIndex {
   readonly #cache = new Map<string, RepresentativeEntry>()
   readonly #flights = new Map<string, RepresentativeFlight>()
   readonly #revisions = new Map<string, number>()
+  readonly #mediaFormats?: ReaderMediaTypeResolver
 
   constructor(options: FolderRepresentativeIndexOptions = {}) {
     this.#maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
@@ -53,6 +55,7 @@ export class FolderRepresentativeIndex {
     }
     this.#readDirectory = options.readDirectory ?? defaultReadDirectory
     this.#statPath = options.statPath ?? stat
+    this.#mediaFormats = options.mediaFormats
   }
 
   describe(path: string, directoryModifiedAtMs: number, signal?: AbortSignal, count = 1): Promise<string | undefined> {
@@ -64,7 +67,7 @@ export class FolderRepresentativeIndex {
       return Promise.reject(new RangeError("Folder representative count must be an integer from 1 to 16."))
     }
     signal?.throwIfAborted()
-    const cacheKey = `${path}\0${count}`
+    const cacheKey = `${path}\0${count}\0${this.#mediaFormats?.revision ?? 0}`
     const flightKey = `${cacheKey}\0${directoryModifiedAtMs}`
     let flight = this.#flights.get(flightKey)
     if (!flight) {
@@ -141,7 +144,7 @@ export class FolderRepresentativeIndex {
     const entries = await this.#readDirectory(path)
     signal.throwIfAborted()
     const representatives = entries
-      .filter((entry) => entry.isFile() && Boolean(pageMediaType(entry.name)))
+      .filter((entry) => entry.isFile() && Boolean(pageMediaType(entry.name, this.#mediaFormats)))
       .map((entry) => entry.name)
       .sort((left, right) => compareNaturalPath(left, right))
       .slice(0, count)

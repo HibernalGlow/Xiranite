@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { createZipFixture, deterministicBytes, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
+import { ReaderMediaFormatRegistry } from "../../domain/page/media.js"
 import type { ResourceScheduler, ResourceTaskRequest } from "../../ports/ResourceScheduler.js"
 import { createPlatformReaderBookLoader } from "./PlatformReaderBookLoader.js"
 
@@ -244,6 +245,33 @@ describe("PlatformReaderBookLoader", () => {
       expect(archiveBook.source.kind).toBe("archive")
     } finally {
       await Promise.all([directoryBook.close(), imageBook.close(), mediaBook.close(), archiveBook.close()])
+    }
+  })
+
+  it("[neoview.media.format-loader] uses one explicit format registry for path, directory and archive sources", async () => {
+    const directory = await createDirectoryFixture()
+    const customPath = join(directory, "custom.comicvideo")
+    await writeFile(customPath, Uint8Array.of(7, 8, 9))
+    const archive = await createZipFixture({
+      entries: [{ path: "pages/1.comicimage", bytes: Uint8Array.of(1, 2, 3), level: 0 }],
+    })
+    cleanupArchives.push(archive)
+    const mediaFormats = new ReaderMediaFormatRegistry({
+      supportedImageFormats: ["comicimage"],
+      videoFormats: ["comicvideo"],
+      mediaMimeTypes: { comicimage: "image/webp", comicvideo: "video/mp4" },
+    })
+    const loader = createPlatformReaderBookLoader({ mediaFormats })
+    const directoryBook = await loader({ kind: "directory", path: directory })
+    const mediaBook = await loader({ kind: "path", path: customPath })
+    const archiveBook = await loader({ kind: "archive", path: archive.path })
+    try {
+      expect(directoryBook.pages).toHaveLength(1)
+      expect(directoryBook.pages[0]).toMatchObject({ name: "custom.comicvideo", mediaKind: "video", mimeType: "video/mp4" })
+      expect(mediaBook.source.kind).toBe("media")
+      expect(archiveBook.pages[0]).toMatchObject({ entryPath: "pages/1.comicimage", mimeType: "image/webp" })
+    } finally {
+      await Promise.all([directoryBook.close(), mediaBook.close(), archiveBook.close()])
     }
   })
 

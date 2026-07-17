@@ -1,7 +1,7 @@
 import { Readable } from "node:stream"
 
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
-import { pageMediaType } from "../../domain/page/media.js"
+import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type {
   ReaderDirectoryMetadataField,
   ReaderDirectoryMetadataProvider,
@@ -17,6 +17,7 @@ export class PlatformDirectoryMediaMetadataProvider implements ReaderDirectoryMe
   constructor(
     private readonly bookLoader: ReaderBookLoader,
     private readonly imageMetadataProbe: ImageMetadataProbe,
+    private readonly mediaFormats?: ReaderMediaTypeResolver,
   ) {}
 
   async hydrate(
@@ -36,7 +37,7 @@ export class PlatformDirectoryMediaMetadataProvider implements ReaderDirectoryMe
     fields: ReadonlySet<ReaderDirectoryMetadataField>,
     signal?: AbortSignal,
   ): Promise<ReaderDirectoryEntry> {
-    const media = pageMediaType(entry.path)
+    const media = pageMediaType(entry.path, this.mediaFormats)
     const wantsDimensions = fields.has("dimensions")
       && media !== undefined
       && media.kind !== "video"

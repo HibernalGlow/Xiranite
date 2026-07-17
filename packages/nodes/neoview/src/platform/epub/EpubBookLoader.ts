@@ -4,7 +4,7 @@ import { XMLParser } from "fast-xml-parser"
 
 import { normalizeArchivePath } from "../../domain/archive/archive-path.js"
 import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
-import { pageMediaType } from "../../domain/page/media.js"
+import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ArchiveEntry, ArchiveProvider } from "../../ports/ArchiveProvider.js"
 import { ArchivePageContent } from "../content/ArchivePageContent.js"
@@ -25,6 +25,7 @@ type EpubViewSource = Extract<ViewSource, { kind: "document" }> & { format: "epu
 export async function loadEpubBook(
   source: EpubViewSource,
   signal?: AbortSignal,
+  mediaFormats?: ReaderMediaTypeResolver,
 ): Promise<ReaderBook> {
   signal?.throwIfAborted()
   const path = await realpath(source.path)
@@ -39,7 +40,7 @@ export async function loadEpubBook(
     const bookId = stableOpaqueId("book", "epub", path)
     const sourceVersion = versionFromFile(stats.size, stats.mtimeMs)
     const pages = images.map(({ entry, mediaType }, index): ReaderPage => {
-      const media = pageMediaType(entry.path)
+      const media = pageMediaType(entry.path, mediaFormats)
       return {
         id: stableOpaqueId("page", bookId, entry.id),
         index,
