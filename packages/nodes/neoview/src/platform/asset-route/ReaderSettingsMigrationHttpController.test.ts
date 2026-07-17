@@ -87,6 +87,41 @@ describe("ReaderSettingsMigrationHttpController", () => {
     expect(runMutation).toHaveBeenCalledOnce()
     expect(commit).toHaveBeenCalledWith(expect.objectContaining({ future: { enabled: true } }), "overwrite")
   })
+
+  it("[neoview.settings.backup-http] requires confirmation and does not expose the destination path", async () => {
+    const manifest = {
+      format: "Xiranite/NeoViewBackup" as const,
+      version: 1 as const,
+      createdAt: 1,
+      settings: { name: "settings.json", bytes: 1, sha256: "a".repeat(64), format: "Xiranite/NeoViewConfig" as const, version: 1 as const, omittedSensitivePaths: [] },
+      database: { name: "thumbnails.db", bytes: 1, sha256: "b".repeat(64), compatibility: "current", quickCheck: "ok" as const },
+    }
+    const create = vi.fn(async () => ({ destinationPath: "D:/private/backup", manifest }))
+    const portable = new ReaderSettingsPortableService({ read: async () => ({}) }).withBackupProvider({ create })
+    const controller = new ReaderSettingsMigrationHttpController(
+      async () => new ReaderSettingsMigrationService(),
+      (operation) => operation(),
+      async () => portable,
+    )
+    expect((await controller.handle(request("/reader/settings/backup", { destination: "D:/private/backup", confirmed: false })))?.status).toBe(400)
+    const response = (await controller.handle(request("/reader/settings/backup", { destination: "D:/private/backup", confirmed: true })))!
+    const text = await response.text()
+    expect(text).not.toContain("D:/private")
+    expect(JSON.parse(text)).toMatchObject({ created: true, manifest: { format: "Xiranite/NeoViewBackup" } })
+    expect(create).toHaveBeenCalledWith("D:/private/backup", expect.any(AbortSignal))
+  })
+
+  it("[neoview.settings.backup-http-validation] rejects unknown fields and methods without loading backup", async () => {
+    const loadPortable = vi.fn(async () => new ReaderSettingsPortableService({ read: async () => ({}) }))
+    const controller = new ReaderSettingsMigrationHttpController(
+      async () => new ReaderSettingsMigrationService(),
+      (operation) => operation(),
+      loadPortable,
+    )
+    expect((await controller.handle(request("/reader/settings/backup", { destination: "D:/backup", confirmed: true, extra: true })))?.status).toBe(400)
+    expect((await controller.handle(new Request("http://localhost/reader/settings/backup")))?.status).toBe(405)
+    expect(loadPortable).not.toHaveBeenCalled()
+  })
 })
 
 function request(path: string, body: unknown): Request {

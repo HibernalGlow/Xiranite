@@ -7,6 +7,7 @@ import type { ReaderSettingsPortableService } from "../../application/migration/
 const INSPECT_PATH = "/reader/settings/migration/inspect"
 const IMPORT_PATH = "/reader/settings/migration/import"
 const PORTABLE_PATH = "/reader/settings/portable"
+const BACKUP_PATH = "/reader/settings/backup"
 const MAX_BODY_BYTES = 64 * 1024 * 1024 + 64 * 1024
 
 export class ReaderSettingsMigrationHttpController {
@@ -20,6 +21,7 @@ export class ReaderSettingsMigrationHttpController {
 
   async handle(request: Request): Promise<Response | undefined> {
     const path = new URL(request.url).pathname
+    if (path === BACKUP_PATH) return this.#backup(request)
     if (path === PORTABLE_PATH) return this.#portable(request)
     if (path !== INSPECT_PATH && path !== IMPORT_PATH) return undefined
     if (request.method !== "POST") {
@@ -101,6 +103,30 @@ export class ReaderSettingsMigrationHttpController {
         strategy: result.strategy,
         changed: result.changed,
         backupCreated: result.backupCreated,
+      })
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 })
+    }
+  }
+
+  async #backup(request: Request): Promise<Response> {
+    if (!this.loadPortableService) return Response.json({ error: "Reader backup is not available" }, { status: 405 })
+    if (request.method !== "POST") {
+      return Response.json({ error: "Method not allowed" }, { status: 405, headers: { allow: "POST" } })
+    }
+    const body = await readBody(request)
+    if (!body || typeof body.destination !== "string" || !body.destination.trim()) {
+      return Response.json({ error: "destination must be a non-empty directory path" }, { status: 400 })
+    }
+    if (Object.keys(body).some((key) => key !== "destination" && key !== "confirmed")) {
+      return Response.json({ error: "Reader backup request contains unsupported fields" }, { status: 400 })
+    }
+    if (body.confirmed !== true) return Response.json({ error: "Reader backup requires confirmed=true" }, { status: 400 })
+    try {
+      const result = await (await this.loadPortableService()).backup(body.destination, request.signal)
+      return Response.json({ created: true, manifest: result.manifest }, {
+        headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" },
       })
     } catch (error) {
       if (request.signal.aborted) throw error

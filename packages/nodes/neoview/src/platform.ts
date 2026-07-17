@@ -25,6 +25,7 @@ import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImpor
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderSettingsMigrationService } from "./application/migration/ReaderSettingsMigrationService.js"
 import type { ReaderSettingsPortableService } from "./application/migration/ReaderSettingsPortableService.js"
+import type { ReaderBackupBundleService } from "./platform/backup/ReaderBackupBundleService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
@@ -291,7 +292,12 @@ export async function createReaderHttpController(
       return parseNeoviewRuntimeConfig(committed.nodeConfig).media
     },
     loadSettingsMigrationService: () => createReaderSettingsMigrationService(options),
-    loadSettingsPortableService: () => createReaderSettingsPortableService(options),
+    loadSettingsPortableService: () => createReaderSettingsPortableService({
+      ...options,
+      thumbnailDatabasePath: options.legacyThumbnailDatabasePath === false
+        ? false
+        : typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
+    }),
     thumbnailStore,
     disposeThumbnailStore,
   })
@@ -315,7 +321,21 @@ export async function createReaderSettingsMigrationService(
 }
 
 export async function createReaderSettingsPortableService(
-  options: NeoviewRuntimeLoadOptions = {},
+  options: NeoviewRuntimeLoadOptions & { thumbnailDatabasePath?: string | false } = {},
+): Promise<ReaderSettingsPortableService> {
+  const portable = await createReaderSettingsPortableCore(options)
+  if (options.thumbnailDatabasePath === false) return portable
+  const { ReaderBackupBundleService } = await import("./platform/backup/ReaderBackupBundleService.js")
+  const backup = new ReaderBackupBundleService(
+    portable,
+    await createLegacyThumbnailDatabaseMaintenance(),
+    await legacyNeoViewDatabasePath(options.thumbnailDatabasePath),
+  )
+  return portable.withBackupProvider(backup)
+}
+
+async function createReaderSettingsPortableCore(
+  options: NeoviewRuntimeLoadOptions,
 ): Promise<ReaderSettingsPortableService> {
   const { ReaderSettingsPortableService } = await import("./application/migration/ReaderSettingsPortableService.js")
   const { commitNeoviewConfig, readNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
@@ -327,6 +347,17 @@ export async function createReaderSettingsPortableService(
         return { changed: committed.changed, configPath: committed.configPath, backupPath: committed.backupPath }
       },
     },
+  )
+}
+
+export async function createReaderBackupBundleService(
+  options: NeoviewRuntimeLoadOptions & { thumbnailDatabasePath?: string } = {},
+): Promise<ReaderBackupBundleService> {
+  const { ReaderBackupBundleService } = await import("./platform/backup/ReaderBackupBundleService.js")
+  return new ReaderBackupBundleService(
+    await createReaderSettingsPortableCore(options),
+    await createLegacyThumbnailDatabaseMaintenance(),
+    await legacyNeoViewDatabasePath(options.thumbnailDatabasePath),
   )
 }
 

@@ -27,15 +27,17 @@ import {
   type ReaderThumbnailMaintenancePort,
 } from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 import { help } from "./help.js"
-import { createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService, createReaderSettingsPortableService } from "./platform.js"
+import { createReaderBackupBundleService, createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService, createReaderSettingsPortableService } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
+import type { ReaderBackupBundleResult } from "./platform/backup/ReaderBackupBundleService.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
+  "settings-backup",
   "reader-data-inspect", "reader-data-import",
   "search-history-inspect", "search-history-import",
   "library-recents", "library-recent-delete", "library-recent-cleanup",
@@ -106,6 +108,9 @@ export interface NeoviewCliDependencies {
   createDiagnosticsService?: (options: ReaderCompositionOptions) => Promise<ReaderDiagnosticsService>
   fetchRemoteDiagnostics?: (options: { baseUrl: string; token: string }) => Promise<ReaderDiagnosticsSnapshot>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
+  createBackupBundleService?: (options: ReaderCompositionOptions & { thumbnailDatabasePath?: string }) => Promise<{
+    create(destinationPath: string, signal?: AbortSignal): Promise<ReaderBackupBundleResult>
+  }>
 }
 
 interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, AsyncDisposable {}
@@ -225,6 +230,11 @@ export async function runProgram(
     await runPortableSettingsExport(parsed, host)
     return
   }
+  if (command === "settings-backup") {
+    if (parsed.positionals.length !== 1) throw usage("settings-backup requires exactly one destination directory.")
+    await runSettingsBackup(resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
   const path = parsed.positionals[0]
   if (!path || parsed.positionals.length !== 1) {
     const kind = command.startsWith("settings-") ? "settings JSON path" : "book path"
@@ -278,6 +288,10 @@ export async function runProgram(
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
   if (command === "settings-export") {
     rejectOptions(parsed, new Set(["--output", "--config", "--force"]))
+    return
+  }
+  if (command === "settings-backup") {
+    rejectOptions(parsed, new Set(["--yes", "--config", "--database", "--json"]))
     return
   }
   if (command === "settings-portable-inspect") {
@@ -1419,6 +1433,33 @@ async function runPortableSettingsExport(parsed: ParsedArguments, host: CliHost)
   writeLine(host, `NeoView settings exported: ${outputPath}`)
 }
 
+async function runSettingsBackup(
+  destination: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!parsed.booleans.has("--yes")) throw usage("settings-backup requires --yes after choosing a new destination directory.")
+  const service = await (dependencies.createBackupBundleService ?? createReaderBackupBundleService)({
+    configPath: oneValue(parsed, "--config"),
+    thumbnailDatabasePath: oneValue(parsed, "--database"),
+    cwd: host.cwd,
+    env: host.env,
+  })
+  const result = await service.create(destination)
+  const output = {
+    created: true,
+    format: result.manifest.format,
+    version: result.manifest.version,
+    createdAt: result.manifest.createdAt,
+    settingsBytes: result.manifest.settings.bytes,
+    databaseBytes: result.manifest.database.bytes,
+    databaseQuickCheck: result.manifest.database.quickCheck,
+  }
+  if (parsed.booleans.has("--json")) writeJson(host, output)
+  else writeLine(host, `NeoView backup created: ${destination} (${output.settingsBytes + output.databaseBytes} bytes)`)
+}
+
 async function runPortableSettingsCommand(
   command: string,
   content: string,
@@ -1653,6 +1694,7 @@ function formatCliHelp(): string {
     "  settings-export          Export current [nodes.neoview] as portable JSON",
     "  settings-portable-inspect <json>  Validate a portable Xiranite settings export",
     "  settings-portable-import <json>   Import a portable settings export",
+    "  settings-backup <directory>        Create a verified settings + thumbnails.db bundle",
     "  reader-data-inspect <json>  Preview legacy history/bookmark migration",
     "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
     "  search-history-inspect <json>  Preview legacy search-history migration",

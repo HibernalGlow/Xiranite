@@ -467,6 +467,35 @@ describe("NeoView CLI", () => {
     }
   })
 
+  it("[neoview.settings.backup-cli] requires confirmation and reports a path-free verified bundle summary", async () => {
+    const output: unknown[] = []
+    const create = vi.fn(async () => ({
+      destinationPath: "D:/private/backup",
+      manifest: {
+        format: "Xiranite/NeoViewBackup" as const,
+        version: 1 as const,
+        createdAt: 123,
+        settings: { name: "settings.json", bytes: 40, sha256: "a".repeat(64), format: "Xiranite/NeoViewConfig" as const, version: 1 as const, omittedSensitivePaths: [] },
+        database: { name: "thumbnails.db", bytes: 60, sha256: "b".repeat(64), compatibility: "current", quickCheck: "ok" as const },
+      },
+    }))
+    const dependencies = { ...testPlatformDependencies, createBackupBundleService: async () => ({ create }) }
+    await expect(runProgram(["settings-backup", "backup"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["settings-backup", "backup", "--yes", "--json"], host(output), dependencies)
+    const text = output.join("")
+    expect(text).not.toContain("D:/private")
+    expect(JSON.parse(text)).toEqual({
+      created: true,
+      format: "Xiranite/NeoViewBackup",
+      version: 1,
+      createdAt: 123,
+      settingsBytes: 40,
+      databaseBytes: 60,
+      databaseQuickCheck: "ok",
+    })
+    expect(create).toHaveBeenCalledWith(expect.stringContaining("backup"))
+  })
+
   it("[neoview.reader-data.cli] previews safely and requires confirmation before shared-store import", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-reader-data-"))
     const inputPath = join(directory, "backup.json")

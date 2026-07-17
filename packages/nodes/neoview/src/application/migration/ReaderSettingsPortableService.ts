@@ -12,11 +12,16 @@ export interface ReaderSettingsPortableImportResult {
   backupCreated: boolean
 }
 
+export interface ReaderSettingsBackupProvider {
+  create(destinationPath: string, signal?: AbortSignal): Promise<{ manifest: unknown }>
+}
+
 export class ReaderSettingsPortableService {
   constructor(
     private readonly reader: ReaderSettingsConfigReader,
     private readonly committer?: ReaderSettingsMigrationCommitter,
     private readonly codec = new ReaderSettingsPortableCodec(),
+    private readonly backupProvider?: ReaderSettingsBackupProvider,
   ) {}
 
   async export(): Promise<ReaderSettingsPortablePayload> {
@@ -43,5 +48,14 @@ export class ReaderSettingsPortableService {
       changed: committed.changed,
       backupCreated: Boolean(committed.backupPath),
     }
+  }
+
+  async backup(destinationPath: string, signal?: AbortSignal): Promise<{ manifest: unknown }> {
+    if (!this.backupProvider) throw new Error("Reader backup is not available in this runtime.")
+    return this.backupProvider.create(destinationPath, signal)
+  }
+
+  withBackupProvider(provider: ReaderSettingsBackupProvider): ReaderSettingsPortableService {
+    return new ReaderSettingsPortableService(this.reader, this.committer, this.codec, provider)
   }
 }
