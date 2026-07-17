@@ -10,6 +10,7 @@ import { defaultImageTransformScheduler } from "../scheduler/PriorityResourceSch
 export interface PlatformReaderPageMaterializerOptions {
   tempDirectory?: string
   resourceScheduler?: ResourceScheduler
+  purpose?: "clipboard" | "seekable-media"
 }
 
 export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
@@ -28,11 +29,15 @@ export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
     }
 
     const scheduler = this.options.resourceScheduler ?? defaultImageTransformScheduler
+    const purpose = this.options.purpose ?? "clipboard"
+    const profile = purpose === "clipboard"
+      ? { kind: "neoview.clipboard-materialize", ownerId: "neoview:clipboard-materialize", prefix: "xiranite-neoview-clipboard-" }
+      : { kind: "neoview.media-materialize", ownerId: "neoview:media-materialize", prefix: "xiranite-neoview-media-" }
     const resourceLease = await scheduler.acquire({
       resource: "io",
-      kind: "neoview.clipboard-materialize",
+      kind: profile.kind,
       priority: "interactive",
-      ownerId: "neoview:clipboard-materialize",
+      ownerId: profile.ownerId,
     }, signal)
     let root: string | undefined
     let handle: FileHandle | undefined
@@ -40,7 +45,7 @@ export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
     try {
       const parent = this.options.tempDirectory ?? tmpdir()
       await mkdir(parent, { recursive: true })
-      root = await mkdtemp(join(parent, "xiranite-neoview-clipboard-"))
+      root = await mkdtemp(join(parent, profile.prefix))
       const path = join(root, safeFileName(page.name))
       handle = await open(path, "wx")
       source = await page.content.load(signal)

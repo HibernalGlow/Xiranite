@@ -16,6 +16,7 @@ import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJourn
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
+import { ReaderSeekableMediaCache } from "../../application/reader/ReaderSeekableMediaCache.js"
 import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../application/metadata/ReaderBookMetadataService.js"
 import { ReaderPageMediaInformationService } from "../../application/metadata/ReaderPageMediaInformationService.js"
@@ -140,6 +141,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateFileTreeExclusions?: (paths: readonly string[]) => Promise<readonly string[]>
   slideshow?: NeoviewSlideshowConfig
   updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
+  maxSeekableMediaEntryBytes?: number
+  maxSeekableMediaTotalBytes?: number
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -157,6 +160,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #cacheService: ReaderCacheService
   readonly #mediaProgress?: ReaderMediaProgressService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
+  readonly #seekableMedia: ReaderSeekableMediaCache
   readonly #diagnostics: ReaderDiagnosticsService
   readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   readonly #bookMetadata: ReaderBookMetadataService
@@ -242,6 +246,17 @@ export class ReaderHttpController implements AsyncDisposable {
         resourceScheduler: options.resourceScheduler,
       }),
     )
+    this.#seekableMedia = new ReaderSeekableMediaCache(
+      new PlatformReaderPageMaterializer({
+        tempDirectory: options.archiveTempDirectory,
+        resourceScheduler: options.resourceScheduler,
+        purpose: "seekable-media",
+      }),
+      {
+        maxEntryBytes: options.maxSeekableMediaEntryBytes,
+        maxTotalBytes: options.maxSeekableMediaTotalBytes,
+      },
+    )
     const memoryPressureMonitor = options.memoryPressureMonitor ?? new ReaderMemoryPressureMonitor()
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),
@@ -249,6 +264,7 @@ export class ReaderHttpController implements AsyncDisposable {
       presentationProducerVersion: process.platform === "win32" ? WINDOWS_PRESENTATION_PRODUCER_VERSION : undefined,
       loadImageTransformer,
       thumbnailPipeline: this.#thumbnailPipeline,
+      seekableMediaCache: this.#seekableMedia,
       memoryPressureMonitor,
       relieveHostMemoryPressure: async (level) => {
         const snapshot = this.#solidArchiveCache.snapshot()
@@ -421,6 +437,11 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     try {
       await this.#clipboardMaterializations[Symbol.asyncDispose]()
+    } catch (error) {
+      errors.push(error)
+    }
+    try {
+      await this.#seekableMedia[Symbol.asyncDispose]()
     } catch (error) {
       errors.push(error)
     }
@@ -795,7 +816,7 @@ export class ReaderHttpController implements AsyncDisposable {
     await this.#mediaProgress?.flush(session.book.id)
     await this.#clipboardMaterializations.releaseSession(session.id)
     await this.#pageMediaInformation.releaseSession(session.id)
-    this.#assets.releaseSessionPages(session.id)
+    await this.#assets.releaseSession(session.id)
     this.#releaseBookMetadata(session.id)
     await this.#service.closeSession(session.id)
     await this.#hibernateIfIdle()

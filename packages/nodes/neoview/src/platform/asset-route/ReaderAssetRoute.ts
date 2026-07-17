@@ -5,6 +5,7 @@ import {
 } from "@xiranite/services/thumbnail-coordinator"
 
 import type { ReaderService, ReaderSessionId } from "../../application/reader/contracts.js"
+import type { ReaderSeekableMediaCache } from "../../application/reader/ReaderSeekableMediaCache.js"
 import {
   appendImageTransform,
   imageTransformCacheKey,
@@ -29,6 +30,7 @@ import {
 import { buildPresentationCacheKey, SHARP_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import { transformPageSource } from "../images/transform-page-source.js"
 import { ReaderMemoryPressureMonitor, type ReaderMemoryPressureLevel } from "../memory/ReaderMemoryPressureMonitor.js"
+import { FilePageContent } from "../content/FilePageContent.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -49,6 +51,7 @@ export interface ReaderAssetRouteDependencies {
   resourceScheduler?: ResourceScheduler
   memoryPressureMonitor?: ReaderMemoryPressureMonitor
   relieveHostMemoryPressure?: (level: Exclude<ReaderMemoryPressureLevel, "normal">) => void | Promise<void>
+  seekableMediaCache?: ReaderSeekableMediaCache
 }
 
 export class ReaderAssetRoute {
@@ -63,6 +66,7 @@ export class ReaderAssetRoute {
   readonly #resourceScheduler?: ResourceScheduler
   readonly #memoryPressure: ReaderMemoryPressureMonitor
   readonly #relieveHostMemoryPressure?: ReaderAssetRouteDependencies["relieveHostMemoryPressure"]
+  readonly #seekableMediaCache?: ReaderSeekableMediaCache
   readonly #ownsThumbnailPipeline: boolean
   readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   readonly #retainedPageIds = new Map<ReaderSessionId, ReadonlySet<PageId>>()
@@ -87,6 +91,7 @@ export class ReaderAssetRoute {
     this.#resourceScheduler = dependencies.resourceScheduler
     this.#memoryPressure = dependencies.memoryPressureMonitor ?? new ReaderMemoryPressureMonitor()
     this.#relieveHostMemoryPressure = dependencies.relieveHostMemoryPressure
+    this.#seekableMediaCache = dependencies.seekableMediaCache
     this.#ownsThumbnailPipeline = !dependencies.thumbnailPipeline
       && Boolean(dependencies.thumbnailStore || dependencies.loadImageTransformer)
     this.#thumbnailPipeline = dependencies.thumbnailPipeline ?? (
@@ -175,6 +180,11 @@ export class ReaderAssetRoute {
     this.#retainedPresentations.delete(sessionId)
   }
 
+  async releaseSession(sessionId: ReaderSessionId): Promise<void> {
+    this.releaseSessionPages(sessionId)
+    await this.#seekableMediaCache?.releaseSession(sessionId)
+  }
+
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     const thumbnailMatch = THUMBNAIL_PATH.exec(url.pathname)
@@ -213,11 +223,29 @@ export class ReaderAssetRoute {
 
     request.signal.throwIfAborted()
     if (transform) return this.#respondTransformed(request, sessionId, page, transform)
-    const source = await page.content.load(request.signal)
+    const source = await this.#loadOriginalSource(sessionId, page, request.signal)
     try {
       return await this.#respondOriginal(request, page, source)
     } catch (error) {
       await source.close().catch(() => undefined)
+      throw error
+    }
+  }
+
+  async #loadOriginalSource(sessionId: ReaderSessionId, page: ReaderPage, signal: AbortSignal): Promise<PageSource> {
+    if (page.mediaKind !== "video" || !page.entryPath || !this.#seekableMediaCache) {
+      return page.content.load(signal)
+    }
+    const lease = await this.#seekableMediaCache.acquire(sessionId, page, signal)
+    try {
+      const source = await new FilePageContent(
+        lease.path,
+        lease.byteLength,
+        page.mimeType ?? "application/octet-stream",
+      ).load(signal)
+      return new FinalizedPageSource(source, () => lease.release())
+    } catch (error) {
+      await lease.release()
       throw error
     }
   }
@@ -669,6 +697,51 @@ function streamCachedBytes(bytes: Uint8Array, releaseLease?: () => void): Readab
       release()
     },
   })
+}
+
+class FinalizedPageSource implements PageSource {
+  readonly byteLength?: number
+  readonly contentType?: string
+  readonly rangeSupported: boolean
+  readonly transformResource?: PageSource["transformResource"]
+  readonly #source: PageSource
+  readonly #finalize: () => void | Promise<void>
+  #closing?: Promise<void>
+
+  constructor(source: PageSource, finalize: () => void | Promise<void>) {
+    this.#source = source
+    this.#finalize = finalize
+    this.byteLength = source.byteLength
+    this.contentType = source.contentType
+    this.rangeSupported = source.rangeSupported
+    this.transformResource = source.transformResource
+  }
+
+  open(signal?: AbortSignal, range?: PageByteRange, execution?: Parameters<PageSource["open"]>[2]): Promise<ReadableStream<Uint8Array>> {
+    return this.#source.open(signal, range, execution)
+  }
+
+  close(): Promise<void> {
+    this.#closing ??= Promise.resolve().then(async () => {
+      const errors: unknown[] = []
+      try {
+        await this.#source.close()
+      } catch (error) {
+        errors.push(error)
+      }
+      try {
+        await this.#finalize()
+      } catch (error) {
+        errors.push(error)
+      }
+      if (errors.length) throw new AggregateError(errors, "Failed to close materialized Reader media source.")
+    })
+    return this.#closing
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close()
+  }
 }
 
 function waitForSharedTransform(
