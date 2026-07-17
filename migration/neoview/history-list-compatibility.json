@@ -862,8 +862,8 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
+        "core": "complete",
+        "transport": "complete",
         "gui": "partial",
         "cli": "partial",
         "tui": "partial",
@@ -878,13 +878,16 @@
         "neoview.history.cleanup-oldest-http",
         "neoview.history.cleanup-oldest-composition",
         "neoview.library.cleanup-folder",
-        "neoview.library.cleanup-folder-sqlite"
+        "neoview.library.cleanup-folder-sqlite",
+        "neoview.library.advanced-cleanup",
+        "neoview.history.cleanup-state-sqlite",
+        "neoview.bookmark.advanced-cleanup-sqlite"
       ],
       "plannedTestIds": [
         "neoview.history.cleanup",
         "neoview.history.e2e"
       ],
-      "notes": "Core supports bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, and the legacy case-insensitive raw folder-prefix cleanup for History and Bookmark through the shared store/HTTP/Headless contract. Folder cleanup stays inside SQLite; bookmark memberships and rows are deleted in one transaction. Clear-all, complete GUI/CLI/TUI controls and final E2E evidence remain pending."
+      "notes": "Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. Every History deletion path atomically clears progress, media progress and path-stack state without touching bookmarks or book settings; Bookmark cleanup removes memberships with rows while preserving custom list definitions. Complete GUI/CLI/TUI controls and final E2E evidence remain pending."
     },
     {
       "id": "history.sync-folder",
