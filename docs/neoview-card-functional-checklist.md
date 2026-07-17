@@ -2775,11 +2775,11 @@
 
 ##### 专用源码级验收项
 
-- [ ] `history.shared-renderer` 复用文件浏览器条目视觉契约
+- [x] `history.shared-renderer` 复用文件浏览器条目视觉契约
   - 目标：History rows use the same source-evidenced file item renderers as the folder surface instead of a divergent text-only recent list.
   - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.history.card`、`neoview.history.shared-renderer`、`neoview.history.thumbnail-e2e`
-  - 备注：The React Card now shares the folder-style thumbnail, name/path hierarchy, selection background and row action density; the other three renderer modes, badges and context states remain pending.
+  - 测试：`neoview.history.card`、`neoview.history.shared-renderer`、`neoview.history.views`、`neoview.history.thumbnail-e2e`
+  - 备注：History now renders list, content, banner and thumbnail modes through ReaderEntrySurface with the shared selection, media and action slots instead of maintaining a History-only row renderer.
 - [ ] `history.fields` 显示完整历史条目字段
   - 目标：Each entry preserves stable identity, display name, canonical source, path stack, current file, content type, updated time and bounded page or media progress fields.
   - 源码：`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`
@@ -2803,13 +2803,13 @@
 - [ ] `history.views` 切换四种共享文件视图
   - 目标：List, content, banner and thumbnail modes retain their legacy icons, active state, compact thumbnail option and History-specific size preference.
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.history.views`、`neoview.history.e2e`
-  - 备注：The current React Card has one text-row mode.
+  - 测试：`neoview.history.views`、`neoview.history.thumbnail-e2e`
+  - 备注：The four legacy labels and active icon states now drive one- and multi-column virtual layouts; compact-thumbnail control, width sizing and canonical History-specific persistence remain pending.
 - [ ] `history.thumbnails` 显示可见历史缩略图与文件夹预览
   - 目标：Only the virtual visible history window requests authenticated file or folder thumbnails, including bounded multi-image folder previews, and releases stale contexts on mode, query or mount changes.
   - 源码：`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.history.thumbnail-visible`、`neoview.history.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
-  - 备注：GUI registers only the virtual visible window through the shared authenticated thumbnail context, requests bounded 1/4 previews and releases ownership on unmount; explicit headless demand and mode/query transitions remain pending.
+  - 测试：`neoview.history.thumbnail-visible`、`neoview.history.views`、`neoview.history.thumbnail-e2e`、`neoview.shared-thumbnail.fit`
+  - 备注：Content, banner and thumbnail modes register authenticated cover thumbnails only for the visible virtual rows, directory sources request four-image previews, compact list performs zero thumbnail work, and mode transitions release obsolete demand; explicit headless demand remains pending.
 - [ ] `history.selection` 共享选择、链选与焦点语义
   - 目标：Single, toggle, range/chain, all, invert and keyboard focus selection remain bounded and separate from opening behavior across all History views.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/components/SelectionBar.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`
@@ -2863,18 +2863,18 @@
 - [ ] `history.ui-parity` 保持旧版历史信息密度与响应式几何
   - 目标：Progress, time, read/bookmark state, folder-style media hierarchy and toolbar density remain readable at desktop and 420x360 without overlap or horizontal overflow.
   - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`
-  - 测试：`neoview.history.thumbnail-e2e`、`neoview.history.selection`
-  - 备注：Desktop and 420x360 Chromium prove the folder-style thumbnail/name/path/progress hierarchy and selected-row density without overflow; read/bookmark badges and the full toolbar remain pending.
+  - 测试：`neoview.history.views`、`neoview.history.thumbnail-e2e`、`neoview.history.selection`
+  - 备注：Desktop and 420x360 Chromium prove compact/content rows, two-column banners and three-column thumbnails preserve cover media, progress hierarchy, selection density and zero horizontal overflow; read/bookmark badges and the full toolbar remain pending.
 - [ ] `history.performance` 有界分页、DOM、缩略图、清理与独立 chunk
   - 目标：A 10K history corpus keeps bounded paging and DOM, registers only visible thumbnails, bounds path checks and cleanup batches, performs zero hidden work and stays in an independent deferred chunk.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.library.contract`、`neoview.library.lifecycle`、`neoview.library.cleanup-invalid`、`neoview.history.thumbnail-visible`、`neoview.history.chunk`、`neoview.history.thumbnail-e2e`
-  - 备注：The list is paged/virtualized, thumbnails follow only the visible window and History stays in an independent 5,859-byte deferred chunk; 10K Chromium and advanced cleanup budgets remain pending.
+  - 测试：`neoview.library.contract`、`neoview.library.lifecycle`、`neoview.library.cleanup-invalid`、`neoview.history.thumbnail-visible`、`neoview.history.views`、`neoview.history.chunk`、`neoview.history.thumbnail-e2e`
+  - 备注：All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work and History stays in an independent 6,643-byte deferred chunk; 10K Chromium and advanced cleanup budgets remain pending.
 - [ ] `history.image-stability` 历史交互不重挂活动阅读媒体
   - 目标：Opening History, refreshing, searching, changing views, scrolling thumbnails, selecting and cleaning records preserve the active Reader media node and asset URL until an explicit history entry is opened.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.history.image-stability`、`neoview.history.thumbnail-e2e`
-  - 备注：Desktop and 420x360 Chromium prove opening, thumbnail loading, selection and batch removal preserve the active image node; search/view/scroll identity remains pending.
+  - 测试：`neoview.history.image-stability`、`neoview.history.views`、`neoview.history.thumbnail-e2e`
+  - 备注：Desktop and 420x360 Chromium prove opening, thumbnail loading, all four view changes, selection and batch removal preserve the active image node; search and scrolling identity remain pending.
 - [ ] `history.deviations` 记录共享后端、键盘扩展与 shell 差异
   - 目标：Document authenticated paged xr_ history storage, shared React entry/thumbnail primitives and full keyboard operation as XR replacements while preserving legacy fields and controls; explicitly resolve current canHide=true against legacy canHide=false/fullHeight/hideHeader, and replace unbounded in-process invalid-path checks with cancellable bounded cleanup.
   - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/unifiedHistory.svelte.ts`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`、`src/lib/cards/registry.ts`
