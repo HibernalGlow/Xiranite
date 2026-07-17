@@ -38,7 +38,7 @@
     { "legacyId": "sidebarHeight", "capabilities": ["配置边栏高度/宽度、垂直或水平对齐", "控制拖动手柄和空白页单双页行为", "实时预览、复位并持久化几何"] },
 
     { "legacyId": "emmTags", "capabilities": ["显示当前书籍 EMM 命名空间标签", "展开、折叠、复制、筛选或跳转标签", "处理无记录、同步中和数据库错误"] },
-    { "legacyId": "bookSettings", "capabilities": ["查看和编辑当前书籍覆盖设置", "区分继承值、显式覆盖和恢复全局默认", "保存后立即应用且可回滚失败"] },
+    { "legacyId": "bookSettings", "checklistRef": "migration/neoview/book-settings-compatibility.json", "capabilities": ["查看和编辑当前书籍覆盖设置", "区分继承值、显式覆盖和恢复全局默认", "保存后立即应用且可回滚失败"] },
     { "legacyId": "folderRatings", "capabilities": ["统计当前文件夹条目的评分分布与平均值", "区分默认评分和显式评分", "刷新、跳转或筛选相关条目"] },
     { "legacyId": "favoriteTags", "capabilities": ["显示收藏标签快捷项与计数", "搜索、选择和批量应用/移除标签", "管理收藏标签顺序和可见性"] },
     { "legacyId": "emmSync", "capabilities": ["配置并执行当前书籍/目录 EMM 同步", "显示扫描、匹配、写入、跳过和错误进度", "支持取消、重试和冲突策略"] },

@@ -9,6 +9,7 @@
 import {
   READER_CARD_MANIFEST,
   READER_PANEL_MANIFEST,
+  type FrameSnapshot,
   type ReaderCardId,
   type ReaderPanelId,
   type ReaderPresentation,
@@ -35,6 +36,7 @@ export interface ReaderPanelContext {
   disabled: boolean
   onGoTo(pageIndex: number): void | Promise<void>
   onPageModeChange?(pageMode: "single" | "double"): void | Promise<void>
+  onReadingDirectionChange?(direction: FrameSnapshot["direction"]): void | Promise<void>
   sourcePath?: string
   onOpen?(path: string): void | Promise<void>
   systemActions?: {

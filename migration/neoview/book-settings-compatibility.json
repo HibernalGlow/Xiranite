@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "featureId": "book-settings",
+  "legacyCardId": "bookSettings",
+  "title": "本书设置",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "statusValues": ["pending", "partial", "complete"],
+  "completionRule": "Complete only when favorite, rating, reading direction, page mode and horizontal-book overrides preserve the source-evidenced controls and defaults, distinguish inherited and explicit values, apply atomically to the active session, persist through the canonical NeoView data boundary, migrate legacy localStorage without creating a second business store, roll back failed updates, and have GUI/CLI/TUI, lifecycle, responsive and performance evidence.",
+  "sourceUiInventory": [
+    {
+      "id": "book-settings-ui.states",
+      "title": "书籍身份、空态与加载态",
+      "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "acceptanceItems": ["未打开书籍空态", "未打开书籍文本", "bookInfo path 作为旧设置身份", "加载中空态", "加载中文本", "有书籍才挂载控件", "切书重读覆盖", "关闭书籍清空", "迟到结果不得覆盖新书"],
+      "mappedChecklistIds": ["book-settings.states", "book-settings.identity", "book-settings.lifecycle"]
+    },
+    {
+      "id": "book-settings-ui.favorite-rating",
+      "title": "收藏按钮与五星评分",
+      "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"],
+      "acceptanceItems": ["收藏标签", "已收藏按钮", "未收藏按钮", "点击切换 favorite", "评分标签", "1 到 5 星按钮", "实心星", "空心星", "黄色已选星", "评分 N 星 title", "点击写入 1..5", "默认 favorite=false", "默认 rating=0"],
+      "mappedChecklistIds": ["book-settings.favorite", "book-settings.rating", "book-settings.persistence", "book-settings.accessibility"]
+    },
+    {
+      "id": "book-settings-ui.direction",
+      "title": "阅读方向分段控制",
+      "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"],
+      "acceptanceItems": ["阅读方向标签", "左到右按钮", "右到左按钮", "left-to-right 值", "right-to-left 值", "缺失值回退左到右", "活动按钮 default variant", "非活动按钮 outline variant", "默认 readingDirection=left-to-right", "切换后当前双页顺序立即更新"],
+      "mappedChecklistIds": ["book-settings.direction", "book-settings.apply", "book-settings.ui-parity", "book-settings.accessibility"]
+    },
+    {
+      "id": "book-settings-ui.page-mode",
+      "title": "单双页显示模式",
+      "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"],
+      "acceptanceItems": ["显示模式标签", "单页按钮", "双页按钮", "doublePageView=false", "doublePageView=true", "活动按钮 default variant", "非活动按钮 outline variant", "默认 doublePageView=false", "切换后 frame 立即重建", "单页与双页不改变资源 URL 身份"],
+      "mappedChecklistIds": ["book-settings.page-mode", "book-settings.apply", "book-settings.image-stability", "book-settings.accessibility"]
+    },
+    {
+      "id": "book-settings-ui.horizontal",
+      "title": "横版本子开关",
+      "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"],
+      "acceptanceItems": ["横版本子标签", "Switch 控件", "checked 状态", "默认 horizontalBook=false", "scale-75 紧凑几何", "切换写入 boolean", "横版语义与宽页单页策略明确", "不创建第二套页面配对算法"],
+      "mappedChecklistIds": ["book-settings.horizontal-book", "book-settings.apply", "book-settings.ui-parity", "book-settings.deviations"]
+    },
+    {
+      "id": "book-settings-ui.persistence",
+      "title": "旧设置键、默认值与规范所有权",
+      "sourceEvidence": ["src/lib/stores/bookSettings.svelte.ts", "src/lib/cards/properties/BookSettingsCard.svelte"],
+      "acceptanceItems": ["neoview-book-settings 旧 localStorage 键", "path 到 PerBookSettings 映射", "坏 JSON 降级空对象", "增量 partial merge", "favorite", "rating", "readingDirection", "doublePageView", "horizontalBook", "未配置时五项默认值", "旧值一次性迁移", "不得继续双写 localStorage", "不得写入 xiranite.db Reader 业务表", "原子保存", "失败回滚", "恢复继承值"],
+      "mappedChecklistIds": ["book-settings.persistence", "book-settings.data-contract", "book-settings.states", "book-settings.deviations"]
+    },
+    {
+      "id": "book-settings-ui.shell",
+      "title": "通用 Card 外壳与紧凑布局",
+      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
+      "acceptanceItems": ["Settings 图标与本书设置标题", "默认 properties Panel", "默认显示并展开", "允许隐藏", "标题折叠", "上移与下移", "独立窗口", "高度拖动与恢复自动", "折叠内容零挂载", "动态 import", "失败状态", "两列行布局", "space-y-2 text-xs", "桌面与 420x360 无溢出"],
+      "mappedChecklistIds": ["book-settings.shell", "book-settings.ui-parity", "book-settings.lifecycle", "book-settings.performance"]
+    }
+  ],
+  "items": [
+    { "id": "book-settings.identity", "category": "data-contract", "title": "使用规范书籍身份定位覆盖", "sourceEvidence": ["src/lib/stores/infoPanel.svelte.ts", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Per-book overrides use the canonical opened book identity and never an editable path field, transient page URL or display title.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.book-settings-page-mode"], "notes": "The React Card receives the active session book but the canonical persistent book key is not yet exposed." },
+    { "id": "book-settings.favorite", "category": "capabilities", "title": "查看和切换本书收藏", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Favorite is a shared per-book boolean with inherited, explicit true and explicit false semantics and immediate optimistic feedback with rollback.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Current React intentionally omits the control because no canonical read/write contract exists." },
+    { "id": "book-settings.rating", "category": "capabilities", "title": "编辑本书五星评分", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Rating supports unset and integers 1..5 through one shared book metadata contract without diverging from Folder rating fields.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Current React intentionally omits the five-star control until rating ownership is unified." },
+    { "id": "book-settings.direction", "category": "capabilities", "title": "覆盖本书阅读方向", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Left-to-right and right-to-left update the active frame immediately, persist as a per-book override and can be reset to inherit the global default.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.book-settings-direction", "neoview.control.session", "neoview.book-settings.direction-e2e"], "notes": "The authenticated session options route now strictly accepts direction, rebuilds the frame and reverses double-page presentation order; canonical per-book persistence and reset-to-inherit remain pending." },
+    { "id": "book-settings.page-mode", "category": "capabilities", "title": "覆盖本书单双页模式", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Single and double page mode update the active frame immediately, persist only for this book and can be reset to inherit the global default.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.book-settings-page-mode"], "notes": "The React Card updates the current session page mode, but does not distinguish or persist a per-book override." },
+    { "id": "book-settings.horizontal-book", "category": "capabilities", "title": "覆盖横版本子策略", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Horizontal-book is mapped to one documented wide-page/frame policy, applies immediately and does not create a parallel pairing algorithm.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "The legacy boolean has no canonical XR behavior yet." },
+    { "id": "book-settings.apply", "category": "interaction-states", "title": "立即应用、串行提交与失败回滚", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Each settled control change updates one active session, serializes persistence, ignores obsolete responses and restores the last confirmed value on failure.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.card.book-settings-page-mode", "neoview.card.book-settings-direction", "neoview.book-settings.direction-e2e"], "notes": "Direction and page-mode changes serialize inside the Card, disable both groups while pending and surface failure without changing the confirmed controlled value; persistence revision conflicts and cross-book cancellation remain pending." },
+    { "id": "book-settings.states", "category": "interaction-states", "title": "空、加载、继承、显式、保存与错误状态", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte"], "targetContract": "No-book, loading, inherited, explicit, saving, failure and retry states preserve the last confirmed override without stale cross-book publication.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.card.book-settings-contract"], "notes": "No-session is zero DOM in the shared Card host; the current component lacks inherited, saving and failure states." },
+    { "id": "book-settings.data-contract", "category": "data-contract", "title": "共享有界本书覆盖 DTO", "sourceEvidence": ["src/lib/stores/bookSettings.svelte.ts"], "targetContract": "GUI, CLI and TUI share one versioned bounded override DTO with optional fields, strict enums/ranges, revision conflict handling and no raw local paths in remote output.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "The legacy localStorage record is not a valid shared XR contract." },
+    { "id": "book-settings.persistence", "category": "settings", "title": "迁移旧键并持久化规范覆盖", "sourceEvidence": ["src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Legacy neoview-book-settings imports once into the compatible NeoView business database or canonical config ownership, saves atomically, supports reset-to-inherit and never creates Reader business tables in xiranite.db.", "surfaces": ["GUI", "CLI", "TUI"], "status": "pending", "testIds": [], "notes": "Current React neither reads nor writes the legacy record; final ownership must be resolved before controls are exposed." },
+    { "id": "book-settings.lifecycle", "category": "lifecycle", "title": "切书、折叠、取消与关闭释放", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/components/cards/CollapsibleCard.svelte"], "targetContract": "Hidden/unmounted Cards do no work; switching books cancels obsolete reads/writes; session close releases pending updates and stale responses cannot affect the next book.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.book-settings-contract"], "notes": "The Card is lazy and no-session renders zero DOM; persistent request cancellation is not implemented." },
+    { "id": "book-settings.shell", "category": "ui-parity", "title": "复用通用 Card 外壳", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"], "targetContract": "Book Settings remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the Properties Panel.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.shell.registry-lazy", "neoview.settings.card-layout"], "notes": "The shared registry and Card shell own layout behavior; content remains independently lazy." },
+    { "id": "book-settings.accessibility", "category": "keyboard-accessibility", "title": "命名控件、分组与键盘等价操作", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte"], "targetContract": "Every toggle, star and segmented option has an accessible name, pressed/checked state, keyboard operation, pending semantics and focus preservation after save or rollback.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.card.book-settings-page-mode", "neoview.card.book-settings-direction"], "notes": "Direction and page-mode buttons expose pressed and disabled state through native buttons and failures use an alert; favorite, rating, horizontal-book and full rollback focus evidence remain absent." },
+    { "id": "book-settings.ui-parity", "category": "ui-parity", "title": "保持旧版五行紧凑布局", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte"], "targetContract": "Favorite, rating, direction, display mode and horizontal-book retain the legacy order, labels, compact density and responsive two-column geometry at desktop and 420x360 widths.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.card.book-settings-page-mode", "neoview.card.book-settings-direction", "neoview.book-settings.direction-e2e"], "notes": "Direction and display-mode rows preserve the legacy order and compact segmented geometry without overflow in desktop and 420x360 Chromium; favorite, rating and horizontal-book rows remain pending." },
+    { "id": "book-settings.image-stability", "category": "performance", "title": "设置更新不重挂活动媒体", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte"], "targetContract": "Metadata-only changes issue no media request; frame-affecting direction/page-mode changes reuse stable asset URLs and replace media nodes only when the visible page set actually changes.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.book-settings.direction-e2e"], "notes": "Real Chromium proves RTL reorders the same two visible asset URLs after double-page activation; metadata-only controls and duplicate-request counts remain pending." },
+    { "id": "book-settings.performance", "category": "performance", "title": "常量 DOM、零隐藏工作与独立 chunk", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/cards/CardRenderer.svelte"], "targetContract": "The Card uses O(1) DOM, no polling or media decode, zero hidden work and an independent deferred chunk under 8 KiB outside Reader entry and sidebar base chunks.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.shell.registry-lazy", "neoview.book-settings.direction-e2e"], "notes": "The Card builds as an independent 3,213-byte deferred chunk and performs no polling or decode; a dedicated chunk budget and explicit collapsed zero-work request count remain required." },
+    { "id": "book-settings.deviations", "category": "deviations", "title": "记录覆盖继承与旧 localStorage 替代", "sourceEvidence": ["src/lib/cards/properties/BookSettingsCard.svelte", "src/lib/stores/bookSettings.svelte.ts"], "targetContract": "Document reset-to-inherit, canonical persistence, authenticated session updates and any horizontal-book mapping as XR extensions while preserving all five legacy controls.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.card.book-settings-contract"], "notes": "Unsupported controls are deliberately hidden rather than presented as no-op; final replacement contracts remain pending." }
+  ]
+}

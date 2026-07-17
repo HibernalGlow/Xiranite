@@ -858,20 +858,31 @@ export class ReaderHttpController implements AsyncDisposable {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     const body = await readControlJson(request)
-    if (!body || Object.keys(body).some((key) => key !== "layout")) {
-      return jsonResponse({ error: "Reader session options must contain only layout" }, 400)
+    if (!body || !Object.keys(body).length || Object.keys(body).some((key) => key !== "direction" && key !== "layout")) {
+      return jsonResponse({ error: "Reader session options must contain only direction or layout" }, 400)
+    }
+    const direction = body.direction
+    if (direction !== undefined && direction !== "left-to-right" && direction !== "right-to-left") {
+      return jsonResponse({ error: "Reader session options.direction must be left-to-right or right-to-left" }, 400)
     }
     const layout = body.layout
-    if (!layout || typeof layout !== "object" || Array.isArray(layout)) {
-      return jsonResponse({ error: "Reader session options.layout must be an object" }, 400)
-    }
-    const record = layout as Record<string, unknown>
-    if (Object.keys(record).some((key) => key !== "pageMode") || (record.pageMode !== "single" && record.pageMode !== "double")) {
-      return jsonResponse({ error: "Reader session options.layout.pageMode must be single or double" }, 400)
+    let pageMode: "single" | "double" | undefined
+    if (layout !== undefined) {
+      if (!layout || typeof layout !== "object" || Array.isArray(layout)) {
+        return jsonResponse({ error: "Reader session options.layout must be an object" }, 400)
+      }
+      const record = layout as Record<string, unknown>
+      if (Object.keys(record).some((key) => key !== "pageMode") || (record.pageMode !== "single" && record.pageMode !== "double")) {
+        return jsonResponse({ error: "Reader session options.layout.pageMode must be single or double" }, 400)
+      }
+      pageMode = record.pageMode
     }
     try {
       const current = session.snapshot().layout
-      const frame = await session.updateOptions({ layout: { ...current, pageMode: record.pageMode } }, request.signal)
+      const frame = await session.updateOptions({
+        ...(direction === undefined ? {} : { direction }),
+        ...(pageMode === undefined ? {} : { layout: { ...current, pageMode } }),
+      }, request.signal)
       this.#retainSessionFrame(session, frame)
       return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), preload: session.preloadPlan() })
     } catch (error) {

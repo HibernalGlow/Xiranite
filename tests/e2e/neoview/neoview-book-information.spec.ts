@@ -32,11 +32,15 @@ test.beforeAll(async () => {
     "[nodes.neoview]",
     "schema_version = 1",
     "[nodes.neoview.panels]",
+    "left_sidebar_visible = false",
     "right_sidebar_visible = true",
     "[nodes.neoview.panels.sidebars.right]",
     "pinned = false",
     "open = false",
     "width = 280",
+    "[nodes.neoview.panels.edges.left]",
+    "enabled = false",
+    "initial_visible = false",
     "",
   ].join("\n"), "utf8")
   backend = await startBackend({
@@ -52,13 +56,13 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.book-information.e2e] renders translated metadata and shared Info Panel actions", async ({ page }, testInfo) => {
+test("[neoview.book-information.e2e] [neoview.book-settings.direction-e2e] renders translated metadata and current-book controls", async ({ page }, testInfo) => {
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.route(`${backend.url}/reader/files/reveal`, (route) => route.fulfill({ status: 204 }))
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
   const openedResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/sessions` && response.request().method() === "POST")
   const initialViewport = page.viewportSize()!
-  await page.mouse.move(initialViewport.width - 1, 1)
+  await page.mouse.move(initialViewport.width / 2, 1)
   await page.getByRole("button", { name: "打开书籍" }).click()
   const opened = await (await openedResponse).json() as { sessionId: string }
   const image = page.locator('img[alt="001.png"]')
@@ -101,4 +105,21 @@ test("[neoview.book-information.e2e] renders translated metadata and shared Info
   await expect(card.getByText("66.7%")).toBeVisible()
   expect(metadataRequests).toBeLessThanOrEqual(2)
   await card.screenshot({ path: testInfo.outputPath(`neoview-book-information-${testInfo.project.name}.png`) })
+
+  await sidebar.getByRole("button", { name: "属性", exact: true }).click()
+  const settingsCard = sidebar.locator('[data-reader-card="本书设置"]')
+  await expect(settingsCard).toBeVisible()
+  await expect(settingsCard.getByRole("button", { name: "左→右" })).toHaveAttribute("aria-pressed", "true")
+  const doubleResponse = page.waitForResponse((response) => response.url().endsWith(`/reader/s/${opened.sessionId}/options`) && response.request().method() === "PATCH")
+  await settingsCard.getByRole("button", { name: "双页" }).click()
+  expect((await doubleResponse).request().postDataJSON()).toEqual({ layout: { pageMode: "double" } })
+  await expect.poll(() => page.locator('[data-reader-frame="true"] img').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("alt")))).toEqual(["002.png", "003.png"])
+
+  const directionResponse = page.waitForResponse((response) => response.url().endsWith(`/reader/s/${opened.sessionId}/options`) && response.request().method() === "PATCH")
+  await settingsCard.getByRole("button", { name: "右→左" }).click()
+  expect((await directionResponse).request().postDataJSON()).toEqual({ direction: "right-to-left" })
+  await expect(settingsCard.getByRole("button", { name: "右→左" })).toHaveAttribute("aria-pressed", "true")
+  await expect.poll(() => page.locator('[data-reader-frame="true"] img').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("alt")))).toEqual(["003.png", "002.png"])
+  expect(await settingsCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+  await settingsCard.screenshot({ path: testInfo.outputPath(`neoview-book-settings-${testInfo.project.name}.png`) })
 })
