@@ -39,6 +39,11 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
     return this.library.clearRecentBefore(before, limit)
   }
 
+  clearByFolder(collection: "recents" | "bookmarks", folderPath: string) {
+    this.#assertOpen()
+    return this.library.clearByFolder(collection, folderPath)
+  }
+
   listBookmarks(listId?: string, limit = 100, offset = 0) {
     this.#assertOpen()
     return this.library.listBookmarks({ listId, limit, offset })

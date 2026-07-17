@@ -34,6 +34,8 @@ describe("ReaderLibraryHeadlessController", () => {
     expect(store.updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: false, listIds: ["default"], updatedAt: 100 })
     await controller.listRecent(20, 5)
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 20, offset: 5 })
+    await controller.clearByFolder("bookmarks", "D:\\Books")
+    expect(store.clearByPathPrefix).toHaveBeenCalledWith("bookmarks", "d:/books")
     await controller.close()
     await controller.close()
     expect(store.close).toHaveBeenCalledOnce()
@@ -48,6 +50,7 @@ function fakeStore(): ReaderLibraryStore {
     deleteRecentBatch: vi.fn(async () => ({ deleted: 0, missingIds: [] })),
     deleteOldestRecent: vi.fn(async () => ({ selectedIds: [], deleted: 0 })),
     clearRecentBefore: vi.fn(async () => 0),
+    clearByPathPrefix: vi.fn(async () => 0),
     listBookmarks: vi.fn(async () => []),
     findBookmarkByPath: vi.fn(async () => undefined),
     upsertBookmark: vi.fn(async () => undefined),

@@ -8,6 +8,7 @@ import type {
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
   ReaderBookmarkUpdate,
+  ReaderLibraryCollection,
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
@@ -410,6 +411,37 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
       timestamp,
       limit,
     ).changes)
+  }
+
+  async clearByPathPrefix(collection: ReaderLibraryCollection, normalizedPrefix: string): Promise<number> {
+    this.#assertOpen()
+    if ((collection !== "recents" && collection !== "bookmarks")
+      || !normalizedPrefix || normalizedPrefix.length > 32_768 || normalizedPrefix.includes("\0")) {
+      throw new Error("Reader library path-prefix cleanup is invalid.")
+    }
+    const matchesPrefix = `substr(
+      replace(CAST(json_extract(source_json, '$.path') AS TEXT), char(92), '/'),
+      1,
+      length(?1)
+    ) = ?1 COLLATE NOCASE`
+    if (collection === "recents") {
+      return this.#write(() => this.database.run(
+        `DELETE FROM xr_reader_progress WHERE ${matchesPrefix}`,
+        normalizedPrefix,
+      ).changes)
+    }
+    return this.#transaction(() => {
+      this.database.run(
+        `DELETE FROM xr_reader_bookmark_memberships WHERE bookmark_id IN (
+           SELECT id FROM xr_reader_bookmarks WHERE ${matchesPrefix}
+         )`,
+        normalizedPrefix,
+      )
+      return this.database.run(
+        `DELETE FROM xr_reader_bookmarks WHERE ${matchesPrefix}`,
+        normalizedPrefix,
+      ).changes
+    })
   }
 
   async listBookmarks(query: ReaderBookmarkQuery): Promise<readonly ReaderBookmarkRecord[]> {

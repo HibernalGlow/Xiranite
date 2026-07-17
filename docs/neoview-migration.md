@@ -132,6 +132,8 @@ EMM 标签搜索后端纵切已接入现有搜索主链：`tag`/`excludeTag` 支
 
 书签批量编辑也不再逐项调用 `updateBookmark()`：application 完成系统列表语义和自定义列表存在性校验后，把最多 500 个异构 `starred/listIds` 更新作为一个 Zod 校验的 JSON1 payload 交给 store；SQLite 在单个 `BEGIN IMMEDIATE` 内更新主体、只为显式携带 `listIds` 的项目重建 membership，并按请求顺序一次读回 `items/missingIds`。任意未知列表会回滚整批，不产生部分更新。
 
+旧高级清理的 folder scope 已进入同一 `ReaderLibraryService.clearByFolder()`：History 与 Bookmark 共用 store port，HTTP 分别通过严格的 `kind=folder + path` 请求调用，Headless facade 直接复用。路径只在 application 中执行旧版 `trim + 反斜杠转斜杠 + en-US 小写`，SQLite 使用内建 `json_extract/replace/substr/COLLATE NOCASE` 在库内删除，不把全部 source JSON 读到 JS；书签 membership 与主体仍在一个事务中清除。为兼容旧版 `startsWith`，目标没有尾斜杠时会匹配同名前缀目录；这不是路径边界语义，未来修正必须记录显式偏离。
+
 > 最后更新：2026-07-16；最近已提交基线：`897886a`（原图阅读/预解码/虚拟缩略图）、`880ccff`（复杂 Shell/Card AST scaffold）、`1e4f70c`（懒加载四边 Shell 与首批 Panel/Card）、`5064b82`（只读 Shell 配置链）、`444bdbc`（React Compiler 友好的侧栏 resize/drag 与 TOML PATCH 原子持久化）、`532b304`（旧 panel layout 兼容读取）、`f9467c4`（旧 v14 Card 状态导入与折叠原子持久化）。本节必须随每个 NeoView 实现提交同步更新；代码、feature matrix 和测试证据优先于文字。
 
 整体结论：**基础架构和高性能阅读纵切已经跑通，但完整功能迁移远未完成。** `feature-compatibility.json` 的 30 项 feature 当前全部保持 `pending`，因为每一项都包含旧 NeoView 的多组行为，不能用“一条 happy path 已运行”提前标记完成。

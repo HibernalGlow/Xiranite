@@ -236,6 +236,7 @@ export type {
   ReaderBookmarkUpdate,
   ReaderLibraryStore,
   ReaderLibraryBatchDeleteResult,
+  ReaderLibraryCollection,
   ReaderOldestRecentDeleteResult,
   ReaderRecentQuery,
 } from "./ports/ReaderLibraryStore.js"

@@ -158,6 +158,20 @@ describe("ReaderLibraryService", () => {
     expect(store.deleteOldestRecent).not.toHaveBeenCalled()
   })
 
+  it("[neoview.library.cleanup-folder] normalizes legacy folder prefixes before one shared store operation", async () => {
+    const store = createStore()
+    store.clearByPathPrefix.mockResolvedValue(3)
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.clearByFolder("recents", " D:\\Books\\Series ")).resolves.toBe(3)
+    await expect(service.clearByFolder("bookmarks", "D:/BOOKS")).resolves.toBe(3)
+    expect(store.clearByPathPrefix.mock.calls).toEqual([
+      ["recents", "d:/books/series"],
+      ["bookmarks", "d:/books"],
+    ])
+    expect(() => service.clearByFolder("recents", "  ")).toThrow("folder path is invalid")
+  })
+
   it("[neoview.bookmark.batch-contract] updates list memberships through one bounded shared command", async () => {
     const store = createStore()
     store.listBookmarkLists.mockResolvedValue([customList])
@@ -218,6 +232,7 @@ function createStore() {
     deleteRecentBatch: vi.fn<ReaderLibraryStore["deleteRecentBatch"]>(),
     deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
+    clearByPathPrefix: vi.fn<ReaderLibraryStore["clearByPathPrefix"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<(bookmark: ReaderBookmarkRecord) => Promise<void>>(async () => undefined),
