@@ -27,7 +27,7 @@ import {
   type ReaderThumbnailMaintenancePort,
 } from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 import { help } from "./help.js"
-import { createReaderFileTreeController, createReaderHeadlessController } from "./platform.js"
+import { createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
@@ -1341,16 +1341,17 @@ async function runSettingsCommand(
   if (!inputStat.isFile()) throw usage(`Settings input is not a file: ${inputPath}`)
   if (inputStat.size > MAX_SETTINGS_BYTES) throw usage(`Settings input exceeds ${MAX_SETTINGS_BYTES} bytes.`)
   const content = await readFile(inputPath, "utf8")
-  const { LegacySettingsCodec, LEGACY_SETTINGS_MODULES } = await import("./migration/LegacySettingsCodec.js")
   const moduleOption = oneValue(parsed, "--modules")
   const modules = moduleOption?.split(",").map((value) => value.trim()).filter(Boolean)
   if (modules?.length === 0) throw usage("--modules requires at least one module name.")
-  const knownModules = new Set<string>(LEGACY_SETTINGS_MODULES)
-  const invalidModules = modules?.filter((module) => !knownModules.has(module)) ?? []
-  if (invalidModules.length) throw usage(`Unknown settings module(s): ${invalidModules.join(", ")}.`)
-  const decoded = new LegacySettingsCodec().decode(content, {
-    modules: modules as import("./migration/LegacySettingsCodec.js").LegacySettingsModule[] | undefined,
-  })
+  const configPath = oneValue(parsed, "--config")
+  const service = await createReaderSettingsMigrationService({ configPath, cwd: host.cwd, env: host.env })
+  let decoded: import("./migration/LegacySettingsCodec.js").DecodedLegacySettings
+  try {
+    decoded = service.inspect({ content, modules })
+  } catch (error) {
+    throw usage(error instanceof Error ? error.message : String(error))
+  }
 
   if (command === "settings-inspect") {
     printSettingsPreview(decoded, parsed.booleans.has("--json"), host)
@@ -1362,14 +1363,7 @@ async function runSettingsCommand(
   }
   const strategy = oneValue(parsed, "--strategy") ?? "merge"
   if (strategy !== "merge" && strategy !== "overwrite") throw usage("--strategy must be merge or overwrite.")
-  const configPath = oneValue(parsed, "--config")
-  const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
-  const committed = await commitNeoviewConfig(decoded.configPatch, {
-    configPath,
-    cwd: host.cwd,
-    env: host.env,
-    strategy,
-  })
+  const committed = await service.commit(decoded, strategy, true)
   const output = {
     ...decoded.report,
     configPath: committed.configPath,

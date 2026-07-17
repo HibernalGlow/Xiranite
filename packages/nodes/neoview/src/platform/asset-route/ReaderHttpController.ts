@@ -47,6 +47,8 @@ import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
+import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
+import type { ReaderSettingsMigrationService } from "../../application/migration/ReaderSettingsMigrationService.js"
 import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
@@ -154,6 +156,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateMedia?: (patch: NeoviewMediaPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewMediaConfig>
   maxSeekableMediaEntryBytes?: number
   maxSeekableMediaTotalBytes?: number
+  loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -165,6 +168,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #directoryBrowser: ReaderDirectoryBrowserRoute
   readonly #fileOperations: ReaderFileOperationHttpController
   readonly #systemIntegration: ReaderSystemIntegrationHttpController
+  readonly #settingsMigration?: ReaderSettingsMigrationHttpController
   readonly #library?: ReaderLibraryHttpController
   readonly #libraryService?: ReaderLibraryService
   readonly #disposeLibraryService: boolean
@@ -316,6 +320,12 @@ export class ReaderHttpController implements AsyncDisposable {
       const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
       return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({ scheduler: options.resourceScheduler }))
     })
+    this.#settingsMigration = options.loadSettingsMigrationService
+      ? new ReaderSettingsMigrationHttpController(
+          options.loadSettingsMigrationService,
+          (operation) => this.#runConfigMutation(operation),
+        )
+      : undefined
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(
       options.libraryService,
@@ -372,6 +382,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (fileOperationResponse) return fileOperationResponse
     const systemIntegrationResponse = await this.#systemIntegration.handle(request)
     if (systemIntegrationResponse) return systemIntegrationResponse
+    const settingsMigrationResponse = await this.#settingsMigration?.handle(request)
+    if (settingsMigrationResponse) return settingsMigrationResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
 
@@ -1060,6 +1072,12 @@ export class ReaderHttpController implements AsyncDisposable {
     })
     this.#hibernateCheck = pending
     return pending
+  }
+
+  #runConfigMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.#configUpdateQueue.then(operation)
+    this.#configUpdateQueue = result.then(() => undefined, () => undefined)
+    return result
   }
 
   #sessionDto(session: ReaderSession): ReaderSessionDto {

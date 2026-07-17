@@ -23,6 +23,7 @@ import type { ReaderLibraryService } from "./application/library/ReaderLibrarySe
 import type { ReaderCacheService } from "./application/cache/ReaderCacheService.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
+import type { ReaderSettingsMigrationService } from "./application/migration/ReaderSettingsMigrationService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
@@ -288,8 +289,26 @@ export async function createReaderHttpController(
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).media
     },
+    loadSettingsMigrationService: () => createReaderSettingsMigrationService(options),
     thumbnailStore,
     disposeThumbnailStore,
+  })
+}
+
+export async function createReaderSettingsMigrationService(
+  options: NeoviewRuntimeLoadOptions = {},
+): Promise<ReaderSettingsMigrationService> {
+  const { ReaderSettingsMigrationService } = await import("./application/migration/ReaderSettingsMigrationService.js")
+  return new ReaderSettingsMigrationService({
+    commit: async (patch, strategy) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const committed = await commitNeoviewConfig(patch, { ...options, strategy })
+      return {
+        changed: committed.changed,
+        configPath: committed.configPath,
+        backupPath: committed.backupPath,
+      }
+    },
   })
 }
 
