@@ -8,6 +8,7 @@ import HistoryListCard from "./HistoryListCard"
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: ({ count, estimateSize }: { count: number; estimateSize(): number }) => ({
     getTotalSize: () => count * estimateSize(),
+    scrollToIndex: vi.fn(),
     getVirtualItems: () => Array.from({ length: count }, (_, index) => ({
       key: index,
       index,
@@ -42,7 +43,7 @@ describe("Reader library cards", () => {
     await waitFor(() => expect(removeRecent).toHaveBeenCalledWith("book-1"))
   })
 
-  it("[neoview.history.thumbnail-visible] [neoview.history.views] [neoview.history.selection] reuses four entry surfaces and sends one batch removal", async () => {
+  it("[neoview.history.thumbnail-visible] [neoview.history.views] [neoview.history.selection] [neoview.history.selection-keyboard] reuses four entry surfaces and sends one batch removal", async () => {
     const recents = [recent("one"), recent("two"), recent("three")]
     const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number) => ({
       contextId,
@@ -66,6 +67,7 @@ describe("Reader library cards", () => {
     )
 
     await screen.findByText("one.cbz")
+    expect(screen.getByRole("listbox", { name: "阅读历史" }).getAttribute("aria-multiselectable")).toBe("true")
     expect(registerLibraryThumbnails).not.toHaveBeenCalled()
     expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("compact")
     fireEvent.click(screen.getByRole("button", { name: "内容" }))
@@ -85,10 +87,29 @@ describe("Reader library cards", () => {
     expect(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns")).toBe("3")
     fireEvent.click(screen.getByRole("button", { name: "内容" }))
     await waitFor(() => expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("content"))
+    const firstHistoryRow = view.container.querySelector<HTMLButtonElement>('[data-history-row-button="0"]')!
+    const secondHistoryRow = view.container.querySelector<HTMLButtonElement>('[data-history-row-button="1"]')!
+    firstHistoryRow.focus()
+    fireEvent.keyDown(firstHistoryRow, { key: "ArrowDown" })
+    await waitFor(() => expect(document.activeElement).toBe(secondHistoryRow))
+    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    const focusedThumbnailRow = view.container.querySelector<HTMLButtonElement>('[data-history-row-button="1"]')!
+    await waitFor(() => expect(document.activeElement).toBe(focusedThumbnailRow))
+    fireEvent.keyDown(focusedThumbnailRow, { key: "a", ctrlKey: true })
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
+    fireEvent.click(screen.getByRole("button", { name: "反选已加载历史记录" }))
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
+    fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!)
+    fireEvent.click(screen.getByRole("button", { name: "选择全部已加载历史记录" }))
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
+    fireEvent.click(screen.getByRole("button", { name: "取消全部历史记录选择" }))
+    fireEvent.keyDown(focusedThumbnailRow, { key: "a", ctrlKey: true })
+    fireEvent.keyDown(focusedThumbnailRow, { key: "Escape" })
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
     fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!)
     fireEvent.click(view.container.querySelector('[data-history-row-button="2"]')!, { shiftKey: true })
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
-    fireEvent.click(screen.getByRole("button", { name: "删除所选历史记录" }))
+    fireEvent.keyDown(view.container.querySelector('[data-history-row-button="2"]')!, { key: "Delete" })
     fireEvent.click(screen.getByRole("button", { name: "删除历史", exact: true }))
     await waitFor(() => expect(removeRecents).toHaveBeenCalledWith(["one", "two", "three"]))
 

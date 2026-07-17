@@ -1,4 +1,4 @@
-import { BookOpen, GalleryHorizontalEnd, Grid2X2, List, Rows3, Trash2, X } from "lucide-react"
+import { BookOpen, CheckSquare, GalleryHorizontalEnd, Grid2X2, List, Rows3, Square, SquareX, Trash2, X } from "lucide-react"
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>()
   const [viewMode, setViewMode] = useState<HistoryViewMode>("compact")
+  const [focusedIndex, setFocusedIndex] = useState<number>()
   const anchorIndexRef = useRef<number>()
   const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" ? [] : visibleRecents.map((item) => ({
     id: item.bookId,
@@ -42,6 +43,7 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
 
   const handleLoadedItems = useCallback((items: readonly ReaderRecentDto[]) => {
     setLoadedRecents(items)
+    setFocusedIndex((current) => current === undefined ? current : Math.min(current, Math.max(0, items.length - 1)))
     const available = new Set(items.map((item) => item.bookId))
     setSelectedIds((current) => {
       const next = new Set([...current].filter((id) => available.has(id)))
@@ -69,38 +71,93 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
       }
       return new Set([item.bookId])
     })
-    anchorIndexRef.current = index
+    if (!event.shiftKey) anchorIndexRef.current = index
+    setFocusedIndex(index)
+  }
+
+  function selectAllLoaded() {
+    setSelectedIds(new Set(loadedRecents.map((item) => item.bookId)))
+  }
+
+  function invertLoadedSelection() {
+    setSelectedIds((current) => new Set(loadedRecents.flatMap((item) => current.has(item.bookId) ? [] : [item.bookId])))
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+
+  function requestSelectedDelete() {
+    if (!selectedIds.size) return
+    setPendingDelete({ ids: [...selectedIds], batch: true })
+  }
+
+  function handleCardKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const target = event.target
+    if (target instanceof HTMLElement && (
+      target.isContentEditable
+      || target.tagName === "INPUT"
+      || target.tagName === "TEXTAREA"
+      || target.tagName === "SELECT"
+    )) return
+    if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "a") {
+      event.preventDefault()
+      selectAllLoaded()
+    } else if (event.key === "Delete" && selectedIds.size) {
+      event.preventDefault()
+      requestSelectedDelete()
+    } else if (event.key === "Escape" && selectedIds.size) {
+      event.preventDefault()
+      clearSelection()
+    }
+  }
+
+  function moveFocus(index: number, event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "shiftKey">) {
+    const targetIndex = Math.min(Math.max(index, 0), Math.max(0, loadedRecents.length - 1))
+    const item = loadedRecents[targetIndex]
+    if (!item) return
+    setFocusedIndex(targetIndex)
+    if (event.shiftKey) selectRecent(item, targetIndex, event)
   }
 
   async function confirmDelete() {
     if (!pendingDelete?.ids.length) return
-    const removed = await mutate(async () => {
-      if (pendingDelete.batch) {
+    const request = pendingDelete
+    const removedIds: string[] = []
+    setActionError(undefined)
+    try {
+      if (request.batch) {
         if (!client.removeRecents) throw new Error("当前后端不支持批量删除历史记录")
-        await client.removeRecents(pendingDelete.ids)
+        for (let offset = 0; offset < request.ids.length; offset += 500) {
+          const chunk = request.ids.slice(offset, offset + 500)
+          await client.removeRecents(chunk)
+          removedIds.push(...chunk)
+        }
       } else {
         if (!client.removeRecent) throw new Error("当前后端不支持删除历史记录")
-        await client.removeRecent(pendingDelete.ids[0]!)
+        await client.removeRecent(request.ids[0]!)
+        removedIds.push(request.ids[0]!)
       }
-      setSelectedIds((current) => new Set([...current].filter((id) => !pendingDelete.ids.includes(id))))
-    })
-    if (removed) setPendingDelete(undefined)
-  }
-
-  async function mutate(operation: () => Promise<void>): Promise<boolean> {
-    try {
-      setActionError(undefined)
-      await operation()
-      setRevision((value) => value + 1)
-      return true
+      setPendingDelete(undefined)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error))
-      return false
+    } finally {
+      if (removedIds.length) {
+        const removed = new Set(removedIds)
+        setSelectedIds((current) => new Set([...current].filter((id) => !removed.has(id))))
+        setRevision((value) => value + 1)
+      }
     }
   }
 
   return (
-    <div className="grid min-h-0 gap-2" data-neoview-history-card="true" data-selection-count={selectedIds.size} data-history-view-mode={viewMode}>
+    <div
+      className="grid min-h-0 gap-2"
+      data-neoview-history-card="true"
+      data-selection-count={selectedIds.size}
+      data-history-view-mode={viewMode}
+      onKeyDown={handleCardKeyDown}
+    >
       <div className="flex items-center gap-1" role="group" aria-label="历史记录视图">
         <HistoryViewButton label="列表" mode="compact" current={viewMode} onChange={setViewMode}><List /></HistoryViewButton>
         <HistoryViewButton label="内容" mode="content" current={viewMode} onChange={setViewMode}><Rows3 /></HistoryViewButton>
@@ -109,7 +166,20 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
       </div>
       {selectedIds.size ? (
         <div className="flex min-w-0 items-center gap-1 rounded border bg-muted/30 px-2 py-1" aria-label="历史记录选择操作">
-          <span className="mr-auto text-xs tabular-nums">已选 {selectedIds.size} 项</span>
+          <span className="mr-auto text-xs tabular-nums" aria-live="polite">{selectedIds.size} / {loadedRecents.length}</span>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label="选择全部已加载历史记录"
+            title="选择全部"
+            disabled={selectedIds.size === loadedRecents.length}
+            onClick={selectAllLoaded}
+          >
+            <CheckSquare />
+          </Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label="反选已加载历史记录" title="反选" onClick={invertLoadedSelection}><Square /></Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label="取消全部历史记录选择" title="取消全部" onClick={clearSelection}><SquareX /></Button>
           <Button
             type="button"
             size="icon-sm"
@@ -117,11 +187,11 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
             aria-label="删除所选历史记录"
             title="删除所选"
             disabled={disabled || !client.removeRecents}
-            onClick={() => setPendingDelete({ ids: [...selectedIds], batch: true })}
+            onClick={requestSelectedDelete}
           >
             <Trash2 />
           </Button>
-          <Button type="button" size="icon-sm" variant="ghost" aria-label="取消历史记录选择" title="取消选择" onClick={() => setSelectedIds(new Set())}><X /></Button>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label="退出历史记录选择" title="退出选择" onClick={clearSelection}><X /></Button>
         </div>
       ) : null}
       {actionError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{actionError}</div> : null}
@@ -137,17 +207,23 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
         getItemKey={(item) => item.bookId}
         onVisibleItemsChange={setVisibleRecents}
         onItemsChange={handleLoadedItems}
+        focusIndex={focusedIndex}
+        listLabel="阅读历史"
         renderRow={(item, index) => (
           <HistoryRow
             item={item}
             index={index}
             viewMode={viewMode}
             selected={selectedIds.has(item.bookId)}
+            focused={focusedIndex === undefined ? index === 0 : focusedIndex === index}
+            columnCount={viewMode === "banner" ? 2 : viewMode === "thumbnail" ? 3 : 1}
             disabled={disabled}
             canOpen={Boolean(onOpen)}
             thumbnailUrl={thumbnails.urls.get(item.bookId)}
             thumbnailLoading={thumbnails.loading}
             onSelect={selectRecent}
+            onFocus={setFocusedIndex}
+            onMoveFocus={moveFocus}
             onOpen={() => void onOpen?.(item.source.path)}
             onRemove={() => setPendingDelete({ ids: [item.bookId], batch: false })}
           />
@@ -170,16 +246,20 @@ export default function HistoryListCard({ client, disabled, onOpen }: ReaderPane
   )
 }
 
-function HistoryRow({ item, index, viewMode, selected, disabled, canOpen, thumbnailUrl, thumbnailLoading, onSelect, onOpen, onRemove }: {
+function HistoryRow({ item, index, viewMode, selected, focused, columnCount, disabled, canOpen, thumbnailUrl, thumbnailLoading, onSelect, onFocus, onMoveFocus, onOpen, onRemove }: {
   item: ReaderRecentDto
   index: number
   viewMode: HistoryViewMode
   selected: boolean
+  focused: boolean
+  columnCount: number
   disabled: boolean
   canOpen: boolean
   thumbnailUrl?: string
   thumbnailLoading: boolean
   onSelect(item: ReaderRecentDto, index: number, event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">): void
+  onFocus(index: number): void
+  onMoveFocus(index: number, event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "shiftKey">): void
   onOpen(): void
   onRemove(): void
 }) {
@@ -194,17 +274,16 @@ function HistoryRow({ item, index, viewMode, selected, disabled, canOpen, thumbn
       onSelect(item, index, event)
       return
     }
-    const targetIndex = event.key === "ArrowDown" ? index + 1
-      : event.key === "ArrowUp" ? index - 1
+    const targetIndex = event.key === "ArrowDown" ? index + columnCount
+      : event.key === "ArrowUp" ? index - columnCount
+        : event.key === "ArrowRight" && columnCount > 1 ? index + 1
+          : event.key === "ArrowLeft" && columnCount > 1 ? index - 1
         : event.key === "Home" ? 0
           : event.key === "End" ? Number.MAX_SAFE_INTEGER
             : undefined
     if (targetIndex === undefined) return
     event.preventDefault()
-    const root = event.currentTarget.closest("[data-neoview-history-card]")
-    const rows = root?.querySelectorAll<HTMLButtonElement>("[data-history-row-button]")
-    if (!rows?.length) return
-    rows[Math.min(Math.max(targetIndex, 0), rows.length - 1)]?.focus()
+    onMoveFocus(targetIndex, event)
   }
 
   const progressPage = Math.min(item.pageIndex + 1, item.pageCount)
@@ -231,7 +310,10 @@ function HistoryRow({ item, index, viewMode, selected, disabled, canOpen, thumbn
         title: item.source.path,
         "aria-pressed": selected,
         disabled,
+        tabIndex: focused ? 0 : -1,
         "data-history-row-button": index,
+        "data-library-item-focus": "true",
+        onFocus: () => onFocus(index),
         onClick: (event) => onSelect(item, index, event),
         onDoubleClick: canOpen ? onOpen : undefined,
         onKeyDown: handleKeyDown,

@@ -17,6 +17,8 @@ export function ReaderLibraryList<T>({
   getItemKey,
   onVisibleItemsChange,
   onItemsChange,
+  focusIndex,
+  listLabel,
   columns = 1,
   gap = 0,
 }: {
@@ -30,6 +32,8 @@ export function ReaderLibraryList<T>({
   getItemKey?(item: T): string
   onVisibleItemsChange?(items: readonly T[]): void
   onItemsChange?(items: readonly T[]): void
+  focusIndex?: number
+  listLabel?: string
   columns?: number
   gap?: number
 }) {
@@ -65,6 +69,17 @@ export function ReaderLibraryList<T>({
   useEffect(() => {
     onItemsChange?.(items)
   }, [items, onItemsChange])
+
+  useEffect(() => {
+    if (focusIndex === undefined || focusIndex < 0 || focusIndex >= items.length) return
+    virtualizer.scrollToIndex(Math.floor(focusIndex / columnCount), { align: "auto" })
+    const frame = requestAnimationFrame(() => {
+      viewportRef.current
+        ?.querySelector<HTMLElement>(`[data-library-item-index="${focusIndex}"] [data-library-item-focus="true"]`)
+        ?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [columnCount, focusIndex, items.length, virtualizer])
 
   useEffect(() => () => onVisibleItemsChange?.([]), [onVisibleItemsChange])
 
@@ -133,7 +148,13 @@ export function ReaderLibraryList<T>({
         </Button>
       </div>
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
-      <div ref={viewportRef} className="h-72 min-h-32 overflow-auto rounded border bg-background/60">
+      <div
+        ref={viewportRef}
+        className="h-72 min-h-32 overflow-auto rounded border bg-background/60"
+        role={listLabel ? "listbox" : undefined}
+        aria-label={listLabel}
+        aria-multiselectable={listLabel ? true : undefined}
+      >
         {items.length === 0 && !loading ? (
           <div className="grid h-24 place-items-center text-xs text-muted-foreground">{emptyLabel}</div>
         ) : (
@@ -154,7 +175,11 @@ export function ReaderLibraryList<T>({
                   }}
                 >
                   {rowItems.length ? rowItems.map((item, offset) => (
-                    <div key={getItemKey ? getItemKey(item) : firstItemIndex + offset} className="min-w-0 overflow-hidden">
+                    <div
+                      key={getItemKey ? getItemKey(item) : firstItemIndex + offset}
+                      className="min-w-0 overflow-hidden"
+                      data-library-item-index={firstItemIndex + offset}
+                    >
                       {renderRow(item, firstItemIndex + offset)}
                     </div>
                   )) : <div className="col-span-full h-full animate-pulse bg-muted/35" aria-label="正在加载更多" />}
