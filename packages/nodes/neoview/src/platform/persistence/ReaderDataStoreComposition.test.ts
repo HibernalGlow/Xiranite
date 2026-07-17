@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { createReaderHeadlessController, createReaderHttpController } from "../../platform.js"
+import { createReaderFileTreeController, createReaderHeadlessController, createReaderHttpController } from "../../platform.js"
 
 const roots: string[] = []
 
@@ -132,6 +132,66 @@ describe("Reader data store composition", () => {
       .toEqual({ revision: 1, favorite: 1, page_mode: "double" })
     database.close()
   })
+
+  it("[neoview.folder.emm-headless-composition] lazily shares one legacy database for tag search, suggestions and history", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-reader-folder-emm-headless-"))
+    roots.push(root)
+    const databasePath = join(root, "thumbnails.db")
+    const bookPath = join(root, "Alice.cbz")
+    await writeFile(bookPath, Uint8Array.of(1, 2, 3))
+    const seed = await openDatabase(databasePath)
+    seed.exec(`
+      CREATE TABLE thumbs (key TEXT PRIMARY KEY, emm_json TEXT, rating_data TEXT, manual_tags TEXT);
+      INSERT INTO thumbs (key, emm_json) VALUES (${sqlString(bookPath)},
+        '{"tags":[{"namespace":"artist","tag":"Alice"}]}');
+    `)
+    seed.close()
+
+    const controller = await createReaderFileTreeController({
+      configPath: join(root, "missing.toml"),
+      legacyThumbnailDatabasePath: databasePath,
+    })
+    try {
+      const opened = await controller.open({ path: root })
+      expect(opened.metadataCapabilities).toContain("tags")
+      const search = controller.search("", { maximumDepth: 0, includeTags: ["artist:alice"] })
+      const events = []
+      for await (const event of search.events) events.push(event)
+      await search.close()
+      expect(events).toContainEqual(expect.objectContaining({ type: "entry", entry: expect.objectContaining({ path: bookPath }) }))
+      await expect(controller.suggestEmmTags(4)).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ category: "artist", tag: "Alice", favorite: false }),
+      ]))
+      await expect(controller.recordSearchHistory("folder", "alice")).resolves.toMatchObject({ query: "alice" })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+
+    const verified = await openDatabase(databasePath)
+    expect(verified.get("SELECT query, use_count FROM xr_reader_search_history WHERE scope_id = 'folder'"))
+      .toEqual({ query: "alice", use_count: 1 })
+    verified.close()
+  })
+
+  it("[neoview.folder.emm-headless-disabled] keeps ordinary browsing available without opening Reader SQLite", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-reader-folder-emm-disabled-"))
+    roots.push(root)
+    await writeFile(join(root, "book.cbz"), Uint8Array.of(1))
+    const controller = await createReaderFileTreeController({
+      configPath: join(root, "missing.toml"),
+      legacyThumbnailDatabasePath: false,
+      searchHistoryStore: false,
+    })
+    try {
+      const opened = await controller.open({ path: root })
+      expect(opened.metadataCapabilities).toEqual(expect.arrayContaining(["date", "size"]))
+      expect(opened.metadataCapabilities).not.toContain("tags")
+      expect(() => controller.search("", { maximumDepth: 0, includeTags: ["artist:alice"] })).toThrow("unavailable")
+      await expect(controller.suggestEmmTags()).rejects.toThrow("unavailable")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
 })
 
 function authorized(path: string, init: RequestInit = {}): Request {
@@ -162,6 +222,7 @@ function pngHeader(width: number, height: number): Uint8Array {
 
 interface TestDatabase {
   get(sql: string): Record<string, unknown> | undefined
+  exec(sql: string): void
   close(): void
 }
 
@@ -171,17 +232,23 @@ async function openDatabase(path: string): Promise<TestDatabase> {
     const sqlite = await import(moduleName) as unknown as {
       Database: new (path: string, options: { readonly: boolean; strict: boolean }) => {
         query(sql: string): { get(): Record<string, unknown> | null }
+        exec(sql: string): void
         close(): void
       }
     }
-    const database = new sqlite.Database(path, { readonly: true, strict: true })
-    return { get: (sql) => database.query(sql).get() ?? undefined, close: () => database.close() }
+    const database = new sqlite.Database(path, { readonly: false, strict: true })
+    return { get: (sql) => database.query(sql).get() ?? undefined, exec: (sql) => database.exec(sql), close: () => database.close() }
   }
   const moduleName = "node:sqlite"
   const sqlite = await import(moduleName) as typeof import("node:sqlite")
-  const database = new sqlite.DatabaseSync(path, { readOnly: true })
+  const database = new sqlite.DatabaseSync(path, { readOnly: false })
   return {
     get: (sql) => database.prepare(sql).get() as Record<string, unknown> | undefined,
+    exec: (sql) => database.exec(sql),
     close: () => database.close(),
   }
+}
+
+function sqlString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
 }

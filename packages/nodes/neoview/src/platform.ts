@@ -16,6 +16,8 @@ import type { ReaderEmmOverrideStore } from "./ports/ReaderEmmOverrideStore.js"
 import type { ReaderSearchHistoryStore } from "./ports/ReaderSearchHistoryStore.js"
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderEmmTagCatalogStore } from "./ports/ReaderEmmTagCatalogStore.js"
+import type { ReaderDirectoryMetadataField } from "./ports/ReaderDirectoryMetadataProvider.js"
 import type { ResourceScheduler } from "./ports/ResourceScheduler.js"
 import type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 import type { ReaderPresentationDiskCache } from "./ports/ReaderPresentationDiskCache.js"
@@ -113,6 +115,10 @@ const CURRENT_STATUS: NeoViewMigrationStatus = {
   readerCoreReady: true,
 }
 
+const HEADLESS_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
+  "date", "size", "rating", "collectTagCount", "pageCount", "tags",
+])
+
 export function createNodeNeoviewRuntime(): NeoViewRuntime {
   return {
     migrationStatus: async () => ({ ...CURRENT_STATUS }),
@@ -141,18 +147,45 @@ export async function createReaderFileTreeController(
   const { PlatformFileTreeScanner } = await import("./platform/filesystem/PlatformFileTreeScanner.js")
   const { PlatformFileTreeWatcher } = await import("./platform/filesystem/PlatformFileTreeWatcher.js")
   const { PlatformReaderDirectorySizeProvider } = await import("./platform/filesystem/PlatformReaderDirectorySizeProvider.js")
+  const { PlatformDirectoryMetadataProvider } = await import("./platform/filesystem/PlatformDirectoryMetadataProvider.js")
+  const { PlatformEmmCollectTagSource } = await import("./platform/emm/PlatformEmmCollectTagSource.js")
+  const { PlatformEmmTranslationSource, emmTranslationKey } = await import("./platform/emm/PlatformEmmTranslationSource.js")
+  const { LazyReaderDirectoryMetadataProvider } = await import("./application/browser/LazyReaderDirectoryMetadataProvider.js")
+  const { LazyReaderDataStoreResource } = await import("./platform/persistence/LazyReaderDataStoreResource.js")
   const { platformReaderDirectoryEntryType } = await import("./platform/filesystem/PlatformReaderDirectoryEntryClassifier.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const { ReaderMediaFormatRegistry } = await import("./domain/page/media.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
   const mediaFormats = new ReaderMediaFormatRegistry(runtimeConfig.media)
+  const externalSearchHistoryStore = options.searchHistoryStore || undefined
+  const externalSharedStore = isReaderFileTreeDataStore(externalSearchHistoryStore)
+    ? externalSearchHistoryStore
+    : undefined
+  const ownedDataStore = externalSharedStore || options.legacyThumbnailDatabasePath === false
+    ? undefined
+    : new LazyReaderDataStoreResource(async () => createSqliteReaderDataStore(
+        await legacyNeoViewDatabasePath(
+          typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
+        ),
+      ))
+  const loadSharedStore = externalSharedStore
+    ? async () => externalSharedStore
+    : ownedDataStore ? () => ownedDataStore.get() : undefined
+  const collectTagSource = new PlatformEmmCollectTagSource()
+  const emmTranslations = new PlatformEmmTranslationSource()
+  const metadataProvider = loadSharedStore
+    ? new LazyReaderDirectoryMetadataProvider(
+        HEADLESS_DIRECTORY_METADATA_FIELDS,
+        async () => new PlatformDirectoryMetadataProvider(await loadSharedStore(), collectTagSource),
+      )
+    : new PlatformDirectoryMetadataProvider(undefined, collectTagSource)
   const updateExcludedPaths = async (paths: readonly string[]) => {
     const { commitNeoviewFileTreeExclusions } = await import("./platform/config/NeoviewFileTreeConfigStore.js")
     return commitNeoviewFileTreeExclusions(paths, options)
   }
   const service = new ReaderFileTreeService(
     new PlatformDirectoryListingProvider(mediaFormats),
-    undefined,
+    metadataProvider,
     undefined,
     {
       scanner: options.scanner ?? new PlatformFileTreeScanner(options.resourceScheduler, "neoview:file-tree-headless"),
@@ -165,20 +198,38 @@ export async function createReaderFileTreeController(
       classifyEntry: (entry) => platformReaderDirectoryEntryType(entry, mediaFormats),
     },
   )
-  const externalSearchHistoryStore = options.searchHistoryStore || undefined
-  const loadSearchHistory = options.searchHistoryStore === false || options.legacyThumbnailDatabasePath === false
+  const loadSearchHistory = options.searchHistoryStore === false
     ? undefined
-    : async () => {
-        const store = externalSearchHistoryStore ?? await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(
-          typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
-        ))
+    : externalSearchHistoryStore
+      ? async () => {
         const { ReaderSearchHistoryService } = await import("./application/browser/ReaderSearchHistoryService.js")
         return {
-          service: new ReaderSearchHistoryService(store),
-          close: externalSearchHistoryStore ? async () => undefined : () => store.close(),
+          service: new ReaderSearchHistoryService(externalSearchHistoryStore),
+          close: async () => undefined,
         }
       }
-  return new ReaderFileTreeHeadlessController(service, { loadSearchHistory })
+      : loadSharedStore ? async () => {
+          const { ReaderSearchHistoryService } = await import("./application/browser/ReaderSearchHistoryService.js")
+          return { service: new ReaderSearchHistoryService(await loadSharedStore()), close: async () => undefined }
+        } : undefined
+  const loadEmmTagSuggestions = loadSharedStore
+    ? async () => {
+        const { ReaderEmmTagSuggestionService } = await import("./application/metadata/ReaderEmmTagSuggestionService.js")
+        const store = await loadSharedStore()
+        return new ReaderEmmTagSuggestionService(store, collectTagSource, undefined, {
+          translate: (tags, signal) => emmTranslations.translate(tags, signal),
+          key: emmTranslationKey,
+        })
+      }
+    : undefined
+  return new ReaderFileTreeHeadlessController(service, {
+    loadSearchHistory,
+    loadEmmTagSuggestions,
+    closeResources: async () => {
+      emmTranslations.clear()
+      await ownedDataStore?.close()
+    },
+  })
 }
 
 export async function createReaderAssetRoute(
@@ -657,7 +708,14 @@ function isReaderDirectoryEmmRecordStore(store: ReaderProgressStore | undefined)
     && typeof (store as Partial<ReaderDirectoryEmmRecordStore>).readDirectoryEmmRecords === "function")
 }
 
-async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore & ReaderEmmOverrideStore> {
+function isReaderFileTreeDataStore(store: ReaderSearchHistoryStore | undefined): store is ReaderSearchHistoryStore & ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore {
+  return Boolean(store
+    && typeof (store as Partial<ReaderDirectoryEmmRecordStore>).directoryEmmAvailable === "boolean"
+    && typeof (store as Partial<ReaderDirectoryEmmRecordStore>).readDirectoryEmmRecords === "function"
+    && typeof (store as Partial<ReaderEmmTagCatalogStore>).sampleEmmTags === "function")
+}
+
+async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore & ReaderEmmOverrideStore> {
   const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
   return SqliteReaderDataStore.open(databasePath)
 }

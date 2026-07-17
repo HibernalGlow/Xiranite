@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { ReaderFileTreeService } from "../browser/ReaderFileTreeService.js"
 import { ReaderFileTreeHeadlessController } from "./ReaderFileTreeHeadlessController.js"
 import { ReaderSearchHistoryService } from "../browser/ReaderSearchHistoryService.js"
+import { ReaderEmmTagSuggestionService } from "../metadata/ReaderEmmTagSuggestionService.js"
 
 describe("ReaderFileTreeHeadlessController", () => {
   it("[neoview.folder.headless] shares lazy tree, streaming search, exclusions and deterministic disposal", async () => {
@@ -85,5 +86,51 @@ describe("ReaderFileTreeHeadlessController", () => {
     await controller[Symbol.asyncDispose]()
     await controller[Symbol.asyncDispose]()
     expect(close).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.folder.emm-tag-suggestions-headless] lazily shares suggestions and closes owned resources once", async () => {
+    const service = new ReaderFileTreeService({
+      async read(path) { return { path, entries: [] } },
+      async canonicalize(path) { return path },
+    })
+    const loadEmmTagSuggestions = vi.fn(async () => new ReaderEmmTagSuggestionService({
+      sampleEmmTags: async () => [{ category: "artist", tag: "Alice" }],
+    }, { load: async () => ({ tags: [] }) }, () => 0))
+    const closeResources = vi.fn(async () => undefined)
+    const controller = new ReaderFileTreeHeadlessController(service, { loadEmmTagSuggestions, closeResources })
+
+    expect(loadEmmTagSuggestions).not.toHaveBeenCalled()
+    await expect(Promise.all([controller.suggestEmmTags(1), controller.suggestEmmTags(1)]))
+      .resolves.toEqual([[{ category: "artist", tag: "Alice", favorite: false }], [{ category: "artist", tag: "Alice", favorite: false }]])
+    expect(loadEmmTagSuggestions).toHaveBeenCalledOnce()
+    await controller[Symbol.asyncDispose]()
+    await controller[Symbol.asyncDispose]()
+    expect(closeResources).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.folder.headless-lazy-retry] retries rejected history and suggestion resource loads", async () => {
+    const service = new ReaderFileTreeService({ async read(path) { return { path, entries: [] } } })
+    const history = new ReaderSearchHistoryService({
+      listSearchHistory: async () => [],
+      recordSearchHistory: async (record) => ({ ...record, useCount: 1 }),
+      deleteSearchHistory: async () => false,
+      clearSearchHistory: async () => 0,
+    })
+    const loadSearchHistory = vi.fn()
+      .mockRejectedValueOnce(new Error("history locked"))
+      .mockResolvedValue({ service: history, close: async () => undefined })
+    const suggestions = new ReaderEmmTagSuggestionService({ sampleEmmTags: async () => [] }, { load: async () => ({ tags: [] }) })
+    const loadEmmTagSuggestions = vi.fn()
+      .mockRejectedValueOnce(new Error("tags locked"))
+      .mockResolvedValue(suggestions)
+    const controller = new ReaderFileTreeHeadlessController(service, { loadSearchHistory, loadEmmTagSuggestions })
+
+    await expect(controller.listSearchHistory("folder")).rejects.toThrow("history locked")
+    await expect(controller.listSearchHistory("folder")).resolves.toEqual([])
+    await expect(controller.suggestEmmTags()).rejects.toThrow("tags locked")
+    await expect(controller.suggestEmmTags()).resolves.toEqual([])
+    expect(loadSearchHistory).toHaveBeenCalledTimes(2)
+    expect(loadEmmTagSuggestions).toHaveBeenCalledTimes(2)
+    await controller[Symbol.asyncDispose]()
   })
 })
