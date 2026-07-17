@@ -154,6 +154,81 @@ describe("LibraryThumbnailRoute", () => {
     route.close()
     await pipeline.dispose()
   })
+
+  it("[neoview.thumbnail.library-warmup-http] streams GUI progress while generating valid items independently", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-warmup-route-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1, 2, 3))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(sourcePath),
+      loadImageTransformer: async () => ({
+        transform: async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(7)) }),
+      }),
+    })
+    const releaseContext = vi.spyOn(pipeline, "releaseContext")
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const response = (await route.handle(warmupRequest([
+      { id: "ready", path: sourcePath, kind: "file", previewCount: 1 },
+      { id: "missing", path: join(root, "missing.png"), kind: "file", previewCount: 1 },
+    ], true)))!
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("content-type")).toContain("application/x-ndjson")
+    const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(events[0]).toEqual({ type: "start", total: 2 })
+    expect(events).toContainEqual(expect.objectContaining({ type: "item", id: "ready", status: "completed" }))
+    expect(events).toContainEqual(expect.objectContaining({ type: "item", id: "missing", status: "failed" }))
+    expect(events.at(-1)).toEqual({ type: "complete", total: 2, completed: 1, failed: 1 })
+    expect(releaseContext).toHaveBeenCalledWith(expect.stringMatching(/^library:warmup:/))
+
+    route.close()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.library-warmup-http-validation] requires authorization and rejects invalid batches before streaming", async () => {
+    const pipeline = new PlatformThumbnailPipeline({})
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const item = { id: "cover", path: "D:/cover.jpg", kind: "file" as const, previewCount: 1 as const }
+    expect((await route.handle(warmupRequest([item], false)))?.status).toBe(401)
+    expect((await route.handle(warmupRequest([{ ...item, previewCount: 4 }], true)))?.status).toBe(400)
+    route.close()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.library-warmup-http-cancel] cancels generation when the GUI route closes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-warmup-cancel-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1, 2, 3))
+    let transformSignal: AbortSignal | undefined
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(sourcePath),
+      loadImageTransformer: async () => ({
+        transform: async (_input, _request, signal) => {
+          transformSignal = signal
+          return {
+            contentType: "image/webp",
+            stream: new ReadableStream<Uint8Array>({
+              start(controller) {
+                signal?.addEventListener("abort", () => controller.error(signal.reason), { once: true })
+              },
+            }),
+          }
+        },
+      }),
+    })
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const response = (await route.handle(warmupRequest([
+      { id: "cover", path: sourcePath, kind: "file", previewCount: 1 },
+    ], true)))!
+    const body = response.text()
+    await vi.waitFor(() => expect(transformSignal).toBeInstanceOf(AbortSignal))
+    route.close()
+    await expect(body).resolves.toContain('"type":"start"')
+    expect(transformSignal?.aborted).toBe(true)
+    await pipeline.dispose()
+  })
 })
 
 function registerRequest(
@@ -174,6 +249,20 @@ function registerRequest(
       generation,
       items: [{ id: "cover", path, kind, previewCount }],
     }),
+  })
+}
+
+function warmupRequest(
+  items: Array<{ id: string; path: string; kind: "file" | "folder"; previewCount: 1 | 4 | 9 | 16 }>,
+  authorized: boolean,
+): Request {
+  return new Request("http://127.0.0.1:41000/reader/library/thumbnails/prewarm", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(authorized ? { "x-xiranite-token": "secret" } : {}),
+    },
+    body: JSON.stringify({ items, concurrency: 2 }),
   })
 }
 

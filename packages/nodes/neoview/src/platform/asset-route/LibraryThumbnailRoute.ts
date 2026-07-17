@@ -3,6 +3,11 @@ import type { ThumbnailAsset, ThumbnailLease } from "@xiranite/services/thumbnai
 import pMap from "p-map"
 
 import {
+  ReaderLibraryThumbnailWarmupCommandSchema,
+  ReaderLibraryThumbnailWarmupService,
+  type ReaderLibraryThumbnailWarmupProgress,
+} from "../../application/thumbnails/ReaderLibraryThumbnailWarmupService.js"
+import {
   PlatformThumbnailPipeline,
   ThumbnailRetryDeferredError,
   ThumbnailUnavailableError,
@@ -14,6 +19,7 @@ import {
 const ASSET_PATH = /^\/reader\/library\/t\/([^/]+)$/
 const CONTEXT_PATH = /^\/reader\/library\/contexts\/([^/]+)$/
 const REGISTER_PATH = "/reader/library/thumbnails"
+const PREWARM_PATH = "/reader/library/thumbnails/prewarm"
 const MAX_BATCH_ITEMS = 64
 const MAX_ASSETS = 4096
 
@@ -40,6 +46,7 @@ export class LibraryThumbnailRoute {
   readonly #token: string
   readonly #assets = new Map<string, LibraryAssetRecord>()
   readonly #contexts = new Map<string, ContextRecord>()
+  readonly #warmups = new Set<AbortController>()
   #closed = false
 
   constructor(pipeline: PlatformThumbnailPipeline, options: LibraryThumbnailRouteOptions) {
@@ -52,9 +59,10 @@ export class LibraryThumbnailRoute {
     const url = new URL(request.url)
     const assetMatch = ASSET_PATH.exec(url.pathname)
     const contextMatch = CONTEXT_PATH.exec(url.pathname)
-    const matchesRoute = url.pathname === REGISTER_PATH || Boolean(assetMatch) || Boolean(contextMatch)
+    const matchesRoute = url.pathname === REGISTER_PATH || url.pathname === PREWARM_PATH || Boolean(assetMatch) || Boolean(contextMatch)
     if (!matchesRoute) return undefined
     if (!this.#isAuthorized(request, url)) return textResponse("Unauthorized", 401)
+    if (url.pathname === PREWARM_PATH && request.method === "POST") return this.#prewarm(request)
     if (url.pathname === REGISTER_PATH && request.method === "POST") return this.#register(request)
     if (assetMatch) return this.#serve(request, url, assetMatch[1]!)
     if (contextMatch && request.method === "DELETE") return this.#releaseContext(contextMatch[1]!)
@@ -64,6 +72,8 @@ export class LibraryThumbnailRoute {
   close(): void {
     if (this.#closed) return
     this.#closed = true
+    for (const warmup of this.#warmups) warmup.abort(new DOMException("Thumbnail route closed", "AbortError"))
+    this.#warmups.clear()
     for (const contextId of this.#contexts.keys()) this.#pipeline.releaseContext(pipelineContextId(contextId))
     this.#assets.clear()
     this.#contexts.clear()
@@ -108,6 +118,70 @@ export class LibraryThumbnailRoute {
       return { id: item.id, thumbnailUrl: this.#assetUrl(record), contentVersion: source.contentVersion }
     })
     return jsonResponse({ contextId: parsed.contextId, generation: parsed.generation, items }, 201)
+  }
+
+  async #prewarm(request: Request): Promise<Response> {
+    if (this.#closed) return jsonResponse({ error: "Thumbnail route is closed" }, 410)
+    const body = await readJson(request)
+    const parsed = ReaderLibraryThumbnailWarmupCommandSchema.safeParse(body)
+    if (!parsed.success) return jsonResponse({ error: "1..256 valid thumbnail warmup items are required" }, 400)
+    const contextId = `library:warmup:${randomBytes(18).toString("base64url")}`
+    const operation = new AbortController()
+    this.#warmups.add(operation)
+    const abort = () => operation.abort(request.signal.reason ?? new DOMException("Thumbnail warmup request cancelled", "AbortError"))
+    if (request.signal.aborted) abort()
+    else request.signal.addEventListener("abort", abort, { once: true })
+    const service = new ReaderLibraryThumbnailWarmupService({
+      warm: async (item, options) => {
+        const source = await this.#pipeline.describeLibrarySource(item.path, item.kind, options.signal, item.previewCount)
+        const lease = this.#pipeline.acquireLibrary(source, {
+          contextId: options.contextId,
+          generation: 0,
+          lane: "background",
+          signal: options.signal,
+        })
+        try {
+          await lease.ready
+        } finally {
+          lease.release()
+        }
+      },
+    })
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        const write = (value: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(value)}\n`))
+        write({ type: "start", total: parsed.data.items.length })
+        void service.run(parsed.data, {
+          contextId,
+          signal: operation.signal,
+          onProgress: (progress: ReaderLibraryThumbnailWarmupProgress) => write(progress),
+        }).then((summary) => {
+          write({ type: "complete", ...summary })
+          controller.close()
+        }).catch((error) => {
+          try {
+            if (!operation.signal.aborted) controller.error(error)
+            else controller.close()
+          } catch {
+            // The response consumer may already have cancelled the stream.
+          }
+        }).finally(() => {
+          request.signal.removeEventListener("abort", abort)
+          this.#warmups.delete(operation)
+          this.#pipeline.releaseContext(contextId)
+        })
+      },
+      cancel: (reason) => operation.abort(reason),
+    })
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "application/x-ndjson; charset=utf-8",
+        "x-content-type-options": "nosniff",
+      },
+    })
   }
 
   async #serve(request: Request, url: URL, encodedAssetId: string): Promise<Response> {

@@ -137,6 +137,19 @@ export {
   type ReaderThumbnailMaintenanceStatus,
 } from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 export {
+  ReaderLibraryThumbnailWarmupCommandSchema,
+  ReaderLibraryThumbnailWarmupService,
+  type ReaderLibraryThumbnailWarmupCommand,
+  type ReaderLibraryThumbnailWarmupProgress,
+  type ReaderLibraryThumbnailWarmupSummary,
+} from "./application/thumbnails/ReaderLibraryThumbnailWarmupService.js"
+export type {
+  ReaderLibraryThumbnailPreviewCount,
+  ReaderLibraryThumbnailWarmupItem,
+  ReaderLibraryThumbnailWarmupKind,
+  ReaderLibraryThumbnailWarmupPort,
+} from "./ports/ReaderLibraryThumbnailWarmupPort.js"
+export {
   ReaderPreloadCoordinator,
   type ReaderNavigationIntent,
   type ReaderPreloadCandidate,
