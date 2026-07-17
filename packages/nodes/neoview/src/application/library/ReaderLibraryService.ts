@@ -333,6 +333,15 @@ function normalizeCleanupLimit(limit: number): number {
   return limit
 }
 
+function normalizeFolderCleanupPath(path: string): string {
+  if (typeof path !== "string") throw new Error("Reader library cleanup folder path is invalid.")
+  const normalized = path.trim().replaceAll("\\", "/").toLocaleLowerCase("en-US")
+  if (!normalized || normalized.length > 32_768 || normalized.includes("\0")) {
+    throw new Error("Reader library cleanup folder path is invalid.")
+  }
+  return normalized
+}
+
 function normalizeLimit(limit: number, fallback: number): number {
   if (!Number.isSafeInteger(limit) || limit <= 0) throw new Error("Reader library limit is invalid.")
   return Math.min(limit || fallback, 500)

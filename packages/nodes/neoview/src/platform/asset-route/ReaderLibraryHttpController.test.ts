@@ -50,6 +50,10 @@ describe("ReaderLibraryHttpController", () => {
     expect((await controller.handle(jsonRequest("/reader/library/recents/batch", { ids: [] }, "DELETE")))?.status).toBe(400)
     const cleanup = (await controller.handle(jsonRequest("/reader/library/recents/cleanup", { before: 100, limit: 20 })))!
     expect(await cleanup.json()).toEqual({ deleted: 3 })
+    store.clearByPathPrefix.mockResolvedValueOnce(4)
+    const folderCleanup = (await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "folder", path: "D:/Books" })))!
+    await expect(folderCleanup.json()).resolves.toEqual({ deleted: 4 })
+    expect(store.clearByPathPrefix).toHaveBeenLastCalledWith("recents", "d:/books")
 
     const created = (await controller.handle(jsonRequest("/reader/library/bookmarks", {
       source: { kind: "archive", path: "D:/demo.cbz" },
@@ -91,6 +95,11 @@ describe("ReaderLibraryHttpController", () => {
     store.deleteBookmarkBatch.mockResolvedValue({ deleted: 1, missingIds: ["missing"] })
     const deleted = (await controller.handle(jsonRequest("/reader/library/bookmarks/batch", { ids: ["one", "missing"] }, "DELETE")))!
     await expect(deleted.json()).resolves.toEqual({ deleted: 1, missingIds: ["missing"] })
+    store.clearByPathPrefix.mockResolvedValueOnce(2)
+    const bookmarkCleanup = (await controller.handle(jsonRequest("/reader/library/bookmarks/cleanup", { kind: "folder", path: "D:\\Books" })))!
+    await expect(bookmarkCleanup.json()).resolves.toEqual({ deleted: 2 })
+    expect(store.clearByPathPrefix).toHaveBeenLastCalledWith("bookmarks", "d:/books")
+    expect((await controller.handle(jsonRequest("/reader/library/bookmarks/cleanup", { kind: "folder", path: "D:/Books", future: true })))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/batch", { updates: [] }, "PATCH")))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { starred: false, future: true }, "PATCH")))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/bookmarks/generated", { listIds: ["favorites"] }, "PATCH")))?.status).toBe(400)
@@ -144,6 +153,7 @@ function createStore() {
     deleteRecentBatch: vi.fn<ReaderLibraryStore["deleteRecentBatch"]>(),
     deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
+    clearByPathPrefix: vi.fn<ReaderLibraryStore["clearByPathPrefix"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<ReaderLibraryStore["upsertBookmark"]>(async () => undefined),

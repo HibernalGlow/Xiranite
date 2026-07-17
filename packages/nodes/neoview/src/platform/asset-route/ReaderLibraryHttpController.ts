@@ -34,7 +34,13 @@ export class ReaderLibraryHttpController {
           }
           return jsonResponse(await this.library.removeOldestRecents(limit, request.signal))
         }
-        if (body.kind !== undefined) return jsonResponse({ error: "kind must be oldest when provided" }, 400)
+        if (body.kind === "folder") {
+          if (typeof body.path !== "string" || Object.keys(body).some((key) => key !== "kind" && key !== "path")) {
+            return jsonResponse({ error: "folder cleanup accepts only kind and path" }, 400)
+          }
+          return jsonResponse({ deleted: await this.library.clearByFolder("recents", body.path) })
+        }
+        if (body.kind !== undefined) return jsonResponse({ error: "kind must be oldest or folder when provided" }, 400)
         if (!isTimestamp(body.before)) return jsonResponse({ error: "before must be a non-negative integer timestamp" }, 400)
         const limit = optionalPositiveInteger(body.limit, 500)
         if (limit === undefined) return jsonResponse({ error: "limit must be a positive integer" }, 400)
@@ -93,6 +99,14 @@ export class ReaderLibraryHttpController {
         const ids = body && parseBatchIds(body.ids)
         if (!ids) return jsonResponse({ error: "Invalid reader bookmark batch delete" }, 400)
         return jsonResponse(await this.library.removeBookmarks(ids, request.signal))
+      }
+      if (url.pathname === "/reader/library/bookmarks/cleanup" && request.method === "POST") {
+        const body = await readJson(request)
+        if (!body || body.kind !== "folder" || typeof body.path !== "string"
+          || Object.keys(body).some((key) => key !== "kind" && key !== "path")) {
+          return jsonResponse({ error: "Bookmark folder cleanup requires only kind and path" }, 400)
+        }
+        return jsonResponse({ deleted: await this.library.clearByFolder("bookmarks", body.path) })
       }
       const bookmarkMatch = BOOKMARK_ITEM_PATH.exec(url.pathname)
       if (bookmarkMatch && request.method === "PATCH") {

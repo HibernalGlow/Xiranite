@@ -259,6 +259,36 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.library.cleanup-folder-sqlite] preserves legacy case-insensitive raw prefix semantics for both collections", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    for (const [bookId, sourcePath] of [["book", "D:\\Books\\one.cbz"], ["bookshelf", "D:/Bookshelf/two.cbz"], ["other", "D:/Other/three.cbz"]] as const) {
+      await store.save({
+        bookId,
+        source: { kind: "archive", path: sourcePath },
+        displayName: bookId,
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt: 1,
+      })
+    }
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.upsertBookmark({ ...bookmark("book-mark", false, ["reading"]), source: { kind: "archive", path: "D:/BOOKS/four.cbz" } })
+    await store.upsertBookmark({ ...bookmark("other-mark", false, ["default"]), source: { kind: "archive", path: "D:/Other/five.cbz" } })
+
+    await expect(store.clearByPathPrefix("recents", "d:/books")).resolves.toBe(2)
+    await expect(store.clearByPathPrefix("bookmarks", "d:/books")).resolves.toBe(1)
+    await expect(store.listRecent({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "other" }),
+    ])
+    await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "other-mark" }),
+    ])
+    await expect(store.clearByPathPrefix("recents", "")).rejects.toThrow("path-prefix cleanup is invalid")
+    await store.close()
+  })
+
   it("[neoview.file-operations.undo-sqlite] persists and bounds guarded receipts without changing legacy metadata", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)
