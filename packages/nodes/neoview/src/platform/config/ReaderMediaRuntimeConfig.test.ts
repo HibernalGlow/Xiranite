@@ -145,6 +145,14 @@ describe("Reader media runtime config", () => {
         mediaMimeTypes: { ...current.media.mediaMimeTypes, comicimage: "image/webp" },
       } })
       expect(formats.status).toBe(200)
+      const browser = await readerRequest(controller, "/reader/browser/sessions", "POST", { path: root })
+      expect(browser.status).toBe(201)
+      expect(await browser.json()).toMatchObject({
+        entries: expect.arrayContaining([expect.objectContaining({
+          name: "cover.comicimage",
+          readerSupported: true,
+        })]),
+      })
       const opened = await readerRequest(controller, "/reader/sessions", "POST", { path: customPath })
       expect(opened.status).toBe(201)
       const openedBody = await opened.json() as { sessionId: string }
