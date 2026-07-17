@@ -364,6 +364,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.searchHistoryStore ? new ReaderSearchHistoryService(options.searchHistoryStore) : undefined,
       undefined,
       this.#mediaFormats,
+      options.emmOverrideStore,
     )
     this.#fileOperations = new ReaderFileOperationHttpController(async () => {
       const { ReaderFileOperationService } = await import("../../application/files/ReaderFileOperationService.js")

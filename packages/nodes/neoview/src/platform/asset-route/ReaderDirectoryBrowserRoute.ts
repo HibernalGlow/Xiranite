@@ -35,12 +35,20 @@ import {
   ReaderSearchHistoryService,
   type ReaderSearchHistoryScope,
 } from "../../application/browser/ReaderSearchHistoryService.js"
+import {
+  ReaderDirectoryEmmEditService,
+  ReaderDirectoryEmmEditSessionNotFound,
+} from "../../application/metadata/ReaderDirectoryEmmEditService.js"
+import { ReaderEmmMetadataService } from "../../application/metadata/ReaderEmmMetadataService.js"
+import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
+import { z } from "zod"
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_ROOTS_PATH = "/reader/browser/roots"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/changes$/
 const BROWSER_DIRECTORY_SIZES_PATH = /^\/reader\/browser\/s\/([^/]+)\/directory-sizes$/
+const BROWSER_EMM_METADATA_PATH = /^\/reader\/browser\/s\/([^/]+)\/emm-metadata$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
 const BROWSER_TREE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree$/
 const BROWSER_TREE_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree\/changes$/
@@ -60,6 +68,7 @@ const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: ReaderFileTreeService
   readonly #searchHistory?: ReaderSearchHistoryService
+  readonly #emmEditor?: ReaderDirectoryEmmEditService
 
   constructor(
     sortPreferenceStore?: ReaderDirectorySortPreferenceStore,
@@ -70,6 +79,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     searchHistory?: ReaderSearchHistoryService,
     private readonly directoryRootProvider: ReaderDirectoryRootProvider = new PlatformDirectoryRootProvider(),
     mediaFormats?: ReaderMediaTypeResolver,
+    emmOverrideStore?: ReaderEmmOverrideStore,
   ) {
     this.#searchHistory = searchHistory
     this.#browser = new ReaderFileTreeService(
@@ -83,6 +93,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         directorySizeProvider: fileTreeOptions.directorySizeProvider ?? new PlatformReaderDirectorySizeProvider({ resourceScheduler }),
       },
     )
+    this.#emmEditor = emmOverrideStore
+      ? new ReaderDirectoryEmmEditService(new ReaderEmmMetadataService(emmOverrideStore), this.#browser)
+      : undefined
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -97,6 +110,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (changesMatch && request.method === "GET") return this.#changes(changesMatch[1]!, url, request.signal)
     const directorySizesMatch = BROWSER_DIRECTORY_SIZES_PATH.exec(url.pathname)
     if (directorySizesMatch && request.method === "POST") return this.#directorySizes(directorySizesMatch[1]!, request)
+    const emmMetadataMatch = BROWSER_EMM_METADATA_PATH.exec(url.pathname)
+    if (emmMetadataMatch && request.method === "PATCH") return this.#editEmmMetadata(emmMetadataMatch[1]!, request)
     const searchMatch = BROWSER_SEARCH_PATH.exec(url.pathname)
     if (searchMatch && request.method === "GET") return this.#search(searchMatch[1]!, url, request)
     const treeChangesMatch = BROWSER_TREE_CHANGES_PATH.exec(url.pathname)
@@ -276,6 +291,26 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       if (request.signal.aborted) throw error
+      const message = errorMessage(error)
+      return errorResponse(message, message.includes("stale") ? 409 : 400)
+    }
+  }
+
+  async #editEmmMetadata(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    if (!this.#emmEditor) return errorResponse("Reader EMM metadata editing is unavailable", 503)
+    const body = await request.json().catch(() => undefined)
+    try {
+      return Response.json(await this.#emmEditor.update(
+        sessionId,
+        body as Parameters<ReaderDirectoryEmmEditService["update"]>[1],
+        request.signal,
+      ), responseInit())
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      if (error instanceof ReaderDirectoryEmmEditSessionNotFound) return errorResponse(error.message, 404)
+      if (error instanceof z.ZodError) return errorResponse("Reader directory EMM edit command is invalid", 400)
       const message = errorMessage(error)
       return errorResponse(message, message.includes("stale") ? 409 : 400)
     }

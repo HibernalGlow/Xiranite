@@ -766,6 +766,57 @@ export class ReaderFileTreeService implements AsyncDisposable {
     }
   }
 
+  async resolveEntries(
+    sessionId: string,
+    generation: number,
+    paths: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<readonly ReaderDirectoryEntry[] | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    await this.#ensureListing(session, signal)
+    assertCurrentGeneration(session, generation, "metadata edit")
+    signal?.throwIfAborted()
+    const entries = new Map(session.listing.entries.map((entry) => [normalizePathKey(entry.path), entry]))
+    return paths.map((path) => {
+      const entry = entries.get(normalizePathKey(path))
+      if (!entry) throw new RangeError("Reader directory metadata edit path is not in the current listing.")
+      return entry
+    })
+  }
+
+  async refreshEntryMetadata(
+    sessionId: string,
+    generation: number,
+    paths: readonly string[],
+    fields: ReadonlySet<ReaderDirectoryMetadataField>,
+    signal?: AbortSignal,
+  ): Promise<number | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    await this.#ensureListing(session, signal)
+    assertCurrentGeneration(session, generation, "metadata edit")
+    if (!this.metadataProvider) return session.generation
+    const requestedFields = new Set([...fields].filter((field) => this.metadataProvider!.supportedFields.has(field)))
+    for (const field of readerDirectoryMetadataFields(session.sort.field)) requestedFields.add(field)
+    if (!requestedFields.size) return session.generation
+    const selected = new Set(paths.map(normalizePathKey))
+    const sourceEntries = session.listing.entries.filter((entry) => selected.has(normalizePathKey(entry.path)))
+    if (sourceEntries.length !== selected.size) throw new RangeError("Reader directory metadata edit path is not in the current listing.")
+    const hydrated = await this.metadataProvider.hydrate(sourceEntries, requestedFields, signal)
+    signal?.throwIfAborted()
+    if (this.#sessions.get(sessionId) !== session) return undefined
+    assertCurrentGeneration(session, generation, "metadata edit")
+    const replacements = new Map(hydrated.map((entry) => [normalizePathKey(entry.path), entry]))
+    abortDirectorySizeOperations(session)
+    session.listing = sortListing({
+      ...session.listing,
+      entries: session.listing.entries.map((entry) => replacements.get(normalizePathKey(entry.path)) ?? entry),
+    }, session.sort, randomSeedForPath(session, session.listing.path))
+    session.generation += 1
+    return session.generation
+  }
+
   async close(sessionId: string, remember = false): Promise<boolean> {
     const session = this.#sessions.get(sessionId)
     if (!session) return false
@@ -1003,6 +1054,12 @@ export class ReaderFileTreeService implements AsyncDisposable {
 function abortDirectorySizeOperations(session: BrowserSession): void {
   for (const controller of session.directorySizeOperations) controller.abort(new DOMException("Reader directory generation changed", "AbortError"))
   session.directorySizeOperations.clear()
+}
+
+function assertCurrentGeneration(session: BrowserSession, generation: number, operation: string): void {
+  if (!Number.isSafeInteger(generation) || generation < 0 || generation !== session.generation) {
+    throw new Error(`Reader directory ${operation} generation is stale: ${generation}`)
+  }
 }
 
 function abortListingReload(session: BrowserSession): void {

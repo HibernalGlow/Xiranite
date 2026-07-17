@@ -29,10 +29,20 @@ export {
 export {
   ReaderEmmMetadataRevisionConflict,
   ReaderEmmMetadataService,
+  ReaderEmmMetadataPatchSchema,
   ReaderEmmMetadataSnapshotSchema,
   type ReaderEmmMetadataPatch,
   type ReaderEmmMetadataSnapshot,
 } from "./application/metadata/ReaderEmmMetadataService.js"
+export {
+  ReaderDirectoryEmmEditCommandSchema,
+  ReaderDirectoryEmmEditService,
+  ReaderDirectoryEmmEditSessionNotFound,
+  type ReaderDirectoryEmmEditCommand,
+  type ReaderDirectoryEmmEditResult,
+  type ReaderDirectoryEmmEditResultItem,
+  type ReaderDirectoryEmmEditScope,
+} from "./application/metadata/ReaderDirectoryEmmEditService.js"
 export type {
   ReaderEmmOverrideRecord,
   ReaderEmmOverrides,

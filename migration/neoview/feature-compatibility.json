@@ -153,7 +153,7 @@
       "settingsKeys": ["emmMetadata"],
       "dataStores": ["EMM databases", "translation dictionary", "manual tags", "folder ratings"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["自动/手动数据库路径", "评分读写", "收藏与手动标签", "collect tag 统计", "翻译字典", "批量同步和错误恢复"],
-      "testIds": ["neoview.emm.override-service", "neoview.emm.override-cas", "neoview.emm.override-sqlite", "neoview.emm.override-no-legacy", "neoview.emm.headless-contract", "neoview.emm.gui-contract", "neoview.emm.gui-unavailable", "neoview.emm.cli-connect"], "benchmarkIds": ["emm-batch-query"], "knownDifferences": ["旧 thumbs EMM 字段保持只读；新评分、手动标签和译名只写同一 thumbnails.db 的 xr_reader_emm_overrides，通过 revision CAS 非破坏覆盖", "GUI 编辑器、收藏/collect tag 统计、翻译字典、批量同步及完整 CLI/TUI 命令仍待完成"]
+      "testIds": ["neoview.emm.override-service", "neoview.emm.override-cas", "neoview.emm.override-sqlite", "neoview.emm.override-no-legacy", "neoview.emm.headless-contract", "neoview.emm.gui-contract", "neoview.emm.gui-unavailable", "neoview.emm.cli-connect", "neoview.folder.emm-edit-service", "neoview.folder.emm-edit-conflict", "neoview.folder.emm-edit-validation", "neoview.folder.emm-edit-http", "neoview.folder.emm-edit-boundary"], "benchmarkIds": ["emm-batch-query"], "knownDifferences": ["旧 thumbs EMM 字段保持只读；新评分、手动标签和译名只写同一 thumbnails.db 的 xr_reader_emm_overrides，通过 revision CAS 非破坏覆盖", "FolderMain 后端已支持 generation-bound 64 项批量编辑、逐项 CAS、单次 metadata 回填和排序 generation 刷新；GUI 编辑器尚未接线", "收藏/collect tag 统计、翻译字典、批量同步及完整 CLI/TUI 命令仍待完成"]
     },
     {
       "id": "history-bookmarks-progress",

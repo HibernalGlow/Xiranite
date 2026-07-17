@@ -18,11 +18,11 @@ const OverridesSchema = z.object({
   translatedTitle: z.string().trim().min(1).max(1_024).optional(),
 }).strict()
 
-const PatchSchema = z.object({
+export const ReaderEmmMetadataPatchSchema = z.object({
   rating: z.number().int().min(1).max(5).nullable().optional(),
   manualTags: z.array(TagSchema).max(256).nullable().optional(),
   translatedTitle: z.string().trim().min(1).max(1_024).nullable().optional(),
-}).strict()
+}).strict().refine((patch) => Object.keys(patch).length > 0, "patch must change at least one field")
 
 export const ReaderEmmMetadataSnapshotSchema = z.object({
   revision: z.number().int().nonnegative(),
@@ -33,7 +33,7 @@ export const ReaderEmmMetadataSnapshotSchema = z.object({
 
 export type ReaderEmmMetadataSnapshot = z.infer<typeof ReaderEmmMetadataSnapshotSchema>
 
-export type ReaderEmmMetadataPatch = z.infer<typeof PatchSchema>
+export type ReaderEmmMetadataPatch = z.infer<typeof ReaderEmmMetadataPatchSchema>
 
 export class ReaderEmmMetadataRevisionConflict extends Error {
   constructor(readonly actualRevision: number) {
@@ -63,7 +63,7 @@ export class ReaderEmmMetadataService {
   ): Promise<ReaderEmmMetadataSnapshot> {
     const identity = normalizePath(path)
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error("Reader EMM metadata expectedRevision is invalid.")
-    const parsed = PatchSchema.parse(patch)
+    const parsed = ReaderEmmMetadataPatchSchema.parse(patch)
     if (!Object.keys(parsed).length) throw new Error("Reader EMM metadata patch must change at least one field.")
     return this.#serialize(identity, async () => {
       signal?.throwIfAborted()
