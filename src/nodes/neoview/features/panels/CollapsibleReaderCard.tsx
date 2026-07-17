@@ -29,8 +29,8 @@ export function CollapsibleReaderCard({
   const gestureRef = useRef<CardHeightGesture | undefined>(undefined)
 
   return (
-    <section className="overflow-hidden rounded-md border border-border/70 bg-card/80 shadow-sm" data-reader-card={title}>
-      <header className="flex min-h-9 items-center justify-between gap-2 border-b border-border/60 px-2.5 py-1.5">
+    <section className="overflow-hidden border-b border-border/50 bg-transparent last:border-b-0" data-reader-card={title}>
+      <header className="flex min-h-10 items-center justify-between gap-2 px-1 py-1.5">
         <h3 className="truncate text-xs font-medium">{title}</h3>
         <div className="flex items-center gap-0.5">
           {height === undefined ? null : (
@@ -61,7 +61,7 @@ export function CollapsibleReaderCard({
         <>
           <div
             ref={contentRef}
-            className="overflow-auto p-3"
+            className="overflow-auto px-1 pb-3 pt-1"
             data-reader-card-content={title}
             style={{ height }}
           >
@@ -69,7 +69,7 @@ export function CollapsibleReaderCard({
           </div>
           <button
             type="button"
-            className="grid h-2 w-full touch-none cursor-ns-resize place-items-center text-muted-foreground/55 hover:bg-muted/70 hover:text-muted-foreground focus-visible:bg-muted/70 focus-visible:text-muted-foreground"
+            className="grid h-2 w-full touch-none cursor-ns-resize place-items-center text-muted-foreground/45 hover:bg-muted/50 hover:text-muted-foreground focus-visible:bg-muted/50 focus-visible:text-muted-foreground"
             aria-label={`调整${title}高度`}
             onPointerDown={startHeightGesture}
             onPointerMove={moveHeightGesture}

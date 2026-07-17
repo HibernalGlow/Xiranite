@@ -624,12 +624,17 @@ export function ReaderApp({
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
-      <div className={cn("border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-md", floatingFrame && "xiranite-app-region-drag")} style={edgeSurfaceStyle(shell, "top")} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}>
-        <div className={cn("flex items-center gap-2", compact ? "p-2" : "px-3 py-2.5")}>
+      <div
+        className={cn("border-b border-border/55 bg-background/94 text-foreground shadow-[0_10px_30px_rgb(0_0_0/0.22)] backdrop-blur-xl", floatingFrame && "xiranite-app-region-drag")}
+        data-reader-edge-chrome="top"
+        style={edgeSurfaceStyle(shell, "top")}
+        onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}
+      >
+        <div className={cn("flex min-h-11 items-center gap-1.5 border-b border-border/45", compact ? "px-2" : "px-3")}>
           <BookOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Input
             aria-label="漫画、图片或目录路径"
-            className="xiranite-app-region-no-drag min-w-0 flex-1"
+            className="xiranite-app-region-no-drag h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 text-xs shadow-none hover:border-border/55 focus-visible:border-border"
             value={path}
             placeholder="选择 CBZ、ZIP、图片或目录"
             onChange={(event) => setPath(event.currentTarget.value)}
@@ -640,9 +645,9 @@ export function ReaderApp({
               }
             }}
           />
-          {pickFile ? <Button className="xiranite-app-region-no-drag" aria-label="选择漫画或图片文件" type="button" size="sm" variant="outline" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
-          {pickDirectory ? <Button className="xiranite-app-region-no-drag" aria-label="选择图片目录" type="button" size="sm" variant="outline" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
-          <Button className="xiranite-app-region-no-drag" aria-label="打开书籍" type="button" size="sm" onClick={() => void openPath()} disabled={!path.trim() || busy}>
+          {pickFile ? <Button className="xiranite-app-region-no-drag" aria-label="选择漫画或图片文件" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
+          {pickDirectory ? <Button className="xiranite-app-region-no-drag" aria-label="选择图片目录" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
+          <Button className="xiranite-app-region-no-drag" aria-label="打开书籍" type="button" size={compact ? "icon-sm" : "sm"} onClick={() => void openPath()} disabled={!path.trim() || busy}>
             {busy && !session ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
             {compact ? null : "打开"}
           </Button>
@@ -672,17 +677,21 @@ export function ReaderApp({
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
-      <div className="border-t border-border/70 bg-background/90 shadow-[0_-4px_16px_rgb(0_0_0/0.15)] backdrop-blur-md" style={edgeSurfaceStyle(shell, "bottom")}>
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
-          <div className="min-w-0 truncate text-xs text-muted-foreground" title={session.book.displayName}>{session.book.displayName}</div>
-          <div className="flex shrink-0 items-center gap-1.5">
+      <div
+        className="border-t border-border/55 bg-background/94 shadow-[0_-12px_30px_rgb(0_0_0/0.24)] backdrop-blur-xl"
+        data-reader-edge-chrome="bottom"
+        style={edgeSurfaceStyle(shell, "bottom")}
+      >
+        <div className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/45 px-3 py-1.5">
+          <div className="min-w-0 truncate text-[11px] text-muted-foreground" title={session.book.displayName}>{session.book.displayName}</div>
+          <div className="flex shrink-0 items-center gap-1.5 rounded-md bg-muted/35 p-1">
             <Button aria-label="上一页" type="button" size="icon-sm" variant="outline" disabled={busy || frame?.atStart} onClick={() => void navigate("previous")}><ChevronLeft /></Button>
             <span className="min-w-16 text-center text-xs tabular-nums text-muted-foreground">
               {(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}
             </span>
             <Button aria-label="下一页" type="button" size="icon-sm" variant="outline" disabled={busy || frame?.atEnd} onClick={() => void navigate("next")}><ChevronRight /></Button>
-            <Button aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
           </div>
+          <Button className="justify-self-end" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
         </div>
         {session.book.pageCount > 1 ? (
           <ThumbnailStrip

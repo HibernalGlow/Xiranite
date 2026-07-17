@@ -53,10 +53,11 @@ export function ReaderSidebar({
     <aside
       ref={asideRef}
       className={cn(
-        "relative flex max-h-full overflow-hidden border-border/70 bg-background/92 shadow-xl backdrop-blur-md",
+        "relative flex max-h-full overflow-hidden border-border/55 bg-background/94 shadow-[0_0_32px_rgb(0_0_0/0.26)] backdrop-blur-xl",
         side === "left" ? "border-r" : "flex-row-reverse border-l",
       )}
       data-reader-sidebar={side}
+      data-reader-edge-chrome={side}
       style={style}
     >
       <div
@@ -69,7 +70,7 @@ export function ReaderSidebar({
         onPointerUp={endGesture}
         onPointerCancel={cancelGesture}
       />
-      <nav className={cn("flex w-11 shrink-0 flex-col items-center gap-1 py-2", side === "left" ? "border-r" : "border-l")} aria-label={`${side === "left" ? "左" : "右"}侧面板`}>
+      <nav className={cn("flex w-12 shrink-0 flex-col items-center gap-1 bg-muted/20 py-2", side === "left" ? "border-r border-border/50" : "border-l border-border/50")} aria-label={`${side === "left" ? "左" : "右"}侧面板`}>
         <button
           type="button"
           title={shell?.edges[side].pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
@@ -77,8 +78,8 @@ export function ReaderSidebar({
           aria-pressed={shell?.edges[side].pinned ?? false}
           disabled={context.disabled || !onLayoutCommit}
           className={cn(
-            "grid size-8 place-items-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-            shell?.edges[side].pinned ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            "grid size-9 place-items-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            shell?.edges[side].pinned ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
           )}
           onClick={() => onLayoutCommit?.({ side, pinned: !(shell?.edges[side].pinned ?? false) })}
         >
@@ -93,8 +94,8 @@ export function ReaderSidebar({
             aria-label={panel.title}
             aria-current={panel.id === active?.id ? "page" : undefined}
             className={cn(
-              "grid size-8 place-items-center rounded-md text-sm transition-colors",
-              panel.id === active?.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              "grid size-9 place-items-center rounded-md text-sm transition-colors",
+              panel.id === active?.id ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
             )}
             onClick={() => setActivePanel(panel.id)}
           >

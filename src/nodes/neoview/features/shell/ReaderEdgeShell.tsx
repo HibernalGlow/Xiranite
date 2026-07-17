@@ -6,7 +6,7 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -14,7 +14,7 @@ export type ReaderEdge = "top" | "right" | "bottom" | "left"
 export type ReaderEdgeInteraction = "auto" | "fixed-open" | "fixed-closed"
 
 export interface ReaderEdgeSlot {
-  render(): ReactNode
+  render(active: boolean): ReactNode
   preload?(): void
   ariaLabel: string
   open: boolean
@@ -80,6 +80,7 @@ function ReaderEdgeSurface({
       ? false
       : slot.open
   const automatic = slot.interaction === "auto"
+  const [mounted, setMounted] = useState(visible)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -90,6 +91,10 @@ function ReaderEdgeSurface({
   const callbackRef = useRef(onOpenRequest)
   visibleRef.current = visible
   callbackRef.current = onOpenRequest
+
+  useEffect(() => {
+    if (visible) setMounted(true)
+  }, [visible])
 
   useEffect(() => {
     if (visible) clearTimer(showTimerRef)
@@ -207,17 +212,23 @@ function ReaderEdgeSurface({
           if (!visibleRef.current) clearTimer(showTimerRef)
         }}
       />
-      {visible ? (
+      {mounted || visible ? (
         <div
           ref={surfaceRef}
           role="region"
           aria-label={slot.ariaLabel}
+          hidden={!visible}
+          aria-hidden={!visible || undefined}
           data-reader-edge={edge}
           data-pinned={slot.pinned ? "true" : "false"}
           data-reader-edge-interaction={slot.interaction}
           className={cn(
-            "absolute min-h-0 min-w-0",
-            edge === "left" || edge === "right" ? "z-[60] hover:z-[70] focus-within:z-[70]" : "z-50",
+            "absolute min-h-0 min-w-0 motion-reduce:transition-none",
+            edge === "top"
+              ? "z-[80]"
+              : edge === "left" || edge === "right"
+                ? "z-[70] hover:z-[75] focus-within:z-[75]"
+                : "z-[60]",
             surfaceClass(edge),
             slot.className,
           )}
@@ -239,7 +250,7 @@ function ReaderEdgeSurface({
             clearTimer(hideTimerRef)
           }}
         >
-          {slot.render()}
+          {slot.render(visible)}
         </div>
       ) : null}
     </>

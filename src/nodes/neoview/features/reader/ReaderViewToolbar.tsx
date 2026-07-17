@@ -46,12 +46,12 @@ export function ReaderViewToolbar({
   onSlideshowChange(patch: ReaderSlideshowPatch["slideshow"]): void | Promise<void>
 }) {
   return (
-    <div className="xiranite-app-region-no-drag flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-3 py-1.5" data-reader-view-toolbar="true">
+    <div className="xiranite-app-region-no-drag flex min-h-12 min-w-0 items-center justify-start gap-1 overflow-x-auto px-3 py-1.5 sm:justify-center" data-reader-view-toolbar="true">
       <label className="sr-only" htmlFor="neoview-fit-mode">缩放模式</label>
       <select
         id="neoview-fit-mode"
         aria-label="缩放模式"
-        className="h-7 w-24 shrink-0 rounded border border-border bg-background px-1.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-8 w-24 shrink-0 rounded-md border border-border/65 bg-muted/35 px-1.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         disabled={disabled}
         value={presentation.fitMode}
         onChange={(event) => onChange({ ...presentation, fitMode: event.currentTarget.value as ReaderFitMode, manualScale: 1 })}
@@ -66,7 +66,7 @@ export function ReaderViewToolbar({
       <Button title="顺时针旋转 90 度" aria-label="顺时针旋转 90 度" type="button" size="icon-xs" variant="ghost" disabled={disabled} onClick={() => onChange({ ...presentation, rotation: rotateReaderPresentation(presentation.rotation, 1) })}><RotateCw /></Button>
       <Button title="重置视图" aria-label="重置视图" type="button" size="icon-xs" variant="ghost" disabled={disabled} onClick={() => onChange({ ...DEFAULT_READER_PRESENTATION })}><Maximize2 /></Button>
       <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-      <div className="flex shrink-0 items-center rounded border border-border bg-muted/45 p-0.5" aria-label="页面模式">
+      <div className="flex shrink-0 items-center rounded-md border border-border/65 bg-muted/35 p-0.5" aria-label="页面模式">
         <Button title="单页模式" aria-label="单页模式" aria-pressed={pageMode === "single"} type="button" size="icon-xs" variant={pageMode === "single" ? "default" : "ghost"} disabled={disabled} onClick={() => onPageModeChange("single")}><Square /></Button>
         <Button title="双页模式" aria-label="双页模式" aria-pressed={pageMode === "double"} type="button" size="icon-xs" variant={pageMode === "double" ? "default" : "ghost"} disabled={disabled} onClick={() => onPageModeChange("double")}><Columns2 /></Button>
       </div>

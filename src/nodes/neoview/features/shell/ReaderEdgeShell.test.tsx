@@ -28,12 +28,14 @@ describe("ReaderEdgeShell", () => {
 
   it("[neoview.shell.constrained-layering] keeps full-height sidebars operable above horizontal bars", () => {
     render(<ReaderEdgeShell edges={{
+      top: { ...slot("top", <button>top action</button>), open: true },
       right: { ...slot("right", <button>side action</button>), open: true },
       bottom: { ...slot("bottom", <button>bottom action</button>), open: true },
     }}><div>viewport</div></ReaderEdgeShell>)
 
-    expect(document.querySelector('[data-reader-edge="right"]')?.className).toContain("z-[60]")
-    expect(document.querySelector('[data-reader-edge="bottom"]')?.className).toContain("z-50")
+    expect(document.querySelector('[data-reader-edge="top"]')?.className).toContain("z-[80]")
+    expect(document.querySelector('[data-reader-edge="right"]')?.className).toContain("z-[70]")
+    expect(document.querySelector('[data-reader-edge="bottom"]')?.className).toContain("z-[60]")
   })
 
   it("[neoview.shell.controlled] requests visibility without owning a second open state", () => {
@@ -54,7 +56,7 @@ describe("ReaderEdgeShell", () => {
     expect(screen.queryByText("toolbar")).toBeNull()
   })
 
-  it("[neoview.shell.hover-delay] opens and unmounts through bounded controlled requests", () => {
+  it("[neoview.shell.hover-delay] lazily mounts once and keeps hidden edge content alive", () => {
     vi.useFakeTimers()
     const requests = vi.fn()
     render(<ControlledShell edge="top" requests={requests} showDelayMs={40} hideDelayMs={80} />)
@@ -70,7 +72,8 @@ describe("ReaderEdgeShell", () => {
     act(() => vi.advanceTimersByTime(79))
     expect(screen.getByText("top content")).toBeTruthy()
     act(() => vi.advanceTimersByTime(1))
-    expect(screen.queryByText("top content")).toBeNull()
+    expect(screen.getByText("top content")).toBeTruthy()
+    expect(document.querySelector<HTMLElement>('[data-reader-edge="top"]')?.hidden).toBe(true)
     expect(requests.mock.calls).toEqual([
       ["top", true, "trigger"],
       ["top", false, "leave"],

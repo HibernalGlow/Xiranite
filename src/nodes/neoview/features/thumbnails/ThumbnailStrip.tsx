@@ -5,7 +5,7 @@ import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http
 import { ReaderThumbnailSurface } from "./ReaderThumbnailSurface"
 
 const BATCH_SIZE = 64
-const ITEM_SIZE = 68
+const ITEM_SIZE = 92
 const OVERSCAN = 4
 const INITIAL_ITEMS = 16
 
@@ -129,7 +129,6 @@ export function ThumbnailStrip({
         index={index}
         page={pages.get(index)}
         active={index === activePageIndex}
-        compact={compact}
         disabled={disabled}
         onSelect={onSelect}
       />,
@@ -140,7 +139,10 @@ export function ThumbnailStrip({
     <div
       ref={viewportRef}
       aria-label="页面缩略图"
-      className={cn("shrink-0 overflow-x-auto overflow-y-hidden border-t border-border/70 bg-muted/25", compact ? "h-[68px]" : "h-[84px]")}
+      className={cn(
+        "shrink-0 overflow-x-auto overflow-y-hidden bg-muted/15 px-1 py-1.5",
+        compact ? "h-[clamp(84px,24vh,124px)]" : "h-[clamp(104px,25vh,176px)]",
+      )}
       data-testid="neoview-thumbnail-viewport"
     >
       <div className="relative h-full" style={{ width: totalPages * ITEM_SIZE }}>
@@ -154,14 +156,12 @@ function ThumbnailTile({
   index,
   page,
   active,
-  compact,
   disabled,
   onSelect,
 }: {
   index: number
   page?: ReaderPageDto
   active: boolean
-  compact: boolean
   disabled: boolean
   onSelect(pageIndex: number): void | Promise<void>
 }) {
@@ -174,9 +174,8 @@ function ThumbnailTile({
       disabled={disabled || !page}
       onClick={() => void onSelect(index)}
       className={cn(
-        "absolute top-1 grid overflow-hidden border bg-black/90 text-white transition-colors disabled:cursor-default",
-        compact ? "h-[58px] w-14" : "h-[74px] w-16",
-        active ? "border-primary ring-1 ring-primary" : "border-border/70 hover:border-foreground/50",
+        "absolute inset-y-1 grid w-[88px] overflow-hidden border bg-black/90 text-white transition-colors disabled:cursor-default",
+        active ? "border-primary ring-2 ring-primary/80" : "border-border/60 hover:border-foreground/55",
       )}
       style={{ transform: `translateX(${index * ITEM_SIZE + 2}px)` }}
     >

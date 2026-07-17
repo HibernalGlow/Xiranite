@@ -303,6 +303,20 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   const stableWatchSelection = folderList.getByTitle(join(fixture.directory, "fixture.cbz"), { exact: true })
   await stableWatchSelection.click({ modifiers: ["Control"] })
   await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+  await stableWatchSelection.evaluate((element) => element.setAttribute("data-folder-panel-instance", "stable"))
+  let folderSessionReopens = 0
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/browser/sessions` && request.method() === "POST") folderSessionReopens += 1
+  })
+  const cachedFolderPanel = leftSidebar.locator('[data-reader-panel-cache="folder"]')
+  await leftSidebar.getByRole("button", { name: "页面列表", exact: true }).click({ force: true })
+  await expect(cachedFolderPanel).toBeHidden()
+  await leftSidebar.getByRole("button", { name: "文件夹", exact: true }).click({ force: true })
+  await expect(cachedFolderPanel).toBeVisible()
+  await expect(stableWatchSelection).toHaveAttribute("data-folder-panel-instance", "stable")
+  await expect(stableWatchSelection).toHaveAttribute("aria-selected", "true")
+  await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+  expect(folderSessionReopens).toBe(0)
   const watchedPath = join(fixture.directory, "watch-created.cbz")
   const createdResponse = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/changes") && response.status() === 200
@@ -1633,6 +1647,22 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
     && response.request().postData()?.includes('"right":{"pinned":true,"lockMode":"locked-open"}') === true)
   await card.getByRole("combobox", { name: "右边锁定模式" }).selectOption("locked-open")
   expect((await keepOpenResponse).status()).toBe(200)
+
+  for (const edge of ["上", "下", "左"] as const) {
+    const response = page.waitForResponse((candidate) => candidate.url() === `${backend.url}/reader/config`
+      && candidate.request().method() === "PATCH"
+      && candidate.request().postData()?.includes('"lockMode":"locked-open"') === true)
+    await card.getByRole("combobox", { name: `${edge}边锁定模式` }).selectOption("locked-open")
+    expect((await response).status()).toBe(200)
+  }
+  const edgeChrome = page.locator("[data-reader-edge-chrome]")
+  await expect(edgeChrome).toHaveCount(4)
+  for (const edge of ["top", "right", "bottom", "left"] as const) {
+    const chrome = page.locator(`[data-reader-edge-chrome="${edge}"]`)
+    await expect(chrome).toBeVisible()
+    expect(await chrome.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+  }
+  await page.screenshot({ path: testInfo.outputPath(`neoview-four-edge-shell-${testInfo.project.name}.png`) })
 
   const floating = page.locator('[data-layer-id="sidebar-control"]')
   await expect(floating).toBeVisible()
