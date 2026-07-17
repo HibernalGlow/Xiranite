@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Copy, Folder, Pin, PinOff, Plus, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Copy, Folder, History, Pin, PinOff, Plus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,11 +16,18 @@ export interface FolderTabBarItem {
   pinned: boolean
 }
 
-export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, onActivate, onCreate, onDuplicate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight }: {
+export interface RecentlyClosedFolderTabItem {
+  id: string
+  currentPath: string
+  title: string
+}
+
+export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, recentlyClosed, onActivate, onCreate, onDuplicate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight, onReopen }: {
   tabs: readonly FolderTabBarItem[]
   activeTabId: string
   disabled: boolean
   maxTabs: number
+  recentlyClosed: readonly RecentlyClosedFolderTabItem[]
   onActivate(id: string): void
   onCreate(): void
   onDuplicate(id: string): void
@@ -29,6 +36,7 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, onA
   onCloseOthers(id: string): void
   onCloseLeft(id: string): void
   onCloseRight(id: string): void
+  onReopen(id: string): void
 }) {
   const unpinnedCount = tabs.reduce((count, tab) => count + (tab.pinned ? 0 : 1), 0)
   return (
@@ -93,6 +101,20 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, onA
           )
         })}
       </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="重新打开关闭的页签" title="重新打开关闭的页签" disabled={disabled || !recentlyClosed.length || tabs.length >= maxTabs}>
+            <History />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {[...recentlyClosed].reverse().map((tab) => (
+            <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
+              <History /><span className="truncate">{tab.title}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="新建文件夹标签" title="新建文件夹标签" disabled={disabled || tabs.length >= maxTabs} onClick={onCreate}>
         <Plus />
       </Button>

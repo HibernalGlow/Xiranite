@@ -150,7 +150,7 @@ export interface FolderBrowserCloneSnapshot {
   navigationStates: ReadonlyMap<number, SavedDirectoryState>
 }
 
-export type FolderBrowserCloneProvider = () => Promise<FolderBrowserCloneSnapshot | undefined>
+export type FolderBrowserCloneProvider = (close?: boolean) => Promise<FolderBrowserCloneSnapshot | undefined>
 
 export default function FolderMainCard(context: ReaderPanelContext) {
   const folderView = context.folderView ?? DEFAULT_FOLDER_VIEW
@@ -551,11 +551,17 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     })
   }
 
-  async function captureCloneSnapshot(): Promise<FolderBrowserCloneSnapshot | undefined> {
+  async function captureCloneSnapshot(close = false): Promise<FolderBrowserCloneSnapshot | undefined> {
     const current = catalogRef.current
     const currentState = await captureRefreshState()
     if (!current || !currentState || sessionIdRef.current !== current.sessionId) return undefined
-    return { sourceSessionId: current.sessionId, currentState, navigationStates: new Map(navigationStatesRef.current) }
+    const snapshot = { sourceSessionId: current.sessionId, currentState, navigationStates: new Map(navigationStatesRef.current) }
+    if (close) {
+      if (!client.closeDirectoryBrowser) return undefined
+      await client.closeDirectoryBrowser(snapshot.sourceSessionId, true)
+      if (sessionIdRef.current === snapshot.sourceSessionId) sessionIdRef.current = undefined
+    }
+    return snapshot
   }
 
   async function applyWatchedPage(page: ReaderDirectoryPageDto) {

@@ -1064,7 +1064,7 @@ test("[neoview.folder.home-refresh-e2e] persists Home and refreshes only the cur
   }
 })
 
-test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] [neoview.folder.tabs-bulk-close-e2e] [neoview.folder.tabs-pin-duplicate-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
+test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-history-e2e] [neoview.folder.tabs-bulk-close-e2e] [neoview.folder.tabs-pin-duplicate-e2e] [neoview.folder.tabs-reopen-e2e] keeps Explorer folder tabs isolated and releases closed sessions", async ({ page }) => {
   const tabsRoot = join(fixture.directory, "zz-folder-tabs")
   const firstPath = join(tabsRoot, "A")
   const secondPath = join(tabsRoot, "B")
@@ -1184,7 +1184,9 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     const closeSecondTab = folderCard.getByRole("button", { name: "关闭标签 C" })
     await closeSecondTab.focus()
     await closeSecondTab.press("Enter")
-    expect((await closed).status()).toBe(204)
+    const closedResponse = await closed
+    expect(closedResponse.status()).toBe(204)
+    expect(closedResponse.url()).toContain("?remember=1")
     await expect(currentBreadcrumb()).toHaveAttribute("title", firstPath)
     await expect(folderCard.getByRole("tab", { name: "A" })).toHaveAttribute("aria-selected", "true")
     await expect(folderCard.getByRole("tab", { name: "B" })).toHaveAttribute("aria-selected", "false")
@@ -1192,6 +1194,31 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await expect(folderCard.locator('[data-folder-tab-bar="true"]')).toBeVisible()
     expect(await image.getAttribute("data-folder-tabs-image-instance")).toBe("stable")
     expect(browserOpens).toBe(3)
+
+    const reopened = page.waitForResponse((response) => response.url().endsWith("/reopen")
+      && response.request().method() === "POST")
+    await revealFolderSidebar()
+    const reopenButton = folderCard.getByRole("button", { name: "重新打开关闭的页签" })
+    await reopenButton.focus()
+    await reopenButton.press("Enter")
+    await page.getByRole("menuitem", { name: "C" }).click()
+    expect((await reopened).status()).toBe(201)
+    await expect(folderCard.getByRole("tab", { name: "C" })).toHaveAttribute("aria-selected", "true")
+    await expect(currentBreadcrumb()).toHaveAttribute("title", thirdPath)
+    await expect(folderCard.getByTitle(join(thirdPath, "c.cbz"), { exact: true })).toBeVisible()
+    await expect(folderCard.getByTitle(join(firstPath, "a.cbz"), { exact: true })).toHaveCount(0)
+    await expect(folderCard.getByRole("radio", { name: "紧凑列表" })).toHaveAttribute("data-state", "on")
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+    expect(browserOpens).toBe(3)
+    expect(await image.getAttribute("data-folder-tabs-image-instance")).toBe("stable")
+
+    const reclosed = page.waitForResponse((response) => response.url().includes("/reader/browser/s/")
+      && response.request().method() === "DELETE")
+    const recloseButton = folderCard.getByRole("button", { name: "关闭标签 C" })
+    await recloseButton.focus()
+    await recloseButton.press("Enter")
+    expect((await reclosed).status()).toBe(204)
+    await expect(folderCard.getByRole("tab", { name: "A" })).toHaveAttribute("aria-selected", "true")
 
     await revealFolderSidebar()
     await folderCard.getByRole("button", { name: "标签操作 B" }).focus()
@@ -1207,7 +1234,7 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await activeTabMenu.focus()
     await activeTabMenu.press("Enter")
     await page.getByRole("menuitem", { name: "关闭左侧标签" }).click()
-    await expect.poll(() => browserCloses).toBe(3)
+    await expect.poll(() => browserCloses).toBe(4)
     await expect(folderCard.getByRole("tab", { name: "B" })).toHaveCount(2)
 
     await navigatePath(fifthPath)
@@ -1218,7 +1245,7 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await folderCard.getByRole("button", { name: "标签操作 E" }).focus()
     await folderCard.getByRole("button", { name: "标签操作 E" }).press("Enter")
     await page.getByRole("menuitem", { name: "关闭右侧标签" }).click()
-    await expect.poll(() => browserCloses).toBe(4)
+    await expect.poll(() => browserCloses).toBe(5)
     await expect(currentBreadcrumb()).toHaveAttribute("title", fifthPath)
 
     await newTabButton.focus()
@@ -1230,7 +1257,7 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await folderCard.getByRole("button", { name: "标签操作 F" }).focus()
     await folderCard.getByRole("button", { name: "标签操作 F" }).press("Enter")
     await page.getByRole("menuitem", { name: "关闭其他标签" }).click()
-    await expect.poll(() => browserCloses).toBe(6)
+    await expect.poll(() => browserCloses).toBe(7)
     await expect(folderCard.getByRole("tab", { name: "B" })).toHaveCount(1)
     await expect(folderCard.getByRole("tab", { name: "F" })).toHaveAttribute("aria-selected", "true")
     await expect(leftSidebar.locator('[data-folder-tab-count="2"]')).toBeVisible()

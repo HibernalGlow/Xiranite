@@ -77,7 +77,7 @@ describe("FolderMainCard", () => {
 
     fireEvent.click(ui.getByRole("tab", { name: "B" }))
     fireEvent.click(ui.getByRole("button", { name: "关闭标签 B" }))
-    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b"))
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b", true))
     expect(ui.getByRole("tab", { name: "A" }).getAttribute("aria-selected")).toBe("true")
     expect(ui.getByRole("tab", { name: "C" }).getAttribute("aria-selected")).toBe("false")
     expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy()
@@ -122,19 +122,19 @@ describe("FolderMainCard", () => {
     expect(ui.getByRole("tab", { name: "B" }).closest('[data-pinned="true"]')).toBeTruthy()
 
     await selectMenuItem("C", "关闭左侧标签")
-    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-a"))
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-a", true))
     expect(ui.queryByRole("tab", { name: "A" })).toBeNull()
     expect(ui.getByRole("tab", { name: "B" })).toBeTruthy()
 
     await selectMenuItem("C", "关闭右侧标签")
-    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-d"))
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-d", true))
     expect(ui.getByRole("tab", { name: "C" }).getAttribute("aria-selected")).toBe("true")
 
     await createTab("C:/E")
     await createTab("C:/F")
     await selectMenuItem("E", "关闭其他标签")
-    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-c"))
-    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-f"))
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-c", true))
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-f", true))
     expect(ui.getByRole("tab", { name: "B" })).toBeTruthy()
     expect(ui.getByRole("tab", { name: "E" }).getAttribute("aria-selected")).toBe("true")
     expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy()
@@ -190,6 +190,54 @@ describe("FolderMainCard", () => {
     view.unmount()
     expect(client.closeDirectoryBrowser).toHaveBeenCalledWith("browser-source")
     expect(client.closeDirectoryBrowser).toHaveBeenCalledWith("browser-clone")
+  })
+
+  it("[neoview.folder.tabs-reopen-ui] restores a closed tab snapshot and retains failed reopen entries", async () => {
+    const first = page({ sessionId: "browser-a", path: "C:/A", entries: [], total: 0 })
+    const second = page({
+      sessionId: "browser-b",
+      path: "C:/B",
+      entries: [{ name: "b.cbz", path: "C:/B/b.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const restored = page({ ...second, sessionId: "browser-restored" })
+    const openDirectoryBrowser = vi.fn(async (path: string) => path === "C:/A" ? first : second)
+    const closeDirectoryBrowser = vi.fn(async () => undefined)
+    const reopenDirectoryBrowser = vi.fn()
+      .mockRejectedValueOnce(new Error("offline volume"))
+      .mockResolvedValueOnce(restored)
+    const client = { openDirectoryBrowser, closeDirectoryBrowser, reopenDirectoryBrowser } as unknown as ReaderHttpClient
+    const configured = folderViewConfig({ homePath: "C:/B" })
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/A" onOpen={vi.fn()} onGoTo={vi.fn()} folderView={configured} onFolderView={vi.fn(async () => undefined)} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledTimes(1))
+    fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
+    await ui.findByTitle("C:/B/b.cbz")
+    fireEvent.click(ui.getByTitle("C:/B/b.cbz"))
+    fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
+    fireEvent.click(ui.getByRole("button", { name: "关闭标签 B" }))
+
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b", true))
+    expect(ui.queryByRole("tab", { name: "B" })).toBeNull()
+    fireEvent.pointerDown(ui.getByRole("button", { name: "重新打开关闭的页签" }), { button: 0, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "B" }))
+    await waitFor(() => expect(reopenDirectoryBrowser).toHaveBeenCalledTimes(1))
+    expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).toBeNull()
+
+    fireEvent.keyDown(window, { key: "T", ctrlKey: true, shiftKey: true })
+    await waitFor(() => expect(ui.getByRole("tab", { name: "B" }).getAttribute("aria-selected")).toBe("true"))
+    expect(reopenDirectoryBrowser).toHaveBeenLastCalledWith("browser-b", expect.any(AbortSignal))
+    expect(openDirectoryBrowser).toHaveBeenCalledTimes(2)
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+    expect(ui.getByRole("radio", { name: "详细信息" }).getAttribute("data-state")).toBe("on")
+    expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).not.toBeNull()
+    view.unmount()
+    expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-restored")
   })
 
   it("[neoview.folder.tabs-pinned-restore] restores persisted pins beside one unpinned working tab", async () => {
