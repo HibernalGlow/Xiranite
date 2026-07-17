@@ -1,19 +1,25 @@
 import type { Stats } from "node:fs"
 import { createHash } from "node:crypto"
 import { stat } from "node:fs/promises"
+import { z } from "zod"
 
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/frame.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
-import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
+import { DEFAULT_READER_SESSION_OPTIONS, type ReaderSession, type ReaderSessionOptions } from "../../application/reader/contracts.js"
+import {
+  ReaderBookSettingsRevisionConflict,
+  ReaderBookSettingsService,
+} from "../../application/reader/ReaderBookSettingsService.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressStore } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderSearchHistoryStore } from "../../ports/ReaderSearchHistoryStore.js"
 import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJournalStore.js"
+import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
@@ -89,6 +95,7 @@ const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
 const SESSION_PRELOAD_CONTEXT_PATH = /^\/reader\/s\/([^/]+)\/preload-context$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
+const SESSION_BOOK_SETTINGS_PATH = /^\/reader\/s\/([^/]+)\/book-settings$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const SESSION_PAGE_MEDIA_INFORMATION_PATH = /^\/reader\/s\/([^/]+)\/page-media-information$/
 const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
@@ -134,6 +141,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   loadPageMediaMetadataProvider?: ReaderPageMediaMetadataProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
   progressStore?: ReaderProgressStore | false
+  bookSettingsStore?: ReaderBookSettingsStore
   mediaProgressStore?: ReaderMediaProgressStore
   libraryService?: ReaderLibraryService
   directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
@@ -176,6 +184,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #disposeLibraryService: boolean
   readonly #cacheService: ReaderCacheService
   readonly #mediaProgress?: ReaderMediaProgressService
+  readonly #bookSettings?: ReaderBookSettingsService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
   readonly #seekableMedia: ReaderSeekableMediaCache
   readonly #subtitles: ReaderSubtitleService
@@ -252,7 +261,9 @@ export class ReaderHttpController implements AsyncDisposable {
       imageMetadataProbe,
       options.sessionOptions,
       options.progressStore || undefined,
+      options.bookSettingsStore,
     )
+    this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
     this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore)
     this.#pageMediaInformation = new ReaderPageMediaInformationService(
       options.loadPageMediaMetadataProvider ?? (async () => {
@@ -455,6 +466,10 @@ export class ReaderHttpController implements AsyncDisposable {
     if (preloadContextMatch && request.method === "PATCH") return this.#updatePreloadContext(preloadContextMatch[1]!, request)
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
     if (optionsMatch && request.method === "PATCH") return this.#updateSessionOptions(optionsMatch[1]!, request)
+    const bookSettingsMatch = SESSION_BOOK_SETTINGS_PATH.exec(url.pathname)
+    if (bookSettingsMatch && (request.method === "GET" || request.method === "PATCH")) {
+      return this.#handleBookSettings(bookSettingsMatch[1]!, request)
+    }
     const sessionMatch = SESSION_PATH.exec(url.pathname)
     if (sessionMatch && request.method === "GET") return this.#getSession(sessionMatch[1]!)
     if (sessionMatch && request.method === "DELETE") return this.#closeSession(sessionMatch[1]!)
@@ -888,6 +903,68 @@ export class ReaderHttpController implements AsyncDisposable {
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+  }
+
+  async #handleBookSettings(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (!this.#bookSettings) return jsonResponse({ error: "Reader book settings are unavailable" }, 501)
+    const defaults = this.#bookSettingsDefaults()
+    try {
+      if (request.method === "GET") {
+        return jsonResponse({ settings: await this.#bookSettings.read(session.book.id, defaults, request.signal) })
+      }
+      const body = await readControlJson(request)
+      if (!body || Object.keys(body).some((key) => key !== "expectedRevision" && key !== "patch")) {
+        return jsonResponse({ error: "Book settings request must contain expectedRevision and patch" }, 400)
+      }
+      const settings = await this.#bookSettings.update(
+        session.book.id,
+        body.expectedRevision as number,
+        body.patch,
+        defaults,
+        async (effective, signal) => {
+          const current = session.snapshot()
+          const frame = await session.updateOptions({
+            direction: effective.direction,
+            layout: {
+              ...current.layout,
+              pageMode: effective.pageMode,
+              treatWidePageAsSingle: effective.horizontalBook,
+            },
+          }, signal)
+          this.#retainSessionFrame(session, frame)
+        },
+        request.signal,
+      )
+      const frame = session.snapshot()
+      return jsonResponse({
+        settings,
+        frame,
+        visiblePages: this.#visiblePages(session, frame),
+        preload: session.preloadPlan(),
+      })
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      if (error instanceof ReaderBookSettingsRevisionConflict) {
+        return jsonResponse({ error: error.message, actualRevision: error.actualRevision }, 409)
+      }
+      if (error instanceof z.ZodError || error instanceof RangeError) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      return jsonResponse({ error: errorMessage(error) }, 500)
+    }
+  }
+
+  #bookSettingsDefaults() {
+    return {
+      favorite: false,
+      rating: 0,
+      direction: this.#sessionOptions.direction ?? DEFAULT_READER_SESSION_OPTIONS.direction,
+      pageMode: this.#sessionOptions.layout?.pageMode ?? DEFAULT_READER_SESSION_OPTIONS.layout.pageMode,
+      horizontalBook: this.#sessionOptions.layout?.treatWidePageAsSingle
+        ?? DEFAULT_READER_SESSION_OPTIONS.layout.treatWidePageAsSingle,
     }
   }
 

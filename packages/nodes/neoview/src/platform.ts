@@ -11,6 +11,7 @@ import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
+import type { ReaderBookSettingsStore } from "./ports/ReaderBookSettingsStore.js"
 import type { ReaderSearchHistoryStore } from "./ports/ReaderSearchHistoryStore.js"
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
@@ -83,6 +84,7 @@ export type {
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions & {
   progressStore?: ReaderProgressStore | false
   mediaProgressStore?: ReaderMediaProgressStore | false
+  bookSettingsStore?: ReaderBookSettingsStore | false
   legacyThumbnailDatabasePath?: string | false
 }
 export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
@@ -244,6 +246,7 @@ export async function createReaderHttpController(
   return new ReaderHttpController({
     ...options,
     progressStore,
+    bookSettingsStore: options.bookSettingsStore ?? dataStore,
     mediaProgressStore: dataStore,
     libraryService,
     directorySortPreferenceStore: dataStore,
@@ -552,7 +555,10 @@ export async function createReaderHeadlessController(
       : await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(options.legacyThumbnailDatabasePath)))
   const mediaProgressStore = options.mediaProgressStore === false
     ? undefined
-    : options.mediaProgressStore ?? (isReaderMediaProgressStore(progressStore) ? progressStore : undefined)
+      : options.mediaProgressStore ?? (isReaderMediaProgressStore(progressStore) ? progressStore : undefined)
+  const bookSettingsStore = options.bookSettingsStore === false
+    ? undefined
+    : options.bookSettingsStore ?? (isReaderBookSettingsStore(progressStore) ? progressStore : undefined)
   const mediaProgress = mediaProgressStore
     ? new (await import("./application/reader/ReaderMediaProgressService.js")).ReaderMediaProgressService(mediaProgressStore)
     : undefined
@@ -569,6 +575,7 @@ export async function createReaderHeadlessController(
       new StreamingImageMetadataProbe(),
       await loadNeoviewSessionOptions(options),
       progressStore,
+      bookSettingsStore,
     ),
     ownsCache ? () => solidArchiveCache.close() : undefined,
     mediaProgress,
@@ -580,6 +587,12 @@ function isReaderMediaProgressStore(store: ReaderProgressStore | undefined): sto
   return Boolean(store
     && typeof (store as Partial<ReaderMediaProgressStore>).getMediaProgress === "function"
     && typeof (store as Partial<ReaderMediaProgressStore>).saveMediaProgress === "function")
+}
+
+function isReaderBookSettingsStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderBookSettingsStore {
+  return Boolean(store
+    && typeof (store as Partial<ReaderBookSettingsStore>).getBookSettings === "function"
+    && typeof (store as Partial<ReaderBookSettingsStore>).saveBookSettings === "function")
 }
 
 function isReaderDirectoryEmmRecordStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderDirectoryEmmRecordStore {

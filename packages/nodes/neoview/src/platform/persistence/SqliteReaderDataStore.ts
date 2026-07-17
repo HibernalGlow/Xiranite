@@ -14,6 +14,10 @@ import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderSearchHistoryRecord } from "../../ports/ReaderSearchHistoryStore.js"
 import type { ReaderFileUndoJournalRecord } from "../../ports/ReaderFileUndoJournalStore.js"
+import type {
+  ReaderBookSettingsOverrides,
+  ReaderBookSettingsRecord,
+} from "../../ports/ReaderBookSettingsStore.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
@@ -126,6 +130,16 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         );
         CREATE INDEX IF NOT EXISTS xr_reader_file_undo_created_idx
           ON xr_reader_file_undo_transactions (created_at DESC, id DESC);
+        CREATE TABLE IF NOT EXISTS xr_reader_book_settings (
+          book_id TEXT PRIMARY KEY NOT NULL,
+          favorite INTEGER CHECK (favorite IS NULL OR favorite IN (0, 1)),
+          rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
+          reading_direction TEXT CHECK (reading_direction IS NULL OR reading_direction IN ('left-to-right', 'right-to-left')),
+          page_mode TEXT CHECK (page_mode IS NULL OR page_mode IN ('single', 'double')),
+          horizontal_book INTEGER CHECK (horizontal_book IS NULL OR horizontal_book IN (0, 1)),
+          revision INTEGER NOT NULL CHECK (revision >= 1),
+          updated_at INTEGER NOT NULL
+        );
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database)
@@ -166,6 +180,58 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         progress.pageCount,
         progress.updatedAt,
       )
+    })
+  }
+
+  async getBookSettings(bookId: string): Promise<ReaderBookSettingsRecord | undefined> {
+    this.#assertOpen()
+    assertBookSettingsBookId(bookId)
+    const row = this.database.get(
+      `SELECT book_id, favorite, rating, reading_direction, page_mode, horizontal_book, revision, updated_at
+       FROM xr_reader_book_settings WHERE book_id = ?1`,
+      bookId,
+    )
+    return row ? parseBookSettings(row) : undefined
+  }
+
+  async saveBookSettings(
+    bookId: string,
+    overrides: ReaderBookSettingsOverrides,
+    expectedRevision: number,
+    updatedAt: number,
+  ): Promise<ReaderBookSettingsRecord | undefined> {
+    this.#assertOpen()
+    assertBookSettingsBookId(bookId)
+    const parsed = BookSettingsOverridesSchema.parse(overrides)
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error("Reader book settings revision is invalid.")
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Reader book settings timestamp is invalid.")
+    return this.#transaction(() => {
+      const current = this.database.get("SELECT revision FROM xr_reader_book_settings WHERE book_id = ?1", bookId)
+      const actualRevision = current ? requireInteger(current.revision, "book settings revision") : 0
+      if (actualRevision !== expectedRevision) return undefined
+      const revision = actualRevision + 1
+      this.database.run(
+        `INSERT INTO xr_reader_book_settings (
+           book_id, favorite, rating, reading_direction, page_mode, horizontal_book, revision, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(book_id) DO UPDATE SET
+           favorite = excluded.favorite,
+           rating = excluded.rating,
+           reading_direction = excluded.reading_direction,
+           page_mode = excluded.page_mode,
+           horizontal_book = excluded.horizontal_book,
+           revision = excluded.revision,
+           updated_at = excluded.updated_at`,
+        bookId,
+        parsed.favorite === undefined ? null : parsed.favorite ? 1 : 0,
+        parsed.rating ?? null,
+        parsed.direction ?? null,
+        parsed.pageMode ?? null,
+        parsed.horizontalBook === undefined ? null : parsed.horizontalBook ? 1 : 0,
+        revision,
+        updatedAt,
+      )
+      return { bookId, overrides: parsed, revision, updatedAt }
     })
   }
 
@@ -1007,6 +1073,39 @@ function requireBooleanInteger(value: unknown, name: string): boolean {
   const integer = requireInteger(value, name)
   if (integer !== 0 && integer !== 1) throw new Error(`Stored reader ${name} is invalid.`)
   return integer === 1
+}
+
+const BookSettingsOverridesSchema = z.object({
+  favorite: z.boolean().optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  direction: z.enum(["left-to-right", "right-to-left"]).optional(),
+  pageMode: z.enum(["single", "double"]).optional(),
+  horizontalBook: z.boolean().optional(),
+}).strict()
+
+function parseBookSettings(row: Record<string, unknown>): ReaderBookSettingsRecord {
+  const overrides: ReaderBookSettingsOverrides = {}
+  if (row.favorite !== null && row.favorite !== undefined) overrides.favorite = requireBooleanInteger(row.favorite, "book settings favorite")
+  if (row.rating !== null && row.rating !== undefined) overrides.rating = requireInteger(row.rating, "book settings rating")
+  if (row.reading_direction !== null && row.reading_direction !== undefined) {
+    if (row.reading_direction !== "left-to-right" && row.reading_direction !== "right-to-left") throw new Error("Stored reader book settings direction is invalid.")
+    overrides.direction = row.reading_direction
+  }
+  if (row.page_mode !== null && row.page_mode !== undefined) {
+    if (row.page_mode !== "single" && row.page_mode !== "double") throw new Error("Stored reader book settings page mode is invalid.")
+    overrides.pageMode = row.page_mode
+  }
+  if (row.horizontal_book !== null && row.horizontal_book !== undefined) overrides.horizontalBook = requireBooleanInteger(row.horizontal_book, "book settings horizontal book")
+  return {
+    bookId: requireString(row.book_id, "book settings book id"),
+    overrides: BookSettingsOverridesSchema.parse(overrides),
+    revision: requireInteger(row.revision, "book settings revision"),
+    updatedAt: requireInteger(row.updated_at, "book settings updated time"),
+  }
+}
+
+function assertBookSettingsBookId(bookId: string): void {
+  if (!bookId || bookId.length > 2_048 || bookId.includes("\0")) throw new Error("Reader book settings bookId is invalid.")
 }
 
 function isBusyError(error: unknown): boolean {

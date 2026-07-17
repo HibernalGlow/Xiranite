@@ -13,6 +13,37 @@ afterEach(async () => {
 })
 
 describe("SqliteReaderDataStore", () => {
+  it("[neoview.book-settings.sqlite] stores revisioned nullable overrides without modifying legacy metadata", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await expect(store.getBookSettings("book-1")).resolves.toBeUndefined()
+    await expect(store.saveBookSettings("book-1", {
+      favorite: false,
+      rating: 4,
+      direction: "right-to-left",
+      pageMode: "double",
+      horizontalBook: true,
+    }, 0, 100)).resolves.toEqual({
+      bookId: "book-1",
+      overrides: { favorite: false, rating: 4, direction: "right-to-left", pageMode: "double", horizontalBook: true },
+      revision: 1,
+      updatedAt: 100,
+    })
+    await expect(store.saveBookSettings("book-1", { favorite: true }, 0, 200)).resolves.toBeUndefined()
+    await expect(store.saveBookSettings("book-1", {}, 1, 300)).resolves.toMatchObject({ revision: 2, overrides: {} })
+    await store.close()
+
+    const reopened = await SqliteReaderDataStore.open(path)
+    await expect(reopened.getBookSettings("book-1")).resolves.toEqual({
+      bookId: "book-1",
+      overrides: {},
+      revision: 2,
+      updatedAt: 300,
+    })
+    await reopened.close()
+    await expect(inspectLegacyThumbnailDatabase(path)).resolves.toMatchObject({ metadataVersion: "2.4", userVersion: 7, journalMode: "wal" })
+  })
+
   it("[neoview.progress.sqlite] [neoview.library.sqlite] reuses progress for recents and preserves the legacy database", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)

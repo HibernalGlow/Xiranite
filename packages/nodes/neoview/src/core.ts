@@ -121,6 +121,21 @@ export {
 } from "./application/preloading/PreloadTelemetry.js"
 export type { ReaderProgressRecord, ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 export type { ReaderMediaProgressRecord, ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
+export type {
+  ReaderBookSettingsOverrides,
+  ReaderBookSettingsRecord,
+  ReaderBookSettingsStore,
+} from "./ports/ReaderBookSettingsStore.js"
+export {
+  ReaderBookSettingsPatchSchema,
+  ReaderBookSettingsRevisionConflict,
+  ReaderBookSettingsService,
+} from "./application/reader/ReaderBookSettingsService.js"
+export type {
+  ReaderBookSettingsDefaults,
+  ReaderBookSettingsPatch,
+  ReaderBookSettingsSnapshot,
+} from "./application/reader/ReaderBookSettingsService.js"
 export { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "./application/reader/ReaderMediaProgressService.js"
 export {
   ReaderClipboardMaterializationService,

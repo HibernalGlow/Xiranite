@@ -2,10 +2,11 @@ import type { ReaderRuntimeResourceSnapshot, ViewSource } from "../../domain/boo
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import { LatestRecordWriteCoordinator } from "../persistence/LatestRecordWriteCoordinator.js"
 import { CoreReaderSession } from "./ReaderSession.js"
 import { aggregateReaderPreloadTelemetry, type ReaderPreloadDiagnostics } from "../preloading/PreloadTelemetry.js"
-import type { OpenViewSourceOptions, ReaderService, ReaderSession, ReaderSessionId, ReaderSessionOptions } from "./contracts.js"
+import { DEFAULT_READER_SESSION_OPTIONS, type OpenViewSourceOptions, type ReaderService, type ReaderSession, type ReaderSessionId, type ReaderSessionOptions } from "./contracts.js"
 
 export class CoreReaderService implements ReaderService {
   #sessions = new Map<ReaderSessionId, CoreReaderSession>()
@@ -19,6 +20,7 @@ export class CoreReaderService implements ReaderService {
     private readonly metadataProbe?: ImageMetadataProbe,
     private sessionDefaults: Partial<ReaderSessionOptions> = {},
     progressStore?: ReaderProgressStore,
+    private readonly bookSettingsStore?: ReaderBookSettingsStore,
   ) {
     this.#progress = progressStore ? new ReaderProgressCoordinator(progressStore) : undefined
   }
@@ -75,14 +77,23 @@ export class CoreReaderService implements ReaderService {
     const restoredPage = options.initialPage === undefined
       ? await this.#progress?.restore(book.id)
       : undefined
+    const restoredSettings = await restoreBookSettings(this.bookSettingsStore, book.id, options.signal)
+    const restoredLayout = restoredSettings?.overrides.pageMode !== undefined || restoredSettings?.overrides.horizontalBook !== undefined
+      ? {
+          ...DEFAULT_READER_SESSION_OPTIONS.layout,
+          ...this.sessionDefaults.layout,
+          ...(restoredSettings.overrides.pageMode === undefined ? {} : { pageMode: restoredSettings.overrides.pageMode }),
+          ...(restoredSettings.overrides.horizontalBook === undefined ? {} : { treatWidePageAsSingle: restoredSettings.overrides.horizontalBook }),
+        }
+      : this.sessionDefaults.layout
     let unsubscribe: () => void = () => undefined
     let trackProgress = false
     const session = new CoreReaderSession(
       id,
       book,
       {
-        direction: options.direction ?? this.sessionDefaults.direction,
-        layout: options.layout ?? this.sessionDefaults.layout,
+        direction: options.direction ?? restoredSettings?.overrides.direction ?? this.sessionDefaults.direction,
+        layout: options.layout ?? restoredLayout,
         tailOverflow: options.tailOverflow ?? this.sessionDefaults.tailOverflow,
       },
       async (sessionId, snapshot) => {
@@ -139,6 +150,19 @@ export class CoreReaderService implements ReaderService {
 
   #assertOpen(): void {
     if (this.#closed) throw new Error("Reader service is closed.")
+  }
+}
+
+async function restoreBookSettings(store: ReaderBookSettingsStore | undefined, bookId: string, signal?: AbortSignal) {
+  if (!store) return undefined
+  try {
+    signal?.throwIfAborted()
+    const settings = await store.getBookSettings(bookId)
+    signal?.throwIfAborted()
+    return settings
+  } catch (error) {
+    if (signal?.aborted) throw error
+    return undefined
   }
 }
 

@@ -3,6 +3,7 @@ import type { ReaderProgressRecord, ReaderProgressStore } from "./ReaderProgress
 import type { ReaderMediaProgressStore } from "./ReaderMediaProgressStore.js"
 import type { ReaderSearchHistoryStore } from "./ReaderSearchHistoryStore.js"
 import type { ReaderFileUndoJournalStore } from "./ReaderFileUndoJournalStore.js"
+import type { ReaderBookSettingsStore } from "./ReaderBookSettingsStore.js"
 
 export interface ReaderDataImportBatch {
   progress: readonly ReaderProgressRecord[]
@@ -30,6 +31,6 @@ export interface ReaderDataImportResult {
   mediaProgress: number
 }
 
-export interface ReaderDataStore extends ReaderProgressStore, ReaderLibraryStore, ReaderMediaProgressStore, ReaderSearchHistoryStore, ReaderFileUndoJournalStore {
+export interface ReaderDataStore extends ReaderProgressStore, ReaderLibraryStore, ReaderMediaProgressStore, ReaderSearchHistoryStore, ReaderFileUndoJournalStore, ReaderBookSettingsStore {
   importData(batch: ReaderDataImportBatch, strategy: "merge" | "overwrite"): Promise<ReaderDataImportResult>
 }
