@@ -54,6 +54,11 @@ import {
 } from "./ReaderDirectoryFilter.js"
 import { ReaderDirectoryListingScanner } from "./ReaderDirectoryListingScanner.js"
 import { ReaderMetadataHydratingScanner } from "./ReaderMetadataHydratingScanner.js"
+import {
+  createReaderDirectorySelectionBatchSource,
+  type ReaderDirectorySelectionBatchSource,
+  type ReaderDirectorySelectionDescriptor,
+} from "./ReaderDirectorySelection.js"
 
 const MAXIMUM_TREE_WATCH_PATHS = 32
 const MAXIMUM_NAVIGATION_HISTORY = 50
@@ -837,6 +842,23 @@ export class ReaderFileTreeService implements AsyncDisposable {
       if (!entry) throw new RangeError("Reader directory metadata edit path is not in the current listing.")
       return entry
     })
+  }
+
+  async resolveSelection(
+    sessionId: string,
+    descriptor: ReaderDirectorySelectionDescriptor,
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectorySelectionBatchSource | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    await this.#refreshWatchedSession(session, signal)
+    await this.#ensureListing(session, signal)
+    signal?.throwIfAborted()
+    return createReaderDirectorySelectionBatchSource(
+      filteredEntries(session, this.options.classifyEntry),
+      session.generation,
+      descriptor,
+    )
   }
 
   async refreshEntryMetadata(
