@@ -613,6 +613,7 @@ describe("FolderMainCard", () => {
     fireEvent.click(currentView.getByLabelText("取消全部选择"))
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
     fireEvent.click(currentView.getByLabelText("链接选中模式"))
+    expect(currentView.getByLabelText("链接选中模式").getAttribute("aria-pressed")).toBe("true")
     fireEvent.click(item(0))
     fireEvent.click(item(3))
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("4")
@@ -670,6 +671,64 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
     expect(view.container.querySelector('[data-neoview-folder-selection-bar="true"]')).toBeNull()
 
+    view.unmount()
+  })
+
+  it("[neoview.folder.selection-focus-identity] keeps selection separate while hydrating a sparse focused path", async () => {
+    const total = 100_000
+    const entriesAt = (cursor: number, count: number) => Array.from({ length: Math.min(count, total - cursor) }, (_, offset) => {
+      const index = cursor + offset
+      return {
+        name: `item-${index}.cbz`,
+        path: `C:/books/item-${index}.cbz`,
+        kind: "file" as const,
+        readerSupported: true,
+      }
+    })
+    const opened = page({ total, entries: entriesAt(0, 128) })
+    const listDirectoryBrowser = vi.fn(async (_sessionId: string, cursor: number, limit: number) => page({
+      ...opened,
+      cursor,
+      entries: entriesAt(cursor, limit),
+    }))
+    const sortDirectoryBrowser = vi.fn(async () => opened)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      listDirectoryBrowser,
+      sortDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    const host = await currentView.findByRole("listbox", { name: "文件项目" })
+    const first = await currentView.findByTitle("C:/books/item-0.cbz")
+
+    fireEvent.click(first)
+    fireEvent.keyDown(host, { key: "End", ctrlKey: true })
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+    expect(host.getAttribute("data-focused-index")).toBe("99999")
+
+    await waitFor(() => expect(listDirectoryBrowser.mock.calls.some((call) => call[1] > 99_000)).toBe(true))
+
+    fireEvent.keyDown(host, { key: "Home", ctrlKey: true })
+    const restoredFirst = await currentView.findByTitle("C:/books/item-0.cbz")
+    expect(restoredFirst.getAttribute("aria-selected")).toBe("true")
+    expect(restoredFirst.getAttribute("data-focused")).toBe("true")
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+
+    fireEvent.keyDown(host, { key: "End", shiftKey: true })
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("100000")
+    fireEvent.click(currentView.getByRole("button", { name: "升序" }))
+    await waitFor(() => expect(sortDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { field: "name", order: "desc", directoriesFirst: true },
+      "C:/books/item-99999.cbz",
+      expect.any(AbortSignal),
+    ))
     view.unmount()
   })
 

@@ -21,13 +21,14 @@ export default function FolderSelectionBar({ selectedCount, total, chainSelectMo
       <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto">
         <Action label="选择全部项目" disabled={selectedCount === total} onClick={onSelectAll}><CheckSquare /></Action>
         <Action label="反转选择状态" disabled={total === 0} onClick={onInvert}><Square /></Action>
-        <Action label="链接选中模式" active={chainSelectMode} onClick={onToggleChain}><Link /></Action>
+        <Action label="链接选中模式" pressed={chainSelectMode} onClick={onToggleChain}><Link /></Action>
         <Button
           type="button"
           size="sm"
           variant={clickBehavior === "select" ? "default" : "ghost"}
           className="h-7 gap-1 px-2 text-xs"
           aria-label={`点击行为：${clickBehavior === "select" ? "点选" : "点开"}`}
+          aria-pressed={clickBehavior === "select"}
           title={`点击卡片会${clickBehavior === "select" ? "选中或取消选中" : "打开项目"}`}
           onClick={onToggleClickBehavior}
         >
@@ -40,9 +41,9 @@ export default function FolderSelectionBar({ selectedCount, total, chainSelectMo
   )
 }
 
-function Action({ label, disabled = false, active = false, onClick, children }: { label: string; disabled?: boolean; active?: boolean; onClick(): void; children: ReactNode }) {
+function Action({ label, disabled = false, pressed, onClick, children }: { label: string; disabled?: boolean; pressed?: boolean; onClick(): void; children: ReactNode }) {
   return (
-    <Button type="button" size="icon-sm" variant={active ? "default" : "ghost"} aria-label={label} title={label} disabled={disabled} onClick={onClick}>
+    <Button type="button" size="icon-sm" variant={pressed ? "default" : "ghost"} aria-label={label} aria-pressed={pressed} title={label} disabled={disabled} onClick={onClick}>
       {children}
     </Button>
   )

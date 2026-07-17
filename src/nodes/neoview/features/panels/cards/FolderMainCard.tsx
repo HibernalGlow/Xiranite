@@ -211,6 +211,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     () => catalog ? selectedLoadedDirectoryPaths(selection, catalog.pages) : EMPTY_SELECTED_PATHS,
     [catalog, selection],
   )
+  const itemIdPrefix = catalog?.sessionId
+  const focusedItemId = catalog && focusedIndex !== undefined && viewMode !== "details" && directoryEntryAt(catalog, focusedIndex)
+    ? `${itemIdPrefix}-item-${focusedIndex}`
+    : undefined
 
   useEffect(() => {
     if (!sourcePath) return
@@ -492,6 +496,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           const latest = catalogRef.current
           if (!latest || latest.sessionId !== sessionId || latest.generation !== generation) return
           const merged = mergeDirectoryPage(latest, page)
+          const currentFocusedEntry = directoryEntryAt(merged, focusedIndexRef.current ?? -1)
+          if (currentFocusedEntry) setFocusedPath(currentFocusedEntry.path)
           const center = Math.floor((visibleRangeRef.current.startIndex + visibleRangeRef.current.endIndex) / 2)
           commitCatalog(trimDirectoryPages(merged, center, MAX_CACHED_PAGES))
           queueMicrotask(registerVisibleThumbnails)
@@ -1070,6 +1076,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           data-focused-index={focusedIndex}
           role={searchOpen ? undefined : "listbox"}
           aria-label={searchOpen ? undefined : "文件项目"}
+          aria-activedescendant={searchOpen ? undefined : focusedItemId}
           tabIndex={0}
           onKeyDown={handleDirectoryKeyDown}
           style={{ order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1, "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
@@ -1105,6 +1112,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               const entry = directoryEntryAt(catalog, index)
               return (
                 <DirectoryListItem
+                  itemId={`${itemIdPrefix}-item-${index}`}
                   entry={entry}
                   index={index}
                   disabled={disabled}
@@ -1162,6 +1170,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               return (
                 viewUsesBanner(viewMode) ? (
                   <DirectoryBannerItem
+                    itemId={`${itemIdPrefix}-item-${index}`}
                     entry={entry}
                     index={index}
                     disabled={disabled}
@@ -1176,6 +1185,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                   />
                 ) : (
                   <DirectoryGridItem
+                    itemId={`${itemIdPrefix}-item-${index}`}
                     entry={entry}
                     index={index}
                     disabled={disabled}
@@ -1203,11 +1213,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   )
 }
 
-function DirectoryListItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
+function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
   const rich = visualMode !== "compact"
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
     <button
+      id={itemId}
       type="button"
       className={`flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${rich ? "h-[76px]" : "h-[34px]"}`}
       aria-selected={selected}
@@ -1233,10 +1244,11 @@ function DirectoryListItem({ entry, index, disabled, selected, focused, showRati
   )
 }
 
-function DirectoryBannerItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
+function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
     <button
+      id={itemId}
       type="button"
       className="grid h-24 w-full grid-cols-[5rem_minmax(0,1fr)] overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary"
       aria-selected={selected}
@@ -1262,11 +1274,12 @@ function DirectoryBannerItem({ entry, index, disabled, selected, focused, showRa
   )
 }
 
-function DirectoryGridItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
+function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
   if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   const showMetadata = showRating || showCollectTagCount
   return (
     <button
+      id={itemId}
       type="button"
       className={`grid h-36 w-full overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary ${showMetadata ? "grid-rows-[1fr_auto_auto]" : "grid-rows-[1fr_auto]"}`}
       aria-selected={selected}
@@ -1293,6 +1306,7 @@ function DirectoryGridItem({ entry, index, disabled, selected, focused, showRati
 }
 
 interface DirectoryItemProps {
+  itemId: string
   entry?: ReaderDirectoryEntryDto
   index: number
   disabled: boolean
