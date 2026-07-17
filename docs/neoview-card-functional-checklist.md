@@ -1188,7 +1188,7 @@
   - 目标：The Card displays server-owned presentation cache entries, bytes, maximum bytes, usage and leases from the shared diagnostics snapshot without presenting the browser predecode retained limit as the legacy memory pool.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
   - 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.cli`、`neoview.preload-status.memory`、`neoview.preload-status.diagnostics-client`
-  - 备注：The browser DTO and Card now consume server presentation entries, bytes, maxBytes and leases separately from the bounded browser predecode store; complete status still requires CLI/TUI presentation and Chromium evidence.
+  - 备注：The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; desktop and 420x360 Chromium prove the lease metric and responsive geometry, while complete status still requires CLI/TUI presentation.
 - [ ] `preload.format` 保持内存与百分比格式
   - 目标：Bytes use the legacy 1024 thresholds and B/KB/MB/GB labels, usage renders one decimal place, and missing or zero-capacity metrics degrade without invalid percentages.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
@@ -1228,7 +1228,7 @@
   - 目标：Preload Status remains independently lazy, hideable, dockable, collapsible, movable, resizable and window-capable with its Loader icon, Info Panel default and visible/expanded defaults.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
   - 测试：`neoview.card.parallel-core`、`neoview.card.zero-mount`、`neoview.settings.card-layout`、`neoview.preload-status.chunk`、`neoview.preload-status.e2e`
-  - 备注：The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,628-byte production chunk are gated, including desktop and constrained Chromium.
+  - 备注：The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,857-byte production chunk are gated, including desktop and constrained Chromium.
 - [ ] `preload.data-contract` 共享有界 preload 与 diagnostics DTO
   - 目标：GUI, CLI and TUI share one versioned, path-free contract for session generation, plan, telemetry, bounded performance metrics and server cache capacity with cancellation and stale-result semantics.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
@@ -1253,7 +1253,7 @@
   - 目标：The two-column summary, compact memory meter, three-column nearby grid and current/cached/cold hierarchy remain readable without overlap or horizontal overflow at desktop and 420x360 Card widths.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
   - 测试：`neoview.preload-status.ui`、`neoview.preload-status.e2e`
-  - 备注：The React Card restores the two-column summary, compact memory meter and three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending.
+  - 备注：The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending.
 - [ ] `preload.image-stability` 状态观察与控制不重挂活动媒体
   - 目标：Event updates, diagnostics refresh, retry, cancel and clear preserve the active Reader media node and asset URL and issue zero duplicate requests for the active asset.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`
@@ -1263,7 +1263,7 @@
   - 目标：The Card keeps at most nine nearby tiles and O(1) metrics, bounded event snapshots, at most one diagnostics sample per two seconds only while active, zero hidden work, no page decode or thumbnail blob reads, and an independent deferred chunk under 8 KiB outside Reader entry and sidebar base chunks.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/api/pageManager.ts`
   - 测试：`neoview.preload-status-store`、`neoview.preload.performance-telemetry`、`neoview.preload-status.poll-budget`、`neoview.preload-status.chunk`、`neoview.preload-status.e2e`
-  - 备注：The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,628-byte chunk; the full Reader performance gate remains pending.
+  - 备注：The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,857-byte chunk; the full Reader performance gate remains pending.
 - [ ] `preload.deviations` 记录 XR 三层状态、激活采样与安全控制扩展
   - 目标：Document that legacy Tauri memory/cache polling is replaced by authenticated shared diagnostics, session preload plan/telemetry and a separately labelled browser predecode event store; polling is active-only, errors are sanitized and retryable, queue/admission/cancel/clear controls are frozen-scope extensions, cancel and clear are current-session scoped, and only Card layout is persisted.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
