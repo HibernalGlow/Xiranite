@@ -66,10 +66,12 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
   const pageCatalogRequests: string[] = []
+  const imageRequests: string[] = []
   page.on("request", (request) => {
     if (request.url().includes("/page-media-information")) pageMediaInformationRequests += 1
     if (request.url().endsWith("/reader/diagnostics")) diagnosticsRequests += 1
     if (/\/reader\/s\/[^/]+\/pages\?/.test(request.url())) pageCatalogRequests.push(request.url())
+    if (request.resourceType() === "image") imageRequests.push(request.url())
   })
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
@@ -299,6 +301,8 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(preloadCard.getByRole("progressbar", { name: "服务端呈现缓存使用率" })).toBeVisible()
   await expect(preloadCard.getByText("已同步", { exact: true })).toBeVisible()
   await expect(preloadCard.getByLabel(/第 \d+ 页/)).toHaveCount(6)
+  const activeAssetUrl = new URL((await readerImage.getAttribute("src"))!, page.url()).href
+  const activeAssetRequestsBeforePreloadActions = imageRequests.filter((url) => url === activeAssetUrl).length
   expect(await preloadCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   await preloadCard.screenshot({ path: testInfo.outputPath(`neoview-preload-status-${testInfo.project.name}.png`) })
@@ -312,6 +316,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await rightSidebar.getByRole("button", { name: "展开预加载状态" }).click()
   await expect.poll(() => diagnosticsRequests).toBe(requestsBeforeCollapse + 1)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  expect(imageRequests.filter((url) => url === activeAssetUrl)).toHaveLength(activeAssetRequestsBeforePreloadActions)
 })
 
 async function seedBookmark(page: import("@playwright/test").Page, name: string, path: string): Promise<{ id: string }> {

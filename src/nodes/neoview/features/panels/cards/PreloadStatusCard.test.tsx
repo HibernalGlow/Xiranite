@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderSessionDto, ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
@@ -110,6 +110,35 @@ describe("PreloadStatusCard", () => {
     expect(diagnostics).toHaveBeenCalledTimes(3)
   })
 
+  it("[neoview.preload-status.session-switch] clears previous-session diagnostics before the next snapshot arrives", async () => {
+    let resolveSecond!: (value: ReaderStorageDiagnosticsDto) => void
+    const second = new Promise<ReaderStorageDiagnosticsDto>((resolve) => { resolveSecond = resolve })
+    const diagnostics = vi.fn()
+      .mockResolvedValueOnce(diagnosticsDto())
+      .mockReturnValueOnce(second)
+    const session = sessionDto()
+    const view = render(<PreloadStatusCard {...panelContext(diagnostics, session)} />)
+
+    await waitFor(() => expect(memoryMetric(view.container).textContent).toContain("12"))
+    view.rerender(<PreloadStatusCard {...panelContext(diagnostics, {
+      ...session,
+      sessionId: "reader-2",
+      book: { ...session.book, id: "book-2" },
+      frame: { ...session.frame, generation: 1 },
+    })} />)
+
+    expect(memoryMetric(view.container).textContent).toContain("--")
+    expect(memoryMetric(view.container).textContent).not.toContain("12")
+    await act(async () => resolveSecond(diagnosticsDto(7)))
+    await waitFor(() => expect(memoryMetric(view.container).textContent).toContain("7"))
+  })
+
+  it("[neoview.preload-status.current-page] renders an empty book as 0 / 0 with no page tiles", () => {
+    render(<PreloadStatusView sessionId="empty" currentPageIndex={99} totalPages={0} store={new ReaderPreloadStatusStore(4)} />)
+    expect(screen.getByText("0 / 0")).toBeTruthy()
+    expect(document.querySelectorAll("[data-preload-nearby-page]")).toHaveLength(0)
+  })
+
   it("[neoview.preload-status.format] freezes legacy byte boundaries and invalid degradation", () => {
     expect(formatPreloadBytes(undefined)).toBe("--")
     expect(formatPreloadBytes(-1)).toBe("--")
@@ -154,7 +183,7 @@ function sessionDto(): ReaderSessionDto {
   }
 }
 
-function diagnosticsDto(): ReaderStorageDiagnosticsDto {
+function diagnosticsDto(entries = 12): ReaderStorageDiagnosticsDto {
   return {
     schemaVersion: 1,
     reader: {
@@ -172,10 +201,16 @@ function diagnosticsDto(): ReaderStorageDiagnosticsDto {
       },
     },
     assets: {
-      presentation: { entries: 12, bytes: 64 * 1_048_576, maxBytes: 256 * 1_048_576, activeLeases: 1 },
+      presentation: { entries, bytes: 64 * 1_048_576, maxBytes: 256 * 1_048_576, activeLeases: 1 },
       thumbnails: null,
     },
     presentationDiskCache: { enabled: false },
     solidArchiveCache: { retainedBytes: 0 },
   }
+}
+
+function memoryMetric(container: HTMLElement): HTMLElement {
+  const metric = container.querySelector<HTMLElement>('[data-preload-metric="memory-entries"]')
+  if (!metric) throw new Error("memory metric was not rendered")
+  return metric
 }

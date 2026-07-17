@@ -82,7 +82,7 @@
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "complete",
       "testIds": ["neoview.preload-status.current-page", "neoview.card.preload-status-live", "neoview.preload-status.e2e"],
-      "notes": "The current React Card already derives this field from the active session frame and book snapshot; dedicated boundary and Chromium evidence remain part of the final Card gate."
+      "notes": "The React Card derives this field from the active session frame and book snapshot; focused coverage freezes the zero-page 0 / 0 boundary without rendering nearby-page work, and Chromium covers an active book."
     },
     {
       "id": "preload.memory-pool",
@@ -168,9 +168,9 @@
       "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte", "src/lib/api/pageManager.ts"],
       "targetContract": "Diagnostics and browser predecode failures degrade independently through stable loading, empty, partial, error, retry and disposed states without showing stale previous-session metrics.",
       "surfaces": ["GUI"],
-      "status": "partial",
+      "status": "complete",
       "testIds": ["neoview.preload-status.states", "neoview.preload-status.retry", "neoview.preload-status.partial-metrics", "neoview.preload-status.session-switch"],
-      "notes": "The Card covers loading, partial diagnostics, sanitized error, retry and live browser-event states without hiding retained values; session-switch and real-browser evidence remain pending."
+      "notes": "The Card covers loading, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish."
     },
     {
       "id": "preload.shell",
@@ -181,7 +181,7 @@
       "surfaces": ["GUI"],
       "status": "complete",
       "testIds": ["neoview.card.parallel-core", "neoview.card.zero-mount", "neoview.settings.card-layout", "neoview.preload-status.chunk", "neoview.preload-status.e2e"],
-      "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,157-byte production chunk are gated, including desktop and constrained Chromium."
+      "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,628-byte production chunk are gated, including desktop and constrained Chromium."
     },
     {
       "id": "preload.data-contract",
@@ -202,8 +202,8 @@
       "targetContract": "Hidden, collapsed and unmounted Cards perform no subscriptions or polling; session and frame generation changes abort obsolete requests, and session close clears browser state and server telemetry.",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
-      "testIds": ["neoview.card.preload-status-live", "neoview.preload-status-store", "neoview.preload.telemetry-generation", "neoview.card.zero-mount", "neoview.preload-status.diagnostics-cancel", "neoview.preload-status.session-close"],
-      "notes": "Store unsubscribe, diagnostics polling cancellation on unmount/session/frame change, browser clear and core close are covered; collapsed/window shell and session-close integration evidence remain pending."
+      "testIds": ["neoview.card.preload-status-live", "neoview.preload-status-store", "neoview.preload.telemetry-generation", "neoview.card.zero-mount", "neoview.preload-status.diagnostics-cancel", "neoview.preload-status.session-switch", "neoview.preload-status.session-close"],
+      "notes": "Store unsubscribe, diagnostics polling cancellation on unmount/session/frame change, synchronous cross-session state isolation, browser clear and core close are covered; full session-close integration evidence remains pending."
     },
     {
       "id": "preload.persistence",
@@ -245,9 +245,9 @@
       "sourceEvidence": ["src/lib/cards/info/PreloadStatusCard.svelte"],
       "targetContract": "Event updates, diagnostics refresh, retry, cancel and clear preserve the active Reader media node and asset URL and issue zero duplicate requests for the active asset.",
       "surfaces": ["GUI"],
-      "status": "pending",
+      "status": "partial",
       "testIds": ["neoview.preload-status.image-stability", "neoview.preload-status.e2e"],
-      "notes": "This is a required XR regression boundary because cache controls must never rebuild the visible frame."
+      "notes": "Desktop and 420x360 Chromium prove diagnostics refresh plus collapse/reopen preserve the active Reader media node and issue zero duplicate requests for its exact asset URL. Future cancel/clear actions still require the same evidence."
     },
     {
       "id": "preload.performance",
@@ -258,7 +258,7 @@
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
       "testIds": ["neoview.preload-status-store", "neoview.preload.performance-telemetry", "neoview.preload-status.poll-budget", "neoview.preload-status.chunk", "neoview.preload-status.e2e"],
-      "notes": "The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, active media remains stable in two Chromium viewports, and the Card is an independent 6,157-byte chunk; the full Reader performance gate remains pending."
+      "notes": "The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,628-byte chunk; the full Reader performance gate remains pending."
     },
     {
       "id": "preload.deviations",

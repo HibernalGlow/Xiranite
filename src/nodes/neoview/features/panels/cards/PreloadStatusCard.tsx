@@ -91,8 +91,8 @@ export function PreloadStatusView({
   return (
     <div className="space-y-3 text-xs" data-neoview-preload-status="true">
       <div className="grid grid-cols-2 gap-2" aria-label="预加载摘要">
-        <Metric label="当前页" value={`${totalPages > 0 ? currentPageIndex + 1 : 0} / ${totalPages}`} />
-        <Metric label="内存池" value={presentation?.entries === undefined ? "--" : `${presentation.entries} 项`} />
+        <Metric metricId="current-page" label="当前页" value={`${totalPages > 0 ? currentPageIndex + 1 : 0} / ${totalPages}`} />
+        <Metric metricId="memory-entries" label="内存池" value={presentation?.entries === undefined ? "--" : `${presentation.entries} 项`} />
       </div>
 
       {presentation ? (
@@ -172,9 +172,9 @@ export function formatPreloadBytes(value: number | undefined): string {
   return `${(value! / 1_073_741_824).toFixed(2)} GB`
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ metricId, label, value }: { metricId: string; label: string; value: string }) {
   return (
-    <div className="rounded border border-border/60 bg-muted/20 p-2">
+    <div className="rounded border border-border/60 bg-muted/20 p-2" data-preload-metric={metricId}>
       <div className="text-[10px] text-muted-foreground">{label}</div>
       <div className="mt-1 font-medium tabular-nums">{value}</div>
     </div>
@@ -194,6 +194,7 @@ function PageStatus({ pageIndex, current, status }: { pageIndex: number; current
         !current && !status && "border-border/60 bg-muted/20 text-muted-foreground",
       )}
       aria-label={`第 ${pageIndex + 1} 页，${label}`}
+      data-preload-nearby-page={pageIndex}
     >
       <span className="block text-[10px]">P{pageIndex + 1}</span>
       <span className="block text-[9px]">{label}</span>
