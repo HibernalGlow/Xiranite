@@ -67,7 +67,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
       setLists(value)
       setActiveListId(next)
       setConfirmedListId(next)
-      setVisibleBookmarks({ listId: next, items: [] })
+      setVisibleBookmarks((current) => current.listId === next ? current : { listId: next, items: [] })
       setListsReady(true)
       if (next !== configured && onBookmarkListPreferences) {
         void onBookmarkListPreferences({ activeListId: next }).catch((error) => setActionError(errorMessage(error)))
@@ -84,7 +84,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     const next = lists.some((list) => list.id === configured) ? configured : "all"
     setActiveListId(next)
     setConfirmedListId(next)
-    setVisibleBookmarks({ listId: next, items: [] })
+    setVisibleBookmarks((current) => current.listId === next ? current : { listId: next, items: [] })
     if (next !== configured) {
       void onBookmarkListPreferences({ activeListId: next }).catch((error) => setActionError(errorMessage(error)))
     }
@@ -251,7 +251,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
   }
 
   return (
-    <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true" data-selection-count={selectedIds.size} data-bookmark-view-mode={viewMode}>
+    <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true" data-selection-count={selectedIds.size} data-bookmark-view-mode={viewMode} data-visible-bookmarks={visibleBookmarks.items.length} data-thumbnail-items={thumbnailItems.length}>
       <div className="flex items-center gap-1">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" aria-label="书签列表">
           {lists.map((list) => (
