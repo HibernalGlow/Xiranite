@@ -1,6 +1,7 @@
 import type { Stats } from "node:fs"
 import { readdir, realpath, stat } from "node:fs/promises"
 import { basename, join } from "node:path"
+import pMap from "p-map"
 
 import type { ReaderBook, ReaderSubtitleAsset } from "../../domain/book/book.js"
 import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
@@ -28,7 +29,7 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal, medi
   const bookId = stableOpaqueId("book", source.kind, directoryPath)
   const entries = await readdir(directoryPath, { withFileTypes: true })
   const candidates = entries.filter((entry) => entry.isFile() && (pageMediaType(entry.name, mediaFormats) || subtitleFormatFromPath(entry.name)))
-  const files = (await mapWithConcurrency(candidates, STAT_CONCURRENCY, async (entry) => {
+  const files = (await pMap(candidates, async (entry) => {
     signal?.throwIfAborted()
     const filePath = join(directoryPath, entry.name)
     try {
@@ -37,7 +38,7 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal, medi
       if (isMissingFile(error)) return undefined
       throw error
     }
-  })).filter((file): file is DirectoryFile => Boolean(file?.stats.isFile()))
+  }, { concurrency: STAT_CONCURRENCY, stopOnError: true })).filter((file): file is DirectoryFile => Boolean(file?.stats.isFile()))
   signal?.throwIfAborted()
   files.sort((left, right) => compareNaturalPath(left.name, right.name))
   const pageFiles = files.filter((file) => pageMediaType(file.name, mediaFormats))
@@ -77,23 +78,6 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal, medi
 
 function subtitleContentType(format: string): string {
   return format === "vtt" ? "text/vtt" : "text/plain"
-}
-
-async function mapWithConcurrency<T, R>(
-  input: readonly T[],
-  concurrency: number,
-  transform: (value: T) => Promise<R>,
-): Promise<R[]> {
-  const output: R[] = []
-  output.length = input.length
-  let nextIndex = 0
-  await Promise.all(Array.from({ length: Math.min(concurrency, input.length) }, async () => {
-    while (nextIndex < input.length) {
-      const index = nextIndex++
-      output[index] = await transform(input[index]!)
-    }
-  }))
-  return output
 }
 
 function isMissingFile(error: unknown): boolean {
