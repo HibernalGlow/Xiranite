@@ -27,6 +27,19 @@ export {
   type ReaderBookEmmMetadata,
 } from "./application/metadata/LegacyEmmBookMetadataCodec.js"
 export {
+  ReaderEmmMetadataRevisionConflict,
+  ReaderEmmMetadataService,
+  ReaderEmmMetadataSnapshotSchema,
+  type ReaderEmmMetadataPatch,
+  type ReaderEmmMetadataSnapshot,
+} from "./application/metadata/ReaderEmmMetadataService.js"
+export type {
+  ReaderEmmOverrideRecord,
+  ReaderEmmOverrides,
+  ReaderEmmOverrideStore,
+  ReaderEmmTag,
+} from "./ports/ReaderEmmOverrideStore.js"
+export {
   ReaderFileTreeService,
   type ReaderDirectoryNavigation,
   type ReaderDirectoryPage,
@@ -207,6 +220,7 @@ export {
   type HeadlessPageStream,
   type HeadlessReaderBookSnapshot,
   type HeadlessReaderBookSettingsUpdate,
+  type HeadlessReaderEmmMetadataUpdate,
   type HeadlessReaderPageSnapshot,
   type HeadlessReaderSnapshot,
   type OpenHeadlessReaderInput,

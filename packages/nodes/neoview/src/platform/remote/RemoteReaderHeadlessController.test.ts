@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ReaderHttpController } from "../asset-route/ReaderHttpController.js"
 import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
+import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderEmmOverrideRecord, ReaderEmmOverrideStore, ReaderEmmOverrides } from "../../ports/ReaderEmmOverrideStore.js"
 import { fetchRemoteReaderDiagnostics, RemoteReaderHeadlessController } from "./RemoteReaderHeadlessController.js"
 
 const cleanup: string[] = []
@@ -77,6 +79,40 @@ describe("RemoteReaderHeadlessController", () => {
         reader: { frame: { direction: "right-to-left", layout: { pageMode: "double" } } },
       })
       expect(requests.some((request) => request.method === "PATCH" && request.url.endsWith("/book-settings"))).toBe(true)
+    } finally {
+      await remote[Symbol.asyncDispose]()
+      await server[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.emm.cli-connect] reuses authenticated GUI EMM updates and refreshed translated titles", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-remote-emm-"))
+    cleanup.push(directory)
+    await writeFile(join(directory, "1.jpg"), Uint8Array.of(1, 2, 3))
+    const store = memoryEmmStore("旧译名")
+    const server = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      progressStore: false,
+      directoryEmmRecordStore: store,
+      emmOverrideStore: store,
+    })
+    const requests: Request[] = []
+    const remote = new RemoteReaderHeadlessController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      fetch: controllerFetch(server, requests),
+    })
+    try {
+      await remote.open({ path: directory })
+      await expect(remote.getEmmMetadata()).resolves.toMatchObject({ revision: 0, overrides: {} })
+      const updated = await remote.updateEmmMetadata(0, { rating: 5, translatedTitle: "新译名" })
+      expect(updated).toMatchObject({
+        metadata: { revision: 1, overrides: { rating: 5, translatedTitle: "新译名" } },
+        reader: { book: { translatedTitle: "新译名" } },
+      })
+      await expect(remote.updateEmmMetadata(0, { rating: 4 })).rejects.toThrow("409")
+      expect(requests.some((request) => request.method === "PATCH" && request.url.endsWith("/emm-metadata"))).toBe(true)
     } finally {
       await remote[Symbol.asyncDispose]()
       await server[Symbol.asyncDispose]()
@@ -307,5 +343,24 @@ function memoryBookSettingsStore(): ReaderBookSettingsStore {
       return record
     }),
     importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
+  }
+}
+
+function memoryEmmStore(legacyTitle: string): ReaderEmmOverrideStore & ReaderDirectoryEmmRecordStore {
+  const records = new Map<string, ReaderEmmOverrideRecord>()
+  return {
+    directoryEmmAvailable: true,
+    getEmmOverride: vi.fn(async (path) => records.get(path)),
+    saveEmmOverride: vi.fn(async (path, overrides: ReaderEmmOverrides, expectedRevision, updatedAt) => {
+      const current = records.get(path)
+      if ((current?.revision ?? 0) !== expectedRevision) return undefined
+      const record = { path, overrides, revision: expectedRevision + 1, updatedAt }
+      records.set(path, record)
+      return record
+    }),
+    readDirectoryEmmRecords: vi.fn(async (paths: readonly string[]) => new Map(paths.map((path) => [
+      path,
+      { emmJson: JSON.stringify({ translated_title: records.get(path)?.overrides.translatedTitle ?? legacyTitle }) },
+    ]))),
   }
 }

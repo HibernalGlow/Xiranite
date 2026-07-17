@@ -22,8 +22,11 @@ import type { ReaderMediaProgressStore } from "../../ports/ReaderMediaProgressSt
 import type { ReaderSearchHistoryStore } from "../../ports/ReaderSearchHistoryStore.js"
 import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJournalStore.js"
 import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
+import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderAdjacentBookService } from "../../application/reader/ReaderAdjacentBookService.js"
+import { ReaderEmmMetadataRevisionConflict, ReaderEmmMetadataService } from "../../application/metadata/ReaderEmmMetadataService.js"
+import { legacyEmmBookPathKey } from "../../application/metadata/LegacyEmmBookMetadataCodec.js"
 import { isReaderDirectorySortField, type ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
@@ -112,6 +115,7 @@ const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_BOOK_SETTINGS_PATH = /^\/reader\/s\/([^/]+)\/book-settings$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const SESSION_PAGE_MEDIA_INFORMATION_PATH = /^\/reader\/s\/([^/]+)\/page-media-information$/
+const SESSION_EMM_METADATA_PATH = /^\/reader\/s\/([^/]+)\/emm-metadata$/
 const SESSION_MEDIA_PROGRESS_PATH = /^\/reader\/s\/([^/]+)\/media-progress$/
 const SESSION_SUBTITLES_PATH = /^\/reader\/s\/([^/]+)\/subtitles$/
 const SESSION_SUBTITLE_ASSET_PATH = /^\/reader\/s\/([^/]+)\/subtitle\/([^/]+)\/([^/]+)$/
@@ -160,6 +164,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   libraryService?: ReaderLibraryService
   directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
   directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
+  emmOverrideStore?: ReaderEmmOverrideStore
   searchHistoryStore?: ReaderSearchHistoryStore
   fileUndoJournalStore?: ReaderFileUndoJournalStore
   disposeLibraryService?: boolean
@@ -202,6 +207,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #cacheService: ReaderCacheService
   readonly #mediaProgress?: ReaderMediaProgressService
   readonly #bookSettings?: ReaderBookSettingsService
+  readonly #emmMetadata?: ReaderEmmMetadataService
   readonly #sourceChanges: ReaderSourceWatchService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
   readonly #seekableMedia: ReaderSeekableMediaCache
@@ -287,6 +293,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.bookSettingsStore,
     )
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
+    this.#emmMetadata = options.emmOverrideStore ? new ReaderEmmMetadataService(options.emmOverrideStore) : undefined
     const directoryMetadata = new PlatformDirectoryMetadataProvider(
       options.directoryEmmRecordStore,
       undefined,
@@ -477,6 +484,10 @@ export class ReaderHttpController implements AsyncDisposable {
     if (adjacentBookMatch && request.method === "POST") return this.#openAdjacentBook(adjacentBookMatch[1]!, request)
     const metadataMatch = SESSION_METADATA_PATH.exec(url.pathname)
     if (metadataMatch && request.method === "GET") return this.#metadata(metadataMatch[1]!, request.signal)
+    const emmMetadataMatch = SESSION_EMM_METADATA_PATH.exec(url.pathname)
+    if (emmMetadataMatch && (request.method === "GET" || request.method === "PATCH")) {
+      return this.#emmMetadataResponse(emmMetadataMatch[1]!, request)
+    }
     const pageMediaInformationMatch = SESSION_PAGE_MEDIA_INFORMATION_PATH.exec(url.pathname)
     if (pageMediaInformationMatch && request.method === "GET") {
       return this.#pageMediaInformationResponse(pageMediaInformationMatch[1]!, request.signal)
@@ -851,6 +862,46 @@ export class ReaderHttpController implements AsyncDisposable {
     } catch (error) {
       if (signal?.aborted) throw error
       return jsonResponse({ error: errorMessage(error) }, 503)
+    }
+  }
+
+  async #emmMetadataResponse(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (!this.#emmMetadata) return jsonResponse({ error: "Reader EMM metadata is unavailable" }, 503)
+    const path = legacyEmmBookPathKey(session.book.source.path)
+    try {
+      if (request.method === "GET") return jsonResponse(await this.#emmMetadata.read(path, request.signal))
+      const body = await readControlJson(request)
+      if (!body || Object.keys(body).some((key) => key !== "expectedRevision" && key !== "patch")) {
+        return jsonResponse({ error: "Reader EMM metadata patch is invalid" }, 400)
+      }
+      if (!Number.isSafeInteger(body.expectedRevision) || (body.expectedRevision as number) < 0) {
+        return jsonResponse({ error: "expectedRevision must be a non-negative integer" }, 400)
+      }
+      if (!body.patch || typeof body.patch !== "object" || Array.isArray(body.patch)) {
+        return jsonResponse({ error: "patch must be an object" }, 400)
+      }
+      if (!Object.keys(body.patch as Record<string, unknown>).length) {
+        return jsonResponse({ error: "patch must change at least one field" }, 400)
+      }
+      const updated = await this.#emmMetadata.update(
+        path,
+        body.expectedRevision as number,
+        body.patch as Record<string, unknown>,
+        request.signal,
+      )
+      this.#releaseBookMetadata(session.id)
+      return jsonResponse(updated)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      if (error instanceof ReaderEmmMetadataRevisionConflict) {
+        return jsonResponse({ error: error.message, actualRevision: error.actualRevision }, 409)
+      }
+      if (error instanceof z.ZodError || error instanceof RangeError) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      return jsonResponse({ error: errorMessage(error) }, 500)
     }
   }
 

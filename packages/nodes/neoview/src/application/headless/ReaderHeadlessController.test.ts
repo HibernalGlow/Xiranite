@@ -3,11 +3,13 @@ import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
 import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
+import type { ReaderEmmOverrideRecord, ReaderEmmOverrideStore, ReaderEmmOverrides } from "../../ports/ReaderEmmOverrideStore.js"
 import { CoreReaderService } from "../reader/ReaderService.js"
 import { ReaderMediaProgressService } from "../reader/ReaderMediaProgressService.js"
 import { ReaderBookSettingsService } from "../reader/ReaderBookSettingsService.js"
 import type { ReaderAdjacentBookService } from "../reader/ReaderAdjacentBookService.js"
 import { ReaderBookMetadataService } from "../metadata/ReaderBookMetadataService.js"
+import { ReaderEmmMetadataService } from "../metadata/ReaderEmmMetadataService.js"
 import { ReaderHeadlessController } from "./ReaderHeadlessController.js"
 
 describe("ReaderHeadlessController", () => {
@@ -100,6 +102,47 @@ describe("ReaderHeadlessController", () => {
       await controller.next()
       controller.inspect()
       expect(readDirectoryEmmRecords).toHaveBeenCalledOnce()
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.emm.headless-contract] shares revisioned overrides and refreshes translated book metadata", async () => {
+    const overrides = memoryEmmStore()
+    const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => {
+      const record = await overrides.getEmmOverride(paths[0]!)
+      return new Map([[paths[0]!, {
+        emmJson: JSON.stringify({ translated_title: record?.overrides.translatedTitle ?? "旧译名" }),
+      }]])
+    })
+    const controller = new ReaderHeadlessController(
+      new CoreReaderService(async (source) => book(source.path, [])),
+      undefined,
+      undefined,
+      new ReaderBookMetadataService({ directoryEmmAvailable: true, readDirectoryEmmRecords }),
+      undefined,
+      undefined,
+      new ReaderEmmMetadataService(overrides),
+    )
+    try {
+      expect((await controller.open({ path: "D:/private/book.cbz" })).book.translatedTitle).toBe("旧译名")
+      await expect(controller.getEmmMetadata()).resolves.toEqual({
+        revision: 0,
+        overrides: {},
+        inherited: ["rating", "manualTags", "translatedTitle"],
+        updatedAt: undefined,
+      })
+      const updated = await controller.updateEmmMetadata(0, {
+        rating: 5,
+        manualTags: [{ namespace: "artist", tag: "Alice" }],
+        translatedTitle: "新译名",
+      })
+      expect(updated.metadata).toMatchObject({ revision: 1, overrides: { rating: 5, translatedTitle: "新译名" } })
+      expect(updated.reader.book.translatedTitle).toBe("新译名")
+      await expect(controller.updateEmmMetadata(0, { rating: 4 })).rejects.toMatchObject({
+        name: "ReaderEmmMetadataRevisionConflict",
+        actualRevision: 1,
+      })
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -319,5 +362,17 @@ function memoryBookSettingsStore(initial?: ReaderBookSettingsRecord): ReaderBook
       return record
     }),
     importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
+  }
+}
+
+function memoryEmmStore(): ReaderEmmOverrideStore {
+  let record: ReaderEmmOverrideRecord | undefined
+  return {
+    getEmmOverride: vi.fn(async (path) => record?.path === path ? record : undefined),
+    saveEmmOverride: vi.fn(async (path, overrides: ReaderEmmOverrides, expectedRevision, updatedAt) => {
+      if ((record?.revision ?? 0) !== expectedRevision) return undefined
+      record = { path, overrides, revision: expectedRevision + 1, updatedAt }
+      return record
+    }),
   }
 }

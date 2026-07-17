@@ -346,6 +346,54 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.emm.override-sqlite] merges revisioned xr_ overrides without modifying legacy thumbs metadata", async () => {
+    const { path } = await fixture()
+    const seeded = await openFixtureDatabase(path)
+    seeded.exec(`UPDATE thumbs SET rating_data = '{"value":2,"source":"emm"}', emm_json = '{"translated_title":"旧译名","rating":2}', manual_tags = '[]' WHERE key = 'D:/cover.jpg'`)
+    const before = seeded.get("SELECT rating_data, emm_json, manual_tags FROM thumbs WHERE key = 'D:/cover.jpg'")
+    seeded.close()
+
+    const store = await SqliteReaderDataStore.open(path)
+    await expect(store.saveEmmOverride("D:/cover.jpg", {
+      rating: 5,
+      translatedTitle: "新译名",
+      manualTags: [{ namespace: "artist", tag: "Alice" }],
+    }, 0, 123)).resolves.toEqual({
+      path: "D:/cover.jpg",
+      overrides: { rating: 5, translatedTitle: "新译名", manualTags: [{ namespace: "artist", tag: "Alice" }] },
+      revision: 1,
+      updatedAt: 123,
+    })
+    await expect(store.saveEmmOverride("D:/cover.jpg", { rating: 4 }, 0, 124)).resolves.toBeUndefined()
+    const merged = await store.readDirectoryEmmRecords(["D:/cover.jpg"])
+    expect(JSON.parse(merged.get("D:/cover.jpg")!.ratingData!)).toEqual({ value: 5, source: "manual", timestamp: 123 })
+    expect(JSON.parse(merged.get("D:/cover.jpg")!.manualTags!)).toEqual([{ namespace: "artist", tag: "Alice" }])
+    expect(JSON.parse(merged.get("D:/cover.jpg")!.emmJson!)).toEqual({ translated_title: "新译名", rating: 2 })
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("SELECT rating_data, emm_json, manual_tags FROM thumbs WHERE key = 'D:/cover.jpg'")).toEqual(before)
+    expect(verified.get("SELECT value FROM metadata WHERE key = 'version'")).toEqual({ value: "2.4" })
+    expect(verified.get("PRAGMA user_version")).toEqual({ user_version: 7 })
+    expect(verified.get("SELECT revision FROM xr_reader_emm_overrides WHERE path_key = 'd:/cover.jpg'")).toEqual({ revision: 1 })
+    verified.close()
+  })
+
+  it("[neoview.emm.override-no-legacy] remains available through xr_ storage when legacy thumbs has no EMM columns", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-reader-emm-xr-only-"))
+    directories.push(directory)
+    const path = join(directory, "thumbnails.db")
+    const database = await openFixtureDatabase(path)
+    database.exec("CREATE TABLE unrelated (id INTEGER PRIMARY KEY)")
+    database.close()
+    const store = await SqliteReaderDataStore.open(path)
+    expect(store.directoryEmmAvailable).toBe(true)
+    await store.saveEmmOverride("D:/book.cbz", { rating: 4 }, 0, 100)
+    const result = await store.readDirectoryEmmRecords(["D:/book.cbz"])
+    expect(JSON.parse(result.get("D:/book.cbz")!.ratingData!)).toEqual({ value: 4, source: "manual", timestamp: 100 })
+    await store.close()
+  })
+
   it("[neoview.folder.emm-legacy-columns] reads older EMM rows without adding manual_tags", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-reader-emm-legacy-"))
     directories.push(directory)

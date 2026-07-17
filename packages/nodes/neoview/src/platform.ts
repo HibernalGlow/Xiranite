@@ -12,6 +12,7 @@ import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressStore } from "./ports/ReaderMediaProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
 import type { ReaderBookSettingsStore } from "./ports/ReaderBookSettingsStore.js"
+import type { ReaderEmmOverrideStore } from "./ports/ReaderEmmOverrideStore.js"
 import type { ReaderSearchHistoryStore } from "./ports/ReaderSearchHistoryStore.js"
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
@@ -251,6 +252,7 @@ export async function createReaderHttpController(
     libraryService,
     directorySortPreferenceStore: dataStore,
     directoryEmmRecordStore: dataStore,
+    emmOverrideStore: dataStore,
     searchHistoryStore: dataStore,
     fileUndoJournalStore: dataStore,
     disposeLibraryService: true,
@@ -583,6 +585,9 @@ export async function createReaderHeadlessController(
   const bookMetadata = isReaderDirectoryEmmRecordStore(progressStore)
     ? new (await import("./application/metadata/ReaderBookMetadataService.js")).ReaderBookMetadataService(progressStore)
     : undefined
+  const emmMetadata = isReaderEmmOverrideStore(progressStore)
+    ? new (await import("./application/metadata/ReaderEmmMetadataService.js")).ReaderEmmMetadataService(progressStore)
+    : undefined
   const ownsCache = !options.solidArchiveCache
   const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
     maxBytes: options.maxSolidArchiveCacheBytes,
@@ -612,6 +617,7 @@ export async function createReaderHeadlessController(
       defaults: bookSettingsModule.readerBookSettingsDefaults(sessionOptions),
     } : undefined,
     adjacentBooks,
+    emmMetadata,
   )
 }
 
@@ -628,13 +634,19 @@ function isReaderBookSettingsStore(store: ReaderProgressStore | undefined): stor
     && typeof (store as Partial<ReaderBookSettingsStore>).importBookSettings === "function")
 }
 
+function isReaderEmmOverrideStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderEmmOverrideStore {
+  return Boolean(store
+    && typeof (store as Partial<ReaderEmmOverrideStore>).getEmmOverride === "function"
+    && typeof (store as Partial<ReaderEmmOverrideStore>).saveEmmOverride === "function")
+}
+
 function isReaderDirectoryEmmRecordStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderDirectoryEmmRecordStore {
   return Boolean(store
     && typeof (store as Partial<ReaderDirectoryEmmRecordStore>).directoryEmmAvailable === "boolean"
     && typeof (store as Partial<ReaderDirectoryEmmRecordStore>).readDirectoryEmmRecords === "function")
 }
 
-async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore> {
+async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore & ReaderEmmOverrideStore> {
   const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
   return SqliteReaderDataStore.open(databasePath)
 }

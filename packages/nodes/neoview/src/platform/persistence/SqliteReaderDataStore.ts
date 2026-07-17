@@ -29,20 +29,28 @@ import type {
   ReaderDirectoryEmmRecord,
   ReaderDirectoryEmmRecordStore,
 } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type {
+  ReaderEmmOverrideRecord,
+  ReaderEmmOverrides,
+  ReaderEmmOverrideStore,
+} from "../../ports/ReaderEmmOverrideStore.js"
+import { parseReaderEmmOverrides } from "../../application/metadata/ReaderEmmMetadataService.js"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
 
 const GLOBAL_SORT_SCOPE = "__global__"
 const MAX_FOLDER_SORT_RULES = 1_000
 
-export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore {
+export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore, ReaderEmmOverrideStore {
   readonly directoryEmmAvailable: boolean
+  readonly #legacyDirectoryEmmAvailable: boolean
   readonly #directoryRatingDataAvailable: boolean
   readonly #directoryManualTagsAvailable: boolean
   #closed = false
 
   private constructor(private readonly database: WritableSqliteConnection) {
     const columns = new Set(database.all("PRAGMA table_info(thumbs)").flatMap((row) => typeof row.name === "string" ? [row.name] : []))
-    this.directoryEmmAvailable = columns.has("key") && columns.has("emm_json")
+    this.#legacyDirectoryEmmAvailable = columns.has("key") && columns.has("emm_json")
+    this.directoryEmmAvailable = true
     this.#directoryRatingDataAvailable = columns.has("rating_data")
     this.#directoryManualTagsAvailable = columns.has("manual_tags")
   }
@@ -142,6 +150,15 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
           revision INTEGER NOT NULL CHECK (revision >= 1),
           updated_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS xr_reader_emm_overrides (
+          path_key TEXT PRIMARY KEY NOT NULL,
+          display_path TEXT NOT NULL,
+          overrides_json TEXT NOT NULL,
+          revision INTEGER NOT NULL CHECK (revision >= 1),
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_emm_overrides_updated_idx
+          ON xr_reader_emm_overrides (updated_at DESC, path_key ASC);
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database)
@@ -696,7 +713,7 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     signal?: AbortSignal,
   ): Promise<ReadonlyMap<string, ReaderDirectoryEmmRecord>> {
     this.#assertOpen()
-    if (!this.directoryEmmAvailable || !paths.length) return new Map()
+    if (!paths.length) return new Map()
     if (paths.length > 100_000) throw new RangeError("Directory EMM metadata batch cannot exceed 100000 paths.")
     const output = new Map<string, ReaderDirectoryEmmRecord>()
     const unique = [...new Set(paths)]
@@ -704,23 +721,84 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
       signal?.throwIfAborted()
       const batch = unique.slice(cursor, cursor + 256)
       const placeholders = batch.map((_, index) => `?${index + 1}`).join(", ")
-      const rows = this.database.all(
-        `SELECT key, ${this.#directoryRatingDataAvailable ? "rating_data" : "NULL AS rating_data"}, emm_json, ${this.#directoryManualTagsAvailable ? "manual_tags" : "NULL AS manual_tags"}
-         FROM thumbs WHERE key IN (${placeholders})`,
-        ...batch,
-      )
-      for (const row of rows) {
-        const key = requireString(row.key, "EMM path")
-        output.set(key, {
-          ratingData: optionalText(row.rating_data),
-          emmJson: optionalText(row.emm_json),
-          manualTags: optionalText(row.manual_tags),
-        })
+      const legacy = new Map<string, ReaderDirectoryEmmRecord>()
+      if (this.#legacyDirectoryEmmAvailable) {
+        const rows = this.database.all(
+          `SELECT key, ${this.#directoryRatingDataAvailable ? "rating_data" : "NULL AS rating_data"}, emm_json, ${this.#directoryManualTagsAvailable ? "manual_tags" : "NULL AS manual_tags"}
+           FROM thumbs WHERE key IN (${placeholders})`,
+          ...batch,
+        )
+        for (const row of rows) {
+          legacy.set(normalizeEmmPathKey(requireString(row.key, "EMM path")), {
+            ratingData: optionalText(row.rating_data),
+            emmJson: optionalText(row.emm_json),
+            manualTags: optionalText(row.manual_tags),
+          })
+        }
+      }
+      const pathKeys = batch.map(normalizeEmmPathKey)
+      const overridePlaceholders = pathKeys.map((_, index) => `?${index + 1}`).join(", ")
+      const overrides = new Map(this.database.all(
+        `SELECT path_key, display_path, overrides_json, revision, updated_at
+         FROM xr_reader_emm_overrides WHERE path_key IN (${overridePlaceholders})`,
+        ...pathKeys,
+      ).map((row) => {
+        const record = parseEmmOverride(row)
+        return [normalizeEmmPathKey(record.path), record] as const
+      }))
+      for (const path of batch) {
+        const key = normalizeEmmPathKey(path)
+        const base = legacy.get(key)
+        const override = overrides.get(key)
+        if (base || override) output.set(path, mergeEmmRecord(base, override))
       }
       if (cursor && cursor % 2_048 === 0) await scheduler.yield()
     }
     signal?.throwIfAborted()
     return output
+  }
+
+  async getEmmOverride(path: string): Promise<ReaderEmmOverrideRecord | undefined> {
+    this.#assertOpen()
+    const identity = requireEmmPath(path)
+    const row = this.database.get(
+      `SELECT path_key, display_path, overrides_json, revision, updated_at
+       FROM xr_reader_emm_overrides WHERE path_key = ?1`,
+      normalizeEmmPathKey(identity),
+    )
+    return row ? parseEmmOverride(row) : undefined
+  }
+
+  async saveEmmOverride(
+    path: string,
+    overrides: ReaderEmmOverrides,
+    expectedRevision: number,
+    updatedAt: number,
+  ): Promise<ReaderEmmOverrideRecord | undefined> {
+    this.#assertOpen()
+    const identity = requireEmmPath(path)
+    const parsed = parseReaderEmmOverrides(overrides)
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error("Reader EMM override expectedRevision is invalid.")
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Reader EMM override updatedAt is invalid.")
+    const pathKey = normalizeEmmPathKey(identity)
+    return this.#transaction(() => {
+      const current = this.database.get("SELECT revision FROM xr_reader_emm_overrides WHERE path_key = ?1", pathKey)
+      const actualRevision = current ? requireInteger(current.revision, "EMM override revision") : 0
+      if (actualRevision !== expectedRevision) return undefined
+      const revision = actualRevision + 1
+      this.database.run(
+        `INSERT INTO xr_reader_emm_overrides (path_key, display_path, overrides_json, revision, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(path_key) DO UPDATE SET display_path = excluded.display_path,
+           overrides_json = excluded.overrides_json, revision = excluded.revision, updated_at = excluded.updated_at`,
+        pathKey,
+        identity,
+        JSON.stringify(parsed),
+        revision,
+        updatedAt,
+      )
+      return { path: identity, overrides: parsed, revision, updatedAt }
+    })
   }
 
   async listSearchHistory(scope: string, limit: number): Promise<readonly ReaderSearchHistoryRecord[]> {
@@ -973,6 +1051,59 @@ function parseDirectorySort(row: Record<string, unknown> | undefined): ReaderDir
     throw new Error("Stored folder sort directory priority is invalid.")
   }
   return { field, order, directoriesFirst: directoriesFirst === 1 || directoriesFirst === 1n }
+}
+
+function parseEmmOverride(row: Record<string, unknown>): ReaderEmmOverrideRecord {
+  const path = requireString(row.display_path, "EMM override path")
+  const raw = JSON.parse(requireString(row.overrides_json, "EMM override JSON")) as unknown
+  return {
+    path,
+    overrides: parseReaderEmmOverrides(raw),
+    revision: requireInteger(row.revision, "EMM override revision"),
+    updatedAt: requireInteger(row.updated_at, "EMM override updated time"),
+  }
+}
+
+function mergeEmmRecord(
+  legacy: ReaderDirectoryEmmRecord | undefined,
+  override: ReaderEmmOverrideRecord | undefined,
+): ReaderDirectoryEmmRecord {
+  if (!override) return legacy ?? {}
+  const output: ReaderDirectoryEmmRecord = { ...legacy }
+  if (override.overrides.rating !== undefined) {
+    output.ratingData = JSON.stringify({
+      value: override.overrides.rating,
+      source: "manual",
+      timestamp: override.updatedAt,
+    })
+  }
+  if (override.overrides.manualTags !== undefined) output.manualTags = JSON.stringify(override.overrides.manualTags)
+  if (override.overrides.translatedTitle !== undefined) {
+    const emm = parseJsonObject(legacy?.emmJson)
+    emm.translated_title = override.overrides.translatedTitle
+    output.emmJson = JSON.stringify(emm)
+  }
+  return output
+}
+
+function parseJsonObject(value: string | undefined): Record<string, unknown> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+function requireEmmPath(value: string): string {
+  const path = value.trim()
+  if (!path || path.length > 32_768 || path.includes("\0")) throw new Error("Reader EMM override path is invalid.")
+  return path
+}
+
+function normalizeEmmPathKey(value: string): string {
+  return requireEmmPath(value).replaceAll("\\", "/").toLocaleLowerCase("en-US")
 }
 
 function assertDirectorySort(sort: ReaderDirectorySortRule): void {

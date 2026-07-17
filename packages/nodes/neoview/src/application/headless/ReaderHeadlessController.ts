@@ -19,6 +19,12 @@ import type {
   ReaderAdjacentBookService,
 } from "../reader/ReaderAdjacentBookService.js"
 import type { ReaderDirectorySortRule } from "../browser/ReaderDirectorySort.js"
+import type {
+  ReaderEmmMetadataPatch,
+  ReaderEmmMetadataService,
+  ReaderEmmMetadataSnapshot,
+} from "../metadata/ReaderEmmMetadataService.js"
+import { legacyEmmBookPathKey } from "../metadata/LegacyEmmBookMetadataCodec.js"
 
 export interface OpenHeadlessReaderInput {
   path: string
@@ -72,6 +78,11 @@ export interface ReaderHeadlessBookSettingsOptions {
   defaults: ReaderBookSettingsDefaults
 }
 
+export interface HeadlessReaderEmmMetadataUpdate {
+  metadata: ReaderEmmMetadataSnapshot
+  reader: HeadlessReaderSnapshot
+}
+
 /** Application-level Reader facade shared by CLI and TUI. */
 export class ReaderHeadlessController implements AsyncDisposable {
   readonly #service: ReaderService
@@ -89,6 +100,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     private readonly metadata?: ReaderBookMetadataService,
     private readonly bookSettings?: ReaderHeadlessBookSettingsOptions,
     private readonly adjacentBooks?: ReaderAdjacentBookService,
+    private readonly emmMetadata?: ReaderEmmMetadataService,
   ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
@@ -248,6 +260,29 @@ export class ReaderHeadlessController implements AsyncDisposable {
       signal,
     )
     return { settings, reader: snapshotOf(session, this.#bookMetadata) }
+  }
+
+  getEmmMetadata(signal?: AbortSignal): Promise<ReaderEmmMetadataSnapshot> {
+    const session = this.#requireSession()
+    if (!this.emmMetadata) throw new Error("Reader EMM metadata is unavailable.")
+    return this.emmMetadata.read(legacyEmmBookPathKey(session.book.source.path), signal)
+  }
+
+  async updateEmmMetadata(
+    expectedRevision: number,
+    patch: ReaderEmmMetadataPatch,
+    signal?: AbortSignal,
+  ): Promise<HeadlessReaderEmmMetadataUpdate> {
+    const session = this.#requireSession()
+    if (!this.emmMetadata) throw new Error("Reader EMM metadata is unavailable.")
+    const metadata = await this.emmMetadata.update(
+      legacyEmmBookPathKey(session.book.source.path),
+      expectedRevision,
+      patch,
+      signal,
+    )
+    if (this.metadata) this.#bookMetadata = await this.metadata.load(session.book, signal)
+    return { metadata, reader: snapshotOf(session, this.#bookMetadata) }
   }
 
   async closeBook(): Promise<void> {

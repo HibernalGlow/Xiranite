@@ -1,10 +1,16 @@
 import type {
+  HeadlessReaderEmmMetadataUpdate,
   HeadlessPageStream,
   HeadlessReaderBookSettingsUpdate,
   HeadlessReaderPageSnapshot,
   HeadlessReaderSnapshot,
   OpenHeadlessReaderInput,
 } from "../../application/headless/ReaderHeadlessController.js"
+import {
+  ReaderEmmMetadataSnapshotSchema,
+  type ReaderEmmMetadataPatch,
+  type ReaderEmmMetadataSnapshot,
+} from "../../application/metadata/ReaderEmmMetadataService.js"
 import {
   parseReaderBookSettingsSnapshot,
   type ReaderBookSettingsPatch,
@@ -51,6 +57,7 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
   readonly #headers: Readonly<Record<string, string>>
   readonly #fetch: typeof fetch
   #session: ReaderSessionDto | undefined
+  #translatedTitle: string | undefined
   #pageAssets = new Map<number, ReaderPageDto>()
   #closed = false
   #disposing: Promise<void> | undefined
@@ -93,15 +100,16 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     }
     const previous = this.#session
     this.#session = next
+    this.#translatedTitle = undefined
     this.#pageAssets.clear()
     this.#replaceVisiblePages(next.visiblePages)
     if (previous) await this.#closeRemoteSession(previous.sessionId)
-    return snapshotOf(next)
+    return snapshotOf(next, this.#translatedTitle)
   }
 
   inspect(): HeadlessReaderSnapshot {
     this.#assertOpen()
-    return snapshotOf(this.#requireSession())
+    return snapshotOf(this.#requireSession(), this.#translatedTitle)
   }
 
   async listPages(cursor = 0, limit = 100, signal?: AbortSignal): Promise<readonly HeadlessReaderPageSnapshot[]> {
@@ -164,9 +172,10 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
       throw new Error("Remote reader session changed while opening the adjacent book.")
     }
     this.#session = next
+    this.#translatedTitle = undefined
     this.#pageAssets.clear()
     this.#replaceVisiblePages(next.visiblePages)
-    return snapshotOf(next)
+    return snapshotOf(next, this.#translatedTitle)
   }
 
   async openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream> {
@@ -213,12 +222,36 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     session.visiblePages = response.visiblePages
     session.preload = response.preload
     this.#replaceVisiblePages(response.visiblePages)
-    return { settings, reader: snapshotOf(session) }
+    return { settings, reader: snapshotOf(session, this.#translatedTitle) }
+  }
+
+  async getEmmMetadata(signal?: AbortSignal): Promise<ReaderEmmMetadataSnapshot> {
+    const session = this.#requireSession()
+    const result = await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/emm-metadata`,
+      { signal },
+    )
+    return parseReaderEmmMetadataResponse(result)
+  }
+
+  async updateEmmMetadata(
+    expectedRevision: number,
+    patch: ReaderEmmMetadataPatch,
+    signal?: AbortSignal,
+  ): Promise<HeadlessReaderEmmMetadataUpdate> {
+    const session = this.#requireSession()
+    const metadata = parseReaderEmmMetadataResponse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/emm-metadata`,
+      { method: "PATCH", body: JSON.stringify({ expectedRevision, patch }), signal },
+    ))
+    if (patch.translatedTitle !== undefined) this.#translatedTitle = await this.#loadTranslatedTitle(session, signal)
+    return { metadata, reader: snapshotOf(session, this.#translatedTitle) }
   }
 
   async closeBook(): Promise<void> {
     const session = this.#session
     this.#session = undefined
+    this.#translatedTitle = undefined
     this.#pageAssets.clear()
     if (session) await this.#closeRemoteSession(session.sessionId)
   }
@@ -247,7 +280,25 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     session.visiblePages = result.visiblePages
     session.preload = result.preload
     this.#replaceVisiblePages(result.visiblePages)
-    return snapshotOf(session)
+    return snapshotOf(session, this.#translatedTitle)
+  }
+
+  async #loadTranslatedTitle(session: ReaderSessionDto, signal?: AbortSignal): Promise<string | undefined> {
+    const result = await this.#json<unknown>(`/reader/s/${encodeURIComponent(session.sessionId)}/metadata`, { signal })
+    if (!result || typeof result !== "object" || !("book" in result)) {
+      throw new Error("Xiranite Reader returned an invalid book metadata response.")
+    }
+    const book = (result as { book?: unknown }).book
+    if (!book || typeof book !== "object") throw new Error("Xiranite Reader returned an invalid book metadata response.")
+    const title = (book as { emm?: unknown }).emm
+    if (title === undefined) return undefined
+    if (!title || typeof title !== "object") throw new Error("Xiranite Reader returned an invalid book metadata response.")
+    const translatedTitle = (title as { translatedTitle?: unknown }).translatedTitle
+    if (translatedTitle === undefined) return undefined
+    if (typeof translatedTitle !== "string" || !translatedTitle.trim()) {
+      throw new Error("Xiranite Reader returned an invalid book metadata response.")
+    }
+    return translatedTitle
   }
 
   async #json<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -315,9 +366,9 @@ class RemoteHeadlessPageStream implements HeadlessPageStream {
   }
 }
 
-function snapshotOf(session: ReaderSessionDto): HeadlessReaderSnapshot {
+function snapshotOf(session: ReaderSessionDto, translatedTitle?: string): HeadlessReaderSnapshot {
   return {
-    book: { displayName: session.book.displayName, pageCount: session.book.pageCount },
+    book: { displayName: session.book.displayName, pageCount: session.book.pageCount, translatedTitle },
     frame: session.frame,
     visiblePages: session.visiblePages.map(pageSnapshot),
     preload: session.preload,
@@ -344,6 +395,12 @@ function parseReaderBookSettingsEnvelope(value: unknown): ReaderBookSettingsSnap
   } catch {
     throw invalidBookSettingsResponse()
   }
+}
+
+function parseReaderEmmMetadataResponse(value: unknown): ReaderEmmMetadataSnapshot {
+  const parsed = ReaderEmmMetadataSnapshotSchema.safeParse(value)
+  if (!parsed.success) throw new Error("Xiranite Reader returned an invalid EMM metadata response.")
+  return parsed.data
 }
 
 function invalidBookSettingsResponse(): Error {
