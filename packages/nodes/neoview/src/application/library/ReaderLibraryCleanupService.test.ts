@@ -54,6 +54,7 @@ function fakeStore() {
   return {
     listRecent: vi.fn<ReaderLibraryStore["listRecent"]>(async () => []),
     deleteRecent: vi.fn<ReaderLibraryStore["deleteRecent"]>(async () => false),
+    deleteRecentBatch: vi.fn<ReaderLibraryStore["deleteRecentBatch"]>(async () => ({ deleted: 0, missingIds: [] })),
     deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(async () => ({ selectedIds: [], deleted: 0 })),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(async () => 0),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(async () => []),
@@ -61,6 +62,7 @@ function fakeStore() {
     upsertBookmark: vi.fn<ReaderLibraryStore["upsertBookmark"]>(async () => undefined),
     updateBookmark: vi.fn<ReaderLibraryStore["updateBookmark"]>(async () => undefined),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(async () => false),
+    deleteBookmarkBatch: vi.fn<ReaderLibraryStore["deleteBookmarkBatch"]>(async () => ({ deleted: 0, missingIds: [] })),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(async () => []),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(async () => undefined),
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(async () => false),

@@ -80,15 +80,8 @@ export class ReaderLibraryService implements AsyncDisposable {
   async removeRecents(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResult> {
     this.#assertOpen()
     const normalized = normalizeBatchIds(ids, "recent")
-    let deleted = 0
-    const missingIds: string[] = []
-    for (const id of normalized) {
-      signal?.throwIfAborted()
-      if (await this.store.deleteRecent(id)) deleted += 1
-      else missingIds.push(id)
-    }
     signal?.throwIfAborted()
-    return { deleted, missingIds }
+    return this.store.deleteRecentBatch(normalized)
   }
 
   async removeOldestRecents(limit: number, signal?: AbortSignal): Promise<ReaderOldestRecentCleanupResult> {
@@ -222,15 +215,8 @@ export class ReaderLibraryService implements AsyncDisposable {
   async removeBookmarks(ids: readonly string[], signal?: AbortSignal): Promise<ReaderBookmarkBatchRemoveResult> {
     this.#assertOpen()
     const normalized = normalizeBatchIds(ids, "bookmark")
-    let deleted = 0
-    const missingIds: string[] = []
-    for (const id of normalized) {
-      signal?.throwIfAborted()
-      if (await this.store.deleteBookmark(id)) deleted += 1
-      else missingIds.push(id)
-    }
     signal?.throwIfAborted()
-    return { deleted, missingIds }
+    return this.store.deleteBookmarkBatch(normalized)
   }
 
   async listBookmarkLists(): Promise<readonly (ReaderBookmarkListRecord & { system?: boolean })[]> {

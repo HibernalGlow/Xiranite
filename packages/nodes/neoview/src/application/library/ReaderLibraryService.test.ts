@@ -118,11 +118,12 @@ describe("ReaderLibraryService", () => {
 
   it("[neoview.history.batch-remove] deletes a bounded recent identity batch and reports missing rows", async () => {
     const store = createStore()
-    store.deleteRecent.mockImplementation(async (id) => id !== "missing")
+    store.deleteRecentBatch.mockResolvedValue({ deleted: 2, missingIds: ["missing"] })
     const service = new ReaderLibraryService(store)
 
     await expect(service.removeRecents(["one", "missing", "two"])).resolves.toEqual({ deleted: 2, missingIds: ["missing"] })
-    expect(store.deleteRecent).toHaveBeenCalledTimes(3)
+    expect(store.deleteRecentBatch).toHaveBeenCalledWith(["one", "missing", "two"])
+    expect(store.deleteRecent).not.toHaveBeenCalled()
     await expect(service.removeRecents(["one", "one"])).rejects.toThrow("duplicate")
     await expect(service.removeRecents([])).rejects.toThrow("1 to 500")
     const controller = new AbortController()
@@ -181,11 +182,12 @@ describe("ReaderLibraryService", () => {
 
   it("[neoview.bookmark.batch-delete] deletes a bounded identity batch and reports missing rows", async () => {
     const store = createStore()
-    store.deleteBookmark.mockImplementation(async (id) => id !== "missing")
+    store.deleteBookmarkBatch.mockResolvedValue({ deleted: 2, missingIds: ["missing"] })
     const service = new ReaderLibraryService(store)
 
     await expect(service.removeBookmarks(["one", "missing", "two"])).resolves.toEqual({ deleted: 2, missingIds: ["missing"] })
-    expect(store.deleteBookmark).toHaveBeenCalledTimes(3)
+    expect(store.deleteBookmarkBatch).toHaveBeenCalledWith(["one", "missing", "two"])
+    expect(store.deleteBookmark).not.toHaveBeenCalled()
     await expect(service.removeBookmarks(["one", "one"])).rejects.toThrow("duplicate")
     const controller = new AbortController()
     controller.abort()
@@ -205,6 +207,7 @@ function createStore() {
   return {
     listRecent: vi.fn<ReaderLibraryStore["listRecent"]>(),
     deleteRecent: vi.fn<ReaderLibraryStore["deleteRecent"]>(),
+    deleteRecentBatch: vi.fn<ReaderLibraryStore["deleteRecentBatch"]>(),
     deleteOldestRecent: vi.fn<ReaderLibraryStore["deleteOldestRecent"]>(),
     clearRecentBefore: vi.fn<ReaderLibraryStore["clearRecentBefore"]>(),
     listBookmarks: vi.fn<ReaderLibraryStore["listBookmarks"]>(),
@@ -212,6 +215,7 @@ function createStore() {
     upsertBookmark: vi.fn<(bookmark: ReaderBookmarkRecord) => Promise<void>>(async () => undefined),
     updateBookmark: vi.fn<ReaderLibraryStore["updateBookmark"]>(),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
+    deleteBookmarkBatch: vi.fn<ReaderLibraryStore["deleteBookmarkBatch"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(),
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(),

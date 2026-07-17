@@ -150,6 +150,41 @@ describe("SqliteReaderDataStore", () => {
     })
   })
 
+  it("[neoview.library.batch-delete-sqlite] deletes recent and bookmark identity sets in one store operation", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    for (const bookId of ["recent-one", "recent-two"]) {
+      await store.save({
+        bookId,
+        source: { kind: "archive", path: `D:/books/${bookId}.cbz` },
+        displayName: bookId,
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt: 1,
+      })
+    }
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.upsertBookmark(bookmark("bookmark-one", false, ["reading"]))
+    await store.upsertBookmark(bookmark("bookmark-two", false, ["default"]))
+
+    await expect(store.deleteRecentBatch(["recent-two", "missing", "recent-one"])).resolves.toEqual({
+      deleted: 2,
+      missingIds: ["missing"],
+    })
+    await expect(store.deleteBookmarkBatch(["missing-a", "bookmark-one", "missing-b"])).resolves.toEqual({
+      deleted: 1,
+      missingIds: ["missing-a", "missing-b"],
+    })
+    await expect(store.listRecent({ limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "bookmark-two" }),
+    ])
+    await expect(store.deleteRecentBatch([])).rejects.toThrow("batch delete is invalid")
+    await expect(store.deleteBookmarkBatch(["same", "same"])).rejects.toThrow("duplicate")
+    await store.close()
+  })
+
   it("[neoview.library.bookmarks] stores normalized lists and filters synthetic views", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)

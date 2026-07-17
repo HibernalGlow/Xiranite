@@ -358,6 +358,24 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     return this.#write(() => this.database.run("DELETE FROM xr_reader_progress WHERE book_id = ?1", bookId).changes > 0)
   }
 
+  async deleteRecentBatch(bookIds: readonly string[]): Promise<{ deleted: number; missingIds: readonly string[] }> {
+    this.#assertOpen()
+    const encodedIds = encodeBatchDeleteIds(bookIds, "recent book")
+    return this.#transaction(() => {
+      const existing = new Set(this.database.all(
+        `SELECT book_id FROM xr_reader_progress
+         WHERE book_id IN (SELECT value FROM json_each(?1))`,
+        encodedIds,
+      ).map((row) => requireString(row.book_id, "recent book id")))
+      const deleted = this.database.run(
+        `DELETE FROM xr_reader_progress
+         WHERE book_id IN (SELECT value FROM json_each(?1))`,
+        encodedIds,
+      ).changes
+      return { deleted, missingIds: bookIds.filter((id) => !existing.has(id)) }
+    })
+  }
+
   async deleteOldestRecent(limit: number): Promise<{ selectedIds: readonly string[]; deleted: number }> {
     this.#assertOpen()
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
@@ -532,6 +550,29 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
       deleted = this.database.run("DELETE FROM xr_reader_bookmarks WHERE id = ?1", id).changes > 0
     })
     return deleted
+  }
+
+  async deleteBookmarkBatch(ids: readonly string[]): Promise<{ deleted: number; missingIds: readonly string[] }> {
+    this.#assertOpen()
+    const encodedIds = encodeBatchDeleteIds(ids, "bookmark")
+    return this.#transaction(() => {
+      const existing = new Set(this.database.all(
+        `SELECT id FROM xr_reader_bookmarks
+         WHERE id IN (SELECT value FROM json_each(?1))`,
+        encodedIds,
+      ).map((row) => requireString(row.id, "bookmark id")))
+      this.database.run(
+        `DELETE FROM xr_reader_bookmark_memberships
+         WHERE bookmark_id IN (SELECT value FROM json_each(?1))`,
+        encodedIds,
+      )
+      const deleted = this.database.run(
+        `DELETE FROM xr_reader_bookmarks
+         WHERE id IN (SELECT value FROM json_each(?1))`,
+        encodedIds,
+      ).changes
+      return { deleted, missingIds: ids.filter((id) => !existing.has(id)) }
+    })
   }
 
   async listBookmarkLists(): Promise<readonly ReaderBookmarkListRecord[]> {
@@ -1236,6 +1277,22 @@ function requireFiniteNumber(value: unknown, name: string): number {
 
 function assertText(value: string, name: string): void {
   if (!value.trim() || value.length > 512) throw new Error(`Reader ${name} is invalid.`)
+}
+
+function encodeBatchDeleteIds(ids: readonly string[], name: string): string {
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > 500) {
+    throw new Error(`Reader ${name} batch delete is invalid.`)
+  }
+  const normalized = ids.map((id) => {
+    if (typeof id !== "string" || !id || id.length > 32_768 || id.includes("\0")) {
+      throw new Error(`Reader ${name} batch delete is invalid.`)
+    }
+    return id
+  })
+  if (new Set(normalized).size !== normalized.length) {
+    throw new Error(`Reader ${name} batch delete contains duplicate ids.`)
+  }
+  return JSON.stringify(normalized)
 }
 
 function normalizeBookmarkPath(path: string): string {
