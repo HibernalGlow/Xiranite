@@ -130,6 +130,8 @@ EMM 标签搜索后端纵切已接入现有搜索主链：`tag`/`excludeTag` 支
 
 历史和书签的显式批量删除同样通过 `ReaderLibraryStore` 原子操作收口：最多 500 个 ID 使用 SQLite JSON1 的单一数组绑定值，不动态拼接占位符；书签 membership 与主体行在同一事务删除，`missingIds` 保持请求顺序。GUI/CLI/TUI 因此不会随选择数量产生 N 次写事务，单项删除契约仍保留。
 
+书签批量编辑也不再逐项调用 `updateBookmark()`：application 完成系统列表语义和自定义列表存在性校验后，把最多 500 个异构 `starred/listIds` 更新作为一个 Zod 校验的 JSON1 payload 交给 store；SQLite 在单个 `BEGIN IMMEDIATE` 内更新主体、只为显式携带 `listIds` 的项目重建 membership，并按请求顺序一次读回 `items/missingIds`。任意未知列表会回滚整批，不产生部分更新。
+
 > 最后更新：2026-07-16；最近已提交基线：`897886a`（原图阅读/预解码/虚拟缩略图）、`880ccff`（复杂 Shell/Card AST scaffold）、`1e4f70c`（懒加载四边 Shell 与首批 Panel/Card）、`5064b82`（只读 Shell 配置链）、`444bdbc`（React Compiler 友好的侧栏 resize/drag 与 TOML PATCH 原子持久化）、`532b304`（旧 panel layout 兼容读取）、`f9467c4`（旧 v14 Card 状态导入与折叠原子持久化）。本节必须随每个 NeoView 实现提交同步更新；代码、feature matrix 和测试证据优先于文字。
 
 整体结论：**基础架构和高性能阅读纵切已经跑通，但完整功能迁移远未完成。** `feature-compatibility.json` 的 30 项 feature 当前全部保持 `pending`，因为每一项都包含旧 NeoView 的多组行为，不能用“一条 happy path 已运行”提前标记完成。
