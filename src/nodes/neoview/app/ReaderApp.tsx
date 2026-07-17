@@ -128,6 +128,7 @@ export interface ReaderAppProps {
   pickFile?: () => Promise<string | undefined>
   pickDirectory?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
+  copyFiles?: (paths: string[]) => Promise<void>
   onPathCommitted?: (path: string) => void
 }
 
@@ -137,6 +138,7 @@ export function ReaderApp({
   pickFile,
   pickDirectory,
   copyText,
+  copyFiles,
   onPathCommitted,
 }: ReaderAppProps) {
   const surface = useNodeSurface()
@@ -763,6 +765,7 @@ export function ReaderApp({
     sourcePath: path,
     systemActions: {
       copyText,
+      copyFiles,
       revealPath: client.revealSystemPath,
     },
     onOpen: openPath,

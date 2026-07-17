@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
 import PageNavigationCard, { PageRow, PageThumbnail, ThumbnailRow } from "./PageNavigationCard"
+import { buildPageListContextMenuItems, commitPageClipboardCopy } from "./page-list/PageListContextActions"
 
 afterEach(cleanup)
 
@@ -149,6 +150,52 @@ describe("PageNavigationCard", () => {
     expect(tile.querySelector('[data-reader-thumbnail-surface="true"]')?.getAttribute("data-thumbnail-fit")).toBe("contain")
   })
 
+  it("[neoview.page-list.context-actions] reuses one opaque page menu across all three renderers", async () => {
+    const onGoTo = vi.fn(async () => undefined)
+    const onAction = vi.fn(async () => undefined)
+    const view = render(<PageRow start={0} size={34} position={0} page={page(0)} activePageIndex={0} details={false} disabled={false} onGoTo={onGoTo} />)
+    expect(view.container.querySelector('[data-page-id="page-0"]')?.getAttribute("data-context-menu")).toBe("neoview-page-list")
+    expect(view.container.querySelector('[data-page-id="page-0"]')?.getAttribute("data-entry-variant")).toBe("compact")
+    view.rerender(<PageRow start={0} size={76} position={0} page={page(0)} activePageIndex={0} details disabled={false} onGoTo={onGoTo} />)
+    expect(view.container.querySelector('[data-page-id="page-0"]')?.getAttribute("data-entry-variant")).toBe("content")
+    view.rerender(<ThumbnailRow start={0} rowIndex={0} pages={new Map([[0, page(0)]])} activePageIndex={0} disabled={false} onGoTo={onGoTo} />)
+    expect(view.container.querySelector('[data-page-thumbnail-tile="0"]')?.getAttribute("data-context-menu")).toBe("neoview-page-list")
+
+    const items = buildPageListContextMenuItems({ pageId: "page-0", pageIndex: "0", pageName: "0001.jpg" }, {
+      disabled: false, actionUnavailable: false, canCopy: true, onGoTo, onAction,
+    })!
+    expect(items.filter((item) => item.type !== "separator").map((item) => item.id)).toEqual([
+      "neoview-page-copy", "neoview-page-go-to", "neoview-page-reveal", "neoview-page-open", "neoview-page-name",
+    ])
+    expect(items.at(-1)).toMatchObject({ type: "label", label: "0001.jpg" })
+    await items.find((item) => item.id === "neoview-page-go-to")?.onSelect?.()
+    await items.find((item) => item.id === "neoview-page-copy")?.onSelect?.()
+    expect(onGoTo).toHaveBeenCalledWith(0)
+    expect(onAction).toHaveBeenCalledWith("copy", "page-0", "0001.jpg")
+  })
+
+  it("[neoview.page-list.action-lifecycle] keeps only the latest successful archive clipboard lease", async () => {
+    const releasePageActionLease = vi.fn(async () => undefined)
+    const copyFiles = vi.fn(async () => undefined)
+    const leaseRef = { current: undefined as { sessionId: string; token: string } | undefined }
+    const signal = new AbortController().signal
+    const options = { sessionId: "reader-1", signal, leaseRef, copyFiles, releaseLease: releasePageActionLease }
+
+    await commitPageClipboardCopy({ path: "C:/temp/one.jpg", leaseToken: "lease-one" }, options)
+    await commitPageClipboardCopy({ path: "C:/temp/two.jpg", leaseToken: "lease-two" }, options)
+
+    expect(copyFiles).toHaveBeenNthCalledWith(1, ["C:/temp/one.jpg"])
+    expect(copyFiles).toHaveBeenNthCalledWith(2, ["C:/temp/two.jpg"])
+    expect(releasePageActionLease).toHaveBeenCalledWith("reader-1", "lease-one")
+    expect(releasePageActionLease).not.toHaveBeenCalledWith("reader-1", "lease-two")
+    expect(leaseRef.current).toEqual({ sessionId: "reader-1", token: "lease-two" })
+
+    copyFiles.mockRejectedValueOnce(new Error("clipboard failed"))
+    await expect(commitPageClipboardCopy({ path: "C:/temp/three.jpg", leaseToken: "lease-three" }, options)).rejects.toThrow("clipboard failed")
+    expect(releasePageActionLease).toHaveBeenCalledWith("reader-1", "lease-three")
+    expect(leaseRef.current).toEqual({ sessionId: "reader-1", token: "lease-two" })
+  })
+
   it("[neoview.page-list.retry] exposes a bounded retry instead of leaving a failed catalog in loading state", async () => {
     const listPageCatalog = vi.fn()
       .mockRejectedValueOnce(new Error("catalog unavailable"))
@@ -217,8 +264,14 @@ describe("PageNavigationCard", () => {
   })
 })
 
-function context(client: ReaderHttpClient, activePageIndex = 0, totalPages = 1_000, onGoTo = vi.fn()) {
-  return { client, disabled: false, session: session(activePageIndex, totalPages), onGoTo }
+function context(
+  client: ReaderHttpClient,
+  activePageIndex = 0,
+  totalPages = 1_000,
+  onGoTo = vi.fn(),
+  systemActions?: { copyFiles?(paths: string[]): Promise<void> },
+) {
+  return { client, disabled: false, session: session(activePageIndex, totalPages), onGoTo, systemActions }
 }
 
 function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {

@@ -27,6 +27,7 @@ const THUMBNAIL_ROW_HEIGHT = 148
 
 type PageListViewMode = "list" | "details" | "thumbnails"
 const PageListToolbar = lazy(() => import("./page-list/PageListToolbar"))
+const PageListContextActions = lazy(() => import("./page-list/PageListContextActions"))
 
 export default function PageNavigationCard(context: ReaderPanelContext) {
   if (!context.session) return null
@@ -39,6 +40,7 @@ export default function PageNavigationCard(context: ReaderPanelContext) {
       client={context.client}
       disabled={context.disabled}
       onGoTo={context.onGoTo}
+      systemActions={context.systemActions}
     />
   )
 }
@@ -51,6 +53,7 @@ function PageListCard({
   client,
   disabled,
   onGoTo,
+  systemActions,
 }: {
   sessionId: string
   totalPages: number
@@ -59,6 +62,7 @@ function PageListCard({
   client: ReaderHttpClient
   disabled: boolean
   onGoTo(pageIndex: number): void | Promise<void>
+  systemActions?: ReaderPanelContext["systemActions"]
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -356,6 +360,9 @@ function PageListCard({
         />
       </Suspense>
       {navigationError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{navigationError}</div> : null}
+      <Suspense fallback={null}>
+        <PageListContextActions client={client} sessionId={sessionId} disabled={disabled} copyFiles={systemActions?.copyFiles} onGoTo={navigateTo} />
+      </Suspense>
       <div
         ref={viewportRef}
         className="min-h-0 flex-1 overflow-auto rounded border bg-background/55 outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -465,6 +472,9 @@ export function PageRow({ start, size, position, page, activePageIndex, previewe
       selected={previewed}
       focused={focused}
       data-page-index={page?.index}
+      data-page-id={page?.id}
+      data-page-name={page?.name}
+      data-context-menu={page ? "neoview-page-list" : undefined}
       data-page-result-position={position}
       className={cn("absolute left-0", active && "text-primary")}
       style={{ height: size, transform: `translateY(${start}px)` }}
@@ -520,6 +530,10 @@ export function ThumbnailRow({ start, rowIndex, measureElement, pages, activePag
             focused={focused}
             className="h-auto"
             data-page-thumbnail-tile={page.index}
+            data-page-id={page.id}
+            data-page-index={page.index}
+            data-page-name={page.name}
+            data-context-menu="neoview-page-list"
             data-page-result-position={position}
             media={<PageThumbnail page={page} className="aspect-[3/4] w-full" />}
             primary={(

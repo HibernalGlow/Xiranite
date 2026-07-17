@@ -14,6 +14,40 @@ afterEach(() => {
 })
 
 describe("ContextMenuProvider", () => {
+  test("[neoview.context-menu.keyboard] opens the focused target from Shift+F10", async () => {
+    render(<ContextMenuProvider><ContextTarget onSelect={vi.fn()} /></ContextMenuProvider>)
+    const target = screen.getByText("Target")
+    target.setAttribute("tabindex", "0")
+    target.focus()
+
+    fireEvent.keyDown(target, { key: "F10", shiftKey: true })
+
+    expect(await screen.findByRole("menuitem", { name: /Open target/ })).toBeTruthy()
+  })
+
+  test("[neoview.context-menu.lifecycle] restores the previous builder when a newer registration with the same scope unmounts", async () => {
+    const view = render(
+      <ContextMenuProvider>
+        <div data-context-menu="stacked" data-testid="stacked-target">Target</div>
+        <StackedBuilder key="first" label="First action" />
+        <StackedBuilder key="second" label="Second action" />
+      </ContextMenuProvider>,
+    )
+    fireEvent.contextMenu(screen.getByTestId("stacked-target"))
+    expect(await screen.findByText("Second action")).toBeTruthy()
+    fireEvent.keyDown(document, { key: "Escape" })
+    await waitFor(() => expect(screen.queryByText("Second action")).toBeNull())
+
+    view.rerender(
+      <ContextMenuProvider>
+        <div data-context-menu="stacked" data-testid="stacked-target">Target</div>
+        <StackedBuilder key="first" label="First action" />
+      </ContextMenuProvider>,
+    )
+    fireEvent.contextMenu(screen.getByTestId("stacked-target"))
+    expect(await screen.findByText("First action")).toBeTruthy()
+  })
+
   test("opens a registered context menu and runs the selected item", async () => {
     const onSelect = vi.fn()
     const user = userEvent.setup()
@@ -34,6 +68,9 @@ describe("ContextMenuProvider", () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(screen.queryByText("Open target")).toBeNull())
+
+    fireEvent.contextMenu(screen.getByTestId("context-target"), { clientX: 24, clientY: 32 })
+    expect(await screen.findByText("Open target")).toBeTruthy()
   })
 
   test("[neoview.context-menu.keyboard-position] positions a keyboard-triggered context menu at the target center", async () => {
@@ -399,6 +436,11 @@ function ContextTarget({
       Target
     </div>
   )
+}
+
+function StackedBuilder({ label }: { label: string }) {
+  useContextMenuBuilder("stacked", () => [{ label }])
+  return null
 }
 
 function ContextTargetWithInput({ onSelect }: { onSelect: () => void }) {

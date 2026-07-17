@@ -1,8 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { VirtuosoGridMockContext, VirtuosoMockContext } from "react-virtuoso"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderFolderViewConfig, type ReaderHttpClient } from "../../../adapters/reader-http-client"
+import { ContextMenuProvider } from "@/components/context-menu"
 import FolderMainCard from "./FolderMainCard"
 
 afterEach(cleanup)
@@ -24,6 +26,58 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal), undefined))
     view.unmount()
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
+  })
+
+  it("[neoview.folder.rename-focus] refreshes the same browser session and selects the renamed path", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [{ name: "old.cbz", path: "C:/books/old.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const renamed = page({
+      path: "C:/books",
+      generation: 2,
+      entries: [{ name: "new.cbz", path: "C:/books/new.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+      suggestedSelection: { path: "C:/books/new.cbz", index: 0 },
+    })
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "rename" as const, sourcePath: "C:/books/old.cbz", destinationPath: "C:/books/new.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+    }))
+    const navigateDirectoryBrowser = vi.fn(async () => renamed)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      executeFileOperations,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const user = userEvent.setup()
+    const view = render(
+      <ContextMenuProvider>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoMockContext.Provider>
+      </ContextMenuProvider>,
+    )
+    const ui = within(view.container)
+    const oldEntry = await ui.findByTitle("C:/books/old.cbz")
+    fireEvent.contextMenu(oldEntry, { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "重命名" }))
+    const input = await screen.findByRole("textbox", { name: "新名称" })
+    await user.clear(input)
+    await user.type(input, "new.cbz")
+    await user.click(screen.getByRole("button", { name: "重命名", exact: true }))
+
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "refresh" },
+      expect.any(AbortSignal),
+      "C:/books/new.cbz",
+    ))
+    const newEntry = await ui.findByTitle("C:/books/new.cbz")
+    expect(newEntry.getAttribute("aria-selected")).toBe("true")
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
   })
 
   it("[neoview.folder.tabs-lifecycle] [neoview.folder.tabs-navigation-history] creates, switches and closes isolated Explorer-style folder tabs", async () => {

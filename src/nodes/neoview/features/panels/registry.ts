@@ -42,6 +42,7 @@ export interface ReaderPanelContext {
   onOpen?(path: string): void | Promise<void>
   systemActions?: {
     copyText?(text: string): Promise<void>
+    copyFiles?(paths: string[]): Promise<void>
     revealPath?(path: string, signal?: AbortSignal): Promise<void>
   }
   shell?: ReaderShellConfigDto

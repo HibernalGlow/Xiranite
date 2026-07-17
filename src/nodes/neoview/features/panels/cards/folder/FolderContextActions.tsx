@@ -1,8 +1,10 @@
-import { BookOpen, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { BookOpen, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil } from "lucide-react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
+
+const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
 
 export interface FolderContextEntry {
   index: number
@@ -19,6 +21,7 @@ export default function FolderContextActions({
   onActivate,
   onOpenInNewTab,
   onOpenAsBook,
+  onRenamed,
 }: {
   client: ReaderHttpClient
   disabled: boolean
@@ -26,15 +29,21 @@ export default function FolderContextActions({
   onActivate(entry: FolderContextEntry): void | Promise<void>
   onOpenInNewTab(path: string): void
   onOpenAsBook?: (path: string) => void | Promise<void>
+  onRenamed?(destinationPath: string): void | Promise<void>
 }) {
   const operationRef = useRef<AbortController>()
   const [pending, setPending] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
+  const [renameEntry, setRenameEntry] = useState<FolderContextEntry>()
 
   useEffect(() => () => operationRef.current?.abort(), [])
 
   async function run(action: FolderContextAction, entry: FolderContextEntry) {
     if (pending) return
+    if (action === "rename") {
+      setRenameEntry(entry)
+      return
+    }
     const operation = new AbortController()
     operationRef.current?.abort()
     operationRef.current = operation
@@ -79,15 +88,32 @@ export default function FolderContextActions({
       canOpenSystem: Boolean(client.openSystemPath),
       canReveal: Boolean(client.revealSystemPath),
       canOpenAsBook: Boolean(onOpenAsBook),
+      canRename: Boolean(client.executeFileOperations),
       onAction: run,
     }) : null
   })
 
-  if (!feedback) return null
-  return <div role={feedback.kind} className={feedback.kind === "alert" ? "rounded bg-destructive/10 px-2 py-1 text-xs text-destructive" : "sr-only"}>{feedback.text}</div>
+  return (
+    <>
+      {feedback ? <div role={feedback.kind} className={feedback.kind === "alert" ? "rounded bg-destructive/10 px-2 py-1 text-xs text-destructive" : "sr-only"}>{feedback.text}</div> : null}
+      {renameEntry ? (
+        <Suspense fallback={null}>
+          <FolderRenameDialog
+            client={client}
+            entry={renameEntry}
+            onClose={() => setRenameEntry(undefined)}
+            onRenamed={async (destinationPath) => {
+              await onRenamed?.(destinationPath)
+              setFeedback({ kind: "status", text: `已重命名为 ${destinationPath.slice(Math.max(destinationPath.lastIndexOf("/"), destinationPath.lastIndexOf("\\")) + 1)}` })
+            }}
+          />
+        </Suspense>
+      ) : null}
+    </>
+  )
 }
 
-type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy-path" | "copy-name"
+type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy-path" | "copy-name" | "rename"
 
 export function buildFolderContextMenuItems(
   entry: FolderContextEntry,
@@ -98,6 +124,7 @@ export function buildFolderContextMenuItems(
     canOpenSystem: boolean
     canReveal: boolean
     canOpenAsBook: boolean
+    canRename: boolean
     onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
   },
 ): ContextMenuItemDef[] {
@@ -124,6 +151,8 @@ export function buildFolderContextMenuItems(
     { type: "separator" },
     { id: "neoview-folder-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", entry) },
     { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },
+    { type: "separator" },
+    { id: "neoview-folder-rename", label: "重命名", icon: <Pencil />, disabled: unavailable || !options.canRename, onSelect: () => options.onAction("rename", entry) },
     { type: "separator" },
     { id: "neoview-folder-entry-name", type: "label", label: entry.name },
   )

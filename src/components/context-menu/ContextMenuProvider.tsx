@@ -129,7 +129,7 @@ interface OpenMenu {
 }
 
 export function ContextMenuProvider({ children }: { children: ReactNode }) {
-  const buildersRef = useRef(new Map<string, ContextMenuBuilder>())
+  const buildersRef = useRef(new Map<string, ContextMenuBuilder[]>())
   const [openMenu, setOpenMenu] = useState<OpenMenu | null>(null)
   // Confirm state lives at the provider level so the dialog persists even after
   // the menu unmounts (Radix may close the menu on item select in some envs).
@@ -141,9 +141,15 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback((scope: string, builder: ContextMenuBuilder) => {
-    buildersRef.current.set(scope, builder)
+    const registrations = buildersRef.current.get(scope) ?? []
+    registrations.push(builder)
+    buildersRef.current.set(scope, registrations)
     return () => {
-      buildersRef.current.delete(scope)
+      const current = buildersRef.current.get(scope)
+      if (!current) return
+      const index = current.lastIndexOf(builder)
+      if (index >= 0) current.splice(index, 1)
+      if (!current.length) buildersRef.current.delete(scope)
     }
   }, [])
 
@@ -169,7 +175,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
         const scope = el.dataset.contextMenu
         if (!scope || seenScopes.has(scope)) continue
         seenScopes.add(scope)
-        const builder = buildersRef.current.get(scope)
+        const builder = buildersRef.current.get(scope)?.at(-1)
         if (!builder) continue
         const data: Record<string, string> = {}
         for (const k in el.dataset) {
@@ -197,6 +203,23 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener("contextmenu", handler)
     return () => window.removeEventListener("contextmenu", handler)
+  }, [])
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return
+      const target = event.target instanceof HTMLElement ? event.target : document.activeElement
+      if (!(target instanceof HTMLElement) || isEditableTarget(target)) return
+      event.preventDefault()
+      target.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 0,
+        clientY: 0,
+      }))
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
   }, [])
 
   const api = useMemo<ContextMenuAPI>(() => ({ register, show }), [register, show])
@@ -264,8 +287,11 @@ function MenuController({
     }
     // keepOpen items: run handler but keep the menu open.
     void item.onSelect?.()
-    if (!item.keepOpen) setOpen(false)
-  }, [onRequestConfirm])
+    if (!item.keepOpen) {
+      setOpen(false)
+      onClose()
+    }
+  }, [onClose, onRequestConfirm])
 
   return (
     <DropdownMenu

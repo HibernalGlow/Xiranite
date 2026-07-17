@@ -357,7 +357,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     applyPage(snapshot.clonedPage!, snapshot.currentState)
   }
 
-  async function navigate(navigation: ReaderDirectoryNavigationDto, options: { keepTree?: boolean } = {}) {
+  async function navigate(navigation: ReaderDirectoryNavigationDto, options: { keepTree?: boolean; focusPath?: string; selectFocus?: boolean } = {}) {
     const sessionId = sessionIdRef.current
     if (!sessionId) {
       if (navigation.action === "path") await openBrowser(navigation.path)
@@ -371,9 +371,28 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setLoading(true)
     setError(undefined)
     try {
-      const result = await client.navigateDirectoryBrowser(sessionId, navigation, navigationRequestRef.current?.signal, capturedState?.focusedPath)
+      const result = await client.navigateDirectoryBrowser(
+        sessionId,
+        navigation,
+        navigationRequestRef.current?.signal,
+        options.focusPath ?? capturedState?.focusedPath,
+      )
       if (generation === navigationGenerationRef.current) {
-        applyPage(result, navigation.action === "refresh" ? capturedState : undefined)
+        let preferredState = navigation.action === "refresh" ? capturedState : undefined
+        if (preferredState && options.selectFocus && result.suggestedSelection) {
+          const suggested = result.suggestedSelection
+          preferredState = {
+            ...preferredState,
+            selection: selectDirectorySingle(result.generation, suggested.path, suggested.index),
+            focusedPath: suggested.path,
+            focusedIndex: suggested.index,
+            anchorIndex: suggested.index,
+            listSnapshot: undefined,
+            gridSnapshot: undefined,
+            detailsScrollTop: undefined,
+          }
+        }
+        applyPage(result, preferredState)
       }
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
@@ -887,6 +906,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onActivate={activate}
             onOpenInNewTab={onOpenInNewTab}
             onOpenAsBook={onOpen}
+            onRenamed={(destinationPath) => navigate(
+              { action: "refresh" },
+              { keepTree: true, focusPath: destinationPath, selectFocus: true },
+            )}
           />
         </Suspense>
       ) : null}

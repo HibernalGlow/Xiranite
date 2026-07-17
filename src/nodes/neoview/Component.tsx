@@ -20,6 +20,7 @@ export function Component({ host }: NodeComponentProps<NeoViewCardState>) {
         : undefined}
       pickDirectory={host.localFiles?.pickDirectory}
       copyText={host.clipboard?.writeText}
+      copyFiles={host.clipboard?.writeFiles}
       onPathCommitted={(path) => host.state.patchData({ path })}
     />
   )

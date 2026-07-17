@@ -92,16 +92,54 @@ describe("FolderContextActions", () => {
       canOpenSystem: false,
       canReveal: false,
       canOpenAsBook: false,
+      canRename: false,
       onAction: vi.fn(),
     })
     expect(items.find((item) => item.id === "neoview-folder-open")?.disabled).toBe(false)
     expect(items.find((item) => item.id === "neoview-folder-system-open")?.disabled).toBe(true)
     expect(items.find((item) => item.id === "neoview-folder-reveal")?.disabled).toBe(true)
     expect(items.find((item) => item.id === "neoview-folder-copy-path")?.disabled).toBe(true)
+    expect(items.find((item) => item.id === "neoview-folder-rename")?.disabled).toBe(true)
+  })
+
+  it("[neoview.folder.rename-context] opens the lazy rename dialog from the shared entry menu", async () => {
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "rename" as const, sourcePath: "D:/library/old.cbz", destinationPath: "D:/library/new.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+    }))
+    const onRenamed = vi.fn(async () => undefined)
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+          onRenamed={onRenamed}
+        />
+        <button
+          data-context-menu="neoview-folder-entry"
+          data-folder-index="0"
+          data-folder-path="D:/library/old.cbz"
+          data-folder-name="old.cbz"
+          data-folder-kind="file"
+          data-folder-reader-supported="true"
+        >old.cbz</button>
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "old.cbz" }), { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "重命名" }))
+    const input = await screen.findByRole("textbox", { name: "新名称" })
+    await user.clear(input)
+    await user.type(input, "new.cbz")
+    await user.click(screen.getByRole("button", { name: "重命名", exact: true }))
+    await waitFor(() => expect(onRenamed).toHaveBeenCalledWith("D:/library/new.cbz"))
   })
 })
 
-function clientWith(actions: Pick<ReaderHttpClient, "openSystemPath" | "revealSystemPath">): ReaderHttpClient {
+function clientWith(actions: Partial<Pick<ReaderHttpClient, "openSystemPath" | "revealSystemPath" | "executeFileOperations">>): ReaderHttpClient {
   return {
     config: vi.fn(), updateSidebarLayout: vi.fn(), updateCardLayout: vi.fn(), updateBoardLayout: vi.fn(), updateViewDefaults: vi.fn(),
     updateSlideshow: vi.fn(), open: vi.fn(), listPages: vi.fn(), navigate: vi.fn(), goTo: vi.fn(), updateSessionOptions: vi.fn(), close: vi.fn(),

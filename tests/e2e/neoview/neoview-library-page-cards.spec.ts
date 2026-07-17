@@ -66,11 +66,13 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
   const pageCatalogRequests: string[] = []
+  const pageActionRequests: string[] = []
   const imageRequests: string[] = []
   page.on("request", (request) => {
     if (request.url().includes("/page-media-information")) pageMediaInformationRequests += 1
     if (request.url().endsWith("/reader/diagnostics")) diagnosticsRequests += 1
     if (/\/reader\/s\/[^/]+\/pages\?/.test(request.url())) pageCatalogRequests.push(request.url())
+    if (/\/reader\/s\/[^/]+\/pages\/[^/]+\/actions$/.test(request.url())) pageActionRequests.push(request.url())
     if (request.resourceType() === "image") imageRequests.push(request.url())
   })
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
@@ -249,6 +251,27 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(readerImage).toBeVisible()
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 
+  const actionImageSrc = await readerImage.getAttribute("src")
+  const actionImageRequestCount = imageRequests.filter((url) => url === actionImageSrc).length
+  const listPageTarget = pageListCard.locator('[data-page-index="1"]')
+  await listPageTarget.click({ button: "right" })
+  const listMenu = page.getByRole("menu")
+  const copyPageItem = listMenu.getByRole("menuitem", { name: "复制文件" })
+  await expect(copyPageItem).toBeEnabled()
+  await expect(listMenu.getByRole("menuitem", { name: "在资源管理器中显示" })).toBeEnabled()
+  await expect(listMenu.getByRole("menuitem", { name: "用默认软件打开" })).toBeEnabled()
+  await expect(listMenu.getByText("002.png", { exact: true })).toBeVisible()
+  const copyPageResponse = page.waitForResponse((response) => (
+    response.request().method() === "POST"
+    && /\/reader\/s\/[^/]+\/pages\/[^/]+\/actions$/.test(response.url())
+    && (response.request().postDataJSON() as { action?: string } | null)?.action === "copy"
+  ))
+  await copyPageItem.click()
+  expect((await copyPageResponse).status()).toBe(201)
+  await expect(listMenu).toHaveCount(0)
+  await expect.poll(() => page.evaluate(() => window.__NEOVIEW_COPIED_FILES__?.[0])).toMatch(/002\.png$/)
+  expect(pageActionRequests).toHaveLength(1)
+
   await followButton.click()
   await expect(followButton).toHaveAttribute("aria-pressed", "true")
   const sliderRoot = pageSlider.locator("..")
@@ -282,6 +305,14 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(pageThumbnail.locator("img")).toBeVisible()
   await expect(pageListCard.getByText("#1", { exact: true }).first()).toBeVisible()
   await expect(pageListCard.getByText("当前", { exact: true }).first()).toBeVisible()
+  const detailsTarget = pageListCard.locator('[data-page-id]').first()
+  await detailsTarget.click({ button: "right" })
+  const keyboardMenu = page.getByRole("menu")
+  await expect(keyboardMenu).toBeVisible()
+  await expect(keyboardMenu).toContainText("跳转到此页")
+  await expect(keyboardMenu.getByRole("menuitem", { name: "跳转到此页" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("menu")).toHaveCount(0)
 
   await pageListCard.getByRole("button", { name: "缩略图网格" }).click()
   await expect(pageListCard.locator('[data-neoview-page-list="true"]')).toHaveAttribute("data-page-list-mode", "thumbnails")
@@ -291,11 +322,26 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const gridThumbnailBox = await pageListCard.locator('[data-page-thumbnail-tile]').first().locator('[data-reader-thumbnail-surface="true"]').boundingBox()
   expect(gridThumbnailBox).not.toBeNull()
   expect(Math.abs(gridThumbnailBox!.width / gridThumbnailBox!.height - 0.75)).toBeLessThan(0.03)
+  const thumbnailTarget = pageListCard.locator('[data-page-thumbnail-tile][data-page-index="11"]')
+  await thumbnailTarget.click({ button: "right", position: { x: 2, y: 2 } })
+  const thumbnailMenu = page.getByRole("menu")
+  await expect(thumbnailMenu).toBeVisible()
+  const thumbnailMenuBox = await thumbnailMenu.boundingBox()
+  expect(thumbnailMenuBox).not.toBeNull()
+  expect(thumbnailMenuBox!.x).toBeGreaterThanOrEqual(0)
+  expect(thumbnailMenuBox!.x + thumbnailMenuBox!.width).toBeLessThanOrEqual(viewport.width + 1)
+  expect(thumbnailMenuBox!.y).toBeGreaterThanOrEqual(0)
+  expect(thumbnailMenuBox!.y + thumbnailMenuBox!.height).toBeLessThanOrEqual(viewport.height + 1)
+  await page.keyboard.press("Escape")
+  await expect(thumbnailMenu).toHaveCount(0)
   expect(pageCatalogRequests.length).toBe(catalogRequestsBeforeImageModes)
   expect(pageCatalogRequests
     .filter((url) => new URL(url).searchParams.get("limit") === "12")
     .every((url) => new URL(url).searchParams.get("thumbnails") === "0")).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  expect(await readerImage.getAttribute("src")).toBe(actionImageSrc)
+  expect(imageRequests.filter((url) => url === actionImageSrc)).toHaveLength(actionImageRequestCount)
+  expect(pageActionRequests).toHaveLength(1)
   expect(await pageListCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await pageListCard.screenshot({ path: testInfo.outputPath(`neoview-page-list-thumbnails-${testInfo.project.name}.png`) })
 
