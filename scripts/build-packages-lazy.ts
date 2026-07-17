@@ -1,16 +1,21 @@
 #!/usr/bin/env bun
-import { readdir, stat } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
+import { dirname, join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { spawn } from "node:child_process"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const verbose = process.argv.includes("--verbose")
+const skipFailedNodes = process.argv.includes("--skip-failed-nodes")
+const excludedNodeIds = parseNodeIds(optionValue("--exclude-nodes"))
+const onlyNodeIds = parseNodeIds(optionValue("--only-nodes"))
+const failuresFile = optionValue("--failures-file")
 
 interface PackageEntry {
   name: string
   path: string
   script: string
+  id?: string
 }
 
 const basePackages: PackageEntry[] = [
@@ -39,7 +44,7 @@ async function discoverNodePackages(): Promise<PackageEntry[]> {
     try {
       const pkg = await import(pathToFileURL(pkgJsonPath).href, { with: { type: "json" } })
       if (pkg.default?.scripts?.build) {
-        entries.push({ name: pkg.default.name ?? dir.name, path: join("packages/nodes", dir.name), script: pkg.default.scripts.build })
+        entries.push({ name: pkg.default.name ?? dir.name, id: dir.name, path: join("packages/nodes", dir.name), script: pkg.default.scripts.build })
       }
     } catch {
       // skip
@@ -73,6 +78,7 @@ async function needsBuild(pkgPath: string): Promise<boolean> {
 
   const distMtime = await getLatestMtime(distPath)
   if (distMtime === 0) return true // dist does not exist or is empty
+  if (!(await hasExpectedDistFiles(fullPath))) return true
 
   const srcPath = join(fullPath, "src")
   const srcMtime = await getLatestMtime(srcPath)
@@ -87,19 +93,80 @@ async function needsBuild(pkgPath: string): Promise<boolean> {
   return needs
 }
 
-function runBuild(pkg: PackageEntry, cwd: string): Promise<number> {
-  return new Promise((resolve) => {
+async function hasExpectedDistFiles(packagePath: string): Promise<boolean> {
+  try {
+    const pkg = JSON.parse(await readFile(join(packagePath, "package.json"), "utf8")) as { exports?: unknown }
+    const targets = new Set<string>()
+    collectDistTargets(pkg.exports, targets)
+    for (const target of targets) {
+      try {
+        await access(join(packagePath, target))
+      } catch {
+        return false
+      }
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function collectDistTargets(value: unknown, targets: Set<string>): void {
+  if (typeof value === "string" && value.startsWith("./dist/")) {
+    targets.add(value.slice(2))
+    return
+  }
+  if (!value || typeof value !== "object") return
+  for (const child of Object.values(value)) collectDistTargets(child, targets)
+}
+
+async function runBuild(pkg: PackageEntry, cwd: string): Promise<number> {
+  const shouldBackupDist = Boolean(pkg.id)
+  const distPath = join(cwd, "dist")
+  const backupPath = join(cwd, `.dist.local-build-backup-${process.pid}`)
+  let backedUp = false
+
+  if (shouldBackupDist) {
+    try {
+      await rm(backupPath, { recursive: true, force: true })
+      await access(distPath)
+      await rename(distPath, backupPath)
+      backedUp = true
+    } catch {
+      // A package without a previous dist can still be built normally.
+    }
+  }
+
+  return await new Promise((resolve) => {
     console.log(`[build] ${pkg.name} ...`)
     const child = spawn("bun", ["run", "build"], {
       cwd,
       stdio: "inherit",
       shell: true,
     })
-    child.on("exit", (code) => resolve(code ?? 0))
+    child.on("exit", async (code) => {
+      const exitCode = code ?? 1
+      if (exitCode === 0) {
+        if (backedUp) await rm(backupPath, { recursive: true, force: true })
+      } else if (backedUp) {
+        await rm(distPath, { recursive: true, force: true })
+        await rename(backupPath, distPath)
+        console.warn(`[restore] ${pkg.name} previous dist restored after failure`)
+      }
+      resolve(exitCode)
+    })
+    child.on("error", async () => {
+      if (backedUp) {
+        await rm(distPath, { recursive: true, force: true })
+        await rename(backupPath, distPath)
+      }
+      resolve(1)
+    })
   })
 }
 
-async function buildPackages(packages: PackageEntry[], label: string, force = false): Promise<{ ok: boolean; built: number }> {
+async function buildPackages(packages: PackageEntry[], label: string, force = false, preserveDist = false): Promise<{ ok: boolean; built: number; failed: string[] }> {
+  const failed: string[] = []
   const toBuild: PackageEntry[] = []
   for (const pkg of packages) {
     const needs = force || (await needsBuild(pkg.path))
@@ -112,7 +179,7 @@ async function buildPackages(packages: PackageEntry[], label: string, force = fa
 
   if (toBuild.length === 0) {
     console.log(`[${label}] All packages up to date.`)
-    return { ok: true, built: 0 }
+    return { ok: true, built: 0, failed }
   }
 
   console.log(`[${label}] Building ${toBuild.length}/${packages.length} packages...`)
@@ -120,14 +187,36 @@ async function buildPackages(packages: PackageEntry[], label: string, force = fa
     const code = await runBuild(pkg, resolve(repoRoot, pkg.path))
     if (code !== 0) {
       console.error(`[error] ${pkg.name} build failed with exit code ${code}`)
-      return { ok: false, built: toBuild.length }
+      if (preserveDist && pkg.id) {
+        failed.push(pkg.id)
+        console.warn(`[local-build] Continuing without node ${pkg.id}.`)
+        continue
+      }
+      return { ok: false, built: toBuild.length, failed }
     }
   }
-  return { ok: true, built: toBuild.length }
+  return { ok: true, built: toBuild.length, failed }
+}
+
+function optionValue(name: string): string | undefined {
+  const index = process.argv.findIndex((arg) => arg === name)
+  if (index >= 0) return process.argv[index + 1]
+  return process.argv.find((arg) => arg.startsWith(`${name}=`))?.slice(name.length + 1)
+}
+
+function parseNodeIds(value: string | undefined): string[] {
+  return [...new Set((value ?? "").split(",").map((id) => id.trim()).filter(Boolean))]
 }
 
 // --- main ---
-const nodePackages = await discoverNodePackages()
+const discoveredNodePackages = await discoverNodePackages()
+const excluded = new Set(excludedNodeIds)
+const only = new Set(onlyNodeIds)
+for (const id of [...excluded, ...only]) {
+  if (!discoveredNodePackages.some((pkg) => pkg.id === id)) throw new Error(`Unknown node id in build filter: ${id}`)
+}
+const nodePackages = discoveredNodePackages.filter((pkg) => (only.size === 0 || only.has(pkg.id)) && !excluded.has(pkg.id))
+if (nodePackages.length === 0) throw new Error("Node build filter selected no nodes.")
 
 // Build base packages first
 const baseResult = await buildPackages(basePackages, "base-packages")
@@ -138,11 +227,31 @@ if (!baseResult.ok) process.exit(1)
 const forceDownstream = baseResult.built > 0
 
 // Then nodes
-const nodesResult = await buildPackages(nodePackages, "nodes", forceDownstream)
+const nodesResult = await buildPackages(nodePackages, "nodes", forceDownstream, skipFailedNodes)
 if (!nodesResult.ok) process.exit(1)
+
+if (nodesResult.failed.length > 0) {
+  const previousExcluded = parseNodeIds(process.env.XIRANITE_BUILD_EXCLUDE_NODES)
+  process.env.XIRANITE_BUILD_EXCLUDE_NODES = [...new Set([...previousExcluded, ...nodesResult.failed])].join(",")
+  const registryBuild = Bun.spawn([process.execPath, "scripts/generate-node-registries.ts"], {
+    cwd: repoRoot,
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+    env: process.env,
+  })
+  const registryExitCode = await registryBuild.exited
+  if (registryExitCode !== 0) process.exit(registryExitCode)
+}
 
 // Then extra
 const extraResult = await buildPackages(extraPackages, "extra", forceDownstream)
 if (!extraResult.ok) process.exit(1)
+
+if (failuresFile) {
+  const outputPath = resolve(repoRoot, failuresFile)
+  await mkdir(dirname(outputPath), { recursive: true })
+  await writeFile(outputPath, `${JSON.stringify(nodesResult.failed, null, 2)}\n`, "utf8")
+}
 
 console.log("[build:packages:legacy] Done.")
