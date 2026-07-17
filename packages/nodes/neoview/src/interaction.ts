@@ -1,6 +1,12 @@
 import type { InteractionValues, TerminalInteractionDefinition, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import { dirname, resolve } from "node:path"
-import type { HeadlessReaderSnapshot } from "./core.js"
+import type {
+  HeadlessReaderBookSettingsUpdate,
+  HeadlessReaderSnapshot,
+  OpenHeadlessReaderInput,
+  ReaderBookSettingsPatch,
+  ReaderBookSettingsSnapshot,
+} from "./core.js"
 import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
 import type { ReaderFileMutation, ReaderFileOperationService } from "./core.js"
@@ -14,6 +20,25 @@ export interface NeoviewTuiResult {
   success: boolean
   message: string
   snapshot?: HeadlessReaderSnapshot
+}
+
+export interface NeoviewBookSettingsTuiInput {
+  action: "get" | "set"
+  path: string
+  patch?: ReaderBookSettingsPatch
+}
+
+export interface NeoviewBookSettingsTuiResult {
+  success: boolean
+  message: string
+  settings?: ReaderBookSettingsSnapshot
+  reader?: HeadlessReaderSnapshot
+}
+
+export interface NeoviewBookSettingsTuiPort extends AsyncDisposable {
+  open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
+  getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
+  updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
 }
 
 export type NeoviewFileTreeTuiAction =
@@ -89,6 +114,37 @@ export function createNeoviewTuiDefinition(
       try {
         const snapshot = await controller.open({ path: input.path })
         return { success: true, message: `Opened ${snapshot.book.displayName}.`, snapshot }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      } finally {
+        await controller[Symbol.asyncDispose]()
+      }
+    },
+  }
+}
+
+export function createNeoviewBookSettingsTuiDefinition(
+  language: "zh" | "en" = "zh",
+  createController: () => Promise<NeoviewBookSettingsTuiPort> = createReaderHeadlessController,
+  archivePasswords?: OpenHeadlessReaderInput["archivePasswords"],
+): TerminalInteractionDefinition<NeoviewBookSettingsTuiInput, NeoviewBookSettingsTuiResult> {
+  return {
+    schema: createNeoviewBookSettingsTuiSchema(language),
+    async run(input) {
+      const controller = await createController()
+      try {
+        await controller.open({ path: input.path, archivePasswords })
+        const current = await controller.getBookSettings()
+        if (input.action === "get") {
+          return { success: true, message: `Book settings revision ${current.revision}.`, settings: current }
+        }
+        const updated = await controller.updateBookSettings(current.revision, input.patch ?? {})
+        return {
+          success: true,
+          message: `Book settings updated to revision ${updated.settings.revision}.`,
+          settings: updated.settings,
+          reader: updated.reader,
+        }
       } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : String(error) }
       } finally {
@@ -289,6 +345,104 @@ function createNeoviewTuiSchema(language: "zh" | "en"): TerminalInteractionSchem
       lines: result.snapshot ? [`${result.snapshot.book.pageCount} page(s)`] : [],
     }),
   }
+}
+
+function createNeoviewBookSettingsTuiSchema(
+  language: "zh" | "en",
+): TerminalInteractionSchema<NeoviewBookSettingsTuiInput, NeoviewBookSettingsTuiResult> {
+  const zh = language === "zh"
+  const setting = (values: Readonly<InteractionValues>) => values.action === "set"
+  const keep = zh ? "保持不变" : "Keep unchanged"
+  const inherit = zh ? "继承全局" : "Inherit global"
+  return {
+    id: "neoview-book-settings",
+    title: zh ? "NeoView 本书设置" : "NeoView Book Settings",
+    description: zh ? "读取或更新规范的本书覆盖" : "Read or update canonical per-book overrides",
+    initialValues: {
+      action: "get",
+      path: "",
+      favorite: "keep",
+      rating: "keep",
+      direction: "keep",
+      pageMode: "keep",
+      horizontalBook: "keep",
+    },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
+        { value: "get", label: zh ? "查看" : "Get" },
+        { value: "set", label: zh ? "更新" : "Set" },
+      ] },
+      { id: "path", label: zh ? "书籍路径" : "Book path", kind: "text" },
+      { id: "favorite", label: zh ? "收藏" : "Favorite", kind: "select", visibleWhen: setting, options: [
+        { value: "keep", label: keep }, { value: "inherit", label: inherit },
+        { value: "true", label: zh ? "收藏" : "Favorite" }, { value: "false", label: zh ? "不收藏" : "Not favorite" },
+      ] },
+      { id: "rating", label: zh ? "评分" : "Rating", kind: "select", visibleWhen: setting, options: [
+        { value: "keep", label: keep }, { value: "inherit", label: inherit },
+        ...[1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: `${value} / 5` })),
+      ] },
+      { id: "direction", label: zh ? "阅读方向" : "Direction", kind: "select", visibleWhen: setting, options: [
+        { value: "keep", label: keep }, { value: "inherit", label: inherit },
+        { value: "left-to-right", label: zh ? "从左到右" : "Left to right" },
+        { value: "right-to-left", label: zh ? "从右到左" : "Right to left" },
+      ] },
+      { id: "pageMode", label: zh ? "页面模式" : "Page mode", kind: "select", visibleWhen: setting, options: [
+        { value: "keep", label: keep }, { value: "inherit", label: inherit },
+        { value: "single", label: zh ? "单页" : "Single" }, { value: "double", label: zh ? "双页" : "Double" },
+      ] },
+      { id: "horizontalBook", label: zh ? "横版本子" : "Horizontal book", kind: "select", visibleWhen: setting, options: [
+        { value: "keep", label: keep }, { value: "inherit", label: inherit },
+        { value: "true", label: zh ? "启用" : "Enabled" }, { value: "false", label: zh ? "禁用" : "Disabled" },
+      ] },
+    ],
+    toInput: (values) => ({
+      action: values.action === "set" ? "set" : "get",
+      path: String(values.path ?? "").trim(),
+      patch: values.action === "set" ? bookSettingsPatchFromInteraction(values) : undefined,
+    }),
+    validate: (_values, input) => !input.path
+      ? (zh ? "请输入书籍路径。" : "Enter a book path.")
+      : input.action === "set" && !Object.keys(input.patch ?? {}).length
+        ? (zh ? "至少选择一项要更新的设置。" : "Select at least one setting to update.")
+        : null,
+    preview: (input) => [input.path, input.action, ...Object.entries(input.patch ?? {}).map(([key, value]) => `${key}=${String(value)}`)],
+    isDangerous: () => false,
+    result: (result) => ({
+      success: result.success,
+      message: result.message,
+      lines: result.settings ? bookSettingsResultLines(result.settings) : [],
+    }),
+  }
+}
+
+function bookSettingsPatchFromInteraction(values: Readonly<InteractionValues>): ReaderBookSettingsPatch {
+  const patch: ReaderBookSettingsPatch = {}
+  const favorite = interactionBooleanOverride(values.favorite)
+  const horizontalBook = interactionBooleanOverride(values.horizontalBook)
+  const rating = values.rating === "inherit" ? null : /^[1-5]$/.test(String(values.rating ?? "")) ? Number(values.rating) : undefined
+  const direction = values.direction === "inherit" ? null
+    : values.direction === "left-to-right" || values.direction === "right-to-left" ? values.direction : undefined
+  const pageMode = values.pageMode === "inherit" ? null
+    : values.pageMode === "single" || values.pageMode === "double" ? values.pageMode : undefined
+  if (favorite !== undefined) patch.favorite = favorite
+  if (rating !== undefined) patch.rating = rating
+  if (direction !== undefined) patch.direction = direction
+  if (pageMode !== undefined) patch.pageMode = pageMode
+  if (horizontalBook !== undefined) patch.horizontalBook = horizontalBook
+  return patch
+}
+
+function interactionBooleanOverride(value: unknown): boolean | null | undefined {
+  if (value === "inherit") return null
+  if (value === "true") return true
+  if (value === "false") return false
+  return undefined
+}
+
+function bookSettingsResultLines(settings: ReaderBookSettingsSnapshot): string[] {
+  return (["favorite", "rating", "direction", "pageMode", "horizontalBook"] as const).map((key) => (
+    `${key}: ${String(settings.effective[key])} (${settings.inherited.includes(key) ? "inherited" : "override"})`
+  ))
 }
 
 function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewFileTreeTuiInput, NeoviewFileTreeTuiResult> {

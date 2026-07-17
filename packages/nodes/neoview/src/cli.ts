@@ -184,6 +184,10 @@ export async function runProgram(
     await runFileOperationUi(args.slice(1), host)
     return
   }
+  if (command === "book-settings-ui") {
+    await runBookSettingsUi(args.slice(1), host, dependencies)
+    return
+  }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
   const parsed = parseArguments(args.slice(1), command)
@@ -1847,6 +1851,43 @@ async function runFileOperationUi(args: readonly string[], host: CliHost): Promi
   })
 }
 
+async function runBookSettingsUi(
+  args: readonly string[],
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView book-settings-ui requires an interactive terminal.")
+  const connection = parseReaderUiConnectionArgs(args)
+  const credentials = credentialsFromEnvironment(parseArguments(connection.credentialArgs), host)
+  try {
+    const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+    const flags = resolveTerminalUiFlags(connection.terminalArgs, { language: "zh", renderer: "opentui", theme: "nord" })
+    if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+      throw usage(flags.error ?? `Unknown book-settings-ui argument: ${flags.args[0]}`)
+    }
+    const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+    if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+      throw usage(`Unknown terminal theme: ${flags.theme}.`)
+    }
+    const createController = connection.baseUrl
+      ? () => (dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!)({
+          baseUrl: connection.baseUrl!,
+          token: connectionToken(connection.tokenVariable, host),
+        })
+      : () => dependencies.createController({ cwd: host.cwd, env: host.env })
+    const { createNeoviewBookSettingsTuiDefinition } = await import("./interaction.js")
+    await runTerminalUi(createNeoviewBookSettingsTuiDefinition(flags.language, createController, credentials.inputs), {
+      host,
+      language: flags.language,
+      renderer: flags.renderer,
+      theme: flags.theme,
+      reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["book-settings-ui", ...args] } : undefined,
+    })
+  } finally {
+    credentials.clear()
+  }
+}
+
 function usage(message: string): CliUsageError {
   return new CliUsageError(`${message}\n\n${formatCliHelp()}`)
 }
@@ -1917,6 +1958,7 @@ function formatCliHelp(): string {
     "  folder-ui                        Open the shared file-tree terminal workbench",
     "  library-ui                       Open recent/bookmark terminal management",
     "  file-ui                          Open shared file-operation terminal controls",
+    "  book-settings-ui                 Open shared per-book settings terminal controls",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",
