@@ -60,6 +60,29 @@ describe("Reader source watch HTTP", () => {
       await controller[Symbol.asyncDispose]()
     }
   })
+
+  it("[neoview.control.source-watch-privacy] does not expose native subscription errors or source paths", async () => {
+    const sourceWatcher: ReaderSourceWatcher = {
+      subscribe: vi.fn(async () => {
+        throw new Error("cannot watch D:/private/library")
+      }),
+    }
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      progressStore: false,
+      sourceWatcher,
+    })
+    try {
+      const directory = await fixtureDirectory()
+      const opened = await (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!.json() as ReaderSessionDto
+      const response = (await controller.handle(authorized(`/reader/s/${opened.sessionId}/source-changes?after=0`)))!
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({ error: "Reader source watch unavailable" })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
 })
 
 async function fixtureDirectory(): Promise<string> {

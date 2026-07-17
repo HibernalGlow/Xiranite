@@ -1058,7 +1058,7 @@ export class ReaderHttpController implements AsyncDisposable {
       return change ? jsonResponse(change) : new Response(null, { status: 204 })
     } catch (error) {
       if (signal.aborted) throw error
-      return jsonResponse({ error: errorMessage(error) }, 503)
+      return jsonResponse({ error: "Reader source watch unavailable" }, 503)
     }
   }
 
