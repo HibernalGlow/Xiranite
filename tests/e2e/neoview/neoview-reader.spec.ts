@@ -900,7 +900,15 @@ test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory vi
     }, { baseUrl: backend.url, token: backend.token })
     await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: "打开书籍" }).click()
-    await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible()
+    const image = page.locator("img[data-reader-page-image]").first()
+    await expect(image).toBeVisible()
+    await image.evaluate((element) => element.setAttribute("data-folder-restore-image-instance", "stable"))
+
+    const navigationFocusPaths: Array<string | undefined> = []
+    page.on("request", (request) => {
+      if (!request.url().includes("/reader/browser/s/") || !request.url().endsWith("/navigate") || request.method() !== "POST") return
+      navigationFocusPaths.push((request.postDataJSON() as { focusPath?: string }).focusPath)
+    })
 
     const leftSidebar = page.locator('[data-reader-sidebar="left"]')
     if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
@@ -963,6 +971,20 @@ test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory vi
     )).toBeLessThanOrEqual(40)
     await expect(firstVisitRow).toHaveAttribute("data-state", "selected")
     await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+
+    await currentBreadcrumb.focus()
+    await page.keyboard.press("Alt+ArrowRight")
+    await expect(currentBreadcrumb).toHaveAttribute("title", secondPath)
+
+    await writeFile(join(firstPath, "history-000a.cbz"), "")
+    await currentBreadcrumb.focus()
+    await page.keyboard.press("Alt+ArrowLeft")
+    await expect(currentBreadcrumb).toHaveAttribute("title", firstPath)
+    await expect(folderCard.getByRole("listbox", { name: "文件项目" })).toHaveAttribute("data-focused-index", "31")
+    await expect(firstVisitRow).toBeVisible()
+    await expect(firstVisitRow).toHaveAttribute("data-state", "selected")
+    expect(navigationFocusPaths).toContain(join(firstPath, "history-030.cbz"))
+    expect(await image.getAttribute("data-folder-restore-image-instance")).toBe("stable")
 
     await currentBreadcrumb.focus()
     await page.keyboard.press("Alt+ArrowRight")

@@ -35,16 +35,36 @@ export interface DirectoryCatalog {
   pageMetadataFields: ReadonlyMap<number, ReadonlySet<ReaderDirectoryMetadataFieldDto>>
 }
 
-export function restoreDirectoryVisitState<T extends { selection: DirectorySelectionModel }>(
+export function restoreDirectoryVisitState<T extends {
+  selection: DirectorySelectionModel
+  focusedPath?: string
+  focusedIndex?: number
+  anchorIndex: number
+  listSnapshot?: unknown
+  gridSnapshot?: unknown
+  detailsScrollTop?: number
+}>(
   page: ReaderDirectoryPageDto,
   preferred: T | undefined,
   states: ReadonlyMap<number, T>,
   fallback: T,
 ): T {
-  const restored = preferred ?? states.get(page.navigationEntryId) ?? fallback
-  return restored.selection.generation === page.generation
-    ? restored
-    : { ...restored, selection: rebaseDirectorySelection(restored.selection, page.generation) }
+  const saved = preferred ?? states.get(page.navigationEntryId) ?? fallback
+  const restored = saved.selection.generation === page.generation
+    ? saved
+    : { ...saved, selection: rebaseDirectorySelection(saved.selection, page.generation) }
+  const suggested = page.suggestedSelection
+  if (!suggested) return restored
+  const focusMoved = restored.focusedIndex !== suggested.index
+  return {
+    ...restored,
+    focusedPath: suggested.path,
+    focusedIndex: suggested.index,
+    anchorIndex: suggested.index,
+    listSnapshot: focusMoved ? undefined : restored.listSnapshot,
+    gridSnapshot: focusMoved ? undefined : restored.gridSnapshot,
+    detailsScrollTop: focusMoved ? undefined : restored.detailsScrollTop,
+  }
 }
 
 export function rememberDirectoryVisitState<T>(states: Map<number, T>, id: number, state: T, maximum = 50): void {

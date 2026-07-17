@@ -374,6 +374,21 @@ describe("ReaderDirectoryBrowserRoute", () => {
         expect.objectContaining({ name: "page2.png", kind: "file", readerSupported: true }),
         expect.objectContaining({ name: "page10.png", kind: "file", readerSupported: true }),
       ])
+      const restored = (await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}/navigate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "refresh", focusPath: join(directory, "page2.png") }),
+      })))!
+      expect(restored.status).toBe(200)
+      await expect(restored.json()).resolves.toMatchObject({
+        suggestedSelection: { path: join(directory, "page2.png"), index: 2 },
+      })
+      const invalidFocus = (await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}/navigate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "refresh", focusPath: "" }),
+      })))!
+      expect(invalidFocus.status).toBe(400)
       const sorted = (await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}/sort`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },

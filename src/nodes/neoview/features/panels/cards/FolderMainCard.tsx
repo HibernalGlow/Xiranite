@@ -344,16 +344,14 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (!client.navigateDirectoryBrowser) return
     setSearchOpen(false)
     if (!options.keepTree) setTreeOpen(false)
-    const preferredState = navigation.action === "refresh"
-      ? await captureRefreshState()
-      : captureCurrentState()
+    const capturedState = await captureRefreshState()
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
     try {
-      const result = await client.navigateDirectoryBrowser(sessionId, navigation, navigationRequestRef.current?.signal)
+      const result = await client.navigateDirectoryBrowser(sessionId, navigation, navigationRequestRef.current?.signal, capturedState?.focusedPath)
       if (generation === navigationGenerationRef.current) {
-        applyPage(result, navigation.action === "refresh" ? preferredState : undefined)
+        applyPage(result, navigation.action === "refresh" ? capturedState : undefined)
       }
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(errorMessage(cause))

@@ -53,8 +53,8 @@ const DEFAULT_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 1024 * 1024
 const MAX_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 64 * 1024 * 1024
 
 export type ReaderDirectoryNavigation =
-  | { action: "path"; path: string }
-  | { action: "back" | "forward" | "up" | "refresh" }
+  | { action: "path"; path: string; focusPath?: string }
+  | { action: "back" | "forward" | "up" | "refresh"; focusPath?: string }
 
 export type ReaderDirectorySortPreferenceCommand =
   | { action: "temporary"; enabled: boolean }
@@ -161,6 +161,7 @@ interface BrowserSession {
 interface BrowserNavigationEntry {
   id: number
   path: string
+  focusPath?: string
   temporarySort?: ReaderDirectoryTemporarySortRule
 }
 
@@ -460,6 +461,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       )
       combinedSignal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
+      session.currentNavigation.focusPath = navigation.focusPath
       updateHistory(session, navigation, listing.path)
       session.temporarySort = session.currentNavigation.temporarySort
       session.listing = listing
@@ -470,7 +472,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       await this.#replaceWatcher(session)
       combinedSignal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
-      return await this.#page(session, 0, 128, displayFields, combinedSignal, suggestedSelection(navigation, listing, previousPath))
+      return await this.#page(session, 0, 128, displayFields, combinedSignal, suggestedSelection(navigation, targetEntry, listing, previousPath))
     } finally {
       unlinkAbort()
       if (session.operation === controller) session.operation = undefined
@@ -1224,12 +1226,20 @@ function randomSeedForPath(session: BrowserSession, path: string): string {
 
 function suggestedSelection(
   navigation: ReaderDirectoryNavigation,
+  targetEntry: BrowserNavigationEntry | undefined,
   listing: ReaderDirectoryListing,
   previousPath: string,
 ): ReaderDirectoryPage["suggestedSelection"] {
-  if (navigation.action !== "up") return undefined
-  const index = listing.entries.findIndex((entry) => entry.path === previousPath)
-  return index < 0 ? undefined : { path: previousPath, index }
+  const path = navigation.action === "up"
+    ? previousPath
+    : navigation.action === "back" || navigation.action === "forward"
+      ? targetEntry?.focusPath
+      : navigation.action === "refresh"
+        ? navigation.focusPath
+        : undefined
+  if (!path) return undefined
+  const index = listing.entries.findIndex((entry) => entry.path === path)
+  return index < 0 ? undefined : { path, index }
 }
 
 function assertPage(cursor: number, limit: number, total: number): void {

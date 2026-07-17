@@ -21,7 +21,7 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/books/page1.png", expect.any(AbortSignal), undefined, true))
     await waitFor(() => expect(screen.getByRole("button", { name: "books" }).getAttribute("aria-current")).toBe("page"))
     fireEvent.click(screen.getByRole("button", { name: "上级" }))
-    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal)))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal), undefined))
     view.unmount()
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
   })
@@ -337,11 +337,11 @@ describe("FolderMainCard", () => {
     view.rerender(renderCard(folderViewConfig({ homePath: "C:/home" })))
     fireEvent.click(ui.getByTitle("C:/current/book.cbz"))
     fireEvent.click(ui.getByRole("button", { name: "刷新" }))
-    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "refresh" }, expect.any(AbortSignal)))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "refresh" }, expect.any(AbortSignal), "C:/current/book.cbz"))
     await waitFor(() => expect(ui.getByTitle("C:/current/book.cbz").getAttribute("aria-selected")).toBe("true"))
 
     fireEvent.click(ui.getByRole("button", { name: "主页（单击返回主页，右键设置当前路径为主页）" }))
-    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "path", path: "C:/home" }, expect.any(AbortSignal)))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "path", path: "C:/home" }, expect.any(AbortSignal), "C:/current/book.cbz"))
     expect(ui.queryByRole("tree")).toBeNull()
   })
 
@@ -386,7 +386,7 @@ describe("FolderMainCard", () => {
     expect(document.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
   })
 
-  it("[neoview.folder.nav-history-ui] restores state by visit instead of merging repeated paths", async () => {
+  it("[neoview.folder.nav-history-ui] [neoview.folder.restore-focus-ui] restores state by visit and relocates moved focus", async () => {
     const entries = (path: string) => Array.from({ length: 4 }, (_, index) => ({
       name: `item-${index}.cbz`,
       path: `${path}/item-${index}.cbz`,
@@ -405,7 +405,17 @@ describe("FolderMainCard", () => {
         backCount += 1
         return backCount === 1
           ? { ...b, generation: 4, canGoForward: true }
-          : { ...firstA, generation: 5, canGoForward: true }
+          : {
+              ...firstA,
+              entries: [
+                { name: "item-before.cbz", path: "C:/A/item-before.cbz", kind: "file" as const, readerSupported: true },
+                ...firstA.entries,
+              ],
+              total: 5,
+              generation: 5,
+              canGoForward: true,
+              suggestedSelection: { path: "C:/A/item-1.cbz", index: 2 },
+            }
       }
       throw new Error(`unexpected navigation ${JSON.stringify(navigation)}`)
     })
@@ -455,6 +465,8 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(currentItem("C:/A", 1).getAttribute("data-preview-mode")).toBe("cover-grid"))
     expect(currentItem("C:/A", 1).getAttribute("aria-selected")).toBe("true")
     expect(currentItem("C:/A", 3).getAttribute("aria-selected")).toBe("false")
+    expect(ui.getByRole("listbox", { name: "文件项目" }).getAttribute("data-focused-index")).toBe("2")
+    expect(navigateDirectoryBrowser.mock.calls.some((call) => call[3] === "C:/A/item-1.cbz")).toBe(true)
   })
 
   it("[neoview.folder.watch-gui] applies external changes without losing path selection and aborts the next wait on unmount", async () => {
@@ -877,7 +889,7 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
     fireEvent.click(await within(tree).findByTitle("C:\\books\\series"))
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
-      "browser-1", { action: "path", path: "C:\\books\\series" }, expect.any(AbortSignal),
+      "browser-1", { action: "path", path: "C:\\books\\series" }, expect.any(AbortSignal), "C:\\books\\book.cbz",
     ))
     expect(view.container.querySelector('[data-neoview-folder-tree="true"]')).toBeTruthy()
 

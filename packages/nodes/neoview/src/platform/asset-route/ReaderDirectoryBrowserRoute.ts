@@ -436,9 +436,11 @@ function parseSearch(url: URL): { query: string; options: ReaderFileTreeSearchOp
   }
 }
 
-function parseNavigation(body: { action?: unknown; path?: unknown } | undefined): ReaderDirectoryNavigation | undefined {
-  if (body?.action === "path") return typeof body.path === "string" && body.path.trim() ? { action: "path", path: body.path } : undefined
-  if (body?.action === "back" || body?.action === "forward" || body?.action === "up" || body?.action === "refresh") return { action: body.action }
+function parseNavigation(body: { action?: unknown; path?: unknown; focusPath?: unknown } | undefined): ReaderDirectoryNavigation | undefined {
+  if (body?.focusPath !== undefined && (typeof body.focusPath !== "string" || !body.focusPath.trim())) return undefined
+  const focusPath = typeof body?.focusPath === "string" ? body.focusPath : undefined
+  if (body?.action === "path") return typeof body.path === "string" && body.path.trim() ? { action: "path", path: body.path, focusPath } : undefined
+  if (body?.action === "back" || body?.action === "forward" || body?.action === "up" || body?.action === "refresh") return { action: body.action, focusPath }
   return undefined
 }
 

@@ -502,7 +502,7 @@ export interface ReaderHttpClient {
     signal?: AbortSignal,
     metadataFields?: readonly ReaderDirectoryMetadataFieldDto[],
   ): Promise<ReaderDirectoryPageDto>
-  navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal, focusPath?: string): Promise<ReaderDirectoryPageDto>
   searchDirectoryBrowser?(
     sessionId: string,
     query: string,
@@ -657,12 +657,12 @@ export function createReaderHttpClient(
         { signal },
       )
     },
-    navigateDirectoryBrowser: (sessionId, navigation, signal) => request<ReaderDirectoryPageDto>(
+    navigateDirectoryBrowser: (sessionId, navigation, signal, focusPath) => request<ReaderDirectoryPageDto>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/navigate`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(navigation),
+        body: JSON.stringify({ ...navigation, focusPath }),
         signal,
       },
     ),

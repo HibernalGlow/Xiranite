@@ -248,6 +248,25 @@ describe("reader-http-client", () => {
     })
   })
 
+  it("[neoview.folder.restore-focus-client] sends the current visit focus with navigation", async () => {
+    const fetchMock = vi.fn(async () => Response.json({}))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await client.navigateDirectoryBrowser!(
+      "browser-1",
+      { action: "back" },
+      undefined,
+      "D:/books/focused.cbz",
+    )
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/browser/s/browser-1/navigate")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      action: "back",
+      focusPath: "D:/books/focused.cbz",
+    })
+  })
+
   it("[neoview.file-browser.metadata-client] requests details metadata only on an explicit page call", async () => {
     const fetchMock = vi.fn(async () => Response.json({}))
     vi.stubGlobal("fetch", fetchMock)

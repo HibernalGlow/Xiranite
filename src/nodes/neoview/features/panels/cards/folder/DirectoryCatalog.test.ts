@@ -7,6 +7,7 @@ import {
   directoryPageHasMetadata,
   directoryPageCursors,
   mergeDirectoryPage,
+  restoreDirectoryVisitState,
   trimDirectoryPages,
 } from "./DirectoryCatalog"
 
@@ -27,6 +28,36 @@ describe("DirectoryCatalog", () => {
     catalog = trimDirectoryPages(catalog, 400, 3)
     expect([...catalog.pages.keys()].toSorted((left, right) => left - right)).toEqual([256, 384, 512])
     expect([...catalog.pageMetadataFields.keys()].toSorted((left, right) => left - right)).toEqual([256, 384, 512])
+  })
+
+  it("[neoview.folder.restore-focus-ui] relocates saved focus and drops incompatible viewport snapshots", () => {
+    const restored = restoreDirectoryVisitState(
+      { ...page(0, 10), suggestedSelection: { path: "D:/library/item-4", index: 4 } },
+      undefined,
+      new Map([[1, {
+        selection: { generation: 0, ranges: [], explicit: new Map() },
+        focusedPath: "D:/library/item-3",
+        focusedIndex: 3,
+        anchorIndex: 3,
+        listSnapshot: { ranges: [] },
+        gridSnapshot: { ranges: [] },
+        detailsScrollTop: 240,
+      }]]),
+      {
+        selection: { generation: 1, ranges: [], explicit: new Map() },
+        anchorIndex: 0,
+      },
+    )
+
+    expect(restored).toMatchObject({
+      focusedPath: "D:/library/item-4",
+      focusedIndex: 4,
+      anchorIndex: 4,
+      listSnapshot: undefined,
+      gridSnapshot: undefined,
+      detailsScrollTop: undefined,
+    })
+    expect(restored.selection.generation).toBe(1)
   })
 })
 

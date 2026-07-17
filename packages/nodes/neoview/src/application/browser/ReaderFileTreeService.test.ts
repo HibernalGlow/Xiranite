@@ -357,6 +357,55 @@ describe("ReaderFileTreeService", () => {
     await browser[Symbol.asyncDispose]()
   })
 
+  it("[neoview.folder.restore-focus-backend] relocates visit focus after directory indexes change", async () => {
+    const entries = new Map<string, string[]>([
+      ["C:/A", ["00-a.cbz", "10-focus.cbz", "20-z.cbz"]],
+      ["C:/B", ["00-b.cbz", "10-focus-b.cbz", "20-z.cbz"]],
+    ])
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return {
+          path,
+          parentPath: "C:/",
+          entries: (entries.get(path) ?? []).map((name) => ({
+            name,
+            path: `${path}/${name}`,
+            kind: "file" as const,
+            readerSupported: true,
+          })),
+        }
+      },
+    })
+    const opened = await browser.open("C:/A")
+    await browser.navigate(opened.sessionId, {
+      action: "path",
+      path: "C:/B",
+      focusPath: "C:/A/10-focus.cbz",
+    })
+
+    entries.get("C:/A")!.push("05-before-focus.cbz")
+    const back = await browser.navigate(opened.sessionId, {
+      action: "back",
+      focusPath: "C:/B/10-focus-b.cbz",
+    })
+    expect(back?.suggestedSelection).toEqual({ path: "C:/A/10-focus.cbz", index: 2 })
+
+    entries.get("C:/B")!.push("05-before-focus.cbz")
+    const forward = await browser.navigate(opened.sessionId, {
+      action: "forward",
+      focusPath: "C:/A/10-focus.cbz",
+    })
+    expect(forward?.suggestedSelection).toEqual({ path: "C:/B/10-focus-b.cbz", index: 2 })
+
+    entries.get("C:/B")!.push("07-before-focus.cbz")
+    const refreshed = await browser.navigate(opened.sessionId, {
+      action: "refresh",
+      focusPath: "C:/B/10-focus-b.cbz",
+    })
+    expect(refreshed?.suggestedSelection).toEqual({ path: "C:/B/10-focus-b.cbz", index: 3 })
+    await browser[Symbol.asyncDispose]()
+  })
+
   it("[neoview.folder.nav-history] restores distinct visits, branches, temporary sort, and a bounded history", async () => {
     const browser = new ReaderFileTreeService({
       async read(path) {
