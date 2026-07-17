@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   chainDirectorySelection,
   createDirectorySelection,
+  directorySelectionDescriptor,
   directorySelectionCount,
   extendDirectorySelection,
   invertDirectorySelection,
@@ -165,5 +166,19 @@ describe("DirectorySelection", () => {
     expect(rebased.explicit).toEqual(new Map([["D:/library/excluded.cbz", undefined]]))
     expect(isDirectoryIndexSelected(rebased, 40, "D:/library/excluded.cbz")).toBe(false)
     expect(isDirectoryIndexSelected(rebased, 12, "D:/library/other.cbz")).toBe(true)
+  })
+
+  it("[neoview.folder.selection-transport] serializes sparse selection without materializing selected paths", () => {
+    let selected = selectAllDirectoryEntries(21)
+    selected = toggleDirectorySelection(selected, 21, "D:/library/excluded.cbz", 50_000)
+    const descriptor = directorySelectionDescriptor(selected)
+
+    expect(descriptor).toEqual({
+      generation: 21,
+      allSelected: true,
+      ranges: [],
+      explicit: [{ path: "D:/library/excluded.cbz", index: 50_000 }],
+    })
+    expect(JSON.stringify(descriptor).length).toBeLessThan(200)
   })
 })
