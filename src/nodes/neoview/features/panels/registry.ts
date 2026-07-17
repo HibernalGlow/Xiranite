@@ -34,6 +34,7 @@ export interface ReaderPanelContext {
   session?: ReaderSessionDto
   client: ReaderHttpClient
   disabled: boolean
+  panelActive?: boolean
   onGoTo(pageIndex: number): void | Promise<void>
   onPageModeChange?(pageMode: "single" | "double"): void | Promise<void>
   onReadingDirectionChange?(direction: FrameSnapshot["direction"]): void | Promise<void>

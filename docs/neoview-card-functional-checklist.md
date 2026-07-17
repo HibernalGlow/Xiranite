@@ -463,10 +463,10 @@
   - 测试：`neoview.file-tree.watcher`、`neoview.file-tree.watcher-native`、`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`、`neoview.folder.watch-long-poll`、`neoview.folder.watch-client`、`neoview.folder.watch-gui`、`neoview.folder.tree-watch-stream`、`neoview.folder.tree-watch-http`、`neoview.folder.tree-watch-client`、`neoview.folder.tree-watch-gui`、`neoview.folder.watch-live-e2e`
   - 备注：File Card 默认以 watch:true 打开唯一 browser session，@parcel/watcher 仅监听活动当前目录且仍为 Node 端动态 import。当前目录直接子项事件进入 /changes：已有 service 单飞重读后递增 listing generation，list/grid/details 保持 Virtuoso 视口、path selection 与 focus identity，旧索引区间安全清除。递归子目录事件只进入独立 /tree/changes revision：32 个父路径有界 ring 仅让已加载展开节点重读，折叠节点按需失效，落后消费者才安全 reset 当前祖先链；Folder Tree 层级从不混入普通列表。两路 25 秒无变化均返回 204，错误停止续订；关闭 Tree、导航、关闭 session 和卸载会 Abort waiter，最后消费者关闭即 unsubscribe。desktop/420x360 已验证外部目录 create/delete 同时更新独立 Tree 和当前目录列表且焦点、选择、阅读图片稳定。DirectoryWatch 为 774-byte 二级 lazy chunk，FolderTreeWorkspace 为 13,837 bytes，@parcel/watcher 零浏览器模块。
 - [ ] `folder.arch.dispose` 取消、释放与休眠
-  - 目标：折叠、切目录、关闭标签和卸载 Card 时取消过期分页/扫描/缩略图，释放 watcher、thumbnail context、browser session 和 Worker。
+  - 目标：切换 Panel 或 Edge 自动隐藏时保留 File Card DOM、目录会话和交互状态，仅暂停 watcher 与缩略图需求；切目录、关闭标签和真正卸载 Card 时取消过期分页/扫描/缩略图并释放 watcher、thumbnail context、browser session 和 Worker。
   - 源码：`components/FolderStack.svelte`、`utils/directoryTreeCache.ts`
-  - 测试：`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`、`neoview.folder.watch-long-poll`、`neoview.folder.watch-gui`、`neoview.folder.watch-live-e2e`
-  - 备注：ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和 dispose 释放 watcher；Card 分页、缩略图 context 和 generation 长轮询均在导航/卸载时 Abort，最后消费者关闭即 unsubscribe。完整 Tree 主动更新、搜索/Worker 休眠仍待完成。
+  - 测试：`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`、`neoview.folder.watch-long-poll`、`neoview.folder.watch-gui`、`neoview.folder.watch-live-e2e`、`neoview.folder.panel-keepalive`、`neoview.folder.panel-keepalive-e2e`
+  - 备注：File Card 首次访问后在 Panel 切换和 Edge 自动隐藏期间保持 mounted，browser session、catalog、选择、标签与 DOM identity 均保留；隐藏态停止当前目录和独立 Folder Tree 的 watch，并停止注册新缩略图需求，恢复可见后继续同一会话。ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和真正 dispose 时释放 watcher；Card 分页、缩略图 context 和 generation 长轮询均在导航/卸载时 Abort，最后消费者关闭即 unsubscribe。搜索/Worker 休眠仍待完成。
 
 ### navigation（7）
 

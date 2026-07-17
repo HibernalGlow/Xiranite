@@ -191,11 +191,11 @@
       "category": "architecture",
       "title": "取消、释放与休眠",
       "sourceEvidence": ["components/FolderStack.svelte", "utils/directoryTreeCache.ts"],
-      "targetContract": "折叠、切目录、关闭标签和卸载 Card 时取消过期分页/扫描/缩略图，释放 watcher、thumbnail context、browser session 和 Worker。",
+      "targetContract": "切换 Panel 或 Edge 自动隐藏时保留 File Card DOM、目录会话和交互状态，仅暂停 watcher 与缩略图需求；切目录、关闭标签和真正卸载 Card 时取消过期分页/扫描/缩略图并释放 watcher、thumbnail context、browser session 和 Worker。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
-      "testIds": ["neoview.folder.file-tree-service", "neoview.folder.watch-http", "neoview.folder.watch-cancellation", "neoview.folder.watch-long-poll", "neoview.folder.watch-gui", "neoview.folder.watch-live-e2e"],
-      "notes": "ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和 dispose 释放 watcher；Card 分页、缩略图 context 和 generation 长轮询均在导航/卸载时 Abort，最后消费者关闭即 unsubscribe。完整 Tree 主动更新、搜索/Worker 休眠仍待完成。"
+      "testIds": ["neoview.folder.file-tree-service", "neoview.folder.watch-http", "neoview.folder.watch-cancellation", "neoview.folder.watch-long-poll", "neoview.folder.watch-gui", "neoview.folder.watch-live-e2e", "neoview.folder.panel-keepalive", "neoview.folder.panel-keepalive-e2e"],
+      "notes": "File Card 首次访问后在 Panel 切换和 Edge 自动隐藏期间保持 mounted，browser session、catalog、选择、标签与 DOM identity 均保留；隐藏态停止当前目录和独立 Folder Tree 的 watch，并停止注册新缩略图需求，恢复可见后继续同一会话。ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和真正 dispose 时释放 watcher；Card 分页、缩略图 context 和 generation 长轮询均在导航/卸载时 Abort，最后消费者关闭即 unsubscribe。搜索/Worker 休眠仍待完成。"
     },
 
     {

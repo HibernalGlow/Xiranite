@@ -789,9 +789,9 @@ export function ReaderApp({
     hideDelayMs: shell?.hideDelayMs,
     triggerSize: shell?.edges.left.triggerSize,
     preload: () => void loadReaderSidebar(),
-    render: () => (
+    render: (active) => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
-        <LazyReaderSidebar side="left" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
+        <LazyReaderSidebar side="left" context={panelContext} shell={shell} active={active} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
       </Suspense>
     ),
   } : undefined
@@ -801,9 +801,9 @@ export function ReaderApp({
     hideDelayMs: shell?.hideDelayMs,
     triggerSize: shell?.edges.right.triggerSize,
     preload: () => void loadReaderSidebar(),
-    render: () => (
+    render: (active) => (
       <Suspense fallback={<div className="h-full w-80 animate-pulse border-l border-border/70 bg-background/85" aria-label="正在加载右侧面板" />}>
-        <LazyReaderSidebar side="right" context={panelContext} shell={shell} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
+        <LazyReaderSidebar side="right" context={panelContext} shell={shell} active={active} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
       </Suspense>
     ),
   } : undefined
