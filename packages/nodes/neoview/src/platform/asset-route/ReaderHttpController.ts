@@ -55,6 +55,9 @@ import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpCont
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
+import { ReaderSourceWatchService } from "../../application/reader/ReaderSourceWatchService.js"
+import type { ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
+import { PlatformReaderSourceWatcher } from "../filesystem/PlatformReaderSourceWatcher.js"
 import type { ReaderSettingsMigrationService } from "../../application/migration/ReaderSettingsMigrationService.js"
 import type { ReaderSettingsPortableService } from "../../application/migration/ReaderSettingsPortableService.js"
 import type { ReaderBookSettingsMigrationService } from "../../application/migration/ReaderBookSettingsMigrationService.js"
@@ -92,6 +95,7 @@ import {
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_RELOAD_PATH = /^\/reader\/s\/([^/]+)\/reload$/
+const SESSION_SOURCE_CHANGES_PATH = /^\/reader\/s\/([^/]+)\/source-changes$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
@@ -170,6 +174,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>
   loadSettingsPortableService?: () => Promise<ReaderSettingsPortableService>
   loadBookSettingsMigrationService?: () => Promise<ReaderBookSettingsMigrationService>
+  sourceWatcher?: ReaderSourceWatcher
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -189,6 +194,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #cacheService: ReaderCacheService
   readonly #mediaProgress?: ReaderMediaProgressService
   readonly #bookSettings?: ReaderBookSettingsService
+  readonly #sourceChanges: ReaderSourceWatchService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
   readonly #seekableMedia: ReaderSeekableMediaCache
   readonly #subtitles: ReaderSubtitleService
@@ -268,6 +274,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.bookSettingsStore,
     )
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
+    this.#sourceChanges = new ReaderSourceWatchService(options.sourceWatcher ?? new PlatformReaderSourceWatcher())
     this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore)
     this.#pageMediaInformation = new ReaderPageMediaInformationService(
       options.loadPageMediaMetadataProvider ?? (async () => {
@@ -469,6 +476,10 @@ export class ReaderHttpController implements AsyncDisposable {
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const reloadMatch = SESSION_RELOAD_PATH.exec(url.pathname)
     if (reloadMatch && request.method === "POST") return this.#reloadSession(reloadMatch[1]!, request)
+    const sourceChangesMatch = SESSION_SOURCE_CHANGES_PATH.exec(url.pathname)
+    if (sourceChangesMatch && request.method === "GET") {
+      return this.#waitForSourceChanges(sourceChangesMatch[1]!, url, request.signal)
+    }
     const preloadEventsMatch = SESSION_PRELOAD_EVENTS_PATH.exec(url.pathname)
     if (preloadEventsMatch && request.method === "POST") return this.#reportPreloadEvents(preloadEventsMatch[1]!, request)
     const preloadContextMatch = SESSION_PRELOAD_CONTEXT_PATH.exec(url.pathname)
@@ -518,6 +529,11 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     try {
       await this.#pageMediaInformation[Symbol.asyncDispose]()
+    } catch (error) {
+      errors.push(error)
+    }
+    try {
+      await this.#sourceChanges[Symbol.asyncDispose]()
     } catch (error) {
       errors.push(error)
     }
@@ -1023,12 +1039,27 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   async #releaseSession(session: ReaderSession): Promise<void> {
+    await this.#sourceChanges.release(session.id)
     await this.#mediaProgress?.flush(session.book.id)
     await this.#clipboardMaterializations.releaseSession(session.id)
     await this.#pageMediaInformation.releaseSession(session.id)
     await this.#assets.releaseSession(session.id)
     this.#releaseBookMetadata(session.id)
     await this.#service.closeSession(session.id)
+  }
+
+  async #waitForSourceChanges(encodedSessionId: string, url: URL, signal: AbortSignal): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const after = parseNonNegativeInteger(url.searchParams.get("after"))
+    if (after === undefined) return jsonResponse({ error: "after must be a non-negative integer" }, 400)
+    try {
+      const change = await this.#sourceChanges.waitForChange(session.id, session.book.source, after, signal)
+      return change ? jsonResponse(change) : new Response(null, { status: 204 })
+    } catch (error) {
+      if (signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 503)
+    }
   }
 
   async #materializeClipboardPage(encodedSessionId: string, request: Request): Promise<Response> {
@@ -1419,6 +1450,12 @@ function validPreloadDuration(value: unknown): boolean {
 
 function validPreloadCount(value: unknown, maximum: number): boolean {
   return value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= maximum)
+}
+
+function parseNonNegativeInteger(value: string | null): number | undefined {
+  if (value === null || !/^\d+$/.test(value)) return undefined
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) ? parsed : undefined
 }
 
 async function safeStat(path: string, signal?: AbortSignal): Promise<Stats | undefined> {
