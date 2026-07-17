@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import type { ViewSource } from "../../domain/book/book.js"
 import type {
+  ReaderBookmarkBatchStoreUpdate,
   ReaderBookmarkListRecord,
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
@@ -539,6 +540,89 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         id,
       ).map((entry) => requireString(entry.list_id, "membership list id"))
       return parseBookmark(updatedRow, memberships)
+    })
+  }
+
+  async updateBookmarkBatch(
+    updates: readonly ReaderBookmarkBatchStoreUpdate[],
+    updatedAt: number,
+  ): Promise<{ items: readonly ReaderBookmarkRecord[]; missingIds: readonly string[] }> {
+    this.#assertOpen()
+    const normalized = BookmarkBatchStoreUpdateSchema.parse(updates)
+    if (new Set(normalized.map((update) => update.id)).size !== normalized.length) {
+      throw new Error("Reader bookmark batch update contains duplicate ids.")
+    }
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Reader bookmark batch updatedAt is invalid.")
+    const payload = JSON.stringify(normalized)
+    return this.#transaction(() => {
+      const requestedListIds = [...new Set(normalized.flatMap((update) => update.listIds ?? []))]
+      if (requestedListIds.length) {
+        const unknown = this.database.all(
+          `SELECT CAST(value AS TEXT) AS id FROM json_each(?1)
+           WHERE value <> 'default'
+             AND value NOT IN (SELECT id FROM xr_reader_bookmark_lists)`,
+          JSON.stringify(requestedListIds),
+        ).map((row) => requireString(row.id, "bookmark list id"))
+        if (unknown.length) throw new Error(`Reader bookmark batch update references unknown lists: ${unknown.join(", ")}.`)
+      }
+      this.database.run(
+        `UPDATE xr_reader_bookmarks SET
+           starred = CASE WHEN EXISTS (
+             SELECT 1 FROM json_each(?1) AS u
+             WHERE json_extract(u.value, '$.id') = xr_reader_bookmarks.id
+               AND json_type(u.value, '$.starred') IN ('true', 'false')
+           ) THEN (
+             SELECT json_extract(u.value, '$.starred') FROM json_each(?1) AS u
+             WHERE json_extract(u.value, '$.id') = xr_reader_bookmarks.id
+           ) ELSE starred END,
+           updated_at = ?2
+         WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(?1))`,
+        payload,
+        updatedAt,
+      )
+      this.database.run(
+        `DELETE FROM xr_reader_bookmark_memberships WHERE bookmark_id IN (
+           SELECT json_extract(value, '$.id') FROM json_each(?1)
+           WHERE json_type(value, '$.listIds') = 'array'
+         )`,
+        payload,
+      )
+      this.database.run(
+        `INSERT INTO xr_reader_bookmark_memberships (bookmark_id, list_id)
+         SELECT b.id, CAST(l.value AS TEXT)
+         FROM json_each(?1) AS u
+         JOIN xr_reader_bookmarks AS b ON b.id = json_extract(u.value, '$.id')
+         JOIN json_each(u.value, '$.listIds') AS l ON true
+         WHERE json_type(u.value, '$.listIds') = 'array'`,
+        payload,
+      )
+      const rows = this.database.all(
+        `SELECT id, source_json, name, kind, starred, created_at, updated_at
+         FROM xr_reader_bookmarks
+         WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(?1))`,
+        payload,
+      )
+      const memberships = this.database.all(
+        `SELECT bookmark_id, list_id FROM xr_reader_bookmark_memberships
+         WHERE bookmark_id IN (SELECT json_extract(value, '$.id') FROM json_each(?1))
+         ORDER BY list_id ASC`,
+        payload,
+      )
+      const membershipsById = new Map<string, string[]>()
+      for (const row of memberships) {
+        const id = requireString(row.bookmark_id, "membership bookmark id")
+        const listIds = membershipsById.get(id) ?? []
+        listIds.push(requireString(row.list_id, "membership list id"))
+        membershipsById.set(id, listIds)
+      }
+      const records = new Map(rows.map((row) => {
+        const id = requireString(row.id, "bookmark id")
+        return [id, parseBookmark(row, membershipsById.get(id) ?? [])] as const
+      }))
+      return {
+        items: normalized.flatMap((update) => records.get(update.id) ?? []),
+        missingIds: normalized.filter((update) => !records.has(update.id)).map((update) => update.id),
+      }
     })
   }
 
@@ -1386,6 +1470,14 @@ const BookSettingsOverridesSchema = z.object({
   pageMode: z.enum(["single", "double"]).optional(),
   horizontalBook: z.boolean().optional(),
 }).strict()
+
+const BookmarkBatchStoreUpdateSchema = z.array(z.object({
+  id: z.string().min(1).max(32_768).refine((value) => !value.includes("\0")),
+  starred: z.boolean().optional(),
+  listIds: z.array(z.string().min(1).max(512).refine((value) => !value.includes("\0"))).max(500).optional(),
+}).strict().refine((update) => update.starred !== undefined || update.listIds !== undefined, {
+  message: "Reader bookmark batch update must change starred or listIds.",
+})).min(1).max(500)
 
 function parseBookSettings(row: Record<string, unknown>): ReaderBookSettingsRecord {
   const overrides: ReaderBookSettingsOverrides = {}

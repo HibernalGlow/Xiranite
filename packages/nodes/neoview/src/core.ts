@@ -229,6 +229,8 @@ export {
 } from "./application/library/ReaderLibraryService.js"
 export type {
   ReaderBookmarkListRecord,
+  ReaderBookmarkBatchStoreResult,
+  ReaderBookmarkBatchStoreUpdate,
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
   ReaderBookmarkUpdate,

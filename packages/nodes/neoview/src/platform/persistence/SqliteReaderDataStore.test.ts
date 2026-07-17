@@ -229,6 +229,36 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.library.bookmark-batch-update-sqlite] applies heterogeneous updates in one transaction and preserves request order", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.upsertBookmark({ ...bookmark("one", false, ["default"]), updatedAt: 10 })
+    await store.upsertBookmark({ ...bookmark("two", true, ["reading"]), updatedAt: 10 })
+
+    await expect(store.updateBookmarkBatch([
+      { id: "two", starred: false },
+      { id: "missing", starred: true },
+      { id: "one", listIds: ["reading"], starred: true },
+    ], 20)).resolves.toEqual({
+      items: [
+        expect.objectContaining({ id: "two", starred: false, listIds: ["reading"], updatedAt: 20 }),
+        expect.objectContaining({ id: "one", starred: true, listIds: ["reading"], updatedAt: 20 }),
+      ],
+      missingIds: ["missing"],
+    })
+    await expect(store.listBookmarks({ listId: "default", limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.updateBookmarkBatch([
+      { id: "one", listIds: ["unknown"] },
+      { id: "two", starred: true },
+    ], 30)).rejects.toThrow("unknown lists")
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "one", starred: true, updatedAt: 20 }),
+      expect.objectContaining({ id: "two", starred: false, updatedAt: 20 }),
+    ])
+    await store.close()
+  })
+
   it("[neoview.file-operations.undo-sqlite] persists and bounds guarded receipts without changing legacy metadata", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)

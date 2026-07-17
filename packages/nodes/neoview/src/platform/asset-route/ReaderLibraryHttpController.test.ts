@@ -71,15 +71,18 @@ describe("ReaderLibraryHttpController", () => {
     expect(updated.status).toBe(200)
     await expect(updated.json()).resolves.toMatchObject({ id: "generated", starred: false, listIds: ["default"] })
     expect(store.updateBookmark).toHaveBeenCalledWith("generated", { starred: false, listIds: ["default"], updatedAt: 200 })
-    store.updateBookmark.mockImplementation(async (id, update) => id === "missing" ? undefined : ({
-      id,
-      source: { kind: "archive", path: `D:/${id}.cbz` },
-      name: id,
-      kind: "file",
-      starred: update.starred ?? false,
-      createdAt: 1,
-      updatedAt: update.updatedAt,
-      listIds: update.listIds ?? ["default"],
+    store.updateBookmarkBatch.mockImplementation(async (updates, updatedAt) => ({
+      items: updates.filter((update) => update.id !== "missing").map((update) => ({
+        id: update.id,
+        source: { kind: "archive", path: `D:/${update.id}.cbz` },
+        name: update.id,
+        kind: "file",
+        starred: update.starred ?? false,
+        createdAt: 1,
+        updatedAt,
+        listIds: update.listIds ?? ["default"],
+      })),
+      missingIds: updates.filter((update) => update.id === "missing").map((update) => update.id),
     }))
     const batch = (await controller.handle(jsonRequest("/reader/library/bookmarks/batch", {
       updates: [{ id: "one", listIds: ["default"] }, { id: "missing", starred: false }],
@@ -145,6 +148,7 @@ function createStore() {
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<ReaderLibraryStore["upsertBookmark"]>(async () => undefined),
     updateBookmark: vi.fn<ReaderLibraryStore["updateBookmark"]>(),
+    updateBookmarkBatch: vi.fn<ReaderLibraryStore["updateBookmarkBatch"]>(),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     deleteBookmarkBatch: vi.fn<ReaderLibraryStore["deleteBookmarkBatch"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),

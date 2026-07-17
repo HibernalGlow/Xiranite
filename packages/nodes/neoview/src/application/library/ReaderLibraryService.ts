@@ -189,21 +189,15 @@ export class ReaderLibraryService implements AsyncDisposable {
     }
     const updatedAt = this.clock()
     assertTimestamp(updatedAt, "clock")
-    const items: ReaderBookmarkRecord[] = []
-    const missingIds: string[] = []
-    for (const update of updates) {
-      signal?.throwIfAborted()
+    signal?.throwIfAborted()
+    return this.store.updateBookmarkBatch(updates.map((update) => {
       const id = update.id.trim()
-      const item = await this.store.updateBookmark(id, {
+      return {
+        id,
         ...(update.starred !== undefined ? { starred: update.starred } : {}),
         ...(requestedLists.has(id) ? { listIds: requestedLists.get(id)! } : {}),
-        updatedAt,
-      })
-      if (item) items.push(item)
-      else missingIds.push(id)
-    }
-    signal?.throwIfAborted()
-    return { items, missingIds }
+      }
+    }), updatedAt)
   }
 
   removeBookmark(id: string): Promise<boolean> {

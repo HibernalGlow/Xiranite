@@ -161,7 +161,11 @@ describe("ReaderLibraryService", () => {
   it("[neoview.bookmark.batch-contract] updates list memberships through one bounded shared command", async () => {
     const store = createStore()
     store.listBookmarkLists.mockResolvedValue([customList])
-    store.updateBookmark.mockImplementation(async (id, update) => id === "missing" ? undefined : bookmark(id, update.listIds ?? ["default"], update.starred ?? false))
+    store.updateBookmarkBatch.mockImplementation(async (updates) => ({
+      items: updates.filter((update) => update.id !== "missing")
+        .map((update) => bookmark(update.id, update.listIds ?? ["default"], update.starred ?? false)),
+      missingIds: updates.filter((update) => update.id === "missing").map((update) => update.id),
+    }))
     const service = new ReaderLibraryService(store, () => 300)
 
     await expect(service.updateBookmarks([
@@ -173,8 +177,12 @@ describe("ReaderLibraryService", () => {
       missingIds: ["missing"],
     })
     expect(store.listBookmarkLists).toHaveBeenCalledOnce()
-    expect(store.updateBookmark).toHaveBeenCalledTimes(3)
-    expect(store.updateBookmark).toHaveBeenNthCalledWith(2, "two", { starred: true, listIds: ["custom"], updatedAt: 300 })
+    expect(store.updateBookmarkBatch).toHaveBeenCalledWith([
+      { id: "one", listIds: ["custom", "default"] },
+      { id: "two", starred: true, listIds: ["custom"] },
+      { id: "missing", starred: false },
+    ], 300)
+    expect(store.updateBookmark).not.toHaveBeenCalled()
     await expect(service.updateBookmarks([{ id: "one", starred: true }, { id: "one", starred: false }])).rejects.toThrow("duplicate")
     await expect(service.updateBookmarks([{ id: "one", listIds: ["favorites"] }])).rejects.toThrow("cannot be persisted")
     await expect(service.updateBookmarks([])).rejects.toThrow("1 to 500")
@@ -214,6 +222,7 @@ function createStore() {
     findBookmarkByPath: vi.fn<ReaderLibraryStore["findBookmarkByPath"]>(),
     upsertBookmark: vi.fn<(bookmark: ReaderBookmarkRecord) => Promise<void>>(async () => undefined),
     updateBookmark: vi.fn<ReaderLibraryStore["updateBookmark"]>(),
+    updateBookmarkBatch: vi.fn<ReaderLibraryStore["updateBookmarkBatch"]>(),
     deleteBookmark: vi.fn<ReaderLibraryStore["deleteBookmark"]>(),
     deleteBookmarkBatch: vi.fn<ReaderLibraryStore["deleteBookmarkBatch"]>(),
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),
