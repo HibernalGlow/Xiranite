@@ -106,11 +106,13 @@ async function verifyPersistentReaderLifecycle() {
   expect(pageStreamOpens).toBeGreaterThanOrEqual(2)
   expect(pageStreamCloses).toBe(pageStreamOpens)
   expect(disposed).toBe(1)
-  expect(resources.snapshot()).toEqual({
+  const resourceSnapshot = resources.snapshot()
+  expect(resourceSnapshot).toMatchObject({
     cpu: { active: 0, queued: 0, queuedByPriority: { interactive: 0, view: 0, ahead: 0, background: 0 } },
     io: { active: 0, queued: 0, queuedByPriority: { interactive: 0, view: 0, ahead: 0, background: 0 } },
     gpu: { active: 0, queued: 0, queuedByPriority: { interactive: 0, view: 0, ahead: 0, background: 0 } },
   })
+  for (const pool of Object.values(resourceSnapshot)) expect(pool.released).toBe(pool.granted)
 }
 
 test(

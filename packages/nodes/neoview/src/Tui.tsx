@@ -45,11 +45,15 @@ export interface NeoviewTuiProps extends TerminalUiScreenProps<NeoviewTuiInput, 
   createController?: () => Promise<ReaderTuiPort>
   imageBackend?: TerminalImageBackend
   resourceScheduler?: ResourceScheduler
+  defaultArchivePasswords?: OpenHeadlessReaderInput["archivePasswords"]
 }
 
-export function createNeoviewTuiScreen(createController: () => Promise<ReaderTuiPort>) {
+export function createNeoviewTuiScreen(
+  createController?: () => Promise<ReaderTuiPort>,
+  defaultArchivePasswords?: OpenHeadlessReaderInput["archivePasswords"],
+) {
   return function ConnectedNeoviewTui(props: Omit<NeoviewTuiProps, "createController">) {
-    return <NeoviewTui {...props} createController={createController} />
+    return <NeoviewTui {...props} createController={createController} defaultArchivePasswords={defaultArchivePasswords} />
   }
 }
 
@@ -69,6 +73,7 @@ function ReaderWorkbench({
   createController,
   imageBackend = "sixel",
   resourceScheduler,
+  defaultArchivePasswords,
 }: NeoviewTuiProps) {
   const theme = useTerminalTheme()
   const dimensions = useTerminalDimensions()
@@ -141,8 +146,8 @@ function ReaderWorkbench({
       setFocused("path")
       return
     }
-    void run((port, signal) => port.open({ path: input, signal }), "opening")
-  }, [language, path, run])
+    void run((port, signal) => port.open({ path: input, signal, archivePasswords: defaultArchivePasswords }), "opening")
+  }, [defaultArchivePasswords, language, path, run])
 
   const navigate = useCallback((action: "next" | "previous" | "goTo", index?: number) => {
     if (!snapshot || phase === "opening" || phase === "navigating") return

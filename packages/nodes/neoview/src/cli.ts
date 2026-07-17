@@ -1430,52 +1430,64 @@ function oneValue(parsed: ParsedArguments, flag: string): string | undefined {
 async function runReaderUi(args: readonly string[], host: CliHost, dependencies: NeoviewCliDependencies): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView ui requires an interactive terminal.")
   const connection = parseReaderUiConnectionArgs(args)
-  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
-  const flags = resolveTerminalUiFlags(connection.terminalArgs, { language: "zh", renderer: "opentui", theme: "nord" })
-  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
-    throw usage(flags.error ?? `Unknown ui argument: ${flags.args[0]}`)
+  const credentials = credentialsFromEnvironment(parseArguments(connection.credentialArgs), host)
+  try {
+    const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+    const flags = resolveTerminalUiFlags(connection.terminalArgs, { language: "zh", renderer: "opentui", theme: "nord" })
+    if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+      throw usage(flags.error ?? `Unknown ui argument: ${flags.args[0]}`)
+    }
+    const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+    if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+      throw usage(`Unknown terminal theme: ${flags.theme}.`)
+    }
+    const { createNeoviewTuiDefinition } = await import("./interaction.js")
+    const remoteOptions = connection.baseUrl ? {
+      baseUrl: connection.baseUrl,
+      token: connectionToken(connection.tokenVariable, host),
+    } : undefined
+    await runTerminalUi(createNeoviewTuiDefinition(flags.language), {
+      host,
+      language: flags.language,
+      renderer: flags.renderer,
+      theme: flags.theme,
+      loadScreen: async () => {
+        const tui = await import("./Tui.js")
+        if (!remoteOptions && !credentials.inputs) return tui.NeoviewTui
+        const createRemote = dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!
+        return tui.createNeoviewTuiScreen(
+          remoteOptions ? () => createRemote(remoteOptions) : undefined,
+          credentials.inputs,
+        )
+      },
+      reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["ui", ...args] } : undefined,
+    })
+  } finally {
+    credentials.clear()
   }
-  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
-  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
-    throw usage(`Unknown terminal theme: ${flags.theme}.`)
-  }
-  const { createNeoviewTuiDefinition } = await import("./interaction.js")
-  const remoteOptions = connection.baseUrl ? {
-    baseUrl: connection.baseUrl,
-    token: connectionToken(connection.tokenVariable, host),
-  } : undefined
-  await runTerminalUi(createNeoviewTuiDefinition(flags.language), {
-    host,
-    language: flags.language,
-    renderer: flags.renderer,
-    theme: flags.theme,
-    loadScreen: async () => {
-      const tui = await import("./Tui.js")
-      if (!remoteOptions) return tui.NeoviewTui
-      const createRemote = dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!
-      return tui.createNeoviewTuiScreen(() => createRemote(remoteOptions))
-    },
-    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["ui", ...args] } : undefined,
-  })
 }
 
 export function parseReaderUiConnectionArgs(args: readonly string[]): {
   terminalArgs: string[]
+  credentialArgs: string[]
   baseUrl?: string
   tokenVariable?: string
 } {
   const terminalArgs: string[] = []
+  const credentialArgs: string[] = []
   let baseUrl: string | undefined
   let tokenVariable: string | undefined
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!
-    if (argument !== "--connect" && argument !== "--token-env") {
+    if (argument !== "--connect" && argument !== "--token-env" && argument !== "--password-env" && argument !== "--archive-password-env") {
       terminalArgs.push(argument)
       continue
     }
     const value = args[index + 1]
     if (!value || value.startsWith("--")) throw usage(`${argument} requires a value.`)
-    if (argument === "--connect") {
+    if (argument === "--password-env" || argument === "--archive-password-env") {
+      credentialArgs.push(argument, value)
+    } else if (argument === "--connect") {
       if (baseUrl !== undefined) throw usage("--connect can only be specified once.")
       baseUrl = value
     } else {
@@ -1485,7 +1497,7 @@ export function parseReaderUiConnectionArgs(args: readonly string[]): {
     index += 1
   }
   if (!baseUrl && tokenVariable) throw usage("--token-env requires --connect.")
-  return { terminalArgs, baseUrl, tokenVariable }
+  return { terminalArgs, credentialArgs, baseUrl, tokenVariable }
 }
 
 async function runFolderUi(args: readonly string[], host: CliHost): Promise<void> {

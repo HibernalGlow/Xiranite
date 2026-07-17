@@ -10,11 +10,28 @@ describe("NeoView CLI remote Reader", () => {
       "--lang", "en", "--connect", "http://127.0.0.1:41000", "--theme", "nord", "--token-env", "READER_TOKEN",
     ])).toEqual({
       terminalArgs: ["--lang", "en", "--theme", "nord"],
+      credentialArgs: [],
       baseUrl: "http://127.0.0.1:41000",
       tokenVariable: "READER_TOKEN",
     })
     expect(() => parseReaderUiConnectionArgs(["--token-env", "TOKEN"])).toThrow("requires --connect")
     expect(() => parseReaderUiConnectionArgs(["--connect", "one", "--connect", "two"])).toThrow("only be specified once")
+  })
+
+  it("[neoview.tui.archive-password-env] separates archive credential references from renderer flags", () => {
+    expect(parseReaderUiConnectionArgs([
+      "--password-env", "BOOK_PASSWORD",
+      "--archive-password-env", "inner.cb7=INNER_PASSWORD",
+      "--lang", "zh",
+    ])).toEqual({
+      terminalArgs: ["--lang", "zh"],
+      credentialArgs: [
+        "--password-env", "BOOK_PASSWORD",
+        "--archive-password-env", "inner.cb7=INNER_PASSWORD",
+      ],
+      baseUrl: undefined,
+      tokenVariable: undefined,
+    })
   })
 
   it("[neoview.cli.connect] selects the remote adapter and reads its token only from the environment", async () => {
