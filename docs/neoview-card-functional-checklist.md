@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -2336,10 +2336,203 @@
 
 #### `bookSettings` 本书设置
 
+- 细项清单：`migration/neoview/book-settings-compatibility.json`
 - [ ] 查看和编辑当前书籍覆盖设置
 - [ ] 区分继承值、显式覆盖和恢复全局默认
 - [ ] 保存后立即应用且可回滚失败
 - UI 基线：`src/lib/cards/properties/BookSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（7 组，80 项）
+
+- `book-settings-ui.states` 书籍身份、空态与加载态
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`book-settings.states`、`book-settings.identity`、`book-settings.lifecycle`
+  - [ ] 未打开书籍空态
+  - [ ] 未打开书籍文本
+  - [ ] bookInfo path 作为旧设置身份
+  - [ ] 加载中空态
+  - [ ] 加载中文本
+  - [ ] 有书籍才挂载控件
+  - [ ] 切书重读覆盖
+  - [ ] 关闭书籍清空
+  - [ ] 迟到结果不得覆盖新书
+- `book-settings-ui.favorite-rating` 收藏按钮与五星评分
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 映射：`book-settings.favorite`、`book-settings.rating`、`book-settings.persistence`、`book-settings.accessibility`
+  - [ ] 收藏标签
+  - [ ] 已收藏按钮
+  - [ ] 未收藏按钮
+  - [ ] 点击切换 favorite
+  - [ ] 评分标签
+  - [ ] 1 到 5 星按钮
+  - [ ] 实心星
+  - [ ] 空心星
+  - [ ] 黄色已选星
+  - [ ] 评分 N 星 title
+  - [ ] 点击写入 1..5
+  - [ ] 默认 favorite=false
+  - [ ] 默认 rating=0
+- `book-settings-ui.direction` 阅读方向分段控制
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 映射：`book-settings.direction`、`book-settings.apply`、`book-settings.ui-parity`、`book-settings.accessibility`
+  - [ ] 阅读方向标签
+  - [ ] 左到右按钮
+  - [ ] 右到左按钮
+  - [ ] left-to-right 值
+  - [ ] right-to-left 值
+  - [ ] 缺失值回退左到右
+  - [ ] 活动按钮 default variant
+  - [ ] 非活动按钮 outline variant
+  - [ ] 默认 readingDirection=left-to-right
+  - [ ] 切换后当前双页顺序立即更新
+- `book-settings-ui.page-mode` 单双页显示模式
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 映射：`book-settings.page-mode`、`book-settings.apply`、`book-settings.image-stability`、`book-settings.accessibility`
+  - [ ] 显示模式标签
+  - [ ] 单页按钮
+  - [ ] 双页按钮
+  - [ ] doublePageView=false
+  - [ ] doublePageView=true
+  - [ ] 活动按钮 default variant
+  - [ ] 非活动按钮 outline variant
+  - [ ] 默认 doublePageView=false
+  - [ ] 切换后 frame 立即重建
+  - [ ] 单页与双页不改变资源 URL 身份
+- `book-settings-ui.horizontal` 横版本子开关
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 映射：`book-settings.horizontal-book`、`book-settings.apply`、`book-settings.ui-parity`、`book-settings.deviations`
+  - [ ] 横版本子标签
+  - [ ] Switch 控件
+  - [ ] checked 状态
+  - [ ] 默认 horizontalBook=false
+  - [ ] scale-75 紧凑几何
+  - [ ] 切换写入 boolean
+  - [ ] 横版语义与宽页单页策略明确
+  - [ ] 不创建第二套页面配对算法
+- `book-settings-ui.persistence` 旧设置键、默认值与规范所有权
+  - 源码：`src/lib/stores/bookSettings.svelte.ts`、`src/lib/cards/properties/BookSettingsCard.svelte`
+  - 映射：`book-settings.persistence`、`book-settings.data-contract`、`book-settings.states`、`book-settings.deviations`
+  - [ ] neoview-book-settings 旧 localStorage 键
+  - [ ] path 到 PerBookSettings 映射
+  - [ ] 坏 JSON 降级空对象
+  - [ ] 增量 partial merge
+  - [ ] favorite
+  - [ ] rating
+  - [ ] readingDirection
+  - [ ] doublePageView
+  - [ ] horizontalBook
+  - [ ] 未配置时五项默认值
+  - [ ] 旧值一次性迁移
+  - [ ] 不得继续双写 localStorage
+  - [ ] 不得写入 xiranite.db Reader 业务表
+  - [ ] 原子保存
+  - [ ] 失败回滚
+  - [ ] 恢复继承值
+- `book-settings-ui.shell` 通用 Card 外壳与紧凑布局
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 映射：`book-settings.shell`、`book-settings.ui-parity`、`book-settings.lifecycle`、`book-settings.performance`
+  - [ ] Settings 图标与本书设置标题
+  - [ ] 默认 properties Panel
+  - [ ] 默认显示并展开
+  - [ ] 允许隐藏
+  - [ ] 标题折叠
+  - [ ] 上移与下移
+  - [ ] 独立窗口
+  - [ ] 高度拖动与恢复自动
+  - [ ] 折叠内容零挂载
+  - [ ] 动态 import
+  - [ ] 失败状态
+  - [ ] 两列行布局
+  - [ ] space-y-2 text-xs
+  - [ ] 桌面与 420x360 无溢出
+
+##### 专用源码级验收项
+
+- [ ] `book-settings.identity` 使用规范书籍身份定位覆盖
+  - 目标：Per-book overrides use the canonical opened book identity and never an editable path field, transient page URL or display title.
+  - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：`neoview.card.book-settings-page-mode`
+  - 备注：The React Card receives the active session book but the canonical persistent book key is not yet exposed.
+- [ ] `book-settings.favorite` 查看和切换本书收藏
+  - 目标：Favorite is a shared per-book boolean with inherited, explicit true and explicit false semantics and immediate optimistic feedback with rollback.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：待补
+  - 备注：Current React intentionally omits the control because no canonical read/write contract exists.
+- [ ] `book-settings.rating` 编辑本书五星评分
+  - 目标：Rating supports unset and integers 1..5 through one shared book metadata contract without diverging from Folder rating fields.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：待补
+  - 备注：Current React intentionally omits the five-star control until rating ownership is unified.
+- [ ] `book-settings.direction` 覆盖本书阅读方向
+  - 目标：Left-to-right and right-to-left update the active frame immediately, persist as a per-book override and can be reset to inherit the global default.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：`neoview.card.book-settings-direction`、`neoview.control.session`、`neoview.book-settings.direction-e2e`
+  - 备注：The authenticated session options route now strictly accepts direction, rebuilds the frame and reverses double-page presentation order; canonical per-book persistence and reset-to-inherit remain pending.
+- [ ] `book-settings.page-mode` 覆盖本书单双页模式
+  - 目标：Single and double page mode update the active frame immediately, persist only for this book and can be reset to inherit the global default.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：`neoview.card.book-settings-page-mode`
+  - 备注：The React Card updates the current session page mode, but does not distinguish or persist a per-book override.
+- [ ] `book-settings.horizontal-book` 覆盖横版本子策略
+  - 目标：Horizontal-book is mapped to one documented wide-page/frame policy, applies immediately and does not create a parallel pairing algorithm.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：待补
+  - 备注：The legacy boolean has no canonical XR behavior yet.
+- [ ] `book-settings.apply` 立即应用、串行提交与失败回滚
+  - 目标：Each settled control change updates one active session, serializes persistence, ignores obsolete responses and restores the last confirmed value on failure.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：`neoview.card.book-settings-page-mode`、`neoview.card.book-settings-direction`、`neoview.book-settings.direction-e2e`
+  - 备注：Direction and page-mode changes serialize inside the Card, disable both groups while pending and surface failure without changing the confirmed controlled value; persistence revision conflicts and cross-book cancellation remain pending.
+- [ ] `book-settings.states` 空、加载、继承、显式、保存与错误状态
+  - 目标：No-book, loading, inherited, explicit, saving, failure and retry states preserve the last confirmed override without stale cross-book publication.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
+  - 测试：`neoview.card.book-settings-contract`
+  - 备注：No-session is zero DOM in the shared Card host; the current component lacks inherited, saving and failure states.
+- [ ] `book-settings.data-contract` 共享有界本书覆盖 DTO
+  - 目标：GUI, CLI and TUI share one versioned bounded override DTO with optional fields, strict enums/ranges, revision conflict handling and no raw local paths in remote output.
+  - 源码：`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：待补
+  - 备注：The legacy localStorage record is not a valid shared XR contract.
+- [ ] `book-settings.persistence` 迁移旧键并持久化规范覆盖
+  - 目标：Legacy neoview-book-settings imports once into the compatible NeoView business database or canonical config ownership, saves atomically, supports reset-to-inherit and never creates Reader business tables in xiranite.db.
+  - 源码：`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：待补
+  - 备注：Current React neither reads nor writes the legacy record; final ownership must be resolved before controls are exposed.
+- [ ] `book-settings.lifecycle` 切书、折叠、取消与关闭释放
+  - 目标：Hidden/unmounted Cards do no work; switching books cancels obsolete reads/writes; session close releases pending updates and stale responses cannot affect the next book.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
+  - 测试：`neoview.card.book-settings-contract`
+  - 备注：The Card is lazy and no-session renders zero DOM; persistent request cancellation is not implemented.
+- [x] `book-settings.shell` 复用通用 Card 外壳
+  - 目标：Book Settings remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the Properties Panel.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
+  - 测试：`neoview.shell.registry-lazy`、`neoview.settings.card-layout`
+  - 备注：The shared registry and Card shell own layout behavior; content remains independently lazy.
+- [ ] `book-settings.accessibility` 命名控件、分组与键盘等价操作
+  - 目标：Every toggle, star and segmented option has an accessible name, pressed/checked state, keyboard operation, pending semantics and focus preservation after save or rollback.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
+  - 测试：`neoview.card.book-settings-page-mode`、`neoview.card.book-settings-direction`
+  - 备注：Direction and page-mode buttons expose pressed and disabled state through native buttons and failures use an alert; favorite, rating, horizontal-book and full rollback focus evidence remain absent.
+- [ ] `book-settings.ui-parity` 保持旧版五行紧凑布局
+  - 目标：Favorite, rating, direction, display mode and horizontal-book retain the legacy order, labels, compact density and responsive two-column geometry at desktop and 420x360 widths.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
+  - 测试：`neoview.card.book-settings-page-mode`、`neoview.card.book-settings-direction`、`neoview.book-settings.direction-e2e`
+  - 备注：Direction and display-mode rows preserve the legacy order and compact segmented geometry without overflow in desktop and 420x360 Chromium; favorite, rating and horizontal-book rows remain pending.
+- [ ] `book-settings.image-stability` 设置更新不重挂活动媒体
+  - 目标：Metadata-only changes issue no media request; frame-affecting direction/page-mode changes reuse stable asset URLs and replace media nodes only when the visible page set actually changes.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
+  - 测试：`neoview.book-settings.direction-e2e`
+  - 备注：Real Chromium proves RTL reorders the same two visible asset URLs after double-page activation; metadata-only controls and duplicate-request counts remain pending.
+- [ ] `book-settings.performance` 常量 DOM、零隐藏工作与独立 chunk
+  - 目标：The Card uses O(1) DOM, no polling or media decode, zero hidden work and an independent deferred chunk under 8 KiB outside Reader entry and sidebar base chunks.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.shell.registry-lazy`、`neoview.book-settings.direction-e2e`
+  - 备注：The Card builds as an independent 3,213-byte deferred chunk and performs no polling or decode; a dedicated chunk budget and explicit collapsed zero-work request count remain required.
+- [ ] `book-settings.deviations` 记录覆盖继承与旧 localStorage 替代
+  - 目标：Document reset-to-inherit, canonical persistence, authenticated session updates and any horizontal-book mapping as XR extensions while preserving all five legacy controls.
+  - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
+  - 测试：`neoview.card.book-settings-contract`
+  - 备注：Unsupported controls are deliberately hidden rather than presented as no-op; final replacement contracts remain pending.
 
 #### `folderRatings` 文件夹平均评分
 
@@ -2813,8 +3006,8 @@
 - [ ] `history.selection` 共享选择、链选与焦点语义
   - 目标：Single, toggle, range/chain, all, invert and keyboard focus selection remain bounded and separate from opening behavior across all History views.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/components/SelectionBar.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`
-  - 测试：`neoview.history.selection`、`neoview.history.thumbnail-e2e`
-  - 备注：Stable book IDs back single, Ctrl/Meta toggle and Shift range selection; Space selects, Enter opens and Arrow/Home/End move visible focus. Select-all, invert and cross-view focus persistence remain pending.
+  - 测试：`neoview.history.selection`、`neoview.history.selection-keyboard`、`neoview.history.thumbnail-e2e`
+  - 备注：Stable book IDs back single, Ctrl/Meta toggle, Shift range, loaded-item select-all/invert/clear and a semantic multiselect list. Arrow/Home/End use the virtual row index and restore the focused item across all four views; explicit chain-mode and click-open/select controls remain pending.
 - [ ] `history.actions` 打开、定位、书签、文件与历史动作
   - 目标：History preserves open, browse/new-tab, system-open, reveal, copy path/name, add bookmark, tree pin, tag, thumbnail reload and confirmed single/batch history removal through authenticated host capabilities.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`、`src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte`
@@ -2858,8 +3051,8 @@
 - [ ] `history.accessibility` 命名动作、键盘选择与焦点恢复
   - 目标：Rows, search, view/filter controls, menus, selection and destructive dialogs are keyboard/touch operable with accessible names, input guards, visible focus and focus restoration.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
-  - 测试：`neoview.history.card`、`neoview.history.selection`、`neoview.history.thumbnail-e2e`
-  - 备注：Rows and actions have stable names, visible focus, Space/Enter and Arrow/Home/End support, and destructive removal uses a keyboard/touch dialog; shortcuts, focus restoration and keyboard context menus remain pending.
+  - 测试：`neoview.history.card`、`neoview.history.selection`、`neoview.history.selection-keyboard`、`neoview.history.thumbnail-e2e`
+  - 备注：The multiselect list and named selection controls support Space/Enter, grid-aware arrows, Home/End, Ctrl/Cmd+A, Delete and Escape. Focus returns to the same stable item after view changes; search focus, keyboard context menus and dialog-close focus restoration remain pending.
 - [ ] `history.ui-parity` 保持旧版历史信息密度与响应式几何
   - 目标：Progress, time, read/bookmark state, folder-style media hierarchy and toolbar density remain readable at desktop and 420x360 without overlap or horizontal overflow.
   - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`
@@ -2869,7 +3062,7 @@
   - 目标：A 10K history corpus keeps bounded paging and DOM, registers only visible thumbnails, bounds path checks and cleanup batches, performs zero hidden work and stays in an independent deferred chunk.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
   - 测试：`neoview.library.contract`、`neoview.library.lifecycle`、`neoview.library.cleanup-invalid`、`neoview.history.thumbnail-visible`、`neoview.history.views`、`neoview.history.chunk`、`neoview.history.thumbnail-e2e`
-  - 备注：All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work and History stays in an independent 6,643-byte deferred chunk; 10K Chromium and advanced cleanup budgets remain pending.
+  - 备注：All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work, and production audit keeps History in an independent 8,039-byte chunk plus a shared 4,464-byte ReaderLibraryList chunk; 10K Chromium and advanced cleanup budgets remain pending.
 - [ ] `history.image-stability` 历史交互不重挂活动阅读媒体
   - 目标：Opening History, refreshing, searching, changing views, scrolling thumbnails, selecting and cleaning records preserve the active Reader media node and asset URL until an explicit history entry is opened.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
