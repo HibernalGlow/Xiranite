@@ -346,6 +346,35 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.folder.emm-tag-sqlite] samples deduplicated valid tags with SQLite JSON1 without changing legacy rows", async () => {
+    const { path } = await fixture()
+    const seeded = await openFixtureDatabase(path)
+    seeded.exec(`
+      UPDATE thumbs SET emm_json = '{"tags":[{"namespace":"artist","tag":"Alice"},{"namespace":"female","tag":"glasses"}]}' WHERE key = 'D:/cover.jpg';
+      INSERT INTO thumbs (key, category, value, emm_json) VALUES
+        ('D:/two.cbz', 'file', X'00', '{"tags":[{"namespace":"ARTIST","tag":"alice"},{"namespace":"language","tag":"chinese"}]}'),
+        ('D:/bad.cbz', 'file', X'00', 'not-json'),
+        ('D:/empty.cbz', 'file', X'00', '{"tags":[{"namespace":"","tag":"ignored"}]}');
+    `)
+    const before = seeded.all("SELECT key, emm_json FROM thumbs ORDER BY key")
+    seeded.close()
+
+    const store = await SqliteReaderDataStore.open(path)
+    const tags = await store.sampleEmmTags(10)
+    expect(tags).toHaveLength(3)
+    expect(tags.map((value) => `${value.category.toLocaleLowerCase()}:${value.tag.toLocaleLowerCase()}`).sort()).toEqual([
+      "artist:alice",
+      "female:glasses",
+      "language:chinese",
+    ])
+    await expect(store.sampleEmmTags(65)).rejects.toThrow("1 to 64")
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.all("SELECT key, emm_json FROM thumbs ORDER BY key")).toEqual(before)
+    verified.close()
+  })
+
   it("[neoview.emm.override-sqlite] merges revisioned xr_ overrides without modifying legacy thumbs metadata", async () => {
     const { path } = await fixture()
     const seeded = await openFixtureDatabase(path)

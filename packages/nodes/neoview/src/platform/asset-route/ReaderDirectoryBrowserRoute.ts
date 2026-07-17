@@ -19,6 +19,7 @@ import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirecto
 import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.js"
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
 import { PlatformReaderDirectorySizeProvider } from "../filesystem/PlatformReaderDirectorySizeProvider.js"
+import { PlatformEmmCollectTagSource } from "../emm/PlatformEmmCollectTagSource.js"
 import { PlatformDirectoryRootProvider } from "../filesystem/PlatformDirectoryRootProvider.js"
 import { platformReaderDirectoryEntryType } from "../filesystem/PlatformReaderDirectoryEntryClassifier.js"
 import type { ReaderDirectoryRootProvider } from "../../ports/ReaderDirectoryRootProvider.js"
@@ -44,8 +45,11 @@ import {
 import { ReaderEmmMetadataService } from "../../application/metadata/ReaderEmmMetadataService.js"
 import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { z } from "zod"
+import { ReaderEmmTagSuggestionService } from "../../application/metadata/ReaderEmmTagSuggestionService.js"
+import type { ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
+const BROWSER_EMM_TAG_SUGGESTIONS_PATH = "/reader/browser/emm-tags/suggestions"
 const BROWSER_ROOTS_PATH = "/reader/browser/roots"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/changes$/
@@ -76,10 +80,11 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: ReaderFileTreeService
   readonly #searchHistory?: ReaderSearchHistoryService
   readonly #emmEditor?: ReaderDirectoryEmmEditService
+  readonly #emmTagSuggestions?: ReaderEmmTagSuggestionService
 
   constructor(
     sortPreferenceStore?: ReaderDirectorySortPreferenceStore,
-    emmRecordStore?: ReaderDirectoryEmmRecordStore,
+    emmRecordStore?: ReaderDirectoryEmmRecordStore & Partial<ReaderEmmTagCatalogStore>,
     mediaMetadataProvider?: ReaderDirectoryMetadataProvider,
     fileTreeOptions: ReaderFileTreeServiceOptions = {},
     resourceScheduler?: ResourceScheduler,
@@ -87,11 +92,12 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     private readonly directoryRootProvider: ReaderDirectoryRootProvider = new PlatformDirectoryRootProvider(),
     mediaFormats?: ReaderMediaTypeResolver,
     emmOverrideStore?: ReaderEmmOverrideStore,
+    collectTagSource = new PlatformEmmCollectTagSource(),
   ) {
     this.#searchHistory = searchHistory
     this.#browser = new ReaderFileTreeService(
       new PlatformDirectoryListingProvider(mediaFormats),
-      new PlatformDirectoryMetadataProvider(emmRecordStore, undefined, undefined, mediaMetadataProvider),
+      new PlatformDirectoryMetadataProvider(emmRecordStore, collectTagSource, undefined, mediaMetadataProvider),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
       {
         ...fileTreeOptions,
@@ -104,10 +110,14 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     this.#emmEditor = emmOverrideStore
       ? new ReaderDirectoryEmmEditService(new ReaderEmmMetadataService(emmOverrideStore), this.#browser)
       : undefined
+    this.#emmTagSuggestions = isEmmTagCatalogStore(emmRecordStore)
+      ? new ReaderEmmTagSuggestionService(emmRecordStore, collectTagSource)
+      : undefined
   }
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
+    if (url.pathname === BROWSER_EMM_TAG_SUGGESTIONS_PATH && request.method === "GET") return this.#suggestEmmTags(url, request.signal)
     if (url.pathname === BROWSER_SEARCH_HISTORY_PATH) return this.#handleSearchHistory(request, url)
     if (url.pathname === BROWSER_ROOTS_PATH && request.method === "GET") return this.#roots(request.signal)
     if (url.pathname === "/reader/browser/sessions" && request.method === "POST") return this.#open(request)
@@ -175,6 +185,17 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       }
       return errorResponse("Search history method not allowed", 405)
     } catch (error) {
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #suggestEmmTags(url: URL, signal: AbortSignal): Promise<Response> {
+    if (!this.#emmTagSuggestions) return errorResponse("Reader EMM tag suggestions are unavailable", 503)
+    try {
+      const count = optionalInteger(url.searchParams.get("count"), "count", 1, 32) ?? 8
+      return Response.json({ tags: await this.#emmTagSuggestions.suggest(count, signal) }, responseInit())
+    } catch (error) {
+      if (signal.aborted) throw error
       return errorResponse(errorMessage(error), 400)
     }
   }
@@ -510,6 +531,10 @@ function tagMode(value: string | null): "all" | "any" | undefined {
   if (value === null) return undefined
   if (value === "all" || value === "any") return value
   throw new Error("tagMode must be all or any")
+}
+
+function isEmmTagCatalogStore(value: ReaderDirectoryEmmRecordStore | undefined): value is ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore {
+  return typeof (value as Partial<ReaderEmmTagCatalogStore> | undefined)?.sampleEmmTags === "function"
 }
 
 function parseNavigation(body: { action?: unknown; path?: unknown; focusPath?: unknown } | undefined): ReaderDirectoryNavigation | undefined {

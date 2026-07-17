@@ -29,6 +29,7 @@ import type {
   ReaderDirectoryEmmRecord,
   ReaderDirectoryEmmRecordStore,
 } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 import type {
   ReaderEmmOverrideRecord,
   ReaderEmmOverrides,
@@ -40,7 +41,7 @@ import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/ope
 const GLOBAL_SORT_SCOPE = "__global__"
 const MAX_FOLDER_SORT_RULES = 1_000
 
-export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore, ReaderEmmOverrideStore {
+export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore, ReaderEmmTagCatalogStore, ReaderEmmOverrideStore {
   readonly directoryEmmAvailable: boolean
   readonly #legacyDirectoryEmmAvailable: boolean
   readonly #directoryRatingDataAvailable: boolean
@@ -756,6 +757,38 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     }
     signal?.throwIfAborted()
     return output
+  }
+
+  async sampleEmmTags(count: number, signal?: AbortSignal): Promise<readonly ReaderEmmCatalogTag[]> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(count) || count < 1 || count > 64) throw new RangeError("EMM tag sample count must be from 1 to 64.")
+    signal?.throwIfAborted()
+    if (!this.#legacyDirectoryEmmAvailable) return []
+    const rows = this.database.all(`
+      WITH sampled(emm_json) AS (
+        SELECT emm_json FROM thumbs
+        WHERE emm_json IS NOT NULL AND json_valid(emm_json)
+        ORDER BY random()
+        LIMIT 50
+      ), expanded(category, tag) AS (
+        SELECT trim(json_extract(item.value, '$.namespace')), trim(json_extract(item.value, '$.tag'))
+        FROM sampled
+        JOIN json_each(sampled.emm_json, '$.tags') AS item
+        WHERE json_type(item.value, '$.namespace') = 'text'
+          AND json_type(item.value, '$.tag') = 'text'
+      )
+      SELECT min(category) AS category, min(tag) AS tag
+      FROM expanded
+      WHERE category <> '' AND tag <> '' AND length(category) <= 128 AND length(tag) <= 256
+      GROUP BY lower(category), lower(tag)
+      ORDER BY random()
+      LIMIT ?1
+    `, count)
+    signal?.throwIfAborted()
+    return rows.map((row) => ({
+      category: requireString(row.category, "EMM tag category"),
+      tag: requireString(row.tag, "EMM tag"),
+    }))
   }
 
   async getEmmOverride(path: string): Promise<ReaderEmmOverrideRecord | undefined> {

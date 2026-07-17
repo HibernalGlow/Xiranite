@@ -67,6 +67,8 @@ export {
 } from "./application/browser/ReaderDirectoryFilter.js"
 export { ReaderDirectoryListingScanner } from "./application/browser/ReaderDirectoryListingScanner.js"
 export { ReaderMetadataHydratingScanner } from "./application/browser/ReaderMetadataHydratingScanner.js"
+export { ReaderEmmTagSuggestionService } from "./application/metadata/ReaderEmmTagSuggestionService.js"
+export type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "./ports/ReaderEmmTagCatalogStore.js"
 export type { ReaderDirectorySize, ReaderDirectorySizeProvider } from "./ports/ReaderDirectorySizeProvider.js"
 export {
   ReaderFileTreeIndex,

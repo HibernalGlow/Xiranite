@@ -14,6 +14,32 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.emm-tag-suggestions-http] exposes bounded opaque tag suggestions without opening a browser session", async () => {
+    const sampleEmmTags = vi.fn(async () => [
+      { category: "artist", tag: "Alice" },
+      { category: "female", tag: "glasses" },
+    ])
+    const route = new ReaderDirectoryBrowserRoute(undefined, {
+      directoryEmmAvailable: true,
+      readDirectoryEmmRecords: async () => new Map(),
+      sampleEmmTags,
+    }, undefined, {}, undefined, undefined, undefined, undefined, undefined, {
+      load: async () => ({ tags: [], mixedGender: false }),
+    } as never)
+    try {
+      const response = (await route.handle(new Request("http://localhost/reader/browser/emm-tags/suggestions?count=2")))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ tags: [
+        { category: "artist", tag: "Alice", favorite: false },
+        { category: "female", tag: "glasses", favorite: false },
+      ] })
+      expect(sampleEmmTags).toHaveBeenCalledWith(4, expect.any(AbortSignal))
+      expect((await route.handle(new Request("http://localhost/reader/browser/emm-tags/suggestions?count=33")))?.status).toBe(400)
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.tree-roots-http] exposes platform roots without opening a browser session", async () => {
     const list = vi.fn(async () => [
       { path: "C:\\", label: "System (C:)", kind: "fixed" as const, available: true },
