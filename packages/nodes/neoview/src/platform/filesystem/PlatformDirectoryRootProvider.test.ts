@@ -6,7 +6,7 @@ describe("PlatformDirectoryRootProvider", () => {
   it("[neoview.folder.tree-roots-platform] maps actual Windows volumes without probing drive letters", async () => {
     const listWindowsRoots = vi.fn(async () => [
       { path: "C:\\", label: "System", driveType: "fixed", available: true },
-      { path: "E:\\", driveType: "removable", available: false },
+      { path: "E:", driveType: "removable", available: false },
       { path: "Z:\\", label: "Archive", driveType: "network", available: true },
     ])
     const provider = new PlatformDirectoryRootProvider({ platform: "win32", listWindowsRoots })

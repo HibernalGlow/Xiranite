@@ -15,6 +15,7 @@ import {
   type ReaderDirectorySortPreferenceStore,
 } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
+import { normalizePlatformDirectoryPath } from "../filesystem/PlatformDirectoryPath.js"
 import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
 import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.js"
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
@@ -242,7 +243,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (body.scopeId !== undefined && (typeof body.scopeId !== "string" || !body.scopeId.trim())) return errorResponse("scopeId must be a non-empty string", 400)
     if (body.watch !== undefined && typeof body.watch !== "boolean") return errorResponse("watch must be a boolean", 400)
     try {
-      const resolvedPath = await realpath(body.path)
+      const resolvedPath = normalizePlatformDirectoryPath(await realpath(normalizePlatformDirectoryPath(body.path)))
       const pathStats = await stat(resolvedPath)
       const directoryPath = pathStats.isDirectory() ? resolvedPath : dirname(resolvedPath)
       const focusPath = pathStats.isDirectory() ? undefined : resolvedPath

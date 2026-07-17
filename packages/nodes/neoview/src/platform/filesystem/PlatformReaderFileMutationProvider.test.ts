@@ -43,6 +43,20 @@ describe("PlatformReaderFileMutationProvider", () => {
     await expect(provider.execute({ kind: "trash", sourcePath: join(root, "missing") })).rejects.toMatchObject({ code: "ENOENT" })
   })
 
+  it.runIf(process.platform === "win32")("[neoview.folder.rename-case-platform] preserves content and undo for a case-only rename", async () => {
+    const root = await temporaryRoot()
+    const source = join(root, "book.cbz")
+    const destination = join(root, "Book.cbz")
+    await writeFile(source, "reader")
+    const provider = new PlatformReaderFileMutationProvider()
+
+    const receipt = await provider.execute({ kind: "rename", sourcePath: source, destinationPath: destination })
+    expect(await readFile(destination, "utf8")).toBe("reader")
+    expect(receipt).toBeDefined()
+    await provider.undo(receipt!)
+    expect(await readFile(source, "utf8")).toBe("reader")
+  })
+
   it("[neoview.file-operations.scheduler] acquires and releases one interactive IO lease", async () => {
     const root = await temporaryRoot()
     const destinationPath = join(root, "created")

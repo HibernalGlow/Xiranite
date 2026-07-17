@@ -56,6 +56,28 @@ describe("ReaderClipboardMaterializationService", () => {
     await archiveService[Symbol.asyncDispose]()
     await archiveReader[Symbol.asyncDispose]()
   })
+
+  it("[neoview.clipboard.materialization-session-close] aborts and drains an in-flight session extraction", async () => {
+    const materialize = vi.fn((_page: ReaderPage, options?: { signal?: AbortSignal }) => new Promise<never>((_resolve, reject) => {
+      options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true })
+    }))
+    const reader = new CoreReaderService(async () => archiveBook())
+    const session = await reader.openViewSource({ kind: "archive", path: "C:/book.cbz" })
+    const service = new ReaderClipboardMaterializationService(reader, { materialize })
+
+    const outcome = service.materialize(session.id, "page-1").then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    await vi.waitFor(() => expect(materialize).toHaveBeenCalledOnce())
+    await service.releaseSession(session.id)
+    await expect(outcome).resolves.toBeInstanceOf(Error)
+    await expect(service.materialize(session.id, "page-1")).rejects.toThrow("closing")
+
+    await session.close()
+    await service[Symbol.asyncDispose]()
+    await reader[Symbol.asyncDispose]()
+  })
 })
 
 function archiveBook(overrides: Partial<ReaderPage> = {}): ReaderBook {

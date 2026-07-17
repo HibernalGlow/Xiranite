@@ -9,6 +9,7 @@ import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import { DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG } from "../../application/config/ReaderRuntimeConfig.js"
+import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
@@ -23,6 +24,43 @@ afterEach(async () => {
 })
 
 describe("ReaderHttpController", () => {
+  it("[neoview.library.bookmark-update-auth] protects and wires bookmark PATCH through the root controller", async () => {
+    const updateBookmark = vi.fn(async () => ({
+      id: "bookmark-1",
+      source: { kind: "archive" as const, path: "D:/demo.cbz" },
+      name: "Demo",
+      kind: "file" as const,
+      starred: false,
+      createdAt: 1,
+      updatedAt: 2,
+      listIds: ["default"],
+    }))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      libraryService: { updateBookmark } as unknown as ReaderLibraryService,
+    })
+    try {
+      const unauthorized = new Request("http://127.0.0.1:41000/reader/library/bookmarks/bookmark-1", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ starred: false }),
+      })
+      expect((await controller.handle(unauthorized))?.status).toBe(401)
+      expect(updateBookmark).not.toHaveBeenCalled()
+      const response = (await controller.handle(authorizedRequest("/reader/library/bookmarks/bookmark-1", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ starred: false, listIds: ["default"] }),
+      })))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({ id: "bookmark-1", starred: false, listIds: ["default"] })
+      expect(updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: false, listIds: ["default"] }, expect.any(AbortSignal))
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.diagnostics.http] exposes an authenticated, path-free runtime snapshot", async () => {
     const scheduler = new ResourceSchedulerService()
     const controller = new ReaderHttpController({

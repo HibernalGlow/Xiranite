@@ -278,7 +278,9 @@ function validateOperations(input: readonly ReaderFileMutation[]): ReaderFileMut
     if ("sourcePath" in operation) assertAbsolutePath(operation.sourcePath, "sourcePath")
     if ("destinationPath" in operation) assertAbsolutePath(operation.destinationPath, "destinationPath")
     if ("sourcePath" in operation && "destinationPath" in operation) {
-      if (normalizedPath(operation.sourcePath) === normalizedPath(operation.destinationPath)) {
+      const sameResolvedPath = resolvedPath(operation.sourcePath) === resolvedPath(operation.destinationPath)
+      const sameNormalizedPath = normalizedPath(operation.sourcePath) === normalizedPath(operation.destinationPath)
+      if (sameResolvedPath || (operation.kind !== "rename" && sameNormalizedPath)) {
         throw new Error("Reader file operation source and destination must differ.")
       }
       if (operation.overwrite !== undefined && typeof operation.overwrite !== "boolean") {
@@ -296,8 +298,12 @@ function assertAbsolutePath(path: string, name: string): void {
 }
 
 function normalizedPath(path: string): string {
-  const value = normalize(resolve(path))
+  const value = resolvedPath(path)
   return process.platform === "win32" ? value.toLocaleLowerCase("en-US") : value
+}
+
+function resolvedPath(path: string): string {
+  return normalize(resolve(path))
 }
 
 function boundedConcurrency(value: number | undefined): number {

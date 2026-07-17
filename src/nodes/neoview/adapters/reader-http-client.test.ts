@@ -147,6 +147,20 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ path: "D:/books/demo.cbz" })
   })
 
+  it("[neoview.folder.rename-client] posts a non-overwriting rename through the authenticated transaction route", async () => {
+    const result = { results: [], succeeded: 1, failed: 0, cancelled: 0, undoable: 1 }
+    const fetchMock = vi.fn(async () => Response.json(result))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    const operation = { kind: "rename" as const, sourcePath: "D:/books/old.cbz", destinationPath: "D:/books/new.cbz", overwrite: false }
+
+    await expect(client.executeFileOperations!([operation])).resolves.toEqual(result)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/files/operations")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ operations: [operation] })
+  })
+
   it("[neoview.storage-information.diagnostics-client] reads the authenticated shared diagnostics snapshot", async () => {
     const snapshot = { schemaVersion: 1, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
     const fetchMock = vi.fn(async () => Response.json(snapshot))

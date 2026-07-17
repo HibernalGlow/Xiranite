@@ -30,9 +30,18 @@ interface ActiveLease {
   timeout: ReturnType<typeof setTimeout>
 }
 
+interface PendingMaterialization {
+  controller: AbortController
+  done: Promise<void>
+  finish(): void
+}
+
 export class ReaderClipboardMaterializationService implements AsyncDisposable {
   readonly #leases = new Map<string, ActiveLease>()
   readonly #sessionUnsubscribers = new Map<ReaderSessionId, () => void>()
+  readonly #pendingBySession = new Map<ReaderSessionId, Set<PendingMaterialization>>()
+  readonly #closingSessions = new Set<ReaderSessionId>()
+  readonly #releaseFlights = new Map<ReaderSessionId, Promise<void>>()
   readonly #ttlMs: number
   readonly #maxLeases: number
   readonly #maxEntryBytes: number
@@ -57,6 +66,7 @@ export class ReaderClipboardMaterializationService implements AsyncDisposable {
   async materialize(sessionId: ReaderSessionId, pageId: string, signal?: AbortSignal): Promise<ReaderClipboardMaterialization> {
     this.#assertOpen()
     signal?.throwIfAborted()
+    if (this.#closingSessions.has(sessionId)) throw new Error("Reader session is closing.")
     const session = this.reader.getSession(sessionId)
     if (!session) throw new Error("Reader session not found.")
     const page = session.getPage(pageId)
@@ -69,12 +79,27 @@ export class ReaderClipboardMaterializationService implements AsyncDisposable {
       throw new Error(`Reader page exceeds the ${this.#maxEntryBytes} byte clipboard materialization budget.`)
     }
 
+    const controller = new AbortController()
+    const abort = () => controller.abort(signal?.reason)
+    signal?.addEventListener("abort", abort, { once: true })
+    let finishPending!: () => void
+    const pending: PendingMaterialization = {
+      controller,
+      done: new Promise<void>((resolve) => { finishPending = resolve }),
+      finish: () => finishPending(),
+    }
+    const sessionPending = this.#pendingBySession.get(sessionId) ?? new Set<PendingMaterialization>()
+    sessionPending.add(pending)
+    this.#pendingBySession.set(sessionId, sessionPending)
     this.#pending += 1
     let lease: ReaderPageMaterializationLease | undefined
     try {
-      lease = await this.materializer.materialize(page, { signal, maxBytes: this.#maxEntryBytes })
-      signal?.throwIfAborted()
+      lease = await this.materializer.materialize(page, { signal: controller.signal, maxBytes: this.#maxEntryBytes })
+      controller.signal.throwIfAborted()
       this.#assertOpen()
+      if (this.#closingSessions.has(sessionId) || !this.reader.getSession(sessionId)) {
+        throw new Error("Reader session is closing.")
+      }
       if (this.#activeBytes + lease.byteLength > this.#maxTotalBytes) {
         throw new Error(`Reader clipboard materializations exceed the ${this.#maxTotalBytes} byte total budget.`)
       }
@@ -90,7 +115,11 @@ export class ReaderClipboardMaterializationService implements AsyncDisposable {
       await lease?.release().catch(() => undefined)
       throw error
     } finally {
+      signal?.removeEventListener("abort", abort)
       this.#pending -= 1
+      sessionPending.delete(pending)
+      if (!sessionPending.size) this.#pendingBySession.delete(sessionId)
+      pending.finish()
     }
   }
 
@@ -106,10 +135,27 @@ export class ReaderClipboardMaterializationService implements AsyncDisposable {
   }
 
   async releaseSession(sessionId: ReaderSessionId): Promise<void> {
+    const existing = this.#releaseFlights.get(sessionId)
+    if (existing) return existing
+    const operation = this.#releaseSession(sessionId)
+    this.#releaseFlights.set(sessionId, operation)
+    try {
+      await operation
+    } finally {
+      if (this.#releaseFlights.get(sessionId) === operation) this.#releaseFlights.delete(sessionId)
+    }
+  }
+
+  async #releaseSession(sessionId: ReaderSessionId): Promise<void> {
+    this.#closingSessions.add(sessionId)
+    const pending = [...(this.#pendingBySession.get(sessionId) ?? [])]
+    for (const operation of pending) operation.controller.abort(new Error("Reader session is closing."))
+    await Promise.allSettled(pending.map((operation) => operation.done))
     const tokens = [...this.#leases].flatMap(([token, active]) => active.sessionId === sessionId ? [token] : [])
     const results = await Promise.allSettled(tokens.map((token) => this.release(token)))
     this.#sessionUnsubscribers.get(sessionId)?.()
     this.#sessionUnsubscribers.delete(sessionId)
+    if (!this.reader.getSession(sessionId)) this.#closingSessions.delete(sessionId)
     const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
     if (errors.length) throw new AggregateError(errors, "Failed to release reader clipboard materializations.")
   }
@@ -117,9 +163,14 @@ export class ReaderClipboardMaterializationService implements AsyncDisposable {
   async [Symbol.asyncDispose](): Promise<void> {
     if (this.#closed) return
     this.#closed = true
+    const pending = [...this.#pendingBySession.values()].flatMap((operations) => [...operations])
+    for (const operation of pending) operation.controller.abort(new Error("Reader clipboard materialization service is closed."))
+    await Promise.allSettled(pending.map((operation) => operation.done))
+    await Promise.allSettled(this.#releaseFlights.values())
     const results = await Promise.allSettled([...this.#leases.keys()].map((token) => this.release(token)))
     for (const unsubscribe of this.#sessionUnsubscribers.values()) unsubscribe()
     this.#sessionUnsubscribers.clear()
+    this.#closingSessions.clear()
     const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
     if (errors.length) throw new AggregateError(errors, "Failed to close reader clipboard materializations.")
   }

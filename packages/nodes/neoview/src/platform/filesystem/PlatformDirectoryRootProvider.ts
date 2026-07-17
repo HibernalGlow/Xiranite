@@ -1,4 +1,5 @@
 import type { ReaderDirectoryRoot, ReaderDirectoryRootProvider } from "../../ports/ReaderDirectoryRootProvider.js"
+import { normalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
 export interface PlatformDirectoryRootProviderOptions {
   platform?: NodeJS.Platform
@@ -26,12 +27,15 @@ export class PlatformDirectoryRootProvider implements ReaderDirectoryRootProvide
     if (this.#platform !== "win32") return [{ path: "/", label: "/", kind: "system", available: true }]
     const roots = await this.#listWindowsRoots()
     signal?.throwIfAborted()
-    return roots.map((root) => ({
-      path: root.path,
-      label: root.label ? `${root.label} (${root.path.slice(0, 2)})` : root.path.slice(0, 2),
-      kind: rootKind(root.driveType),
-      available: root.available,
-    }))
+    return roots.map((root) => {
+      const path = normalizePlatformDirectoryPath(root.path, this.#platform)
+      return {
+        path,
+        label: root.label ? `${root.label} (${path.slice(0, 2)})` : path.slice(0, 2),
+        kind: rootKind(root.driveType),
+        available: root.available,
+      }
+    })
   }
 }
 

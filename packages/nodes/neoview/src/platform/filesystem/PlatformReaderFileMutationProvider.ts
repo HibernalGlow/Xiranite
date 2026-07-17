@@ -1,5 +1,5 @@
-import { cp, lstat, mkdir, rm, stat } from "node:fs/promises"
-import { basename, dirname } from "node:path"
+import { cp, lstat, mkdir, rename as renamePath, rm, stat } from "node:fs/promises"
+import { basename, dirname, normalize, resolve } from "node:path"
 import { moveFile, renameFile } from "move-file"
 import trash from "trash"
 
@@ -95,11 +95,16 @@ export class PlatformReaderFileMutationProvider implements ReaderFileMutationPro
         if (sourceDirectory !== dirname(operation.destinationPath)) {
           throw Object.assign(new Error("Reader rename source and destination must share a directory."), { code: "EXDEV" })
         }
-        const destinationExisted = await pathExists(operation.destinationPath)
-        await this.#rename(basename(operation.sourcePath), basename(operation.destinationPath), {
-          cwd: sourceDirectory,
-          overwrite: operation.overwrite === true,
-        })
+        const caseOnly = isWindowsCaseOnlyRename(operation.sourcePath, operation.destinationPath)
+        const destinationExisted = caseOnly ? false : await pathExists(operation.destinationPath)
+        if (caseOnly) {
+          await renamePath(operation.sourcePath, operation.destinationPath)
+        } else {
+          await this.#rename(basename(operation.sourcePath), basename(operation.destinationPath), {
+            cwd: sourceDirectory,
+            overwrite: operation.overwrite === true,
+          })
+        }
         return createUndo && !destinationExisted
           ? receipt(operation, { kind: "rename", sourcePath: operation.destinationPath, destinationPath: operation.sourcePath, overwrite: false }, await snapshot(operation.destinationPath))
           : undefined
@@ -118,6 +123,13 @@ export class PlatformReaderFileMutationProvider implements ReaderFileMutationPro
           : undefined
     }
   }
+}
+
+function isWindowsCaseOnlyRename(sourcePath: string, destinationPath: string): boolean {
+  if (process.platform !== "win32") return false
+  const source = normalize(resolve(sourcePath))
+  const destination = normalize(resolve(destinationPath))
+  return source !== destination && source.toLocaleLowerCase("en-US") === destination.toLocaleLowerCase("en-US")
 }
 
 function receipt(original: ReaderFileMutation, inverse: ReaderFileMutation, guard: ReaderFileMutationGuard): ReaderFileUndoReceipt {

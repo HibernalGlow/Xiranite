@@ -53,6 +53,16 @@ describe("ReaderFileOperationService", () => {
     expect(provider.execute).not.toHaveBeenCalled()
   })
 
+  it("[neoview.folder.rename-case] allows a rename that only changes path casing", async () => {
+    const provider = { execute: vi.fn(async () => undefined) }
+    const sourcePath = absolute("book.cbz")
+    const destinationPath = absolute("Book.cbz")
+    const service = new ReaderFileOperationService(provider)
+
+    await expect(service.execute({ operations: [{ kind: "rename", sourcePath, destinationPath }] })).resolves.toMatchObject({ succeeded: 1 })
+    expect(provider.execute).toHaveBeenCalledWith({ kind: "rename", sourcePath, destinationPath }, undefined)
+  })
+
   it("[neoview.file-operations.undo-journal] records reversible receipts and undoes a batch in reverse order", async () => {
     const undone: string[] = []
     const provider: ReaderFileMutationProvider = {

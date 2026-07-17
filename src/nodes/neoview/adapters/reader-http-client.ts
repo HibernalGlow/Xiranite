@@ -32,6 +32,35 @@ export interface ReaderPageListDto {
   total: number
 }
 
+export interface ReaderPageCopyActionDto {
+  path: string
+  leaseToken?: string
+  expiresAt?: number
+}
+
+export type ReaderFileMutationDto =
+  | { kind: "copy" | "move" | "rename"; sourcePath: string; destinationPath: string; overwrite?: boolean }
+  | { kind: "delete" | "trash"; sourcePath: string }
+  | { kind: "create-directory"; destinationPath: string }
+
+export interface ReaderFileOperationResultDto {
+  index: number
+  operation: ReaderFileMutationDto
+  status: "succeeded" | "failed" | "cancelled"
+  errorCode?: string
+  error?: string
+}
+
+export interface ReaderFileOperationBatchResultDto {
+  results: ReaderFileOperationResultDto[]
+  succeeded: number
+  failed: number
+  cancelled: number
+  undoable: number
+  undoId?: string
+  undoPersisted?: boolean
+}
+
 export interface ReaderMetadataDto {
   book: {
     bookId: string
@@ -556,11 +585,14 @@ export interface ReaderHttpClient {
   releaseLibraryThumbnailContext?(contextId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
+  pageAction?(sessionId: string, pageId: string, action: "copy" | "reveal" | "open", signal?: AbortSignal): Promise<ReaderPageCopyActionDto | void>
+  releasePageActionLease?(sessionId: string, leaseToken: string): Promise<void>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
+  executeFileOperations?(operations: readonly ReaderFileMutationDto[], confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileOperationBatchResultDto>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
@@ -792,6 +824,19 @@ export function createReaderHttpClient(
       if (options.thumbnails === false) search.set("thumbnails", "0")
       return request<ReaderPageListDto>(`/reader/s/${encodeURIComponent(sessionId)}/pages?${search}`, { signal })
     },
+    pageAction: (sessionId, pageId, action, signal) => request<ReaderPageCopyActionDto | void>(
+      `/reader/s/${encodeURIComponent(sessionId)}/pages/${encodeURIComponent(pageId)}/actions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+        signal,
+      },
+    ),
+    releasePageActionLease: (sessionId, leaseToken) => request<void>(
+      `/reader/s/${encodeURIComponent(sessionId)}/clipboard-materializations/${encodeURIComponent(leaseToken)}`,
+      { method: "DELETE", keepalive: true },
+    ),
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
     pageMediaInformation: (sessionId, signal) => request<ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
@@ -805,6 +850,12 @@ export function createReaderHttpClient(
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ path }),
+      signal,
+    }),
+    executeFileOperations: (operations, confirmed = false, signal) => request<ReaderFileOperationBatchResultDto>("/reader/files/operations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operations, ...(confirmed ? { confirmed: true } : {}) }),
       signal,
     }),
     listRecent: (offset, limit, signal) => request<{ items: ReaderRecentDto[] }>(

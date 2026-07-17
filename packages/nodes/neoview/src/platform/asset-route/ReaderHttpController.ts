@@ -117,6 +117,7 @@ const SESSION_RELOAD_PATH = /^\/reader\/s\/([^/]+)\/reload$/
 const SESSION_SOURCE_CHANGES_PATH = /^\/reader\/s\/([^/]+)\/source-changes$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_ADJACENT_BOOK_PATH = /^\/reader\/s\/([^/]+)\/adjacent-book$/
+const SESSION_PAGE_ACTION_PATH = /^\/reader\/s\/([^/]+)\/pages\/([^/]+)\/actions$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
 const SESSION_PRELOAD_CONTEXT_PATH = /^\/reader\/s\/([^/]+)\/preload-context$/
@@ -221,6 +222,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #emmMetadata?: ReaderEmmMetadataService
   readonly #sourceChanges: ReaderSourceWatchService
   readonly #clipboardMaterializations: ReaderClipboardMaterializationService
+  readonly #openPageMaterializationTokens = new Map<string, string>()
   readonly #seekableMedia: ReaderSeekableMediaCache
   readonly #subtitles: ReaderSubtitleService
   readonly #diagnostics: ReaderDiagnosticsService
@@ -498,6 +500,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
     const adjacentBookMatch = SESSION_ADJACENT_BOOK_PATH.exec(url.pathname)
     if (adjacentBookMatch && request.method === "POST") return this.#openAdjacentBook(adjacentBookMatch[1]!, request)
+    const pageActionMatch = SESSION_PAGE_ACTION_PATH.exec(url.pathname)
+    if (pageActionMatch && request.method === "POST") return this.#pageAction(pageActionMatch[1]!, pageActionMatch[2]!, request)
     const metadataMatch = SESSION_METADATA_PATH.exec(url.pathname)
     if (metadataMatch && request.method === "GET") return this.#metadata(metadataMatch[1]!, request.signal)
     const emmMetadataMatch = SESSION_EMM_METADATA_PATH.exec(url.pathname)
@@ -1173,13 +1177,27 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   async #releaseSession(session: ReaderSession): Promise<void> {
-    await this.#sourceChanges.release(session.id)
-    await this.#mediaProgress?.flush(session.book.id)
-    await this.#clipboardMaterializations.releaseSession(session.id)
-    await this.#pageMediaInformation.releaseSession(session.id)
-    await this.#assets.releaseSession(session.id)
-    this.#releaseBookMetadata(session.id)
-    await this.#service.closeSession(session.id)
+    const errors: unknown[] = []
+    try {
+      await this.#service.closeSession(session.id)
+    } catch (error) {
+      errors.push(error)
+    }
+    const results = await Promise.allSettled([
+      this.#sourceChanges.release(session.id),
+      this.#mediaProgress?.flush(session.book.id) ?? Promise.resolve(),
+      this.#clipboardMaterializations.releaseSession(session.id),
+      this.#pageMediaInformation.releaseSession(session.id),
+      this.#assets.releaseSession(session.id),
+    ])
+    for (const result of results) if (result.status === "rejected") errors.push(result.reason)
+    this.#openPageMaterializationTokens.delete(session.id)
+    try {
+      this.#releaseBookMetadata(session.id)
+    } catch (error) {
+      errors.push(error)
+    }
+    if (errors.length) throw new AggregateError(errors, `Failed to release reader session ${session.id}.`)
   }
 
   async #waitForSourceChanges(encodedSessionId: string, url: URL, signal: AbortSignal): Promise<Response> {
@@ -1206,6 +1224,51 @@ export class ReaderHttpController implements AsyncDisposable {
     try {
       const materialization = await this.#clipboardMaterializations.materialize(session.id, body.pageId, request.signal)
       return jsonResponse(materialization, 201)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+  }
+
+  async #pageAction(encodedSessionId: string, encodedPageId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const pageId = safeDecode(encodedPageId)
+    const page = pageId ? session.getPage(pageId) : undefined
+    if (!page) return jsonResponse({ error: "Reader page not found" }, 404)
+    const body = await readControlJson(request)
+    if (!body || (body.action !== "copy" && body.action !== "reveal" && body.action !== "open")) {
+      return jsonResponse({ error: "action must be copy, reveal or open" }, 400)
+    }
+    try {
+      if (body.action === "copy") {
+        if (!page.entryPath) return jsonResponse({ path: page.sourcePath })
+        const materialization = await this.#clipboardMaterializations.materialize(session.id, page.id, request.signal)
+        return jsonResponse({
+          path: materialization.path,
+          leaseToken: materialization.token,
+          expiresAt: materialization.expiresAt,
+        }, 201)
+      }
+      if (body.action === "open" && page.entryPath) {
+        const materialization = await this.#clipboardMaterializations.materialize(session.id, page.id, request.signal)
+        try {
+          await this.#systemIntegration.run("open", materialization.path, request.signal)
+          request.signal.throwIfAborted()
+          const previousToken = this.#openPageMaterializationTokens.get(session.id)
+          this.#openPageMaterializationTokens.set(session.id, materialization.token)
+          if (previousToken && previousToken !== materialization.token) {
+            await this.#clipboardMaterializations.release(previousToken, session.id).catch(() => undefined)
+          }
+          return new Response(null, { status: 204 })
+        } catch (error) {
+          await this.#clipboardMaterializations.release(materialization.token, session.id).catch(() => undefined)
+          throw error
+        }
+      }
+      const path = page.entryPath ? session.book.source.path : page.sourcePath
+      await this.#systemIntegration.run(body.action, path, request.signal)
+      return new Response(null, { status: 204 })
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: errorMessage(error) }, 400)

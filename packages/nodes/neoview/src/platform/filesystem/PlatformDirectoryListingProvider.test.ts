@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { PlatformDirectoryListingProvider } from "./PlatformDirectoryListingProvider.js"
+import { normalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
 const temporaryPaths: string[] = []
 
@@ -12,6 +13,13 @@ afterEach(async () => {
 })
 
 describe("PlatformDirectoryListingProvider", () => {
+  it("[neoview.folder.windows-drive-root] converts drive-relative volume labels into absolute drive roots", () => {
+    expect(normalizePlatformDirectoryPath("E:", "win32")).toBe("E:\\")
+    expect(normalizePlatformDirectoryPath("E:/", "win32")).toBe("E:\\")
+    expect(normalizePlatformDirectoryPath("E:\\library", "win32")).toBe("E:\\library")
+    expect(normalizePlatformDirectoryPath("E:", "linux")).toBe("E:")
+  })
+
   it("[neoview.file-tree.opendir] streams one native level without applying application sorting or leaking nested entries", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-tree-"))
     temporaryPaths.push(root)
