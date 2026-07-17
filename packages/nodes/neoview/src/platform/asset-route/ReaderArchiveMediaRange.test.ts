@@ -19,7 +19,10 @@ describe("Reader archive media Range", () => {
     const videoBytes = Uint8Array.from({ length: 32 }, (_, index) => index)
     const archive = await createZipFixture({
       name: "media.cbz",
-      entries: [{ path: "media/clip.mp4", bytes: videoBytes, level: 6 }],
+      entries: [
+        { path: "media/clip-1.mp4", bytes: videoBytes, level: 6 },
+        { path: "media/clip-2.mp4", bytes: videoBytes, level: 6 },
+      ],
     })
     cleanupArchives.push(archive)
     const tempDirectory = await mkdtemp(join(tmpdir(), "xiranite-neoview-media-range-"))
@@ -33,7 +36,7 @@ describe("Reader archive media Range", () => {
       const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: archive.path })))!
       expect(opened.status).toBe(201)
       const session = await opened.json() as ReaderSessionDto
-      expect(session.visiblePages[0]).toMatchObject({ mediaKind: "video", byteLength: videoBytes.byteLength })
+      expect(session.visiblePages[0]).toMatchObject({ name: "clip-1.mp4", mediaKind: "video", byteLength: videoBytes.byteLength })
 
       const head = (await controller.handle(new Request(session.visiblePages[0]!.assetUrl, { method: "HEAD" })))!
       expect(head.status).toBe(200)
@@ -48,6 +51,15 @@ describe("Reader archive media Range", () => {
       expect(range.headers.get("content-range")).toBe(`bytes 7-13/${videoBytes.byteLength}`)
       expect(new Uint8Array(await range.arrayBuffer())).toEqual(videoBytes.slice(7, 14))
       expect(await readdir(tempDirectory)).toHaveLength(1)
+
+      const navigated = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/navigate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "next" }),
+      })))!
+      expect(navigated.status).toBe(200)
+      await expect(navigated.json()).resolves.toMatchObject({ visiblePages: [{ name: "clip-2.mp4" }] })
+      await expect.poll(async () => readdir(tempDirectory)).toEqual([])
 
       expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
       expect(await readdir(tempDirectory)).toEqual([])

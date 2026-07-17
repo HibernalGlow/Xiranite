@@ -164,6 +164,7 @@ export class ReaderAssetRoute {
       if (unique.size === MAX_RETAINED_PAGES_PER_SESSION) break
     }
     this.#retainedPageIds.set(sessionId, unique)
+    void this.#seekableMediaCache?.retainSessionPages(sessionId, unique).catch(() => undefined)
     const retainedPages = this.#retainedPresentations.get(sessionId)
     for (const [pageId, retained] of retainedPages ?? []) {
       if (unique.has(pageId)) continue

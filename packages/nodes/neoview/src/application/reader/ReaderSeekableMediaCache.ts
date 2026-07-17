@@ -117,6 +117,25 @@ export class ReaderSeekableMediaCache implements AsyncDisposable {
     await Promise.all(pending)
   }
 
+  async retainSessionPages(sessionId: ReaderSessionId, pageIds: ReadonlySet<string>): Promise<void> {
+    const pending: Promise<unknown>[] = []
+    for (const record of this.#records.values()) {
+      if (record.sessionId !== sessionId) continue
+      if (pageIds.has(record.page.id)) {
+        if (record.settled) record.releaseRequested = false
+        continue
+      }
+      record.releaseRequested = true
+      if (!record.settled) {
+        record.controller.abort(abortError("Reader media page left the retained frame."))
+        pending.push(record.promise.catch(() => undefined))
+      } else if (record.references === 0) {
+        pending.push(this.#releaseRecord(record))
+      }
+    }
+    await Promise.all(pending)
+  }
+
   snapshot(): { entries: number; reservedBytes: number; activeReferences: number; pending: number } {
     let activeReferences = 0
     let pending = 0

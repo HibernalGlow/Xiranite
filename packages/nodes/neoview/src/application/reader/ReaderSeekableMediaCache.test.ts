@@ -57,6 +57,35 @@ describe("ReaderSeekableMediaCache", () => {
     await vi.waitFor(() => expect(cache.snapshot()).toEqual({ entries: 0, reservedBytes: 0, activeReferences: 0, pending: 0 }))
     await cache.close()
   })
+
+  it("[neoview.media.archive-frame-retention] releases an inactive page but revives an active lease when the frame returns", async () => {
+    const releases: Array<ReturnType<typeof vi.fn>> = []
+    const cache = new ReaderSeekableMediaCache({
+      async materialize(page) {
+        const release = vi.fn(async () => undefined)
+        releases.push(release)
+        return {
+          path: `C:/temp/${page.id}.mp4`,
+          byteLength: page.byteLength!,
+          release,
+          [Symbol.asyncDispose]: release,
+        }
+      },
+    })
+    const first = await cache.acquire("session-1", archiveVideo())
+    await cache.retainSessionPages("session-1", new Set())
+    expect(releases[0]).not.toHaveBeenCalled()
+    await cache.retainSessionPages("session-1", new Set(["page-video"]))
+    await first.release()
+    expect(releases[0]).not.toHaveBeenCalled()
+
+    const second = await cache.acquire("session-1", archiveVideo())
+    await second.release()
+    await cache.retainSessionPages("session-1", new Set())
+    expect(releases[0]).toHaveBeenCalledOnce()
+    expect(cache.snapshot()).toMatchObject({ entries: 0, reservedBytes: 0 })
+    await cache.close()
+  })
 })
 
 function archiveVideo(): ReaderPage {
