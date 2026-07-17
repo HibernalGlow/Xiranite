@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=36`，`complete=14`，`pending=24`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=36`，`complete=16`，`pending=22`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -495,16 +495,16 @@
   - 源码：`components/FolderStack.svelte`、`components/FolderStack/FolderStackState.svelte.ts`、`components/FolderStack/folderStackNavigation.ts`
   - 测试：待补
   - 备注：不得用单列列表替代后宣称 UI 兼容。
-- [ ] `folder.nav.blank-action` 空白单击/双击导航动作
+- [x] `folder.nav.blank-action` 空白单击/双击导航动作
   - 目标：空白单击和双击分别支持 none/goUp/goBack，并避免与选择清空和双击项打开冲突。
   - 源码：`components/FolderList.svelte`、`components/FolderToolbar/tabs/OtherTab.svelte`
-  - 测试：待补
-  - 备注：设置与事件优先级均需迁移。
-- [ ] `folder.nav.bottom-return` 列表底部返回按钮
+  - 测试：`neoview.folder.blank-action-settings`、`neoview.folder.blank-action-ui`、`neoview.folder.blank-action-e2e`
+  - 备注：设置与事件优先级已迁移；单击延迟允许双击取消，不会触发文件项选择或打开。Folder Tree 保持独立，普通 renderer 只处理当前目录直接子项。
+- [x] `folder.nav.bottom-return` 列表底部返回按钮
   - 目标：按设置在列表末尾显示返回上级/后退入口，虚拟列表中不破坏索引和恢复定位。
   - 源码：`components/FolderList.svelte`、`components/FolderToolbar/tabs/DisplayTab.svelte`
-  - 测试：待补
-  - 备注：必须作为 Virtuoso footer，不计入文件 entry 索引。
+  - 测试：`neoview.folder.bottom-return-ui`、`neoview.folder.bottom-return-e2e`
+  - 备注：已作为 list/grid Virtuoso footer 和 details 表尾附加区实现，不计入文件 entry 索引；优先后退、无历史时返回上级。Folder Tree、磁盘根和递归子项不会注入普通列表。
 
 ### tabs（6）
 
