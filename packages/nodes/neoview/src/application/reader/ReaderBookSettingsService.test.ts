@@ -4,6 +4,7 @@ import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../po
 import {
   ReaderBookSettingsRevisionConflict,
   ReaderBookSettingsService,
+  readerBookSettingsDefaults,
   type ReaderBookSettingsDefaults,
 } from "./ReaderBookSettingsService.js"
 
@@ -16,6 +17,26 @@ const defaults: ReaderBookSettingsDefaults = {
 }
 
 describe("ReaderBookSettingsService", () => {
+  it("[neoview.book-settings.defaults] derives GUI and headless defaults from one session configuration", () => {
+    expect(readerBookSettingsDefaults()).toEqual({
+      favorite: false,
+      rating: 0,
+      direction: "left-to-right",
+      pageMode: "single",
+      horizontalBook: true,
+    })
+    expect(readerBookSettingsDefaults({
+      direction: "right-to-left",
+      layout: {
+        pageMode: "double",
+        singleFirstPage: false,
+        singleLastPage: false,
+        treatWidePageAsSingle: false,
+        panorama: true,
+      },
+    })).toMatchObject({ direction: "right-to-left", pageMode: "double", horizontalBook: false })
+  })
+
   it("[neoview.book-settings.service] persists one versioned override record and resets fields to inheritance", async () => {
     const store = memoryStore()
     const apply = vi.fn(async () => undefined)

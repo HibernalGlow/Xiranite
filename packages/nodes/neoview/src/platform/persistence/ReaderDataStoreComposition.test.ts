@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { createReaderHttpController } from "../../platform.js"
+import { createReaderHeadlessController, createReaderHttpController } from "../../platform.js"
 
 const roots: string[] = []
 
@@ -97,6 +97,39 @@ describe("Reader data store composition", () => {
     const database = await openDatabase(databasePath)
     expect(database.get(`SELECT position, duration, completed FROM xr_reader_media_progress WHERE book_id = '${bookId}'`))
       .toEqual({ position: 45.5, duration: 90, completed: 0 })
+    database.close()
+  })
+
+  it("[neoview.book-settings.headless-composition] injects the shared SQLite settings service into headless clients", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-reader-book-settings-headless-"))
+    roots.push(root)
+    const bookPath = join(root, "book")
+    const databasePath = join(root, "thumbnails.db")
+    await mkdir(bookPath)
+    await writeFile(join(bookPath, "001.png"), pngHeader(32, 48))
+
+    const controller = await createReaderHeadlessController({
+      configPath: join(root, "missing.toml"),
+      legacyThumbnailDatabasePath: databasePath,
+    })
+    let bookId = ""
+    try {
+      await controller.open({ path: bookPath })
+      const current = await controller.getBookSettings()
+      bookId = current.bookId
+      expect(current).toMatchObject({ revision: 0, effective: { pageMode: "single", direction: "left-to-right" } })
+      const updated = await controller.updateBookSettings(0, { favorite: true, pageMode: "double" })
+      expect(updated).toMatchObject({
+        settings: { revision: 1, overrides: { favorite: true, pageMode: "double" } },
+        reader: { frame: { layout: { pageMode: "double" } } },
+      })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+
+    const database = await openDatabase(databasePath)
+    expect(database.get(`SELECT revision, favorite, page_mode FROM xr_reader_book_settings WHERE book_id = '${bookId}'`))
+      .toEqual({ revision: 1, favorite: 1, page_mode: "double" })
     database.close()
   })
 })

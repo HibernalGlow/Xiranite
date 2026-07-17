@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest"
 import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
+import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import { CoreReaderService } from "../reader/ReaderService.js"
 import { ReaderMediaProgressService } from "../reader/ReaderMediaProgressService.js"
+import { ReaderBookSettingsService } from "../reader/ReaderBookSettingsService.js"
 import { ReaderBookMetadataService } from "../metadata/ReaderBookMetadataService.js"
 import { ReaderHeadlessController } from "./ReaderHeadlessController.js"
 
@@ -122,6 +124,81 @@ describe("ReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.book-settings.headless] shares restored values, CAS updates and frame projection with GUI", async () => {
+    const store = memoryBookSettingsStore({
+      bookId: "opaque-book",
+      overrides: { direction: "right-to-left", rating: 4 },
+      revision: 2,
+      updatedAt: 10,
+    })
+    const service = new CoreReaderService(async () => book("D:/book.cbz", []), undefined, {}, undefined, store)
+    const controller = new ReaderHeadlessController(service, undefined, undefined, undefined, {
+      service: new ReaderBookSettingsService(store, () => 20),
+      defaults: { favorite: false, rating: 0, direction: "left-to-right", pageMode: "single", horizontalBook: true },
+    })
+    try {
+      expect((await controller.open({ path: "D:/book.cbz" })).frame.direction).toBe("right-to-left")
+      await expect(controller.getBookSettings()).resolves.toMatchObject({
+        revision: 2,
+        overrides: { direction: "right-to-left", rating: 4 },
+        effective: { direction: "right-to-left", pageMode: "single", horizontalBook: true },
+      })
+      const updated = await controller.updateBookSettings(2, {
+        favorite: true,
+        direction: null,
+        pageMode: "double",
+        horizontalBook: true,
+      })
+      expect(updated.settings).toMatchObject({
+        revision: 3,
+        overrides: { favorite: true, rating: 4, pageMode: "double", horizontalBook: true },
+        effective: { direction: "left-to-right", pageMode: "double", horizontalBook: true },
+      })
+      expect(updated.reader.frame).toMatchObject({
+        direction: "left-to-right",
+        layout: { pageMode: "double", treatWidePageAsSingle: true },
+      })
+
+      await expect(controller.updateBookSettings(2, { rating: 5 })).rejects.toMatchObject({
+        name: "ReaderBookSettingsRevisionConflict",
+        actualRevision: 3,
+      })
+      expect(controller.inspect().frame).toEqual(updated.reader.frame)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.book-settings.headless-rollback] restores the confirmed frame when persistence fails", async () => {
+    const store = memoryBookSettingsStore()
+    store.saveBookSettings = vi.fn(async () => { throw new Error("write failed") })
+    const controller = new ReaderHeadlessController(
+      new CoreReaderService(async () => book("D:/book.cbz", [])),
+      undefined,
+      undefined,
+      undefined,
+      {
+        service: new ReaderBookSettingsService(store),
+        defaults: { favorite: false, rating: 0, direction: "left-to-right", pageMode: "single", horizontalBook: true },
+      },
+    )
+    try {
+      const opened = await controller.open({ path: "D:/book.cbz" })
+      await expect(controller.updateBookSettings(0, {
+        direction: "right-to-left",
+        pageMode: "double",
+      })).rejects.toThrow("write failed")
+      expect(controller.inspect().frame).toMatchObject({
+        anchorPageIndex: opened.frame.anchorPageIndex,
+        direction: opened.frame.direction,
+        layout: opened.frame.layout,
+        pages: opened.frame.pages,
+      })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("rejects use after disposal and invalid archive stacks", async () => {
     const controller = controllerFor("D:/book.cbz")
     await expect(controller.open({ path: "D:/book.cbz", entryPaths: [] })).rejects.toThrow("entry paths")
@@ -201,5 +278,18 @@ function videoBook(path: string): ReaderBook {
       mediaKind: "video",
       mimeType: "video/mp4",
     }],
+  }
+}
+
+function memoryBookSettingsStore(initial?: ReaderBookSettingsRecord): ReaderBookSettingsStore {
+  let record = initial
+  return {
+    getBookSettings: vi.fn(async () => record),
+    saveBookSettings: vi.fn(async (bookId, overrides, expectedRevision, updatedAt) => {
+      if ((record?.revision ?? 0) !== expectedRevision) return undefined
+      record = { bookId, overrides, revision: expectedRevision + 1, updatedAt }
+      return record
+    }),
+    importBookSettings: vi.fn(async () => ({ inserted: 0, updated: 0, unchanged: 0 })),
   }
 }

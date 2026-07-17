@@ -5,6 +5,7 @@ import type {
   ReaderBookSettingsRecord,
   ReaderBookSettingsStore,
 } from "../../ports/ReaderBookSettingsStore.js"
+import { DEFAULT_READER_SESSION_OPTIONS, type ReaderSessionOptions } from "./contracts.js"
 
 export const ReaderBookSettingsPatchSchema = z.object({
   favorite: z.boolean().nullable().optional(),
@@ -32,6 +33,17 @@ export interface ReaderBookSettingsSnapshot {
   overrides: ReaderBookSettingsOverrides
   effective: ReaderBookSettingsDefaults
   inherited: Array<keyof ReaderBookSettingsOverrides>
+}
+
+export function readerBookSettingsDefaults(options: Partial<ReaderSessionOptions> = {}): ReaderBookSettingsDefaults {
+  return {
+    favorite: false,
+    rating: 0,
+    direction: options.direction ?? DEFAULT_READER_SESSION_OPTIONS.direction,
+    pageMode: options.layout?.pageMode ?? DEFAULT_READER_SESSION_OPTIONS.layout.pageMode,
+    horizontalBook: options.layout?.treatWidePageAsSingle
+      ?? DEFAULT_READER_SESSION_OPTIONS.layout.treatWidePageAsSingle,
+  }
 }
 
 export class ReaderBookSettingsRevisionConflict extends Error {

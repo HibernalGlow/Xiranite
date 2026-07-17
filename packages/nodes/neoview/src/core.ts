@@ -132,6 +132,7 @@ export {
   ReaderBookSettingsPatchSchema,
   ReaderBookSettingsRevisionConflict,
   ReaderBookSettingsService,
+  readerBookSettingsDefaults,
 } from "./application/reader/ReaderBookSettingsService.js"
 export type {
   ReaderBookSettingsDefaults,
@@ -195,9 +196,11 @@ export {
   ReaderHeadlessController,
   type HeadlessPageStream,
   type HeadlessReaderBookSnapshot,
+  type HeadlessReaderBookSettingsUpdate,
   type HeadlessReaderPageSnapshot,
   type HeadlessReaderSnapshot,
   type OpenHeadlessReaderInput,
+  type ReaderHeadlessBookSettingsOptions,
 } from "./application/headless/ReaderHeadlessController.js"
 export {
   ReaderFileTreeHeadlessController,

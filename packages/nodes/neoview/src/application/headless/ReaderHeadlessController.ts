@@ -8,6 +8,12 @@ import type { ReaderMediaProgressService, ReaderMediaProgressUpdate } from "../r
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderService, ReaderSession } from "../reader/contracts.js"
 import type { ReaderBookMetadataService, ReaderBookStaticMetadata } from "../metadata/ReaderBookMetadataService.js"
+import type {
+  ReaderBookSettingsDefaults,
+  ReaderBookSettingsPatch,
+  ReaderBookSettingsService,
+  ReaderBookSettingsSnapshot,
+} from "../reader/ReaderBookSettingsService.js"
 
 export interface OpenHeadlessReaderInput {
   path: string
@@ -51,6 +57,16 @@ export interface HeadlessPageStream extends AsyncDisposable {
   close(): Promise<void>
 }
 
+export interface HeadlessReaderBookSettingsUpdate {
+  settings: ReaderBookSettingsSnapshot
+  reader: HeadlessReaderSnapshot
+}
+
+export interface ReaderHeadlessBookSettingsOptions {
+  service: ReaderBookSettingsService
+  defaults: ReaderBookSettingsDefaults
+}
+
 /** Application-level Reader facade shared by CLI and TUI. */
 export class ReaderHeadlessController implements AsyncDisposable {
   readonly #service: ReaderService
@@ -66,6 +82,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     disposeDependencies?: () => Promise<void>,
     mediaProgress?: ReaderMediaProgressService,
     private readonly metadata?: ReaderBookMetadataService,
+    private readonly bookSettings?: ReaderHeadlessBookSettingsOptions,
   ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
@@ -172,6 +189,40 @@ export class ReaderHeadlessController implements AsyncDisposable {
     const progress = this.#mediaProgress.record(session.book.id, update)
     if (options.flush) await this.#mediaProgress.flush(session.book.id)
     return progress
+  }
+
+  async getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot> {
+    const session = this.#requireSession()
+    if (!this.bookSettings) throw new Error("Reader book settings are unavailable.")
+    return this.bookSettings.service.read(session.book.id, this.bookSettings.defaults, signal)
+  }
+
+  async updateBookSettings(
+    expectedRevision: number,
+    patch: ReaderBookSettingsPatch,
+    signal?: AbortSignal,
+  ): Promise<HeadlessReaderBookSettingsUpdate> {
+    const session = this.#requireSession()
+    if (!this.bookSettings) throw new Error("Reader book settings are unavailable.")
+    const settings = await this.bookSettings.service.update(
+      session.book.id,
+      expectedRevision,
+      patch,
+      this.bookSettings.defaults,
+      async (effective, updateSignal) => {
+        const current = session.snapshot()
+        await session.updateOptions({
+          direction: effective.direction,
+          layout: {
+            ...current.layout,
+            pageMode: effective.pageMode,
+            treatWidePageAsSingle: effective.horizontalBook,
+          },
+        }, updateSignal)
+      },
+      signal,
+    )
+    return { settings, reader: snapshotOf(session, this.#bookMetadata) }
   }
 
   async closeBook(): Promise<void> {

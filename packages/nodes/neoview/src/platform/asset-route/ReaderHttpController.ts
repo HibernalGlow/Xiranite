@@ -8,10 +8,11 @@ import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
-import { DEFAULT_READER_SESSION_OPTIONS, type ReaderSession, type ReaderSessionOptions } from "../../application/reader/contracts.js"
+import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import {
   ReaderBookSettingsRevisionConflict,
   ReaderBookSettingsService,
+  readerBookSettingsDefaults,
 } from "../../application/reader/ReaderBookSettingsService.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
@@ -935,7 +936,7 @@ export class ReaderHttpController implements AsyncDisposable {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     if (!this.#bookSettings) return jsonResponse({ error: "Reader book settings are unavailable" }, 501)
-    const defaults = this.#bookSettingsDefaults()
+    const defaults = readerBookSettingsDefaults(this.#sessionOptions)
     try {
       if (request.method === "GET") {
         return jsonResponse({ settings: await this.#bookSettings.read(session.book.id, defaults, request.signal) })
@@ -979,17 +980,6 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 400)
       }
       return jsonResponse({ error: errorMessage(error) }, 500)
-    }
-  }
-
-  #bookSettingsDefaults() {
-    return {
-      favorite: false,
-      rating: 0,
-      direction: this.#sessionOptions.direction ?? DEFAULT_READER_SESSION_OPTIONS.direction,
-      pageMode: this.#sessionOptions.layout?.pageMode ?? DEFAULT_READER_SESSION_OPTIONS.layout.pageMode,
-      horizontalBook: this.#sessionOptions.layout?.treatWidePageAsSingle
-        ?? DEFAULT_READER_SESSION_OPTIONS.layout.treatWidePageAsSingle,
     }
   }
 

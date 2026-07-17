@@ -556,6 +556,7 @@ export async function createReaderHeadlessController(
   const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
   const { SolidArchiveCache } = await import("./platform/archives/sevenzip/SolidArchiveCache.js")
   const { loadNeoviewSessionOptions } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const sessionOptions = await loadNeoviewSessionOptions(options)
   const progressStore = options.progressStore === false
     ? undefined
     : options.progressStore ?? (options.legacyThumbnailDatabasePath === false
@@ -567,6 +568,12 @@ export async function createReaderHeadlessController(
   const bookSettingsStore = options.bookSettingsStore === false
     ? undefined
     : options.bookSettingsStore ?? (isReaderBookSettingsStore(progressStore) ? progressStore : undefined)
+  const bookSettingsModule = bookSettingsStore
+    ? await import("./application/reader/ReaderBookSettingsService.js")
+    : undefined
+  const bookSettings = bookSettingsStore && bookSettingsModule
+    ? new bookSettingsModule.ReaderBookSettingsService(bookSettingsStore)
+    : undefined
   const mediaProgress = mediaProgressStore
     ? new (await import("./application/reader/ReaderMediaProgressService.js")).ReaderMediaProgressService(mediaProgressStore)
     : undefined
@@ -581,13 +588,17 @@ export async function createReaderHeadlessController(
     new CoreReaderService(
       createPlatformReaderBookLoader({ ...options, solidArchiveCache }),
       new StreamingImageMetadataProbe(),
-      await loadNeoviewSessionOptions(options),
+      sessionOptions,
       progressStore,
       bookSettingsStore,
     ),
     ownsCache ? () => solidArchiveCache.close() : undefined,
     mediaProgress,
     bookMetadata,
+    bookSettings && bookSettingsModule ? {
+      service: bookSettings,
+      defaults: bookSettingsModule.readerBookSettingsDefaults(sessionOptions),
+    } : undefined,
   )
 }
 
