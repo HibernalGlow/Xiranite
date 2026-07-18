@@ -1055,7 +1055,7 @@ function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArgum
   writeLine(host, resources
     ? `Reader resources: archiveProviders=${resources.archiveProviders} indexEntries=${resources.archiveIndexEntries} indexBytes=${resources.archiveIndexPayloadBytes} activeExtractions=${resources.archiveActiveExtractions}`
     : "Reader resources: unavailable")
-  writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes} active=${result.solidArchiveCache.activeLeases ?? 0}`)
+  writeLine(host, `Solid archive cache: entries=${result.solidArchiveCache.entries} bytes=${result.solidArchiveCache.retainedBytes}/${result.solidArchiveCache.maxBytes} memory=${result.solidArchiveCache.memoryBytes ?? 0}/${result.solidArchiveCache.maxMemoryBytes ?? 0} active=${result.solidArchiveCache.activeLeases ?? 0}`)
   writeLine(host, `Scheduler: ${result.scheduler ? `cpu=${schedulerPoolText(result.scheduler.cpu)} io=${schedulerPoolText(result.scheduler.io)} gpu=${schedulerPoolText(result.scheduler.gpu)}` : "unavailable in standalone CLI"}`)
 }
 

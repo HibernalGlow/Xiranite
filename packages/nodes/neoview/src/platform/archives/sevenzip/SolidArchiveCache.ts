@@ -33,6 +33,9 @@ export interface SolidArchiveCacheSnapshot {
   maxBytes: number
   activeEntries: number
   activeLeases: number
+  memoryBytes?: number
+  maxMemoryBytes?: number
+  maxMemoryEntryBytes?: number
 }
 
 /** Shared host-level byte-bounded cache for verified solid entry payloads. */
@@ -172,7 +175,16 @@ export class SolidArchiveCache implements AsyncDisposable {
       if (entry.references > 0) activeEntries += 1
       activeLeases += entry.references
     }
-    return { entries: this.#entries.size, retainedBytes, maxBytes: this.#maxBytes, activeEntries, activeLeases }
+    return {
+      entries: this.#entries.size,
+      retainedBytes,
+      maxBytes: this.#maxBytes,
+      activeEntries,
+      activeLeases,
+      memoryBytes: this.#memory.retainedBytes,
+      maxMemoryBytes: this.#maxMemoryBytes,
+      maxMemoryEntryBytes: this.#maxMemoryEntryBytes,
+    }
   }
 
   async trimTo(maxBytes: number): Promise<{ evictedEntries: number; retainedBytes: number; activeEntries: number }> {
