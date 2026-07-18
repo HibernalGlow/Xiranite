@@ -69,6 +69,23 @@ export interface ReaderDiagnosticsSnapshot {
   scheduler: Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>> | null
 }
 
+export interface ReaderDiagnosticsHistoryQuery {
+  sinceMs?: number
+  limit?: number
+}
+
+export interface ReaderDiagnosticsHistory {
+  schemaVersion: 1
+  samples: readonly ReaderDiagnosticsSnapshot[]
+  droppedSamples: number
+}
+
+export interface ReaderDiagnosticsHistoryOptions {
+  maxSamples?: number
+  maxAgeMs?: number
+  maxBytes?: number
+}
+
 export interface ReaderUnifiedCacheDiagnostics {
   memory: {
     presentationBytes: number
@@ -109,8 +126,21 @@ export interface ReaderDiagnosticsSources {
 
 export class ReaderDiagnosticsService implements AsyncDisposable {
   #closed = false
+  readonly #historyOptions: Required<ReaderDiagnosticsHistoryOptions>
+  readonly #history: ReaderDiagnosticsSnapshot[] = []
+  #historyBytes = 0
+  #droppedSamples = 0
 
-  constructor(private readonly sources: ReaderDiagnosticsSources) {}
+  constructor(
+    private readonly sources: ReaderDiagnosticsSources,
+    options: ReaderDiagnosticsHistoryOptions = {},
+  ) {
+    this.#historyOptions = {
+      maxSamples: boundedOption(options.maxSamples, 1, 1_000, 120),
+      maxAgeMs: boundedOption(options.maxAgeMs, 1_000, 24 * 60 * 60_000, 15 * 60_000),
+      maxBytes: boundedOption(options.maxBytes, 64 * 1024, 32 * 1024 * 1024, 2 * 1024 * 1024),
+    }
+  }
 
   async snapshot(): Promise<ReaderDiagnosticsSnapshot> {
     if (this.#closed) throw new Error("Reader diagnostics service is closed.")
@@ -148,14 +178,71 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
     }
   }
 
+  async sample(): Promise<ReaderDiagnosticsSnapshot> {
+    const snapshot = await this.snapshot()
+    this.#record(snapshot)
+    return snapshot
+  }
+
+  history(query: ReaderDiagnosticsHistoryQuery = {}): ReaderDiagnosticsHistory {
+    if (this.#closed) throw new Error("Reader diagnostics service is closed.")
+    const now = (this.sources.now ?? Date.now)()
+    this.#prune(now)
+    const sinceMs = query.sinceMs === undefined || !Number.isFinite(query.sinceMs) ? undefined : query.sinceMs
+    const limit = query.limit === undefined || !Number.isFinite(query.limit)
+      ? this.#historyOptions.maxSamples
+      : Math.max(1, Math.min(this.#historyOptions.maxSamples, Math.trunc(query.limit)))
+    const samples = this.#history
+      .filter((sample) => sinceMs === undefined || sample.sampledAtMs >= sinceMs)
+      .slice(-limit)
+    return { schemaVersion: 1, samples, droppedSamples: this.#droppedSamples }
+  }
+
+  resetHistory(): number {
+    if (this.#closed) throw new Error("Reader diagnostics service is closed.")
+    const cleared = this.#history.length
+    this.#history.length = 0
+    this.#historyBytes = 0
+    this.#droppedSamples = 0
+    return cleared
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
+    this.#history.length = 0
+    this.#historyBytes = 0
     await this.sources.close?.()
   }
 
   [Symbol.asyncDispose](): Promise<void> {
     return this.close()
+  }
+
+  #record(snapshot: ReaderDiagnosticsSnapshot): void {
+    const bytes = estimateSnapshotBytes(snapshot)
+    if (bytes > this.#historyOptions.maxBytes) {
+      this.#droppedSamples += 1
+      return
+    }
+    this.#prune(snapshot.sampledAtMs)
+    this.#history.push(snapshot)
+    this.#historyBytes += bytes
+    while (this.#history.length > this.#historyOptions.maxSamples || this.#historyBytes > this.#historyOptions.maxBytes) {
+      const removed = this.#history.shift()
+      if (!removed) break
+      this.#historyBytes -= estimateSnapshotBytes(removed)
+      this.#droppedSamples += 1
+    }
+  }
+
+  #prune(now: number): void {
+    const cutoff = now - this.#historyOptions.maxAgeMs
+    while (this.#history[0] && this.#history[0].sampledAtMs < cutoff) {
+      const removed = this.#history.shift()!
+      this.#historyBytes -= estimateSnapshotBytes(removed)
+      this.#droppedSamples += 1
+    }
   }
 }
 
@@ -195,4 +282,14 @@ function optionalMemory(read: (() => number) | undefined): number | undefined {
   if (!read) return undefined
   const value = read()
   return Number.isSafeInteger(value) && value > 0 ? value : undefined
+}
+
+function boundedOption(value: number | undefined, minimum: number, maximum: number, fallback: number): number {
+  if (value === undefined) return fallback
+  if (!Number.isFinite(value)) throw new TypeError("Reader diagnostics history options must be finite numbers.")
+  return Math.max(minimum, Math.min(maximum, Math.trunc(value)))
+}
+
+function estimateSnapshotBytes(snapshot: ReaderDiagnosticsSnapshot): number {
+  return new TextEncoder().encode(JSON.stringify(snapshot)).byteLength
 }

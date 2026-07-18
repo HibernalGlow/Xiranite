@@ -120,12 +120,17 @@ export {
 export {
   ReaderDiagnosticsService,
   type ReaderAssetDiagnostics,
+  type ReaderDiagnosticsHistory,
+  type ReaderDiagnosticsHistoryOptions,
+  type ReaderDiagnosticsHistoryQuery,
   type ReaderDiagnosticsSnapshot,
   type ReaderDiagnosticsSources,
   type ReaderSchedulerPoolDiagnostics,
 } from "./application/diagnostics/ReaderDiagnosticsService.js"
 export {
   ReaderDiagnosticsWireSchema,
+  ReaderDiagnosticsHistoryWireSchema,
+  parseReaderDiagnosticsHistory,
   parseReaderDiagnosticsSnapshot,
 } from "./application/diagnostics/ReaderDiagnosticsWireSchema.js"
 export {
