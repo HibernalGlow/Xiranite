@@ -344,6 +344,7 @@
         "neoview.storage-information.states",
         "neoview.storage-information.metadata-retry",
         "neoview.storage-information.diagnostics-retry",
+        "neoview.storage-information.retry-accessibility",
         "neoview.storage-information.partial-metrics",
         "neoview.metadata.cancel"
       ],
@@ -502,6 +503,7 @@
       "testIds": [
         "neoview.card.collapse",
         "neoview.storage-information.diagnostics-retry",
+        "neoview.storage-information.retry-accessibility",
         "neoview.storage-information.legacy-fields"
       ],
       "plannedTestIds": [],
