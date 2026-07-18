@@ -12,7 +12,7 @@ afterEach(async () => {
 })
 
 describe("SevenZipArchiveIndexCache", () => {
-  it("[neoview.sevenzip.index-cache-singleflight] shares one load and returns isolated descriptors", async () => {
+  it("[neoview.sevenzip.index-cache-telemetry] [neoview.sevenzip.index-cache-singleflight] shares one load and returns isolated descriptors", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-index-cache-"))
     cleanup.push(root)
     const sourcePath = join(root, "book.7z")
@@ -34,6 +34,7 @@ describe("SevenZipArchiveIndexCache", () => {
     expect(first).not.toBe(second)
     expect(first.entries[0]).not.toBe(second.entries[0])
     expect(cache.size).toBe(1)
+    expect(cache.snapshot()).toMatchObject({ entries: 1, maxEntries: 2, hits: 1, misses: 1, evictions: 0 })
     await cache.close()
   })
 
@@ -64,6 +65,7 @@ describe("SevenZipArchiveIndexCache", () => {
     expect(first.entries[0]?.id).toBe("entry-1")
     expect(second.entries[0]?.id).toBe("entry-2")
     expect(cache.size).toBe(1)
+    expect(cache.snapshot()).toMatchObject({ entries: 1, hits: 0, misses: 2, evictions: 1 })
     await cache.close()
   })
 
@@ -99,6 +101,7 @@ describe("SevenZipArchiveIndexCache", () => {
     await oldPending
     expect(cache.size).toBe(1)
     expect(load).toHaveBeenCalledTimes(2)
+    expect(cache.snapshot()).toMatchObject({ hits: 0, misses: 2, evictions: 0 })
     await cache.close()
   })
 
@@ -128,6 +131,7 @@ describe("SevenZipArchiveIndexCache", () => {
     expect(load).toHaveBeenCalledTimes(2)
     expect(result.entries[0]?.id).toBe("current")
     expect(cache.size).toBe(1)
+    expect(cache.snapshot()).toMatchObject({ entries: 1, hits: 0, misses: 1, evictions: 0 })
     await cache.close()
   })
 
@@ -151,6 +155,7 @@ describe("SevenZipArchiveIndexCache", () => {
     })).rejects.toThrow("changed while its index was being loaded")
     expect(load).toHaveBeenCalledTimes(2)
     expect(cache.size).toBe(0)
+    expect(cache.snapshot()).toMatchObject({ entries: 0, payloadBytes: 0, hits: 0, misses: 1, evictions: 0 })
     await cache.close()
   })
 
@@ -203,6 +208,26 @@ describe("SevenZipArchiveIndexCache", () => {
     await cache.getOrLoad(options)
     expect(load).toHaveBeenCalledTimes(2)
     expect(cache.size).toBe(0)
+    expect(cache.snapshot()).toEqual({ entries: 0, maxEntries: 0, payloadBytes: 0, maxPayloadBytes: 0, hits: 0, misses: 2, evictions: 0 })
     await cache.close()
+  })
+
+  it("[neoview.sevenzip.index-cache-close] counts cached revisions removed on close", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-index-cache-close-"))
+    cleanup.push(root)
+    const sourcePath = join(root, "book.7z")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const cache = new SevenZipArchiveIndexCache(1)
+
+    await cache.getOrLoad({
+      sourcePath,
+      executablePath: "C:/tools/7zz.exe",
+      executableVersion: "26.02",
+      maxListingBytes: 1024,
+      load: async () => ({ solid: false, entries: [{ id: "entry", path: "1.jpg", kind: "file" as const, uncompressedSize: 1 }] }),
+    })
+    expect(cache.snapshot()).toMatchObject({ entries: 1, evictions: 0 })
+    await cache.close()
+    expect(cache.snapshot()).toMatchObject({ entries: 0, payloadBytes: 0, evictions: 1 })
   })
 })
