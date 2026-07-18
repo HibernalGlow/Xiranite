@@ -16,7 +16,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`pending=14`，`partial=52`，`complete=8`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`pending=13`，`partial=53`，`complete=8`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -495,9 +495,9 @@
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：每标签维护分支正确的前进/后退历史，并恢复目录、滚动、焦点、选择和临时排序。
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderToolbar/NavigationButtons.svelte`
-  - 测试：`neoview.folder.nav-history`、`neoview.folder.nav-history-ui`、`neoview.folder.nav-history-e2e`
+  - 测试：`neoview.folder.nav-history`、`neoview.folder.nav-history-ui`、`neoview.folder.nav-history-e2e`、`neoview.folder.nav-visual-state-e2e`
   - 计划测试：无
-  - 备注：ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot，details 保存原始 scrollTop 并在虚拟行测量后保持同一行锚点。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖，普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。
+  - 备注：ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot；grid 额外保存真实 scroller scrollTop，details 保存原始 scrollTop，并在虚拟行测量后恢复。每个访问项最多缓存 256 个缩略图 URL，返回或切换 renderer 时先呈现旧图再后台重校验，失败不会清空整批缓存。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖；在 A 缩略图 POST 人为延迟 8 秒时，返回后相同可见文件仍立即有图且滚动误差不超过 40px。普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。
 - [ ] `folder.nav.parent` 返回上级并定位原目录
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：返回上级后自动选中并滚动到刚离开的子目录；远端批次尚未加载时先定位索引再取页。
@@ -792,12 +792,12 @@
 ### filtering（1）
 
 - [ ] `folder.filter.type` 类型筛选
-  - 六维：`core=C transport=C gui=- cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：支持全部、压缩包、文件夹、视频类型筛选，并与排序、搜索和虚拟源组合。
   - 源码：`components/FolderToolbar/TypeFilterBar.svelte`、`utils/virtualPathLoader.ts`
-  - 测试：`neoview.folder.filter-service`、`neoview.folder.filter-http`、`neoview.folder.filter-media-registry`、`neoview.folder.filter-headless`、`neoview.folder.filter-search`、`neoview.folder.filter-library-service`、`neoview.folder.filter-library-headless`、`neoview.folder.filter-library-http`、`neoview.folder.filter-library-sqlite`、`neoview.folder.filter-cli`、`neoview.folder.filter-library-cli`、`neoview.folder.filter-tui`、`neoview.folder.filter-library-tui`、`neoview.folder.tui`、`neoview.library.tui`
+  - 测试：`neoview.folder.filter-service`、`neoview.folder.filter-http`、`neoview.folder.filter-media-registry`、`neoview.folder.filter-headless`、`neoview.folder.filter-search`、`neoview.folder.filter-library-service`、`neoview.folder.filter-library-headless`、`neoview.folder.filter-library-http`、`neoview.folder.filter-library-sqlite`、`neoview.folder.filter-cli`、`neoview.folder.filter-library-cli`、`neoview.folder.filter-tui`、`neoview.folder.filter-library-tui`、`neoview.folder.tui`、`neoview.library.tui`、`neoview.folder.filter-client`、`neoview.folder.filter-catalog`、`neoview.folder.filter-ui`、`neoview.folder.filter-e2e`、`neoview.folder.filter-chunk`
   - 计划测试：无
-  - 备注：后端已在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，递归搜索继承同一 filter 并保留原 AsyncIterable 背压/取消链，archive helper 与 TOML media registry 是唯一分类源。History/Bookmark 虚拟源通过同一领域 filter 在 SQLite LIMIT/OFFSET 前筛选，EPUB 归入 archive，bookmark list membership 与 filter 使用括号化 predicate 安全组合；HTTP、Headless、CLI 和 OpenTUI 均复用同一契约。TypeFilterBar GUI 与虚拟源前端接线仍待另一 GUI 纵切完成。
+  - 备注：后端在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，递归搜索继承同一 filter 并保留原 AsyncIterable 背压/取消链，archive helper 与 TOML media registry 是唯一分类源。History/Bookmark 虚拟源通过同一领域 filter 在 SQLite LIMIT/OFFSET 前筛选，EPUB 归入 archive，bookmark list membership 与 filter 使用括号化 predicate 安全组合；HTTP、Headless、CLI 和 OpenTUI 均复用同一契约。GUI 复刻旧 TypeFilterBar 的工具栏下方内联层级、全部/压缩包/文件夹/视频顺序、图标与 active 状态，旧 UI 的 folder 值只在呈现层映射为规范 directory；作为明确改良，普通当前目录也使用相同筛选而不再仅限虚拟源。切换只 PATCH 当前 browser session，清除 generation-bound 稀疏选择并复用 Card/阅读图片实例。desktop/420x360 Chromium 真实目录验证四种类型和严格四次 PATCH；独立二级 lazy chunk 由 8 KiB 门禁约束。原版截图像素 characterization 仍使 evidence 保持 partial。
 
 ### tree（4）
 
@@ -864,12 +864,12 @@
   - 计划测试：无
   - 备注：list/grid/details 的同一菜单通过 authenticated /reader/files/open|reveal 调用平台 capability，不在 core 或 React 拼接 shell 命令；缺少宿主能力时动作显式 disabled。CLI 命令、TUI 外部启动确认和真实 Explorer/Finder characterization 仍待完成。
 - [ ] `folder.op.clipboard` 复制、剪切、粘贴
-  - 六维：`core=N/A transport=N/A gui=- cli=- tui=- evidence=-`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：单项/批量复制剪切粘贴，处理冲突、跨卷、取消、进度、部分失败和 watcher 回写。
   - 源码：`components/FolderContextMenu.svelte`、`components/SelectionBar.svelte`
-  - 测试：待补
+  - 测试：`neoview.folder.clipboard-batch-job`、`neoview.folder.clipboard-destination`、`neoview.folder.clipboard-conflict`、`neoview.folder.clipboard-http`、`neoview.folder.clipboard-client`、`neoview.folder.clipboard-lifecycle`、`neoview.folder.clipboard-conflict-ui`、`neoview.folder.clipboard-ui`、`neoview.folder.clipboard-context`、`neoview.folder.clipboard-e2e`
   - 计划测试：无
-  - 备注：文件事务服务独立于 React。
+  - 备注：后端在 Copy/Cut 时立即把 session generation + 稀疏 selection descriptor 解析成不可变批次源，前端不物化 100K 路径；Paste 才通过现有 ReaderFileOperationService 分 256 项启动 copy/move job。复制可重复粘贴，剪切启动一次后即消费；默认 overwrite=false，EEXIST 与其他失败进入 64 项有界样本并继续批次，跨卷 move 由现有 move-file 平台适配器处理。FolderMainCard 顶层 Provider 跨 Panel/标签/侧栏隐藏保留摘要与轮询，完成后只有目标当前目录复用原 browser session refresh。GUI 已覆盖单项菜单、批量选择栏、当前目录工具栏、进度、取消、部分失败和 desktop/420x360 真实文件 copy/move，Card 与阅读图片不重挂。CLI/TUI 现有直接 copy/move 命令复用同一文件事务服务，但稀疏 selection clipboard prepare/paste 生命周期尚未公开。生产模块归属为 FolderMainCard 31,608 bytes、FolderSelectionBar 4,972 bytes、FolderClipboard 独立延迟 chunk 2,487 bytes；NeoView entry 14,440 bytes。
 - [ ] `folder.op.copy-metadata` 复制路径与名称
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：复制单项/多项路径或名称，换行格式和通知与原版一致。
