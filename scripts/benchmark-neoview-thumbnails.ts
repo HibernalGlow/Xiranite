@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto"
+import { createReadStream } from "node:fs"
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
+import { stat } from "node:fs/promises"
 import { LegacyNeoViewDataLocator } from "../packages/nodes/neoview/src/application/data/LegacyNeoViewDataLocator.js"
 import { openReadonlySqlite } from "../packages/nodes/neoview/src/platform/sqlite/openReadonlySqlite.js"
 import { ReadonlyLegacyThumbnailStore } from "../packages/nodes/neoview/src/platform/thumbnails/ReadonlyLegacyThumbnailStore.js"
@@ -19,6 +22,8 @@ const batchSize = positiveInteger(parsed.values.batch, "batch", 512)
 const databasePath = parsed.values.database
   ? resolve(parsed.values.database)
   : new LegacyNeoViewDataLocator().locate().thumbnailDatabasePath
+const databaseFile = await stat(databasePath)
+const databaseSha256 = await sha256File(databasePath)
 
 const database = await openReadonlySqlite(databasePath)
 let keys: string[]
@@ -95,8 +100,21 @@ try {
 
   process.stdout.write(`${JSON.stringify({
     databaseBytes: store.report.bytes,
+    databaseSha256,
+    databaseMtimeMs: databaseFile.mtimeMs,
     metadataVersion: store.report.metadataVersion,
     compatibility: store.report.compatibility,
+    journalMode: store.report.journalMode,
+    sidecars: {
+      wal: store.report.sidecars.wal.exists ? store.report.sidecars.wal.bytes ?? 0 : 0,
+      shm: store.report.sidecars.shm.exists ? store.report.sidecars.shm.bytes ?? 0 : 0,
+    },
+    environment: {
+      runtime: process.versions.bun ? `Bun ${process.versions.bun}` : process.version,
+      platform: `${process.platform}-${process.arch}`,
+      cacheState: "unspecified",
+    },
+    parameters: { iterations, batchSize },
     records: {
       total: integer(aggregate.total_records),
       file: integer(aggregate.file_records),
@@ -156,4 +174,10 @@ function integer(value: unknown): number {
 function numberValue(value: unknown): number {
   if (typeof value === "bigint") return Number(value)
   return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+async function sha256File(path: string): Promise<string> {
+  const hash = createHash("sha256")
+  for await (const chunk of createReadStream(path, { highWaterMark: 1024 * 1024 })) hash.update(chunk)
+  return hash.digest("hex")
 }
