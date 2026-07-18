@@ -285,7 +285,7 @@
         "neoview.bindings.viewer-toggle-page-info"
       ],
       "plannedTestIds": [],
-      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. Persistent page/book/boundary toast and info-overlay toggles now route through their existing atomic stores; the page-info action shares the same viewer toggle provider as the thumbnail-strip button and is covered by React/store tests. Unsupported providers still return false instead of inventing state. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. The source control hierarchy now composes media-chrome with shadcn controls, restores hover/keyboard visibility, automatic WebVTT subtitles, subtitle styling, throttled progress restore/flush and desktop/420x360 streamed-video evidence. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Manual external subtitle selection, destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
+      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. Persistent page/book/boundary toast and info-overlay toggles now route through their existing atomic stores; the page-info action shares the same viewer toggle provider as the thumbnail-strip button and is covered by React/store tests. Unsupported providers still return false instead of inventing state. Desktop and 420x360 Chromium cover the real binding settings/runtime flow, including context isolation, rollback, import, mouse/wheel/area, gamepad and ray-menu dispatch. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. The source control hierarchy now composes media-chrome with shadcn controls, restores hover/keyboard visibility, automatic WebVTT subtitles, subtitle styling, throttled progress restore/flush and desktop/420x360 streamed-video evidence. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Manual external subtitle selection, destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
     },
     {
       "id": "bindings.context-routing",
@@ -324,7 +324,7 @@
         "neoview.bindings.context-stack-tui"
       ],
       "plannedTestIds": [],
-      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. Desktop Chromium now proves Reader navigation, binding persistence and editor isolation in the real settings flow. The native video surface advertises the video context, routes multiple bindings plus seek-mode remapping through the shared executor, and preserves interactive media controls in the DOM context at desktop and 420x360; those video/modal edge cases keep GUI evidence partial. Headless, CLI and TUI now consume the same ordered context stack and preserve editor/modal isolation."
+      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. Desktop and 420x360 Chromium prove Reader navigation, binding persistence and editor isolation in the real settings flow. The native video surface advertises the video context, routes multiple bindings plus seek-mode remapping through the shared executor, and preserves interactive media controls in the DOM context at desktop and 420x360; those video/modal edge cases keep GUI evidence partial. Headless, CLI and TUI now consume the same ordered context stack and preserve editor/modal isolation."
     },
     {
       "id": "bindings.keyboard",
@@ -531,7 +531,7 @@
         "neoview.bindings.gamepad-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "gamepad.js owns runtime and modal button recording; enabled bindings start polling only while the Reader is active, and a desktop Chromium fixture now injects a standard button press through the shared context executor. A visible connection-state surface and 420x360 evidence remain pending. This is an XR extension, not legacy parity."
+      "notes": "gamepad.js owns runtime and modal button recording; enabled bindings start polling only while the Reader is active, and desktop plus 420x360 Chromium fixtures inject a standard button press through the shared context executor. A visible connection-state surface remains pending. This is an XR extension, not legacy parity."
     },
     {
       "id": "bindings.radial-menu",
@@ -743,7 +743,7 @@
         "neoview.bindings.legacy-import-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. GUI now exposes inspect-before-import with merge/overwrite, refreshes canonical runtime state, and is covered by a real Chromium inspect/import flow; TUI import projection remains pending."
+      "notes": "The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. GUI now exposes inspect-before-import with merge/overwrite, refreshes canonical runtime state, and is covered by desktop/420x360 Chromium inspect/import flows; TUI import projection remains pending."
     },
     {
       "id": "bindings.states",
