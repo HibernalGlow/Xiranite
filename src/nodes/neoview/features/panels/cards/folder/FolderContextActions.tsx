@@ -72,7 +72,7 @@ export default function FolderContextActions({
       setEmmEntry(entry)
       return
     }
-    if (action === "trash") {
+    if (action === "trash" || action === "delete") {
       const execute = client.executeFileOperations
       if (!execute) return
       const operation = new AbortController()
@@ -81,21 +81,24 @@ export default function FolderContextActions({
       setPending(true)
       setFeedback(undefined)
       let movedToTrash = false
+      let completed = false
       try {
-        const result = await execute([{ kind: "trash", sourcePath: entry.path }], true, operation.signal)
+        const result = await execute([{ kind: action, sourcePath: entry.path }], true, operation.signal)
         const failed = result.results.find((item) => item.status !== "succeeded")
-        if (failed || result.succeeded !== 1) throw new Error(fileOperationError(failed?.errorCode, failed?.error))
-        movedToTrash = true
+        if (failed || result.succeeded !== 1) throw new Error(fileOperationError(action, failed?.errorCode, failed?.error))
+        movedToTrash = action === "trash"
+        completed = true
         await onTrashed?.(entry)
         operation.signal.throwIfAborted()
-        setFeedback({ kind: "status", text: `已将 ${entry.name} 移到回收站` })
+        setFeedback({ kind: "status", text: action === "trash" ? `已将 ${entry.name} 移到回收站` : `已永久删除 ${entry.name}` })
       } catch (error) {
         if (!operation.signal.aborted) {
           setFeedback({
             kind: "alert",
             text: movedToTrash
               ? `已将 ${entry.name} 移到回收站，但列表刷新失败，请手动刷新。${errorMessage(error)}`
-              : errorMessage(error),
+              : completed ? `已永久删除 ${entry.name}，但列表刷新失败，请手动刷新。${errorMessage(error)}`
+                : action === "delete" ? `永久删除 ${entry.name} 失败：${errorMessage(error)}` : errorMessage(error),
           })
         }
       } finally {
@@ -212,6 +215,7 @@ export default function FolderContextActions({
       canBookmark: Boolean(client.findBookmarkByPath && client.saveBookmark && client.removeBookmark),
       canRename: Boolean(client.executeFileOperations),
       canTrash: Boolean(client.executeFileOperations),
+      canDelete: Boolean(client.executeFileOperations),
       canEditMetadata: Boolean(sessionId && generation !== undefined && selection && client.resolveDirectorySelection && client.readDirectoryEmm && client.editDirectoryEmm),
       onAction: run,
     }) : null
@@ -252,7 +256,7 @@ export default function FolderContextActions({
   )
 }
 
-type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash"
+type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash" | "delete"
 
 export function buildFolderContextMenuItems(
   entry: FolderContextEntry,
@@ -268,6 +272,7 @@ export function buildFolderContextMenuItems(
     canBookmark: boolean
     canRename: boolean
     canTrash: boolean
+    canDelete?: boolean
     canEditMetadata?: boolean
     onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
   },
@@ -307,6 +312,10 @@ export function buildFolderContextMenuItems(
       disabled: unavailable || !options.canTrash,
       onTrash: () => options.onAction("trash", entry),
     }),
+    buildDeleteContextMenuItem(entry, {
+      disabled: unavailable || !options.canDelete,
+      onDelete: () => options.onAction("delete", entry),
+    }),
     { type: "separator" },
     { id: "neoview-folder-entry-name", type: "label", label: entry.name },
   )
@@ -330,6 +339,26 @@ export function buildTrashContextMenuItem(
       cancelLabel: "取消",
     },
     onSelect: options.onTrash,
+  }
+}
+
+export function buildDeleteContextMenuItem(
+  entry: FolderContextEntry,
+  options: { disabled: boolean; onDelete(): void | Promise<void> },
+): ContextMenuItemDef {
+  return {
+    id: "neoview-folder-delete",
+    label: "永久删除",
+    icon: <Trash2 />,
+    destructive: true,
+    disabled: options.disabled,
+    confirm: {
+      title: "永久删除？",
+      description: `“${entry.name}”将被永久删除，无法从回收站恢复。`,
+      confirmLabel: "永久删除",
+      cancelLabel: "取消",
+    },
+    onSelect: options.onDelete,
   }
 }
 
@@ -365,10 +394,10 @@ function feedbackText(action: FolderContextAction, entry: FolderContextEntry): s
   return `已打开 ${entry.name}`
 }
 
-function fileOperationError(code?: string, message?: string): string {
-  if (code === "EPERM" || code === "EACCES") return "没有权限将此项目移到回收站。"
+function fileOperationError(action: "trash" | "delete", code?: string, message?: string): string {
+  if (code === "EPERM" || code === "EACCES") return action === "delete" ? "没有权限永久删除此项目。" : "没有权限将此项目移到回收站。"
   if (code === "ENOENT") return "项目已经不存在，请刷新文件夹。"
-  return message || "移到回收站失败。"
+  return message || (action === "delete" ? "永久删除失败。" : "移到回收站失败。")
 }
 
 function errorMessage(error: unknown): string {
