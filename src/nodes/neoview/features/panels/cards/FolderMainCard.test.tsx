@@ -312,6 +312,58 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.rename-f2] opens the shared rename dialog from the focused entry", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [{ name: "old.cbz", path: "C:/books/old.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const renamed = page({
+      path: "C:/books",
+      generation: 2,
+      entries: [{ name: "new.cbz", path: "C:/books/new.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+      suggestedSelection: { path: "C:/books/new.cbz", index: 0 },
+    })
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "rename" as const, sourcePath: "C:/books/old.cbz", destinationPath: "C:/books/new.cbz", overwrite: false }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+    }))
+    const navigateDirectoryBrowser = vi.fn(async () => renamed)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      executeFileOperations,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoMockContext.Provider>
+      </ContextMenuProvider>,
+    )
+    const host = await screen.findByRole("listbox")
+    fireEvent.keyDown(host, { key: "F2" })
+    const input = await screen.findByRole("textbox")
+    await user.clear(input)
+    await user.type(input, "new.cbz")
+    await user.click(screen.getByRole("button", { name: /閲嶆柊鍛?|重命名/ }))
+
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith(
+      [{ kind: "rename", sourcePath: "C:/books/old.cbz", destinationPath: "C:/books/new.cbz", overwrite: false }],
+      false,
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "refresh" },
+      expect.any(AbortSignal),
+      "C:/books/new.cbz",
+    ))
+  })
+
   it("[neoview.folder.rename-focus] refreshes the same browser session and selects the renamed path", async () => {
     const opened = page({
       path: "C:/books",
