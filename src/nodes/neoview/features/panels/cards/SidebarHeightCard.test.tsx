@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../../adapters/reader-http-client"
@@ -61,6 +61,43 @@ describe("SidebarHeightCard", () => {
     expect(onTriggerSize).not.toHaveBeenCalled()
     fireEvent.pointerUp(leftTrigger, { pointerId: 2 })
     expect(onTriggerSize).toHaveBeenCalledWith("left", 44)
+  })
+
+  it("[neoview.sidebar-height.saving] disables geometry controls until the layout save settles", async () => {
+    let resolveSave!: () => void
+    const onSidebarLayout = vi.fn(() => new Promise<void>((resolve) => { resolveSave = resolve }))
+    render(<SidebarHeightEditor shell={shell()} onSidebarLayout={onSidebarLayout} onTriggerSize={() => undefined} onInteraction={() => undefined} />)
+
+    const leftHeight = screen.getAllByRole("slider")[0]!
+    fireEvent.change(leftHeight, { target: { value: "72" } })
+    fireEvent.pointerUp(leftHeight, { pointerId: 1 })
+
+    await waitFor(() => expect((leftHeight as HTMLInputElement).disabled).toBe(true))
+    expect((screen.getByRole("switch", { name: "显示拖拽手柄" }) as HTMLButtonElement).disabled).toBe(true)
+    resolveSave()
+    await waitFor(() => expect((leftHeight as HTMLInputElement).disabled).toBe(false))
+  })
+
+  it("[neoview.sidebar-height.save-retry] exposes a failed layout save and retries the same patch", async () => {
+    const onSidebarLayout = vi.fn()
+      .mockRejectedValueOnce(new Error("layout unavailable"))
+      .mockResolvedValueOnce(undefined)
+    render(<SidebarHeightEditor shell={shell()} onSidebarLayout={onSidebarLayout} onTriggerSize={() => undefined} onInteraction={() => undefined} />)
+
+    const leftHeight = screen.getAllByRole("slider")[0]!
+    fireEvent.change(leftHeight, { target: { value: "72" } })
+    fireEvent.pointerUp(leftHeight, { pointerId: 1 })
+
+    expect((await screen.findByRole("alert")).textContent).toContain("layout unavailable")
+    expect(screen.getByRole("button", { name: "重试" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "重试" }))
+
+    await waitFor(() => {
+      expect(onSidebarLayout).toHaveBeenCalledTimes(2)
+      expect(screen.queryByRole("alert")).toBeNull()
+    })
+    expect(onSidebarLayout).toHaveBeenNthCalledWith(1, { side: "left", height: "custom", customHeight: 72 })
+    expect(onSidebarLayout).toHaveBeenNthCalledWith(2, { side: "left", height: "custom", customHeight: 72 })
   })
 
   it("marks the full geometry editor ready and keeps Y-axis semantics discoverable", () => {
