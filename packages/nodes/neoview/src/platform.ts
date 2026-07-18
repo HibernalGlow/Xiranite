@@ -223,7 +223,7 @@ export async function createReaderFileTreeController(
   const { ReaderMediaFormatRegistry } = await import("./domain/page/media.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
   const mediaFormats = new ReaderMediaFormatRegistry(runtimeConfig.media)
-  const shortcutResolver = new WindowsReaderShortcutResolver()
+  const shortcutResolver = new WindowsReaderShortcutResolver({ resourceScheduler: options.resourceScheduler })
   const externalSearchHistoryStore = options.searchHistoryStore || undefined
   const externalSharedStore = isReaderFileTreeDataStore(externalSearchHistoryStore)
     ? externalSearchHistoryStore
@@ -781,13 +781,15 @@ export async function createReaderLibraryHeadlessController(
   const { basename } = await import("node:path")
   const { ReaderLibraryHeadlessController } = await import("./application/headless/ReaderLibraryHeadlessController.js")
   const { detectViewSource } = await import("./platform/filesystem/detectViewSource.js")
+  const { WindowsReaderShortcutResolver } = await import("./platform/windows/WindowsReaderShortcutResolver.js")
   const { ReaderLibraryCleanupService } = await import("./application/library/ReaderLibraryCleanupService.js")
   const { PlatformReaderPathStatusProvider } = await import("./platform/filesystem/PlatformReaderPathStatusProvider.js")
+  const shortcutResolver = new WindowsReaderShortcutResolver({ resourceScheduler })
   const library = await createReaderLibraryService(databasePath)
   return new ReaderLibraryHeadlessController(
     library,
     async (path) => {
-      const source = await detectViewSource(path)
+      const source = await detectViewSource(path, undefined, undefined, shortcutResolver)
       return { source, displayName: basename(source.path) || source.path }
     },
     new ReaderLibraryCleanupService(library, new PlatformReaderPathStatusProvider(resourceScheduler)),
@@ -858,7 +860,7 @@ export async function createReaderHeadlessController(
   const { PlatformDirectoryMetadataProvider } = await import("./platform/filesystem/PlatformDirectoryMetadataProvider.js")
   const { platformReaderBookCandidate } = await import("./platform/filesystem/PlatformReaderBookCandidate.js")
   const { WindowsReaderShortcutResolver } = await import("./platform/windows/WindowsReaderShortcutResolver.js")
-  const shortcutResolver = options.shortcutResolver ?? new WindowsReaderShortcutResolver()
+  const shortcutResolver = options.shortcutResolver ?? new WindowsReaderShortcutResolver({ resourceScheduler: options.resourceScheduler })
   const adjacentBooks = new ReaderAdjacentBookService(
     new PlatformDirectoryListingProvider(mediaFormats, shortcutResolver),
     new PlatformDirectoryMetadataProvider(isReaderDirectoryEmmRecordStore(progressStore) ? progressStore : undefined),

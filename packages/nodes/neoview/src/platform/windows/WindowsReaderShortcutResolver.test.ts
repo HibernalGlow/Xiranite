@@ -25,14 +25,23 @@ describe("WindowsReaderShortcutResolver", () => {
       expect(options.shortcutPath).toBe(shortcut)
       return JSON.stringify({ relativePath: "../books/book.cbz" })
     })
-    const resolver = new WindowsReaderShortcutResolver({ platform: "win32", runPowerShell })
+    const release = vi.fn()
+    const scheduler = { acquire: vi.fn(async () => ({ release })) }
+    const resolver = new WindowsReaderShortcutResolver({ platform: "win32", runPowerShell, resourceScheduler: scheduler })
 
-    await expect(resolver.resolve(shortcut)).resolves.toMatchObject({
+    await expect(resolver.resolve(shortcut, new AbortController().signal)).resolves.toMatchObject({
       status: "resolved",
       targetKind: "file",
       targetPath: target,
     })
     expect(runPowerShell).toHaveBeenCalledOnce()
+    expect(scheduler.acquire).toHaveBeenCalledWith({
+      resource: "io",
+      kind: "reader.shortcut.resolve",
+      priority: "view",
+      ownerId: "neoview:shortcut-resolver",
+    }, expect.any(AbortSignal))
+    expect(release).toHaveBeenCalledOnce()
   })
 
   it("[neoview.shortcut.invalid-target] rejects URL and shell targets without probing them", async () => {
@@ -40,12 +49,16 @@ describe("WindowsReaderShortcutResolver", () => {
     temporaryPaths.push(root)
     const shortcut = join(root, "bad.lnk")
     await writeFile(shortcut, "link")
+    const release = vi.fn()
+    const scheduler = { acquire: vi.fn(async () => ({ release })) }
     const resolver = new WindowsReaderShortcutResolver({
       platform: "win32",
+      resourceScheduler: scheduler,
       runPowerShell: async () => JSON.stringify({ targetPath: "https://example.test/book.cbz" }),
     })
 
     await expect(resolver.resolve(shortcut)).resolves.toMatchObject({ status: "invalid" })
+    expect(release).toHaveBeenCalledOnce()
   })
 
   it("[neoview.shortcut.unavailable] reports structured unavailability off Windows", async () => {
@@ -53,6 +66,20 @@ describe("WindowsReaderShortcutResolver", () => {
     await expect(resolver.resolve("book.lnk")).resolves.toMatchObject({
       status: "unavailable",
     })
+  })
+
+  it("[neoview.shortcut.scheduler-cancel] does not start PowerShell when admission is cancelled", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-shortcut-"))
+    temporaryPaths.push(root)
+    const shortcut = join(root, "book.lnk")
+    await writeFile(shortcut, "link")
+    const controller = new AbortController()
+    controller.abort(new DOMException("superseded", "AbortError"))
+    const runPowerShell = vi.fn(async () => JSON.stringify({ targetPath: shortcut }))
+    const resolver = new WindowsReaderShortcutResolver({ platform: "win32", runPowerShell, resourceScheduler: { acquire: vi.fn() } })
+
+    await expect(resolver.resolve(shortcut, controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+    expect(runPowerShell).not.toHaveBeenCalled()
   })
 
   it("[neoview.shortcut.chain] resolves nested links and rejects cycles", async () => {
