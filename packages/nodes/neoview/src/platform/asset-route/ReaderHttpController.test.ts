@@ -19,6 +19,9 @@ import {
   type ReaderPageTransitionSettings,
 } from "../../domain/page-transition/ReaderPageTransition.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
+import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
+import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionArtifactStore.js"
+import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
 import {
   DEFAULT_READER_SWITCH_TOAST,
   normalizeReaderSwitchToast,
@@ -690,6 +693,35 @@ describe("ReaderHttpController", () => {
         released: 0,
         visibleRetained: 1,
       })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.super-resolution.preload-generation] releases stale upscale work after navigation", async () => {
+    const directory = await createBookDirectory()
+    const releaseContext = vi.fn(async () => undefined)
+    const preload = {
+      startPlan: vi.fn(),
+      startProgressive: vi.fn(),
+      snapshots: vi.fn(async () => []),
+      pause: vi.fn(async () => []),
+      retry: vi.fn(async () => []),
+      releaseContext,
+    } as unknown as SuperResolutionPreloadControlPort
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      superResolutionArtifactPages: {} as SuperResolutionArtifactPagePort,
+      superResolutionArtifactStore: {} as SuperResolutionArtifactStore,
+      superResolutionPreload: preload,
+    })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
+      const session = await opened.json() as ReaderSessionDto
+      const navigated = await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" }))
+      expect(navigated?.status).toBe(200)
+      expect(releaseContext).toHaveBeenCalledWith(`reader:${session.sessionId}:super-resolution`)
     } finally {
       await controller[Symbol.asyncDispose]()
     }
