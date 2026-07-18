@@ -138,6 +138,8 @@ EMM 标签搜索后端纵切已接入现有搜索主链：`tag`/`excludeTag` 支
 
 History 高级清理的 Headless/CLI/OpenTUI 入口现已补齐：`library-recent-cleanup`、`library-recent-cleanup-oldest`、`library-recent-cleanup-folder`、`library-recent-clear` 与 `library-invalid-cleanup` 全部复用 `ReaderLibraryHeadlessController`，所有破坏性命令要求显式确认，数量型操作限制为最多 500 项。OpenTUI 保留同一套时间、最旧数量、目录、全部和无效路径动作，并把取消信号透传到 oldest cleanup；folder/all 继续以单事务原子执行，不复制删除 SQL 或另建状态。
 
+Bookmark 批量 membership 与删除也已补齐 Headless/CLI/OpenTUI：`library-bookmark-batch-update` 通过重复 `--id/--list` 为最多 500 个书签设置完整列表 membership，`library-bookmark-batch-delete` 复用同一批量删除 API 并要求 `--yes`。OpenTUI 使用明确的批量 ID/列表字段并透传取消信号。两种表面只适配输入和输出，列表存在性、系统列表限制、重复 ID 拒绝、时间戳、事务和缺失项报告仍由唯一 `ReaderLibraryService`/`ReaderLibraryStore` 链负责。
+
 > 最后更新：2026-07-16；最近已提交基线：`897886a`（原图阅读/预解码/虚拟缩略图）、`880ccff`（复杂 Shell/Card AST scaffold）、`1e4f70c`（懒加载四边 Shell 与首批 Panel/Card）、`5064b82`（只读 Shell 配置链）、`444bdbc`（React Compiler 友好的侧栏 resize/drag 与 TOML PATCH 原子持久化）、`532b304`（旧 panel layout 兼容读取）、`f9467c4`（旧 v14 Card 状态导入与折叠原子持久化）。本节必须随每个 NeoView 实现提交同步更新；代码、feature matrix 和测试证据优先于文字。
 
 整体结论：**基础架构和高性能阅读纵切已经跑通，但完整功能迁移远未完成。** `feature-compatibility.json` 的 30 项 feature 当前全部保持 `pending`，因为每一项都包含旧 NeoView 的多组行为，不能用“一条 happy path 已运行”提前标记完成。

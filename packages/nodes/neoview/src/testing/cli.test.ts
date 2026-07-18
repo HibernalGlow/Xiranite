@@ -81,13 +81,15 @@ describe("NeoView CLI", () => {
     expect(revealSystem).toHaveBeenCalledWith(resolve("source.jpg"))
   })
 
-  it("[neoview.library.cli] [neoview.history.cleanup-cli] [neoview.folder.filter-library-cli] adapts shared library operations and confirms destructive commands", async () => {
+  it("[neoview.library.cli] [neoview.history.cleanup-cli] [neoview.bookmark.batch-cli] [neoview.folder.filter-library-cli] adapts shared library operations and confirms destructive commands", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {
       listRecent: vi.fn(async () => [{ bookId: "book-1", displayName: "Book" }]),
       listBookmarks: vi.fn(async () => [{ id: "bookmark-1", name: "Demo" }]),
       savePathBookmark: vi.fn(async () => ({ id: "bookmark-1", name: "Demo" })),
       removeBookmark: vi.fn(async () => true),
+      updateBookmarks: vi.fn(async () => ({ items: [{ id: "bookmark-1" }, { id: "bookmark-2" }], missingIds: [] })),
+      removeBookmarks: vi.fn(async () => ({ deleted: 2, missingIds: [] })),
       removeOldestRecents: vi.fn(async () => ({ selectedIds: ["book-1"], deleted: 1 })),
       clearByFolder: vi.fn(async () => 2),
       clearAll: vi.fn(async () => 3),
@@ -109,6 +111,14 @@ describe("NeoView CLI", () => {
     await expect(runProgram(["library-bookmark-delete", "--id", "bookmark-1"], host([]), dependencies)).rejects.toThrow("requires --yes")
     await runProgram(["library-bookmark-delete", "--id", "bookmark-1", "--yes"], host([]), dependencies)
     expect(controller.removeBookmark).toHaveBeenCalledWith("bookmark-1")
+    await runProgram(["library-bookmark-batch-update", "--id", "bookmark-1", "--id", "bookmark-2", "--list", "reading", "--list", "default"], host([]), dependencies)
+    expect(controller.updateBookmarks).toHaveBeenCalledWith([
+      { id: "bookmark-1", listIds: ["reading", "default"] },
+      { id: "bookmark-2", listIds: ["reading", "default"] },
+    ])
+    await expect(runProgram(["library-bookmark-batch-delete", "--id", "bookmark-1"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["library-bookmark-batch-delete", "--id", "bookmark-1", "--id", "bookmark-2", "--yes"], host([]), dependencies)
+    expect(controller.removeBookmarks).toHaveBeenCalledWith(["bookmark-1", "bookmark-2"])
     await expect(runProgram(["library-invalid-cleanup"], host([]), dependencies)).rejects.toThrow("requires --yes")
     await runProgram(["library-invalid-cleanup", "--kind", "both", "--scan-limit", "20", "--limit", "10", "--concurrency", "2", "--yes"], host([]), dependencies)
     expect(controller.cleanupInvalid).toHaveBeenCalledWith({ kind: "both", scanLimit: 20, deleteLimit: 10, concurrency: 2 })
@@ -119,7 +129,7 @@ describe("NeoView CLI", () => {
     expect(controller.clearByFolder).toHaveBeenCalledWith("recents", resolve("books"))
     await runProgram(["library-recent-clear", "--yes"], host([]), dependencies)
     expect(controller.clearAll).toHaveBeenCalledWith("recents")
-    expect(dispose).toHaveBeenCalledTimes(8)
+    expect(dispose).toHaveBeenCalledTimes(10)
     await expect(runProgram(["library-recents", "--filter", "invalid"], host([]), dependencies)).rejects.toThrow("--filter must be")
   })
 

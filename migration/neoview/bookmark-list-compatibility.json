@@ -753,18 +753,23 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
-        "evidence": "partial"
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.bookmark.batch-contract",
         "neoview.bookmark.batch-delete",
         "neoview.bookmark.batch-edit",
+        "neoview.bookmark.batch-headless",
+        "neoview.bookmark.batch-cli",
+        "neoview.bookmark.batch-tui",
+        "neoview.library.cli",
+        "neoview.library.tui",
         "neoview.bookmark.thumbnail-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "GUI sends one bounded authenticated request for multi-list membership and one for confirmed delete; explicit CLI/TUI batch commands remain pending."
+      "notes": "GUI, CLI and OpenTUI reuse one bounded application operation for exact multi-list membership and one atomic operation for confirmed delete. CLI uses repeatable --id/--list values; OpenTUI accepts explicit comma-separated ID fields and forwards its run cancellation signal. All validation, custom-list existence checks, duplicate rejection and the 500-item limit remain in ReaderLibraryService."
     },
     {
       "id": "bookmark.data-contract",

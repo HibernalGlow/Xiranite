@@ -4,11 +4,13 @@ import type { ReaderLibraryHeadlessController } from "../core.js"
 import { createNeoviewLibraryTuiDefinition } from "../interaction.js"
 
 describe("NeoView library terminal interaction", () => {
-  it("[neoview.library.tui] [neoview.history.cleanup-tui] [neoview.folder.filter-library-tui] shares the headless controller and marks database deletion dangerous", async () => {
+  it("[neoview.library.tui] [neoview.history.cleanup-tui] [neoview.bookmark.batch-tui] [neoview.folder.filter-library-tui] shares the headless controller and marks database deletion dangerous", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {
       listBookmarks: vi.fn(async () => [{ id: "bookmark-1", name: "Demo" }]),
       removeBookmark: vi.fn(async () => true),
+      updateBookmarks: vi.fn(async () => ({ items: [{ id: "bookmark-1" }, { id: "bookmark-2" }], missingIds: [] })),
+      removeBookmarks: vi.fn(async () => ({ deleted: 2, missingIds: [] })),
       cleanupInvalid: vi.fn(async () => ({ kind: "both", scanned: 1, missing: 1, unknown: 0, deleted: 1, truncated: false })),
       removeOldestRecents: vi.fn(async () => ({ selectedIds: ["book-1"], deleted: 1 })),
       clearByFolder: vi.fn(async () => 2),
@@ -39,7 +41,16 @@ describe("NeoView library terminal interaction", () => {
     expect(definition.schema.isDangerous({ action: "cleanup-recents-oldest" })).toBe(true)
     expect(definition.schema.isDangerous({ action: "cleanup-recents-folder" })).toBe(true)
     expect(definition.schema.isDangerous({ action: "clear-recents" })).toBe(true)
-    expect(dispose).toHaveBeenCalledTimes(5)
+    await definition.run({ action: "update-bookmarks", batchIds: "bookmark-1, bookmark-2", batchListIds: "reading, default" }, () => undefined)
+    expect(controller.updateBookmarks).toHaveBeenCalledWith([
+      { id: "bookmark-1", listIds: ["reading", "default"] },
+      { id: "bookmark-2", listIds: ["reading", "default"] },
+    ], expect.any(AbortSignal))
+    await definition.run({ action: "delete-bookmarks", batchIds: "bookmark-1, bookmark-2" }, () => undefined)
+    expect(controller.removeBookmarks).toHaveBeenCalledWith(["bookmark-1", "bookmark-2"], expect.any(AbortSignal))
+    expect(definition.schema.isDangerous({ action: "update-bookmarks" })).toBe(false)
+    expect(definition.schema.isDangerous({ action: "delete-bookmarks" })).toBe(true)
+    expect(dispose).toHaveBeenCalledTimes(7)
   })
 
   it("[neoview.history.cleanup-tui-cancel] aborts oldest cleanup through the shared service signal", async () => {
