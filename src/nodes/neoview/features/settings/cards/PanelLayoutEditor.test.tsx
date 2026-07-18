@@ -58,19 +58,37 @@ describe("PanelLayoutEditor", () => {
   })
 
   it("surfaces save failures and retries with the preserved local draft", async () => {
+    let rejectFirstSave!: (reason?: unknown) => void
+    const firstSave = new Promise<void>((_, reject) => { rejectFirstSave = reject })
     const save = vi.fn()
-      .mockRejectedValueOnce(new Error("board write failed"))
+      .mockReturnValueOnce(firstSave)
       .mockResolvedValueOnce(undefined)
     render(<PanelLayoutEditor shell={shell()} onSave={save} />)
 
-    const saveButton = screen.getAllByRole("button").at(-1) as HTMLButtonElement
+    const saveButton = screen.getByRole("button", { name: "保存面板布局" })
+    const getDragHandle = () => screen.getByRole("button", { name: "拖动页面导航" }) as HTMLButtonElement
+    const getMoveControl = () => screen.getByRole("combobox", { name: "移动页面导航到" }) as HTMLSelectElement
+    fireEvent.change(getMoveControl(), { target: { value: "info" } })
     fireEvent.click(saveButton)
+    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    expect((saveButton as HTMLButtonElement).disabled).toBe(true)
+    expect(getDragHandle().disabled).toBe(true)
+    expect(getMoveControl().disabled).toBe(true)
+
+    rejectFirstSave(new Error("board write failed"))
     expect((await screen.findByRole("alert")).textContent).toContain("board write failed")
     await waitFor(() => expect((saveButton as HTMLButtonElement).disabled).toBe(false))
+    expect(save.mock.calls[0]?.[0].board.cards).toEqual(expect.arrayContaining([
+      expect.objectContaining({ cardId: "page-navigation", panelId: "info", visible: true }),
+    ]))
 
+    fireEvent.change(getMoveControl(), { target: { value: "pageList" } })
+    expect(screen.queryByRole("alert")).toBeNull()
     fireEvent.click(saveButton)
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
-    expect(screen.queryByRole("alert")).toBeNull()
+    expect(save.mock.calls[1]?.[0].board.cards).toEqual(expect.arrayContaining([
+      expect.objectContaining({ cardId: "page-navigation", panelId: "pageList", visible: true }),
+    ]))
   })
 })
 

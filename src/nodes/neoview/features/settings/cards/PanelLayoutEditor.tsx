@@ -33,7 +33,7 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
 
   return (
     <div className="grid gap-3" data-neoview-panel-layout-editor="true">
-      <Kanban
+          <Kanban key={saving ? "saving" : "idle"}
         value={columns}
         getItemValue={(item) => item.id}
         onValueChange={(next) => {
@@ -54,8 +54,8 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
               </div>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
                 {cards.map((card) => (
-                  <KanbanItem key={card.id} value={card.id} className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-2 text-xs shadow-sm" data-panel-layout-card={card.id}>
-                    <KanbanItemHandle aria-label={`拖动${card.title}`} className="text-muted-foreground"><GripVertical className="size-3.5" /></KanbanItemHandle>
+                  <KanbanItem key={card.id} value={card.id} disabled={saving} className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-2 text-xs shadow-sm" data-panel-layout-card={card.id}>
+                    <KanbanItemHandle disabled={saving} aria-label={`拖动${card.title}`} className="text-muted-foreground"><GripVertical className="size-3.5" /></KanbanItemHandle>
                     <span className="min-w-0 flex-1 truncate">{card.title}</span>
                     <select
                       aria-label={`移动${card.title}到`}
@@ -63,6 +63,7 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
                       value={panelId}
                       disabled={saving}
                       onChange={(event) => {
+                        if (saving) return
                         setError(undefined)
                         setColumns((current) => movePanelLayoutCard(current, card.id, event.target.value))
                       }}
