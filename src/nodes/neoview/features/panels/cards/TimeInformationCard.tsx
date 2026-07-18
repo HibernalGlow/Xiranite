@@ -5,7 +5,8 @@ import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { useReaderMetadata } from "./useReaderMetadata"
 
-export default function TimeInformationCard({ session, client }: ReaderPanelContext) {
+export default function TimeInformationCard({ session, client, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
   if (!session) return <ReaderCardEmptyState>打开书本后显示时间信息</ReaderCardEmptyState>
   return <TimeInformationContent session={session} client={client} />
 }
