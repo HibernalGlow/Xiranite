@@ -238,10 +238,10 @@
       ],
       "targetContract": "Platform code supplies an artifact destination without creating it; the application service passes book/page metadata, generation, priority, materialization budget and AbortSignal to the canonical page workflow and returns typed outcomes.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "partial", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.preload-plan"],
-      "plannedTestIds": ["neoview.super-resolution.artifact-store", "neoview.super-resolution.preload-http"],
-      "notes": "Typed resolver exists; production artifact store and opaque HTTP asset remain."
+      "capabilityStatus": { "core": "complete", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
+      "testIds": ["neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-artifact", "neoview.super-resolution.artifact-page-hit", "neoview.super-resolution.artifact-page-shared"],
+      "plannedTestIds": ["neoview.super-resolution.preload-http"],
+      "notes": "The canonical page policy now plans once before resolving the opaque artifact fingerprint; preload can warm the injected streaming store without exposing a raw destination. The authenticated opaque HTTP asset remains pending."
     },
     {
       "id": "progressive-upscale.cache",
@@ -253,10 +253,10 @@
       ],
       "targetContract": "Replace the legacy unbounded in-memory Blob map and PyO3 cache with one streaming, byte-budgeted artifact store supporting fingerprint invalidation, current-book/age/all cleanup, stats and opaque asset leases without reading high-resolution outputs wholly into JS memory.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending" },
-      "testIds": [],
-      "plannedTestIds": ["neoview.super-resolution.artifact-cache", "neoview.super-resolution.artifact-cache-memory", "neoview.super-resolution.cache-controls"],
-      "notes": "Current CacachePresentationDiskCache is intentionally not reused because it buffers entries and has presentation-specific limits."
+      "capabilityStatus": { "core": "complete", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
+      "testIds": ["neoview.super-resolution.artifact-stream-lease", "neoview.super-resolution.artifact-maintenance", "neoview.super-resolution.artifact-dedup-accounting", "neoview.super-resolution.artifact-streaming-rss", "neoview.super-resolution.artifact-demand-cancel", "neoview.super-resolution.artifact-corrupt"],
+      "plannedTestIds": ["neoview.super-resolution.cache-controls"],
+      "notes": "A dedicated cacache streaming store now provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. It remains intentionally separate from the buffering presentation cache; user-facing controls and HTTP delivery remain pending."
     },
     {
       "id": "progressive-upscale.lifecycle",
@@ -305,12 +305,12 @@
         "src/lib/core/preloadPipeline.ts",
         "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte"
       ],
-      "targetContract": "Record that XR replaces the source hand-written task queue, interval countdown ownership and unbounded Blob Map with ReaderPreloadPlan, p-map, abortable timers, host resource leases and a future streaming artifact store while preserving user-visible options and states.",
+      "targetContract": "Record that XR replaces the source hand-written task queue, interval countdown ownership and unbounded Blob Map with ReaderPreloadPlan, p-map, abortable timers, host resource leases and a streaming artifact store while preserving user-visible options and states.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "partial", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-generation"],
-      "plannedTestIds": ["neoview.super-resolution.preload-deviation-doc"],
-      "notes": "The cache replacement remains incomplete, so this deviation cannot be marked complete."
+      "capabilityStatus": { "core": "complete", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "complete" },
+      "testIds": ["neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-generation", "neoview.super-resolution.preload-artifact", "neoview.super-resolution.artifact-demand-cancel", "neoview.super-resolution.artifact-streaming-rss"],
+      "plannedTestIds": [],
+      "notes": "The backend scheduler and cache replacements are complete and covered by repeatable tests; transport and user-visible parity remain separate pending surfaces."
     }
   ]
 }

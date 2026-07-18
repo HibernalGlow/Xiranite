@@ -4,7 +4,9 @@ import { SuperResolutionService } from "../../../application/super-resolution/Su
 import { SuperResolutionPolicyService } from "../../../application/super-resolution/SuperResolutionPolicyService.js"
 import { SuperResolutionPageService } from "../../../application/super-resolution/SuperResolutionPageService.js"
 import { SuperResolutionPreloadService } from "../../../application/super-resolution/SuperResolutionPreloadService.js"
+import { SuperResolutionArtifactPageService } from "../../../application/super-resolution/SuperResolutionArtifactPageService.js"
 import type { ReaderPageMaterializer } from "../../../ports/ReaderPageMaterializer.js"
+import type { SuperResolutionArtifactStore } from "../../../ports/SuperResolutionArtifactStore.js"
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
 import type { NeoviewRuntimeLoadOptions } from "../../config/loadNeoviewRuntimeConfig.js"
@@ -31,6 +33,7 @@ export interface OpenComicAiSystemCompositionOptions extends NeoviewRuntimeLoadO
   resolveDefaultModelsDirectory?: () => string | Promise<string>
   ownerId?: string
   pageMaterializer?: ReaderPageMaterializer
+  artifactStore?: SuperResolutionArtifactStore
 }
 
 const registeredCustomModels = new WeakMap<object, Map<string, string>>()
@@ -40,6 +43,7 @@ export interface OpenComicAiSystemCapability {
   policy: SuperResolutionPolicyService
   pages: SuperResolutionPageService
   preload: SuperResolutionPreloadService
+  artifactPages?: SuperResolutionArtifactPageService
   dispose(): Promise<void>
   [Symbol.asyncDispose](): Promise<void>
 }
@@ -99,16 +103,18 @@ export async function createOpenComicAiSystemCapability(
       purpose: "super-resolution",
     }),
   )
+  const artifactPages = options.artifactStore ? new SuperResolutionArtifactPageService(pages, options.artifactStore) : undefined
   const dispose = async () => {
     await preload.dispose()
     await service.dispose()
   }
-  const preload = new SuperResolutionPreloadService(pages, config.preferences)
+  const preload = new SuperResolutionPreloadService(pages, config.preferences, artifactPages)
   return {
     service,
     policy,
     pages,
     preload,
+    artifactPages,
     dispose,
     [Symbol.asyncDispose]: dispose,
   }

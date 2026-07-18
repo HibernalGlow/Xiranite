@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
+import type { SuperResolutionArtifactStore } from "../../../ports/SuperResolutionArtifactStore.js"
 import type { OpenComicSystemModelInfo, OpenComicSystemRuntime } from "./OpenComicAiSystemProvider.js"
 import {
   createOpenComicAiSystemCapability,
@@ -113,14 +114,18 @@ describe("OpenComic AI system composition", () => {
 
   it("[neoview.super-resolution.preload-composition] shares the page workflow instead of creating another provider", async () => {
     const runtime = fakeRuntime()
+    const artifactStore = fakeArtifactStore()
     const capability = await createOpenComicAiSystemCapability({
       runtimeConfig: enabledConfig,
       loadRuntime: async () => runtime,
       cliResolver: fakeResolver(),
       modelsDirectory: "D:/models",
+      artifactStore,
     })
     expect(capability?.preload).toBeDefined()
+    expect(capability?.artifactPages).toBeDefined()
     await capability?.dispose()
+    expect(artifactStore.close).not.toHaveBeenCalled()
   })
 
   it("[neoview.super-resolution.policy-composition] composes policy and execution around one runtime config", async () => {
@@ -211,6 +216,40 @@ function fakeRuntime() {
     closeAllProcesses: vi.fn(),
   } satisfies OpenComicSystemRuntime
   return runtime
+}
+
+function fakeArtifactStore(): SuperResolutionArtifactStore {
+  return {
+    acquire: vi.fn(async () => undefined),
+    publish: vi.fn(async () => false),
+    invalidate: vi.fn(async () => undefined),
+    clearBook: vi.fn(async () => cleanupResult("book")),
+    cleanup: vi.fn(async () => cleanupResult("explicit")),
+    clear: vi.fn(async () => cleanupResult("explicit")),
+    snapshot: vi.fn(async () => snapshot()),
+    close: vi.fn(async () => undefined),
+    [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function cleanupResult(reason: "book" | "explicit") {
+  return { ...snapshot(), reason, removedEntries: 0, removedBytes: 0 }
+}
+
+function snapshot() {
+  return {
+    entries: 0,
+    bytes: 0,
+    maxBytes: 1024,
+    maxEntryBytes: 512,
+    activeLeases: 0,
+    hits: 0,
+    misses: 0,
+    writes: 0,
+    rejectedWrites: 0,
+    evictions: 0,
+    integrityFailures: 0,
+  }
 }
 
 function builtInModel(id: string) {
