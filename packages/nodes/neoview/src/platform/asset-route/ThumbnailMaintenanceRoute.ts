@@ -51,10 +51,19 @@ export class ThumbnailMaintenanceRoute {
 
   async #cleanup(request: Request): Promise<Response> {
     const body = await readBody(request)
-    if (!body || (body.kind !== "empty" && body.kind !== "expired" && body.kind !== "invalid")) {
-      return jsonResponse({ error: "kind must be empty, expired or invalid and limit must be 1..1000" }, 400)
+    if (!body || (body.kind !== "empty" && body.kind !== "expired" && body.kind !== "invalid" && body.kind !== "path-prefix")) {
+      return jsonResponse({ error: "kind must be empty, expired, invalid or path-prefix and limit must be 1..1000" }, 400)
     }
     try {
+      if (body.kind === "path-prefix") {
+        const prefix = boundedPathPrefix(body.prefix)
+        const limit = maintenanceLimit(body.limit)
+        if (!prefix || !limit) return jsonResponse({ error: "path-prefix cleanup requires a non-empty prefix and limit 1..1000" }, 400)
+        const result = await this.#service.cleanup({ kind: body.kind, prefix, limit }, request.signal)
+        return result.enabled && result.kind === "path-prefix"
+          ? jsonResponse({ deleted: result.deleted, prefix: result.prefix })
+          : jsonResponse({ error: "Path-prefix thumbnail cleanup is unavailable" }, 501)
+      }
       if (body.kind === "invalid") {
         const deleteLimit = boundedInteger(body.limit, 1, 500) ?? (body.limit === undefined ? 500 : undefined)
         const scanLimit = boundedInteger(body.scanLimit, 1, 2000) ?? (body.scanLimit === undefined ? 500 : undefined)
@@ -126,6 +135,12 @@ function maintenanceLimit(value: unknown): number | undefined {
 
 function boundedInteger(value: unknown, minimum: number, maximum: number): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum && value <= maximum ? value : undefined
+}
+
+function boundedPathPrefix(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const prefix = value.trim()
+  return prefix && prefix.length <= 4_096 && !prefix.includes("\0") ? prefix : undefined
 }
 
 function jsonResponse(data: unknown, status = 200): Response {

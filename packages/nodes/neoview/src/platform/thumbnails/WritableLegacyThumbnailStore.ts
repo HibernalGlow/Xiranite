@@ -271,6 +271,22 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.#assertOpen()
     signal?.throwIfAborted()
     validateMaintenanceLimit(request.limit)
+    if (request.kind === "path-prefix") {
+      const prefix = normalizePathPrefix(request.prefix)
+      await this.flush()
+      signal?.throwIfAborted()
+      return this.#runTransaction(() => {
+        const rootPrefix = prefix === "/" || prefix === "\\"
+        const where = rootPrefix
+          ? "substr(key, 1, length(?1)) = ?1"
+          : "key = ?1 OR (substr(key, 1, length(?1)) = ?1 AND (substr(key, length(?1) + 1, 1) IN ('/', '\\') OR substr(key, length(?1) + 1, 2) = '::'))"
+        return this.#database.run(
+          `DELETE FROM thumbs WHERE key IN (SELECT key FROM thumbs WHERE ${where} ORDER BY key LIMIT ?2)`,
+          prefix,
+          request.limit,
+        ).changes
+      }, "neoview.thumbnail.database-maintenance-write", signal)
+    }
     if (request.kind === "expired" && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(request.cutoff)) {
       throw new Error("Thumbnail cleanup cutoff must be a SQLite UTC timestamp.")
     }
@@ -605,6 +621,17 @@ function optionalInteger(value: unknown): number | undefined {
 
 function assertInteger(value: number, name: string, minimum: number, maximum: number): void {
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) throw new RangeError(`${name} must be an integer from ${minimum} to ${maximum}.`)
+}
+
+function normalizePathPrefix(value: string): string {
+  if (typeof value !== "string") throw new TypeError("Thumbnail path prefix must be a string.")
+  const prefix = value.trim()
+  if (!prefix || prefix.length > 4_096 || prefix.includes("\0")) {
+    throw new RangeError("Thumbnail path prefix must be 1..4096 characters without NUL.")
+  }
+  if (prefix === "/" || prefix === "\\") return prefix
+  const normalized = prefix.replace(/(?:[/\\]|::)+$/u, "")
+  return normalized || prefix
 }
 
 function validateMaintenanceLimit(value: number): void {
