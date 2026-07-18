@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ContextMenuProvider } from "@/components/context-menu"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import FolderContextActions, { buildFolderContextMenuItems, folderContextEntry } from "./FolderContextActions"
 import { FolderClipboardProvider } from "./FolderClipboard"
 
@@ -321,6 +322,7 @@ describe("FolderContextActions", () => {
       succeeded: 1, failed: 0, cancelled: 0, undoable: 0,
     }))
     const onTrashed = vi.fn(async () => undefined)
+    const switchToast = { show: vi.fn() }
     const user = userEvent.setup()
     render(
       <ContextMenuProvider>
@@ -330,6 +332,7 @@ describe("FolderContextActions", () => {
           onActivate={vi.fn()}
           onOpenInNewTab={vi.fn()}
           onTrashed={onTrashed}
+          switchToast={switchToast as unknown as ReaderSwitchToastPort}
         />
         <button
           data-context-menu="neoview-folder-entry"
@@ -356,6 +359,7 @@ describe("FolderContextActions", () => {
     ))
     expect(onTrashed).toHaveBeenCalledWith(expect.objectContaining({ path: "D:/library/old.cbz" }))
     expect((await screen.findByRole("status")).textContent).toContain("已永久删除 old.cbz")
+    expect(switchToast.show).toHaveBeenCalledWith({ title: "已永久删除 old.cbz" })
   })
 
   it("[neoview.folder.trash-refresh-failure] reports that trash succeeded when only refresh fails", async () => {

@@ -5,6 +5,7 @@ import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "
 import { publishReaderLibraryMutation } from "../../../library/reader-library-mutations"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderDirectorySelectionDescriptorDto } from "../../../../adapters/reader-http-client"
+import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import { useFolderClipboard } from "./FolderClipboard"
 import type { FolderCatalogUpdater } from "./FolderEmmEditor"
 
@@ -31,6 +32,7 @@ export default function FolderContextActions({
   onActivate,
   onOpenInNewTab,
   onOpenAsBook,
+  switchToast,
   onRenamed,
   onTrashed,
   onCatalogUpdate = () => undefined,
@@ -47,6 +49,7 @@ export default function FolderContextActions({
   onActivate(entry: FolderContextEntry): void | Promise<void>
   onOpenInNewTab(path: string): void
   onOpenAsBook?: (path: string) => void | Promise<void>
+  switchToast?: ReaderSwitchToastPort
   onRenamed?(destinationPath: string): void | Promise<void>
   onTrashed?(entry: FolderContextEntry): void | Promise<void>
   onCatalogUpdate?(update: FolderCatalogUpdater): void
@@ -90,16 +93,20 @@ export default function FolderContextActions({
         completed = true
         await onTrashed?.(entry)
         operation.signal.throwIfAborted()
-        setFeedback({ kind: "status", text: action === "trash" ? `已将 ${entry.name} 移到回收站` : `已永久删除 ${entry.name}` })
+        const message = action === "trash" ? `已将 ${entry.name} 移到回收站` : `已永久删除 ${entry.name}`
+        setFeedback({ kind: "status", text: message })
+        switchToast?.show({ title: message })
       } catch (error) {
         if (!operation.signal.aborted) {
+          const message = movedToTrash
+            ? `已将 ${entry.name} 移到回收站，但列表刷新失败，请手动刷新。${errorMessage(error)}`
+            : completed ? `已永久删除 ${entry.name}，但列表刷新失败，请手动刷新。${errorMessage(error)}`
+              : action === "delete" ? `永久删除 ${entry.name} 失败：${errorMessage(error)}` : errorMessage(error)
           setFeedback({
             kind: "alert",
-            text: movedToTrash
-              ? `已将 ${entry.name} 移到回收站，但列表刷新失败，请手动刷新。${errorMessage(error)}`
-              : completed ? `已永久删除 ${entry.name}，但列表刷新失败，请手动刷新。${errorMessage(error)}`
-                : action === "delete" ? `永久删除 ${entry.name} 失败：${errorMessage(error)}` : errorMessage(error),
+            text: message,
           })
+          switchToast?.show({ title: message })
         }
       } finally {
         if (operationRef.current === operation) {
@@ -168,16 +175,24 @@ export default function FolderContextActions({
         }
         publishReaderLibraryMutation()
         operation.signal.throwIfAborted()
-        setFeedback({ kind: "status", text: existing ? `已从书签移除 ${entry.name}` : `已将 ${entry.name} 添加到书签` })
+        const message = existing ? `已从书签移除 ${entry.name}` : `已将 ${entry.name} 添加到书签`
+        setFeedback({ kind: "status", text: message })
+        switchToast?.show({ title: message })
         return
       } else {
         if (!copyText) throw new Error("当前宿主不支持复制文本。")
         await copyText(action === "copy-path" ? entry.path : entry.name)
       }
       operation.signal.throwIfAborted()
-      setFeedback({ kind: "status", text: feedbackText(action, entry) })
+      const message = feedbackText(action, entry)
+      setFeedback({ kind: "status", text: message })
+      switchToast?.show({ title: message })
     } catch (error) {
-      if (!operation.signal.aborted) setFeedback({ kind: "alert", text: errorMessage(error) })
+      if (!operation.signal.aborted) {
+        const message = errorMessage(error)
+        setFeedback({ kind: "alert", text: message })
+        switchToast?.show({ title: message })
+      }
     } finally {
       if (operationRef.current === operation) {
         operationRef.current = undefined
@@ -232,7 +247,9 @@ export default function FolderContextActions({
             onClose={() => setRenameEntry(undefined)}
             onRenamed={async (destinationPath) => {
               await onRenamed?.(destinationPath)
-              setFeedback({ kind: "status", text: `已重命名为 ${destinationPath.slice(Math.max(destinationPath.lastIndexOf("/"), destinationPath.lastIndexOf("\\")) + 1)}` })
+              const message = `已重命名为 ${destinationPath.slice(Math.max(destinationPath.lastIndexOf("/"), destinationPath.lastIndexOf("\\")) + 1)}`
+              setFeedback({ kind: "status", text: message })
+              switchToast?.show({ title: message })
             }}
           />
         </Suspense>

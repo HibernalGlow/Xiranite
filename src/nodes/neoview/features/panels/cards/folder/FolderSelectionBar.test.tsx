@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ContextMenuBuilderContext, type ContextMenuAPI } from "@/components/context-menu/context"
 import type { ReaderDirectorySelectionOperationSnapshotDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import FolderSelectionBar from "./FolderSelectionBar"
 import { FolderClipboardProvider } from "./FolderClipboard"
 
@@ -66,6 +67,7 @@ describe("FolderSelectionBar", () => {
     const startDirectorySelectionOperation = vi.fn(async () => running)
     const directorySelectionOperation = vi.fn(async () => completed)
     const onDeleteCompleted = vi.fn(async () => undefined)
+    const switchToast = { show: vi.fn() }
     const contextMenu: ContextMenuAPI = {
       register: () => () => undefined,
       show: () => undefined,
@@ -89,6 +91,7 @@ describe("FolderSelectionBar", () => {
           disabled={false}
           chainSelectMode={false}
           clickBehavior="select"
+          switchToast={switchToast as unknown as ReaderSwitchToastPort}
           onSelectAll={vi.fn()}
           onInvert={vi.fn()}
           onToggleChain={vi.fn()}
@@ -110,6 +113,7 @@ describe("FolderSelectionBar", () => {
     await waitFor(() => expect(directorySelectionOperation).toHaveBeenCalledWith(running.id, expect.any(AbortSignal)))
     await waitFor(() => expect(onDeleteCompleted).toHaveBeenCalledWith(completed))
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("已永久删除 100000 项"))
+    expect(switchToast.show).toHaveBeenCalledWith({ title: "已永久删除 100000 项。" })
   })
 
   it("[neoview.folder.clipboard-ui] prepares a sparse copy and pastes it without materializing paths", async () => {
