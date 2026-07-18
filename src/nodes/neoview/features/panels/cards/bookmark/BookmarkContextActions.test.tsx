@@ -33,6 +33,7 @@ describe("BookmarkContextActions", () => {
       "在资源管理器中显示",
       "复制路径",
       "复制名称",
+      "重新加载缩略图",
       "收藏",
       "删除书签",
       "example.cbz",

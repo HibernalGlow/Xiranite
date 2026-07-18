@@ -78,6 +78,30 @@ describe("LibraryThumbnailRoute", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.library-register-refresh] refreshes only the explicitly marked visible source", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-register-refresh-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const pipeline = new PlatformThumbnailPipeline()
+    const refreshLibrary = vi.spyOn(pipeline, "refreshLibrary").mockResolvedValue({
+      bytes: fixtureWebp(9),
+      contentType: "image/webp",
+      version: "refreshed",
+    })
+    const prewarmLibrary = vi.spyOn(pipeline, "prewarmLibrary")
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+
+    const response = await route.handle(registerRequest(sourcePath, 1, true, "file", 1, true))
+
+    expect(response?.status).toBe(201)
+    expect(refreshLibrary).toHaveBeenCalledOnce()
+    expect(refreshLibrary.mock.calls[0]?.[0]).toMatchObject({ path: sourcePath, kind: "file" })
+    expect(prewarmLibrary).toHaveBeenCalledWith([], { signal: expect.any(AbortSignal) })
+    route.close()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library.prewarm-fallback] keeps registration available when batch cache lookup fails", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-prewarm-fallback-"))
     roots.push(root)
@@ -264,6 +288,7 @@ function registerRequest(
   authorized: boolean,
   kind: "file" | "folder" = "file",
   previewCount: 1 | 4 | 9 | 16 = 1,
+  refresh = false,
 ): Request {
   return new Request("http://127.0.0.1:41000/reader/library/thumbnails", {
     method: "POST",
@@ -274,7 +299,7 @@ function registerRequest(
     body: JSON.stringify({
       contextId: "library:test",
       generation,
-      items: [{ id: "cover", path, kind, previewCount }],
+      items: [{ id: "cover", path, kind, previewCount, ...(refresh ? { refresh: true } : {}) }],
     }),
   })
 }

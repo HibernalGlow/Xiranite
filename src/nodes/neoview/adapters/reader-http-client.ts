@@ -406,6 +406,7 @@ export interface ReaderLibraryThumbnailRegistrationDto {
   path: string
   kind: "file" | "folder"
   previewCount?: 1 | 4 | 9 | 16
+  refresh?: boolean
 }
 
 export type ReaderDirectoryNavigationDto =
