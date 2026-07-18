@@ -146,6 +146,136 @@ describe("SuperResolutionPreloadService", () => {
       await service.dispose()
     }
   })
+
+  it("[neoview.super-resolution.preload-progress-snapshot] exposes bounded live progress without resetting shared generations", async () => {
+    const gate = deferred()
+    const run = vi.fn(async () => {
+      await gate.promise
+      return { decision: { kind: "skip" as const, reason: "test" } }
+    })
+    const service = new SuperResolutionPreloadService({ run }, preferences({
+      preloadPages: 2,
+      backgroundConcurrency: 1,
+    }))
+    const input = {
+      contextId: "reader-live",
+      plan: plan(7, [[1, 2]]),
+      pages: pages(3),
+      bookPath: "D:/book.cbz",
+      destinationFor: (page: ReaderPage) => `D:/cache/${page.index}.png`,
+    }
+    try {
+      const first = service.schedulePlan(input)
+      await vi.waitFor(() => expect(run).toHaveBeenCalledOnce())
+      expect(service.snapshots("reader-live")).toEqual([expect.objectContaining({
+        generation: 7,
+        mode: "nearby",
+        state: "running",
+        planned: 2,
+        settled: 0,
+        pending: 2,
+        progress: 0,
+      })])
+      const shared = service.schedulePlan(input)
+      expect(service.snapshots("reader-live")[0]).toMatchObject({ state: "running", planned: 2, pending: 2 })
+      gate.resolve()
+      await expect(first).resolves.toMatchObject({ settled: 2 })
+      await expect(shared).resolves.toMatchObject({ settled: 2 })
+      expect(run).toHaveBeenCalledTimes(2)
+      expect(service.snapshots("reader-live")[0]).toMatchObject({
+        state: "completed",
+        settled: 2,
+        failed: 0,
+        pending: 0,
+        progress: 1,
+      })
+    } finally {
+      await service.dispose()
+    }
+  })
+
+  it("[neoview.super-resolution.preload-pause] cancels an active dwell and preserves a paused snapshot", async () => {
+    const service = new SuperResolutionPreloadService({ run: vi.fn() }, preferences({
+      progressiveEnabled: true,
+      progressiveDwellTimeMs: 60_000,
+    }))
+    try {
+      const operation = service.scheduleProgressive({
+        contextId: "reader-pause",
+        generation: 3,
+        currentPageIndex: 0,
+        pages: pages(3),
+        bookPath: "D:/book.cbz",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+      })
+      expect(service.snapshots("reader-pause")[0]).toMatchObject({ state: "countdown", mode: "progressive" })
+      await expect(service.pause("reader-pause")).resolves.toEqual([
+        expect.objectContaining({ state: "paused", completedAt: expect.any(Number) }),
+      ])
+      await expect(operation).rejects.toMatchObject({ name: "AbortError" })
+      expect(service.snapshots("reader-pause")[0]).toMatchObject({ state: "paused" })
+    } finally {
+      await service.dispose()
+    }
+  })
+
+  it("[neoview.super-resolution.preload-running-pause] keeps paused as the terminal state of cancelled page work", async () => {
+    const run = vi.fn(async (_input, context) => {
+      await new Promise<never>((_resolve, reject) => {
+        const abort = () => reject(context?.signal?.reason)
+        context?.signal?.addEventListener("abort", abort, { once: true })
+      })
+    })
+    const service = new SuperResolutionPreloadService({ run }, preferences({ preloadPages: 1 }))
+    try {
+      const operation = service.schedulePlan({
+        contextId: "reader-running-pause",
+        plan: plan(5, [[1]]),
+        pages: pages(2),
+        bookPath: "D:/book.cbz",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+      })
+      await vi.waitFor(() => expect(run).toHaveBeenCalledOnce())
+      await service.pause("reader-running-pause")
+      await expect(operation).resolves.toMatchObject({ cancelled: 1 })
+      expect(service.snapshots("reader-running-pause")[0]).toMatchObject({
+        state: "paused",
+        cancelled: 1,
+        pending: 0,
+        progress: 1,
+      })
+    } finally {
+      await service.dispose()
+    }
+  })
+
+  it("[neoview.super-resolution.preload-retry] resubmits the canonical failed request and clears released state", async () => {
+    let fail = true
+    const run = vi.fn(async () => {
+      if (fail) throw new Error("GPU unavailable")
+      return { decision: { kind: "skip" as const, reason: "test" } }
+    })
+    const service = new SuperResolutionPreloadService({ run }, preferences({ preloadPages: 1 }))
+    const input = {
+      contextId: "reader-retry",
+      plan: plan(2, [[1]]),
+      pages: pages(2),
+      bookPath: "D:/book.cbz",
+      destinationFor: (page: ReaderPage) => `D:/cache/${page.index}.png`,
+    }
+    try {
+      await expect(service.schedulePlan(input)).resolves.toMatchObject({ failed: 1 })
+      expect(service.snapshots("reader-retry")[0]).toMatchObject({ state: "completed", failed: 1 })
+      fail = false
+      await expect(service.retry("reader-retry", "nearby")).resolves.toMatchObject({ settled: 1, failed: 0 })
+      expect(service.snapshots("reader-retry")[0]).toMatchObject({ state: "completed", settled: 1, failed: 0 })
+      service.releaseContext("reader-retry")
+      expect(service.snapshots("reader-retry")).toEqual([])
+      expect(() => service.retry("reader-retry", "nearby")).toThrow("No super-resolution nearby request")
+    } finally {
+      await service.dispose()
+    }
+  })
 })
 
 function preferences(overrides: Partial<SuperResolutionPreferences> = {}): SuperResolutionPreferences {
@@ -193,4 +323,10 @@ function plan(generation: number, groups: readonly (readonly number[])[]): Reade
       pageIds: pageIndexes.map((pageIndex) => `page-${pageIndex}`),
     })),
   }
+}
+
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((current) => { resolve = current })
+  return { promise, resolve }
 }

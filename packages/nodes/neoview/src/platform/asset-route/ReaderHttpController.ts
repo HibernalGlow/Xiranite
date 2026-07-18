@@ -47,6 +47,7 @@ import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
 import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionArtifactStore.js"
+import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
@@ -217,6 +218,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   disposePresentationDiskCache?: boolean
   superResolutionArtifactPages?: SuperResolutionArtifactPagePort
   superResolutionArtifactStore?: SuperResolutionArtifactStore
+  superResolutionPreload?: SuperResolutionPreloadControlPort
   disposeSuperResolutionArtifacts?: () => void | Promise<void>
   shellOptions?: NeoviewShellConfig
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
@@ -439,6 +441,7 @@ export class ReaderHttpController implements AsyncDisposable {
           options.superResolutionArtifactPages,
           options.superResolutionArtifactStore,
           options,
+          options.superResolutionPreload,
         )
       : undefined
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
@@ -1464,7 +1467,7 @@ export class ReaderHttpController implements AsyncDisposable {
 
   async #releaseSession(session: ReaderSession): Promise<void> {
     const errors: unknown[] = []
-    this.#superResolutionArtifacts?.releaseSession(session.id)
+    const superResolutionRelease = this.#superResolutionArtifacts?.releaseSession(session.id) ?? Promise.resolve()
     try {
       await this.#service.closeSession(session.id)
     } catch (error) {
@@ -1476,6 +1479,7 @@ export class ReaderHttpController implements AsyncDisposable {
       this.#clipboardMaterializations.releaseSession(session.id),
       this.#pageMediaInformation.releaseSession(session.id),
       this.#assets.releaseSession(session.id),
+      superResolutionRelease,
     ])
     for (const result of results) if (result.status === "rejected") errors.push(result.reason)
     this.#openPageMaterializationTokens.delete(session.id)

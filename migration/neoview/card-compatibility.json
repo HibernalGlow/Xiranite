@@ -855,7 +855,7 @@
       "featureId": "super-resolution",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
+        "core": "complete",
         "transport": "partial",
         "gui": "pending",
         "cli": "pending",
