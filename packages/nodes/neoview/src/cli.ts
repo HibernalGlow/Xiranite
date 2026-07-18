@@ -46,10 +46,17 @@ import { projectReaderTimeInformation } from "./domain/page/TimeInformationProje
 import type { ReaderInputBinding } from "./domain/input/ReaderInputBindings.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
+import type {
+  RemoteSuperResolutionArtifactResult,
+  RemoteSuperResolutionPreloadMode,
+  RemoteSuperResolutionPreloadSnapshot,
+} from "./platform/remote/RemoteReaderHeadlessController.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities", "input-action-dispatch", "settings-inspect", "settings-import",
+  "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities",
+  "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
+  "input-action-dispatch", "settings-inspect", "settings-import",
   "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
   "book-settings-get", "book-settings-set",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
@@ -165,6 +172,14 @@ export interface CliReaderController extends AsyncDisposable {
   inspectSuperResolution?(
     options?: { refresh?: boolean; signal?: AbortSignal },
   ): Promise<HeadlessSuperResolutionCapabilitySnapshot>
+  generateUpscaleArtifact?(
+    pageIndex: number,
+    options?: { trigger?: "manual" | "automatic-current"; signal?: AbortSignal },
+  ): Promise<RemoteSuperResolutionArtifactResult>
+  getUpscalePreload?(signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]>
+  startUpscalePreload?(mode: RemoteSuperResolutionPreloadMode, signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]>
+  pauseUpscalePreload?(signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]>
+  retryUpscalePreload?(mode: RemoteSuperResolutionPreloadMode, signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]>
 }
 
 export interface CliInteractiveReaderController extends CliReaderController {
@@ -370,6 +385,26 @@ export async function runProgram(
       const updated = await controller.updateBookSettings(bookSettingsUpdate!.expectedRevision, bookSettingsUpdate!.patch)
       return printBookSettingsUpdate(updated, parsed.booleans.has("--json"), host)
     }
+    if (command.startsWith("upscale-preload-")) {
+      const mode = command === "upscale-preload-start" || command === "upscale-preload-retry"
+        ? upscalePreloadMode(oneValue(parsed, "--mode"))
+        : undefined
+      let snapshots: readonly RemoteSuperResolutionPreloadSnapshot[]
+      if (command === "upscale-preload-status") {
+        if (!controller.getUpscalePreload) throw missingUpscalePreloadCapability()
+        snapshots = await controller.getUpscalePreload()
+      } else if (command === "upscale-preload-start") {
+        if (!controller.startUpscalePreload) throw missingUpscalePreloadCapability()
+        snapshots = await controller.startUpscalePreload(mode!)
+      } else if (command === "upscale-preload-pause") {
+        if (!controller.pauseUpscalePreload) throw missingUpscalePreloadCapability()
+        snapshots = await controller.pauseUpscalePreload()
+      } else {
+        if (!controller.retryUpscalePreload) throw missingUpscalePreloadCapability()
+        snapshots = await controller.retryUpscalePreload(mode!)
+      }
+      return printUpscalePreloadSnapshots(snapshots, parsed.booleans.has("--json"), host)
+    }
     if (command === "upscale-page") {
       if (!controller.upscalePage) throw new Error("Reader super-resolution is unavailable for this transport.")
       const output = oneValue(parsed, "--output")
@@ -414,6 +449,12 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set([
       "--json", "--config", "--entry", "--password-env", "--archive-password-env", "--index", "--output", "--force",
     ]))
+    return
+  }
+  if (command.startsWith("upscale-preload-")) {
+    const allowed = new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"])
+    if (command === "upscale-preload-start" || command === "upscale-preload-retry") allowed.add("--mode")
+    rejectOptions(parsed, allowed)
     return
   }
   if (command === "book-settings-get") {
@@ -1592,6 +1633,30 @@ function printSuperResolutionResult(result: HeadlessSuperResolutionPageResult, j
   writeLine(host, `Elapsed: ${result.result.elapsedMs.toFixed(2)} ms`)
 }
 
+function printUpscalePreloadSnapshots(
+  snapshots: readonly RemoteSuperResolutionPreloadSnapshot[],
+  json: boolean,
+  host: CliHost,
+): void {
+  if (json) return writeJson(host, { snapshots })
+  if (!snapshots.length) {
+    writeLine(host, "No super-resolution preload activity.")
+    return
+  }
+  for (const snapshot of snapshots) {
+    writeLine(host, `${snapshot.mode}: ${snapshot.state} ${snapshot.settled}/${snapshot.planned} (${Math.round(snapshot.progress * 100)}%) failed=${snapshot.failed} cancelled=${snapshot.cancelled}`)
+  }
+}
+
+function upscalePreloadMode(value: string | undefined): RemoteSuperResolutionPreloadMode {
+  if (value === "nearby" || value === "progressive") return value
+  throw usage("--mode must be nearby or progressive.")
+}
+
+function missingUpscalePreloadCapability(): Error {
+  return new Error("Reader super-resolution preload control is unavailable for this transport.")
+}
+
 async function runSuperResolutionCapabilities(
   parsed: ParsedArguments,
   host: CliHost,
@@ -2249,6 +2314,10 @@ function formatCliHelp(): string {
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  upscale-page <path>  Upscale one page using the configured policy",
     "  upscale-capabilities Inspect registered models and system CLI capabilities",
+    "  upscale-preload-status <path> Show live nearby/progressive preload state",
+    "  upscale-preload-start <path>  Start one preload mode (--mode)",
+    "  upscale-preload-pause <path>  Pause active preload work",
+    "  upscale-preload-retry <path>  Retry one preload mode (--mode)",
     "  input-action-dispatch <path> Dispatch one supported action (--action)",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
@@ -2336,7 +2405,7 @@ function formatCliHelp(): string {
     "  --output PATH|-      Output path for extract-page or upscale-page",
     "  --config PATH        Xiranite TOML path for settings/cache commands",
     "  --query QUERY        Folder search text or glob",
-    "  --mode MODE          Folder search mode: text or glob",
+    "  --mode MODE          Folder search mode, or nearby|progressive for preload",
     "  --filter TYPE        Source type: all, archive, directory or video",
     "  --tag TAG            Repeatable required EMM tag; search text may be omitted",
     "  --exclude-tag TAG    Repeatable excluded EMM tag",

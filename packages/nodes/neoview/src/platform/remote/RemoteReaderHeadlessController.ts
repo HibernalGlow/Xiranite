@@ -23,6 +23,75 @@ import type { ReaderAdjacentBookDirection } from "../../application/reader/Reade
 import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import { z } from "zod"
 
+export type RemoteSuperResolutionPreloadMode = "nearby" | "progressive"
+
+const skippedPolicyDecisionSchema = z.object({
+    kind: z.enum(["disabled", "skip"]),
+    reason: z.string(),
+    conditionId: z.string().optional(),
+    conditionName: z.string().optional(),
+  }).strict()
+
+const runPolicyDecisionSchema = z.object({
+    kind: z.literal("run"),
+    reason: z.string(),
+    conditionId: z.string().optional(),
+    conditionName: z.string().optional(),
+    modelId: z.string(),
+    scale: z.number().positive(),
+    noise: z.number().optional(),
+    tileSize: z.number().int().positive().optional(),
+    tta: z.boolean().optional(),
+    gpuId: z.string().optional(),
+    useCache: z.boolean(),
+  }).strict()
+
+const artifactExecutionSchema = z.object({
+  modelId: z.string(),
+  engine: z.enum(["upscayl", "waifu2x", "realcugan"]),
+  scale: z.number().positive(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  elapsedMs: z.number().nonnegative(),
+}).strict()
+
+const artifactDescriptorFields = {
+  artifactUrl: z.string().url(),
+  contentType: z.string().min(1),
+  bytes: z.number().int().nonnegative(),
+  version: z.string().min(1),
+}
+
+const remoteSuperResolutionArtifactResultSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.enum(["hit", "shared"]), ...artifactDescriptorFields }).strict(),
+  z.object({ status: z.literal("generated"), ...artifactDescriptorFields, execution: artifactExecutionSchema }).strict(),
+  z.object({ status: z.literal("skipped"), decision: skippedPolicyDecisionSchema }).strict(),
+  z.object({ status: z.literal("bypassed"), decision: runPolicyDecisionSchema }).strict(),
+  z.object({ status: z.literal("rejected"), execution: artifactExecutionSchema.optional() }).strict(),
+])
+
+export type RemoteSuperResolutionArtifactResult = z.infer<typeof remoteSuperResolutionArtifactResultSchema>
+
+const preloadSnapshotSchema = z.object({
+  contextId: z.string().min(1),
+  generation: z.number().int().nonnegative(),
+  mode: z.enum(["nearby", "progressive"]),
+  state: z.enum(["queued", "countdown", "running", "completed", "disabled", "empty", "paused", "cancelled", "failed"]),
+  planned: z.number().int().nonnegative(),
+  settled: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  progress: z.number().min(0).max(1),
+  startedAt: z.number().nonnegative(),
+  updatedAt: z.number().nonnegative(),
+  completedAt: z.number().nonnegative().optional(),
+}).strict()
+
+const preloadEnvelopeSchema = z.object({ snapshots: z.array(preloadSnapshotSchema).max(256) }).strict()
+
+export type RemoteSuperResolutionPreloadSnapshot = z.infer<typeof preloadSnapshotSchema>
+
 interface ReaderFrameDto {
   frame: ReaderSessionDto["frame"]
   visiblePages: ReaderPageDto[]
@@ -248,6 +317,49 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     return { metadata, reader: snapshotOf(session, this.#translatedTitle) }
   }
 
+  async generateUpscaleArtifact(
+    pageIndex: number,
+    options: { trigger?: "manual" | "automatic-current"; signal?: AbortSignal } = {},
+  ): Promise<RemoteSuperResolutionArtifactResult> {
+    const session = this.#requireSession()
+    const page = await this.#pageAt(pageIndex, options.signal)
+    const query = new URLSearchParams({ trigger: options.trigger ?? "manual" })
+    const result = remoteSuperResolutionArtifactResultSchema.parse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/pages/${encodeURIComponent(page.id)}/upscale-artifact?${query}`,
+      { method: "POST", signal: options.signal },
+    ))
+    if ("artifactUrl" in result) {
+      this.#assertBackendUrl(
+        result.artifactUrl,
+        "super-resolution artifact",
+        `/reader/s/${encodeURIComponent(session.sessionId)}/upscale-artifact/`,
+      )
+    }
+    return result
+  }
+
+  async getUpscalePreload(signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]> {
+    return await this.#upscalePreloadRequest("upscale-preload", undefined, signal)
+  }
+
+  async startUpscalePreload(
+    mode: RemoteSuperResolutionPreloadMode,
+    signal?: AbortSignal,
+  ): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]> {
+    return await this.#upscalePreloadRequest("upscale-preload/start", mode, signal, "POST")
+  }
+
+  async pauseUpscalePreload(signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]> {
+    return await this.#upscalePreloadRequest("upscale-preload/pause", undefined, signal, "POST")
+  }
+
+  async retryUpscalePreload(
+    mode: RemoteSuperResolutionPreloadMode,
+    signal?: AbortSignal,
+  ): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]> {
+    return await this.#upscalePreloadRequest("upscale-preload/retry", mode, signal, "POST")
+  }
+
   async closeBook(): Promise<void> {
     const session = this.#session
     this.#session = undefined
@@ -281,6 +393,32 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     session.preload = result.preload
     this.#replaceVisiblePages(result.visiblePages)
     return snapshotOf(session, this.#translatedTitle)
+  }
+
+  async #pageAt(pageIndex: number, signal?: AbortSignal): Promise<ReaderPageDto> {
+    if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
+    let page = this.#pageAssets.get(pageIndex)
+    if (!page) {
+      await this.listPages(pageIndex, 1, signal)
+      page = this.#pageAssets.get(pageIndex)
+    }
+    if (!page) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
+    return page
+  }
+
+  async #upscalePreloadRequest(
+    path: string,
+    mode: RemoteSuperResolutionPreloadMode | undefined,
+    signal: AbortSignal | undefined,
+    method = "GET",
+  ): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]> {
+    const session = this.#requireSession()
+    const query = mode ? `?${new URLSearchParams({ mode })}` : ""
+    const parsed = preloadEnvelopeSchema.parse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/${path}${query}`,
+      { method, signal },
+    ))
+    return parsed.snapshots
   }
 
   async #loadTranslatedTitle(session: ReaderSessionDto, signal?: AbortSignal): Promise<string | undefined> {
@@ -332,6 +470,13 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     try { asset = new URL(page.assetUrl) } catch { throw new Error("Xiranite Reader returned an invalid page asset URL.") }
     if (asset.origin !== this.#baseUrl.origin || !asset.pathname.startsWith("/reader/s/")) {
       throw new Error("Xiranite Reader returned a page asset URL outside the connected backend.")
+    }
+  }
+
+  #assertBackendUrl(value: string, label: string, pathPrefix: string): void {
+    const url = new URL(value)
+    if (url.origin !== this.#baseUrl.origin || !url.pathname.startsWith(pathPrefix)) {
+      throw new Error(`Xiranite Reader returned a ${label} URL outside the connected backend.`)
     }
   }
 

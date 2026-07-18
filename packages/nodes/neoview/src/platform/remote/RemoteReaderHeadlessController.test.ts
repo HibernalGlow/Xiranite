@@ -165,6 +165,70 @@ describe("RemoteReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.progressive-upscale.cli-connect] controls artifact and preload routes through the authenticated session", async () => {
+    const requests: Request[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      const url = new URL(request.url)
+      if (request.method === "DELETE") return new Response(null, { status: 204 })
+      if (url.pathname.endsWith("/upscale-artifact")) {
+        return Response.json({
+          status: "generated",
+          artifactUrl: "http://127.0.0.1:41000/reader/s/reader-1/upscale-artifact/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA?version=sha256-test&token=token",
+          contentType: "image/png",
+          bytes: 123,
+          version: "sha256-test",
+          execution: { modelId: "anime", engine: "upscayl", scale: 2, width: 200, height: 300, elapsedMs: 12.5 },
+        }, { status: 201 })
+      }
+      if (url.pathname.includes("/upscale-preload")) return Response.json({ snapshots: [preloadSnapshot(url.searchParams.get("mode") ?? "nearby")] }, { status: request.method === "POST" ? 202 : 200 })
+      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1"), { status: 201 })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/book.cbz" })
+      await expect(remote.generateUpscaleArtifact(0)).resolves.toMatchObject({ status: "generated", bytes: 123 })
+      await expect(remote.getUpscalePreload()).resolves.toMatchObject([{ mode: "nearby" }])
+      await expect(remote.startUpscalePreload("progressive")).resolves.toMatchObject([{ mode: "progressive" }])
+      await expect(remote.pauseUpscalePreload()).resolves.toMatchObject([{ mode: "nearby" }])
+      await expect(remote.retryUpscalePreload("nearby")).resolves.toMatchObject([{ mode: "nearby" }])
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+    const controls = requests.filter((request) => request.url.includes("upscale-"))
+    expect(controls.map((request) => [request.method, new URL(request.url).pathname, new URL(request.url).searchParams.get("mode")])).toEqual([
+      ["POST", "/reader/s/reader-1/pages/page-1/upscale-artifact", null],
+      ["GET", "/reader/s/reader-1/upscale-preload", null],
+      ["POST", "/reader/s/reader-1/upscale-preload/start", "progressive"],
+      ["POST", "/reader/s/reader-1/upscale-preload/pause", null],
+      ["POST", "/reader/s/reader-1/upscale-preload/retry", "nearby"],
+    ])
+    expect(controls.every((request) => request.headers.get("x-xiranite-token") === "token")).toBe(true)
+  })
+
+  it("[neoview.progressive-upscale.wire-schema] rejects malformed responses and preserves caller cancellation", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      init?.signal?.throwIfAborted()
+      const request = new Request(input, init)
+      if (request.method === "DELETE") return new Response(null, { status: 204 })
+      if (request.url.includes("upscale-preload")) return Response.json({ snapshots: [{ ...preloadSnapshot("nearby"), progress: 2 }] })
+      if (request.url.includes("upscale-artifact")) return Response.json({ status: "hit", artifactUrl: "https://example.com/not-local", contentType: "image/png", bytes: 1, version: "v1" })
+      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1"), { status: 201 })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/book.cbz" })
+      await expect(remote.getUpscalePreload()).rejects.toThrow()
+      await expect(remote.generateUpscaleArtifact(0)).rejects.toThrow("outside the connected backend")
+      const controller = new AbortController()
+      controller.abort(new Error("stop preload"))
+      await expect(remote.startUpscalePreload("nearby", controller.signal)).rejects.toThrow("stop preload")
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.cli.connect-security] requires a token, loopback URL and valid authenticated responses", async () => {
     expect(() => new RemoteReaderHeadlessController({ baseUrl: "https://reader.example.com", token: "secret" })).toThrow("loopback")
     expect(() => new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "" })).toThrow("non-empty")
@@ -314,6 +378,23 @@ function sessionDto(assetUrl: string) {
       contentVersion: "v1",
       assetUrl,
     }],
+  }
+}
+
+function preloadSnapshot(mode: string) {
+  return {
+    contextId: "reader:reader-1:upscale",
+    generation: 1,
+    mode,
+    state: "running",
+    planned: 4,
+    settled: 1,
+    failed: 0,
+    cancelled: 0,
+    pending: 3,
+    progress: 0.25,
+    startedAt: 10,
+    updatedAt: 20,
   }
 }
 

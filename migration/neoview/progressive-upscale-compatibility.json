@@ -223,10 +223,10 @@
       ],
       "targetContract": "Expose planned, settled, failed and cancelled counts plus per-page settled/skipped/failed/cancelled outcomes; observer failures are isolated and recent state is bounded by the active Reader generation.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.preload-observer", "neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-progress-snapshot", "neoview.super-resolution.preload-pause", "neoview.super-resolution.preload-running-pause", "neoview.super-resolution.preload-retry", "neoview.super-resolution.preload-progress-http"],
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "partial", "tui": "pending", "evidence": "partial" },
+      "testIds": ["neoview.super-resolution.preload-observer", "neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-progress-snapshot", "neoview.super-resolution.preload-pause", "neoview.super-resolution.preload-running-pause", "neoview.super-resolution.preload-retry", "neoview.super-resolution.preload-progress-http", "neoview.progressive-upscale.cli-connect", "neoview.progressive-upscale.cli-mode"],
       "plannedTestIds": ["neoview.super-resolution.preload-progress-gui"],
-      "notes": "The service retains at most 128 session/mode records in lru-cache and exposes queued/countdown/running/completed/paused/cancelled/failed snapshots plus pause/retry over authenticated HTTP; GUI rendering remains pending."
+      "notes": "The service retains at most 128 session/mode records in lru-cache and exposes queued/countdown/running/completed/paused/cancelled/failed snapshots plus pause/retry over authenticated HTTP. Package remote headless and --connect CLI expose status/start/pause/retry with strict wire validation; local headless composition, TUI and GUI rendering remain pending."
     },
     {
       "id": "progressive-upscale.data-contract",
@@ -238,10 +238,10 @@
       ],
       "targetContract": "Platform code supplies an artifact destination without creating it; the application service passes book/page metadata, generation, priority, materialization budget and AbortSignal to the canonical page workflow and returns typed outcomes.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "complete" },
-      "testIds": ["neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-artifact", "neoview.super-resolution.artifact-page-hit", "neoview.super-resolution.artifact-page-shared", "neoview.super-resolution.preload-http"],
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "partial", "tui": "pending", "evidence": "complete" },
+      "testIds": ["neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-artifact", "neoview.super-resolution.artifact-page-hit", "neoview.super-resolution.artifact-page-shared", "neoview.super-resolution.preload-http", "neoview.progressive-upscale.cli-connect", "neoview.progressive-upscale.wire-schema"],
       "plannedTestIds": [],
-      "notes": "The canonical page policy plans once before resolving the opaque artifact fingerprint; preload warms the injected streaming store without exposing a raw destination, and authenticated HTTP returns only a session-scoped opaque digest URL."
+      "notes": "The canonical page policy plans once before resolving the opaque artifact fingerprint; preload warms the injected streaming store without exposing a raw destination, and authenticated HTTP returns only a session-scoped opaque digest URL. Remote headless validates artifact/outcome and preload DTO discriminants before publishing them to CLI consumers."
     },
     {
       "id": "progressive-upscale.cache",
