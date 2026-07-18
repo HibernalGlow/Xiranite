@@ -1,0 +1,31 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "filter",
+    "workshopPath": "D:/SteamLibrary/workshop/content/431960",
+    "titleFilter": "",
+    "ratingFilter": "Everyone",
+    "typeFilter": "Video",
+    "dryRun": true,
+    "copyMode": false,
+    "galleryColumns": 3,
+    "galleryShowMeta": true,
+    "galleryShowPath": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "筛选完成：3 个项目可见。",
+    "idsText": "101,103",
+    "wallpapers": [
+      { "path": "D:/SteamLibrary/workshop/101", "folderName": "101", "workshopId": "101", "title": "Ocean Circuit", "description": "", "contentRating": "Everyone", "ratingSex": "", "ratingViolence": "", "tags": ["city"], "fileName": "scene.mp4", "preview": "https://images.unsplash.com/photo-1519608487953-e999c86e7452?auto=format&fit=crop&w=900&q=80", "wallpaperType": "Video", "createdTime": "2026-01-01T00:00:00.000Z", "modifiedTime": "2026-01-01T00:00:00.000Z", "size": 148897792, "projectData": {} },
+      { "path": "D:/SteamLibrary/workshop/102", "folderName": "102", "workshopId": "102", "title": "Titanium Gear", "description": "", "contentRating": "Everyone", "ratingSex": "", "ratingViolence": "", "tags": ["mechanical"], "fileName": "scene.webm", "preview": "https://images.unsplash.com/photo-1537462715879-360eab6cf0bd?auto=format&fit=crop&w=900&q=80", "wallpaperType": "Video", "createdTime": "2026-01-01T00:00:00.000Z", "modifiedTime": "2026-01-01T00:00:00.000Z", "size": 8926000, "projectData": {} },
+      { "path": "D:/SteamLibrary/workshop/103", "folderName": "103", "workshopId": "103", "title": "Hydroponics Lab", "description": "", "contentRating": "Everyone", "ratingSex": "", "ratingViolence": "", "tags": ["nature"], "fileName": "scene.mp4", "preview": "https://images.unsplash.com/photo-1466611653911-95081537e5b7?auto=format&fit=crop&w=900&q=80", "wallpaperType": "Video", "createdTime": "2026-01-01T00:00:00.000Z", "modifiedTime": "2026-01-01T00:00:00.000Z", "size": 891289600, "projectData": {} }
+    ],
+    "filteredWallpapers": [
+      { "path": "D:/SteamLibrary/workshop/101", "folderName": "101", "workshopId": "101", "title": "Ocean Circuit", "description": "", "contentRating": "Everyone", "ratingSex": "", "ratingViolence": "", "tags": ["city"], "fileName": "scene.mp4", "preview": "https://images.unsplash.com/photo-1519608487953-e999c86e7452?auto=format&fit=crop&w=900&q=80", "wallpaperType": "Video", "createdTime": "2026-01-01T00:00:00.000Z", "modifiedTime": "2026-01-01T00:00:00.000Z", "size": 148897792, "projectData": {} },
+      { "path": "D:/SteamLibrary/workshop/102", "folderName": "102", "workshopId": "102", "title": "Titanium Gear", "description": "", "contentRating": "Everyone", "ratingSex": "", "ratingViolence": "", "tags": ["mechanical"], "fileName": "scene.webm", "preview": "https://images.unsplash.com/photo-1537462715879-360eab6cf0bd?auto=format&fit=crop&w=900&q=80", "wallpaperType": "Video", "createdTime": "2026-01-01T00:00:00.000Z", "modifiedTime": "2026-01-01T00:00:00.000Z", "size": 8926000, "projectData": {} },
+      { "path": "D:/SteamLibrary/workshop/103", "folderName": "103", "workshopId": "103", "title": "Hydroponics Lab", "description": "", "contentRating": "Everyone", "ratingSex": "", "ratingViolence": "", "tags": ["nature"], "fileName": "scene.mp4", "preview": "https://images.unsplash.com/photo-1466611653911-95081537e5b7?auto=format&fit=crop&w=900&q=80", "wallpaperType": "Video", "createdTime": "2026-01-01T00:00:00.000Z", "modifiedTime": "2026-01-01T00:00:00.000Z", "size": 891289600, "projectData": {} }
+    ],
+    "result": { "wallpapers": [], "filteredWallpapers": [], "totalCount": 3, "filteredCount": 3, "successCount": 3, "failedCount": 0, "typeStats": { "Video": 3 }, "ratingStats": { "Everyone": 3 }, "renameResults": [], "deleteResults": [], "exportPath": "", "errors": [] },
+    "logs": ["Scan complete: 3 wallpaper(s).", "筛选完成：3 个项目可见。"]
+  }
+}

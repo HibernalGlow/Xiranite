@@ -1,0 +1,454 @@
+{
+  "schemaVersion": 2,
+  "featureId": "switch-toast",
+  "legacyCardId": "switchToast",
+  "title": "切换提示",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/SwitchToastCard.tsx",
+  "sourceHash": "sha256:5fe6e326300c28b466de5ee95b2aca8c43764e849d55074653292e2c1efe68b1",
+  "visualBaseline": "output/playwright/legacy-neoview-switch-toast-1920x1080.png",
+  "completionRule": "Complete only when the reviewed AST prototype, every legacy control and label, all documented and runtime template variables, canonical persistence/import, switch-scope toast runtime, book/page/action/boundary lifecycle, resident/session state, accessibility, scripted 1920x1080 visual evidence and bounded queue/timer/chunk performance have automated evidence.",
+  "sourceUiInventory": [
+    {
+      "id": "switch-toast-ui.ast-prototype",
+      "title": "AST 生成的 React 结构基线",
+      "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte"],
+      "acceptanceItems": [
+        "prototype 记录 legacy source hash sha256:5fe6e326300c28b466de5ee95b2aca8c43764e849d55074653292e2c1efe68b1",
+        "prototype 保留 Fragment 与单一根内容容器",
+        "prototype 保留 Separator、Table、Switch 与 Button 组件层级",
+        "prototype 保留 12 个本地状态字段、clamp/parse/load/update/test 函数",
+        "prototype 保留四个 Switch、两个 number input、一个 range、四个 textarea、两个变量表和测试按钮",
+        "prototype 中 Svelte $state/$effect/settingsManager 为明确待人工替换节点，不得直接进入生产 React",
+        "生产实现不得保留 $lib 路径、Svelte rune 或 GUI-only settingsManager"
+      ],
+      "mappedChecklistIds": ["switch-toast.ast-prototype", "switch-toast.data-contract", "switch-toast.deviations"]
+    },
+    {
+      "id": "switch-toast-ui.floating-window",
+      "title": "提示悬浮窗位置、透明度、材质与测试命令",
+      "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "acceptanceItems": [
+        "分组标题为提示悬浮窗，说明为位置以窗口左上角为原点",
+        "显示测试提示为 outline/sm 按钮，高 28px、text 10px",
+        "X 轴 number input 范围 0..4096、默认 20px、非法值回退 20",
+        "Y 轴 number input 范围 0..4096、默认 20px、非法值回退 20",
+        "X/Y 输入位于 2 列网格且各自拥有可点击 label",
+        "透明度 range 0.1..1、step 0.01、默认 0.92",
+        "透明度旁以四舍五入整数百分比显示当前值",
+        "液态玻璃效果 Switch 默认关闭且 scale-75",
+        "测试提示 title 为切换提示测试",
+        "测试提示 description 精确包含 X npx / Y npx / 透明度 n%",
+        "测试提示 variant=info、duration=2600、scope=switch",
+        "位置/透明度/材质变化实时投影到当前 switch toast 容器"
+      ],
+      "mappedChecklistIds": ["switch-toast.position-x", "switch-toast.position-y", "switch-toast.opacity", "switch-toast.liquid-glass", "switch-toast.test-command", "switch-toast.runtime-style", "switch-toast.ui-parity"]
+    },
+    {
+      "id": "switch-toast-ui.enable-switches",
+      "title": "书籍、页面、操作与边界四类开关",
+      "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/stores/book/core.svelte.ts", "src/lib/stackview/layers/GestureLayer.svelte", "src/lib/stackview/StackView.svelte", "src/lib/stores/ui.svelte.ts"],
+      "acceptanceItems": [
+        "切换书籍时显示提示默认 false",
+        "切换页面时显示提示默认 false",
+        "按键操作时显示提示默认 false",
+        "按键操作说明为如\"键盘: 下一页\"、\"滚轮: 放大\"等",
+        "边界翻页时显示提示默认 true",
+        "边界说明覆盖最后一页继续后翻和第一页继续前翻",
+        "四个 Switch 均位于标签右侧、scale-75",
+        "四组之间使用 Separator.Root my-1",
+        "关闭某类提示只抑制该类生产者，不影响普通通知或其他 switch 类提示",
+        "Viewer toggle action 可切换 book/page/boundary 三个规范字段",
+        "enableAction 控制 GestureLayer 成功执行动作后的 source: action 提示",
+        "边界提示同时覆盖 BookStore、StackView、单双页/全景导航入口"
+      ],
+      "mappedChecklistIds": ["switch-toast.enable-book", "switch-toast.enable-page", "switch-toast.enable-action", "switch-toast.enable-boundary", "switch-toast.action-runtime", "switch-toast.boundary-runtime", "switch-toast.states"]
+    },
+    {
+      "id": "switch-toast-ui.book-templates",
+      "title": "书籍标题/描述模板与变量表",
+      "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/stores/book/core.svelte.ts", "src/lib/stores/book/toast.ts", "src/lib/stores/book/types.ts"],
+      "acceptanceItems": [
+        "分组标题为书籍提示模板",
+        "标题 textarea min-height 40px、font-mono 11px、全宽",
+        "标题 placeholder 为例如：已切换到 {{book.emmTranslatedTitle}}",
+        "描述 textarea min-height 52px、font-mono 11px、全宽",
+        "描述 placeholder 为例如：路径：{{book.path}}",
+        "默认标题为已切换到 {{book.displayName}}（第 {{book.currentPageDisplay}} / {{book.totalPages}} 页）",
+        "默认描述为路径：{{book.path}}",
+        "变量表表头为变量/说明，第一列宽 112px",
+        "{{book.displayName}} / 书籍显示名",
+        "{{book.currentPageDisplay}} / 当前页码",
+        "{{book.totalPages}} / 总页数",
+        "{{book.path}} / 书籍路径",
+        "任一渲染结果非空时使用模板路径；空标题回退 displayName/name，空描述不渲染",
+        "两个模板均为空时回退旧 showBookPath/showBookPageProgress/showBookType 字段组合"
+      ],
+      "mappedChecklistIds": ["switch-toast.book-title-template", "switch-toast.book-description-template", "switch-toast.book-variables", "switch-toast.template-renderer", "switch-toast.book-runtime", "switch-toast.legacy-fields"]
+    },
+    {
+      "id": "switch-toast-ui.page-templates",
+      "title": "页面标题/描述模板与变量表",
+      "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/stores/book/core.svelte.ts", "src/lib/stores/book/toast.ts", "src/lib/stores/book/types.ts"],
+      "acceptanceItems": [
+        "分组标题为页面提示模板",
+        "标题 textarea min-height 40px、placeholder 为例如：第 {{page.indexDisplay}} 页",
+        "描述 textarea min-height 52px、placeholder 为例如：{{page.dimensionsFormatted}}",
+        "默认标题为第 {{page.indexDisplay}} / {{book.totalPages}} 页",
+        "默认描述为 {{page.dimensionsFormatted}}  {{page.sizeFormatted}}",
+        "变量表表头为变量/说明，第一列宽 112px",
+        "{{page.indexDisplay}} / 当前页码",
+        "{{page.dimensionsFormatted}} / 分辨率",
+        "{{page.sizeFormatted}} / 文件大小",
+        "{{page.name}} / 页面文件名",
+        "说明明确页面模板同样可以使用 {{book.*}} 变量",
+        "任一渲染结果非空时使用模板路径；空标题回退 page displayName/name/第 n 页",
+        "两个模板均为空时回退旧 showPageIndex/showPageSize/showPageDimensions 字段组合"
+      ],
+      "mappedChecklistIds": ["switch-toast.page-title-template", "switch-toast.page-description-template", "switch-toast.page-variables", "switch-toast.template-renderer", "switch-toast.page-runtime", "switch-toast.legacy-fields"]
+    },
+    {
+      "id": "switch-toast-ui.template-context",
+      "title": "完整模板上下文、解析和缺失值语义",
+      "sourceEvidence": ["src/lib/stores/book/types.ts", "src/lib/stores/book/toast.ts", "src/lib/stores/book/core.svelte.ts"],
+      "acceptanceItems": [
+        "book context 包含 name、displayName、path、type、totalPages、currentPageIndex、currentPageDisplay、progressPercent",
+        "book context 可选 emmTranslatedTitle、emmRating、emmTags、emmRaw",
+        "page context 包含 name、displayName、path、innerPath、index、indexDisplay、width、height、dimensionsFormatted、size、sizeFormatted",
+        "displayName 优先非同名 EMM translated title，否则 book name",
+        "currentPageDisplay 为 1-based 且不超过 totalPages，空书为 0",
+        "progressPercent 保留 1 位小数，无页数为 null",
+        "dimensionsFormatted 使用 width × height，缺尺寸为空",
+        "sizeFormatted 使用短字节格式，未知大小为空",
+        "Mustache 正则允许变量名周围空格",
+        "只解析 book.* 与 page.*，其他 root 占位符原样保留",
+        "undefined/null 路径替换为空字符串",
+        "object 值通过 JSON.stringify 输出，原始值通过 String 输出",
+        "模板最终 trim 后决定是否为空",
+        "模板解析不得执行表达式、访问原型链或解释 HTML"
+      ],
+      "mappedChecklistIds": ["switch-toast.book-variables", "switch-toast.page-variables", "switch-toast.template-renderer", "switch-toast.template-safety", "switch-toast.data-contract"]
+    },
+    {
+      "id": "switch-toast-ui.runtime-container",
+      "title": "switch scope 容器、队列、样式和关闭",
+      "sourceEvidence": ["src/lib/components/ui/toast.svelte", "src/lib/utils/toast.ts"],
+      "acceptanceItems": [
+        "scope=switch 与 normal toast 分离为独立容器",
+        "switch 容器 position fixed、left=X、top=Y、right=auto、z-index 80",
+        "容器 pointer-events none，toast 和关闭按钮 pointer-events auto",
+        "非玻璃模式以 opacity 百分比混合 card 背景",
+        "玻璃模式使用主题 light/dark contrast、accent、roundness 8 与配置 opacity",
+        "success/error/info 分别使用 Check/AlertCircle/Info 图标且 aria-hidden",
+        "normalIconOnly/tinyIconOnly 隐藏文字体，tiny 缩小尺寸与阴影",
+        "关闭按钮含 sr-only 文案关闭并立即移除对应 toast",
+        "缺省 duration 使用全局 notification.durationMs 3000",
+        "测试 toast 显式 duration 2600",
+        "全局 messageStyle=none 时 switch toast 同样不显示",
+        "队列总量受 notification.maxVisible 默认 3 限制",
+        "超量时淘汰最旧 toast，不累积无界 DOM",
+        "相同 type/title/description 在 500ms 内去重",
+        "目标只保留一个规范去重边界，避免 legacy utility 与 renderer 双重 500ms 状态",
+        "toast enter 为 220ms transform/opacity 合成动画并尊重 reduced motion"
+      ],
+      "mappedChecklistIds": ["switch-toast.runtime-style", "switch-toast.queue", "switch-toast.deduplication", "switch-toast.dismiss", "switch-toast.notification-integration", "switch-toast.accessibility", "switch-toast.performance", "switch-toast.deviations"]
+    },
+    {
+      "id": "switch-toast-ui.persistence",
+      "title": "旧设置兼容与唯一规范 TOML",
+      "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/types.ts", "src/lib/settings/defaults.ts", "src/lib/settings/settingsManager.ts", "src/lib/utils/viewerToggleActions.ts"],
+      "acceptanceItems": [
+        "旧规范对象位于 view.switchToast",
+        "旧兼容布尔 view.showBookSwitchToast 作为 enableBook 缺省来源",
+        "Card 更新 enableBook 时同步旧 showBookSwitchToast",
+        "settings defaults 保留 showBookPath、showBookPageProgress、showBookType、showPageIndex、showPageSize、showPageDimensions",
+        "Card 新增 enableAction 但旧 settings type/default 可能缺失，缺省 false",
+        "缺失 enableBoundaryToast 缺省 true",
+        "positionX/Y 严格限制 0..4096，opacity 0.1..1",
+        "模板接受空字符串并保留用户空值语义",
+        "XR 一次导入旧 view.switchToast/showBookSwitchToast 后只写 [nodes.neoview.view.switch_toast]",
+        "目标字段使用 snake_case、版本化且严格校验",
+        "局部更新保留未编辑模板、旧兼容字段和未知未来字段",
+        "输入过程中本地预览；blur/change 或 debounce completion 至多一次串行原子 PATCH",
+        "失败回滚最近确认值，迟到 hydrate/PATCH 不覆盖更新输入",
+        "重启后 canonical TOML 优先，旧存储不得复活"
+      ],
+      "mappedChecklistIds": ["switch-toast.persistence", "switch-toast.legacy-import", "switch-toast.legacy-fields", "switch-toast.bounds", "switch-toast.data-contract", "switch-toast.lifecycle", "switch-toast.performance", "switch-toast.deviations"]
+    },
+    {
+      "id": "switch-toast-ui.lifecycle-state",
+      "title": "常驻 Toast 宿主、Reader session 与 Card 生命周期",
+      "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte", "src/lib/stores/book/core.svelte.ts", "src/lib/stackview/layers/GestureLayer.svelte"],
+      "acceptanceItems": [
+        "Toast 宿主为应用常驻单例，Card 仅编辑配置且不是消息宿主",
+        "Card 隐藏/折叠/独立窗口关闭时编辑订阅零挂载，但已显示 toast 按自身 duration 生命周期结束",
+        "无 Reader session 时 book/page/action/boundary 生产者不生成伪上下文提示",
+        "切书只在新书状态和上下文完成后生成一次 book toast",
+        "成功页面导航生成 page toast；失败/取消/迟到导航不生成新页面 toast",
+        "快速 session 切换拒绝旧 session 元数据迟到写入新 toast",
+        "Card 和常驻宿主都释放 settings subscription/window event listener",
+        "每个 toast timer 在删除或宿主卸载时可清理，不保留无界 timer",
+        "测试 toast 不依赖 Reader session",
+        "覆盖初始、disabled、editing、pending、shown、deduplicated、expired、dismissed、error、rollback、disposed 状态"
+      ],
+      "mappedChecklistIds": ["switch-toast.book-runtime", "switch-toast.page-runtime", "switch-toast.action-runtime", "switch-toast.boundary-runtime", "switch-toast.resident-host", "switch-toast.lifecycle", "switch-toast.states", "switch-toast.queue"]
+    },
+    {
+      "id": "switch-toast-ui.shell-visual-accessibility",
+      "title": "Card 外壳、视觉基线、响应式和可访问性",
+      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte", "src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "acceptanceItems": [
+        "Card ID switchToast、标题切换提示、默认 control Panel、canHide=true",
+        "CardRenderer 与 CardWindowContent 均动态加载组件",
+        "共享 Card 外壳负责显隐、折叠、移动、排序、高度和窗口标签",
+        "根容器 text-xs、muted foreground、space-y-3",
+        "所有分组保持旧顺序：悬浮窗、四类开关、书籍模板、页面模板",
+        "textarea 与变量值使用 monospace，变量表保持紧凑 11px 密度",
+        "每个 number/range/textarea/Switch/Button 具有可访问名称与可见 focus",
+        "四类 Switch 暴露 checked，测试按钮为命令语义",
+        "Toast 宿主使用合适 live-region/status 语义且关闭按钮可键盘操作",
+        "1920x1080 脚本截图占位为 output/playwright/legacy-neoview-switch-toast-1920x1080.png",
+        "目标 1920x1080 截图验证完整展开 Card 与测试 toast 同屏几何",
+        "约束 Card 宽度下 X/Y 网格和变量表不得横向溢出，长模板自然换行"
+      ],
+      "mappedChecklistIds": ["switch-toast.shell", "switch-toast.ui-parity", "switch-toast.responsive", "switch-toast.accessibility", "switch-toast.visual-evidence", "switch-toast.ast-prototype"]
+    },
+    {
+      "id": "switch-toast-ui.performance",
+      "title": "热路径、DOM、timer、写入和 chunk 预算",
+      "sourceEvidence": ["src/lib/components/ui/toast.svelte", "src/lib/utils/toast.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "acceptanceItems": [
+        "禁用四类提示时导航热路径只做 O(1) 配置读取/分支，不构建模板上下文",
+        "模板渲染时间与模板长度线性且模板长度有规范上限",
+        "Toast DOM 数不超过 maxVisible，默认 3",
+        "去重状态 O(1)，不保留历史消息数组",
+        "timer 数受可见 toast 上限约束",
+        "位置/透明度仅更新容器样式，不重挂 toast 或活动 Reader img",
+        "Card 编辑不更换活动 img DOM、asset URL 或 session",
+        "Card 与模板 domain 为独立 lazy chunk，不进入 Reader entry/基础 Sidebar",
+        "常驻 toast runtime 只包含通用宿主，不因 Card 表格/编辑器增大",
+        "chunk、禁用导航、toast burst 和 1920x1080 交互有独立预算",
+        "Windows build/typecheck/Vitest/Playwright/审计严格串行"
+      ],
+      "mappedChecklistIds": ["switch-toast.performance", "switch-toast.queue", "switch-toast.image-stability", "switch-toast.shell", "switch-toast.data-contract"]
+    }
+  ],
+  "items": [
+    {
+      "id": "switch-toast.ast-prototype", "category": "ast-prototype", "title": "审查可重复 AST TSX 原型", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte"],
+      "targetContract": "The generated prototype preserves source hash, hierarchy, controls, events and unsupported Svelte runtime nodes and is reviewed before production React work.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.ast-prototype", "neoview.switch-toast.ast-review"], "notes": "Prototype exists; production review and unsupported-node disposition remain."
+    },
+    {
+      "id": "switch-toast.position-x", "category": "settings", "title": "悬浮窗 X 轴 0..4096px", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "Expose a bounded numeric X offset from the window left edge, default 20px, with immediate local preview and canonical completion persistence.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.position-x"], "notes": "Reject non-finite values and clamp imported values."
+    },
+    {
+      "id": "switch-toast.position-y", "category": "settings", "title": "悬浮窗 Y 轴 0..4096px", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "Expose a bounded numeric Y offset from the window top edge, default 20px, with immediate local preview and canonical completion persistence.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.position-y"], "notes": "Reject non-finite values and clamp imported values."
+    },
+    {
+      "id": "switch-toast.opacity", "category": "settings", "title": "悬浮窗透明度 0.1..1", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "Preserve the 0.1..1 range, 0.01 step, 0.92 default and rounded percentage label across plain and liquid-glass rendering.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.opacity"], "notes": "Plain mode uses background mix; glass mode receives numeric opacity."
+    },
+    {
+      "id": "switch-toast.liquid-glass", "category": "capabilities", "title": "液态玻璃渲染模式", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "A default-off toggle switches only switch-scope toast material and preserves theme contrast, accent, roundness and opacity without changing content or queue identity.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.liquid-glass"], "notes": "Must have a bounded fallback when backdrop/glass capability is unavailable."
+    },
+    {
+      "id": "switch-toast.test-command", "category": "capabilities", "title": "显示测试提示", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte"],
+      "targetContract": "The explicit command emits one info switch toast for 2600ms whose description reflects current X, Y and rounded opacity and requires no Reader session.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.test-command"], "notes": "Testing is side-effect free outside the toast queue."
+    },
+    {
+      "id": "switch-toast.enable-book", "category": "capabilities", "title": "切换书籍提示开关", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "A default-off setting emits one switch toast after a successful new-book context is ready and never for failed, cancelled or stale opens.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.enable-book"], "notes": "Legacy showBookSwitchToast remains import-only compatibility."
+    },
+    {
+      "id": "switch-toast.enable-page", "category": "capabilities", "title": "切换页面提示开关", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "A default-off setting emits one switch toast after successful page navigation using the committed session frame and no stale page context.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.enable-page"], "notes": "No toast for unchanged or failed navigation."
+    },
+    {
+      "id": "switch-toast.enable-action", "category": "capabilities", "title": "按键/手势操作提示开关", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/stackview/layers/GestureLayer.svelte"],
+      "targetContract": "A default-off setting emits source: localized-action only when a bound keyboard, wheel, mouse or gesture action is accepted.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.enable-action"], "notes": "Action labels share the canonical action registry rather than duplicating binding logic."
+    },
+    {
+      "id": "switch-toast.enable-boundary", "category": "capabilities", "title": "首末页边界提示开关", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/stores/book/core.svelte.ts", "src/lib/stackview/StackView.svelte", "src/lib/stores/ui.svelte.ts"],
+      "targetContract": "A default-on setting emits localized first/last-page info for every Reader navigation mode only when movement is impossible.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.enable-boundary"], "notes": "Consolidate legacy duplicate boundary producers behind one navigation outcome."
+    },
+    {
+      "id": "switch-toast.book-title-template", "category": "settings", "title": "书籍提示标题模板", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Preserve the exact default template, arbitrary text and empty-string fallback semantics with a bounded canonical string.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.book-title-template"], "notes": "Input uses a monospaced multiline editor."
+    },
+    {
+      "id": "switch-toast.book-description-template", "category": "settings", "title": "书籍提示描述模板", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Preserve the exact path default, arbitrary text and empty-string fallback semantics with a bounded canonical string.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.book-description-template"], "notes": "Empty rendered description is omitted."
+    },
+    {
+      "id": "switch-toast.page-title-template", "category": "settings", "title": "页面提示标题模板", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Preserve the exact page/total default, arbitrary text and empty-string fallback semantics with a bounded canonical string.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.page-title-template"], "notes": "Page templates may use book variables."
+    },
+    {
+      "id": "switch-toast.page-description-template", "category": "settings", "title": "页面提示描述模板", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Preserve the exact dimensions/size default, arbitrary text and empty-string fallback semantics with a bounded canonical string.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.page-description-template"], "notes": "Unknown metadata renders empty without throwing."
+    },
+    {
+      "id": "switch-toast.book-variables", "category": "data-contract", "title": "完整 book 模板上下文", "sourceEvidence": ["src/lib/stores/book/types.ts", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "The shared template DTO exposes every legacy book field with stable null/missing semantics, 1-based display progress and EMM-derived values.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.book-variables"], "notes": "The UI table documents four common fields but the runtime contract includes all source fields."
+    },
+    {
+      "id": "switch-toast.page-variables", "category": "data-contract", "title": "完整 page 模板上下文", "sourceEvidence": ["src/lib/stores/book/types.ts", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "The shared template DTO exposes every legacy page field with stable missing metadata, 1-based index, dimensions and formatted-size semantics.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.page-variables"], "notes": "Page templates also resolve book.* from the same snapshot."
+    },
+    {
+      "id": "switch-toast.template-renderer", "category": "data-contract", "title": "Mustache 路径渲染与回退", "sourceEvidence": ["src/lib/stores/book/toast.ts", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "Render whitespace-tolerant book.* and page.* paths, map nullish values to empty strings, stringify objects, retain unsupported roots and apply exact title/description fallback ordering.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.template-renderer"], "notes": "Use a bounded parser/projection shared by all surfaces."
+    },
+    {
+      "id": "switch-toast.template-safety", "category": "data-contract", "title": "模板安全与输入上限", "sourceEvidence": ["src/lib/stores/book/toast.ts"],
+      "targetContract": "Templates are inert text, cannot execute expressions or traverse prototypes, have explicit length/depth bounds and render as text rather than HTML.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.template-safety"], "notes": "Intentional hardening beyond the legacy property walk."
+    },
+    {
+      "id": "switch-toast.book-runtime", "category": "capabilities", "title": "书籍切换运行时", "sourceEvidence": ["src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "Build one immutable context from the committed opened book and emit at most one configured switch toast after metadata precedence is resolved.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.book-runtime"], "notes": "Stale opens and metadata responses are rejected by session identity."
+    },
+    {
+      "id": "switch-toast.page-runtime", "category": "capabilities", "title": "页面切换运行时", "sourceEvidence": ["src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "Build one immutable context from the committed page/frame and emit at most one configured switch toast after successful navigation.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.page-runtime"], "notes": "No toast for initial hydration unless it is also a documented book switch."
+    },
+    {
+      "id": "switch-toast.action-runtime", "category": "capabilities", "title": "输入操作运行时", "sourceEvidence": ["src/lib/stackview/layers/GestureLayer.svelte", "src/lib/utils/viewerToggleActions.ts"],
+      "targetContract": "Accepted input actions use the canonical action label/source and emit at most one switch toast only while enableAction is true.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.action-runtime"], "notes": "Avoid a second action registry or input listener."
+    },
+    {
+      "id": "switch-toast.boundary-runtime", "category": "capabilities", "title": "统一首末页边界结果", "sourceEvidence": ["src/lib/stores/book/core.svelte.ts", "src/lib/stackview/StackView.svelte", "src/lib/stores/ui.svelte.ts"],
+      "targetContract": "All navigation modes project one canonical no-movement result into 已是第一页/已是最后一页 without duplicate producers.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.boundary-runtime"], "notes": "Legacy wording varies between 已是 and 已经是; target localization must choose and document one canonical pair."
+    },
+    {
+      "id": "switch-toast.runtime-style", "category": "capabilities", "title": "switch scope 独立位置与材质", "sourceEvidence": ["src/lib/components/ui/toast.svelte"],
+      "targetContract": "Switch toasts render in one fixed left/top container using bounded CSS variables and selected plain/glass material without affecting normal notifications.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.runtime-style"], "notes": "Position is relative to the current window viewport."
+    },
+    {
+      "id": "switch-toast.notification-integration", "category": "data-contract", "title": "共享通知样式、时长和上限", "sourceEvidence": ["src/lib/components/ui/toast.svelte"],
+      "targetContract": "Switch scope honors global messageStyle, durationMs and maxVisible while retaining its own position/material and explicit per-message duration override.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.notification-integration"], "notes": "messageStyle none suppresses all scopes."
+    },
+    {
+      "id": "switch-toast.queue", "category": "lifecycle", "title": "有界 Toast 队列与 timer", "sourceEvidence": ["src/lib/components/ui/toast.svelte"],
+      "targetContract": "One resident host bounds total visible DOM and timers by maxVisible, evicts oldest overflow and clears timeout ownership on dismiss/unmount.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.queue"], "notes": "Default maximum is three across normal and switch scopes."
+    },
+    {
+      "id": "switch-toast.deduplication", "category": "lifecycle", "title": "500ms 同内容去重", "sourceEvidence": ["src/lib/utils/toast.ts", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "One canonical O(1) gate deduplicates equal scope/type/title/description for 500ms and does not collapse distinct scope or content.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.deduplication"], "notes": "Replace legacy utility plus renderer double gates with one documented gate."
+    },
+    {
+      "id": "switch-toast.dismiss", "category": "capabilities", "title": "手动关闭与自动过期", "sourceEvidence": ["src/lib/components/ui/toast.svelte"],
+      "targetContract": "Every visible switch toast has a keyboard-operable 关闭 command, removes immediately on activation and otherwise expires at its effective duration.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.dismiss"], "notes": "Manual dismissal also releases its owned timer."
+    },
+    {
+      "id": "switch-toast.bounds", "category": "data-contract", "title": "严格数值、枚举与字符串边界", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/types.ts"],
+      "targetContract": "Reject non-finite values, bound X/Y and opacity, validate every boolean/style/scope and impose explicit template length/depth limits.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.bounds"], "notes": "Invalid imports fall back field-by-field rather than replacing unrelated valid data."
+    },
+    {
+      "id": "switch-toast.legacy-fields", "category": "settings", "title": "保留旧布尔显示字段与回退语义", "sourceEvidence": ["src/lib/settings/types.ts", "src/lib/settings/defaults.ts", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "Import showBookSwitchToast and six showBook/showPage fallback fields so empty templates preserve legacy fallback output, without exposing two runtime truth sources.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.legacy-fields"], "notes": "Canonical enableBook wins after import."
+    },
+    {
+      "id": "switch-toast.persistence", "category": "settings", "title": "唯一规范 TOML 与原子更新", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/settingsManager.ts"],
+      "targetContract": "Persist only [nodes.neoview.view.switch_toast] with serialized partial PATCH, unknown-field preservation, completion coalescing and rollback.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.persistence"], "notes": "Textarea and numeric edits must not write on every keystroke."
+    },
+    {
+      "id": "switch-toast.legacy-import", "category": "settings", "title": "一次导入旧 view.switchToast", "sourceEvidence": ["src/lib/settings/types.ts", "src/lib/settings/defaults.ts"],
+      "targetContract": "Import the old nested object plus showBookSwitchToast compatibility exactly once, normalize missing newer fields and prevent legacy storage from overriding TOML afterward.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.legacy-import"], "notes": "enableAction defaults false and enableBoundaryToast defaults true when absent."
+    },
+    {
+      "id": "switch-toast.data-contract", "category": "data-contract", "title": "版本化配置、上下文与消息 DTO", "sourceEvidence": ["src/lib/settings/types.ts", "src/lib/stores/book/types.ts", "src/lib/utils/toast.ts"],
+      "targetContract": "GUI, CLI and TUI share browser-safe settings/template/message contracts and the existing revisioned mutation primitive; ReaderApp remains composition only.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.data-contract"], "notes": "No GUI-only store, Node builtin leak or new ReaderApp promise queue."
+    },
+    {
+      "id": "switch-toast.resident-host", "category": "lifecycle", "title": "应用常驻单例 Toast 宿主", "sourceEvidence": ["src/lib/components/ui/toast.svelte", "src/lib/cards/info/SwitchToastCard.svelte"],
+      "targetContract": "One application host owns normal/switch queues independently of Card mount and session, while the Card only edits configuration and emits an explicit test command.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.resident-host"], "notes": "Closing the Card does not prematurely remove already-visible messages."
+    },
+    {
+      "id": "switch-toast.states", "category": "interaction-states", "title": "编辑、消息和错误状态", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "Cover defaults, focus, checked, editing, pending, shown, suppressed, deduplicated, overflow-evicted, dismissed, expired, error, rollback, session-stale and disposed states.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.states"], "notes": "Explicit retry/rollback feedback is a target improvement."
+    },
+    {
+      "id": "switch-toast.lifecycle", "category": "lifecycle", "title": "订阅、session、timer 与迟到结果释放", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "Unmount releases listeners/timers, hidden Card does no work, message timers remain bounded, and stale session/config results cannot create or overwrite newer UI state.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.lifecycle"], "notes": "Card and resident host have separate, explicit lifetimes."
+    },
+    {
+      "id": "switch-toast.accessibility", "category": "keyboard-accessibility", "title": "命名控件、live region 与关闭语义", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "All editors and switches are named and keyboard-operable; switch messages use non-disruptive status/live semantics and every close command has an accessible name and visible focus.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.accessibility"], "notes": "Frequent action/page toasts must not repeatedly steal focus."
+    },
+    {
+      "id": "switch-toast.shell", "category": "ui-parity", "title": "共享 Card 外壳与延迟加载", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
+      "targetContract": "switchToast retains its title, control Panel default, hideability, shared Card/window behavior and independent deferred editor chunk.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.shell", "neoview.switch-toast.chunk"], "notes": "Editor tables must not enter resident toast runtime or Reader entry."
+    },
+    {
+      "id": "switch-toast.ui-parity", "category": "ui-parity", "title": "旧版层级、文案、控件与密度", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte"],
+      "targetContract": "Preserve exact group order, Chinese labels/help, compact sizing, two-column positions, monospace templates and variable tables.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.ui"], "notes": "Intentional token adaptations must not remove information."
+    },
+    {
+      "id": "switch-toast.responsive", "category": "ui-parity", "title": "约束 Card 与 viewport 几何", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte"],
+      "targetContract": "Card controls and variable tables remain usable without overlap/overflow at constrained widths, while X/Y toast placement is clamped or made reachable within the current viewport.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.responsive"], "notes": "Viewport clamping is a documented target improvement over absolute 4096px placement."
+    },
+    {
+      "id": "switch-toast.visual-evidence", "category": "tests", "title": "1920x1080 脚本视觉证据", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte"],
+      "targetContract": "Terminal scripts capture the expanded legacy Card and target Card plus test toast at 1920x1080 and compare hierarchy, labels, tables, density, position and material.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.ui-1920x1080"], "notes": "Placeholder path: output/playwright/legacy-neoview-switch-toast-1920x1080.png; capture must use script, not in-app Browser."
+    },
+    {
+      "id": "switch-toast.image-stability", "category": "performance", "title": "Toast 与配置不重挂阅读图像", "sourceEvidence": ["src/lib/components/ui/toast.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "Editing settings, emitting, styling, dismissing and expiring switch toasts preserve the active img DOM node, asset URL, decode path and Reader session.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.image-stability"], "notes": "Toast is an overlay-only presentation concern."
+    },
+    {
+      "id": "switch-toast.performance", "category": "performance", "title": "禁用热路径、模板、DOM、timer、写入与 chunk 预算", "sourceEvidence": ["src/lib/components/ui/toast.svelte", "src/lib/utils/toast.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/stores/book/core.svelte.ts"],
+      "targetContract": "Disabled producers are O(1), template work is bounded, queue/timers never exceed maxVisible, editor writes coalesce, animation is compositor-friendly and editor/domain chunks remain deferred within explicit budgets.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.performance", "neoview.switch-toast.chunk", "neoview.switch-toast.navigation-performance"], "notes": "Heavy verification runs strictly serial on Windows."
+    },
+    {
+      "id": "switch-toast.deviations", "category": "deviations", "title": "记录存储、安全、去重、边界与可访问性改进", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/components/ui/toast.svelte", "src/lib/utils/toast.ts", "src/lib/stores/book/toast.ts"],
+      "targetContract": "Document canonical TOML/end-only writes, safe bounded templates, one dedupe gate, one boundary producer, viewport reachability, reduced motion and live-region semantics while preserving legacy controls and visible output.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.deviations"], "notes": "Each intentional behavior change requires dedicated regression evidence."
+    }
+  ]
+}

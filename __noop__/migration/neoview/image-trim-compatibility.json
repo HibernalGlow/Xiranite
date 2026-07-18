@@ -1,0 +1,736 @@
+{
+  "schemaVersion": 2,
+  "featureId": "image-trim",
+  "legacyCardId": "imageTrim",
+  "title": "图像裁剪",
+  "panelId": "control",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "unknown; inventory snapshot is frozen by source hashes",
+  "sourceHash": "sha256:413b50582f039de6e0c563176543242b699c7e1c181322a54130bca578bc06ca",
+  "storeHash": "sha256:bc243bacabdd055c1c5bb6bf7c2ed84750e12522ece937b51c89433be92d1f21",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/ImageTrimCard.tsx",
+  "visualBaseline": "output/playwright/legacy-neoview-image-trim-1920x1080.png",
+  "visualTarget": "output/playwright/neoview-image-trim-1920x1080.png",
+  "inventorySummary": {
+    "sourceUiGroups": 12,
+    "controlsAndStates": 135,
+    "acceptanceItems": 43,
+    "sourceFiles": 15
+  },
+  "completionRule": "Complete only when the reviewed AST prototype and the legacy 1920x1080 characterization cover every control, label, icon, conditional branch, four-edge clip rule, link behavior, auto-detection mode, threshold and target value, preview geometry, media compatibility, cache/lifecycle state, canonical persistence, resident Card shell, stable active image identity and bounded performance.",
+  "unsupportedNodes": [
+    {
+      "node": "Svelte runtime lifecycle",
+      "source": "onMount/onDestroy",
+      "replacement": "React effect with an abortable store subscription and explicit disposal"
+    },
+    {
+      "node": "Svelte runes",
+      "source": "$state/$derived",
+      "replacement": "React state/memo or a shared browser-safe domain; do not carry runes into production"
+    },
+    {
+      "node": "Svelte store subscription",
+      "source": "imageTrimStore.subscribe",
+      "replacement": "One shared Reader image-trim store/DTO; Card is an editor, not a second source of truth"
+    },
+    {
+      "node": "Direct DOM image lookup",
+      "source": "document.querySelector('[data-layer=CurrentFrameLayer] img...')",
+      "replacement": "Reader frame/image contract or a stable current-image capability; no selector coupling in production"
+    },
+    {
+      "node": "Svelte fragments and style strings",
+      "source": "Fragment, if-blocks and style=\"top: ...\"",
+      "replacement": "Stable React shell with typed style variables and explicit conditional regions"
+    },
+    {
+      "node": "Svelte/$lib module aliases",
+      "source": "$lib/stores/imageTrimStore.js",
+      "replacement": "Browser-safe package export; production code must not import the scaffold"
+    }
+  ],
+  "sourceUiInventory": [
+    {
+      "id": "image-trim-ui.ast-prototype",
+      "title": "AST 原型结构基线",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/ImageTrimCard.tsx"],
+      "acceptanceItems": [
+        "冻结 ImageTrimCard.svelte hash sha256:413b50582f039de6e0c563176543242b699c7e1c181322a54130bca578bc06ca",
+        "冻结 imageTrimStore.svelte.ts hash sha256:bc243bacabdd055c1c5bb6bf7c2ed84750e12522ece937b51c89433be92d1f21",
+        "原型保留单一 space-y-3 text-sm 根容器、Fragment 和 enabled 条件块",
+        "原型保留 RotateCcw、Link、Unlink、Wand2、Minus、Square 六个图标 import",
+        "原型保留 checkbox、四个 range、一个 select、三个动作按钮和条件预览",
+        "原型保留 $state/$derived、onMount/onDestroy、store subscription 为待人工替换节点",
+        "生产实现不得直接 import tsx-scaffold 或 Svelte/$lib 运行时"
+      ],
+      "mappedChecklistIds": ["image-trim.ast-prototype", "image-trim.ui-parity", "image-trim.deviations"]
+    },
+    {
+      "id": "image-trim-ui.shell",
+      "title": "Card 外壳、常驻面板与延迟边界",
+      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/CardWindow.svelte", "src/lib/cards/info/ImageTrimCard.svelte"],
+      "acceptanceItems": [
+        "Card ID imageTrim、标题 图像裁剪、默认 control Panel、可隐藏",
+        "Card 在未打开书籍前也常驻显示设置外壳，不能把整个 Card 隐藏到 session 条件内",
+        "CardRenderer/CardWindow 复用共享折叠、隐藏、排序、宽高和独立窗口行为",
+        "图标和命令按钮使用 lucide 语义，不以新插画或文字按钮替换原图标",
+        "ImageTrim 编辑器与自动检测重逻辑保持独立 lazy chunk，不进入 Reader entry"
+      ],
+      "mappedChecklistIds": ["image-trim.shell", "image-trim.resident", "image-trim.chunk"]
+    },
+    {
+      "id": "image-trim-ui.enable-reset",
+      "title": "启用开关与全部重置",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "acceptanceItems": [
+        "顶部同一行显示 图像裁剪 checkbox 与 RotateCcw 重置按钮",
+        "enabled 默认值、checked 语义和禁用时的条件内容与旧 store 一致",
+        "resetAll 清除四边裁剪、联动、阈值、目标和自动检测消息",
+        "重置是一个聚合命令，持久化最多产生一次配置 mutation",
+        "设置加载中显示居中的加载文案，加载失败不会留下半套控件"
+      ],
+      "mappedChecklistIds": ["image-trim.enable", "image-trim.reset", "image-trim.states"]
+    },
+    {
+      "id": "image-trim-ui.edge-controls",
+      "title": "四边裁剪滑条",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "acceptanceItems": [
+        "上、下、左、右四组按旧顺序使用 space-y-1 和 text-xs 标题行",
+        "四个 range 的 min=0、max=45、step=0.5，值后显示百分号",
+        "range 使用 accent-primary h-1 w-full，拖动过程只更新本地呈现",
+        "滑条支持键盘 Home/End/方向键并暴露 min/max/now",
+        "边界值、非有限值和四边总和超过可用区域时按共享 codec 归一化"
+      ],
+      "mappedChecklistIds": ["image-trim.edges", "image-trim.bounds", "image-trim.accessibility"]
+    },
+    {
+      "id": "image-trim-ui.vertical-link",
+      "title": "上下联动与图标状态",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "acceptanceItems": [
+        "上裁剪标题左侧保留 Link/Unlink 图标按钮",
+        "linkVertical=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground",
+        "按钮 title 在 上下联动 与 取消上下联动 之间切换",
+        "切换联动不重置已有数值，后续上/下滑条按旧比例/规则联动",
+        "图标按钮有 aria-label、visible focus 和原生键盘操作"
+      ],
+      "mappedChecklistIds": ["image-trim.link-vertical", "image-trim.accessibility", "image-trim.ui-parity"]
+    },
+    {
+      "id": "image-trim-ui.horizontal-link",
+      "title": "左右联动与图标状态",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "acceptanceItems": [
+        "左裁剪标题左侧保留 Link/Unlink 图标按钮",
+        "linkHorizontal=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground",
+        "按钮 title 在 左右联动 与 取消左右联动 之间切换",
+        "切换联动不丢失左右值，拖动一侧时保持另一侧的旧联动语义",
+        "左右联动状态属于设置 DTO，不得藏在组件局部 state"
+      ],
+      "mappedChecklistIds": ["image-trim.link-horizontal", "image-trim.accessibility", "image-trim.ui-parity"]
+    },
+    {
+      "id": "image-trim-ui.preview",
+      "title": "裁剪预览指示器",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte"],
+      "acceptanceItems": [
+        "四边至少一项大于零时才显示预览，全部为零时不挂载预览 DOM",
+        "预览为 border-border bg-muted/30 relative aspect-3/4 w-full overflow-hidden rounded border",
+        "原始区域使用 bg-muted/20 absolute inset-0",
+        "有效区域使用 bg-primary/10 border-primary/30 absolute rounded-sm border",
+        "有效区域由 top/bottom/left/right 百分比直接投影",
+        "中心标签以 text-muted-foreground/60 text-[10px] 显示有效宽高百分比"
+      ],
+      "mappedChecklistIds": ["image-trim.preview", "image-trim.preview-geometry", "image-trim.image-stability"]
+    },
+    {
+      "id": "image-trim-ui.auto-controls",
+      "title": "自动检测、去黑边与去白边",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "acceptanceItems": [
+        "分隔线后保留 自动裁剪 text-muted-foreground text-xs font-medium 标题",
+        "自动检测按钮使用 Wand2，flex-1、primary tint、检测中禁用",
+        "去黑边按钮使用 Square h-3 w-3 fill-current",
+        "去白边按钮使用 Minus h-3 w-3",
+        "自动检测、去黑边、去白边都读取当前活动 img 的已解码资产，不重新请求第二张图片",
+        "动作期间按钮禁用，完成/失败/找不到图片时显示稳定消息"
+      ],
+      "mappedChecklistIds": ["image-trim.auto-detect", "image-trim.black-border", "image-trim.white-border", "image-trim.states"]
+    },
+    {
+      "id": "image-trim-ui.auto-options",
+      "title": "容差与目标颜色",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "acceptanceItems": [
+        "容差 range min=5、max=100、step=5，标题行实时显示数值",
+        "目标颜色 select 保留 auto、black、white 三个值和旧顺序",
+        "auto/black/white 使用原中文标签 自动/黑色/白色",
+        "目标颜色使用 bg-background border-border rounded border px-2 py-0.5 text-xs",
+        "阈值和目标改变不会自动启动检测或改变当前裁剪，直到用户触发动作"
+      ],
+      "mappedChecklistIds": ["image-trim.threshold", "image-trim.target", "image-trim.bounds"]
+    },
+    {
+      "id": "image-trim-ui.messages",
+      "title": "加载、检测结果与错误状态",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "acceptanceItems": [
+        "settings 尚未就绪时显示居中 加载中... 状态",
+        "没有当前图片时显示 未找到当前图片，不伪造结果",
+        "四边均为零时显示 未检测到明显边框",
+        "检测成功显示四边一位小数结果",
+        "检测异常显示 检测失败 且允许再次触发",
+        "去黑边/去白边完成分别显示 已应用去黑边/已应用去白边"
+      ],
+      "mappedChecklistIds": ["image-trim.states", "image-trim.auto-message", "image-trim.error-retry"]
+    },
+    {
+      "id": "image-trim-ui.media",
+      "title": "动画、视频、超分与单双页兼容",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/stackview/layers/CurrentFrameLayer.svelte", "src/lib/stackview/layers/PanoramaFrameLayer.svelte", "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte"],
+      "acceptanceItems": [
+        "裁边应用于当前 frame/image contract，不把图片类型假设为静态单页",
+        "动画和视频帧在切换/重绘时保持裁边设置和取消旧检测结果",
+        "单双页使用同一四边设置，不意外只裁左页或只裁右页",
+        "全景/旋转/超分产生新 generation 时拒绝旧 auto-detect 结果",
+        "不为裁边新增 sharp、Canvas、Blob 或第二条媒体解码链"
+      ],
+      "mappedChecklistIds": ["image-trim.media", "image-trim.double-page", "image-trim.generation"]
+    },
+    {
+      "id": "image-trim-ui.persistence-lifecycle",
+      "title": "设置持久化、缓存与生命周期",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/cards/info/ImageTrimCard.svelte", "src/lib/utils/imageTrace.ts"],
+      "acceptanceItems": [
+        "imageTrimStore 的所有公开设置字段均有版本化共享 DTO",
+        "autoTrimCache 作为有界检测缓存处理，不成为第二份设置真相",
+        "旧动态缓存键/坏 JSON/过期 generation 按字段归一化而不是使 Card 崩溃",
+        "设置变更使用 canonical TOML 与串行原子 PATCH，未知未来字段保留",
+        "Card 隐藏、折叠、窗口关闭、导航和 session release 时取消订阅/请求并清理定时器",
+        "imageTrace 日志不得把完整图片、Blob 或敏感路径写入热路径"
+      ],
+      "mappedChecklistIds": ["image-trim.persistence", "image-trim.cache", "image-trim.lifecycle", "image-trim.deviations"]
+    }
+  ],
+  "items": [
+    {
+      "id": "image-trim.ast-prototype",
+      "category": "ast-prototype",
+      "title": "审阅 AST 生成的 TSX 原型",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/ImageTrimCard.tsx"],
+      "targetContract": "Prototype is a repeatable structural baseline: imports, component hierarchy, class names, conditions, controls, events and unsupported Svelte nodes are reviewed before production React work.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.ast-prototype"],
+      "notes": "The scaffold is evidence only; production code must not import it."
+    },
+    {
+      "id": "image-trim.enable",
+      "category": "capabilities",
+      "title": "启用或停用图像裁剪",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "The checkbox toggles one canonical enabled flag; disabled state keeps the Card resident but removes active crop presentation and expensive detection work.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": ["neoview.image-trim.enable", "neoview.image-trim.resident"],
+      "plannedTestIds": ["neoview.image-trim.enable", "neoview.image-trim.resident"],
+      "notes": "Verified by the 1920x1080 harness: the ready Card and enable switch are interactive before opening, and remain mounted after opening."
+    },
+    {
+      "id": "image-trim.reset",
+      "category": "capabilities",
+      "title": "一次重置全部裁剪设置",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "One named reset restores canonical enabled, edges, link flags, threshold, target and transient message defaults and commits once.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.reset"],
+      "notes": "Headless reset contract remains to be defined with the shared image pipeline."
+    },
+    {
+      "id": "image-trim.edges",
+      "category": "capabilities",
+      "title": "四边百分比裁剪",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Top, bottom, left and right preserve the 0..45 range, 0.5 step, labels, values and clip-path projection.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.edges", "neoview.image-trim.bounds"],
+      "notes": "Do not silently change percentages to pixels without recording a deviation."
+    },
+    {
+      "id": "image-trim.link-vertical",
+      "category": "capabilities",
+      "title": "上下联动",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "LinkVertical is shared state with exact Link/Unlink icon semantics and linked edge updates.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.link-vertical"],
+      "notes": "Keyboard and pointer activation are both required."
+    },
+    {
+      "id": "image-trim.link-horizontal",
+      "category": "capabilities",
+      "title": "左右联动",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "LinkHorizontal is shared state with exact Link/Unlink icon semantics and linked edge updates.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.link-horizontal"],
+      "notes": "Do not implement a separate local link state in the Card."
+    },
+    {
+      "id": "image-trim.bounds",
+      "category": "data-contract",
+      "title": "裁剪值边界和归一化",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/cards/info/ImageTrimCard.svelte"],
+      "targetContract": "Reject non-finite values, clamp edges to 0..45 and preserve a non-empty effective region; imported values normalize field by field.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.bounds"],
+      "notes": "Range UI bounds and transport bounds must agree."
+    },
+    {
+      "id": "image-trim.preview",
+      "category": "capabilities",
+      "title": "有效裁剪区域预览",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte"],
+      "targetContract": "Preview mounts only for non-zero crop values and shows the effective width/height percentage without touching Reader session or requesting media.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.preview"],
+      "notes": "The preview is a local geometry indicator, not a second image renderer."
+    },
+    {
+      "id": "image-trim.preview-geometry",
+      "category": "ui-parity",
+      "title": "预览容器几何和标签",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte"],
+      "targetContract": "The aspect-3/4 overflow-hidden bordered preview retains the original/effective region layers, colors, radius and centered 10px label.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.ui-1920x1080"],
+      "notes": "Any token adjustment must be recorded against the legacy screenshot."
+    },
+    {
+      "id": "image-trim.auto-detect",
+      "category": "capabilities",
+      "title": "自动检测边框",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Wand2 automatic detection samples the current decoded image, returns four percentages, applies them atomically and reports no-border/not-found/failure states.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.auto-detect", "neoview.image-trim.sample-budget"],
+      "notes": "The target sampling algorithm must be bounded and cancellable."
+    },
+    {
+      "id": "image-trim.black-border",
+      "category": "capabilities",
+      "title": "去黑边预设",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Square action invokes the black-border preset for the current image and reports completion or failure without remounting it.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.black-border"],
+      "notes": "Preset semantics must stay separate from manual edge editing."
+    },
+    {
+      "id": "image-trim.white-border",
+      "category": "capabilities",
+      "title": "去白边预设",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Minus action invokes the white-border preset for the current image and reports completion or failure without remounting it.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.white-border"],
+      "notes": "Preset target is an explicit white mode, not a generic invert operation."
+    },
+    {
+      "id": "image-trim.threshold",
+      "category": "capabilities",
+      "title": "自动检测容差",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "AutoTrimThreshold preserves 5..100 in steps of 5 and is supplied to detection rather than silently changing manual crop values.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.threshold"],
+      "notes": "Use one bounded codec for UI and headless consumers."
+    },
+    {
+      "id": "image-trim.target",
+      "category": "capabilities",
+      "title": "自动检测目标颜色",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "AutoTrimTarget preserves the exact auto/black/white enum, labels and order.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.target"],
+      "notes": "Unknown imported values fall back to auto."
+    },
+    {
+      "id": "image-trim.auto-message",
+      "category": "interaction-states",
+      "title": "自动检测反馈文案",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte"],
+      "targetContract": "Detection status is visible, bounded and replaceable; loading, success, no-border, not-found and error messages never accumulate DOM nodes.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.messages"],
+      "notes": "Text remains inert content; no HTML template execution."
+    },
+    {
+      "id": "image-trim.media",
+      "category": "data-contract",
+      "title": "当前媒体帧兼容",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/stackview/layers/CurrentFrameLayer.svelte"],
+      "targetContract": "Crop presentation consumes the shared current frame/image contract for static, animated and video media and never assumes a permanent DOM selector.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.media"],
+      "notes": "CLI/TUI must expose a typed setting/result contract even when no preview exists."
+    },
+    {
+      "id": "image-trim.double-page",
+      "category": "capabilities",
+      "title": "单双页裁剪策略",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/stackview/layers/CurrentFrameLayer.svelte", "src/lib/stackview/layers/PanoramaFrameLayer.svelte"],
+      "targetContract": "A double-page frame applies the documented four-edge policy to the complete frame or each page according to one shared option; it must not silently crop only one side.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.double-page"],
+      "notes": "The legacy source exposes the Card but the exact double-page runtime policy still needs characterization."
+    },
+    {
+      "id": "image-trim.generation",
+      "category": "lifecycle",
+      "title": "generation 与迟到结果",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/utils/imageTrace.ts"],
+      "targetContract": "Auto-detect results are committed only when image URL/media generation still matches the request; stale results are dropped and logged with a bounded trace id.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.generation"],
+      "notes": "Cancellation and stale rejection are separate from UI loading text."
+    },
+    {
+      "id": "image-trim.clip-path",
+      "category": "data-contract",
+      "title": "clip-path 合并与投影",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "mergeClipPaths and trimToClipPath retain the legacy coordinate convention, percentage precision and safe composition for nested/frame crops.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": ["neoview.image-trim.clip-path"],
+      "plannedTestIds": ["neoview.image-trim.clip-path"],
+      "notes": "Browser-safe clip-path projection is covered by ReaderImageTrim tests and the PageImage harness; automatic detection composition remains pending."
+    },
+    {
+      "id": "image-trim.effective-dimensions",
+      "category": "capabilities",
+      "title": "裁剪后的有效尺寸",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "getEffectiveDimensions reports truthful dimensions after the crop and presentation transform without claiming an additional decoded asset.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.effective-dimensions"],
+      "notes": "Source dimensions and CSS presentation dimensions remain distinct."
+    },
+    {
+      "id": "image-trim.persistence",
+      "category": "settings",
+      "title": "唯一规范 TOML 持久化",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/settings/types.ts", "src/lib/settings/settingsManager.ts"],
+      "targetContract": "Before implementation, agree and freeze one versioned [nodes.neoview.image.*] path; serialize strict snake_case fields through a serialized atomic PATCH, preserve unknown fields and roll back on failure.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.persistence", "neoview.image-trim.toml"],
+      "notes": "No new Reader business table or second NeoView database is allowed."
+    },
+    {
+      "id": "image-trim.cache",
+      "category": "settings",
+      "title": "自动检测缓存边界",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "autoTrimCache is keyed by stable media identity/generation, bounded by count/bytes, cancellable and invalidated on source changes; cache misses recompute safely.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.cache", "neoview.image-trim.cache-budget"],
+      "notes": "Legacy dynamic storage is evidence, not permission for an unbounded map."
+    },
+    {
+      "id": "image-trim.legacy-import",
+      "category": "settings",
+      "title": "旧设置兼容导入",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/settings/types.ts", "src/lib/settings/defaults.ts"],
+      "targetContract": "Import legacy trim settings once, normalize missing fields and prevent old local state from overriding canonical TOML on later startup.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.legacy-import"],
+      "notes": "Legacy key names and defaults must be recorded once their source settings are characterized."
+    },
+    {
+      "id": "image-trim.data-contract",
+      "category": "data-contract",
+      "title": "共享裁剪设置与结果 DTO",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/utils/imageTrace.ts"],
+      "targetContract": "GUI, CLI and TUI use one browser-safe versioned settings/result contract for edges, links, target, threshold, media generation, effective dimensions and detection outcome.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.data-contract"],
+      "notes": "ReaderApp remains composition only; no GUI-only second protocol."
+    },
+    {
+      "id": "image-trim.states",
+      "category": "interaction-states",
+      "title": "默认、禁用、编辑、检测和错误状态",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Cover loading, default, enabled, disabled, editing, linked, previewing, detecting, no-image, no-border, success, failed, retry, pending-write, rollback and disposed states without stale values.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.states"],
+      "notes": "Resident shell and session-dependent detection state must be distinguishable."
+    },
+    {
+      "id": "image-trim.lifecycle",
+      "category": "lifecycle",
+      "title": "订阅、请求和 Card 生命周期",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Card subscriptions, detection requests and cache leases are released on hide/collapse/window close/unmount/session release; no timers or observers survive.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.lifecycle", "neoview.image-trim.dispose"],
+      "notes": "Card visibility must not destroy canonical settings."
+    },
+    {
+      "id": "image-trim.navigation",
+      "category": "lifecycle",
+      "title": "翻页与切书取消",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/stackview/StackView.svelte", "src/lib/stackview/layers/CurrentFrameLayer.svelte"],
+      "targetContract": "Navigation invalidates active detection and never applies a result to a newer frame; successful navigation keeps the active img node stable when only crop CSS changes.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.navigation-cancel"],
+      "notes": "No artificial detection result is emitted during initial hydration."
+    },
+    {
+      "id": "image-trim.animation",
+      "category": "capabilities",
+      "title": "裁剪与翻页动画共存",
+      "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Crop projection composes with page-transition transforms without replacing the frame wrapper or changing animation ownership.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.animation"],
+      "notes": "Crop must remain presentation-only; page transition remains the animation owner."
+    },
+    {
+      "id": "image-trim.video",
+      "category": "capabilities",
+      "title": "视频和动图兼容",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/stackview/components/FrameImage.svelte"],
+      "targetContract": "Video/animated frames use the same crop contract or an explicit unsupported state; no static-image URL assumption or repeated decoder is introduced.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.video"],
+      "notes": "If a media type is unsupported, the Card must expose a stable reason and keep manual settings intact."
+    },
+    {
+      "id": "image-trim.upscale",
+      "category": "capabilities",
+      "title": "超分输出兼容",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte"],
+      "targetContract": "Crop detects and applies against the currently presented/upscaled frame generation, never against a stale source or a private duplicate artifact.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.upscale-generation"],
+      "notes": "The upscale pipeline remains the artifact owner."
+    },
+    {
+      "id": "image-trim.shell",
+      "category": "ui-parity",
+      "title": "共享 Card 外壳与常驻行为",
+      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/CardWindow.svelte"],
+      "targetContract": "The Card retains title, control Panel default, hideability, collapse, resize, dock/window modes and resident pre-session shell using the shared Card renderer.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": ["neoview.image-trim.resident"],
+      "plannedTestIds": ["neoview.image-trim.shell", "neoview.image-trim.resident"],
+      "notes": "The resident shell is implemented through the shared registry and verified before/after the harness session toggle; Card window parity remains a broader shell gate."
+    },
+    {
+      "id": "image-trim.ui-parity",
+      "category": "ui-parity",
+      "title": "旧版层级、标签、图标与密度",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/ImageTrimCard.tsx"],
+      "targetContract": "Target preserves the exact group order, Chinese labels, icon meanings, compact spacing/classes, conditional preview and action hierarchy before any intentional improvement is introduced.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.ui", "neoview.image-trim.ui-1920x1080"],
+      "notes": "Changes to tokens, labels or icons require a recorded deviation."
+    },
+    {
+      "id": "image-trim.responsive",
+      "category": "ui-parity",
+      "title": "1920x1080 与窄 Card 几何",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte"],
+      "targetContract": "The Card remains readable at 1920x1080 and constrained dock/window widths with no horizontal overflow, clipped labels or overlapping controls; 1920x1080 is the primary baseline.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.ui-1920x1080", "neoview.image-trim.responsive"],
+      "notes": "Use terminal screenshot scripts; do not use the in-app Browser."
+    },
+    {
+      "id": "image-trim.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "原生控件与图标命令可访问",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte"],
+      "targetContract": "Checkbox, ranges, select, icon buttons and async actions have accessible names, native keyboard behavior, visible focus and non-stolen focus during detection.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.accessibility"],
+      "notes": "Titles alone are not sufficient for icon-only commands."
+    },
+    {
+      "id": "image-trim.image-stability",
+      "category": "performance",
+      "title": "裁剪操作不重挂活动图片",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/stackview/components/FrameImage.svelte"],
+      "targetContract": "Changing edges, links, threshold, target or detection preview preserves the exact active media node and asset identity and creates no duplicate request/decode.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": ["neoview.image-trim.image-stability"],
+      "plannedTestIds": ["neoview.image-trim.image-stability", "neoview.image-trim.zero-duplicate-request"],
+      "notes": "The 1920x1080 harness verifies the same img element and asset URL before and after trim interaction; zero-duplicate-request accounting remains a separate gate."
+    },
+    {
+      "id": "image-trim.performance",
+      "category": "performance",
+      "title": "采样、DOM、缓存与热路径预算",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/cards/info/ImageTrimCard.svelte", "src/lib/utils/imageTrace.ts"],
+      "targetContract": "Manual slider updates are O(1) and end-only for persistence; detection samples a bounded number of pixels once per media generation; cache, DOM and timers remain bounded and Reader navigation stays within existing gates.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.sample-budget", "neoview.image-trim.performance"],
+      "notes": "Build, typecheck, Vitest and Playwright run strictly serial on Windows."
+    },
+    {
+      "id": "image-trim.chunk",
+      "category": "performance",
+      "title": "独立延迟 chunk",
+      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte"],
+      "targetContract": "ImageTrimCard and detection code stay in an independently auditable deferred chunk with an explicit byte ceiling and no Node builtin in the browser graph.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.chunk"],
+      "notes": "The global entry gate is separate and must not be weakened for this Card."
+    },
+    {
+      "id": "image-trim.visual-evidence",
+      "category": "tests",
+      "title": "旧版与目标 1920x1080 截图",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte"],
+      "targetContract": "A terminal script captures the expanded legacy Card and target Card at 1920x1080, including enabled/disabled, non-zero preview and auto controls; evidence compares hierarchy, labels, icons, density and geometry.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": ["neoview.image-trim.ui-1920x1080"],
+      "plannedTestIds": ["neoview.image-trim.ui-1920x1080"],
+      "notes": "Legacy baseline and target screenshot are both captured by terminal scripts at 1920x1080. The target covers resident, enabled, non-zero crop, auto controls and post-open interaction; pixel-level parity remains partial."
+    },
+    {
+      "id": "image-trim.deviations",
+      "category": "deviations",
+      "title": "记录有意改进与替代契约",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts", "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/ImageTrimCard.tsx"],
+      "targetContract": "Document any replacement of direct DOM lookup, unbounded legacy cache, per-input writes, second-image sampling, media limitations or token changes while preserving visible control semantics.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.deviations"],
+      "notes": "No deviation is approved merely because it is easier to implement."
+    },
+    {
+      "id": "image-trim.error-retry",
+      "category": "interaction-states",
+      "title": "检测失败与重试",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "Detection errors leave the last valid manual settings intact, expose a retryable state and do not poison the cache or disable unrelated controls.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.error-retry"],
+      "notes": "A failed auto operation must not reset the user's four-edge values."
+    },
+    {
+      "id": "image-trim.cancel",
+      "category": "lifecycle",
+      "title": "检测取消",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/utils/imageTrace.ts"],
+      "targetContract": "Navigation, hide, unmount or explicit cancellation aborts detection and leaves no pending request, timer or stale success message.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.cancel"],
+      "notes": "Cancellation is not reported as a detection failure."
+    },
+    {
+      "id": "image-trim.single-double-page",
+      "category": "data-contract",
+      "title": "单双页和页面布局策略",
+      "sourceEvidence": ["src/lib/stores/imageTrimStore.svelte.ts", "src/lib/stackview/layers/CurrentFrameLayer.svelte", "src/lib/stackview/layers/PanoramaFrameLayer.svelte"],
+      "targetContract": "The shared layout contract explicitly states how crop percentages apply to single page, double page and panorama frames, including RTL/rotation.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.layout-contract"],
+      "notes": "This remains a partial boundary until the old runtime policy is characterized."
+    },
+    {
+      "id": "image-trim.reset-boundary",
+      "category": "deviations",
+      "title": "重置和未完成边界",
+      "sourceEvidence": ["src/lib/cards/info/ImageTrimCard.svelte", "src/lib/stores/imageTrimStore.svelte.ts"],
+      "targetContract": "The compatibility record stays partial until auto detection, persistence, media layout and visual evidence are implemented; reset must not be marked complete by a UI-only mock.",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.image-trim.completion-audit"],
+      "notes": "Current status is intentionally partial: manual edge editing, shared persistence and CSS projection are implemented; automatic detection, border presets, media policy, cache/lifecycle and full visual parity remain incomplete."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "plan",
+    "pathsText": "D:/library/Artist Alpha\nD:/library/Artist Beta",
+    "mode": "library",
+    "keepTimestamp": true,
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "SNF planned 4 sequence repairs.",
+    "logs": ["[20%] Scanning numbered folders.", "[65%] Planning sequence repairs.", "SNF planned 4 sequence repairs."],
+    "result": {
+      "action": "plan",
+      "mode": "library",
+      "items": [
+        { "artistPath": "D:/library/Artist Alpha", "sourcePath": "D:/library/Artist Alpha/1. TANKOBON", "targetPath": "D:/library/Artist Alpha/1. TANKOBON", "sourceName": "1. TANKOBON", "targetName": "1. TANKOBON", "sequence": 1, "status": "unchanged" },
+        { "artistPath": "D:/library/Artist Alpha", "sourcePath": "D:/library/Artist Alpha/4. ARTBOOK CG", "targetPath": "D:/library/Artist Alpha/2. ARTBOOK CG", "sourceName": "4. ARTBOOK CG", "targetName": "2. ARTBOOK CG", "sequence": 2, "status": "ready" },
+        { "artistPath": "D:/library/Artist Alpha", "sourcePath": "D:/library/Artist Alpha/5. UNKNOWN_ENTITY", "targetPath": "D:/library/Artist Alpha/3. UNKNOWN_ENTITY", "sourceName": "5. UNKNOWN_ENTITY", "targetName": "3. UNKNOWN_ENTITY", "sequence": 3, "status": "conflict", "reason": "name requires review" },
+        { "artistPath": "D:/library/Artist Beta", "sourcePath": "D:/library/Artist Beta/8. CG", "targetPath": "D:/library/Artist Beta/1. CG", "sourceName": "8. CG", "targetName": "1. CG", "sequence": 1, "status": "ready" }
+      ],
+      "artistCount": 2,
+      "scannedCount": 4,
+      "readyCount": 2,
+      "renamedCount": 0,
+      "unchangedCount": 1,
+      "skippedCount": 0,
+      "conflictCount": 1,
+      "errorCount": 0,
+      "errors": []
+    }
+  }
+}

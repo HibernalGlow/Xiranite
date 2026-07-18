@@ -1,0 +1,602 @@
+{
+  "schemaVersion": 2,
+  "featureId": "storage-information",
+  "legacyCardId": "storage",
+  "title": "存储信息",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "completionRule": "Complete only when every legacy path/size field and empty state, the frozen book/page/resource-storage scope, shared GUI/CLI/TUI DTO, lazy lifecycle, responsive geometry and bounded diagnostics behavior have automated evidence.",
+  "sourceUiInventory": [
+    {
+      "id": "storage-ui.fields",
+      "title": "路径与大小字段",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "路径行",
+        "路径标签",
+        "完整路径 title",
+        "等宽小字号路径",
+        "最大宽度 200px",
+        "长路径 break-words",
+        "大小行",
+        "大小标签",
+        "缺失路径 em dash",
+        "缺失大小 em dash"
+      ],
+      "mappedChecklistIds": [
+        "storage.path",
+        "storage.page-size",
+        "storage.format",
+        "storage.ui-parity"
+      ]
+    },
+    {
+      "id": "storage-ui.format",
+      "title": "字节格式边界",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte"
+      ],
+      "acceptanceItems": [
+        "undefined 显示 em dash",
+        "0 显示 0 B",
+        "小于 1024 显示整数 B",
+        "KB 保留两位小数",
+        "MB 保留两位小数",
+        "GB 保留两位小数",
+        "1024 进制阈值"
+      ],
+      "mappedChecklistIds": [
+        "storage.format",
+        "storage.data-contract"
+      ]
+    },
+    {
+      "id": "storage-ui.empty",
+      "title": "空数据与元数据生命周期",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "imageInfo 为空时字段零 DOM",
+        "居中显示暂无存储信息",
+        "初始状态为空",
+        "关闭书籍清空",
+        "翻页更新当前页面路径与大小",
+        "Card 卸载取消订阅",
+        "迟到元数据不得覆盖当前页",
+        "加载状态",
+        "错误状态",
+        "重试入口"
+      ],
+      "mappedChecklistIds": [
+        "storage.states",
+        "storage.lifecycle",
+        "storage.performance",
+        "storage.deviations"
+      ]
+    },
+    {
+      "id": "storage-ui.shell",
+      "title": "通用 Card 外壳与布局状态",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "HardDrive 图标与存储信息标题",
+        "默认 info Panel",
+        "默认显示并展开",
+        "允许隐藏",
+        "标题折叠",
+        "上移与下移",
+        "独立窗口",
+        "高度拖动与恢复自动",
+        "折叠时内容零挂载",
+        "动态 import 加载与失败状态",
+        "visible/expanded/order/height 持久化"
+      ],
+      "mappedChecklistIds": [
+        "storage.shell",
+        "storage.persistence",
+        "storage.accessibility",
+        "storage.lifecycle",
+        "storage.performance"
+      ]
+    },
+    {
+      "id": "storage-ui.data-flow",
+      "title": "共享页面与书源存储契约",
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "acceptanceItems": [
+        "当前页面 displayPath",
+        "当前页面实际字节大小",
+        "归档条目使用条目大小而非外层压缩包大小",
+        "文件页使用文件 stat fallback",
+        "书源文件大小单独表达",
+        "文件夹书源大小保持未知",
+        "GUI/CLI/TUI 共用字段语义",
+        "同一 generation 请求去重",
+        "取消与 session 关闭释放"
+      ],
+      "mappedChecklistIds": [
+        "storage.path",
+        "storage.page-size",
+        "storage.book-size",
+        "storage.data-contract",
+        "storage.lifecycle",
+        "storage.performance"
+      ]
+    },
+    {
+      "id": "storage-ui.resource-extension",
+      "title": "XR 资源占用扩展",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "资源占用与旧路径/大小字段分组",
+        "呈现内存缓存字节数",
+        "缩略图内存缓存字节数",
+        "固态归档缓存保留字节数",
+        "呈现磁盘缓存字节数",
+        "不可用资源指标显示 em dash",
+        "采样有界且 Card 隐藏时零轮询",
+        "全局资源指标明确标记为 XR 扩展"
+      ],
+      "mappedChecklistIds": [
+        "storage.resource-usage",
+        "storage.states",
+        "storage.lifecycle",
+        "storage.performance",
+        "storage.deviations"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "storage.path",
+      "category": "capabilities",
+      "title": "显示当前页面规范存储路径",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "The Card renders the current page display path, preserving an archive entry identity instead of substituting an editable input or unrelated book source.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.http",
+        "neoview.metadata.cards",
+        "neoview.storage-information.legacy-fields",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "page.displayPath remains distinct from book.sourcePath; archive entries and filesystem pages retain their canonical display identity."
+    },
+    {
+      "id": "storage.page-size",
+      "category": "capabilities",
+      "title": "显示当前页面实际字节大小",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "The current page byte length uses entry metadata or filesystem stat fallback without decoding image content.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.http",
+        "neoview.metadata.cards",
+        "neoview.headless.page-stream",
+        "neoview.storage-information.legacy-fields",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Archive entry and filesystem page sizes use the shared page byteLength and never substitute the outer book source size."
+    },
+    {
+      "id": "storage.book-size",
+      "category": "capabilities",
+      "title": "单独显示书源文件大小",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "XR separately exposes the opened archive/document/media source file size while directory-backed books remain unknown.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.http",
+        "neoview.storage-information.legacy-fields",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The HTTP metadata contract stats file-backed book sources; directory books degrade to unknown and headless surfaces keep local source paths redacted."
+    },
+    {
+      "id": "storage.resource-usage",
+      "category": "capabilities",
+      "title": "显示有界缓存与资源占用",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "The Card exposes bounded presentation-memory, thumbnail-memory, solid-archive and presentation-disk cache bytes from the shared diagnostics snapshot without starting a second sampler.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.diagnostics.snapshot",
+        "neoview.diagnostics.http",
+        "neoview.diagnostics.cli",
+        "neoview.storage-information.diagnostics-client",
+        "neoview.storage-information.legacy-fields",
+        "neoview.storage-information.partial-metrics",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The four metrics come from the existing versioned diagnostics service and are visually separated from the legacy fields."
+    },
+    {
+      "id": "storage.format",
+      "category": "ui-parity",
+      "title": "保持 1024 进制字节格式",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte"
+      ],
+      "targetContract": "Missing values render an em dash, zero renders 0 B, bytes remain integral and KiB-range labels preserve the legacy KB/MB/GB labels with two decimals.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.storage-information.format",
+        "neoview.storage-information.partial-metrics",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Dedicated boundaries cover invalid, zero, 1023, 1024, MiB and GiB values."
+    },
+    {
+      "id": "storage.states",
+      "category": "interaction-states",
+      "title": "加载、空、错误与重试",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "The Card has stable loading, empty, partial-metric, error and retry states and never shows stale page storage data as current.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.storage-information.states",
+        "neoview.storage-information.diagnostics-retry",
+        "neoview.storage-information.partial-metrics",
+        "neoview.metadata.cancel"
+      ],
+      "plannedTestIds": [],
+      "notes": "Diagnostics failure leaves legacy metadata visible; loading/error/retry are accessible target extensions."
+    },
+    {
+      "id": "storage.shell",
+      "category": "ui-parity",
+      "title": "共享 Card 外壳行为",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "targetContract": "The Storage Card remains independently lazy, dockable, hideable, collapsible, movable, resizable and window-capable through the shared shell.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.card.collapse",
+        "neoview.card.resize-patch",
+        "neoview.settings.card-layout"
+      ],
+      "plannedTestIds": [
+        "neoview.storage-information.lazy-chunk"
+      ],
+      "notes": "Storage builds as an independent 3557-byte deferred chunk and keeps the shared shell contract."
+    },
+    {
+      "id": "storage.data-contract",
+      "category": "data-contract",
+      "title": "共享有界存储与诊断 DTO",
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "GUI, CLI and TUI share bounded page/book byte identities and a versioned diagnostics snapshot with cancellation and unavailable-field semantics.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.http",
+        "neoview.headless.page-stream",
+        "neoview.diagnostics.snapshot",
+        "neoview.diagnostics.http",
+        "neoview.diagnostics.cli",
+        "neoview.storage-information.diagnostics-client"
+      ],
+      "plannedTestIds": [],
+      "notes": "The shared diagnostics DTO is path-free and metric-only; page bytes remain on the existing bounded reader snapshot."
+    },
+    {
+      "id": "storage.lifecycle",
+      "category": "lifecycle",
+      "title": "懒加载、去重、取消与释放",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "Hidden or collapsed Cards do no work; metadata is shared per generation; diagnostics are fetched once on activation and cancellation/disposal prevents stale publication.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cards",
+        "neoview.metadata.cancel",
+        "neoview.card.zero-mount",
+        "neoview.storage-information.states",
+        "neoview.storage-information.diagnostics-cancel",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Storage has no polling loop; the single activation request aborts on unmount and E2E observes exactly one diagnostics request."
+    },
+    {
+      "id": "storage.persistence",
+      "category": "settings",
+      "title": "仅持久化共享 Card 布局",
+      "sourceEvidence": [
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "targetContract": "Storage content has no settings; panel/order/visible/expanded/height persist only through canonical [nodes.neoview] layout.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.settings.card-layout",
+        "neoview.card.persist-react",
+        "neoview.card.resize-patch"
+      ],
+      "plannedTestIds": [],
+      "notes": "No storage sample or resource snapshot is persisted to xiranite.db or a second NeoView database."
+    },
+    {
+      "id": "storage.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "语义字段与键盘等价操作",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte"
+      ],
+      "targetContract": "The Card uses grouped semantic description data; shell and retry controls have keyboard operation and accessible names.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.card.collapse",
+        "neoview.storage-information.diagnostics-retry",
+        "neoview.storage-information.legacy-fields"
+      ],
+      "plannedTestIds": [],
+      "notes": "Description groups, named resource heading and a native retry button provide the target keyboard and screen-reader contract."
+    },
+    {
+      "id": "storage.ui-parity",
+      "category": "ui-parity",
+      "title": "桌面与窄 Card 视觉几何",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "targetContract": "Legacy two-row density, labels, monospace wrapping and the separated XR resource group remain readable at desktop and 420x360 Card widths.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.storage-information.legacy-fields",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Chromium assert zero Card overflow and capture the rendered Card."
+    },
+    {
+      "id": "storage.performance",
+      "category": "performance",
+      "title": "常量 DOM、共享请求与独立 chunk",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "O(1) DOM, one metadata request per session generation, one activation diagnostics request, zero hidden work and a deferred Storage Card chunk under 8 KiB.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cards",
+        "neoview.metadata.cancel",
+        "neoview.storage-information.diagnostics-cancel",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.storage-information.lazy-chunk"
+      ],
+      "notes": "Storage chunk is 3557 bytes; the Card performs no decode, directory scan, thumbnail blob read or polling."
+    },
+    {
+      "id": "storage.deviations",
+      "category": "deviations",
+      "title": "记录书源大小与资源占用扩展",
+      "sourceEvidence": [
+        "src/lib/cards/info/StorageCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "Document that separate book size, diagnostics metrics, loading/error/retry and semantic groups are intentional additions while the legacy path/size rows remain intact.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.storage-information.legacy-fields",
+        "neoview.storage-information.diagnostics-retry",
+        "neoview.storage-information.partial-metrics",
+        "neoview.storage-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Legacy path and size remain the first group; book size and shared resource diagnostics are explicitly labeled target extensions."
+    }
+  ]
+}

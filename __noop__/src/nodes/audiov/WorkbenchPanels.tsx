@@ -1,0 +1,216 @@
+import type { AudiovCommandPlan, AudiovData } from "@xiranite/node-audiov/core"
+import { Clipboard, Copy, FileVideo, ScrollText, Terminal, Volume2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
+import type { AudiovCardState } from "./types"
+
+type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
+
+export function PathsColumn(props: {
+  data: AudiovCardState
+  disabled?: boolean
+  t: Translate
+  onPaste: () => void
+  onPatch: (patch: Partial<AudiovCardState>) => void
+}) {
+  return (
+    <section className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border bg-background/60">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <FileVideo className="size-3.5" />
+          <span>{props.t("paths.title", "视频路径")}</span>
+        </div>
+        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">{props.t("paths.onePerLine", "每行一条")}</span>
+      </div>
+      <Separator className="shrink-0" />
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">
+        <Textarea
+          id="audiov-paths"
+          aria-label={props.t("aria.videoPaths", "audiov 视频路径")}
+          disabled={props.disabled}
+          className="min-h-0 flex-1 resize-none font-mono text-xs leading-5"
+          placeholder={props.t("paths.placeholder", "粘贴视频文件路径，例如：\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv")}
+          value={props.data.pathsText ?? ""}
+          onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+        />
+        <Button disabled={props.disabled} size="xs" variant="outline" onClick={props.onPaste}>
+          <Clipboard data-icon="inline-start" />
+          {props.t("buttons.pastePaths", "粘贴路径")}
+        </Button>
+      </div>
+    </section>
+  )
+}
+
+export function CommandPreview(props: {
+  compact?: boolean
+  result: AudiovData | null
+  running?: boolean
+  t: Translate
+  onCopy: () => void
+}) {
+  const command: AudiovCommandPlan | undefined = props.result?.command
+  const commandResult = props.result?.commandResults.find((result) => result.code !== 0) ?? props.result?.commandResults[0]
+  const hasCommand = Boolean(command?.command)
+  const status = commandResult ? (commandResult.code === 0 ? "success" : "error") : hasCommand ? "planned" : "idle"
+
+  return (
+    <section
+      data-testid="audiov-command-preview"
+      className="relative flex min-h-0 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-100 shadow-inner"
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/80 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="size-2 rounded-full bg-rose-500/80" />
+          <span className="size-2 rounded-full bg-amber-500/80" />
+          <span className="size-2 rounded-full bg-emerald-500/80" />
+          <Terminal className="ml-1 size-3.5 text-zinc-400" />
+          <span className="truncate text-xs font-semibold text-zinc-200">{props.t("command.title", "命令预览")}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {hasCommand && (
+            <Badge
+              variant={status === "error" ? "destructive" : status === "success" ? "default" : "outline"}
+              className="shrink-0"
+            >
+              {status === "planned" && props.t("command.status.planned", "待执行")}
+              {status === "success" && props.t("command.status.success", "成功")}
+              {status === "error" && props.t("command.status.error", "失败")}
+            </Badge>
+          )}
+          <Button disabled={!hasCommand} size="xs" variant="ghost" className="text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" onClick={props.onCopy}>
+            <Copy data-icon="inline-start" />
+            {props.t("buttons.copy", "复制")}
+          </Button>
+        </div>
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1">
+        {hasCommand && command ? (
+          <div className={props.compact ? "flex flex-col gap-2 p-2.5" : "flex flex-col gap-3 p-4"}>
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 shrink-0 font-mono text-sm text-emerald-400">▶</span>
+              <div className="min-w-0 flex-1">
+                <div
+                  className={cn(
+                    "break-all font-mono leading-relaxed text-zinc-100",
+                    props.compact ? "text-sm" : "text-base @3xl/audiov:text-lg",
+                  )}
+                >
+                  <span className="text-emerald-400">{command.command}</span>
+                  <span className="text-zinc-400"> </span>
+                  <span className="text-sky-300">{command.args.join(" ")}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+              <span className="h-px flex-1 bg-gradient-to-r from-emerald-500/40 via-zinc-700 to-transparent" />
+              <Volume2 className="size-3" />
+              <span className="h-px flex-1 bg-gradient-to-l from-sky-500/30 via-zinc-700 to-transparent" />
+            </div>
+
+            <div className="grid gap-1 font-mono text-[11px] text-zinc-400">
+              <div className="flex min-w-0 gap-2">
+                <span className="shrink-0 text-zinc-600">{props.t("command.label", "标签")}</span>
+                <span className="truncate text-zinc-300" title={command.label}>{command.label}</span>
+              </div>
+              <div className="flex min-w-0 gap-2">
+                <span className="shrink-0 text-zinc-600">{props.t("command.output", "输出")}</span>
+                <span className="truncate text-zinc-300" title={command.outputPath}>{command.outputPath}</span>
+              </div>
+              {props.result && props.result.commands.length > 1 && (
+                <div className="flex min-w-0 gap-2">
+                  <span className="shrink-0 text-zinc-600">{props.t("command.batchLabel", "批次")}</span>
+                  <span className="truncate text-zinc-300">{props.t("command.batch", "{{count}} 个提取命令", { count: props.result.commands.length })}</span>
+                </div>
+              )}
+            </div>
+
+            {commandResult?.stdout && (
+              <pre className="overflow-auto rounded border border-zinc-800 bg-zinc-900/60 p-2 font-mono text-[11px] leading-5 text-zinc-300">
+                {commandResult.stdout}
+              </pre>
+            )}
+            {commandResult?.stderr && (
+              <pre className="overflow-auto rounded border border-rose-900/50 bg-rose-950/30 p-2 font-mono text-[11px] leading-5 text-rose-300">
+                {commandResult.stderr}
+              </pre>
+            )}
+          </div>
+        ) : (
+          <div className={props.compact ? "flex h-full min-h-20 flex-col items-center justify-center gap-1.5 p-4 text-center" : "flex h-full min-h-28 flex-col items-center justify-center gap-2 p-6 text-center"}>
+            <Volume2 className="text-zinc-600" />
+            <div className="text-xs font-medium text-zinc-400">{props.t("command.emptyTitle", "等待 ffmpeg 命令")}</div>
+            <div className="text-[11px] text-zinc-600">{props.t("command.emptyDescription", "运行生成计划后会显示音轨提取命令。")}</div>
+          </div>
+        )}
+      </ScrollArea>
+
+      {props.running && (
+        <div className="flex h-1.5 shrink-0 items-end gap-0.5 bg-zinc-900/80 px-2 py-0.5" aria-hidden="true">
+          {Array.from({ length: 48 }).map((_, i) => (
+            <span
+              key={i}
+              className="flex-1 animate-pulse bg-emerald-400/70"
+              style={{
+                height: `${20 + Math.abs(Math.sin(i * 0.7 + Date.now() / 400)) * 80}%`,
+                animationDelay: `${i * 40}ms`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function OutputConsole(props: {
+  compact?: boolean
+  logs: string[]
+  running?: boolean
+  t: Translate
+  onCopy: () => void
+}) {
+  return (
+    <section
+      data-testid="audiov-output-console"
+      className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background/60"
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <ScrollText className="size-3.5" />
+          <span>{props.t("output.title", "输出")}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {props.logs.length > 0 && (
+            <span className="text-[10px] tabular-nums text-muted-foreground/70">{props.t("output.lines", "{{count}} 行", { count: props.logs.length })}</span>
+          )}
+          <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+            <Copy data-icon="inline-start" />
+            {props.t("buttons.copy", "复制")}
+          </Button>
+        </div>
+      </div>
+      <Separator className="shrink-0" />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.logs.length ? (
+          <pre className={props.compact ? "whitespace-pre-wrap p-2 font-mono text-[11px] leading-5 text-muted-foreground" : "whitespace-pre-wrap p-3 font-mono text-[11px] leading-5 text-muted-foreground"}>
+            {props.logs.join("\n")}
+          </pre>
+        ) : (
+          <div className={props.compact ? "flex h-full min-h-20 items-center justify-center p-3 text-center text-[11px] text-muted-foreground" : "flex h-full min-h-28 items-center justify-center p-6 text-center text-xs text-muted-foreground"}>
+            <span className="flex flex-col items-center gap-1.5">
+              <ScrollText className="size-4" />
+              <span>{props.t("output.empty", "运行日志会显示在这里。")}</span>
+            </span>
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}

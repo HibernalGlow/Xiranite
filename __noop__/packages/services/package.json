@@ -1,0 +1,36 @@
+{
+  "name": "@xiranite/services",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Business services for the Xiranite local-first platform.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./thumbnail-coordinator": {
+      "types": "./dist/thumbnailCoordinator.d.ts",
+      "default": "./dist/thumbnailCoordinator.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "vitest run src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@xiranite/config": "workspace:*",
+    "@xiranite/contract": "workspace:*",
+    "@xiranite/repository": "workspace:*",
+    "@xiranite/shared": "workspace:*",
+    "p-queue": "9.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

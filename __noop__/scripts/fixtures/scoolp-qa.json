@@ -1,0 +1,63 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "cache_list",
+    "cachePath": "D:/scoop/cache",
+    "scoopRoot": "D:/scoop",
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "Found 4 obsolete cache file(s), 2.45 GB reclaimable.",
+    "logs": ["[30%] Scanning D:/scoop/cache", "[100%] Cache scan complete."],
+    "result": {
+      "scoopInstalled": true,
+      "installedPackages": ["git", "7zip", "nodejs"],
+      "buckets": ["main", "extras"],
+      "availablePackages": [],
+      "syncPlan": [],
+      "commandResults": [],
+      "installedCount": 0,
+      "failedCount": 0,
+      "cleanedCount": 0,
+      "cleanedSizeBytes": 0,
+      "errors": [],
+      "cache": {
+        "path": "D:/scoop/cache",
+        "fileCount": 18,
+        "softwareCount": 9,
+        "obsoleteCount": 4,
+        "obsoleteSize": 2629828608,
+        "obsoletePackages": [
+          {
+            "name": "nodejs",
+            "version": "20.10.0",
+            "size": 1283457024,
+            "filename": "nodejs#20.10.0#x64.7z",
+            "path": "D:/scoop/cache/nodejs#20.10.0#x64.7z"
+          },
+          {
+            "name": "python",
+            "version": "3.11.7",
+            "size": 842006528,
+            "filename": "python#3.11.7#x64.7z",
+            "path": "D:/scoop/cache/python#3.11.7#x64.7z"
+          },
+          {
+            "name": "ffmpeg",
+            "version": "5.1",
+            "size": 418381824,
+            "filename": "ffmpeg#5.1#full.7z",
+            "path": "D:/scoop/cache/ffmpeg#5.1#full.7z"
+          },
+          {
+            "name": "git",
+            "version": "2.40.0",
+            "size": 86134784,
+            "filename": "git#2.40.0#64-bit.7z",
+            "path": "D:/scoop/cache/git#2.40.0#64-bit.7z"
+          }
+        ]
+      }
+    }
+  }
+}

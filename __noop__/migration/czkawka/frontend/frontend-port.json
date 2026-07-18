@@ -1,0 +1,5571 @@
+{
+  "schemaVersion": 1,
+  "sourceRoot": "D:\\1VSCODE\\Projects\\ImageAll\\czkawka-tauri\\ui\\src",
+  "outputDir": "D:\\1VSCODE\\Projects\\Xiranite\\migration\\czkawka\\frontend",
+  "generatedAt": "2026-07-15T03:28:14.572Z",
+  "files": [
+    {
+      "path": "app.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/resizable",
+          "to": "@/components/ui/resizable",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/sidebar",
+          "to": "@/components/ui/sidebar",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/sonner",
+          "to": "@/components/ui/sonner",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/tooltip",
+          "to": "@/components/ui/tooltip",
+          "count": 1
+        },
+        {
+          "from": "~/views/app-body",
+          "to": "@/nodes/czkawka/upstream/views/app-body",
+          "count": 1
+        },
+        {
+          "from": "~/views/app-header",
+          "to": "@/nodes/czkawka/upstream/views/app-header",
+          "count": 1
+        },
+        {
+          "from": "~/views/app-sidebar",
+          "to": "@/nodes/czkawka/upstream/views/app-sidebar",
+          "count": 1
+        },
+        {
+          "from": "~/views/bottom-bar",
+          "to": "@/nodes/czkawka/upstream/views/bottom-bar",
+          "count": 1
+        },
+        {
+          "from": "~/views/floating-analysis-panel",
+          "to": "@/nodes/czkawka/upstream/views/floating-analysis-panel",
+          "count": 1
+        },
+        {
+          "from": "~/views/floating-filter-panel",
+          "to": "@/nodes/czkawka/upstream/views/floating-filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/views/sidebar-image-preview",
+          "to": "@/nodes/czkawka/upstream/views/sidebar-image-preview",
+          "count": 1
+        },
+        {
+          "from": "~/views/sidebar-video-preview",
+          "to": "@/nodes/czkawka/upstream/views/sidebar-video-preview",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/card-config.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/lib/cards/registry",
+          "to": "@/nodes/czkawka/upstream/lib/cards/registry",
+          "count": 1
+        },
+        {
+          "from": "~/lib/cards/types",
+          "to": "@/nodes/czkawka/upstream/lib/cards/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/filter-panel.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/lib/filter-panel/filter-engine",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/filter-engine",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/presets",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/presets",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/format-filter.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/local-features.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/preset.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/primitive.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/selection-assistant.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/types",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/settings.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/similar-images-presets.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/theme.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/api/core",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-core",
+          "count": 1
+        },
+        {
+          "from": "@tauri-apps/api/webviewWindow",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-webview-window",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/storage",
+          "to": "@/nodes/czkawka/upstream/utils/storage",
+          "count": 1
+        },
+        {
+          "from": "~/utils/theme",
+          "to": "@/nodes/czkawka/upstream/utils/theme",
+          "count": 1
+        },
+        {
+          "from": "~/utils/themeManager",
+          "to": "@/nodes/czkawka/upstream/utils/themeManager",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/api/core",
+        "@tauri-apps/api/webviewWindow"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "atom/tools.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatFilteredData",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatFilteredData",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/box-reveal.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "framer-motion",
+          "to": "motion/react",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/cards/card-renderer.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/card-config",
+          "to": "@/nodes/czkawka/upstream/atom/card-config",
+          "count": 1
+        },
+        {
+          "from": "~/lib/cards/registry",
+          "to": "@/nodes/czkawka/upstream/lib/cards/registry",
+          "count": 1
+        },
+        {
+          "from": "~/lib/cards/types",
+          "to": "@/nodes/czkawka/upstream/lib/cards/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/cards/floating-panel.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/cards/glass-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/magicui/magic-card",
+          "to": "@/nodes/czkawka/upstream/components/magicui/magic-card",
+          "count": 1
+        },
+        {
+          "from": "~/lib/cards/types",
+          "to": "@/nodes/czkawka/upstream/lib/cards/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/cards/index.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/checkbox-with-label.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/data-table.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-opener",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-opener",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/use-box-select",
+          "to": "@/nodes/czkawka/upstream/hooks/use-box-select",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-opener"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/dynamic-preview-cell.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/edit-input.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/form.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/global-filter.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/icons.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/index.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/input-number.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/magicui/magic-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/one-alert-dialog.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/one-select.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/operation-button.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/right-click-menu.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/search-input.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/alert-dialog.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        },
+        {
+          "from": "~/utils/event",
+          "to": "@/nodes/czkawka/upstream/utils/event",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/badge.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/button.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/checkbox.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/context-menu.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/dialog.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        },
+        {
+          "from": "~/utils/event",
+          "to": "@/nodes/czkawka/upstream/utils/event",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/dropdown-menu.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/hover-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/input.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/label.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/popover.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/progress.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/resizable.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/scroll-area.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/select.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/separator.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/sheet.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/sidebar.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/separator",
+          "to": "@/components/ui/separator",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/sheet",
+          "to": "@/components/ui/sheet",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/skeleton",
+          "to": "@/components/ui/skeleton",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/tooltip",
+          "to": "@/components/ui/tooltip",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/use-mobile",
+          "to": "@/nodes/czkawka/upstream/hooks/use-mobile",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/skeleton.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/slider.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/sonner.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/switch.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/table.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/tabs.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/textarea.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/toggle-group.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/toggle.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/shadcn/tooltip.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/simple-filter.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/simple-form.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/thumbnail-cell.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/thumbnail-loader",
+          "to": "@/nodes/czkawka/upstream/utils/thumbnail-loader",
+          "count": 1
+        },
+        {
+          "from": "~/views/clickable-image-preview",
+          "to": "@/nodes/czkawka/upstream/views/clickable-image-preview",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/toast.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/toggle-badge.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/tooltip-button.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/video-player-dialog.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/shadcn/dialog",
+          "to": "@/components/ui/dialog",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/use-video-server",
+          "to": "@/nodes/czkawka/upstream/hooks/use-video-server",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "components/video-thumbnail-cell.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/hooks/use-video-server",
+          "to": "@/nodes/czkawka/upstream/hooks/use-video-server",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "consts.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "global.d.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/index.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/use-boolean.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/use-box-select.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/use-listen-effect.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/api/event",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-event",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/api/event"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/use-mobile.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/use-t.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/i18n/en",
+          "to": "@/nodes/czkawka/upstream/i18n/en",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/use-video-server.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/api/core",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-core",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/api/core"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/useFormatFilteredData.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/format-filter",
+          "to": "@/nodes/czkawka/upstream/atom/format-filter",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/utils",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/utils",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/useFormatStats.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/useSimilarityStats.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/utils/similarity-utils",
+          "to": "@/nodes/czkawka/upstream/utils/similarity-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "hooks/useTableSelectionStats.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "i18n/en.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "i18n/index.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/utils/storage",
+          "to": "@/nodes/czkawka/upstream/utils/storage",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "i18n/zh.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "ipc.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/api/core",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-core",
+          "count": 1
+        },
+        {
+          "from": "@tauri-apps/api/mocks",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-mocks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/api/core",
+        "@tauri-apps/api/mocks"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/cards/registry.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/cards/types.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/__tests__/atoms.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/__tests__/filter-engine.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/__tests__/filtered-scope.property.test.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/__tests__/presets.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/__tests__/reset-refresh.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/__tests__/utils.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/filter-engine.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/presets.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/schemas.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/types.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/use-filtered-scope.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/filter-panel/utils.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/__tests__/config-utils.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/__tests__/directory-rule.property.test.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/__tests__/group-rule.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/__tests__/history.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/__tests__/matchers.property.test.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/__tests__/pipeline.property.test.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/__tests__/text-rule.property.test.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/config-utils.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/matchers.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/pipeline.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/rules/directory-rule.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/rules/group-rule.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/rules/text-rule.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/schemas.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "lib/selection-assistant/types.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "main.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/i18n",
+          "to": "@/nodes/czkawka/upstream/i18n",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "shim.d.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "types.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/cn.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/common.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/event.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/file-format-icons.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/file-type-utils.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/path-utils.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/similarity-utils.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/storage.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/table-helper.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/theme.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/themeManager.ts",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/thumbnail-loader.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "utils/thumbnail-preloader.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/app-body.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/app-header.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/api/window",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-window",
+          "count": 1
+        },
+        {
+          "from": "@tauri-apps/plugin-opener",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-opener",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/theme",
+          "to": "@/nodes/czkawka/upstream/atom/theme",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/icons",
+          "to": "@/nodes/czkawka/upstream/components/icons",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-select",
+          "to": "@/nodes/czkawka/upstream/components/one-select",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dropdown-menu",
+          "to": "@/components/ui/dropdown-menu",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/sidebar",
+          "to": "@/components/ui/sidebar",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/switch",
+          "to": "@/components/ui/switch",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/utils/storage",
+          "to": "@/nodes/czkawka/upstream/utils/storage",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/api/window",
+        "@tauri-apps/plugin-opener"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/app-sidebar.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/sidebar",
+          "to": "@/components/ui/sidebar",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/bad-extensions.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/basic-filter.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/big-files.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/table-helper",
+          "to": "@/nodes/czkawka/upstream/utils/table-helper",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/bottom-bar.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-dialog",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dialog",
+          "to": "@/components/ui/dialog",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/resizable",
+          "to": "@/components/ui/resizable",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/tabs",
+          "to": "@/components/ui/tabs",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatStats",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useSimilarityStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useSimilarityStats",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-dialog"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/broken-files.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/card-panel-manager.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/card-config",
+          "to": "@/nodes/czkawka/upstream/atom/card-config",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/badge",
+          "to": "@/components/ui/badge",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dropdown-menu",
+          "to": "@/components/ui/dropdown-menu",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/scroll-area",
+          "to": "@/components/ui/scroll-area",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/tabs",
+          "to": "@/components/ui/tabs",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/cards/registry",
+          "to": "@/nodes/czkawka/upstream/lib/cards/registry",
+          "count": 1
+        },
+        {
+          "from": "~/lib/cards/types",
+          "to": "@/nodes/czkawka/upstream/lib/cards/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/algorithm-settings-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/views/tool-settings",
+          "to": "@/nodes/czkawka/upstream/views/tool-settings",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/directory-selection-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/views/selection-assistant/directory-selection-section",
+          "to": "@/nodes/czkawka/upstream/views/selection-assistant/directory-selection-section",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/file-filter-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/views/file-filter-content",
+          "to": "@/nodes/czkawka/upstream/views/file-filter-content",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/format-bar-chart-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/hooks/use-t",
+          "to": "@/nodes/czkawka/upstream/hooks/use-t",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatStats",
+          "count": 1
+        },
+        {
+          "from": "framer-motion",
+          "to": "motion/react",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/format-donut-chart-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/hooks/use-t",
+          "to": "@/nodes/czkawka/upstream/hooks/use-t",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatStats",
+          "count": 1
+        },
+        {
+          "from": "framer-motion",
+          "to": "motion/react",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/format-filter-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/format-filter",
+          "to": "@/nodes/czkawka/upstream/atom/format-filter",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/badge",
+          "to": "@/components/ui/badge",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/scroll-area",
+          "to": "@/components/ui/scroll-area",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatStats",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/utils",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/group-selection-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/views/selection-assistant/group-selection-section",
+          "to": "@/nodes/czkawka/upstream/views/selection-assistant/group-selection-section",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/image-info-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/image-preview-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/included-dirs-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-dialog",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dialog",
+          "to": "@/components/ui/dialog",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-dialog"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/logs-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/quick-filter-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/switch",
+          "to": "@/components/ui/switch",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/similarity-distribution-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/hooks/use-t",
+          "to": "@/nodes/czkawka/upstream/hooks/use-t",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useSimilarityStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useSimilarityStats",
+          "count": 1
+        },
+        {
+          "from": "~/utils/similarity-utils",
+          "to": "@/nodes/czkawka/upstream/utils/similarity-utils",
+          "count": 1
+        },
+        {
+          "from": "framer-motion",
+          "to": "motion/react",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/similarity-filter-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/slider",
+          "to": "@/components/ui/slider",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/sort-criteria-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/types",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/types",
+          "count": 1
+        },
+        {
+          "from": "~/views/selection-assistant/sort-criteria-list",
+          "to": "@/nodes/czkawka/upstream/views/selection-assistant/sort-criteria-list",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/text-selection-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/views/selection-assistant/text-selection-section",
+          "to": "@/nodes/czkawka/upstream/views/selection-assistant/text-selection-section",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/tool-controls-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/views/tool-settings",
+          "to": "@/nodes/czkawka/upstream/views/tool-settings",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/video-info-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/cards/video-preview-card.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/clickable-image-preview.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/clickable-preview.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/clickable-video-preview.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/api/core",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-core",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/api/core"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/combined-image-preview.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/delete-files.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-alert-dialog",
+          "to": "@/nodes/czkawka/upstream/components/one-alert-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/delete-mode-toggle.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/duplicate-files.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/components/right-click-menu",
+          "to": "@/nodes/czkawka/upstream/components/right-click-menu",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatFilteredData",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatFilteredData",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/table-helper",
+          "to": "@/nodes/czkawka/upstream/utils/table-helper",
+          "count": 1
+        },
+        {
+          "from": "~/utils/thumbnail-preloader",
+          "to": "@/nodes/czkawka/upstream/utils/thumbnail-preloader",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/empty-files.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/empty-folders.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/file-filter-content.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/badge",
+          "to": "@/components/ui/badge",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/select",
+          "to": "@/components/ui/select",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/slider",
+          "to": "@/components/ui/slider",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/file-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/date-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/select",
+          "to": "@/components/ui/select",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/extension-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/badge",
+          "to": "@/components/ui/badge",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/utils",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/file-size-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/select",
+          "to": "@/components/ui/select",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/utils",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/filter-action-bar.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/presets",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/presets",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/filter-panel.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/shadcn/scroll-area",
+          "to": "@/components/ui/scroll-area",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/separator",
+          "to": "@/components/ui/separator",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/filter-stats.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/utils",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/group-count-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/group-size-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/select",
+          "to": "@/components/ui/select",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/utils",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/index.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/mark-status-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/path-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/select",
+          "to": "@/components/ui/select",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/preset-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/select",
+          "to": "@/components/ui/select",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/presets",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/presets",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/resolution-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/select",
+          "to": "@/components/ui/select",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/types",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/selection-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/badge",
+          "to": "@/components/ui/badge",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/show-all-in-group.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/similarity-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/popover",
+          "to": "@/components/ui/popover",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/slider",
+          "to": "@/components/ui/slider",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/filter-panel/use-filter-shortcuts.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/lib/filter-panel/presets",
+          "to": "@/nodes/czkawka/upstream/lib/filter-panel/presets",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/floating-analysis-panel.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components/cards/floating-panel",
+          "to": "@/nodes/czkawka/upstream/components/cards/floating-panel",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/tabs",
+          "to": "@/components/ui/tabs",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatStats",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useSimilarityStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useSimilarityStats",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/floating-filter-panel.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components/cards/floating-panel",
+          "to": "@/nodes/czkawka/upstream/components/cards/floating-panel",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/format-analysis.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/use-t",
+          "to": "@/nodes/czkawka/upstream/hooks/use-t",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatStats",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useSimilarityStats",
+          "to": "@/nodes/czkawka/upstream/hooks/useSimilarityStats",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/image-preview.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/hover-card",
+          "to": "@/components/ui/hover-card",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/invalid-symlinks.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/move-files.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-dialog",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/form",
+          "to": "@/nodes/czkawka/upstream/components/form",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-alert-dialog",
+          "to": "@/nodes/czkawka/upstream/components/one-alert-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-dialog"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/music-duplicates.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/components/right-click-menu",
+          "to": "@/nodes/czkawka/upstream/components/right-click-menu",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/table-helper",
+          "to": "@/nodes/czkawka/upstream/utils/table-helper",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/operations.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dialog",
+          "to": "@/components/ui/dialog",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/utils/similarity-utils",
+          "to": "@/nodes/czkawka/upstream/utils/similarity-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/organize-similar-groups.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-alert-dialog",
+          "to": "@/nodes/czkawka/upstream/components/one-alert-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        },
+        {
+          "from": "~/utils/table-helper",
+          "to": "@/nodes/czkawka/upstream/utils/table-helper",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/preset-select.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-clipboard-manager",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-clipboard",
+          "count": 1
+        },
+        {
+          "from": "~/atom/preset",
+          "to": "@/nodes/czkawka/upstream/atom/preset",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-clipboard-manager"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/quick-filter.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/rename-ext.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-alert-dialog",
+          "to": "@/nodes/czkawka/upstream/components/one-alert-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/row-selection-menu.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dialog",
+          "to": "@/components/ui/dialog",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dropdown-menu",
+          "to": "@/components/ui/dropdown-menu",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/save-result.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-dialog",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-alert-dialog",
+          "to": "@/nodes/czkawka/upstream/components/one-alert-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-dialog"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/scan-button.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/common",
+          "to": "@/nodes/czkawka/upstream/utils/common",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/action-buttons.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/directory-selection-section.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-dialog",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-dialog",
+          "count": 1
+        },
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-select",
+          "to": "@/nodes/czkawka/upstream/components/one-select",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/scroll-area",
+          "to": "@/components/ui/scroll-area",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/rules/directory-rule",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/rules/directory-rule",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/types",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/types",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-dialog"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/floating-selection-assistant.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/components/cards/floating-panel",
+          "to": "@/nodes/czkawka/upstream/components/cards/floating-panel",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/group-selection-section.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/filter-panel",
+          "to": "@/nodes/czkawka/upstream/atom/filter-panel",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-select",
+          "to": "@/nodes/czkawka/upstream/components/one-select",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/rules/group-rule",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/rules/group-rule",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/types",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/types",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/index.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/selection-assistant-panel.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/sort-criteria-list.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/one-select",
+          "to": "@/nodes/czkawka/upstream/components/one-select",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/types",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/text-selection-section.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/one-select",
+          "to": "@/nodes/czkawka/upstream/components/one-select",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/checkbox",
+          "to": "@/components/ui/checkbox",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/label",
+          "to": "@/components/ui/label",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/matchers",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/matchers",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/rules/text-rule",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/rules/text-rule",
+          "count": 1
+        },
+        {
+          "from": "~/lib/selection-assistant/types",
+          "to": "@/nodes/czkawka/upstream/lib/selection-assistant/types",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/selection-assistant/use-selection-shortcuts.ts",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/selection-assistant",
+          "to": "@/nodes/czkawka/upstream/atom/selection-assistant",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/settings.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-dialog",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-dialog",
+          "count": 1
+        },
+        {
+          "from": "@tauri-apps/plugin-opener",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-opener",
+          "count": 1
+        },
+        {
+          "from": "~/atom/preset",
+          "to": "@/nodes/czkawka/upstream/atom/preset",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/box-reveal",
+          "to": "@/nodes/czkawka/upstream/components/box-reveal",
+          "count": 1
+        },
+        {
+          "from": "~/components/form",
+          "to": "@/nodes/czkawka/upstream/components/form",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dialog",
+          "to": "@/components/ui/dialog",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/input",
+          "to": "@/components/ui/input",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/tabs",
+          "to": "@/components/ui/tabs",
+          "count": 1
+        },
+        {
+          "from": "~/components/toggle-badge",
+          "to": "@/nodes/czkawka/upstream/components/toggle-badge",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/utils/event",
+          "to": "@/nodes/czkawka/upstream/utils/event",
+          "count": 1
+        },
+        {
+          "from": "framer-motion",
+          "to": "motion/react",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-dialog",
+        "@tauri-apps/plugin-opener"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/sidebar-image-preview.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components/cards/floating-panel",
+          "to": "@/nodes/czkawka/upstream/components/cards/floating-panel",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/views/cards/image-preview-card",
+          "to": "@/nodes/czkawka/upstream/views/cards/image-preview-card",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/sidebar-preview-toggle.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/sidebar-video-preview.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/components/cards/floating-panel",
+          "to": "@/nodes/czkawka/upstream/components/cards/floating-panel",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/use-video-server",
+          "to": "@/nodes/czkawka/upstream/hooks/use-video-server",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/similar-folders-table.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/similar-images.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/format-filter",
+          "to": "@/nodes/czkawka/upstream/atom/format-filter",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/components/right-click-menu",
+          "to": "@/nodes/czkawka/upstream/components/right-click-menu",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/hooks/useFormatFilteredData",
+          "to": "@/nodes/czkawka/upstream/hooks/useFormatFilteredData",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/table-helper",
+          "to": "@/nodes/czkawka/upstream/utils/table-helper",
+          "count": 1
+        },
+        {
+          "from": "~/utils/thumbnail-preloader",
+          "to": "@/nodes/czkawka/upstream/utils/thumbnail-preloader",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/similar-videos.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/api/core",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-core",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/components/right-click-menu",
+          "to": "@/nodes/czkawka/upstream/components/right-click-menu",
+          "count": 1
+        },
+        {
+          "from": "~/components/toast",
+          "to": "@/nodes/czkawka/upstream/components/toast",
+          "count": 1
+        },
+        {
+          "from": "~/components/tooltip-button",
+          "to": "@/nodes/czkawka/upstream/components/tooltip-button",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/table-helper",
+          "to": "@/nodes/czkawka/upstream/utils/table-helper",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/api/core"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/similarity-filter.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/components/shadcn/badge",
+          "to": "@/components/ui/badge",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dropdown-menu",
+          "to": "@/components/ui/dropdown-menu",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/utils/similarity-utils",
+          "to": "@/nodes/czkawka/upstream/utils/similarity-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/smart-selection-menu.tsx",
+      "kind": "source",
+      "rewrites": [],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/temporary-files.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/tools",
+          "to": "@/nodes/czkawka/upstream/atom/tools",
+          "count": 1
+        },
+        {
+          "from": "~/components/data-table",
+          "to": "@/nodes/czkawka/upstream/components/data-table",
+          "count": 1
+        },
+        {
+          "from": "~/components/dynamic-preview-cell",
+          "to": "@/nodes/czkawka/upstream/components/dynamic-preview-cell",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/file-type-utils",
+          "to": "@/nodes/czkawka/upstream/utils/file-type-utils",
+          "count": 1
+        },
+        {
+          "from": "~/utils/path-utils",
+          "to": "@/nodes/czkawka/upstream/utils/path-utils",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/theme-panel.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "@tauri-apps/plugin-opener",
+          "to": "@/nodes/czkawka/upstream/adapters/tauri-opener",
+          "count": 1
+        },
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/theme",
+          "to": "@/nodes/czkawka/upstream/atom/theme",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/box-reveal",
+          "to": "@/nodes/czkawka/upstream/components/box-reveal",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/types",
+          "to": "@/nodes/czkawka/upstream/types",
+          "count": 1
+        },
+        {
+          "from": "~/utils/themeManager",
+          "to": "@/nodes/czkawka/upstream/utils/themeManager",
+          "count": 1
+        }
+      ],
+      "tauriImports": [
+        "@tauri-apps/plugin-opener"
+      ],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/theme-toggle.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/theme",
+          "to": "@/nodes/czkawka/upstream/atom/theme",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/button",
+          "to": "@/components/ui/button",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    },
+    {
+      "path": "views/tool-settings.tsx",
+      "kind": "source",
+      "rewrites": [
+        {
+          "from": "~/atom/primitive",
+          "to": "@/nodes/czkawka/upstream/atom/primitive",
+          "count": 1
+        },
+        {
+          "from": "~/atom/settings",
+          "to": "@/nodes/czkawka/upstream/atom/settings",
+          "count": 1
+        },
+        {
+          "from": "~/atom/similar-images-presets",
+          "to": "@/nodes/czkawka/upstream/atom/similar-images-presets",
+          "count": 1
+        },
+        {
+          "from": "~/components",
+          "to": "@/nodes/czkawka/upstream/components",
+          "count": 1
+        },
+        {
+          "from": "~/components/form",
+          "to": "@/nodes/czkawka/upstream/components/form",
+          "count": 1
+        },
+        {
+          "from": "~/components/shadcn/dialog",
+          "to": "@/components/ui/dialog",
+          "count": 1
+        },
+        {
+          "from": "~/consts",
+          "to": "@/nodes/czkawka/upstream/consts",
+          "count": 1
+        },
+        {
+          "from": "~/hooks",
+          "to": "@/nodes/czkawka/upstream/hooks",
+          "count": 1
+        },
+        {
+          "from": "~/ipc",
+          "to": "@/nodes/czkawka/upstream/ipc",
+          "count": 1
+        },
+        {
+          "from": "~/utils/cn",
+          "to": "@/nodes/czkawka/upstream/utils/cn",
+          "count": 1
+        }
+      ],
+      "tauriImports": [],
+      "unresolvedTauriImports": [],
+      "unresolvedAliases": []
+    }
+  ],
+  "summary": {
+    "sourceFiles": 224,
+    "assetFiles": 0,
+    "rewrittenImports": 711,
+    "tauriImportFiles": 16,
+    "unresolvedTauriImportFiles": 0,
+    "unresolvedAliasFiles": 0
+  }
+}

@@ -148,7 +148,7 @@ Bookmark 批量 membership 与删除也已补齐 Headless/CLI/OpenTUI：`library
 | --- | --- | --- | --- |
 | Phase 0：AST 与冻结基线 | 已完成基线，持续防漂移 | 319 command；551 Svelte component、447 module、142 store；前端 29 个 TSX scaffold；inventory/frontend/feature verifier | 源 NeoView 更新时重新冻结并解释 drift |
 | Phase 1：领域核心与契约 | 进行中（核心纵切可用） | Page/Frame/ReaderSession、自然排序、单双页基础、generation/cancel、统一 ReaderService、共享阅读进度恢复/异步合并写/关闭刷盘；ReaderLibrary 复用进度表提供最近阅读；书签/自定义列表、旧 reader data codec、单事务导入与 CLI inspect/import 可用 | 完整 layout、历史/书签其余旧行为、TUI 数据命令、统计和所有错误恢复 |
-| Phase 2：目录/归档/唯一数据链 | 进行中（主阅读链较完整） | 目录/单图、ZIP、EPUB 图片资源、non-solid/solid 7z/RAR、嵌套包、AES ZIP、7-Zip stdin 密码、真实 header-encrypted RAR/CBR、未加密 solid RAR5 Reader Core/HTTP asset route、损坏 RAR5 Reader Core 拒绝、loopback HTTP stream、ETag/Range/cancel、图片探测、惰性 sharp、L2/L3 cache、缩略图生成/批写/失败退避/在线维护 | 缩略图旧版本迁移、更多 RAR 版本/超大损坏包及真实 EPUB 语料；PDF 明确 deferred |
+| Phase 2：目录/归档/唯一数据链 | 进行中（主阅读链较完整） | 目录/单图、ZIP、EPUB 图片资源、non-solid/solid 7z/RAR、嵌套包、AES ZIP、7-Zip stdin 密码、真实 header-encrypted RAR/CBR、loopback HTTP stream、ETag/Range/cancel、图片探测、惰性 sharp、L2/L3 cache、缩略图生成/批写/失败退避/在线维护 | 缩略图旧版本迁移、更多 RAR 版本/损坏包及真实 EPUB 语料；PDF 明确 deferred |
 | Phase 3：React Reader | 进行中（当前主线） | 原始 asset URL `<img>`、相邻页 `Image.decode()`、64 页批次虚拟缩略图；四边 EdgeShell、Panel/Card、fit/zoom/rotation、单双页实时切换与首批 TopToolbar 控制 | 完整 TopToolbar、左右全部 panel/card、全景/连续长图、拖拽/捏合手势、窗口/tab |
 | Phase 4：复杂格式与 CLI/TUI | 进行中（图片阅读原型可用） | EPUB/7z/RAR/nested provider；共享 HeadlessController；`xneoview` inspect/pages/frame/extract/diagnostics 与持久 TUI 均支持本地或 `--connect` 常驻后端；TUI 通过共享 `TerminalImagePreview` 流式显示单/双页 frame | 真实 EPUB 语料、SIXEL/Kitty 终端验收、缩略图 gallery、完整设置/feature 命令、平台能力诊断；PDF 不计入当前阶段验收 |
 | Phase 5：全功能切换 | 未开始 | 完成标准与 30 项矩阵已冻结 | 30 项无 `pending`、全旧设置/数据导入、删除全部旧/临时链、发布验收 |
@@ -185,7 +185,7 @@ EPUB 与 PDF 仍是两个独立 capability；EPUB provider 落地不改变 PDF d
 | 子系统 | 状态 | 当前实现 | 未完成边界 |
 | --- | --- | --- | --- |
 | Reader domain/application | 可用但未全兼容 | `packages/nodes/neoview/src/domain` 与 `application`；GUI/CLI/TUI 共用 session/controller；显式页码优先、默认恢复上次进度，翻页写入不阻塞主链且关闭强制刷盘；共享 `ReaderLibraryService` 提供最近阅读、书签和列表契约，CLI/OpenTUI 已覆盖分页、添加、删除、列表、按时间清理和无效来源有界清理 | 完整阅读模式、历史/书签剩余 GUI 批量交互、文件夹变化同步、统计/播放列表和全部错误恢复 |
-| Archive provider | ZIP/7z/RAR 主纵切可用 | Store/Deflate ZIP、stdout non-solid、单进程 solid materializer、嵌套 lease、CRC/预算/取消、header/non-solid/solid stdin 密码、真实 RAR5 non-solid/solid、provider 与 Reader Core 的损坏 RAR 拒绝、RAR4 capability skip | 更多真实 RAR 版本、超大包和外部语料；文档格式不属于 archive provider |
+| Archive provider | ZIP/7z/RAR 主纵切可用 | Store/Deflate ZIP、stdout non-solid、单进程 solid materializer、嵌套 lease、CRC/预算/取消、header/non-solid/solid stdin 密码、真实 RAR5 non-solid/solid、损坏 RAR 拒绝与 RAR4 capability skip | 更多真实 RAR 版本、超大包和外部语料；文档格式不属于 archive provider |
 | HTTP 图片数据面 | 主链可用 | opaque token、GET/HEAD、ETag/304、文件 Range、ZIP 流、背压和断开取消；默认原图不进 sharp | 格式 fallback 策略、远程源、更多 Range/代理兼容 |
 | Probe/transform/cache/scheduler | 部分完成 | 有界尺寸探测、惰性 sharp、singleflight、weighted LRU、`cacache` 内容寻址 L3、request-bound 内存压力 admission/回收、宿主 CPU lease；non-solid 归档流与 sharp/WIC 复用单一 CPU lease | frame pin、方向权重、所有重节点共享配额 |
 | 旧缩略图数据库 | 主运行纵切可用、迁移未完成 | 沿用 `%APPDATA%/NeoView/thumbnails.db`；惰性单 writer、批量命中、Page/file/folder/video/归档内视频生成与持久化、失败退避、统计与有界在线清理；SQLite 原生一致性备份、显式离线 checkpoint/optimize/vacuum、验证备份恢复与原 DB/WAL/SHM 隔离；XR writer/维护进程锁；`data_version` 外部 writer epoch；V1/V3/V4 行为收口到单一有界优先 Coordinator；2026-07-18 真实 14,258 行/816 MiB 主库只读 benchmark 含 SHA-256、WAL/SHM 与 5,000 次单条/512 批次结果 | 不同存储介质与真实 reader thumbnail-system corpus 的大规模验收 |
@@ -1225,7 +1225,7 @@ return Readable.toWeb(child.stdout)
 - list 从宿主全局 I/O 池取得 `neoview.archive-index` lease，提取从 CPU 池取得 `neoview.archive-extract` lease；成功、失败、主动取消和 provider close 都释放 lease；独立 CLI/TUI 使用相同 port 的本地有界 scheduler fallback；
 - 客户端取消、尺寸探测提前结束和 session/provider close 会取消 stdout reader 并终止子进程；真实 8 MiB entry 测试验证活动取消，close 可幂等执行；
 - 真实系统 CB7 集成测试覆盖来源识别、自然排序、过滤非图片、PNG 尺寸探测、asset route MIME 与原始字节响应；系统没有 7-Zip 时显式 skip，不以 mock 冒充系统兼容性。
-- RAR 兼容性语料现已扩展：WinRAR 7.22 真实 RAR5 non-solid、header-encrypted solid RAR5/CBR、未加密 solid RAR5 的 Reader Core/HTTP asset route、固实顺序 materializer、provider 与 Reader Core 的损坏 RAR 拒绝均有测试；RAR4 夹具在当前 `rar.exe` 不接受 `-ma4` 时按 capability 显式 skip，不让环境限制伪装成通过。更多真实 RAR 版本、超大包和外部语料仍待补充。
+- RAR 兼容性语料现已扩展：WinRAR 7.22 真实 RAR5 non-solid、header-encrypted solid RAR5/CBR、固实顺序 materializer、损坏 RAR 拒绝发布字节均有 provider 测试；RAR4 夹具在当前 `rar.exe` 不接受 `-ma4` 时按 capability 显式 skip，不让环境限制伪装成通过。更多真实 RAR 版本、超大包和外部语料仍待补充。
 
 ZIP/CBZ 与 EPUB 的 `@zip.js/zip.js` provider 也已进入同一宿主调度边界：原始 entry stream 持有 `neoview.archive-extract` CPU lease，正常结束、消费方取消和 provider close 都释放；`ArchivePageSource.transformResource` 将该资源事实传给 presentation/thumbnail 变换链，使“解压 + WIC/sharp 转码”共用一个 host lease，不重复占用两个 CPU slot。`platform.ts` 组合根和 GUI `ReaderHttpController` 都显式向 asset route、ZIP loader 与 EPUB loader 注入宿主 scheduler；独立调用仍只保留有界 fallback，不再让 GUI 压缩包页静默绕开 XR 全局队列。
 

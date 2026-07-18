@@ -1,0 +1,96 @@
+{
+  "sourceRoot": "src",
+  "scaffoldPatterns": [
+    "^src/lib/cards/(?!(?:ai/AiPanel|folder/cards/FolderTree|properties/ManualTags)Card\\.svelte$).*Card\\.svelte$",
+    "^src/lib/components/layout/(?:MainLayout|HoverWrapper|LeftSidebar|RightSidebar|PanelTabBar|TabBar|BottomThumbnailBar)\\.svelte$",
+    "^src/lib/components/layout/TopToolbar/.*\\.svelte$",
+    "^src/lib/cards/(?:PanelContainer|CardRenderer)\\.svelte$",
+    "^src/lib/components/cards/CollapsibleCard\\.svelte$",
+    "^src/lib/components/cardwindow/(?:TabBar|CardWindowContent)\\.svelte$"
+  ],
+  "featureMappings": [
+    {
+      "featureId": "panels-toolbar-shell",
+      "sourcePatterns": ["^src/lib/components/(?:common|ui)/"]
+    },
+    {
+      "featureId": "performance-benchmark-diagnostics",
+      "sourcePatterns": ["^src/lib/components/benchmark/", "^src/lib/mocks/"]
+    },
+    {
+      "featureId": "input-bindings-radial-voice",
+      "sourcePatterns": ["^src/lib/commands\\.svelte\\.ts$"]
+    },
+    {
+      "featureId": "file-browser-navigation",
+      "sourcePatterns": ["^src/lib/hooks/use-frecency\\.svelte\\.ts$", "^src/lib/types/fs\\.ts$"]
+    },
+    {
+      "featureId": "platform-clipboard-shell",
+      "sourcePatterns": ["^src/lib/hooks/use-clipboard\\.svelte\\.ts$"]
+    },
+    {
+      "featureId": "settings-import-export-backup",
+      "sourcePatterns": ["^src/lib/stores/utils/", "^src/lib/types/settings\\.ts$"]
+    },
+    {
+      "featureId": "page-index-navigation",
+      "sourcePatterns": ["^src/lib/types/tailOverflow\\.ts$"]
+    },
+    {
+      "featureId": "input-bindings-radial-voice",
+      "sourcePatterns": ["^src/lib/vendor/ray-menu/"]
+    },
+    {
+      "featureId": "book-open-close-reload",
+      "sourcePatterns": ["^src/lib/core/(?:index|utils)\\.ts$"]
+    }
+  ],
+  "classificationOverrides": [
+    {
+      "pattern": "^src/lib/components/(?:common|ui)/",
+      "disposition": "replaced",
+      "reason": "Replace Svelte UI primitives and old shell pieces with the Xiranite React design system."
+    },
+    {
+      "pattern": "^src/lib/(?:mocks/|mocks$)",
+      "disposition": "replaced",
+      "reason": "Legacy Tauri mocks are replaced by ReaderService and host capability test doubles."
+    },
+    {
+      "pattern": "^src/lib/(?:api/imageProtocol|workers/(?:base64DecoderManager|blobToDataUrl\\.worker|imageDecoder(?:Manager|\\.worker)))\\.ts$",
+      "disposition": "replaced",
+      "reason": "Replace the legacy IPC/Base64 image pipeline with the loopback asset route and unified decoder provider."
+    },
+    {
+      "pattern": "^src/lib/(?:components/panels/theme/themeStore|utils/(?:runtimeTheme|themeManager))\\.ts$",
+      "disposition": "replaced",
+      "reason": "Theme ownership moves to the Xiranite host TOML and React design system."
+    },
+    {
+      "pattern": "^src/lib/(?:cards/settings/ThemeSettingsCard|components/panels/(?:theme/|ThemePanel|ThemePreview))",
+      "disposition": "replaced",
+      "reason": "Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings."
+    },
+    {
+      "pattern": "^src/lib/stores/upscale/PyO3UpscaleManager\\.svelte\\.ts$",
+      "disposition": "replaced",
+      "reason": "Replace the PyO3 control chain with the system OpenComic upscaler provider."
+    },
+    {
+      "pattern": "^src/lib/stackview/components/CanvasImage\\.svelte$",
+      "disposition": "replaced",
+      "reason": "Normal reading uses DOM img; Canvas remains an optional capability instead of the primary renderer."
+    },
+    {
+      "pattern": "^src/lib/stackview/(?:StackView|renderers/|frames/|components/FrameImage)",
+      "disposition": "blocked",
+      "reason": "Generate only a typed React shell until the archive provider and loopback asset route are implemented."
+    },
+    {
+      "pattern": "^src/lib/components/viewer/",
+      "disposition": "manual",
+      "reason": "Media controls, magnifier, slideshow, and animated playback require React capability-specific review."
+    }
+  ]
+}

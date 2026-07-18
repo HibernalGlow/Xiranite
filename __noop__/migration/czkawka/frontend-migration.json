@@ -1,0 +1,18 @@
+{
+  "aliasReplacements": {
+    "~/components/shadcn/": "@/components/ui/",
+    "~/": "@/nodes/czkawka/upstream/"
+  },
+  "moduleReplacements": {
+    "framer-motion": "motion/react",
+    "@tauri-apps/api/core": "@/nodes/czkawka/upstream/adapters/tauri-core",
+    "@tauri-apps/api/event": "@/nodes/czkawka/upstream/adapters/tauri-event",
+    "@tauri-apps/api/mocks": "@/nodes/czkawka/upstream/adapters/tauri-mocks",
+    "@tauri-apps/api/webviewWindow": "@/nodes/czkawka/upstream/adapters/tauri-webview-window",
+    "@tauri-apps/api/window": "@/nodes/czkawka/upstream/adapters/tauri-window",
+    "@tauri-apps/plugin-clipboard-manager": "@/nodes/czkawka/upstream/adapters/tauri-clipboard",
+    "@tauri-apps/plugin-dialog": "@/nodes/czkawka/upstream/adapters/tauri-dialog",
+    "@tauri-apps/plugin-fs": "@/nodes/czkawka/upstream/adapters/tauri-fs",
+    "@tauri-apps/plugin-opener": "@/nodes/czkawka/upstream/adapters/tauri-opener"
+  }
+}

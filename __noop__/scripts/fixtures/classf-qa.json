@@ -1,0 +1,35 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "plan",
+    "pathsText": "D:/industrial/raw/LOG_001_THERMAL.bin\nD:/industrial/raw/SENS_GRID_DELTA.json\nD:/industrial/raw/HIST_092_BACKUP.tar\nD:/industrial/raw/CAM_FEED_321.mp4",
+    "targetDir": "D:/industrial/archive",
+    "transferMode": "move",
+    "classifyMode": "auto",
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 82,
+    "progressText": "已生成 4 条分类路由，3 条可执行，1 条待确认。",
+    "logs": ["[scan] indexed 4 source paths", "[plan] 3 ready routes, 1 pending allocation", "[gate] dry-run is enabled"],
+    "result": {
+      "action": "plan",
+      "transferMode": "move",
+      "classifyMode": "auto",
+      "baseDir": "D:/industrial/raw",
+      "selectedCount": 4,
+      "readyCount": 2,
+      "movedCount": 0,
+      "copiedCount": 0,
+      "waitCount": 1,
+      "conflictCount": 1,
+      "errorCount": 0,
+      "errors": [],
+      "items": [
+        { "sourcePath": "D:/industrial/raw/LOG_001_THERMAL.bin", "targetPath": "D:/industrial/raw/already/LOG_001_THERMAL.bin", "sourceName": "LOG_001_THERMAL.bin", "targetRelative": "already/LOG_001_THERMAL.bin", "kind": "file", "stage": "already", "status": "ready" },
+        { "sourcePath": "D:/industrial/raw/SENS_GRID_DELTA.json", "targetPath": "D:/industrial/raw/wait/SENS_GRID_DELTA.json", "sourceName": "SENS_GRID_DELTA.json", "targetRelative": "wait/SENS_GRID_DELTA.json", "kind": "file", "stage": "wait", "status": "skipped", "reason": "needs sibling allocation" },
+        { "sourcePath": "D:/industrial/raw/HIST_092_BACKUP.tar", "targetPath": "D:/industrial/raw/already/HIST_092_BACKUP.tar", "sourceName": "HIST_092_BACKUP.tar", "targetRelative": "already/HIST_092_BACKUP.tar", "kind": "file", "stage": "already", "status": "conflict", "reason": "target already exists" },
+        { "sourcePath": "D:/industrial/raw/CAM_FEED_321.mp4", "targetPath": "D:/industrial/raw/already/CAM_FEED_321.mp4", "sourceName": "CAM_FEED_321.mp4", "targetRelative": "already/CAM_FEED_321.mp4", "kind": "file", "stage": "already", "status": "ready" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,97 @@
+[package]
+name = "czkawka_core"
+version = "10.0.0"
+authors = ["Rafał Mikrut <mikrutrafal@protonmail.com>"]
+edition = "2024"
+rust-version = "1.85.0"
+description = "Core of Czkawka app (vendored by Xiranite with tool-level build features)"
+license = "MIT"
+homepage = "https://github.com/qarmin/czkawka"
+repository = "https://github.com/qarmin/czkawka"
+build = "build.rs"
+
+[lib]
+name = "czkawka_core"
+path = "src/lib.rs"
+
+[features]
+# Building this vendored crate directly retains upstream's complete core.
+# Xiranite uses default-features=false, which compiles the duplicate finder only.
+default = ["full"]
+full = [
+    "dep:anyhow", "dep:audio_checker", "dep:bk-tree", "dep:deunicode",
+    "dep:fast_image_resize", "dep:ffmpeg_cmdline_utils", "dep:file-rotate",
+    "dep:hamming-bitwise-fast", "dep:handsome_logger", "dep:image",
+    "dep:image_hasher", "dep:infer", "dep:itertools", "dep:jxl-oxide",
+    "dep:lofty", "dep:log-panics", "dep:lopdf", "dep:mime_guess",
+    "dep:nom-exif", "dep:os_info", "dep:rawler", "dep:rusty-chromaprint",
+    "dep:symphonia", "dep:vid_dup_finder_lib", "dep:zip",
+]
+heif = ["full", "dep:libheif-rs", "dep:libheif-sys"]
+libraw = ["full", "dep:libraw-rs"]
+libavif = ["full", "image/avif-native", "image/avif"]
+
+[dependencies]
+humansize = "2.1"
+rayon = "1.10"
+crossbeam-channel = "0.5"
+directories-next = "2.0"
+bitflags = "2.6"
+blake3 = "1.5"
+crc32fast = "1.4"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+serde = { version = "1.0", features = ["derive"] }
+bincode = "<2.0"
+serde_json = "1.0"
+i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
+i18n-embed-fl = "0.10"
+rust-embed = { version = "8.5", features = ["debug-embed"] }
+once_cell = "1.20"
+state = "0.6"
+trash = "5.1"
+dunce = "1.0.5"
+log = "0.4.22"
+fun_time = { version = "0.3", features = ["log"] }
+static_assertions = "1.1.0"
+
+anyhow = { version = "1.0.89", optional = true }
+audio_checker = { version = "0.1", optional = true }
+bk-tree = { version = "0.5", optional = true }
+deunicode = { version = "1.6.2", optional = true }
+fast_image_resize = { version = "=5.1.4", optional = true }
+ffmpeg_cmdline_utils = { version = "0.4", optional = true }
+file-rotate = { version = "0.8.0", optional = true }
+hamming-bitwise-fast = { version = "1.0", optional = true }
+handsome_logger = { version = "0.9", optional = true }
+image = { version = "0.25", default-features = false, features = ["bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp", "rayon"], optional = true }
+image_hasher = { version = "3.0", features = ["fast_resize_unstable"], optional = true }
+infer = { version = "0.19", optional = true }
+itertools = { version = "0.14", optional = true }
+jxl-oxide = { version = "0.12.0", features = ["image"], optional = true }
+lofty = { version = "0.22", optional = true }
+log-panics = { version = "2.1.0", features = ["with-backtrace"], optional = true }
+lopdf = { version = "0.37.0", optional = true }
+mime_guess = { version = "2.0", optional = true }
+nom-exif = { version = "2.1.0", optional = true }
+os_info = { version = "3", default-features = false, optional = true }
+rawler = { version = "0.7.0", optional = true }
+rusty-chromaprint = { version = "0.3", optional = true }
+symphonia = { version = "0.5", features = ["all"], optional = true }
+vid_dup_finder_lib = { version = "0.4", optional = true }
+zip = { version = "4.0", features = ["aes-crypto", "bzip2", "deflate", "time"], default-features = false, optional = true }
+libheif-rs = { version = "=0.18.0", optional = true }
+libheif-sys = { version = "=1.14.2", optional = true }
+libraw-rs = { version = "0.0.4", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+file-id = "0.2.2"
+
+[build-dependencies]
+rustc_version = "0.4"
+
+[dev-dependencies]
+tempfile = "3.13"
+
+[[bench]]
+name = "hash_calculation_benchmark"
+harness = false

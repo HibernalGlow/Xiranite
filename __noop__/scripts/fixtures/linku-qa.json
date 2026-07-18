@@ -1,0 +1,25 @@
+{
+  "theme": "wuling",
+  "data": {
+    "path": "D:/assets/sector-07",
+    "target": "D:/links/sector-07",
+    "configPath": "D:/config/linku.toml",
+    "action": "create",
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "链接关系已同步：3 正常，1 需恢复。",
+    "result": {
+      "pathInfo": { "path": "D:/assets/sector-07", "exists": true, "kind": "dir", "isSymlink": false, "sizeMb": 842, "fileCount": 184 },
+      "links": [
+        { "link": "D:/links/sector-07", "target": "D:/assets/sector-07", "type": "directory", "createdAt": "2026-07-10T10:00:00.000Z" },
+        { "link": "D:/links/config", "target": "D:/config/system", "type": "directory", "createdAt": "2026-07-10T09:20:00.000Z" },
+        { "link": "D:/links/cache", "target": "D:/cache/active", "type": "directory", "createdAt": "2026-07-10T08:40:00.000Z" },
+        { "link": "D:/links/orphan", "target": "D:/assets/missing", "type": "directory", "createdAt": "2026-07-09T20:00:00.000Z" }
+      ],
+      "created": true,
+      "recoveredCount": 1,
+      "failedCount": 0
+    },
+    "logs": ["读取配置文件 D:/config/linku.toml", "发现 4 条关联记录。", "恢复队列：1 项待处理。"]
+  }
+}

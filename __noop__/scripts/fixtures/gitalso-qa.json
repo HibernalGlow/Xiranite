@@ -1,0 +1,31 @@
+{
+  "theme": "wuling",
+  "data": {
+    "repoPath": "D:/workspace/wuling-core",
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "Commit message generated.",
+    "logs": ["Initializing Diny agent...", "Scanning working directory...", "Ready for analysis."],
+    "result": {
+      "repository": null,
+      "dinyInstalled": true,
+      "dinyVersion": "2.4.0",
+      "commitMessage": "feat(auth): implement new JWT handler structure\n\n- Added robust JWT validation in jwt_handler.rs\n- Deprecated and removed old_token.rs logic\n- Updated module exports in auth/mod.rs",
+      "committed": false,
+      "pushed": false,
+      "commitHash": null,
+      "errors": [],
+      "git": {
+        "branch": "feat/auth-module-refactor",
+        "stagedFiles": [
+          { "path": "src/auth/jwt_handler.rs", "status": "A", "insertions": 84, "deletions": 0 },
+          { "path": "src/auth/mod.rs", "status": "M", "insertions": 20, "deletions": 15 },
+          { "path": "src/auth/old_token.rs", "status": "D", "insertions": 0, "deletions": 23 }
+        ],
+        "diffStat": { "insertions": 142, "deletions": 38, "files": 3 },
+        "diffPreview": "+ pub struct JwtHandler {\n+   verifier: Verifier,\n+ }\n- mod old_token;"
+      }
+    }
+  }
+}

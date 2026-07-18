@@ -1,0 +1,250 @@
+/*
+  Noomo 3D Agency theme pack.
+  Source reviewed in browser: noomoagency.com.
+  Visual takeaways: pale blue digital stage, huge uppercase black display type,
+  floating white 3D blocks, restrained agency navigation, and cinematic space.
+*/
+
+.theme-noomo {
+  color-scheme: light;
+  --radius: 0.25rem;
+  --noomo-sky: oklch(0.83 0.045 250);
+  --noomo-ink: oklch(0.06 0.012 272);
+  --noomo-chrome: oklch(0.97 0.012 255);
+  --noomo-mist: oklch(0.72 0.045 300);
+  --noomo-line: oklch(0.54 0.04 252 / 0.34);
+  --noomo-stage-glow: radial-gradient(circle at 48% 22%, oklch(0.92 0.055 18 / 0.52), transparent 20rem);
+  --noomo-block: linear-gradient(145deg, oklch(0.99 0.004 255), oklch(0.80 0.028 255) 64%, oklch(0.96 0.006 255));
+  --noomo-block-shadow: 12px 18px 34px oklch(0.40 0.04 252 / 0.22), inset 8px 9px 16px oklch(1 0 0 / 0.74), inset -10px -12px 18px oklch(0.55 0.04 252 / 0.16);
+  --noomo-motion-duration: 360ms;
+  --noomo-motion-ease: cubic-bezier(0.18, 0.86, 0.24, 1);
+
+  --background: oklch(0.83 0.045 250);
+  --foreground: var(--noomo-ink);
+  --card: oklch(0.91 0.032 250);
+  --card-foreground: var(--noomo-ink);
+  --popover: oklch(0.95 0.018 250);
+  --popover-foreground: var(--noomo-ink);
+  --primary: oklch(0.06 0.012 272);
+  --primary-foreground: oklch(0.97 0.012 255);
+  --secondary: oklch(0.78 0.044 250);
+  --secondary-foreground: oklch(0.16 0.025 270);
+  --muted: oklch(0.86 0.026 250);
+  --muted-foreground: oklch(0.40 0.035 270);
+  --accent: oklch(0.72 0.045 300);
+  --accent-foreground: var(--noomo-ink);
+  --destructive: oklch(0.62 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.58 0.035 252 / 0.42);
+  --input: oklch(0.88 0.026 250);
+  --ring: oklch(0.18 0.035 270);
+
+  --chart-1: oklch(0.06 0.012 272);
+  --chart-2: oklch(0.72 0.045 300);
+  --chart-3: oklch(0.62 0.11 220);
+  --chart-4: oklch(0.76 0.10 154);
+  --chart-5: oklch(0.70 0.12 52);
+
+  --sidebar: oklch(0.80 0.04 250);
+  --sidebar-foreground: var(--noomo-ink);
+  --sidebar-primary: var(--noomo-ink);
+  --sidebar-primary-foreground: oklch(0.97 0.012 255);
+  --sidebar-accent: oklch(0.76 0.035 250);
+  --sidebar-accent-foreground: var(--noomo-ink);
+  --sidebar-border: oklch(0.58 0.035 252 / 0.42);
+  --sidebar-ring: oklch(0.18 0.035 270);
+
+  --ws-grid-color: oklch(0.06 0.012 272 / 0.10);
+  --ws-canvas: oklch(0.83 0.045 250);
+  --ws-accent-glow: oklch(0.72 0.045 300 / 0.34);
+  --ws-focused-overlay: oklch(0.06 0.012 272 / 0.36);
+}
+
+.theme-noomo.dark,
+.dark .theme-noomo {
+  color-scheme: dark;
+  --noomo-sky: oklch(0.22 0.035 252);
+  --noomo-ink: oklch(0.94 0.012 255);
+  --noomo-chrome: oklch(0.20 0.022 252);
+  --noomo-mist: oklch(0.38 0.055 300);
+  --noomo-line: oklch(0.74 0.035 252 / 0.24);
+  --noomo-stage-glow: radial-gradient(circle at 48% 20%, oklch(0.46 0.065 300 / 0.34), transparent 22rem);
+  --noomo-block: linear-gradient(145deg, oklch(0.36 0.024 252), oklch(0.14 0.02 252) 64%, oklch(0.42 0.024 252));
+  --noomo-block-shadow: 12px 18px 34px oklch(0 0 0 / 0.36), inset 8px 9px 16px oklch(1 0 0 / 0.12), inset -10px -12px 18px oklch(0 0 0 / 0.24);
+  --background: oklch(0.16 0.03 252);
+  --foreground: var(--noomo-ink);
+  --card: oklch(0.20 0.03 252);
+  --card-foreground: var(--noomo-ink);
+  --popover: oklch(0.18 0.03 252);
+  --popover-foreground: var(--noomo-ink);
+  --primary: oklch(0.94 0.012 255);
+  --primary-foreground: oklch(0.08 0.012 272);
+  --secondary: oklch(0.26 0.035 252);
+  --secondary-foreground: oklch(0.92 0.012 255);
+  --muted: oklch(0.24 0.028 252);
+  --muted-foreground: oklch(0.72 0.025 255);
+  --accent: oklch(0.54 0.06 300);
+  --accent-foreground: oklch(0.98 0.006 255);
+  --border: oklch(0.48 0.035 252 / 0.38);
+  --input: oklch(0.25 0.03 252);
+  --ring: oklch(0.82 0.025 255);
+  --sidebar: oklch(0.14 0.026 252);
+  --sidebar-foreground: var(--noomo-ink);
+  --sidebar-primary: oklch(0.94 0.012 255);
+  --sidebar-primary-foreground: oklch(0.08 0.012 272);
+  --sidebar-accent: oklch(0.26 0.035 252);
+  --sidebar-accent-foreground: oklch(0.92 0.012 255);
+  --sidebar-border: oklch(0.48 0.035 252 / 0.38);
+  --sidebar-ring: oklch(0.82 0.025 255);
+  --ws-grid-color: oklch(0.94 0.012 255 / 0.09);
+  --ws-canvas: oklch(0.16 0.03 252);
+  --ws-accent-glow: oklch(0.54 0.06 300 / 0.26);
+  --ws-focused-overlay: oklch(0 0 0 / 0.72);
+}
+
+.theme-noomo .ws-canvas-bg {
+  background:
+    var(--noomo-stage-glow),
+    radial-gradient(circle at 76% 66%, color-mix(in oklch, var(--accent) 18%, transparent), transparent 18rem),
+    linear-gradient(180deg, color-mix(in oklch, var(--background) 96%, white), var(--ws-canvas));
+}
+
+.theme-noomo .comp-card--animated {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--noomo-line);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 82%, white), color-mix(in oklch, var(--card) 70%, var(--background))),
+    var(--card);
+  box-shadow: 0 18px 44px oklch(0.40 0.04 252 / 0.16);
+  transition:
+    transform var(--noomo-motion-duration) var(--noomo-motion-ease),
+    box-shadow var(--noomo-motion-duration) var(--noomo-motion-ease),
+    border-color var(--noomo-motion-duration) linear;
+}
+
+.theme-noomo .comp-card--animated::before,
+.theme-noomo .comp-card--animated::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--noomo-block);
+  box-shadow: var(--noomo-block-shadow);
+}
+
+.theme-noomo .comp-card--animated::before {
+  top: 1.1rem;
+  right: 1.4rem;
+  width: 3.8rem;
+  height: 3.8rem;
+  transform: rotate(12deg) skew(-7deg);
+  opacity: 0.62;
+}
+
+.theme-noomo .comp-card--animated::after {
+  right: 5.3rem;
+  bottom: 2.4rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  transform: rotate(-18deg) skew(8deg);
+  opacity: 0.36;
+}
+
+.theme-noomo .comp-card--animated > * {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-noomo .comp-card--animated:hover,
+.theme-noomo .comp-card--focused,
+.theme-noomo .comp-card--fullscreen {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklch, var(--primary) 24%, var(--border));
+  box-shadow: 0 26px 58px oklch(0.40 0.04 252 / 0.22);
+}
+
+.theme-noomo .xiranite-node-surface {
+  color: var(--foreground);
+  background:
+    linear-gradient(128deg, transparent 0 58%, color-mix(in oklch, var(--accent) 14%, transparent) 58% 62%, transparent 62% 100%),
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 76%, transparent), color-mix(in oklch, var(--background) 50%, transparent));
+}
+
+.theme-noomo .xiranite-node-surface > * {
+  animation: noomo-float-in 420ms var(--noomo-motion-ease) both;
+}
+
+.theme-noomo .xiranite-node-surface h1,
+.theme-noomo .xiranite-node-surface h2,
+.theme-noomo .xiranite-node-surface h3,
+.theme-noomo .xiranite-node-surface [data-slot="card-title"] {
+  font-family: var(--font-app-sans);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.theme-noomo .xiranite-node-surface button,
+.theme-noomo .xiranite-node-surface [role="button"] {
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.theme-noomo .xiranite-node-surface button:hover,
+.theme-noomo .xiranite-node-surface [role="button"]:hover {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 10px 24px oklch(0.06 0.012 272 / 0.18);
+}
+
+.theme-noomo .xiranite-node-surface input,
+.theme-noomo .xiranite-node-surface textarea,
+.theme-noomo .xiranite-node-surface select,
+.theme-noomo .xiranite-node-surface [contenteditable="true"] {
+  border-color: color-mix(in oklch, var(--primary) 20%, var(--border));
+  background-color: color-mix(in oklch, var(--noomo-chrome) 58%, transparent);
+}
+
+.theme-noomo [data-slot="badge"] {
+  border-radius: 0.25rem;
+  background: var(--noomo-block);
+  color: var(--foreground);
+  box-shadow: inset 4px 5px 10px oklch(1 0 0 / 0.52);
+  font-family: var(--font-app-mono);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.theme-noomo [data-slot="progress"] {
+  height: 0.5rem;
+  border-radius: 999px;
+  background-color: color-mix(in oklch, var(--primary) 8%, var(--muted));
+}
+
+.theme-noomo [data-slot="progress-indicator"] {
+  background: linear-gradient(90deg, var(--primary), color-mix(in oklch, var(--accent) 70%, var(--primary)));
+}
+
+@keyframes noomo-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.975);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-noomo .comp-card--animated,
+  .theme-noomo .xiranite-node-surface > * {
+    animation: none;
+    transition: none;
+  }
+}
