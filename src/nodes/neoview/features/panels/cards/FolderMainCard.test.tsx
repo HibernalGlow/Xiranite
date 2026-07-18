@@ -97,6 +97,76 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
   })
 
+  it("[neoview.folder.open-error-retry] retries an initial directory error without replacing the card", async () => {
+    const opened = page({
+      path: "E:\\",
+      entries: [{ name: "book.cbz", path: "E:\\book.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const openDirectoryBrowser = vi.fn()
+      .mockRejectedValueOnce(new Error("ENOENT: no such file or directory, scandir 'E:'"))
+      .mockResolvedValueOnce(opened)
+    const client = { openDirectoryBrowser, closeDirectoryBrowser: vi.fn(async () => undefined) } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="E:" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    const alert = await ui.findByRole("alert")
+    expect(alert.textContent).toContain("ENOENT: no such file or directory")
+    const card = view.container.querySelector('[data-neoview-folder-pane="true"]')
+    expect(card).toBeTruthy()
+    fireEvent.click(within(alert).getByRole("button", { name: "重试" }))
+
+    await waitFor(() => expect(ui.getByTitle("E:\\book.cbz")).toBeTruthy())
+    expect(openDirectoryBrowser).toHaveBeenCalledTimes(2)
+    expect(view.container.querySelector('[data-neoview-folder-pane="true"]')).toBe(card)
+  })
+
+  it("[neoview.folder.navigation-error-retry] keeps the previous catalog and thumbnails while retrying navigation", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
+      total: 1,
+    })
+    const nested = page({
+      path: "C:/books/series",
+      parentPath: "C:/books",
+      navigationEntryId: 2,
+      generation: 2,
+      entries: [{ name: "chapter.cbz", path: "C:/books/series/chapter.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const navigateDirectoryBrowser = vi.fn()
+      .mockRejectedValueOnce(new Error("ENOENT: no such file or directory, scandir 'C:/books/series'"))
+      .mockResolvedValueOnce(nested)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const pane = view.container.querySelector('[data-neoview-folder-pane="true"]')
+    const series = await ui.findByTitle("C:/books/series")
+    fireEvent.click(series)
+
+    const alert = await ui.findByRole("alert")
+    expect(alert.textContent).toContain("ENOENT: no such file or directory")
+    expect(ui.getByTitle("C:/books/series")).toBe(series)
+    fireEvent.click(within(alert).getByRole("button", { name: "重试" }))
+
+    await waitFor(() => expect(ui.getByTitle("C:/books/series/chapter.cbz")).toBeTruthy())
+    expect(navigateDirectoryBrowser).toHaveBeenCalledTimes(2)
+    expect(view.container.querySelector('[data-neoview-folder-pane="true"]')).toBe(pane)
+  })
+
   it("[neoview.folder.panel-resident] keeps the browser session and card DOM resident while the panel is inactive", async () => {
     const opened = page({ entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }], total: 1 })
     const openDirectoryBrowser = vi.fn(async () => opened)
