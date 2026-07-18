@@ -19,8 +19,8 @@ import type { ReaderPanelContext } from "../registry"
 type SidebarSide = "left" | "right"
 type SidebarLayout = ReaderShellConfigDto["sidebars"][SidebarSide]
 
-export default function SidebarHeightCard({ shell, shellControl, onSidebarLayout }: ReaderPanelContext) {
-  if (!shell || !shellControl || !onSidebarLayout) {
+export default function SidebarHeightCard({ shell, shellControl, onSidebarLayout, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive || !shell || !shellControl || !onSidebarLayout) {
     return (
       <section
         className="grid min-h-20 place-items-center text-xs text-muted-foreground"
