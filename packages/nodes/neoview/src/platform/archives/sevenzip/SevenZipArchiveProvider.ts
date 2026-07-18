@@ -222,29 +222,41 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     this.#initializing = (async () => {
       const executable = await this.#resolveExecutable()
       this.#assertOpen()
-      const lease = await this.#resourceScheduler.acquire({
-        resource: "io",
-        kind: "neoview.archive-index",
-        priority: "interactive",
-      }, this.#lifecycle.signal)
-      let result: { stdout: string; stderr: string }
-      try {
-        result = await runSevenZipTextCommand(executable.path, [
-          "l", "-slt", "-sccUTF-8", "-spd", "--", this.sourcePath,
-        ], {
-          signal: this.#lifecycle.signal,
-          maxOutputBytes: this.#maxListingBytes,
-          password: this.#rawPassword,
-        })
-      } catch (error) {
-        if (!this.#rawPassword && !this.#lifecycle.signal.aborted) {
-          throw new Error("7-Zip archive listing failed; encrypted headers may require a password.", { cause: error })
+      const loadIndex = async () => {
+        const lease = await this.#resourceScheduler.acquire({
+          resource: "io",
+          kind: "neoview.archive-index",
+          priority: "interactive",
+        }, this.#lifecycle.signal)
+        let result: { stdout: string; stderr: string }
+        try {
+          result = await runSevenZipTextCommand(executable.path, [
+            "l", "-slt", "-sccUTF-8", "-spd", "--", this.sourcePath,
+          ], {
+            signal: this.#lifecycle.signal,
+            maxOutputBytes: this.#maxListingBytes,
+            password: this.#rawPassword,
+          })
+        } catch (error) {
+          if (!this.#rawPassword && !this.#lifecycle.signal.aborted) {
+            throw new Error("7-Zip archive listing failed; encrypted headers may require a password.", { cause: error })
+          }
+          throw error
+        } finally {
+          lease.release()
         }
-        throw error
-      } finally {
-        lease.release()
+        return parseSevenZipSlt(result.stdout)
       }
-      const index = parseSevenZipSlt(result.stdout)
+      const index = this.#solidArchiveCache && !this.#rawPassword
+        ? await this.#solidArchiveCache.indexCache.getOrLoad({
+            sourcePath: this.sourcePath,
+            executablePath: executable.path,
+            executableVersion: executable.version,
+            maxListingBytes: this.#maxListingBytes,
+            signal: this.#lifecycle.signal,
+            load: loadIndex,
+          })
+        : await loadIndex()
       this.#assertOpen()
       this.#executable = executable
       this.#entries = [...index.entries]

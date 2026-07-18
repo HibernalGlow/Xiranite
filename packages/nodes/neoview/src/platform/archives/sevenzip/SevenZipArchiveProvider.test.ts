@@ -79,6 +79,23 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     expect(provider.snapshot()).toEqual({ initialized: false, indexEntries: 0, indexPayloadBytes: 0, activeExtractions: 0 })
   })
 
+  it("[neoview.sevenzip.index-cache] reuses a verified index across providers without a second listing process", async () => {
+    const cache = new SolidArchiveCache({ maxBytes: 1024 })
+    const scheduler = new RecordingScheduler()
+    const first = createProvider(nonSolidPath, scheduler, { solidArchiveCache: cache })
+    const second = createProvider(nonSolidPath, scheduler, { solidArchiveCache: cache })
+    try {
+      expect((await first.list()).length).toBeGreaterThan(0)
+      expect((await second.list()).length).toBeGreaterThan(0)
+      expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-index")).toHaveLength(1)
+      expect(cache.indexCache.size).toBe(1)
+    } finally {
+      await first.close()
+      await second.close()
+      await cache.close()
+    }
+  })
+
   it("[neoview.sevenzip.provider] [neoview.sevenzip.scheduler] indexes and stdout-streams exact non-solid entries", async () => {
     const scheduler = new RecordingScheduler()
     const provider = createProvider(nonSolidPath, scheduler)

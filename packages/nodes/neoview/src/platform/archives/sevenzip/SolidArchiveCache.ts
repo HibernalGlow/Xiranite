@@ -1,4 +1,5 @@
 import { LRUCache } from "lru-cache"
+import { SevenZipArchiveIndexCache } from "./SevenZipArchiveIndexCache.js"
 
 export interface CacheableSolidArchiveMaterializer extends AsyncDisposable {
   readonly isComplete: boolean
@@ -126,6 +127,7 @@ export class SolidArchiveCache implements AsyncDisposable {
   readonly #maxMemoryBytes: number
   readonly #maxMemoryEntryBytes: number
   readonly #memory: SolidArchiveMemoryCache
+  readonly #indexCache: SevenZipArchiveIndexCache
   readonly #entries = new Map<string, CacheEntry>()
   #clock = 0
   #closed = false
@@ -142,6 +144,7 @@ export class SolidArchiveCache implements AsyncDisposable {
     this.#maxMemoryBytes = maxMemoryBytes
     this.#maxMemoryEntryBytes = maxMemoryEntryBytes
     this.#memory = new SolidArchiveMemoryCache(maxMemoryBytes, maxMemoryEntryBytes)
+    this.#indexCache = new SevenZipArchiveIndexCache()
   }
 
   get maxMemoryBytes(): number {
@@ -154,6 +157,10 @@ export class SolidArchiveCache implements AsyncDisposable {
 
   get memoryCache(): SolidArchiveMemoryCache {
     return this.#memory
+  }
+
+  get indexCache(): SevenZipArchiveIndexCache {
+    return this.#indexCache
   }
 
   get entryCount(): number {
@@ -262,6 +269,7 @@ export class SolidArchiveCache implements AsyncDisposable {
     const entries = [...this.#entries.values()]
     this.#entries.clear()
     this.#memory.clear()
+    await this.#indexCache.close()
     for (const entry of entries) entry.stale = true
     this.#closing = Promise.resolve().then(async () => {
       const results = await Promise.allSettled(entries.map((entry) => this.#closeEntry(entry)))
