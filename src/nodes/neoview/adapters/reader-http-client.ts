@@ -91,6 +91,33 @@ export interface ReaderFileOperationBatchResultDto {
   undoPersisted?: boolean
 }
 
+export interface ReaderFileUndoStateDto {
+  available: boolean
+  count: number
+  latestId?: string
+  latestCreatedAt?: number
+  supportedKinds: readonly ReaderFileMutationDto["kind"][]
+  trashRestore: boolean
+  persistent: boolean
+  persistenceError?: string
+}
+
+export interface ReaderFileUndoResultDto {
+  undoId?: string
+  results: ReaderFileOperationResultDto[]
+  succeeded: number
+  failed: number
+  remaining: number
+  journalPersisted?: boolean
+}
+
+export interface ReaderFileUndoDiscardResultDto {
+  undoId?: string
+  discarded: boolean
+  remaining: number
+  journalPersisted?: boolean
+}
+
 export interface ReaderDirectorySelectionDescriptorDto {
   generation: number
   allSelected: boolean
@@ -995,6 +1022,9 @@ export interface ReaderHttpClient {
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   executeFileOperations?(operations: readonly ReaderFileMutationDto[], confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileOperationBatchResultDto>
+  fileUndoState?(signal?: AbortSignal): Promise<ReaderFileUndoStateDto>
+  undoLatestFileOperations?(confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileUndoResultDto>
+  discardFileUndo?(confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileUndoDiscardResultDto>
   startDirectorySelectionOperation?(
     sessionId: string,
     selection: ReaderDirectorySelectionDescriptorDto,
@@ -1479,6 +1509,19 @@ export function createReaderHttpClient(
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ operations, ...(confirmed ? { confirmed: true } : {}) }),
+      signal,
+    }),
+    fileUndoState: (signal) => request<ReaderFileUndoStateDto>("/reader/files/operations", { signal }),
+    undoLatestFileOperations: (confirmed = false, signal) => request<ReaderFileUndoResultDto>("/reader/files/undo", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(confirmed ? { confirmed: true } : {}),
+      signal,
+    }),
+    discardFileUndo: (confirmed = false, signal) => request<ReaderFileUndoDiscardResultDto>("/reader/files/undo/discard", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(confirmed ? { confirmed: true } : {}),
       signal,
     }),
     startDirectorySelectionOperation: (sessionId, selection, kind, signal) => request<ReaderDirectorySelectionOperationSnapshotDto>(
