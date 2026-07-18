@@ -5,6 +5,8 @@
   "title": "历史记录",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "visualBaseline": "output/playwright/legacy-neoview-history-list-empty-1920x1080.png",
+  "visualTarget": "output/playwright/neoview-history-list-1920x1080.png",
   "completionRule": "Complete only when the history virtual source preserves the source-evidenced shared file renderers, progress restoration, cleanup, search/sort/filter/view controls, file actions and legacy migration while using one bounded GUI/CLI/TUI recent-history contract with inactive-zero-work lifecycle, desktop/constrained visual evidence and explicit shell deviations.",
   "sourceUiInventory": [
     {
@@ -987,7 +989,9 @@
       },
       "testIds": [
         "neoview.history.card",
-        "neoview.library.lifecycle"
+        "neoview.library.lifecycle",
+        "neoview.history.inactive-zero-work",
+        "neoview.history.empty"
       ],
       "plannedTestIds": [
         "neoview.history.states",
@@ -1157,7 +1161,8 @@
       "testIds": [
         "neoview.history.views",
         "neoview.history.thumbnail-e2e",
-        "neoview.history.selection"
+        "neoview.history.selection",
+        "neoview.history.ui-1920x1080"
       ],
       "plannedTestIds": [],
       "notes": "Desktop and 420x360 Chromium prove compact/content rows, two-column banners and three-column thumbnails preserve cover media, progress hierarchy, selection density and zero horizontal overflow; read/bookmark badges and the full toolbar remain pending."

@@ -21,7 +21,10 @@ type HistoryViewMode = "compact" | "content" | "banner" | "thumbnail"
 const LazyHistoryCleanupDialog = lazy(() => import("./history/HistoryCleanupDialog"))
 const LazyHistoryContextActions = lazy(() => import("./history/HistoryContextActions"))
 
-export default function HistoryListCard({ client, disabled, onOpen, pickDirectory, systemActions, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
+/**
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/history/HistoryListCard.tsx
+ */
+export default function HistoryListCard({ client, disabled, panelActive = true, onOpen, pickDirectory, systemActions, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string>()
   const [cleanupMessage, setCleanupMessage] = useState<string>()
@@ -35,7 +38,7 @@ export default function HistoryListCard({ client, disabled, onOpen, pickDirector
   const [confirmedViewMode, setConfirmedViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const anchorIndexRef = useRef<number>()
-  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" ? [] : visibleRecents.map((item) => ({
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" || !panelActive ? [] : visibleRecents.map((item) => ({
     id: item.bookId,
     path: item.source.path,
     kind: item.source.kind === "directory" ? "folder" : "file",
@@ -72,9 +75,10 @@ export default function HistoryListCard({ client, disabled, onOpen, pickDirector
   }
 
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
+    if (!panelActive) return Promise.resolve<readonly ReaderRecentDto[]>([])
     if (!client.listRecent) return Promise.reject(new Error("当前后端不支持历史记录"))
     return client.listRecent(offset, limit, signal)
-  }, [client])
+  }, [client, panelActive])
 
   const handleLoadedItems = useCallback((items: readonly ReaderRecentDto[]) => {
     setLoadedRecents(items)
@@ -189,10 +193,18 @@ export default function HistoryListCard({ client, disabled, onOpen, pickDirector
     <div
       className="grid min-h-0 gap-2"
       data-neoview-history-card="true"
+      data-testid="history-card"
+      data-history-state={panelActive ? "ready" : "inactive"}
       data-selection-count={selectedIds.size}
       data-history-view-mode={viewMode}
       onKeyDown={handleCardKeyDown}
     >
+      {!panelActive ? (
+        <div className="grid min-h-24 place-items-center rounded border bg-background/60 px-3 py-4 text-center text-xs text-muted-foreground" data-history-empty-shell="true">
+          暂无阅读历史
+        </div>
+      ) : null}
+      {panelActive ? <>
       <Suspense fallback={null}>
         <LazyHistoryContextActions
           client={client}
@@ -321,6 +333,7 @@ export default function HistoryListCard({ client, disabled, onOpen, pickDirector
           />
         </Suspense>
       ) : null}
+      </> : null}
     </div>
   )
 }
