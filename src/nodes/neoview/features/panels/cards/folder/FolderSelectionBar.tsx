@@ -69,7 +69,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
       controller.abort()
       if (timeout) clearTimeout(timeout)
     }
-  }, [client.directorySelectionOperation, operation?.id, operation?.status])
+  }, [client.directorySelectionOperation, operation?.id])
 
   async function startTrash() {
     if (!client.startDirectorySelectionOperation || selectedCount === 0 || operation?.status === "running") return

@@ -11,7 +11,7 @@ describe("FolderSelectionBar", () => {
     const completed = operation({ status: "completed", processed: 100_000, succeeded: 100_000 })
     const startDirectorySelectionOperation = vi.fn(async () => running)
     const directorySelectionOperation = vi.fn(async () => completed)
-    const onTrashCompleted = vi.fn(async () => undefined)
+    const onTrashCompleted = vi.fn(async () => new Promise<void>((resolve) => setTimeout(resolve, 20)))
     const contextMenu: ContextMenuAPI = {
       register: () => () => undefined,
       show: () => undefined,
@@ -53,7 +53,7 @@ describe("FolderSelectionBar", () => {
     ))
     await waitFor(() => expect(directorySelectionOperation).toHaveBeenCalledWith(running.id, expect.any(AbortSignal)))
     await waitFor(() => expect(onTrashCompleted).toHaveBeenCalledWith(completed))
-    expect(screen.getByRole("status").textContent).toContain("已将 100000 项移到回收站")
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("已将 100000 项移到回收站"))
   })
 })
 
