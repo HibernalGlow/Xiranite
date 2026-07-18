@@ -14,7 +14,12 @@ import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
 import type { ReaderFileMutation, ReaderFileOperationService } from "./core.js"
 import type { ReaderInputBinding, ReaderInputBindingsConfig } from "./domain/input/ReaderInputBindings.js"
-import { createReaderFileOperationService, createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
+import { createReaderBookSettingsMigrationFileController, createReaderFileOperationService, createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
+import type {
+  ReaderBookSettingsMigrationFileImportResult,
+  ReaderBookSettingsMigrationFilePort,
+} from "./platform/migration/ReaderBookSettingsMigrationFileController.js"
+import type { ReaderBookSettingsMigrationInspection } from "./application/migration/ReaderBookSettingsMigrationService.js"
 import { ReaderInputBindingsConfigService } from "./platform/config/ReaderInputBindingsConfigService.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction, type ReaderHeadlessInputActionResult } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
@@ -46,6 +51,20 @@ export interface NeoviewBookSettingsTuiPort extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
   updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
+}
+
+export interface NeoviewBookSettingsMigrationTuiInput {
+  action: "inspect" | "import"
+  inputPath: string
+  databasePath?: string
+  strategy: "merge" | "overwrite"
+}
+
+export interface NeoviewBookSettingsMigrationTuiResult {
+  success: boolean
+  message: string
+  inspection?: ReaderBookSettingsMigrationInspection
+  imported?: ReaderBookSettingsMigrationFileImportResult
 }
 
 export type NeoviewFileTreeTuiAction =
@@ -185,6 +204,32 @@ export function createNeoviewBookSettingsTuiDefinition(
         return { success: false, message: error instanceof Error ? error.message : String(error) }
       } finally {
         await controller[Symbol.asyncDispose]()
+      }
+    },
+  }
+}
+
+export function createNeoviewBookSettingsMigrationTuiDefinition(
+  language: "zh" | "en" = "zh",
+  createController: () => Promise<ReaderBookSettingsMigrationFilePort> = createReaderBookSettingsMigrationFileController,
+): TerminalInteractionDefinition<NeoviewBookSettingsMigrationTuiInput, NeoviewBookSettingsMigrationTuiResult> {
+  return {
+    schema: createNeoviewBookSettingsMigrationTuiSchema(language),
+    async run(input) {
+      try {
+        const controller = await createController()
+        if (input.action === "inspect") {
+          const inspection = await controller.inspect(input.inputPath)
+          return { success: true, message: `${inspection.report.validEntries} valid legacy book setting(s).`, inspection }
+        }
+        const imported = await controller.import(input.inputPath, input.databasePath, input.strategy, true)
+        return {
+          success: true,
+          message: `Imported ${imported.result.applied.inserted + imported.result.applied.updated} legacy book setting(s).`,
+          imported,
+        }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
       }
     },
   }
@@ -502,6 +547,60 @@ function createNeoviewBookSettingsTuiSchema(
       message: result.message,
       lines: result.settings ? bookSettingsResultLines(result.settings) : [],
     }),
+  }
+}
+
+function createNeoviewBookSettingsMigrationTuiSchema(
+  language: "zh" | "en",
+): TerminalInteractionSchema<NeoviewBookSettingsMigrationTuiInput, NeoviewBookSettingsMigrationTuiResult> {
+  const zh = language === "zh"
+  const importing = (values: Readonly<InteractionValues>) => values.action === "import"
+  return {
+    id: "neoview-book-settings-migration",
+    title: zh ? "NeoView 本书设置迁移" : "NeoView Book Settings Migration",
+    description: zh ? "检查并导入旧 neoview-book-settings" : "Inspect and import legacy neoview-book-settings",
+    initialValues: { action: "inspect", inputPath: "", databasePath: "", strategy: "merge" },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
+        { value: "inspect", label: zh ? "检查" : "Inspect" },
+        { value: "import", label: zh ? "导入" : "Import" },
+      ] },
+      { id: "inputPath", label: zh ? "旧设置 JSON" : "Legacy settings JSON", kind: "text" },
+      { id: "databasePath", label: zh ? "thumbnails.db（可选）" : "thumbnails.db (optional)", kind: "text", visibleWhen: importing },
+      { id: "strategy", label: zh ? "策略" : "Strategy", kind: "select", visibleWhen: importing, options: [
+        { value: "merge", label: zh ? "合并" : "Merge" },
+        { value: "overwrite", label: zh ? "覆盖" : "Overwrite" },
+      ] },
+    ],
+    toInput: (values) => ({
+      action: values.action === "import" ? "import" : "inspect",
+      inputPath: String(values.inputPath ?? "").trim(),
+      databasePath: String(values.databasePath ?? "").trim() || undefined,
+      strategy: values.strategy === "overwrite" ? "overwrite" : "merge",
+    }),
+    validate: (_values, input) => input.inputPath ? null : zh ? "请输入旧设置 JSON 路径。" : "Enter the legacy settings JSON path.",
+    preview: (input) => [input.inputPath, input.action, ...(input.databasePath ? [input.databasePath] : []), input.strategy],
+    isDangerous: (input) => input.action === "import",
+    dangerPrompt: (input) => ({
+      title: zh ? "确认导入本书设置" : "Confirm book settings import",
+      body: zh
+        ? `将以${input.strategy === "merge" ? "合并" : "覆盖"}策略写入兼容 NeoView 数据库。`
+        : `This writes the compatible NeoView database using ${input.strategy}.`,
+      confirmLabel: zh ? "确认导入" : "Import",
+    }),
+    result: (result) => {
+      const report = result.imported?.report ?? result.inspection?.report
+      const applied = result.imported?.result.applied
+      return {
+        success: result.success,
+        message: result.message,
+        lines: report ? [
+          `valid=${report.validEntries}/${report.totalEntries}`,
+          `invalidEntries=${report.invalidEntries} invalidFields=${report.invalidFields} unknownFields=${report.unknownFields}`,
+          ...(applied ? [`inserted=${applied.inserted} updated=${applied.updated} unchanged=${applied.unchanged}`] : []),
+        ] : [],
+      }
+    },
   }
 }
 

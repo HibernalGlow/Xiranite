@@ -31,6 +31,7 @@ import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImpor
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderSettingsMigrationService } from "./application/migration/ReaderSettingsMigrationService.js"
 import type { ReaderBookSettingsMigrationService } from "./application/migration/ReaderBookSettingsMigrationService.js"
+import type { ReaderBookSettingsMigrationFileController } from "./platform/migration/ReaderBookSettingsMigrationFileController.js"
 import type { ReaderSettingsPortableService } from "./application/migration/ReaderSettingsPortableService.js"
 import type { ReaderBackupBundleService } from "./platform/backup/ReaderBackupBundleService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
@@ -74,6 +75,10 @@ export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResul
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
 export type { FfprobePageMediaMetadataProviderOptions } from "./platform/video/FfprobePageMediaMetadataProvider.js"
 export type { SqliteLegacyThumbnailDatabaseMaintenanceOptions } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
+export type {
+  ReaderBookSettingsMigrationFileImportResult,
+  ReaderBookSettingsMigrationFilePort,
+} from "./platform/migration/ReaderBookSettingsMigrationFileController.js"
 export {
   detectSuperResolutionDaemonSupport,
   SystemSuperResolutionCliResolver,
@@ -878,6 +883,15 @@ export async function createReaderBookSettingsMigrationService(
     await store.close()
     throw error
   }
+}
+
+export async function createReaderBookSettingsMigrationFileController(): Promise<ReaderBookSettingsMigrationFileController> {
+  const { ReaderBookSettingsMigrationFileController } = await import(
+    "./platform/migration/ReaderBookSettingsMigrationFileController.js"
+  )
+  return new ReaderBookSettingsMigrationFileController({
+    createService: createReaderBookSettingsMigrationService,
+  })
 }
 
 function isReaderMediaProgressStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderMediaProgressStore {

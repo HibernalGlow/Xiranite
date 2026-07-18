@@ -924,19 +924,15 @@ describe("NeoView CLI", () => {
       },
     })
     await writeFile(inputPath, content)
-    const importSettings = vi.fn(async () => ({
-      applied: { inserted: 1, updated: 0, unchanged: 0 },
-      unresolvedSources: 0,
-      duplicateIdentities: 0,
-    }))
-    const dispose = vi.fn(async () => undefined)
-    const createBookSettingsMigrationService = vi.fn(async () => ({
-      import: importSettings,
-      [Symbol.asyncDispose]: dispose,
-    }))
+    const report = { totalEntries: 1, validEntries: 1, invalidEntries: 0, invalidFields: 0, unknownFields: 1 }
+    const inspectSettings = vi.fn(async () => ({ report }))
+    const importSettings = vi.fn(async () => ({ report, result: {
+      applied: { inserted: 1, updated: 0, unchanged: 0 }, unresolvedSources: 0, duplicateIdentities: 0,
+    } }))
+    const createBookSettingsMigrationFileController = vi.fn(async () => ({ inspect: inspectSettings, import: importSettings }))
     const dependencies = {
       createController: async () => fakeReader(),
-      createBookSettingsMigrationService,
+      createBookSettingsMigrationFileController,
     } as unknown as Parameters<typeof runProgram>[2]
     try {
       const previewOutput: unknown[] = []
@@ -946,20 +942,18 @@ describe("NeoView CLI", () => {
       expect(JSON.parse(previewText)).toEqual({
         report: { totalEntries: 1, validEntries: 1, invalidEntries: 0, invalidFields: 0, unknownFields: 1 },
       })
-      expect(createBookSettingsMigrationService).not.toHaveBeenCalled()
+      expect(inspectSettings).toHaveBeenCalledWith(inputPath)
 
       await expect(runProgram(["book-settings-legacy-import", inputPath], host([]), dependencies))
         .rejects.toThrow("requires --yes")
-      expect(createBookSettingsMigrationService).not.toHaveBeenCalled()
+      expect(importSettings).not.toHaveBeenCalled()
 
       const importOutput: unknown[] = []
       await runProgram([
         "book-settings-legacy-import", inputPath, "--database", databasePath,
         "--strategy", "overwrite", "--yes", "--json",
       ], host(importOutput), dependencies)
-      expect(createBookSettingsMigrationService).toHaveBeenCalledWith(databasePath)
-      expect(importSettings).toHaveBeenCalledWith(content, "overwrite", true)
-      expect(dispose).toHaveBeenCalledOnce()
+      expect(importSettings).toHaveBeenCalledWith(inputPath, databasePath, "overwrite", true)
       const importText = importOutput.join("")
       expect(importText).not.toContain(privateBookPath)
       expect(JSON.parse(importText)).toMatchObject({
