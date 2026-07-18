@@ -1,5 +1,5 @@
 import type { Stats } from "node:fs"
-import { readdir, realpath, stat } from "node:fs/promises"
+import { readdir, stat } from "node:fs/promises"
 import { basename, join } from "node:path"
 import pMap from "p-map"
 
@@ -10,6 +10,7 @@ import type { ReaderPage } from "../../domain/page/page.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import { createReaderBook, stableOpaqueId, timestampsFromFileStats, versionFromFile } from "../books/book-utils.js"
 import { FilePageContent } from "../content/FilePageContent.js"
+import { canonicalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
 const STAT_CONCURRENCY = 32
 
@@ -21,7 +22,7 @@ interface DirectoryFile {
 
 export async function loadDirectoryBook(path: string, signal?: AbortSignal, mediaFormats?: ReaderMediaTypeResolver): Promise<ReaderBook> {
   signal?.throwIfAborted()
-  const directoryPath = await realpath(path)
+  const directoryPath = await canonicalizePlatformDirectoryPath(path)
   signal?.throwIfAborted()
   const directoryStats = await stat(directoryPath)
   if (!directoryStats.isDirectory()) throw new Error(`Reader source is not a directory: ${path}`)
