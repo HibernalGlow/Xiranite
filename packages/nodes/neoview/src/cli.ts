@@ -71,6 +71,7 @@ const COMMANDS = new Set([
   "library-recent-cleanup-oldest", "library-recent-cleanup-folder", "library-recent-clear",
   "library-invalid-cleanup",
   "library-bookmarks", "library-bookmark-add", "library-bookmark-delete",
+  "library-bookmark-batch-update", "library-bookmark-batch-delete",
   "library-bookmark-lists", "library-bookmark-list-add", "library-bookmark-list-delete",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
@@ -560,6 +561,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "library-recent-cleanup") {
     rejectOptions(parsed, new Set(["--json", "--database", "--before", "--limit", "--yes"]))
+    return
+  }
+  if (command === "library-bookmark-batch-update") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--id", "--list"]))
+    return
+  }
+  if (command === "library-bookmark-batch-delete") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--id", "--yes"]))
     return
   }
   if (command === "library-recent-cleanup-oldest") {
@@ -1200,6 +1209,7 @@ async function runLibraryCommand(
     || command === "library-recent-clear"
     || command === "library-invalid-cleanup"
     || command === "library-bookmark-delete"
+    || command === "library-bookmark-batch-delete"
     || command === "library-bookmark-list-delete"
   if (destructive && !parsed.booleans.has("--yes")) throw usage(`${command} requires --yes.`)
   const databasePath = oneValue(parsed, "--database")
@@ -1276,6 +1286,17 @@ async function runLibraryCommand(
     if (command === "library-bookmark-delete") {
       const id = requiredValue(parsed, "--id", command)
       return printLibraryMutation({ removed: await controller.removeBookmark(id), id }, json, host)
+    }
+    if (command === "library-bookmark-batch-update") {
+      const ids = requiredRepeatedValues(parsed, "--id", command, 500)
+      const listIds = requiredRepeatedValues(parsed, "--list", command, 500)
+      const result = await controller.updateBookmarks(ids.map((id) => ({ id, listIds })))
+      return printLibraryMutation(result as unknown as Record<string, unknown>, json, host)
+    }
+    if (command === "library-bookmark-batch-delete") {
+      const ids = requiredRepeatedValues(parsed, "--id", command, 500)
+      const result = await controller.removeBookmarks(ids)
+      return printLibraryMutation(result as unknown as Record<string, unknown>, json, host)
     }
     if (command === "library-bookmark-lists") {
       return printLibraryItems("bookmarkLists", await controller.listBookmarkLists(), json, host)
@@ -1721,6 +1742,13 @@ function printSuperResolutionResult(result: HeadlessSuperResolutionPageResult, j
   writeLine(host, `Model: ${result.result.modelId} (${result.result.engine}, ${result.result.scale}x)`)
   if (result.result.width && result.result.height) writeLine(host, `Size: ${result.result.width}x${result.result.height}`)
   writeLine(host, `Elapsed: ${result.result.elapsedMs.toFixed(2)} ms`)
+}
+
+function requiredRepeatedValues(parsed: ParsedArguments, option: string, command: string, maximum: number): string[] {
+  const values = (parsed.values.get(option) ?? []).map((value) => value.trim())
+  if (!values.length || values.some((value) => !value)) throw usage(`${command} requires at least one ${option} <value>.`)
+  if (values.length > maximum) throw usage(`${option} can be specified at most ${maximum} times.`)
+  return values
 }
 
 function printUpscalePreloadSnapshots(
@@ -2460,6 +2488,8 @@ function formatCliHelp(): string {
     "  library-bookmarks               List bookmarks, optionally by --list",
     "  library-bookmark-add <path>     Add or merge a bookmark",
     "  library-bookmark-delete         Delete one bookmark (--id, --yes)",
+    "  library-bookmark-batch-update   Set list membership for selected bookmarks (--id, --list)",
+    "  library-bookmark-batch-delete   Delete selected bookmarks (--id, --yes)",
     "  library-bookmark-lists          List system and custom bookmark lists",
     "  library-bookmark-list-add       Create a custom bookmark list (--name)",
     "  library-bookmark-list-delete    Delete a custom list (--id, --yes)",

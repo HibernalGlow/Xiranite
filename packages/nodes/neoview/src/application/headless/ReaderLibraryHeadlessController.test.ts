@@ -5,7 +5,7 @@ import { ReaderLibraryService } from "../library/ReaderLibraryService.js"
 import { ReaderLibraryHeadlessController } from "./ReaderLibraryHeadlessController.js"
 
 describe("ReaderLibraryHeadlessController", () => {
-  it("[neoview.library.headless] [neoview.history.cleanup-headless] [neoview.folder.filter-library-headless] resolves paths once and delegates all state to ReaderLibraryService", async () => {
+  it("[neoview.library.headless] [neoview.history.cleanup-headless] [neoview.bookmark.batch-headless] [neoview.folder.filter-library-headless] resolves paths once and delegates all state to ReaderLibraryService", async () => {
     const store = fakeStore()
     vi.mocked(store.updateBookmark).mockResolvedValue({
       id: "bookmark-1",
@@ -32,6 +32,10 @@ describe("ReaderLibraryHeadlessController", () => {
     expect(resolveSource).toHaveBeenCalledWith("demo.cbz")
     await expect(controller.updateBookmark("bookmark-1", { starred: false, listIds: ["default"] })).resolves.toMatchObject({ starred: false })
     expect(store.updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: false, listIds: ["default"], updatedAt: 100 })
+    await controller.updateBookmarks([{ id: "bookmark-1", listIds: ["default"] }])
+    expect(store.updateBookmarkBatch).toHaveBeenCalledWith([{ id: "bookmark-1", listIds: ["default"] }], 100)
+    await controller.removeBookmarks(["bookmark-1"])
+    expect(store.deleteBookmarkBatch).toHaveBeenCalledWith(["bookmark-1"])
     await controller.listRecent(20, 5, "video")
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 20, offset: 5, filter: "video" })
     await controller.listBookmarks("reading", 10, 2, "archive")
