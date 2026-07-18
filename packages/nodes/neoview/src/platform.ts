@@ -75,6 +75,15 @@ export {
   type SystemSuperResolutionCliProbeResult,
   type SystemSuperResolutionCliResolverOptions,
 } from "./platform/super-resolution/SystemSuperResolutionCliResolver.js"
+export {
+  OpenComicAiSystemProvider,
+  type OpenComicAiSystemProviderOptions,
+  type OpenComicSystemBinaryRequest,
+  type OpenComicSystemCapabilityResolver,
+  type OpenComicSystemRuntime,
+  type OpenComicSystemStep,
+  type SuperResolutionImageInspection,
+} from "./platform/super-resolution/opencomic-system/OpenComicAiSystemProvider.js"
 export type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 export type {
   ReaderFileTreeChange,
