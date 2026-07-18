@@ -80,6 +80,7 @@ export {
   type OpenComicAiSystemProviderOptions,
   type OpenComicSystemBinaryRequest,
   type OpenComicSystemCapabilityResolver,
+  type OpenComicSystemCustomModelManifest,
   type OpenComicSystemRuntime,
   type OpenComicSystemModelInfo,
   type OpenComicSystemStep,

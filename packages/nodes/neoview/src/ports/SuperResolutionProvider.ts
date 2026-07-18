@@ -1,4 +1,23 @@
 export type SuperResolutionEngine = "upscayl" | "waifu2x" | "realcugan"
+export type SuperResolutionModelType = "upscale" | "descreen" | "artifact-removal"
+
+export interface SuperResolutionCustomModelManifest {
+  id: string
+  type: SuperResolutionModelType
+  displayName: string
+  engine: SuperResolutionEngine
+  scales: readonly number[]
+  noise?: readonly number[]
+  latency?: number
+  modelDirectory: string
+  modelFiles: readonly string[]
+  scaleFiles?: Readonly<Record<number, string>>
+  license: string
+  checksums: Readonly<Record<string, string>>
+  inputBlob: string
+  outputBlob: string
+  downloadBaseUrl?: string
+}
 
 export interface SuperResolutionModelManifest {
   id: string

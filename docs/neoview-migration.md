@@ -1708,7 +1708,7 @@ TUI 交付顺序固定为：
 
 截至 2026-07-18，本地 `ref/opencomic-ai-system/` 的 `codex/system-cli-only` 分支已经形成四个隔离提交：`b86caac` 将包收口为 `@hibernalglow/opencomic-ai-system@0.1.0`，增加宿主 `binaryResolver`，移除生产入口的 YOLO/ONNX/Potrace 和包内 `win/linux/mac` 路径，并通过 `package.json#files` 与 pack 审计禁止发布 exe、动态库、原生 `.node`、ONNX、模型 `.bin/.param` 和 Python；`610e34b` 修复 daemon 参数拆分、跨 chunk `Ready>`、`Error -> Ready>` 成功误判、Windows/Unicode/引号 quoting，以及 process error/exit/close、主动 close 时当前和排队任务悬空；`5102092` 统一跟踪 daemon 与 waifu2x/realcugan 等短进程，并通过 `closeAllProcesses()` 释放直接子进程，避免 Provider 取消时只关闭 daemon；`cd23bc0` 在原 `ModelObject/parseModels/getModels/pipeline` 主链上增加原子 `registerModels()`/`unregisterModel()`，自定义 manifest 必须声明安全相对路径、license、input/output blob 和每个文件的 SHA-256，本地缺失文件不会隐式联网，现有/下载文件用流式 hash 校验并按 path+size+mtime+checksum 做 256 项有界缓存。fork 自身 `npm test` 当前 20 项通过，`npm pack --dry-run` 仅包含 8 个文件，压缩包大小 28,736 bytes。上述提交目前只存在于本地 fork，尚未推送或发布，因此 Xiranite 不得声明不可从远端解析的 Git SHA，也不得从 `ref/` 直接 import；等用户明确授权推送或发布后再锁定完整 SHA/语义版本。
 
-Xiranite 侧的共享边界已经由 `f4d58552`、`19d31807`、`8e42df71`、`95cc96e7`、`557200bf` 和 `8ebabc6d` 建立：`SuperResolutionService` 位于 NeoView application/ports 层，GUI、CLI、TUI 后续只复用这一实例；模型 manifest 可注册，任务在进入 Provider 前完成 scale/path 校验、同一输出路径互斥和 `AbortSignal` 检查，并通过宿主 `ResourceScheduler` 获取 GPU lease，构造与列模型都保持零进程。`SystemSuperResolutionCliResolver` 位于 platform 层，按“显式路径 -> PATH -> 可信候选”惰性探测 canonical path、版本与架构；显式路径失效不会静默回退，同一 engine 共享缓存，单 caller 取消不会破坏其他等待者。`OpenComicAiSystemProvider` 是注入 runtime 的薄 adapter，不复制模型下载、参数生成、daemon 或进程队列；首次真实任务才配置模型目录和已验证的 CLI resolver，取消/超时调用 fork 的统一进程释放，完成后复用现有 `FilePageContent + StreamingImageMetadataProbe` 检查输出文件非空、路径一致且尺寸等于请求 scale。composition 现在只从 `[nodes.neoview.super_resolution]` 读取 provider、三条显式路径、模型目录和资源预算，不访问 `xiranite.db` 或 Reader SQLite；空路径保留自动发现语义，未配置模型目录时复用 `%APPDATA%/NeoView/models`，禁用 provider 时不加载包、不探测 CLI。模型 manifest 直接从 fork runtime 的 `modelsList/model()` 派生，不复制上游模型表，并完整保留 license、逐文件 checksums 与 input/output blob；runtime loader 同时验证 register/unregister API，拒绝旧的不兼容 fork。`loadOpenComicSystemRuntime()` 使用变量 specifier 惰性加载 `@hibernalglow/opencomic-ai-system`；包缺失或版本不兼容只返回 composition unavailable，不阻止 Reader 启动。超分链 21 项定向测试、NeoView package build 和 oxlint 通过。当前仍未把 fork 声明为生产依赖，也没有从 `ref/` import；等远端可解析的 commit/版本存在后只需锁定 dependency 与 lockfile。真实 GPU benchmark、CLI 子进程若再派生孙进程时的 Windows tree termination，以及自定义 manifest 的 TOML/旧设置导入仍未完成。
+Xiranite 侧的共享边界已经由 `f4d58552`、`19d31807`、`8e42df71`、`95cc96e7`、`557200bf` 和 `8ebabc6d` 建立：`SuperResolutionService` 位于 NeoView application/ports 层，GUI、CLI、TUI 后续只复用这一实例；模型 manifest 可注册，任务在进入 Provider 前完成 scale/path 校验、同一输出路径互斥和 `AbortSignal` 检查，并通过宿主 `ResourceScheduler` 获取 GPU lease，构造与列模型都保持零进程。`SystemSuperResolutionCliResolver` 位于 platform 层，按“显式路径 -> PATH -> 可信候选”惰性探测 canonical path、版本与架构；显式路径失效不会静默回退，同一 engine 共享缓存，单 caller 取消不会破坏其他等待者。`OpenComicAiSystemProvider` 是注入 runtime 的薄 adapter，不复制模型下载、参数生成、daemon 或进程队列；首次真实任务才配置模型目录和已验证的 CLI resolver，取消/超时调用 fork 的统一进程释放，完成后复用现有 `FilePageContent + StreamingImageMetadataProbe` 检查输出文件非空、路径一致且尺寸等于请求 scale。composition 现在只从 `[nodes.neoview.super_resolution]` 读取 provider、三条显式路径、模型目录、资源预算和最多 64 个 `custom_models` manifest，不访问 `xiranite.db` 或 Reader SQLite；空路径保留自动发现语义，未配置模型目录时复用 `%APPDATA%/NeoView/models`，禁用 provider 时不加载包、不探测 CLI。每个 custom manifest 必须声明安全相对目录、模型文件、scale、engine、license、input/output blob 和逐文件 SHA-256；额外 checksum、未声明 scale alias、路径逃逸和非 HTTPS 下载地址会在加载 TOML 时拒绝。composition 将验证后的 manifest 幂等注册到 fork 的唯一 runtime registry，内建或其他所有者占用同 ID 时拒绝，不维护第二份模型表。模型清单随后仍直接从 fork runtime 的 `modelsList/model()` 派生，并完整保留 license、逐文件 checksums 与 input/output blob；runtime loader 同时验证 register/unregister API，拒绝旧的不兼容 fork。`loadOpenComicSystemRuntime()` 使用变量 specifier 惰性加载 `@hibernalglow/opencomic-ai-system`；包缺失或版本不兼容只返回 composition unavailable，不阻止 Reader 启动。当前仍未把 fork 声明为生产依赖，也没有从 `ref/` import；等远端可解析的 commit/版本存在后只需锁定 dependency 与 lockfile。真实 GPU benchmark、CLI 子进程若再派生孙进程时的 Windows tree termination，以及旧设置中的自定义模型导入仍未完成。
 
 预发布依赖示例：
 
@@ -1757,6 +1757,19 @@ models_directory = ""
 max_daemons_per_gpu = 1
 daemon_idle_timeout_ms = 300000
 task_timeout_ms = 600000
+
+[[nodes.neoview.super_resolution.custom_models]]
+id = "illustration-janai"
+type = "upscale"
+name = "IllustrationJaNai"
+engine = "upscayl"
+scales = [2, 4]
+directory = "illustration-janai"
+files = ["model.param", "model.bin"]
+license = "MIT"
+checksums = { "model.param" = "<sha256>", "model.bin" = "<sha256>" }
+input_blob = "in0"
+output_blob = "out0"
 ```
 
 具体路径由平台 path codec 处理，UI 不自行拼接。旧 NeoView 的超分开关、GPU、模型、scale、noise、tile、TTA 和输出设置必须导入到这套 TOML；旧 `sr-vulkan` 枚举模型映射到等价 OpenComic/NCNN model manifest。不能精确映射时保留原值并生成导入报告，禁止静默改用另一模型。
@@ -1772,7 +1785,7 @@ task_timeout_ms = 600000
 - 路径包含空格、引号、Unicode、长路径时不能通过 shell 字符串拼接，必须使用参数数组或经过测试的 daemon quoting；
 - stdout/stderr 只承载控制日志和进度，不传输图片字节。
 
-OpenComic 模型表已经扩展为可注册 manifest，而不是只允许包内硬编码联合类型。IllustrationJaNai、MangaJaNai 和用户自定义 NCNN 模型至少记录：模型 id、engine、`.param/.bin` 路径、scale、输入/输出 blob、前后处理、许可和逐文件校验 hash；fork 已负责原子注册、路径边界和流式校验，XR 后续只补 TOML/旧设置导入，不再实现第二套 registry。Upscayl 已能直接识别部分 `in0/out0` 模型；不能假定把模型文件重命名成 `sr-vulkan` 固定枚举就等价兼容。
+OpenComic 模型表已经扩展为可注册 manifest，而不是只允许包内硬编码联合类型。IllustrationJaNai、MangaJaNai 和用户自定义 NCNN 模型至少记录：模型 id、engine、`.param/.bin` 路径、scale、输入/输出 blob、前后处理、许可和逐文件校验 hash；fork 已负责原子注册、路径边界和流式校验，XR 已完成 TOML manifest 解析和 runtime 注册，后续只剩旧设置导入，不再实现第二套 registry。Upscayl 已能直接识别部分 `in0/out0` 模型；不能假定把模型文件重命名成 `sr-vulkan` 固定枚举就等价兼容。
 
 AVIF/JXL 仍由 Reader 的统一图片解码层负责。当前 CLI 只接受文件路径和 JPG/PNG/WebP 时，使用受 lease 管理的无损 PNG 中间文件，不允许旧版 JPEG Q85 中转；任务完成、取消或 session close 后立即清理。将来若系统 CLI 支持 raw pixels/named pipe，可在 Provider 内替换数据面而不改变 `SuperResolutionService`。
 

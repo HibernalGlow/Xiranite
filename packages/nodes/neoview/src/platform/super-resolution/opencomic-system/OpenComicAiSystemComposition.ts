@@ -1,5 +1,5 @@
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
-import type { SuperResolutionModelManifest } from "../../../ports/SuperResolutionProvider.js"
+import type { SuperResolutionCustomModelManifest, SuperResolutionModelManifest } from "../../../ports/SuperResolutionProvider.js"
 import { SuperResolutionService } from "../../../application/super-resolution/SuperResolutionService.js"
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
@@ -8,6 +8,7 @@ import { SystemSuperResolutionCliResolver } from "../SystemSuperResolutionCliRes
 import {
   OpenComicAiSystemProvider,
   type OpenComicSystemCapabilityResolver,
+  type OpenComicSystemCustomModelManifest,
   type OpenComicSystemRuntime,
 } from "./OpenComicAiSystemProvider.js"
 import {
@@ -26,6 +27,8 @@ export interface OpenComicAiSystemCompositionOptions extends NeoviewRuntimeLoadO
   ownerId?: string
 }
 
+const registeredCustomModels = new WeakMap<object, Map<string, string>>()
+
 export async function createOpenComicAiSystemService(
   options: OpenComicAiSystemCompositionOptions = {},
 ): Promise<SuperResolutionService | undefined> {
@@ -39,6 +42,7 @@ export async function createOpenComicAiSystemService(
     if (error instanceof OpenComicSystemRuntimeUnavailableError) return undefined
     throw error
   }
+  registerRuntimeCustomModels(runtime, config.customModels)
   const models = runtimeModels(runtime)
   if (!models.length) throw new Error("OpenComic system runtime did not expose any super-resolution models.")
   const modelsDirectory = options.modelsDirectory
@@ -64,6 +68,56 @@ export async function createOpenComicAiSystemService(
     scheduler: options.resourceScheduler,
     ownerId: options.ownerId ?? "neoview:super-resolution",
     models,
+  })
+}
+
+export function registerRuntimeCustomModels(
+  runtime: OpenComicSystemRuntime,
+  manifests: readonly SuperResolutionCustomModelManifest[],
+): void {
+  if (!manifests.length) return
+  const known = registeredCustomModels.get(runtime) ?? new Map<string, string>()
+  const pending: OpenComicSystemCustomModelManifest[] = []
+  const pendingSignatures = new Map<string, string>()
+  for (const manifest of manifests) {
+    const signature = customModelSignature(manifest)
+    if (runtime.modelsList.includes(manifest.id)) {
+      if (known.get(manifest.id) !== signature) throw new Error(`Custom super-resolution model collides with existing model: ${manifest.id}`)
+      continue
+    }
+    pending.push({
+      id: manifest.id,
+      type: manifest.type,
+      name: manifest.displayName,
+      upscaler: manifest.engine,
+      scales: [...manifest.scales],
+      noise: manifest.noise ? [...manifest.noise] : undefined,
+      latency: manifest.latency,
+      folder: manifest.modelDirectory,
+      files: [...manifest.modelFiles],
+      scaleFiles: manifest.scaleFiles ? { ...manifest.scaleFiles } : undefined,
+      license: manifest.license,
+      checksums: { ...manifest.checksums },
+      inputBlob: manifest.inputBlob,
+      outputBlob: manifest.outputBlob,
+      downloadBaseUrl: manifest.downloadBaseUrl,
+    })
+    pendingSignatures.set(manifest.id, signature)
+  }
+  if (!pending.length) return
+  runtime.registerModels(pending)
+  for (const [id, signature] of pendingSignatures) known.set(id, signature)
+  registeredCustomModels.set(runtime, known)
+}
+
+function customModelSignature(manifest: SuperResolutionCustomModelManifest): string {
+  return JSON.stringify({
+    ...manifest,
+    scales: [...manifest.scales],
+    noise: manifest.noise ? [...manifest.noise] : undefined,
+    modelFiles: [...manifest.modelFiles],
+    scaleFiles: manifest.scaleFiles ? Object.entries(manifest.scaleFiles).sort(([left], [right]) => Number(left) - Number(right)) : undefined,
+    checksums: Object.entries(manifest.checksums).sort(([left], [right]) => left.localeCompare(right)),
   })
 }
 

@@ -32,7 +32,45 @@ describe("NeoView super-resolution runtime config", () => {
       maxDaemonsPerGpu: 2,
       daemonIdleTimeoutMs: 120_000,
       taskTimeoutMs: 900_000,
+      customModels: [],
     })
+  })
+
+  it("[neoview.super-resolution.custom-model-config] validates portable NCNN manifests", () => {
+    const checksum = "a".repeat(64)
+    expect(parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{
+      id: "illustration-janai",
+      type: "upscale",
+      name: "IllustrationJaNai",
+      engine: "upscayl",
+      scales: [4, 2, 2],
+      noise: [1, 0, 0],
+      latency: 2.2,
+      directory: "illustration-janai",
+      files: ["model.param", "model.bin"],
+      scale_files: { 2: "illustration-janai-x2", 4: "illustration-janai-x4" },
+      license: "MIT",
+      checksums: { "model.param": checksum, "model.bin": checksum.toUpperCase() },
+      input_blob: "in0",
+      output_blob: "out0",
+      download_base_url: "https://models.example.test/illustration-janai",
+    }] } }).superResolution.customModels).toEqual([{
+      id: "illustration-janai",
+      type: "upscale",
+      displayName: "IllustrationJaNai",
+      engine: "upscayl",
+      scales: [2, 4],
+      noise: [0, 1],
+      latency: 2.2,
+      modelDirectory: "illustration-janai",
+      modelFiles: ["model.param", "model.bin"],
+      scaleFiles: { 2: "illustration-janai-x2", 4: "illustration-janai-x4" },
+      license: "MIT",
+      checksums: { "model.param": checksum, "model.bin": checksum },
+      inputBlob: "in0",
+      outputBlob: "out0",
+      downloadBaseUrl: "https://models.example.test/illustration-janai/",
+    }])
   })
 
   it("[neoview.super-resolution.config-validation] rejects invalid providers, paths and budgets", () => {
@@ -40,5 +78,9 @@ describe("NeoView super-resolution runtime config", () => {
     expect(() => parseNeoviewRuntimeConfig({ super_resolution: { upscayl_path: "\0" } })).toThrow("without NUL")
     expect(() => parseNeoviewRuntimeConfig({ super_resolution: { max_daemons_per_gpu: 9 } })).toThrow("between 0 and 8")
     expect(() => parseNeoviewRuntimeConfig({ super_resolution: { task_timeout_ms: 1 } })).toThrow("between 1000")
+    expect(() => parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{ id: "bad", name: "bad", engine: "upscayl", scales: [2], directory: "../bad", files: ["m.bin"], license: "MIT", checksums: { "m.bin": "0".repeat(64) }, input_blob: "in0", output_blob: "out0" }] } })).toThrow("safe relative path")
+    expect(() => parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{ id: "bad", name: "bad", engine: "upscayl", scales: [2], directory: "bad", files: ["m.bin"], license: "MIT", checksums: { "m.bin": "0".repeat(64), "extra.bin": "1".repeat(64) }, input_blob: "in0", output_blob: "out0" }] } })).toThrow("unknown model file")
+    expect(() => parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{ id: "bad", name: "bad", engine: "upscayl", scales: [2], scale_files: { 4: "bad-x4" }, directory: "bad", files: ["m.bin"], license: "MIT", checksums: { "m.bin": "0".repeat(64) }, input_blob: "in0", output_blob: "out0" }] } })).toThrow("not a declared scale")
+    expect(() => parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{ id: "bad", name: "bad", engine: "upscayl", scales: [2], directory: "bad", files: ["m.bin"], license: "MIT", checksums: { "m.bin": "0".repeat(64) }, input_blob: "in0", output_blob: "out0", download_base_url: "http://example.test/models" }] } })).toThrow("HTTPS URL")
   })
 })

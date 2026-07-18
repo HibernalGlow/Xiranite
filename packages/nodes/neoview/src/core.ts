@@ -386,10 +386,12 @@ export {
 } from "./application/super-resolution/SuperResolutionService.js"
 export type {
   SuperResolutionCapabilitySnapshot,
+  SuperResolutionCustomModelManifest,
   SuperResolutionEngine,
   SuperResolutionEngineCapability,
   SuperResolutionExecutionContext,
   SuperResolutionModelManifest,
+  SuperResolutionModelType,
   SuperResolutionProgress,
   SuperResolutionProvider,
   SuperResolutionRequest,
