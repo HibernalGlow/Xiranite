@@ -251,5 +251,38 @@ export function isAbortError(error: unknown): boolean {
 }
 
 export function folderErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  const code = errorCode(error)
+  const raw = error instanceof Error ? error.message : String(error)
+  const normalized = raw.toLocaleLowerCase("en-US")
+  if (code === "EACCES" || code === "EPERM" || /permission denied|access denied|拒绝访问|权限/u.test(normalized)) {
+    return "没有权限访问此目录。"
+  }
+  if (code === "ENOENT" || code === "ENOTDIR" || /no such file|not found|cannot find|scandir|目录不存在|找不到/u.test(normalized)) {
+    return "目录不存在或已断开。"
+  }
+  if (code === "EBUSY" || code === "ENODEV" || code === "ENXIO" || /device is not ready|input\/output error|设备未就绪|输入\/输出错误/u.test(normalized)) {
+    return "目录当前不可用，请检查磁盘或网络连接。"
+  }
+  if (isAbortError(error)) return "读取已取消。"
+  return sanitizeFolderErrorText(raw)
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("code" in error)) return undefined
+  const code = (error as { code?: unknown }).code
+  return typeof code === "string" ? code.toUpperCase() : undefined
+}
+
+function sanitizeFolderErrorText(value: string): string {
+  const text = value.trim()
+  if (!text) return "无法读取当前目录。"
+  // Error strings from Node and the filesystem often embed a full local path.
+  // Keep a short diagnostic when it is safe, otherwise use an actionable generic message.
+  const withoutPaths = text
+    .replace(/['"](?:[A-Za-z]:[\\/][^'"]*|\\\\[^'"]+|\/[^'"]+)['"]/gu, "<路径>")
+    .replace(/(?:[A-Za-z]:[\\/][^\s,;:)]+|\\\\[^\s,;:)]+|\/(?:Users|home|mnt|Volumes|media)\/[^\s,;:)]+)/gu, "<路径>")
+    .replace(/\s+/gu, " ")
+    .trim()
+  if (!withoutPaths || withoutPaths.includes("<路径>")) return "无法读取当前目录，请重试。"
+  return withoutPaths.slice(0, 160)
 }

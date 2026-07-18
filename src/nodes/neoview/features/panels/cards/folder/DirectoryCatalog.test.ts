@@ -6,6 +6,7 @@ import {
   directoryEntryAt,
   directoryPageHasMetadata,
   directoryPageCursors,
+  folderErrorMessage,
   mergeDirectoryPage,
   normalizeFolderNavigationPath,
   restoreDirectoryVisitState,
@@ -27,6 +28,13 @@ describe("DirectoryCatalog", () => {
     expect(normalizeFolderNavigationPath("  history:downloads  ")).toBe("history:downloads")
     expect(normalizeFolderNavigationPath("\\\\server\\share\\books")).toBe("\\\\server\\share\\books")
     expect(normalizeFolderNavigationPath("/srv/books")).toBe("/srv/books")
+  })
+
+  it("[neoview.folder.error-safety] turns filesystem failures into actionable messages without exposing local paths", () => {
+    expect(folderErrorMessage(new Error("ENOENT: no such file or directory, scandir 'E:'"))).toBe("目录不存在或已断开。")
+    expect(folderErrorMessage(Object.assign(new Error("access denied: C:\\private\\books"), { code: "EACCES" }))).toBe("没有权限访问此目录。")
+    expect(folderErrorMessage(new Error("failed to read D:/private/books"))).toBe("无法读取当前目录，请重试。")
+    expect(folderErrorMessage(new Error("服务暂时不可用"))).toBe("服务暂时不可用")
   })
 
   it("[neoview.folder.sparse-pages] addresses remote pages without appending all preceding entries", () => {
