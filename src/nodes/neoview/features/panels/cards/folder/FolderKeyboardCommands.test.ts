@@ -32,6 +32,7 @@ describe("resolveFolderKeyboardCommand", () => {
     expect(resolveFolderKeyboardCommand({ key: "f", metaKey: true }, context)).toEqual({ kind: "search" })
     expect(resolveFolderKeyboardCommand({ key: "Escape" }, context)).toEqual({ kind: "clear-selection" })
     expect(resolveFolderKeyboardCommand({ key: "F10", shiftKey: true }, context)).toEqual({ kind: "context-menu" })
+    expect(resolveFolderKeyboardCommand({ key: "F10", shiftKey: true }, { ...context, total: 0 })).toBeUndefined()
   })
 
   it("prefers navigation state and never fabricates a parent route", () => {
