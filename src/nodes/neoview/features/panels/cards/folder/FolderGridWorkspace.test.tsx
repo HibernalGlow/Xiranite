@@ -17,6 +17,7 @@ describe("FolderGridWorkspace banner entries", () => {
       size: 12 * 1024 * 1024,
       rating: 4.8,
       collectTagCount: 3,
+      tags: ["artist:alice", "manual:favorite"],
     }
 
     render(
@@ -46,6 +47,7 @@ describe("FolderGridWorkspace banner entries", () => {
     expect(info?.children[1]?.textContent).toContain("12.0 MiB")
     expect(info?.querySelector('[title^="评分"]')).toBeTruthy()
     expect(info?.querySelector('[title^="收藏标签"]')).toBeTruthy()
+    expect(info?.querySelector('[data-folder-entry-metadata="tags"]')?.getAttribute("title")).toBe("标签 artist:alice / manual:favorite")
     expect(info?.textContent).not.toContain(entry.path)
   })
 })

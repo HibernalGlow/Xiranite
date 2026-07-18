@@ -43,6 +43,7 @@ describe("FolderDetailsView", () => {
     expect(tableHost.getAttribute("data-loaded-rows")).toBe("2")
     expect(tableHost.getAttribute("data-total-rows")).toBe("10000")
     expect(tableHost.querySelectorAll("tbody tr").length).toBeLessThan(80)
+    await waitFor(() => expect(within(tableHost).getByText("artist:a / favorite / 2 个收藏标签")).toBeTruthy())
     const book = catalog().pages.get(0)![0]!
     expect(folderDetailsContextAttributes({ index: 0, entry: book })).toMatchObject({
       "data-context-menu": "neoview-folder-entry",

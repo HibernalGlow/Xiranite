@@ -18,7 +18,7 @@ import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryEntryDto, type
 import type { DirectoryCatalog } from "./DirectoryCatalog"
 import { directoryEntryAt, formatFolderRating } from "./DirectoryCatalog"
 import { FolderDetailsReturnFooter, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
-import { FolderEntryIcon } from "./FolderEntryPresentation"
+import { FolderEntryIcon, formatFolderTagSummary } from "./FolderEntryPresentation"
 
 interface DirectoryDetailsRow {
   index: number
@@ -67,7 +67,7 @@ const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
   { id: "dimensions", accessorFn: (row) => formatDimensions(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.dimensions, header: () => <DetailColumnHeader label="尺寸" />, cell: ({ row }) => <DetailText value={formatDimensions(row.original.entry)} align="right" mono />, meta: { label: "尺寸" } },
   { id: "pageCount", accessorFn: (row) => row.entry.pageCount, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.pageCount, header: () => <DetailColumnHeader label="页数" />, cell: ({ row }) => <DetailText value={formatNumber(row.original.entry.pageCount)} align="right" mono />, meta: { label: "页数" } },
   { id: "rating", accessorFn: (row) => row.entry.rating, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.rating, header: () => <DetailColumnHeader label="评分" />, cell: ({ row }) => <DetailText value={formatFolderRating(row.original.entry.rating)} align="right" mono />, meta: { label: "评分" } },
-  { id: "tags", accessorFn: (row) => formatTags(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.tags, header: () => <DetailColumnHeader label="标签" />, cell: ({ row }) => <DetailText value={formatTags(row.original.entry)} />, meta: { label: "标签" } },
+  { id: "tags", accessorFn: (row) => formatFolderTagSummary(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.tags, header: () => <DetailColumnHeader label="标签" />, cell: ({ row }) => <DetailText value={formatFolderTagSummary(row.original.entry)} />, meta: { label: "标签" } },
 ].map((column) => ({ ...column, minSize: 48, maxSize: 800 }))
 
 export default function FolderDetailsView({
@@ -288,10 +288,4 @@ function formatDimensions(entry: ReaderDirectoryEntryDto): string {
 
 function formatNumber(value: number | undefined): string {
   return Number.isFinite(value) ? String(value) : "-"
-}
-
-function formatTags(entry: ReaderDirectoryEntryDto): string {
-  if (entry.tags?.length) return entry.tags.join(" / ")
-  if (Number.isFinite(entry.collectTagCount)) return `${entry.collectTagCount} 个收藏标签`
-  return "-"
 }

@@ -33,6 +33,18 @@ describe("PlatformDirectoryListingProvider", () => {
     expect(listing.entries.find((entry) => entry.path === broken)).toMatchObject({ readerSupported: false })
   })
 
+  it("[neoview.shortcut.listing-parent] keeps a broken shortcut's parent directory browsable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-tree-"))
+    temporaryPaths.push(root)
+    const link = join(root, "Broken.lnk")
+    await writeFile(link, "shortcut")
+    const listing = await new PlatformDirectoryListingProvider(undefined, {
+      resolve: async (path) => ({ status: "unavailable" as const, shortcutPath: path, reason: "not Windows" }),
+    }).read(link)
+    expect(listing.path).toBe(root)
+    expect(listing.entries).toHaveLength(1)
+  })
+
   it("[neoview.folder.windows-drive-root] converts drive-relative volume labels into absolute drive roots", () => {
     expect(normalizePlatformDirectoryPath("E:", "win32")).toBe("E:\\")
     expect(normalizePlatformDirectoryPath("E:/", "win32")).toBe("E:\\")

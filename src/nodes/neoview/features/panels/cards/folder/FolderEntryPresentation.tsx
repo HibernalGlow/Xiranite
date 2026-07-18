@@ -1,4 +1,4 @@
-import { File, FileArchive, FileImage, FileText, Film, Folder, Heart, Music, Star } from "lucide-react"
+import { File, FileArchive, FileImage, FileText, Film, Folder, Heart, Music, Star, Tag } from "lucide-react"
 
 import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
 import { formatFolderRating } from "./DirectoryCatalog"
@@ -37,6 +37,20 @@ export function formatFolderDate(value: number | undefined): string {
   return new Date(value!).toLocaleDateString()
 }
 
+/** Keep the source order while dropping empty EMM/manual tag values. */
+export function formatFolderTags(tags: readonly string[] | undefined): string {
+  return (tags ?? []).map((tag) => tag.trim()).filter(Boolean).join(" / ")
+}
+
+/** A single display contract shared by compact/list/grid and the details column. */
+export function formatFolderTagSummary(entry: Pick<ReaderDirectoryEntryDto, "tags" | "collectTagCount">): string {
+  const tags = formatFolderTags(entry.tags)
+  const collectCount = Number.isFinite(entry.collectTagCount)
+    ? `${entry.collectTagCount} 个收藏标签`
+    : ""
+  return [tags, collectCount].filter(Boolean).join(" / ") || "-"
+}
+
 export function FolderEntryFileMetadata({ entry, className = "" }: { entry: Pick<ReaderDirectoryEntryDto, "size" | "modifiedAt">; className?: string }) {
   const date = formatFolderDate(entry.modifiedAt)
   const size = formatFolderSize(entry.size)
@@ -65,18 +79,22 @@ export function FolderEntryMetadata({
   entry,
   showRating,
   showCollectTagCount,
+  showTags = true,
   className = "",
 }: {
   entry: ReaderDirectoryEntryDto
   showRating: boolean
   showCollectTagCount: boolean
+  showTags?: boolean
   className?: string
 }) {
   const rating = formatFolderRating(entry.rating)
+  const tags = formatFolderTags(entry.tags)
   return (
     <span className={`flex shrink-0 items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground ${className}`}>
       {showRating ? <span className="inline-flex items-center gap-0.5" title={`评分 ${rating}`}><Star className="size-3" />{rating}</span> : null}
       {showCollectTagCount ? <span className="inline-flex items-center gap-0.5" title={`收藏标签 ${entry.collectTagCount ?? 0}`}><Heart className="size-3" />{entry.collectTagCount ?? 0}</span> : null}
+      {showTags && tags ? <span className="inline-flex min-w-0 items-center gap-0.5" title={`标签 ${tags}`} data-folder-entry-metadata="tags"><Tag className="size-3 shrink-0" /><span className="max-w-40 truncate">{tags}</span></span> : null}
     </span>
   )
 }
