@@ -28,12 +28,16 @@ export function ViewDefaultsSettingsCard({
   onChange(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
 }) {
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string>()
 
   async function commit(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
     if (saving) return
     setSaving(true)
+    setError(undefined)
     try {
       await onChange(patch)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setSaving(false)
     }
@@ -57,6 +61,7 @@ export function ViewDefaultsSettingsCard({
           {FIT_MODES.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
         </select>
       </div>
+      {error ? <p role="alert" className="text-sm text-destructive">保存失败：{error}</p> : null}
       <div className="grid gap-2">
         <span className="text-sm font-medium">默认页面模式</span>
         <div className="flex w-fit items-center rounded-md border border-border bg-muted/45 p-0.5" aria-label="默认页面模式">
