@@ -90,6 +90,12 @@ export {
   runtimeModels as openComicSystemRuntimeModels,
   type OpenComicAiSystemCompositionOptions,
 } from "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
+export {
+  loadOpenComicSystemRuntime,
+  OPENCOMIC_SYSTEM_PACKAGE,
+  OpenComicSystemRuntimeUnavailableError,
+  type OpenComicSystemRuntimeLoaderOptions,
+} from "./platform/super-resolution/opencomic-system/OpenComicSystemRuntimeLoader.js"
 export type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 export type {
   ReaderFileTreeChange,
