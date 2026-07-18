@@ -159,6 +159,7 @@ test("[neoview.bindings.devices-e2e] routes mouse, hold, modified wheel and area
     ...DEFAULT_READER_INPUT_BINDINGS.bindings,
     { id: "e2e-mouse-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 0, action: "click" } },
     { id: "e2e-mouse-hold-previous", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 1, action: "hold", durationMs: 120, moveTolerancePx: 12 } },
+    { id: "e2e-mouse-gesture-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse-gesture", button: 1, directions: ["right", "down"], trigger: "instant" } },
     { id: "e2e-wheel-control-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "wheel", direction: "down", ctrl: true } },
     { id: "e2e-area-first", action: "reader.first-page", context: "reader", enabled: true, input: { device: "area", area: "top-left", button: 0, action: "press" } },
   ]
@@ -196,6 +197,13 @@ test("[neoview.bindings.devices-e2e] routes mouse, hold, modified wheel and area
   await page.mouse.down({ button: "left" })
   await page.mouse.up({ button: "left" })
   await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down({ button: "middle" })
+  await page.mouse.move(center.x + 40, center.y, { steps: 2 })
+  await page.mouse.move(center.x + 40, center.y + 40, { steps: 2 })
+  await page.mouse.up({ button: "middle" })
+  await expect(page.locator('img[alt="002.png"]')).toBeVisible()
 
 })
 
