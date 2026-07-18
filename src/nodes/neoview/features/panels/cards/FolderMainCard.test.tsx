@@ -467,8 +467,8 @@ describe("FolderMainCard", () => {
     expect(onFolderView).toHaveBeenCalledWith({ tabs: { width: 240 } })
 
     view.rerender(renderCard(layout({ layout: "none", width: 240, breadcrumbPosition: "right", toolbarPosition: "bottom" })))
-    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-layout="none"]')).toBeTruthy())
-    expect(ui.queryByRole("tab", { name: "books" })).toBeNull()
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-layout="top"]')).toBeTruthy())
+    expect(ui.getAllByRole("tab")).toHaveLength(2)
     expect(ui.getByRole("button", { name: "标签栏布局设置" })).toBeTruthy()
     expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"]')?.getAttribute("data-orientation")).toBe("vertical")
     expect((view.container.querySelector('[data-folder-layout-region="toolbar"]') as HTMLElement).style.order).toBe("2")
@@ -757,6 +757,57 @@ describe("FolderMainCard", () => {
     expect(releaseLibraryThumbnailContext).toHaveBeenCalledOnce()
     expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(contextId)
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
+  })
+
+  it("[neoview.folder.nav-thumbnail-identity] restores back/forward thumbnails without a second registration", async () => {
+    const entries = (path: string) => [
+      { name: "folder", path: `${path}/folder`, kind: "directory" as const, readerSupported: true },
+      { name: "book.cbz", path: `${path}/book.cbz`, kind: "file" as const, readerSupported: true },
+    ]
+    const opened = page({ path: "C:/A", entries: entries("C:/A"), total: 2 })
+    const second = page({ path: "C:/B", entries: entries("C:/B"), total: 2, navigationEntryId: 2, generation: 2, canGoBack: true })
+    const returned = page({ path: "C:/A", entries: entries("C:/A"), total: 2, navigationEntryId: 1, generation: 3, canGoForward: true })
+    const navigateDirectoryBrowser = vi.fn(async (_sessionId: string, navigation: { action: string; path?: string }) => {
+      if (navigation.action === "path") return second
+      if (navigation.action === "back") return returned
+      throw new Error(`unexpected navigation ${JSON.stringify(navigation)}`)
+    })
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string; path: string }[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({ id: item.id, thumbnailUrl: `http://thumb.test/${encodeURIComponent(item.path)}`, contentVersion: item.path })),
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      registerLibraryThumbnails,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/A" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoGridMockContext.Provider>
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    await ui.findByTitle("C:/A/folder")
+    selectFolderViewMode(ui, "封面网格")
+    await waitFor(() => expect(ui.getByTitle("C:/A/folder").querySelector("img")?.getAttribute("src")).toBe("http://thumb.test/C%3A%2FA%2Ffolder"))
+    const registrationsBeforeNavigation = registerLibraryThumbnails.mock.calls.length
+
+    const breadcrumb = view.container.querySelector('[data-neoview-folder-breadcrumb="true"]')!
+    fireEvent.click(breadcrumb.querySelector("button[aria-label]")!)
+    const input = await within(breadcrumb as HTMLElement).findByRole("textbox")
+    fireEvent.change(input, { target: { value: "C:/B" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("C:\\B"))
+
+    fireEvent.click(view.container.querySelector("svg.lucide-arrow-left")!.closest("button")!)
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("C:\\A"))
+    await waitFor(() => expect(ui.getByTitle("C:/A/folder").querySelector("img")?.getAttribute("src")).toBe("http://thumb.test/C%3A%2FA%2Ffolder"))
+    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(registrationsBeforeNavigation + 1)
+    view.unmount()
   })
 
   it("[neoview.folder.selection-range-ui] [neoview.folder.selection-bulk-ui] [neoview.folder.selection-chain-ui] [neoview.folder.selection-click-behavior] shares selection controls across list and grid renderers", async () => {
