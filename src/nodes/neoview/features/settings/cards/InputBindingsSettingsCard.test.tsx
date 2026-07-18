@@ -7,10 +7,10 @@ afterEach(cleanup)
 describe("InputBindingsSettingsCard", () => {
   it("[neoview.bindings.editor] filters contexts and exposes all device editors", () => {
     render(<InputBindingsEditor value={{ bindings: [
-      binding("key", "keyboard"), binding("mouse", "mouse"), binding("wheel", "wheel"), binding("touch", "touch"), binding("pad", "gamepad"),
+      binding("key", "keyboard"), binding("mouse", "mouse"), binding("gesture", "mouse-gesture"), binding("wheel", "wheel"), binding("touch", "touch"), binding("pad", "gamepad"),
     ] }} onSave={vi.fn()} />)
-    expect(screen.getAllByRole("listitem")).toHaveLength(5)
-    expect(screen.getAllByRole("combobox", { name: "输入设备" }).map((element) => (element as HTMLSelectElement).value)).toEqual(["keyboard", "mouse", "wheel", "touch", "gamepad"])
+    expect(screen.getAllByRole("listitem")).toHaveLength(6)
+    expect(screen.getAllByRole("combobox", { name: "输入设备" }).map((element) => (element as HTMLSelectElement).value)).toEqual(["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad"])
     fireEvent.change(screen.getByRole("combobox", { name: "筛选上下文" }), { target: { value: "panel" } })
     expect(screen.queryAllByRole("listitem")).toHaveLength(0)
   })
@@ -47,6 +47,14 @@ describe("InputBindingsSettingsCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
     fireEvent.keyDown(document, { code: "Escape", key: "Escape" })
     expect(screen.queryByText("请按下组合键；按 Escape 取消录制。")).toBeNull()
+  })
+
+  it("[neoview.bindings.mouse-gesture-editor] edits press, hold timing and a bounded direction sequence", () => {
+    render(<InputBindingsEditor value={{ bindings: [binding("mouse", "mouse"), binding("gesture", "mouse-gesture")] }} onSave={vi.fn()} />)
+    fireEvent.change(screen.getByRole("combobox", { name: "鼠标动作" }), { target: { value: "hold" } })
+    expect(screen.getByDisplayValue("500")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "添加向下" }))
+    expect(screen.getByText("L D")).toBeTruthy()
   })
 
   it("[neoview.bindings.area-editor] edits the legacy nine-area click descriptor", () => {
@@ -92,9 +100,10 @@ describe("InputBindingsSettingsCard", () => {
   })
 })
 
-function binding(id: string, device: "keyboard" | "mouse" | "wheel" | "touch" | "gamepad") {
+function binding(id: string, device: "keyboard" | "mouse" | "mouse-gesture" | "wheel" | "touch" | "gamepad") {
   const input = device === "keyboard" ? { device, code: "KeyN" } as const
-    : device === "mouse" ? { device, button: 3, click: "single" } as const
+    : device === "mouse" ? { device, button: 3, action: "click" } as const
+    : device === "mouse-gesture" ? { device, button: 2, directions: ["left"] as const, trigger: "instant" } as const
     : device === "wheel" ? { device, direction: "down" } as const
     : device === "touch" ? { device, gesture: "swipe-left", fingers: 1 } as const
     : { device, button: 5 } as const

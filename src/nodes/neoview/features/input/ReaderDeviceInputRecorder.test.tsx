@@ -1,4 +1,4 @@
-import { act, cleanup, render, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ReaderDeviceInputRecorder } from "./ReaderDeviceInputRecorder"
 
@@ -21,6 +21,18 @@ afterEach(() => {
 })
 
 describe("ReaderDeviceInputRecorder", () => {
+  it("[neoview.bindings.mouse-gesture-recording] records a direction sequence through use-gesture", async () => {
+    const onRecord = vi.fn()
+    render(<ReaderDeviceInputRecorder device="mouse-gesture" onCancel={vi.fn()} onRecord={onRecord} />)
+    const recorder = document.querySelector('[data-input-recording="true"]')!
+    fireEvent.pointerDown(recorder, { pointerType: "mouse", pointerId: 1, button: 2, clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(recorder, { pointerType: "mouse", pointerId: 1, buttons: 2, clientX: 30, clientY: 0 })
+    fireEvent.pointerMove(recorder, { pointerType: "mouse", pointerId: 1, buttons: 2, clientX: 30, clientY: 30 })
+    expect(screen.getByRole("status", { name: "已录制鼠标轨迹" }).textContent).toBe("→ ↓")
+    fireEvent.pointerUp(recorder, { pointerType: "mouse", pointerId: 1, button: 2, clientX: 30, clientY: 30 })
+    await waitFor(() => expect(onRecord).toHaveBeenCalledWith({ device: "mouse-gesture", button: 2, directions: ["right", "down"], trigger: "instant" }))
+  })
+
   it("[neoview.bindings.gamepad-recording] records one standard button and releases polling", async () => {
     const onRecord = vi.fn()
     const view = render(<ReaderDeviceInputRecorder device="gamepad" onCancel={vi.fn()} onRecord={onRecord} />)

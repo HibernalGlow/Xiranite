@@ -58,15 +58,21 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
       event.preventDefault()
       return
     }
-    if (dispatch({ device: "mouse", button: event.button, click: event.detail > 1 ? "double" : "single" }, event.target)) event.preventDefault()
+    if (dispatch({ device: "mouse", button: event.button, action: event.detail > 1 ? "double-click" : "click" }, event.target)) event.preventDefault()
   }
 
   const onPointerDown: PointerEventHandler<HTMLElement> = (event) => {
     if (disabled || event.pointerType !== "mouse" || isInteractive(event.target)) return
     const input = readerAreaInput(event, "press")
-    if (!input || !dispatch(input, event.target)) return
-    handledAreaPressPointers.current.add(event.pointerId)
-    event.preventDefault()
+    if (input && dispatch(input, event.target)) {
+      handledAreaPressPointers.current.add(event.pointerId)
+      event.preventDefault()
+      return
+    }
+    if (dispatch({ device: "mouse", button: event.button, action: "press" }, event.target)) {
+      handledAreaPressPointers.current.add(event.pointerId)
+      event.preventDefault()
+    }
   }
 
   useEffect(() => {
@@ -98,7 +104,11 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
     return true
   }
 
-  return { dispatch, onPointerDown, onPointerUp }
+  function claimPointer(pointerId: number): void {
+    handledAreaPressPointers.current.add(pointerId)
+  }
+
+  return { claimPointer, dispatch, onPointerDown, onPointerUp }
 }
 
 function readerAreaInput(event: Parameters<PointerEventHandler<HTMLElement>>[0], action: "click" | "double-click" | "press"): ReaderInputDescriptor | undefined {

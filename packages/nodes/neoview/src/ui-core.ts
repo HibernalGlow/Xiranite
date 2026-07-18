@@ -40,6 +40,7 @@ export {
   READER_INPUT_CONTEXT_LABELS,
   READER_INPUT_CONTEXT_PRIORITY,
   READER_INPUT_CONTEXTS,
+  READER_MOUSE_GESTURE_DIRECTIONS,
   READER_VIEW_AREAS,
   readerInputConflictKey,
   readerInputConflicts,
@@ -53,6 +54,7 @@ export {
   type ReaderInputConflict,
   type ReaderInputContext,
   type ReaderInputDescriptor,
+  type ReaderMouseGestureDirection,
   type ReaderViewArea,
 } from "./domain/input/ReaderInputBindings.js"
 export type {

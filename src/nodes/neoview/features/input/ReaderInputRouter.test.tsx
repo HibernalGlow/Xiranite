@@ -38,18 +38,20 @@ describe("ReaderInputRouter", () => {
     const execute = vi.fn()
     render(<Harness config={{ bindings: [
       { id: "next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "keyboard", code: "ArrowRight" } },
+      { id: "global-next", action: "reader.next-page", context: "global", enabled: true, input: { device: "keyboard", code: "ArrowDown" } },
     ] }} execute={execute} />)
     fireEvent.keyDown(screen.getByTestId("reader"), { key: "ArrowRight", code: "ArrowRight" })
     await waitFor(() => expect(execute).toHaveBeenCalledWith("reader.next-page"))
     execute.mockClear()
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "ArrowRight", code: "ArrowRight" })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "ArrowDown", code: "ArrowDown" })
     expect(execute).not.toHaveBeenCalled()
   })
 
   it("[neoview.bindings.mouse-runtime] routes configured pointer buttons without stealing unbound or interactive clicks", () => {
     const execute = vi.fn()
     render(<Harness config={{ bindings: [
-      { id: "next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 3, click: "single" } },
+      { id: "next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 3, action: "click" } },
     ] }} execute={execute} />)
     fireEvent.pointerUp(screen.getByTestId("reader"), { pointerType: "mouse", button: 0, detail: 1 })
     expect(execute).not.toHaveBeenCalled()
@@ -59,11 +61,24 @@ describe("ReaderInputRouter", () => {
     expect(execute).toHaveBeenCalledWith("reader.next-page")
   })
 
+  it("[neoview.bindings.mouse-press] dispatches press once without a release click", () => {
+    const execute = vi.fn()
+    render(<Harness config={{ bindings: [
+      { id: "press", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 1, action: "press" } },
+      { id: "click", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 1, action: "click" } },
+    ] }} execute={execute} />)
+    const reader = screen.getByTestId("reader")
+    fireEvent.pointerDown(reader, { pointerType: "mouse", pointerId: 4, button: 1 })
+    fireEvent.pointerUp(reader, { pointerType: "mouse", pointerId: 4, button: 1, detail: 1 })
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith("reader.next-page")
+  })
+
   it("[neoview.bindings.area-runtime] gives a matching nine-area binding precedence over a generic mouse binding", () => {
     const execute = vi.fn()
     render(<Harness config={{ bindings: [
       { id: "area", action: "reader.next-page", context: "reader", enabled: true, input: { device: "area", area: "middle-center", button: 0, action: "click" } },
-      { id: "mouse", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 0, click: "single" } },
+      { id: "mouse", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 0, action: "click" } },
     ] }} execute={execute} />)
     const reader = screen.getByTestId("reader")
     reader.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 900, bottom: 600, width: 900, height: 600, toJSON: () => ({}) })
