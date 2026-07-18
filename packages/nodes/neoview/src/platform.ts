@@ -770,7 +770,7 @@ export async function createReaderSystemIntegrationService(resourceScheduler?: R
   const { WindowsReaderExplorerContextMenuProvider } = await import("./platform/windows/WindowsReaderExplorerContextMenuProvider.js")
   return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({
     scheduler: resourceScheduler,
-    explorerContextMenu: new WindowsReaderExplorerContextMenuProvider(),
+    explorerContextMenu: new WindowsReaderExplorerContextMenuProvider({ resourceScheduler }),
   }))
 }
 
