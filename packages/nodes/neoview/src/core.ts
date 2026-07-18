@@ -320,6 +320,15 @@ export type {
   ReaderFileUndoJournalRecord,
   ReaderFileUndoJournalStore,
 } from "./ports/ReaderFileUndoJournalStore.js"
+export type {
+  ReaderExplorerContextMenuHive,
+  ReaderExplorerContextMenuPlanItem,
+  ReaderExplorerContextMenuPreview,
+  ReaderExplorerContextMenuProvider,
+  ReaderExplorerContextMenuRegistration,
+  ReaderExplorerContextMenuScope,
+  ReaderExplorerContextMenuStatus,
+} from "./ports/ReaderExplorerContextMenuProvider.js"
 export { ReaderSystemIntegrationService } from "./application/files/ReaderSystemIntegrationService.js"
 export type { ReaderSystemIntegrationProvider } from "./ports/ReaderSystemIntegrationProvider.js"
 export {

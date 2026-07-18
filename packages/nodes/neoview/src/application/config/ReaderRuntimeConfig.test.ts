@@ -60,7 +60,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
       shellOptions: {
         showDelayMs: 0,
-        edges: { left: { pinned: true, triggerSize: 32 }, right: { initialVisible: false } },
+        edges: { left: { pinned: true, triggerSize: 32 }, right: { initialVisible: true } },
         sidebars: { left: { width: 320 }, right: { width: 280 } },
       },
     })
