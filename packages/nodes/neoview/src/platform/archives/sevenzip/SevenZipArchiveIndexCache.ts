@@ -24,13 +24,15 @@ const DEFAULT_MAX_ENTRIES = 32
 export class SevenZipArchiveIndexCache implements AsyncDisposable {
   readonly #entries: LRUCache<string, SevenZipArchiveIndex>
   readonly #loads = new Map<string, Promise<SevenZipArchiveIndex>>()
+  readonly #enabled: boolean
   #closed = false
 
   constructor(maxEntries = DEFAULT_MAX_ENTRIES) {
     if (!Number.isSafeInteger(maxEntries) || maxEntries < 0) {
       throw new RangeError(`Invalid SevenZip archive index cache entry budget: ${maxEntries}`)
     }
-    this.#entries = maxEntries > 0 ? new LRUCache({ max: maxEntries }) : new LRUCache({ max: 1 })
+    this.#enabled = maxEntries > 0
+    this.#entries = this.#enabled ? new LRUCache({ max: maxEntries }) : new LRUCache({ max: 1 })
   }
 
   get size(): number {
@@ -40,6 +42,7 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
   async getOrLoad(options: SevenZipArchiveIndexLoadOptions): Promise<SevenZipArchiveIndex> {
     this.#assertOpen()
     options.signal?.throwIfAborted()
+    if (!this.#enabled) return waitWithSignal(options.load(), options.signal)
     const key = await revisionKey(options).catch(() => undefined)
     options.signal?.throwIfAborted()
     if (!key) return waitWithSignal(options.load(), options.signal)

@@ -67,4 +67,25 @@ describe("SevenZipArchiveIndexCache", () => {
     await expect(shared).resolves.toEqual({ solid: false, entries: [] })
     await cache.close()
   })
+
+  it("[neoview.sevenzip.index-cache-disabled] bypasses storage when the entry budget is zero", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-index-cache-disabled-"))
+    cleanup.push(root)
+    const sourcePath = join(root, "book.7z")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const cache = new SevenZipArchiveIndexCache(0)
+    const load = vi.fn(async () => ({ solid: false, entries: [] as const }))
+    const options = {
+      sourcePath,
+      executablePath: "C:/tools/7zz.exe",
+      executableVersion: "26.02",
+      maxListingBytes: 1024,
+      load,
+    }
+    await cache.getOrLoad(options)
+    await cache.getOrLoad(options)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(cache.size).toBe(0)
+    await cache.close()
+  })
 })
