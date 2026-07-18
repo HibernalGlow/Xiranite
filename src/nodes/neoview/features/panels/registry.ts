@@ -27,6 +27,8 @@ import type {
   ReaderPageListPreferencesDto,
   ReaderPreloadActionResultDto,
   ReaderRuntimeConfigDto,
+  ReaderSettingsMigrationImportResult,
+  ReaderSettingsMigrationInspection,
   ReaderSessionDto,
   ReaderShellConfigDto,
   ReaderSidebarLayoutPatch,
@@ -117,6 +119,8 @@ export interface ReaderSettingsCardContext {
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
+  onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
 }
 
 export interface LegacyPanelConfig {

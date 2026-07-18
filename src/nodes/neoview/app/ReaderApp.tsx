@@ -46,6 +46,8 @@ import {
   type ReaderShellLockMode,
   type ReaderInputBindingsPatch,
   type ReaderRadialMenuPatch,
+  type ReaderSettingsMigrationImportResult,
+  type ReaderSettingsMigrationInspection,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -643,6 +645,23 @@ export function ReaderApp({
     const updated = await clientRef.current.updateRadialMenu({ radialMenu: patch })
     setRadialMenu(updated)
     return updated
+  }
+
+  async function inspectLegacySettings(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection> {
+    if (!clientRef.current.inspectLegacySettings) throw new Error("褰撳墠 Reader 鍚庣涓嶆敮鎸佹棫璁剧疆瀵煎叆銆")
+    return clientRef.current.inspectLegacySettings(content, modules)
+  }
+
+  async function importLegacySettings(content: string, strategy: "merge" | "overwrite" = "merge", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult> {
+    if (!clientRef.current.importLegacySettings) throw new Error("褰撳墠 Reader 鍚庣涓嶆敮鎸佹棫璁剧疆瀵煎叆銆")
+    const result = await clientRef.current.importLegacySettings(content, strategy, modules)
+    const config = await clientRef.current.config()
+    inputBindingsRef.current = config.inputBindings
+    setInputBindings(config.inputBindings)
+    setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+    shellRef.current = config.shell
+    setShell(config.shell)
+    return result
   }
 
   function executeInputAction(action: ReaderInputAction): void {
