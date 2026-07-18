@@ -60,6 +60,7 @@ const BROWSER_ROOTS_PATH = "/reader/browser/roots"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/changes$/
 const BROWSER_DIRECTORY_SIZES_PATH = /^\/reader\/browser\/s\/([^/]+)\/directory-sizes$/
+const BROWSER_EMM_METADATA_READ_PATH = /^\/reader\/browser\/s\/([^/]+)\/emm-metadata\/read$/
 const BROWSER_EMM_METADATA_PATH = /^\/reader\/browser\/s\/([^/]+)\/emm-metadata$/
 const BROWSER_SEARCH_PATH = /^\/reader\/browser\/s\/([^/]+)\/search$/
 const BROWSER_TREE_PATH = /^\/reader\/browser\/s\/([^/]+)\/tree$/
@@ -141,6 +142,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (changesMatch && request.method === "GET") return this.#changes(changesMatch[1]!, url, request.signal)
     const directorySizesMatch = BROWSER_DIRECTORY_SIZES_PATH.exec(url.pathname)
     if (directorySizesMatch && request.method === "POST") return this.#directorySizes(directorySizesMatch[1]!, request)
+    const emmMetadataReadMatch = BROWSER_EMM_METADATA_READ_PATH.exec(url.pathname)
+    if (emmMetadataReadMatch && request.method === "POST") return this.#readEmmMetadata(emmMetadataReadMatch[1]!, request)
     const emmMetadataMatch = BROWSER_EMM_METADATA_PATH.exec(url.pathname)
     if (emmMetadataMatch && request.method === "PATCH") return this.#editEmmMetadata(emmMetadataMatch[1]!, request)
     const searchMatch = BROWSER_SEARCH_PATH.exec(url.pathname)
@@ -397,6 +400,26 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       if (request.signal.aborted) throw error
       if (error instanceof ReaderDirectoryEmmEditSessionNotFound) return errorResponse(error.message, 404)
       if (error instanceof z.ZodError) return errorResponse("Reader directory EMM edit command is invalid", 400)
+      const message = errorMessage(error)
+      return errorResponse(message, message.includes("stale") ? 409 : 400)
+    }
+  }
+
+  async #readEmmMetadata(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    if (!this.#emmEditor) return errorResponse("Reader EMM metadata editing is unavailable", 503)
+    const body = await request.json().catch(() => undefined)
+    try {
+      return Response.json(await this.#emmEditor.read(
+        sessionId,
+        body as Parameters<ReaderDirectoryEmmEditService["read"]>[1],
+        request.signal,
+      ), responseInit())
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      if (error instanceof ReaderDirectoryEmmEditSessionNotFound) return errorResponse(error.message, 404)
+      if (error instanceof z.ZodError) return errorResponse("Reader directory EMM read command is invalid", 400)
       const message = errorMessage(error)
       return errorResponse(message, message.includes("stale") ? 409 : 400)
     }

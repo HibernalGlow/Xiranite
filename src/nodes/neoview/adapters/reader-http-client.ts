@@ -338,6 +338,74 @@ export interface ReaderDirectoryEntryDto {
   tags?: readonly string[]
 }
 
+export interface ReaderDirectorySelectionResolutionDto {
+  sessionId: string
+  generation: number
+  total: number
+  selectedCount: number
+  preview: readonly string[]
+  truncated: boolean
+}
+
+export interface ReaderEmmTagDto {
+  namespace: string
+  tag: string
+}
+
+export interface ReaderEmmTagSuggestionDto {
+  category: string
+  tag: string
+  favorite: boolean
+  translatedTag?: string
+}
+
+export interface ReaderEmmMetadataSnapshotDto {
+  revision: number
+  overrides: {
+    rating?: number
+    manualTags?: readonly ReaderEmmTagDto[]
+    translatedTitle?: string
+  }
+  inherited: readonly ("rating" | "manualTags" | "translatedTitle")[]
+  updatedAt?: number
+}
+
+export interface ReaderDirectoryEmmReadResultDto {
+  generation: number
+  items: readonly { path: string; metadata: ReaderEmmMetadataSnapshotDto }[]
+}
+
+export interface ReaderEmmMetadataPatchDto {
+  rating?: number | null
+  manualTags?: readonly ReaderEmmTagDto[] | null
+  translatedTitle?: string | null
+}
+
+export interface ReaderDirectoryEmmEditCommandDto {
+  generation: number
+  updates: readonly {
+    path: string
+    expectedRevision: number
+    patch: ReaderEmmMetadataPatchDto
+  }[]
+  concurrency?: number
+}
+
+export type ReaderDirectoryEmmEditResultItemDto =
+  | { index: number; status: "succeeded"; metadata: ReaderEmmMetadataSnapshotDto }
+  | { index: number; status: "conflict"; actualRevision: number }
+  | { index: number; status: "failed"; error: string }
+
+export interface ReaderDirectoryEmmEditResultDto {
+  generation: number | null
+  refreshRequired: boolean
+  entries: readonly ReaderDirectoryEntryDto[]
+  results: readonly ReaderDirectoryEmmEditResultItemDto[]
+  succeeded: number
+  conflicts: number
+  failed: number
+}
+
 export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "path" | "collectTagCount"
 export type ReaderDirectoryMetadataFieldDto =
   | "date"
@@ -479,9 +547,11 @@ export interface ReaderShellConfigDto {
   hideDelayMs: number
   opacity: { top: number; bottom: number; sidebar: number }
   blur: { top: number; bottom: number; sidebar: number }
+  material?: ReaderShellMaterialDto
   edges: Record<ReaderShellEdge, { enabled: boolean; initialVisible: boolean; pinned: boolean; triggerSize: number; lockMode?: ReaderShellLockMode }>
   floatingControl?: { enabled: boolean; position: { x: number; y: number } }
   sidebars: Record<"left" | "right", { width: number; height: "full" | "two-thirds" | "half" | "one-third" | "custom"; customHeight: number; verticalAlign: number; horizontalPosition: number }>
+  sidebarInteraction?: { showDragHandle: boolean; enableBlankAreaCollapse: boolean; blankAreaCollapseMode: "single" | "double" }
   panelLayout: Record<string, { visible: boolean; order: number; position: "left" | "right" | "bottom" | "floating" }>
   cardLayout: Record<string, { panelId: string; visible: boolean; expanded: boolean; order: number; height?: number }>
 }
@@ -539,6 +609,26 @@ import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig } from "@xiranit
 
 export interface ReaderInputBindingsPatch {
   inputBindings: { bindings?: ReaderInputBindingsConfig["bindings"]; reset?: "defaults" }
+}
+
+export type ReaderShellSurface = "top" | "bottom" | "sidebar"
+export type ReaderShellMaterialPreset = "solid" | "soft" | "frosted" | "custom"
+export type ReaderShellSurfaceValues = Record<ReaderShellSurface, number>
+
+export interface ReaderShellMaterialDto {
+  preset: ReaderShellMaterialPreset
+  saturation: ReaderShellSurfaceValues
+  highlight: ReaderShellSurfaceValues
+  shadow: ReaderShellSurfaceValues
+}
+
+export interface ReaderShellMaterialPatch {
+  preset?: ReaderShellMaterialPreset
+  opacity?: Partial<ReaderShellSurfaceValues>
+  blur?: Partial<ReaderShellSurfaceValues>
+  saturation?: Partial<ReaderShellSurfaceValues>
+  highlight?: Partial<ReaderShellSurfaceValues>
+  shadow?: Partial<ReaderShellSurfaceValues>
 }
 
 export type ReaderDirectoryFilterDto = "all" | "archive" | "directory" | "video"
@@ -704,6 +794,8 @@ export interface ReaderShellControlPatch {
       triggerSize?: number
       lockMode?: ReaderShellLockMode
     }>>
+    sidebarInteraction?: Partial<NonNullable<ReaderShellConfigDto["sidebarInteraction"]>>
+    material?: ReaderShellMaterialPatch
     reset?: "known-defaults"
   }
 }
@@ -747,6 +839,10 @@ export interface ReaderHttpClient {
   ): Promise<ReaderDirectorySearchResultDto>
   treeDirectoryBrowser?(sessionId: string, path?: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderDirectoryTreePageDto>
   watchDirectoryTreeBrowser?(sessionId: string, afterRevision: number, signal?: AbortSignal): Promise<ReaderDirectoryTreeChangesDto | undefined>
+  resolveDirectorySelection?(sessionId: string, selection: ReaderDirectorySelectionDescriptorDto, previewLimit?: number, signal?: AbortSignal): Promise<ReaderDirectorySelectionResolutionDto>
+  readDirectoryEmm?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectoryEmmReadResultDto>
+  editDirectoryEmm?(sessionId: string, command: ReaderDirectoryEmmEditCommandDto, signal?: AbortSignal): Promise<ReaderDirectoryEmmEditResultDto>
+  suggestDirectoryEmmTags?(count?: number, signal?: AbortSignal): Promise<readonly ReaderEmmTagSuggestionDto[]>
   listSearchHistory?(scope: ReaderSearchHistoryScopeDto, limit?: number, signal?: AbortSignal): Promise<readonly ReaderSearchHistoryDto[]>
   recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
   removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>
@@ -1016,6 +1112,37 @@ export function createReaderHttpClient(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/tree/changes?after=${afterRevision}`,
       { signal },
     ),
+    resolveDirectorySelection: (sessionId, selection, previewLimit = 64, signal) => request<ReaderDirectorySelectionResolutionDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/selection`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ selection, previewLimit }),
+        signal,
+      },
+    ),
+    readDirectoryEmm: (sessionId, generation, paths, signal) => request<ReaderDirectoryEmmReadResultDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/emm-metadata/read`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ generation, paths }),
+        signal,
+      },
+    ),
+    editDirectoryEmm: (sessionId, command, signal) => request<ReaderDirectoryEmmEditResultDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/emm-metadata`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(command),
+        signal,
+      },
+    ),
+    suggestDirectoryEmmTags: (count = 8, signal) => request<{ tags: ReaderEmmTagSuggestionDto[] }>(
+      `/reader/browser/emm-tags/suggestions?count=${count}`,
+      { signal },
+    ).then((value) => value.tags),
     listSearchHistory: (scope, limit = 20, signal) => request<{ entries: ReaderSearchHistoryDto[] }>(
       `/reader/browser/search-history?scope=${encodeURIComponent(scope)}&limit=${limit}`,
       { signal },

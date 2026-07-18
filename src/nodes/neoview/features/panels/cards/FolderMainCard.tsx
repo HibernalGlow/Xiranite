@@ -861,6 +861,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }
 
   function commitCatalog(next: DirectoryCatalog) {
+    setSelection((value) => value.generation === next.generation ? value : rebaseDirectorySelection(value, next.generation))
     catalogRef.current = next
     setCatalog(next)
     onCurrentPathChange(next.path)
@@ -906,8 +907,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   return (
     <div
       className="flex min-h-0 min-w-0 gap-2"
-      data-neoview-folder-card={active ? "true" : undefined}
-      data-neoview-folder-pane="true"
+      data-neoview-folder-card={active || null}
+      data-neoview-folder-pane={true}
       data-folder-breadcrumb-position={tabLayout.breadcrumbPosition}
       data-folder-toolbar-position={tabLayout.toolbarPosition}
       data-folder-tab-position={tabLayout.layout}
@@ -915,8 +916,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       data-selection-total={catalog?.total ?? 0}
       data-thumbnail-cache-size={thumbnailUrls.size}
       data-restored-thumbnail-cache-size={restoreState?.thumbnailUrls?.size ?? 0}
-      data-selection-ranges={selection.ranges.length}
-      data-selection-all={selection.allSelected || undefined}
+      data-selection-all={selection.allSelected || null}
       onContextMenuCapture={(event) => {
         const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-context-menu="neoview-folder-entry"]') : null
         const index = Number(target?.dataset.folderIndex)
@@ -966,6 +966,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             sessionId={catalog?.sessionId}
             generation={catalog?.generation}
             currentPath={catalog?.path}
+            selection={directorySelectionDescriptor(selection)}
+            selectedCount={selectedCount}
             onActivate={activate}
             onOpenInNewTab={onOpenInNewTab}
             onOpenAsBook={onOpen}
@@ -977,6 +979,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               { action: "refresh" },
               { keepTree: true, focusPath: entry.path },
             )}
+            onCatalogUpdate={(update) => commitCatalog(update(catalog!))}
+            onRefreshEmm={() => updateSort(catalog!.sort)}
           />
         </Suspense>
       ) : null}
