@@ -1222,6 +1222,8 @@ return Readable.toWeb(child.stdout)
 - 客户端取消、尺寸探测提前结束和 session/provider close 会取消 stdout reader 并终止子进程；真实 8 MiB entry 测试验证活动取消，close 可幂等执行；
 - 真实系统 CB7 集成测试覆盖来源识别、自然排序、过滤非图片、PNG 尺寸探测、asset route MIME 与原始字节响应；系统没有 7-Zip 时显式 skip，不以 mock 冒充系统兼容性。
 
+ZIP/CBZ 与 EPUB 的 `@zip.js/zip.js` provider 也已进入同一宿主调度边界：原始 entry stream 持有 `neoview.archive-extract` CPU lease，正常结束、消费方取消和 provider close 都释放；`ArchivePageSource.transformResource` 将该资源事实传给 presentation/thumbnail 变换链，使“解压 + WIC/sharp 转码”共用一个 host lease，不重复占用两个 CPU slot。`platform.ts` 组合根和 GUI `ReaderHttpController` 都显式向 asset route、ZIP loader 与 EPUB loader 注入宿主 scheduler；独立调用仍只保留有界 fallback，不再让 GUI 压缩包页静默绕开 XR 全局队列。
+
 AES ZIP/CBZ 与 RAR/7z 现在共用 session credential scope，但底层传输不同。系统 7-Zip 26.02 复验确认：传空 `-p` 会被解释为空密码；完全省略 `-p` 时，7-Zip 会从 stdin 读取一行密码。provider 因而不再生成任何密码参数，只给需要凭据的子进程写入最多 4096 UTF-8 字节的短寿命 Buffer，写入完成即覆零；NUL/CR/LF 因无法安全按行分帧而在 spawn 前拒绝。constructor 持有的 header-index session 副本在 provider close 时覆零，请求副本在写入后立即覆零。密码只存在于 session 内存，不写 `xiranite.db`、`%APPDATA%/NeoView/thumbnails.db`、TOML、URL、日志或 cache key。WinRAR 7.22 临时夹具现已覆盖 header-encrypted non-solid RAR provider 和 header-encrypted solid CBR 的 Reader Core/asset route；更多 RAR 版本与损坏/超大语料仍需扩充。方向改变后的选择性停止仍属于后续 Phase 4。
 
 2026-07-16 对成熟库候选的复核仍不允许放宽该边界：
@@ -2624,7 +2626,7 @@ scripts/
 - 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。NeoView 已从 backend 宿主共享 CPU 池取得 lease，其他高负载节点仍需迁入同一 scheduler；
 - 已接入 transform singleflight、96 MiB/单条 24 MiB 的 L2 weighted LRU，以及惰性 `cacache` L3；冷请求保持边响应边有界收集，L3 使用 opaque typed key、SHA-256 完整性、原子发布、active lease、字节/年龄/低磁盘策略、proper-lockfile per-key 跨实例磁盘临界区和独立维护 API；request-bound 内存压力会定量收缩/清空 L2、释放 thumbnail L1、淘汰无 lease solid materialization、清空 tree metadata/目录大小后台批次并停止新 L2/L3/background admission。current/near presentation retention、archive/listing 逻辑字节核算、current listing 每 session 预算降级与统一 cache lease diagnostics 已接入；更多格式/尺寸/压力 corpus 仍待校准；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
-- 继续把 archive、thumbnail、超分和其他高负载节点迁入宿主 scheduler，并补 queue/cache 指标与 benchmark；
+- ZIP/CBZ/EPUB entry stream 与压缩包页 presentation 已和 7-Zip 一样接入宿主 scheduler，并共享单个解压/变换 lease；继续审计 thumbnail 辅助批次、超分和其他高负载节点，补 queue/cache 指标与 benchmark；
 - 已以原 `%APPDATA%\NeoView\thumbnails.db` 接入惰性单 writer、批量命中、受保护 HTTP URL、Page/file/folder/video/归档内视频生成、失败退避与有界在线维护；已完成 SQLite 原生一致性备份、XR writer/维护进程锁、显式离线 checkpoint/optimize/vacuum、验证备份恢复、`data_version` 外部写失效和 V1/V3/V4 调度行为收口；继续补真实大规模基准；
 - 已实现 loopback asset/control route、opaque token、ETag、文件 Range、ZIP 无伪 Range、背压与断开取消；
 - GUI、CLI 与 TUI 已使用共享 `openViewSource()` / `openPageStream()` contract；OpenTUI presentation adapter 复用宿主 `TerminalImageDecodeService`、`TerminalImagePreview`、字节 LRU、`p-queue` 和 `ResourceScheduler`，本地与 loopback remote controller 不维护第二套解码或页面 transport；

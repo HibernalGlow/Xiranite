@@ -207,7 +207,7 @@ async function createArchiveProvider(
 ): Promise<ArchiveProvider> {
   if (extension === "zip" || extension === "cbz") {
     const { ZipArchiveProvider } = await import("./zip/ZipArchiveProvider.js")
-    return new ZipArchiveProvider(sourcePath)
+    return new ZipArchiveProvider(sourcePath, { resourceScheduler: options.resourceScheduler })
   }
   const { SevenZipArchiveProvider } = await import("./sevenzip/SevenZipArchiveProvider.js")
   return new SevenZipArchiveProvider(sourcePath, {

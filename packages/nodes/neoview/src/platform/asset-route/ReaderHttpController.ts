@@ -381,6 +381,7 @@ export class ReaderHttpController implements AsyncDisposable {
       presentationProducerVersion: process.platform === "win32" ? WINDOWS_PRESENTATION_PRODUCER_VERSION : undefined,
       loadImageTransformer,
       thumbnailPipeline: this.#thumbnailPipeline,
+      resourceScheduler: options.resourceScheduler,
       seekableMediaCache: this.#seekableMedia,
       memoryPressureMonitor,
       relieveHostMemoryPressure: async (level) => {
