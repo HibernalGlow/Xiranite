@@ -3,6 +3,7 @@ import {
   DEFAULT_READER_INPUT_BINDINGS,
   READER_INPUT_ACTIONS,
   READER_INPUT_CONTEXTS,
+  READER_MOUSE_GESTURE_DIRECTIONS,
   READER_VIEW_AREAS,
   readerInputConflicts,
   type ReaderInputAction,
@@ -70,25 +71,56 @@ function parseBinding(value: unknown, label: string): ReaderInputBinding {
 
 function parseInput(value: unknown, label: string): ReaderInputDescriptor {
   const source = requireRecord(value, label)
-  const device = requiredEnum(source.device, ["keyboard", "mouse", "wheel", "touch", "gamepad", "area"] as const, `${label}.device`)
+  const device = requiredEnum(source.device, ["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad", "area"] as const, `${label}.device`)
   if (device === "keyboard") {
     rejectUnknown(source, ["device", "code", "ctrl", "alt", "shift", "meta"], label)
     return { device, code: requiredString(source.code, `${label}.code`, 64), ...modifiers(source, label) }
   }
   if (device === "mouse") {
-    rejectUnknown(source, ["device", "button", "click"], label)
-    return { device, button: boundedInteger(source.button, 0, 7, `${label}.button`), click: requiredEnum(source.click, ["single", "double"] as const, `${label}.click`) }
+    rejectUnknown(source, ["device", "button", "action", "click", "durationMs", "moveTolerancePx"], label)
+    const legacyClick = source.click === undefined ? undefined : requiredEnum(source.click, ["single", "double"] as const, `${label}.click`)
+    if (source.action !== undefined && legacyClick !== undefined) throw new Error(`${label}.action cannot be combined with legacy click.`)
+    const action = source.action === undefined
+      ? legacyClick === "double" ? "double-click" : legacyClick === "single" ? "click" : undefined
+      : requiredEnum(source.action, ["click", "double-click", "press", "hold"] as const, `${label}.action`)
+    if (!action) throw new Error(`${label}.action is required.`)
+    return {
+      device,
+      button: boundedInteger(source.button, 0, 7, `${label}.button`),
+      action,
+      ...timing(source, label, action === "hold"),
+    }
+  }
+  if (device === "mouse-gesture") {
+    rejectUnknown(source, ["device", "button", "directions", "trigger", "durationMs", "moveTolerancePx"], label)
+    if (!Array.isArray(source.directions) || source.directions.length < 1 || source.directions.length > 16) {
+      throw new Error(`${label}.directions must contain between 1 and 16 directions.`)
+    }
+    const directions = source.directions.map((direction, index) => requiredEnum(direction, READER_MOUSE_GESTURE_DIRECTIONS, `${label}.directions[${index}]`))
+    if (directions.some((direction, index) => index > 0 && direction === directions[index - 1])) {
+      throw new Error(`${label}.directions must not contain adjacent duplicates.`)
+    }
+    const trigger = requiredEnum(source.trigger, ["instant", "hold"] as const, `${label}.trigger`)
+    return {
+      device,
+      button: boundedInteger(source.button, 0, 7, `${label}.button`),
+      directions,
+      trigger,
+      ...timing(source, label, trigger === "hold"),
+    }
   }
   if (device === "wheel") {
     rejectUnknown(source, ["device", "direction", "ctrl", "alt", "shift", "meta"], label)
     return { device, direction: requiredEnum(source.direction, ["up", "down"] as const, `${label}.direction`), ...modifiers(source, label) }
   }
   if (device === "touch") {
-    rejectUnknown(source, ["device", "gesture", "fingers"], label)
+    rejectUnknown(source, ["device", "gesture", "fingers", "durationMs", "moveTolerancePx"], label)
+    const gesture = requiredEnum(source.gesture, ["swipe-left", "swipe-right", "swipe-up", "swipe-down", "tap", "long-press"] as const, `${label}.gesture`)
     return {
       device,
-      gesture: requiredEnum(source.gesture, ["swipe-left", "swipe-right", "swipe-up", "swipe-down"] as const, `${label}.gesture`),
+      gesture,
       fingers: requiredEnum(source.fingers, [1, 2, 3] as const, `${label}.fingers`),
+      ...timing(source, label, gesture === "long-press"),
     }
   }
   if (device === "gamepad") {
@@ -115,6 +147,15 @@ function modifiers(source: Record<string, unknown>, label: string): { ctrl?: boo
     if (typeof source[key] !== "boolean") throw new Error(`${label}.${key} must be a boolean.`)
     if (source[key]) result[key] = true
   }
+  return result
+}
+
+function timing(source: Record<string, unknown>, label: string, durationRequired: boolean): { durationMs?: number; moveTolerancePx?: number } {
+  const result: { durationMs?: number; moveTolerancePx?: number } = {}
+  if (source.durationMs !== undefined) result.durationMs = boundedInteger(source.durationMs, 100, 5_000, `${label}.durationMs`)
+  if (source.moveTolerancePx !== undefined) result.moveTolerancePx = boundedInteger(source.moveTolerancePx, 1, 100, `${label}.moveTolerancePx`)
+  if (durationRequired && result.durationMs === undefined) result.durationMs = 500
+  if (durationRequired && result.moveTolerancePx === undefined) result.moveTolerancePx = 12
   return result
 }
 

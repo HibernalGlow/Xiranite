@@ -293,7 +293,8 @@
       },
       "testIds": [
         "neoview.bindings.context-routing",
-        "neoview.bindings.dom-context"
+        "neoview.bindings.dom-context",
+        "neoview.bindings.keyboard-runtime"
       ],
       "plannedTestIds": [],
       "notes": "The browser route derives editor/modal/panel/reader mode, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. CLI/TUI context-stack projection remains pending."
@@ -324,7 +325,7 @@
         "neoview.bindings.recording"
       ],
       "plannedTestIds": [],
-      "notes": "react-hotkeys-hook owns the global listener and dynamic key set. The editor exposes physical codes and all modifiers; one-shot chord recording captures without leaking an action and Escape cancels."
+      "notes": "react-hotkeys-hook owns both runtime matching and capture-phase chord recording. The editor exposes physical codes and all modifiers; recording ignores IME composition, does not leak an action and Escape cancels."
     },
     {
       "id": "bindings.mouse",
@@ -334,24 +335,27 @@
         "src/lib/components/dialogs/MouseSettingsPanel.svelte",
         "src/lib/components/dialogs/MouseKeyRecorder.svelte"
       ],
-      "targetContract": "Left/middle/right/side buttons and single/double variants resolve through the same action/context route without stealing unbound pointer input.",
+      "targetContract": "Left/middle/right/side buttons and click/double-click/press/hold variants resolve through the same action/context route without stealing unbound pointer input.",
       "surfaces": [
         "GUI"
       ],
       "capabilityStatus": {
         "core": "complete",
         "transport": "not-applicable",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.bindings.devices",
-        "neoview.bindings.editor"
+        "neoview.bindings.editor",
+        "neoview.bindings.device-recording",
+        "neoview.bindings.mouse-press",
+        "neoview.bindings.mouse-hold-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "Buttons 0..7 and single/double descriptors are editable and routed outside interactive controls. Press/hold and pointer recording remain pending."
+      "notes": "Buttons 0..7 and click/double-click/press/hold descriptors are editable and routed outside interactive controls. @use-gesture owns pointer recording and configurable hold duration/movement cancellation; Browser pointer evidence remains pending."
     },
     {
       "id": "bindings.wheel",
@@ -375,10 +379,11 @@
       },
       "testIds": [
         "neoview.bindings.devices",
-        "neoview.bindings.editor"
+        "neoview.bindings.editor",
+        "neoview.bindings.device-recording"
       ],
       "plannedTestIds": [],
-      "notes": "@use-gesture/react owns wheel recognition; direction and all four modifiers are editable, and interactive controls are excluded. Browser E2E remains pending."
+      "notes": "@use-gesture/react owns runtime and recording; direction and all four modifiers are editable, and interactive controls are excluded. Modifier recording and runtime still require Browser E2E."
     },
     {
       "id": "bindings.area-click",
@@ -393,16 +398,20 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
+        "core": "complete",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.bindings.area-grid",
+        "neoview.bindings.area-editor",
+        "neoview.bindings.area-runtime"
+      ],
       "plannedTestIds": [],
-      "notes": "Not included in the first route."
+      "notes": "The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium geometry remain pending."
     },
     {
       "id": "bindings.touch",
@@ -412,24 +421,26 @@
         "src/lib/components/dialogs/GestureSettingsPanel.svelte",
         "src/lib/components/dialogs/GestureVisualizer.svelte"
       ],
-      "targetContract": "One-to-three-finger directional swipes use the maintained gesture engine, respect active context and release all pointer work on unmount.",
+      "targetContract": "One-to-three-finger directional swipes, taps and configurable long-press use the maintained gesture engine, respect active context and release all pointer work on unmount.",
       "surfaces": [
         "GUI"
       ],
       "capabilityStatus": {
         "core": "complete",
         "transport": "not-applicable",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.bindings.devices",
-        "neoview.bindings.editor"
+        "neoview.bindings.editor",
+        "neoview.bindings.device-recording",
+        "neoview.bindings.touch-hold-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "Directional swipe and one-to-three-finger descriptors are editable and routed through @use-gesture/react outside interactive controls; touch recording and real-device E2E remain pending."
+      "notes": "Directional swipe, tap and configurable long-press descriptors for one to three fingers are editable and routed through @use-gesture/react outside interactive controls; real-device E2E remains pending."
     },
     {
       "id": "bindings.mouse-gesture",
@@ -444,16 +455,22 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
+        "core": "complete",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.bindings.mouse-gesture-core",
+        "neoview.bindings.mouse-gesture",
+        "neoview.bindings.mouse-gesture-editor",
+        "neoview.bindings.mouse-gesture-recording",
+        "neoview.bindings.mouse-gesture-runtime"
+      ],
       "plannedTestIds": [],
-      "notes": "Not included in the first route."
+      "notes": "@use-gesture owns drag lifecycle while a shared pure quantizer emits at most 16 non-repeating direction segments. The Card supports button, instant/hold trigger, timing, sequence editing and live directional recording preview; real Chromium trajectory evidence remains pending."
     },
     {
       "id": "bindings.gamepad",
@@ -476,10 +493,11 @@
       },
       "testIds": [
         "neoview.bindings.devices",
-        "neoview.bindings.editor"
+        "neoview.bindings.editor",
+        "neoview.bindings.device-recording"
       ],
       "plannedTestIds": [],
-      "notes": "gamepad.js owns connection and button events; visual recording, connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity."
+      "notes": "gamepad.js owns runtime and modal button recording; connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity."
     },
     {
       "id": "bindings.radial-menu",
@@ -552,14 +570,19 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.bindings.recording",
+        "neoview.bindings.recording-ime",
+        "neoview.bindings.device-recording",
+        "neoview.bindings.mouse-gesture-recording"
+      ],
       "plannedTestIds": [],
-      "notes": "The first Card exposes explicit descriptor editors; framework-backed recorders remain pending."
+      "notes": "react-hotkeys-hook records keyboard chords with IME isolation; @use-gesture/react records pointer, wheel, touch and bounded mouse trajectories with live direction preview; gamepad.js records standard buttons. Real touch and virtual-gamepad Chromium evidence remain pending."
     },
     {
       "id": "bindings.data-contract",
@@ -586,10 +609,11 @@
       "testIds": [
         "neoview.bindings.config",
         "neoview.bindings.validation",
-        "neoview.bindings.devices"
+        "neoview.bindings.devices",
+        "neoview.bindings.multiple-inputs"
       ],
       "plannedTestIds": [],
-      "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP."
+      "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP. Multiple records may share one action, preserving the legacy one-operation-to-many-inputs contract across devices and contexts."
     },
     {
       "id": "bindings.persistence",

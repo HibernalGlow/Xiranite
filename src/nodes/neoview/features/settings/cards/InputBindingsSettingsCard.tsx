@@ -21,7 +21,7 @@ import {
   type ReaderInputBindingsConfig,
   type ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
-import { AlertTriangle, Keyboard, Plus, Radio, RotateCcw, Save, Search, Trash2, X } from "lucide-react"
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Keyboard, Plus, Radio, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,8 @@ import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder
 const LazyReaderDeviceInputRecorder = lazy(async () => ({
   default: (await import("../../input/ReaderDeviceInputRecorder")).ReaderDeviceInputRecorder,
 }))
+
+type RecordableReaderDevice = Extract<ReaderInputDescriptor["device"], "mouse" | "mouse-gesture" | "wheel" | "touch" | "gamepad">
 
 export function InputBindingsSettingsCard({ inputBindings, onInputBindings }: ReaderSettingsCardContext) {
   if (!inputBindings || !onInputBindings) return null
@@ -50,7 +52,7 @@ export function InputBindingsEditor({
   const [query, setQuery] = useState("")
   const [context, setContext] = useState("all")
   const [category, setCategory] = useState<"all" | ReaderInputActionCategory>("all")
-  const [deviceRecording, setDeviceRecording] = useState<{ id: string; device: Extract<ReaderInputDescriptor["device"], "mouse" | "wheel" | "touch" | "gamepad"> }>()
+  const [deviceRecording, setDeviceRecording] = useState<{ id: string; device: RecordableReaderDevice }>()
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
   useEffect(() => setDraft(cloneReaderInputBindings(value)), [value])
@@ -147,7 +149,7 @@ export function InputBindingsEditor({
             recording={activeRecordingId === binding.id}
             onRecord={() => {
               if (binding.input.device === "keyboard") toggleRecording(binding.id)
-              else if (binding.input.device !== "area") setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device as "mouse" | "wheel" | "touch" | "gamepad" })
+              else if (binding.input.device !== "area") setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device })
             }}
             onChange={(next) => replace(binding.id, () => next)}
             onRemove={() => setDraft((current) => ({ bindings: current.bindings.filter((item) => item.id !== binding.id) }))}
@@ -198,19 +200,71 @@ function InputDescriptorEditor({ input, disabled, recording, onRecord, onChange 
   return (
     <div className="grid min-w-0 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)]">
       <select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.device} disabled={disabled || recording} onChange={(event) => onChange(defaultInput(event.currentTarget.value as ReaderInputDescriptor["device"]))} aria-label="输入设备">
-        <option value="keyboard">键盘</option><option value="mouse">鼠标</option><option value="wheel">滚轮</option><option value="touch">触控</option><option value="gamepad">手柄</option><option value="area">九宫格区域</option>
+        <option value="keyboard">键盘</option><option value="mouse">鼠标</option><option value="mouse-gesture">鼠标轨迹</option><option value="wheel">滚轮</option><option value="touch">触控</option><option value="gamepad">手柄</option><option value="area">九宫格区域</option>
       </select>
       {input.device === "keyboard" ? <KeyboardInputEditor input={input} disabled={disabled} recording={recording} onRecord={onRecord} onChange={onChange} /> : null}
       {input.device !== "keyboard" ? <div className="grid gap-1">
-        {input.device === "mouse" ? <div className="grid grid-cols-2 gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.button} disabled={disabled || recording} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) })} aria-label="鼠标按钮">{Array.from({ length: 8 }, (_, button) => <option key={button} value={button}>{mouseButtonLabel(button)}</option>)}</select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.click} disabled={disabled || recording} onChange={(event) => onChange({ ...input, click: event.currentTarget.value as typeof input.click })} aria-label="鼠标点击方式"><option value="single">单击</option><option value="double">双击</option></select></div> : null}
+        {input.device === "mouse" ? <MouseInputEditor input={input} disabled={disabled || recording} onChange={onChange} /> : null}
+        {input.device === "mouse-gesture" ? <MouseGestureInputEditor input={input} disabled={disabled || recording} onChange={onChange} /> : null}
         {input.device === "wheel" ? <div className="grid gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.direction} disabled={disabled || recording} onChange={(event) => onChange({ ...input, direction: event.currentTarget.value as typeof input.direction })} aria-label="滚轮方向"><option value="up">向上</option><option value="down">向下</option></select><ModifierEditor input={input} disabled={disabled || recording} onChange={onChange} /></div> : null}
-        {input.device === "touch" ? <div className="grid grid-cols-[1fr_5rem] gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.gesture} disabled={disabled || recording} onChange={(event) => onChange({ ...input, gesture: event.currentTarget.value as typeof input.gesture })} aria-label="触控手势"><option value="swipe-left">左滑</option><option value="swipe-right">右滑</option><option value="swipe-up">上滑</option><option value="swipe-down">下滑</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.fingers} disabled={disabled || recording} onChange={(event) => onChange({ ...input, fingers: Number(event.currentTarget.value) as 1 | 2 | 3 })} aria-label="触控手指数"><option value={1}>1 指</option><option value={2}>2 指</option><option value={3}>3 指</option></select></div> : null}
+        {input.device === "touch" ? <TouchInputEditor input={input} disabled={disabled || recording} onChange={onChange} /> : null}
         {input.device === "gamepad" ? <Input className="h-8 text-xs" type="number" min={0} max={31} value={input.button} disabled={disabled || recording} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) })} aria-label="手柄按钮编号" /> : null}
         {input.device === "area" ? <AreaInputEditor input={input} disabled={disabled} onChange={onChange} /> : null}
         {input.device !== "area" ? <Button type="button" size="sm" variant={recording ? "default" : "outline"} disabled={disabled && !recording} onClick={onRecord} aria-label={recording ? `取消录制${deviceLabel(input.device)}` : `录制${deviceLabel(input.device)}`}><Radio />{recording ? "录制中" : "录制"}</Button> : null}
       </div> : null}
     </div>
   )
+}
+
+function MouseInputEditor({ input, disabled, onChange }: {
+  input: Extract<ReaderInputDescriptor, { device: "mouse" }>
+  disabled: boolean
+  onChange(input: ReaderInputDescriptor): void
+}) {
+  return <div className="grid gap-1"><div className="grid grid-cols-2 gap-1"><MouseButtonSelect value={input.button} disabled={disabled} onChange={(button) => onChange({ ...input, button })} /><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.action} disabled={disabled} onChange={(event) => {
+    const action = event.currentTarget.value as typeof input.action
+    onChange(action === "hold" ? { ...input, action, durationMs: input.durationMs ?? 500, moveTolerancePx: input.moveTolerancePx ?? 12 } : { device: "mouse", button: input.button, action })
+  }} aria-label="鼠标动作"><option value="click">单击</option><option value="double-click">双击</option><option value="press">按下</option><option value="hold">长按</option></select></div>{input.action === "hold" ? <TimingEditor input={input} disabled={disabled} onChange={onChange} /> : null}</div>
+}
+
+function MouseGestureInputEditor({ input, disabled, onChange }: {
+  input: Extract<ReaderInputDescriptor, { device: "mouse-gesture" }>
+  disabled: boolean
+  onChange(input: ReaderInputDescriptor): void
+}) {
+  const directions = [
+    { value: "left", label: "向左", icon: ArrowLeft },
+    { value: "right", label: "向右", icon: ArrowRight },
+    { value: "up", label: "向上", icon: ArrowUp },
+    { value: "down", label: "向下", icon: ArrowDown },
+  ] as const
+  return <div className="grid gap-1"><div className="grid grid-cols-2 gap-1"><MouseButtonSelect value={input.button} disabled={disabled} onChange={(button) => onChange({ ...input, button })} /><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.trigger} disabled={disabled} onChange={(event) => {
+    const trigger = event.currentTarget.value as typeof input.trigger
+    onChange(trigger === "hold" ? { ...input, trigger, durationMs: input.durationMs ?? 500, moveTolerancePx: input.moveTolerancePx ?? 12 } : { device: "mouse-gesture", button: input.button, directions: input.directions, trigger })
+  }} aria-label="轨迹触发方式"><option value="instant">释放时触发</option><option value="hold">轨迹后长按</option></select></div><div className="flex min-w-0 items-center gap-1" aria-label="鼠标轨迹方向序列"><code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-[11px]">{input.directions.map(directionShortLabel).join(" ")}</code>{directions.map(({ value, label, icon: Icon }) => <Button key={value} type="button" size="icon-xs" variant="outline" disabled={disabled || input.directions.length >= 16 || input.directions.at(-1) === value} onClick={() => onChange({ ...input, directions: [...input.directions, value] })} title={label} aria-label={`添加${label}`}><Icon /></Button>)}<Button type="button" size="icon-xs" variant="ghost" disabled={disabled || input.directions.length <= 1} onClick={() => onChange({ ...input, directions: input.directions.slice(0, -1) })} title="移除最后方向" aria-label="移除最后方向"><Undo2 /></Button></div>{input.trigger === "hold" ? <TimingEditor input={input} disabled={disabled} onChange={onChange} /> : null}</div>
+}
+
+function TouchInputEditor({ input, disabled, onChange }: {
+  input: Extract<ReaderInputDescriptor, { device: "touch" }>
+  disabled: boolean
+  onChange(input: ReaderInputDescriptor): void
+}) {
+  return <div className="grid gap-1"><div className="grid grid-cols-[1fr_5rem] gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.gesture} disabled={disabled} onChange={(event) => {
+    const gesture = event.currentTarget.value as typeof input.gesture
+    onChange(gesture === "long-press" ? { ...input, gesture, durationMs: input.durationMs ?? 500, moveTolerancePx: input.moveTolerancePx ?? 12 } : { device: "touch", gesture, fingers: input.fingers })
+  }} aria-label="触控手势"><option value="swipe-left">左滑</option><option value="swipe-right">右滑</option><option value="swipe-up">上滑</option><option value="swipe-down">下滑</option><option value="tap">点击</option><option value="long-press">长按</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.fingers} disabled={disabled} onChange={(event) => onChange({ ...input, fingers: Number(event.currentTarget.value) as 1 | 2 | 3 })} aria-label="触控手指数"><option value={1}>1 指</option><option value={2}>2 指</option><option value={3}>3 指</option></select></div>{input.gesture === "long-press" ? <TimingEditor input={input} disabled={disabled} onChange={onChange} /> : null}</div>
+}
+
+function MouseButtonSelect({ value, disabled, onChange }: { value: number; disabled: boolean; onChange(button: number): void }) {
+  return <select className="h-8 rounded border border-input bg-background px-1 text-xs" value={value} disabled={disabled} onChange={(event) => onChange(Number(event.currentTarget.value))} aria-label="鼠标按钮">{Array.from({ length: 8 }, (_, button) => <option key={button} value={button}>{mouseButtonLabel(button)}</option>)}</select>
+}
+
+function TimingEditor<T extends Extract<ReaderInputDescriptor, { device: "mouse" | "mouse-gesture" | "touch" }>>({ input, disabled, onChange }: { input: T; disabled: boolean; onChange(input: T): void }) {
+  return <div className="grid grid-cols-2 gap-1"><label className="grid gap-0.5 text-[10px] text-muted-foreground">持续毫秒<Input className="h-8 text-xs" type="number" min={100} max={5000} value={input.durationMs ?? 500} disabled={disabled} onChange={(event) => onChange({ ...input, durationMs: Number(event.currentTarget.value) })} /></label><label className="grid gap-0.5 text-[10px] text-muted-foreground">移动容差<Input className="h-8 text-xs" type="number" min={1} max={100} value={input.moveTolerancePx ?? 12} disabled={disabled} onChange={(event) => onChange({ ...input, moveTolerancePx: Number(event.currentTarget.value) })} /></label></div>
+}
+
+function directionShortLabel(direction: Extract<ReaderInputDescriptor, { device: "mouse-gesture" }>["directions"][number]): string {
+  return direction === "left" ? "L" : direction === "right" ? "R" : direction === "up" ? "U" : "D"
 }
 
 function KeyboardInputEditor({ input, disabled, recording, onRecord, onChange }: {
@@ -235,7 +289,8 @@ function newBinding(bindings: readonly ReaderInputBinding[]): ReaderInputBinding
 
 function defaultInput(device: ReaderInputDescriptor["device"]): ReaderInputDescriptor {
   if (device === "keyboard") return { device, code: "KeyN" }
-  if (device === "mouse") return { device, button: 3, click: "single" }
+  if (device === "mouse") return { device, button: 3, action: "click" }
+  if (device === "mouse-gesture") return { device, button: 2, directions: ["left"], trigger: "instant" }
   if (device === "wheel") return { device, direction: "down" }
   if (device === "touch") return { device, gesture: "swipe-left", fingers: 1 }
   if (device === "gamepad") return { device, button: 5 }
@@ -253,8 +308,8 @@ function modifierLabel(key: "ctrl" | "alt" | "shift" | "meta"): string {
   return key === "ctrl" ? "Ctrl" : key === "alt" ? "Alt" : key === "shift" ? "Shift" : "Meta"
 }
 
-function deviceLabel(device: Extract<ReaderInputDescriptor["device"], "mouse" | "wheel" | "touch" | "gamepad">): string {
-  return device === "mouse" ? "鼠标输入" : device === "wheel" ? "滚轮输入" : device === "touch" ? "触控手势" : "手柄按钮"
+function deviceLabel(device: RecordableReaderDevice): string {
+  return device === "mouse" ? "鼠标输入" : device === "mouse-gesture" ? "鼠标轨迹" : device === "wheel" ? "滚轮输入" : device === "touch" ? "触控手势" : "手柄按钮"
 }
 
 function AreaInputEditor({ input, disabled, onChange }: {

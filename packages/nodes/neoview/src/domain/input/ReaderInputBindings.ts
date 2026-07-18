@@ -22,6 +22,9 @@ export const READER_VIEW_AREAS = [
 ] as const
 export type ReaderViewArea = typeof READER_VIEW_AREAS[number]
 
+export const READER_MOUSE_GESTURE_DIRECTIONS = ["left", "right", "up", "down"] as const
+export type ReaderMouseGestureDirection = typeof READER_MOUSE_GESTURE_DIRECTIONS[number]
+
 export interface ReaderInputActionMetadata {
   label: string
   category: ReaderInputActionCategory
@@ -29,9 +32,10 @@ export interface ReaderInputActionMetadata {
 
 export type ReaderInputDescriptor =
   | { device: "keyboard"; code: string; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
-  | { device: "mouse"; button: number; click: "single" | "double" }
+  | { device: "mouse"; button: number; action: "click" | "double-click" | "press" | "hold"; durationMs?: number; moveTolerancePx?: number }
+  | { device: "mouse-gesture"; button: number; directions: ReaderMouseGestureDirection[]; trigger: "instant" | "hold"; durationMs?: number; moveTolerancePx?: number }
   | { device: "wheel"; direction: "up" | "down"; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
-  | { device: "touch"; gesture: "swipe-left" | "swipe-right" | "swipe-up" | "swipe-down"; fingers: 1 | 2 | 3 }
+  | { device: "touch"; gesture: "swipe-left" | "swipe-right" | "swipe-up" | "swipe-down" | "tap" | "long-press"; fingers: 1 | 2 | 3; durationMs?: number; moveTolerancePx?: number }
   | { device: "gamepad"; button: number }
   | { device: "area"; area: ReaderViewArea; button: 0 | 1 | 2; action: "click" | "double-click" | "press" }
 
@@ -112,7 +116,9 @@ export function readerInputDescriptorKey(input: ReaderInputDescriptor): string {
     case "keyboard":
       return `keyboard:${modifiers(input)}:${input.code}`
     case "mouse":
-      return `mouse:${input.button}:${input.click}`
+      return `mouse:${input.button}:${input.action}`
+    case "mouse-gesture":
+      return `mouse-gesture:${input.button}:${input.trigger}:${input.directions.join("-")}`
     case "wheel":
       return `wheel:${modifiers(input)}:${input.direction}`
     case "touch":
@@ -142,7 +148,8 @@ export function matchingReaderInputBinding(
   contexts: readonly ReaderInputContext[],
 ): ReaderInputBinding | undefined {
   const descriptor = readerInputDescriptorKey(input)
-  const active = new Set<ReaderInputContext>(["global", ...contexts])
+  const isolatesGlobal = contexts.includes("editor") || contexts.includes("modal")
+  const active = new Set<ReaderInputContext>(isolatesGlobal ? contexts : ["global", ...contexts])
   return [...bindings]
     .filter((candidate) => candidate.enabled && active.has(candidate.context) && readerInputDescriptorKey(candidate.input) === descriptor)
     .sort((left, right) => READER_INPUT_CONTEXT_PRIORITY[right.context] - READER_INPUT_CONTEXT_PRIORITY[left.context])[0]

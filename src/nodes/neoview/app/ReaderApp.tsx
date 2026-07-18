@@ -912,7 +912,7 @@ export function ReaderApp({
       onPointerUp={inputRouter.onPointerUp}
     >
       <Suspense fallback={null}>
-        <LazyReaderGestureInputRuntime disabled={busy} target={surface.ref} dispatch={inputRouter.dispatch} />
+        <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={surface.ref} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
       </Suspense>
       <FloatingWindowTitlebarReservation />
       <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
