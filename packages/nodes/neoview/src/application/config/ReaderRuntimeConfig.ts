@@ -51,6 +51,10 @@ import {
   type ReaderImageTrimPatch,
   type ReaderImageTrimSettings,
 } from "../image-trim/ReaderImageTrim.js"
+import {
+  DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS,
+  normalizeReaderAnimatedVideoKeywords,
+} from "../animated-video/ReaderAnimatedVideoMode.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -86,11 +90,13 @@ export const NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS = ["none", "goUp", "goBack"] as c
 export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
 export const NEOVIEW_FOLDER_REGION_POSITIONS = ["none", "top", "bottom", "left", "right"] as const
 export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
+export const NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS = [200, 500, 800, 1200] as const
 export type NeoviewFolderViewMode = typeof NEOVIEW_FOLDER_VIEW_MODES[number]
 export type NeoviewFolderEmptyAreaAction = typeof NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS[number]
 export type NeoviewFolderTreeLayout = typeof NEOVIEW_FOLDER_TREE_LAYOUTS[number]
 export type NeoviewFolderRegionPosition = typeof NEOVIEW_FOLDER_REGION_POSITIONS[number]
 export type NeoviewFolderDetailColumn = typeof NEOVIEW_FOLDER_DETAIL_COLUMNS[number]
+export type NeoviewFolderHoverPreviewDelay = typeof NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS[number]
 
 export interface NeoviewFolderDetailsConfig {
   columnOrder: NeoviewFolderDetailColumn[]
@@ -138,6 +144,8 @@ export interface NeoviewFolderViewConfig {
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
   bannerWidthPercent: number
+  hoverPreviewEnabled: boolean
+  hoverPreviewDelayMs: NeoviewFolderHoverPreviewDelay
   emptyArea: NeoviewFolderEmptyAreaConfig
   details: NeoviewFolderDetailsConfig
   search: NeoviewFolderSearchConfig
@@ -160,6 +168,8 @@ export interface NeoviewFolderViewPatch {
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
+    hoverPreviewEnabled?: boolean
+    hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
     emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
     details?: NeoviewFolderDetailsPatch
     search?: Partial<NeoviewFolderSearchConfig>
@@ -250,6 +260,8 @@ export interface NeoviewMediaConfig {
   videoFormats: readonly string[]
   mediaMimeTypes: Readonly<Record<string, string>>
   autoPlayAnimatedImages: boolean
+  animatedVideoEnabled: boolean
+  animatedVideoKeywords: readonly string[]
   videoMinPlaybackRate: number
   videoMaxPlaybackRate: number
   videoPlaybackRateStep: number
@@ -262,6 +274,8 @@ export interface NeoviewMediaPatch {
     videoFormats?: readonly string[]
     mediaMimeTypes?: Readonly<Record<string, string>>
     autoPlayAnimatedImages?: boolean
+    animatedVideoEnabled?: boolean
+    animatedVideoKeywords?: readonly string[]
     videoMinPlaybackRate?: number
     videoMaxPlaybackRate?: number
     videoPlaybackRateStep?: number
@@ -413,6 +427,8 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   previewCount: 4,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
+  hoverPreviewEnabled: true,
+  hoverPreviewDelayMs: 500,
   emptyArea: {
     singleClickAction: "none",
     doubleClickAction: "goUp",
@@ -472,6 +488,8 @@ export const DEFAULT_NEOVIEW_MEDIA_CONFIG: NeoviewMediaConfig = {
   videoFormats: DEFAULT_READER_VIDEO_FORMATS,
   mediaMimeTypes: Object.freeze({}),
   autoPlayAnimatedImages: true,
+  animatedVideoEnabled: false,
+  animatedVideoKeywords: DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS,
   videoMinPlaybackRate: 0.25,
   videoMaxPlaybackRate: 16,
   videoPlaybackRateStep: 0.25,
@@ -894,6 +912,11 @@ function parseMediaConfig(
       image?.auto_play_animated_images,
       "[nodes.neoview.image].auto_play_animated_images",
     ) ?? DEFAULT_NEOVIEW_MEDIA_CONFIG.autoPlayAnimatedImages,
+    animatedVideoEnabled: optionalBoolean(
+      image?.animated_video_enabled,
+      "[nodes.neoview.image].animated_video_enabled",
+    ) ?? DEFAULT_NEOVIEW_MEDIA_CONFIG.animatedVideoEnabled,
+    animatedVideoKeywords: normalizeReaderAnimatedVideoKeywords(image?.animated_video_keywords),
     videoMinPlaybackRate,
     videoMaxPlaybackRate,
     videoPlaybackRateStep: boundedNumber(
@@ -941,7 +964,7 @@ export function parseNeoviewMediaPatch(
   const record = requireRecord(value, "reader media patch")
   if (Object.keys(record).some((key) => key !== "media")) throw new Error("reader media patch contains unsupported fields.")
   const media = requireRecord(record.media, "reader media patch.media")
-  const allowed = new Set(["supportedImageFormats", "videoFormats", "mediaMimeTypes", "autoPlayAnimatedImages", "videoMinPlaybackRate", "videoMaxPlaybackRate", "videoPlaybackRateStep", "subtitle"])
+  const allowed = new Set(["supportedImageFormats", "videoFormats", "mediaMimeTypes", "autoPlayAnimatedImages", "animatedVideoEnabled", "animatedVideoKeywords", "videoMinPlaybackRate", "videoMaxPlaybackRate", "videoPlaybackRateStep", "subtitle"])
   const unknown = Object.keys(media).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader media patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewMediaPatch = { media: {} }
@@ -969,6 +992,14 @@ export function parseNeoviewMediaPatch(
   if (media.autoPlayAnimatedImages !== undefined) {
     patch.media.autoPlayAnimatedImages = requiredBoolean(media.autoPlayAnimatedImages, "reader media patch.autoPlayAnimatedImages")
     imageToml.auto_play_animated_images = patch.media.autoPlayAnimatedImages
+  }
+  if (media.animatedVideoEnabled !== undefined) {
+    patch.media.animatedVideoEnabled = requiredBoolean(media.animatedVideoEnabled, "reader media patch.animatedVideoEnabled")
+    imageToml.animated_video_enabled = patch.media.animatedVideoEnabled
+  }
+  if (media.animatedVideoKeywords !== undefined) {
+    patch.media.animatedVideoKeywords = normalizeReaderAnimatedVideoKeywords(media.animatedVideoKeywords)
+    imageToml.animated_video_keywords = patch.media.animatedVideoKeywords
   }
   if (media.videoMinPlaybackRate !== undefined) {
     patch.media.videoMinPlaybackRate = boundedNumber(media.videoMinPlaybackRate, 0.05, 64, current.videoMinPlaybackRate, "reader media patch.videoMinPlaybackRate")
@@ -1250,7 +1281,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "emptyArea", "details", "search", "tree", "tabs"])
+  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "emptyArea", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -1278,6 +1309,14 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     const percent = boundedInteger(folder.bannerWidthPercent, 20, 100, "reader folder view patch.bannerWidthPercent")
     patch.folderView.bannerWidthPercent = percent
     toml.banner_width_percent = percent
+  }
+  if (folder.hoverPreviewEnabled !== undefined) {
+    patch.folderView.hoverPreviewEnabled = optionalBoolean(folder.hoverPreviewEnabled, "reader folder view patch.hoverPreviewEnabled")
+    toml.hover_preview_enabled = patch.folderView.hoverPreviewEnabled
+  }
+  if (folder.hoverPreviewDelayMs !== undefined) {
+    patch.folderView.hoverPreviewDelayMs = optionalEnum(folder.hoverPreviewDelayMs, "reader folder view patch.hoverPreviewDelayMs", NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS)
+    toml.hover_preview_delay_ms = patch.folderView.hoverPreviewDelayMs
   }
   if (folder.emptyArea !== undefined) {
     const emptyArea = requireRecord(folder.emptyArea, "reader folder view patch.emptyArea")
@@ -1450,6 +1489,11 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     bannerWidthPercent: value.banner_width_percent === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.bannerWidthPercent
       : boundedInteger(value.banner_width_percent, 20, 100, "[nodes.neoview.folder].banner_width_percent"),
+    hoverPreviewEnabled: optionalBoolean(value.hover_preview_enabled, "[nodes.neoview.folder].hover_preview_enabled")
+      ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.hoverPreviewEnabled,
+    hoverPreviewDelayMs: value.hover_preview_delay_ms === undefined
+      ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.hoverPreviewDelayMs
+      : optionalEnum(value.hover_preview_delay_ms, "[nodes.neoview.folder].hover_preview_delay_ms", NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS),
     emptyArea: {
       singleClickAction: optionalEnum(emptyArea?.single_click_action, "[nodes.neoview.folder.empty_area].single_click_action", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
         ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea.singleClickAction,

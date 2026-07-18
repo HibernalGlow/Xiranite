@@ -41,6 +41,10 @@
       "types": "./dist/image-trim.d.ts",
       "default": "./dist/image-trim.js"
     },
+    "./animated-video": {
+      "types": "./dist/animated-video.d.ts",
+      "default": "./dist/animated-video.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"

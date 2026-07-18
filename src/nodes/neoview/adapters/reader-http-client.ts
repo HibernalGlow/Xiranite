@@ -643,6 +643,8 @@ export interface ReaderMediaConfigDto {
   videoFormats: readonly string[]
   mediaMimeTypes: Readonly<Record<string, string>>
   autoPlayAnimatedImages: boolean
+  animatedVideoEnabled: boolean
+  animatedVideoKeywords: readonly string[]
   videoMinPlaybackRate: number
   videoMaxPlaybackRate: number
   videoPlaybackRateStep: number
@@ -650,7 +652,12 @@ export interface ReaderMediaConfigDto {
 }
 
 export interface ReaderMediaPatchDto {
-  media: { subtitle?: Partial<ReaderSubtitleConfigDto> }
+  media: {
+    autoPlayAnimatedImages?: boolean
+    animatedVideoEnabled?: boolean
+    animatedVideoKeywords?: readonly string[]
+    subtitle?: Partial<ReaderSubtitleConfigDto>
+  }
 }
 
 export interface ReaderMediaProgressDto {
@@ -805,6 +812,8 @@ export interface ReaderFolderViewConfig {
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
   bannerWidthPercent: number
+  hoverPreviewEnabled: boolean
+  hoverPreviewDelayMs: 200 | 500 | 800 | 1200
   emptyArea: ReaderFolderEmptyAreaConfig
   details: ReaderFolderDetailsConfig
   search: ReaderFolderSearchConfig
@@ -827,6 +836,8 @@ export interface ReaderFolderViewPatch {
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
+    hoverPreviewEnabled?: boolean
+    hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
     emptyArea?: Partial<ReaderFolderEmptyAreaConfig>
     details?: ReaderFolderDetailsPatch
     search?: Partial<ReaderFolderSearchConfig>

@@ -13,7 +13,7 @@ try {
     if (message.type() === "error") console.error(`console: ${message.text()}`)
   })
   console.log(`opening ${options.url}`)
-  await page.goto(options.url, { waitUntil: "domcontentloaded", timeout: 30_000 })
+  await page.goto(options.url, { waitUntil: options.waitUntil, timeout: 30_000 })
   console.log("page loaded")
   if (options.probeModule) {
     const probe = await page.evaluate(async (modulePath) => {
@@ -60,7 +60,7 @@ function parseArgs(args: readonly string[]) {
   }))
   const url = values.get("--url")
   const output = values.get("--output")
-  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--wait-label=<label> | --check-label=<label> | --click-selector=<selector>] [--wait-ms=<ms>] [--probe-module=<path>] [--viewport=1920x1080]")
+  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--wait-label=<label> | --check-label=<label> | --click-selector=<selector>] [--wait-ms=<ms>] [--wait-until=commit|domcontentloaded] [--probe-module=<path>] [--viewport=1920x1080]")
   const [width, height] = (values.get("--viewport") ?? "1920x1080").split("x").map(Number)
   if (!Number.isInteger(width) || !Number.isInteger(height) || width! <= 0 || height! <= 0) throw new Error("Invalid viewport")
   return {
@@ -68,6 +68,7 @@ function parseArgs(args: readonly string[]) {
     output: resolve(output),
     waitLabel: values.get("--wait-label"),
     waitMs: Number(values.get("--wait-ms") ?? 0),
+    waitUntil: values.get("--wait-until") === "commit" ? "commit" as const : "domcontentloaded" as const,
     checkLabel: values.get("--check-label"),
     clickSelector: values.get("--click-selector"),
     probeModule: values.get("--probe-module"),
