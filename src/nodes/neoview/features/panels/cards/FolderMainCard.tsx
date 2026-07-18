@@ -48,6 +48,7 @@ import {
   isEditableKeyboardEvent,
   isVerticalFolderRegion,
   mergeDirectoryPage,
+  normalizeFolderNavigationPath,
   rememberDirectoryVisitState,
   restoreDirectoryVisitState,
   thumbnailPixelSize,
@@ -425,7 +426,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }, [catalog?.sessionId, catalog?.generation, restoreIndex, restoreState, viewMode])
 
   async function openBrowser(path: string) {
-    const normalized = path.trim()
+    const normalized = normalizeFolderNavigationPath(path)
     if (!normalized || !client.openDirectoryBrowser) return
     setSearchOpen(false)
     setTreeOpen(false)
@@ -459,9 +460,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }
 
   async function navigate(navigation: ReaderDirectoryNavigationDto, options: FolderNavigationOptions = {}) {
+    const normalizedNavigation = navigation.action === "path"
+      ? { ...navigation, path: normalizeFolderNavigationPath(navigation.path) }
+      : navigation
     const sessionId = sessionIdRef.current
     if (!sessionId) {
-      if (navigation.action === "path") await openBrowser(navigation.path)
+      if (normalizedNavigation.action === "path") await openBrowser(normalizedNavigation.path)
       return
     }
     if (!client.navigateDirectoryBrowser) return
@@ -471,16 +475,16 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
-    retryOperationRef.current = { kind: "navigate", navigation, options }
+    retryOperationRef.current = { kind: "navigate", navigation: normalizedNavigation, options }
     try {
       const result = await client.navigateDirectoryBrowser(
         sessionId,
-        navigation,
+        normalizedNavigation,
         navigationRequestRef.current?.signal,
         options.focusPath ?? capturedState?.focusedPath,
       )
       if (generation === navigationGenerationRef.current) {
-        let preferredState = navigation.action === "refresh" ? capturedState : undefined
+        let preferredState = normalizedNavigation.action === "refresh" ? capturedState : undefined
         if (preferredState) preferredState = { ...preferredState, thumbnailUrls: undefined, thumbnailProfiles: undefined }
         if (preferredState && options.clearSelection) {
           preferredState = { ...preferredState, selection: createDirectorySelection(result.generation) }

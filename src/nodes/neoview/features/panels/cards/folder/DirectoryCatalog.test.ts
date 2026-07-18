@@ -7,11 +7,18 @@ import {
   directoryPageHasMetadata,
   directoryPageCursors,
   mergeDirectoryPage,
+  normalizeFolderNavigationPath,
   restoreDirectoryVisitState,
   trimDirectoryPages,
 } from "./DirectoryCatalog"
 
 describe("DirectoryCatalog", () => {
+  it("[neoview.folder.windows-root-path] makes drive roots explicit directories", () => {
+    expect(normalizeFolderNavigationPath(" E: ")).toBe("E:\\")
+    expect(normalizeFolderNavigationPath("E:/Books")).toBe("E:/Books")
+    expect(normalizeFolderNavigationPath("bookmark:recent")).toBe("bookmark:recent")
+  })
+
   it("[neoview.folder.sparse-pages] addresses remote pages without appending all preceding entries", () => {
     let catalog = createDirectoryCatalog(page(0, 10_000))
     catalog = mergeDirectoryPage(catalog, page(9_984, 10_000))

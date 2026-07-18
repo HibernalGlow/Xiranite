@@ -5,6 +5,7 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import type { ReaderDirectoryRootDto, ReaderDirectoryTreeChangesDto, ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import { normalizeFolderNavigationPath } from "./DirectoryCatalog"
 
 const TREE_ROW_HEIGHT = 30
 const MAXIMUM_TREE_PAGES = 512
@@ -58,7 +59,8 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
 
   const loadPage = useCallback(async (path: string, refresh = false, scopeSignal?: AbortSignal, preserveTree = false) => {
     if (!client.treeDirectoryBrowser || scopeSignal?.aborted) return
-    const key = directoryPathKey(path)
+    const normalizedPath = normalizeFolderNavigationPath(path)
+    const key = directoryPathKey(normalizedPath)
     controllersRef.current.get(key)?.abort()
     if (controllersRef.current.size >= MAXIMUM_TREE_REQUESTS) {
       const oldest = controllersRef.current.entries().next().value as [string, AbortController] | undefined
@@ -82,7 +84,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
     setLoading((current) => setValue(current, key, true))
     setErrors((current) => mapWithout(current, key))
     try {
-      const page = await client.treeDirectoryBrowser(sessionId, path, refresh, requestSignal)
+      const page = await client.treeDirectoryBrowser(sessionId, normalizedPath, refresh, requestSignal)
       if (requestSignal.aborted) return
       const currentGeneration = generationRef.current
       if (currentGeneration !== undefined && page.generation < currentGeneration) return
@@ -413,16 +415,18 @@ interface TreeRoot {
 
 function treeRoots(rootPath: string, pinnedPaths: readonly string[], volumeRoots: readonly ReaderDirectoryRootDto[]): TreeRoot[] {
   const roots: TreeRoot[] = []
-  for (const path of pinnedPaths) {
+  for (const rawPath of pinnedPaths) {
+    const path = normalizeFolderNavigationPath(rawPath)
     if (!roots.some((root) => samePath(root.path, path))) roots.push({ path, name: pinnedLabel(path), pinned: true, available: true })
   }
   for (const root of volumeRoots) {
-    const existing = roots.find((candidate) => samePath(candidate.path, root.path))
+    const path = normalizeFolderNavigationPath(root.path)
+    const existing = roots.find((candidate) => samePath(candidate.path, path))
     if (existing) {
       existing.name = root.label
       existing.available = root.available
     } else {
-      roots.push({ path: root.path, name: root.label, pinned: false, available: root.available })
+      roots.push({ path, name: root.label, pinned: false, available: root.available })
     }
   }
   const existingRoot = roots.find((root) => samePath(root.path, rootPath))
