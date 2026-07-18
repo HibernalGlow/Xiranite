@@ -13,6 +13,7 @@ import { createZipFixture, type ZipFixture } from "../../../test/fixture-builder
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { CacachePresentationDiskCache } from "../cache/CacachePresentationDiskCache.js"
+import type { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 
@@ -168,6 +169,42 @@ describe("ReaderAssetRoute", () => {
     expect(replaced.headers.get("etag")).not.toBe(response.headers.get("etag"))
     expect(openSource).not.toHaveBeenCalled()
     expect(get).toHaveBeenCalledTimes(4)
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.thumbnail.asset-route-generation] forwards the session preload generation to thumbnail demands", async () => {
+    const service = new CoreReaderService(async () => fixtureBook({
+      rangeSupported: false,
+      open: async () => { throw new Error("thumbnail generation test must not open page bytes") },
+      close: async () => undefined,
+      [Symbol.asyncDispose]: async () => undefined,
+    }))
+    const session = await service.openViewSource({ kind: "path", path: "generation" })
+    const page = session.book.pages[0]!
+    const acquirePage = vi.fn(() => ({
+      ready: Promise.resolve({ bytes: Uint8Array.of(0x52, 0x49, 0x46, 0x46), contentType: "image/webp" }),
+      release: vi.fn(),
+    }))
+    const pipeline = {
+      available: true,
+      supportsPage: () => true,
+      acquirePage,
+    } as unknown as PlatformThumbnailPipeline
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { thumbnailPipeline: pipeline },
+    )
+
+    const url = route.thumbnailUrl(session.id, page.id)!
+    const response = await route.handle(new Request(url))
+    expect(response?.status).toBe(200)
+    expect(session.preloadPlan()?.generation).toBeGreaterThan(0)
+    expect(acquirePage).toHaveBeenCalledWith(page, expect.objectContaining({
+      contextId: `reader:${session.id}`,
+      generation: session.preloadPlan()?.generation,
+      lane: "reader-visible",
+    }))
     await service[Symbol.asyncDispose]()
   })
 
