@@ -225,6 +225,14 @@ export function formatFolderRating(value: number | undefined): string {
   return Number.isFinite(value) ? value!.toFixed(1) : "-"
 }
 
+/** Keep Windows drive roots directory-shaped before they reach the HTTP/filesystem boundary. */
+export function normalizeFolderNavigationPath(path: string): string {
+  const value = path.trim()
+  if (!value || /^(?:bookmark|history):/iu.test(value)) return value
+  if (/^[A-Za-z]:$/u.test(value)) return `${value}\\`
+  return value
+}
+
 export function isEditableKeyboardEvent(event: { nativeEvent: { isComposing?: boolean }; target: EventTarget | null }): boolean {
   if (event.nativeEvent.isComposing) return true
   const target = event.target

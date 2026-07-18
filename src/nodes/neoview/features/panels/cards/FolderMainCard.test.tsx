@@ -25,6 +25,17 @@ function selectFolderHandleAction(scope: ReturnType<typeof within> | typeof scre
 afterEach(cleanup)
 
 describe("FolderMainCard", () => {
+  it("[neoview.folder.windows-root-open] normalizes a bare drive before opening the directory session", async () => {
+    const opened = page({ path: "E:\\", entries: [], total: 0 })
+    const openDirectoryBrowser = vi.fn(async () => opened)
+    const client = { openDirectoryBrowser, closeDirectoryBrowser: vi.fn(async () => undefined) } as unknown as ReaderHttpClient
+    const view = render(<FolderMainCard client={client} disabled={false} sourcePath="E:" onOpen={vi.fn()} onGoTo={vi.fn()} />)
+
+    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalled())
+    expect(openDirectoryBrowser.mock.calls[0]?.[0]).toBe("E:\\")
+    view.unmount()
+  })
+
   it("[neoview.folder.thumbnail-visit-cache] keeps recent URLs in a bounded visit cache", () => {
     const current = new Map([["A", "url-a"], ["B", "url-b"]])
     const merged = mergeThumbnailUrls(current, [["A", "url-a-2"], ["C", "url-c"]], 2)
