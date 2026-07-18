@@ -6,10 +6,12 @@ const gamepad = vi.hoisted(() => ({ instances: [] as MockGamepadListener[] }))
 
 class MockGamepadListener {
   callback?: (event: CustomEvent<{ button: number; pressed: boolean }>) => void
+  callbacks = new Map<string, (event: CustomEvent<unknown>) => void>()
   start = vi.fn()
   stop = vi.fn()
-  on = vi.fn((_name: string, callback: typeof this.callback) => { this.callback = callback })
-  off = vi.fn()
+  on = vi.fn((name: string, callback: (event: CustomEvent<unknown>) => void) => { this.callbacks.set(name, callback); if (name === "gamepad:button") this.callback = callback as typeof this.callback })
+  off = vi.fn((name: string) => { this.callbacks.delete(name) })
+  emit(name: string, detail: unknown) { this.callbacks.get(name)?.(new CustomEvent(name, { detail })) }
   constructor() { gamepad.instances.push(this) }
 }
 
@@ -39,12 +41,22 @@ describe("ReaderDeviceInputRecorder", () => {
     await waitFor(() => expect(gamepad.instances).toHaveLength(1))
     const listener = gamepad.instances[0]!
     expect(listener.start).toHaveBeenCalledOnce()
+    expect(screen.getByRole("status", { name: "手柄连接状态" }).textContent).toBe("等待手柄连接")
+
+    act(() => listener.emit("gamepad:connected", { index: 0, mapping: "standard" }))
+    expect(screen.getByRole("status", { name: "手柄连接状态" }).textContent).toBe("已连接手柄")
 
     act(() => listener.callback?.(new CustomEvent("gamepad:button", { detail: { button: 7, pressed: true } })))
     expect(onRecord).toHaveBeenCalledWith({ device: "gamepad", button: 7 })
 
+    act(() => listener.emit("gamepad:disconnected", { index: 0 }))
+    expect(screen.getByRole("status", { name: "手柄连接状态" }).textContent).toBe("等待手柄连接")
+
     view.unmount()
-    expect(listener.off).toHaveBeenCalledOnce()
+    expect(listener.off).toHaveBeenCalledTimes(3)
+    expect(listener.off).toHaveBeenCalledWith("gamepad:connected", expect.any(Function))
+    expect(listener.off).toHaveBeenCalledWith("gamepad:disconnected", expect.any(Function))
+    expect(listener.off).toHaveBeenCalledWith("gamepad:button", expect.any(Function))
     expect(listener.stop).toHaveBeenCalledOnce()
   })
 })

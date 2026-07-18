@@ -26,6 +26,7 @@ export interface ReaderDeviceInputRecorderProps {
 export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: ReaderDeviceInputRecorderProps) {
   const target = useRef<HTMLDivElement | null>(null)
   const [gesturePreview, setGesturePreview] = useState<Extract<ReaderInputDescriptor, { device: "mouse-gesture" }>["directions"]>([])
+  const [gamepadConnected, setGamepadConnected] = useState(false)
   const onRecordRef = useRef(onRecord)
   onRecordRef.current = onRecord
 
@@ -92,6 +93,8 @@ export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: Reader
     if (device !== "gamepad") return
     let disposed = false
     let listener: import("gamepad.js").GamepadListener | undefined
+    const onConnected = () => setGamepadConnected(true)
+    const onDisconnected = () => setGamepadConnected(false)
     const onButton = (event: CustomEvent<import("gamepad.js").GamepadButtonEventDetail>) => {
       if (!event.detail.pressed) return
       onRecordRef.current({ device: "gamepad", button: event.detail.button })
@@ -99,11 +102,15 @@ export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: Reader
     void import("gamepad.js").then(({ GamepadListener }) => {
       if (disposed) return
       listener = new GamepadListener({ button: { analog: false, deadZone: 0.5 } })
+      listener.on("gamepad:connected", onConnected)
+      listener.on("gamepad:disconnected", onDisconnected)
       listener.on("gamepad:button", onButton)
       listener.start()
     }).catch(() => undefined)
     return () => {
       disposed = true
+      listener?.off("gamepad:connected", onConnected)
+      listener?.off("gamepad:disconnected", onDisconnected)
       listener?.off("gamepad:button", onButton)
       listener?.stop()
     }
@@ -114,6 +121,7 @@ export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: Reader
       <div className="grid w-full max-w-sm gap-3 rounded-md border bg-background p-4 shadow-2xl">
         <div className="flex items-center gap-2"><RecorderIcon device={device} /><h3 className="font-semibold">录制{deviceLabel(device)}</h3></div>
         <p className="text-sm text-muted-foreground">{recordingPrompt(device)}</p>
+        {device === "gamepad" ? <output aria-label="手柄连接状态" className={gamepadConnected ? "rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700" : "rounded border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground"}>{gamepadConnected ? "已连接手柄" : "等待手柄连接"}</output> : null}
         {device === "mouse-gesture" ? <output className="min-h-9 rounded border bg-muted/40 px-3 py-2 text-center font-mono text-sm" aria-label="已录制鼠标轨迹">{gesturePreview.length ? gesturePreview.map(directionGlyph).join(" ") : "等待轨迹"}</output> : null}
         <Button type="button" variant="outline" onClick={onCancel}><X />取消录制</Button>
       </div>
