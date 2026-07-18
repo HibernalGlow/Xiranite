@@ -64,6 +64,7 @@ import {
   visiblePageStep,
   type DirectoryCatalog,
 } from "./folder/DirectoryCatalog"
+import { resolveFolderKeyboardCommand, type FolderKeyboardCommand } from "./folder/FolderKeyboardCommands"
 import {
   chainDirectorySelection,
   createDirectorySelection,
@@ -229,6 +230,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const catalogRequestRef = useRef<AbortController | undefined>(undefined)
   const thumbnailRequestRef = useRef<AbortController | undefined>(undefined)
   const pendingCursorsRef = useRef(new Set<string>())
+  const pendingKeyboardCommandRef = useRef<{ generation: number; index: number; kind: Extract<FolderKeyboardCommand["kind"], "activate" | "trash" | "rename" | "context-menu"> }>()
   const navigationGenerationRef = useRef(0)
   const thumbnailGenerationRef = useRef(0)
   const thumbnailContextSequenceRef = useRef(0)
@@ -683,6 +685,19 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           if (currentFocusedEntry) setFocusedPath(currentFocusedEntry.path)
           const center = Math.floor((visibleRangeRef.current.startIndex + visibleRangeRef.current.endIndex) / 2)
           commitCatalog(trimDirectoryPages(merged, center, MAX_CACHED_PAGES))
+          const pending = pendingKeyboardCommandRef.current
+          if (pending && pending.generation === merged.generation && pending.index >= 0) {
+            const pendingEntry = directoryEntryAt(merged, pending.index)
+            if (pendingEntry) {
+              pendingKeyboardCommandRef.current = undefined
+              queueMicrotask(() => {
+                const latest = catalogRef.current
+                if (latest?.generation === pending.generation) {
+                  runFocusedKeyboardEntry(pending.kind, latest, pending.index)
+                }
+              })
+            }
+          }
           queueMicrotask(registerVisibleThumbnails)
         })
         .catch((cause) => {
@@ -856,6 +871,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }
 
   function selectEntry(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent) {
+    pendingKeyboardCommandRef.current = undefined
     const previousFocusIndex = focusedIndexRef.current
     focusedIndexRef.current = index
     setFocusedIndex(index)
@@ -887,66 +903,80 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (searchOpen || isEditableKeyboardEvent(event)) return
     const currentCatalog = catalogRef.current
     if (!currentCatalog || disabled || loading) return
-    if (event.key === "F5") {
-      event.preventDefault()
-      event.stopPropagation()
-      void navigate({ action: "refresh" })
-      return
-    }
-    if (currentCatalog.total <= 0) return
     const currentIndex = Math.min(
       Math.max(focusedIndexRef.current ?? visibleRangeRef.current.startIndex, 0),
-      currentCatalog.total - 1,
+      Math.max(0, currentCatalog.total - 1),
     )
     const gridColumns = viewUsesGrid(viewMode) ? visibleGridColumnCount(listHostRef.current) : 1
     const pageStep = visiblePageStep(viewMode, gridColumns)
-    let targetIndex: number | undefined
-
-    if (event.key === "ArrowUp") targetIndex = currentIndex - gridColumns
-    else if (event.key === "ArrowDown") targetIndex = currentIndex + gridColumns
-    else if (event.key === "ArrowLeft" && viewUsesGrid(viewMode)) targetIndex = currentIndex - 1
-    else if (event.key === "ArrowRight" && viewUsesGrid(viewMode)) targetIndex = currentIndex + 1
-    else if (event.key === "PageUp") targetIndex = currentIndex - pageStep
-    else if (event.key === "PageDown") targetIndex = currentIndex + pageStep
-    else if (event.key === "Home") targetIndex = 0
-    else if (event.key === "End") targetIndex = currentCatalog.total - 1
-    else if (event.key === "Delete") {
+    const command = resolveFolderKeyboardCommand({
+      key: event.key,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+    }, {
+      currentIndex,
+      total: currentCatalog.total,
+      isGrid: viewUsesGrid(viewMode),
+      gridColumns,
+      pageStep,
+      canGoBack: currentCatalog.canGoBack,
+      hasParent: Boolean(currentCatalog.parentPath),
+      multiSelectMode,
+    })
+    if (!command) {
+      if (event.key !== " ") return
       const entry = directoryEntryAt(currentCatalog, currentIndex)
-      if (!entry || (entry.kind !== "file" && entry.kind !== "directory") || !client.executeFileOperations) return
-      event.currentTarget.dispatchEvent(new CustomEvent("neoview-folder-trash-request", {
-        bubbles: true,
-        detail: { index: currentIndex, ...entry },
-      }))
-    } else if (event.key === "F2") {
-      const entry = directoryEntryAt(currentCatalog, currentIndex)
-      if (!entry || !client.executeFileOperations) return
-      setRenameRequest({ index: currentIndex, ...entry })
-    } else if (event.key === "Enter") {
-      const entry = directoryEntryAt(currentCatalog, currentIndex)
-      if (entry) activate(entry)
-    } else if (event.key === " ") {
-      const entry = directoryEntryAt(currentCatalog, currentIndex)
-      if (entry) {
-        setMultiSelectMode(true)
-        setSelection((current) => toggleDirectorySelection(current, currentCatalog.generation, entry.path, currentIndex))
-      }
-    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+      if (!entry) return
+      event.preventDefault()
+      event.stopPropagation()
       setMultiSelectMode(true)
-      setSelection(selectAllDirectoryEntries(currentCatalog.generation))
-    } else if (event.key === "Escape" && multiSelectMode) {
-      setSelection(createDirectorySelection(currentCatalog.generation))
-      setMultiSelectMode(false)
-    } else if (event.key === "Backspace") {
-      if (currentCatalog.canGoBack) void navigate({ action: "back" })
-      else if (currentCatalog.parentPath) void navigate({ action: "up" })
-    } else {
+      setSelection((current) => toggleDirectorySelection(current, currentCatalog.generation, entry.path, currentIndex))
       return
     }
 
     event.preventDefault()
     event.stopPropagation()
-    if (targetIndex === undefined) return
-    const nextIndex = Math.min(Math.max(targetIndex, 0), currentCatalog.total - 1)
+    if (command.kind === "refresh") {
+      pendingKeyboardCommandRef.current = undefined
+      void navigate({ action: "refresh" })
+      return
+    }
+    if (command.kind === "search") {
+      pendingKeyboardCommandRef.current = undefined
+      setSearchOpen(true)
+      return
+    }
+    if (command.kind === "select-all") {
+      pendingKeyboardCommandRef.current = undefined
+      setMultiSelectMode(true)
+      setSelection(selectAllDirectoryEntries(currentCatalog.generation))
+      return
+    }
+    if (command.kind === "clear-selection") {
+      pendingKeyboardCommandRef.current = undefined
+      setSelection(createDirectorySelection(currentCatalog.generation))
+      setMultiSelectMode(false)
+      return
+    }
+    if (command.kind === "back") {
+      pendingKeyboardCommandRef.current = undefined
+      void navigate({ action: "back" })
+      return
+    }
+    if (command.kind === "up") {
+      pendingKeyboardCommandRef.current = undefined
+      void navigate({ action: "up" })
+      return
+    }
+    if (command.kind === "activate" || command.kind === "trash" || command.kind === "rename" || command.kind === "context-menu") {
+      runFocusedKeyboardEntry(command.kind, currentCatalog, currentIndex)
+      return
+    }
+    if (command.kind !== "move") return
+    pendingKeyboardCommandRef.current = undefined
+    const nextIndex = command.targetIndex
     const entry = directoryEntryAt(currentCatalog, nextIndex)
     focusedIndexRef.current = nextIndex
     setFocusedIndex(nextIndex)
@@ -971,6 +1001,72 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index: nextIndex, align: "center" })
   }
 
+  function runFocusedKeyboardEntry(
+    kind: Extract<FolderKeyboardCommand["kind"], "activate" | "trash" | "rename" | "context-menu">,
+    currentCatalog: DirectoryCatalog,
+    index: number,
+  ) {
+    const entry = directoryEntryAt(currentCatalog, index)
+    if (!entry) {
+      if (!client.listDirectoryBrowser) return
+      pendingKeyboardCommandRef.current = { generation: currentCatalog.generation, index, kind }
+      requestRange({ startIndex: index, endIndex: index })
+      if (viewUsesVirtuosoList(viewMode)) listRef.current?.scrollToIndex({ index, align: "center" })
+      else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index, align: "center" })
+      return
+    }
+    pendingKeyboardCommandRef.current = undefined
+    if (kind === "activate") {
+      activate(entry)
+    } else if (kind === "rename") {
+      if (client.executeFileOperations) setRenameRequest({ index, ...entry })
+    } else if (kind === "trash") {
+      if (!client.executeFileOperations) return
+      listHostRef.current?.dispatchEvent(new CustomEvent("neoview-folder-trash-request", {
+        bubbles: true,
+        detail: { index, ...entry },
+      }))
+    } else {
+      dispatchFocusedFolderContextMenu(index, entry)
+    }
+  }
+
+  function dispatchFocusedFolderContextMenu(index: number, entry: ReaderDirectoryEntryDto) {
+    const host = listHostRef.current
+    if (!host) return
+    const mounted = host.querySelector<HTMLElement>(`[data-folder-index="${index}"]`)
+    if (mounted) {
+      mounted.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 0,
+        clientY: 0,
+      }))
+      return
+    }
+    // Keep keyboard context menus usable for sparse virtual pages. The proxy
+    // carries the same dataset as a mounted row, so the shared context-menu
+    // builder remains the single source of menu actions.
+    const proxy = document.createElement("button")
+    proxy.type = "button"
+    proxy.tabIndex = -1
+    proxy.hidden = true
+    proxy.dataset.contextMenu = "neoview-folder-entry"
+    proxy.dataset.folderIndex = String(index)
+    proxy.dataset.folderPath = entry.path
+    proxy.dataset.folderName = entry.name
+    proxy.dataset.folderKind = entry.kind
+    proxy.dataset.folderReaderSupported = String(entry.readerSupported)
+    host.append(proxy)
+    proxy.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 0,
+      clientY: 0,
+    }))
+    proxy.remove()
+  }
+
   function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "path" | "readerSupported">) {
     if (entry.kind === "directory") void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
     else if (entry.readerSupported) void onOpen?.(entry.path)
@@ -983,6 +1079,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     thumbnailRequestRef.current?.abort()
     navigationRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
+    pendingKeyboardCommandRef.current = undefined
     navigationGenerationRef.current += 1
     return navigationGenerationRef.current
   }
@@ -1114,15 +1211,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       }}
       onKeyDownCapture={(event) => {
         if (isEditableKeyboardEvent(event)) return
-        if ((event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) && focusedIndex !== undefined) {
-          const target = listHostRef.current?.querySelector<HTMLElement>(`[data-folder-index="${focusedIndex}"]`)
-          if (target) {
-            event.preventDefault()
-            event.stopPropagation()
-            target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))
-          }
-          return
-        }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
           event.preventDefault()
           event.stopPropagation()

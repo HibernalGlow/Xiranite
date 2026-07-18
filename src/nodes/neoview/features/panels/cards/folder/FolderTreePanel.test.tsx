@@ -51,7 +51,7 @@ describe("FolderTreePanel", () => {
     await waitFor(() => expect(ui.getByTitle("C:\\books\\series")).toBeTruthy())
 
     fireEvent.click(ui.getByLabelText("展开broken"))
-    await waitFor(() => expect(ui.getByText("拒绝访问")).toBeTruthy())
+    await waitFor(() => expect(ui.getByText("没有权限访问此目录。")).toBeTruthy())
     fireEvent.click(ui.getByLabelText("重试加载broken"))
     await waitFor(() => expect(ui.getByText("空")).toBeTruthy())
     expect(treeDirectoryBrowser).toHaveBeenLastCalledWith("tree-1", "C:\\broken", true, expect.any(AbortSignal))

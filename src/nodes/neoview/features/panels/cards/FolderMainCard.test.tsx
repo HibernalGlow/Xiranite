@@ -174,7 +174,8 @@ describe("FolderMainCard", () => {
     const ui = within(view.container)
 
     const alert = await ui.findByRole("alert")
-    expect(alert.textContent).toContain("ENOENT: no such file or directory")
+    expect(alert.textContent).toContain("目录不存在或已断开")
+    expect(alert.textContent).not.toContain("E:")
     const card = view.container.querySelector('[data-neoview-folder-pane="true"]')
     expect(card).toBeTruthy()
     fireEvent.click(within(alert).getByRole("button", { name: "重试" }))
@@ -217,7 +218,8 @@ describe("FolderMainCard", () => {
     fireEvent.click(series)
 
     const alert = await ui.findByRole("alert")
-    expect(alert.textContent).toContain("ENOENT: no such file or directory")
+    expect(alert.textContent).toContain("目录不存在或已断开")
+    expect(alert.textContent).not.toContain("C:/books/series")
     expect(ui.getByTitle("C:/books/series")).toBe(series)
     fireEvent.click(within(alert).getByRole("button", { name: "重试" }))
 
