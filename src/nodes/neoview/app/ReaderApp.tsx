@@ -67,7 +67,6 @@ import { ReaderPanelDndProvider } from "../features/panels/ReaderPanelDnd"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/material/ReaderShellMaterial"
 import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
 import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInfoOverlayStore"
-import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -258,13 +257,6 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
-  const [imageTrim] = useState(() => createReaderImageTrimStore({
-    async persist(settings, reset, signal) {
-      if (!clientRef.current.updateImageTrim) return settings
-      return await clientRef.current.updateImageTrim({ imageTrim: reset ? { reset: "defaults" } : settings }, signal)
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  }))
   const [videoController] = useState(() => new ReaderVideoController())
   const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
@@ -308,7 +300,6 @@ export function ReaderApp({
     pageTransition.dispose()
     switchToast.dispose()
     infoOverlay.dispose()
-    imageTrim.dispose()
     videoController.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
@@ -353,7 +344,6 @@ export function ReaderApp({
       }
       if (config.switchToast) switchToast.hydrate(config.switchToast)
       if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
-      if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
@@ -1194,7 +1184,6 @@ export function ReaderApp({
     pageTransition,
     switchToast,
     infoOverlay,
-    imageTrim,
     onSidebarLayout: commitSidebarLayout,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
@@ -1270,7 +1259,6 @@ export function ReaderApp({
                 client={client}
                 media={media}
                 onSubtitleConfigChange={persistSubtitleConfig}
-                imageTrim={imageTrim}
                 onVideoListEnded={() => void navigate("next")}
               />
             </Suspense>
