@@ -70,6 +70,22 @@ const thumbnails = loose({
   runningFlights: count,
   cachedEntries: count,
   cachedBytes: count,
+  telemetry: loose({
+    cacheHits: count,
+    cacheMisses: count,
+    completed: count,
+    failed: count,
+    cancelled: count,
+    evictions: count,
+    byLane: z.record(z.string(), loose({
+      demands: count,
+      cacheHits: count,
+      cacheMisses: count,
+      completed: count,
+      failed: count,
+      cancelled: count,
+    })),
+  }).optional(),
 })
 
 const memoryPressure = loose({

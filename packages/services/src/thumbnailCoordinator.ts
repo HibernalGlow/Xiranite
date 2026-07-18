@@ -44,6 +44,26 @@ export interface ThumbnailCoordinatorSnapshot {
   cachedEntries: number
   cachedBytes: number
   demandsByLane: Readonly<Record<ThumbnailLane, number>>
+  telemetry: ThumbnailCoordinatorTelemetrySnapshot
+}
+
+export interface ThumbnailCoordinatorLaneTelemetry {
+  demands: number
+  cacheHits: number
+  cacheMisses: number
+  completed: number
+  failed: number
+  cancelled: number
+}
+
+export interface ThumbnailCoordinatorTelemetrySnapshot {
+  cacheHits: number
+  cacheMisses: number
+  completed: number
+  failed: number
+  cancelled: number
+  evictions: number
+  byLane: Readonly<Record<ThumbnailLane, ThumbnailCoordinatorLaneTelemetry>>
 }
 
 export interface ThumbnailEvictionResult {
@@ -100,6 +120,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
   #nextDemandId = 1
   #nextQueueTaskId = 1
   #closed = false
+  readonly #telemetry = emptyTelemetry()
 
   constructor(options: ThumbnailCoordinatorOptions<TSource>) {
     this.#resolver = options.resolver
@@ -153,12 +174,17 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       this.#deleteCacheEntry(demand.cacheKey, cached)
       cached = undefined
     }
+    this.#telemetry.byLane[demand.lane].demands += 1
     if (cached) {
+      this.#telemetry.cacheHits += 1
+      this.#telemetry.byLane[demand.lane].cacheHits += 1
       cached.pins += 1
       this.#touchCache(demand.cacheKey, cached)
       record.settled = true
       record.resolve(cached.asset)
     } else {
+      this.#telemetry.cacheMisses += 1
+      this.#telemetry.byLane[demand.lane].cacheMisses += 1
       let flight = this.#flights.get(demand.cacheKey)
       let created = false
       if (!flight) {
@@ -211,7 +237,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     const current = this.#contextGenerations.get(contextId)
     if (current !== undefined && generation <= current) return
     this.#contextGenerations.set(contextId, generation)
-    for (const record of [...this.#demands.values()]) {
+    for (const record of this.#demands.values()) {
       if (record.contextId === contextId && record.generation < generation) {
         this.#releaseDemand(record.id, abortError(`Thumbnail generation ${record.generation} was superseded by ${generation}.`))
       }
@@ -220,7 +246,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
 
   releaseContext(contextId: string, reason: unknown = abortError(`Thumbnail context ${contextId} was released.`)): void {
     if (!contextId) throw new Error("Thumbnail contextId cannot be empty.")
-    for (const record of [...this.#demands.values()]) {
+    for (const record of this.#demands.values()) {
       if (record.contextId === contextId) this.#releaseDemand(record.id, reason)
     }
     this.#contextGenerations.delete(contextId)
@@ -253,6 +279,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       cachedEntries: this.#cache.size,
       cachedBytes: this.#cachedBytes,
       demandsByLane,
+      telemetry: telemetrySnapshot(this.#telemetry),
     }
   }
 
@@ -272,7 +299,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
   async dispose(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
-    for (const record of [...this.#demands.values()]) {
+    for (const record of this.#demands.values()) {
       this.#releaseDemand(record.id, abortError("Thumbnail coordinator disposed."))
     }
     for (const flight of this.#flights.values()) flight.controller.abort(abortError("Thumbnail coordinator disposed."))
@@ -298,13 +325,20 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
         priority: flight.priority,
         signal: flight.controller.signal,
       },
-    ).catch(() => undefined)
+    ).catch(() => {
+      if (!flight.started && flight.controller.signal.aborted) {
+        this.#telemetry.cancelled += 1
+        this.#telemetry.byLane[flight.request.lane].cancelled += 1
+      }
+    })
   }
 
   async #runFlight(cacheKey: string, flight: Flight<TSource>): Promise<void> {
     try {
       const asset = await this.#resolver.resolve(flight.request, flight.controller.signal)
       validateAsset(asset)
+      this.#telemetry.completed += 1
+      this.#telemetry.byLane[flight.request.lane].completed += 1
       flight.completed = asset
       const activeDemandIds = [...flight.demandIds].filter((id) => this.#demands.has(id))
       if (asset.cacheable !== false && activeDemandIds.length && asset.bytes.byteLength <= this.#maxEntryBytes) {
@@ -318,7 +352,10 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       }
       if (flight.cached || !activeDemandIds.length) this.#flights.delete(cacheKey)
     } catch (error) {
-      for (const id of [...flight.demandIds]) {
+      const outcome = isAbortError(error) ? "cancelled" : "failed"
+      this.#telemetry[outcome] += 1
+      this.#telemetry.byLane[flight.request.lane][outcome] += 1
+      for (const id of flight.demandIds) {
         const record = this.#demands.get(id)
         if (!record || record.released) continue
         record.settled = true
@@ -359,6 +396,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
   #deleteCacheEntry(key: string, entry: CacheEntry): void {
     if (!this.#cache.delete(key)) return
     this.#cachedBytes -= entry.bytes
+    this.#telemetry.evictions += 1
   }
 
   #releaseDemand(id: number, reason: unknown): void {
@@ -443,6 +481,10 @@ function abortError(message: string): DOMException {
   return new DOMException(message, "AbortError")
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError"
+}
+
 function emptyLaneCounts(): Record<ThumbnailLane, number> {
   return {
     "reader-visible": 0,
@@ -450,5 +492,44 @@ function emptyLaneCounts(): Record<ThumbnailLane, number> {
     prefetch: 0,
     "folder-preview": 0,
     background: 0,
+  }
+}
+
+function emptyTelemetry(): {
+  cacheHits: number
+  cacheMisses: number
+  completed: number
+  failed: number
+  cancelled: number
+  evictions: number
+  byLane: Record<ThumbnailLane, ThumbnailCoordinatorLaneTelemetry>
+} {
+  const lane = (): ThumbnailCoordinatorLaneTelemetry => ({ demands: 0, cacheHits: 0, cacheMisses: 0, completed: 0, failed: 0, cancelled: 0 })
+  return {
+    cacheHits: 0,
+    cacheMisses: 0,
+    completed: 0,
+    failed: 0,
+    cancelled: 0,
+    evictions: 0,
+    byLane: {
+      "reader-visible": lane(),
+      "library-visible": lane(),
+      prefetch: lane(),
+      "folder-preview": lane(),
+      background: lane(),
+    },
+  }
+}
+
+function telemetrySnapshot(value: ReturnType<typeof emptyTelemetry>): ThumbnailCoordinatorTelemetrySnapshot {
+  return {
+    cacheHits: value.cacheHits,
+    cacheMisses: value.cacheMisses,
+    completed: value.completed,
+    failed: value.failed,
+    cancelled: value.cancelled,
+    evictions: value.evictions,
+    byLane: Object.fromEntries(Object.entries(value.byLane).map(([lane, counts]) => [lane, { ...counts }])) as Record<ThumbnailLane, ThumbnailCoordinatorLaneTelemetry>,
   }
 }

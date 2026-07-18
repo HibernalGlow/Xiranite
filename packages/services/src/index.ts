@@ -577,6 +577,8 @@ export type {
   ThumbnailAsset,
   ThumbnailCoordinatorOptions,
   ThumbnailCoordinatorSnapshot,
+  ThumbnailCoordinatorLaneTelemetry,
+  ThumbnailCoordinatorTelemetrySnapshot,
   ThumbnailDemand,
   ThumbnailLane,
   ThumbnailLease,

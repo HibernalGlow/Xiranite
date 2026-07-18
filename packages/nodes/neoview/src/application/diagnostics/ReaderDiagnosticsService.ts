@@ -1,3 +1,4 @@
+import type { ThumbnailCoordinatorTelemetrySnapshot } from "@xiranite/services/thumbnail-coordinator"
 import type { ReaderCacheStatus } from "../cache/ReaderCacheService.js"
 import type { ReaderPresentationCacheSnapshot } from "../../ports/ReaderPresentationCache.js"
 import type { ReaderMemoryPressureSnapshot } from "../../ports/ReaderMemoryPressure.js"
@@ -36,6 +37,7 @@ export interface ReaderAssetDiagnostics {
     runningFlights: number
     cachedEntries: number
     cachedBytes: number
+    telemetry?: ThumbnailCoordinatorTelemetrySnapshot
   } | null
 }
 

@@ -88,7 +88,39 @@ describe("ThumbnailCoordinatorService", () => {
         "folder-preview": 0,
         background: 0,
       },
+      telemetry: expect.any(Object),
     })
+  })
+
+  it("[neoview.thumbnail.coordinator.telemetry] records bounded cumulative outcomes by lane", async () => {
+    const coordinator = new ThumbnailCoordinatorService<string>({
+      resolver: {
+        resolve: async (request, signal) => {
+          if (request.source === "bad") throw new Error("decode failed")
+          if (request.source === "cancel") {
+            return new Promise<ThumbnailAsset>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))
+          }
+          return asset(4, 1)
+        },
+      },
+    })
+    const first = coordinator.acquire(demand("same", "ok"))
+    await first.ready
+    first.release()
+    const hit = coordinator.acquire(demand("same", "ok"))
+    await hit.ready
+    hit.release()
+    const failed = coordinator.acquire(demand("bad", "bad"))
+    await expect(failed.ready).rejects.toThrow("decode failed")
+    failed.release()
+    const cancelled = coordinator.acquire(demand("cancel", "cancel"))
+    cancelled.release()
+    await expect(cancelled.ready).rejects.toMatchObject({ name: "AbortError" })
+    await vi.waitFor(() => expect(coordinator.snapshot().telemetry.cancelled).toBe(1))
+
+    expect(coordinator.snapshot().telemetry).toMatchObject({ cacheHits: 1, cacheMisses: 3, completed: 1, failed: 1, cancelled: 1, evictions: 0 })
+    expect(coordinator.snapshot().telemetry.byLane["reader-visible"]).toMatchObject({ demands: 4, cacheHits: 1, cacheMisses: 3, completed: 1, failed: 1, cancelled: 1 })
+    await coordinator.dispose()
   })
 
   it("[neoview.thumbnail.coordinator.context-release] forgets one context without cancelling shared consumers", async () => {
