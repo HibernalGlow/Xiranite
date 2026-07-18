@@ -7,7 +7,7 @@ import pMap from "p-map"
 import { ResourceSchedulerService } from "../packages/services/src/resourceScheduler.js"
 import type { ReaderBook } from "../packages/nodes/neoview/src/domain/book/book.js"
 import type { ReaderPage } from "../packages/nodes/neoview/src/domain/page/page.js"
-import { CoreReaderDirectoryBrowser } from "../packages/nodes/neoview/src/application/browser/ReaderDirectoryBrowser.js"
+import { ReaderFileTreeService } from "../packages/nodes/neoview/src/application/browser/ReaderFileTreeService.js"
 import { createPlatformReaderBookLoader } from "../packages/nodes/neoview/src/platform/books/PlatformReaderBookLoader.js"
 import { PlatformDirectoryListingProvider } from "../packages/nodes/neoview/src/platform/filesystem/PlatformDirectoryListingProvider.js"
 import { SharpImageTransformer } from "../packages/nodes/neoview/src/platform/images/sharp/SharpImageTransformer.js"
@@ -148,7 +148,7 @@ async function benchmarkDirectory(path: string, requiredEntries: number) {
   if (listing.entries.length < requiredEntries) {
     throw new Error(`Directory corpus contains ${listing.entries.length} entries; ${requiredEntries} required.`)
   }
-  const browser = new CoreReaderDirectoryBrowser(provider)
+  const browser = new ReaderFileTreeService(provider)
   try {
     const openStarted = performance.now()
     const first = await browser.open(path)
