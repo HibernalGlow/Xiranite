@@ -27,7 +27,10 @@ describe("InfoOverlayCard", () => {
   it("[neoview.info-overlay.loading] remains mounted while configuration is unavailable", () => {
     const view = render(<InfoOverlayCard />)
     expect(view.container.querySelector('[data-neoview-card="info-overlay"]')).toBeTruthy()
-    expect(view.container.querySelector('[data-info-overlay-state="loading"]')).toBeTruthy()
+    const loading = view.container.querySelector('[data-info-overlay-state="loading"]')
+    expect(loading).toBeTruthy()
+    expect(loading?.getAttribute("role")).toBe("status")
+    expect(loading?.getAttribute("aria-live")).toBe("polite")
     expect(screen.getByText("信息悬浮窗配置加载中...")).toBeTruthy()
   })
 
