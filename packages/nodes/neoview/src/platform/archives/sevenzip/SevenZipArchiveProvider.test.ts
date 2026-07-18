@@ -10,6 +10,7 @@ import {
   createRarFixture,
   resolveRarFixtureExecutable,
   type RarFixture,
+  type RarFixtureOptions,
 } from "../../../../test/fixture-builders/create-rar-fixture.js"
 import type { ResourceClass, ResourceScheduler, ResourceTaskRequest } from "../../../ports/ResourceScheduler.js"
 import { SolidArchiveMaterializer } from "./SolidArchiveMaterializer.js"
@@ -20,6 +21,17 @@ import { resolveSevenZipExecutable } from "./SevenZipExecutable.js"
 const execFileAsync = promisify(execFile)
 const executable = await resolveSevenZipExecutable().catch(() => undefined)
 const rarExecutable = await resolveRarFixtureExecutable()
+const solidRarFixture = await optionalRarFixture(rarExecutable, {
+  solid: true,
+  entries: [
+    { path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) },
+    { path: "pages/002.jpg", bytes: Uint8Array.of(6, 7, 8) },
+  ],
+})
+const rar4Fixture = await optionalRarFixture(rarExecutable, {
+  format: 4,
+  entries: [{ path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) }],
+})
 let directory = ""
 let nonSolidPath = ""
 let solidPath = ""
@@ -29,8 +41,6 @@ let encryptedPath = ""
 let encryptedSolidPath = ""
 let encryptedHeaderPath = ""
 let encryptedRarFixture: RarFixture | undefined
-let solidRarFixture: RarFixture | undefined
-let rar4Fixture: RarFixture | undefined
 
 beforeAll(async () => {
   if (!executable) return
@@ -62,30 +72,6 @@ beforeAll(async () => {
       encryptHeaders: true,
       entries: [{ path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) }],
     })
-    try {
-      solidRarFixture = await createRarFixture({
-        executablePath: rarExecutable,
-        password: "fixture-secret",
-        solid: true,
-        entries: [
-          { path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) },
-          { path: "pages/002.jpg", bytes: Uint8Array.of(6, 7, 8) },
-        ],
-      })
-    } catch {
-      solidRarFixture = undefined
-    }
-    try {
-      rar4Fixture = await createRarFixture({
-        executablePath: rarExecutable,
-        password: "fixture-secret",
-        format: 4,
-        entries: [{ path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) }],
-      })
-    } catch {
-      // Some installed RAR builds can only write RAR5. Keep RAR4 optional.
-      rar4Fixture = undefined
-    }
   }
 })
 
@@ -588,6 +574,19 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     expect(await readdir(tempDirectory)).toEqual([])
   })
 })
+
+async function optionalRarFixture(
+  executablePath: string | undefined,
+  options: Omit<RarFixtureOptions, "executablePath">,
+): Promise<RarFixture | undefined> {
+  if (!executablePath) return undefined
+  try {
+    return await createRarFixture({ ...options, executablePath })
+  } catch {
+    // Some installed RAR builds cannot create one of the requested formats.
+    return undefined
+  }
+}
 
 function createProvider(
   path: string,
