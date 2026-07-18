@@ -1023,7 +1023,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
 
   const loadedCount = catalog ? [...catalog.pages.values()].reduce((total, entries) => total + entries.length, 0) : 0
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
-  const virtualKey = catalog ? `${catalog.sessionId}:${catalog.generation}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
+  // A generation identifies fresh listing data, not a new browser visit. Keep the
+  // renderer mounted while refreshing/back-forwarding the same navigation entry so
+  // Virtuoso/Niko can retain its viewport and existing thumbnail DOM.
+  const virtualKey = catalog
+    ? `${catalog.sessionId}:${catalog.navigationEntryId}:${viewMode}:${previewCount}`
+    : `${viewMode}:${previewCount}`
   const tabLayout = folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs!
   const showReturnFooter = folderView.emptyArea.showBackButton && !searchOpen
   const returnFooterContext = {
