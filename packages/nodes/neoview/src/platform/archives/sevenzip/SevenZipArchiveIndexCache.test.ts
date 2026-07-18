@@ -37,6 +37,35 @@ describe("SevenZipArchiveIndexCache", () => {
     await cache.close()
   })
 
+  it("[neoview.sevenzip.index-cache-revision] reloads when the source archive revision changes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-index-cache-revision-"))
+    cleanup.push(root)
+    const sourcePath = join(root, "book.7z")
+    await writeFile(sourcePath, Uint8Array.of(1, 2, 3))
+    const cache = new SevenZipArchiveIndexCache(2)
+    let revision = 0
+    const load = vi.fn(async () => ({
+      solid: false,
+      entries: [{ id: `entry-${++revision}`, path: `${revision}.jpg`, kind: "file" as const, uncompressedSize: revision }],
+    }))
+    const options = {
+      sourcePath,
+      executablePath: "C:/tools/7zz.exe",
+      executableVersion: "26.02",
+      maxListingBytes: 1024,
+      load,
+    }
+
+    const first = await cache.getOrLoad(options)
+    await writeFile(sourcePath, Uint8Array.of(4, 5, 6, 7))
+    const second = await cache.getOrLoad(options)
+
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(first.entries[0]?.id).toBe("entry-1")
+    expect(second.entries[0]?.id).toBe("entry-2")
+    await cache.close()
+  })
+
   it("[neoview.sevenzip.index-cache-cancel] lets one caller cancel without cancelling the shared load", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-index-cache-cancel-"))
     cleanup.push(root)
