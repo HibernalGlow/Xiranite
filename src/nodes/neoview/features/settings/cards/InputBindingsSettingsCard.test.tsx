@@ -37,13 +37,14 @@ describe("InputBindingsSettingsCard", () => {
     expect((screen.getByRole("combobox", { name: "触控手指数" }) as HTMLSelectElement).value).toBe("3")
   })
 
-  it("[neoview.bindings.recording] records one keyboard chord and supports cancellation", () => {
+  it("[neoview.bindings.recording-focus] records one keyboard chord, restores focus and supports cancellation", () => {
     render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
     fireEvent.keyDown(document, { code: "KeyK", key: "k", ctrlKey: true, shiftKey: true })
     expect((screen.getByRole("textbox", { name: "键盘代码" }) as HTMLInputElement).value).toBe("KeyK")
     expect((screen.getByLabelText("Ctrl") as HTMLInputElement).checked).toBe(true)
     expect((screen.getByLabelText("Shift") as HTMLInputElement).checked).toBe(true)
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "录制键盘输入" }))
     fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
     fireEvent.keyDown(document, { code: "Escape", key: "Escape" })
     expect(screen.queryByText("请按下组合键；按 Escape 取消录制。")).toBeNull()
@@ -84,10 +85,12 @@ describe("InputBindingsSettingsCard", () => {
 
   it("[neoview.bindings.device-recording] opens and cancels the maintained device recorder", async () => {
     render(<InputBindingsEditor value={{ bindings: [binding("mouse", "mouse")] }} onSave={vi.fn()} />)
-    fireEvent.click(screen.getByRole("button", { name: "录制鼠标输入" }))
+    const recordButton = screen.getByRole("button", { name: "录制鼠标输入" })
+    fireEvent.click(recordButton)
     expect(await screen.findByRole("dialog", { name: "鼠标录制" })).toBeTruthy()
     fireEvent.keyDown(document, { code: "Escape", key: "Escape" })
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "鼠标录制" })).toBeNull())
+    expect(document.activeElement).toBe(recordButton)
   })
 
   it("[neoview.bindings.device-recording] records wheel direction and modifiers through use-gesture", async () => {

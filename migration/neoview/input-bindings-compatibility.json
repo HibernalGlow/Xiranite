@@ -625,12 +625,13 @@
       },
       "testIds": [
         "neoview.bindings.recording",
+        "neoview.bindings.recording-focus",
         "neoview.bindings.recording-ime",
         "neoview.bindings.device-recording",
         "neoview.bindings.mouse-gesture-recording"
       ],
       "plannedTestIds": [],
-      "notes": "react-hotkeys-hook records keyboard chords with IME isolation; @use-gesture/react records pointer, wheel, touch and bounded mouse trajectories with live direction preview; gamepad.js records standard buttons. Real touch and virtual-gamepad Chromium evidence remain pending."
+      "notes": "react-hotkeys-hook records keyboard chords with IME isolation and restores the triggering control after completion/cancel; @use-gesture/react records pointer, wheel, touch and bounded mouse trajectories with live direction preview; gamepad.js records standard buttons. Desktop Chromium now proves virtual-gamepad dispatch, while real touch recorder evidence remains pending."
     },
     {
       "id": "bindings.data-contract",
@@ -794,10 +795,11 @@
       },
       "testIds": [
         "neoview.bindings.dom-context",
-        "neoview.bindings.editor"
+        "neoview.bindings.editor",
+        "neoview.bindings.recording-focus"
       ],
       "plannedTestIds": [],
-      "notes": "Native controls and DOM context suppression are covered; focus restoration, recorder capture and screen-reader E2E remain pending."
+      "notes": "Native controls, DOM context suppression and keyboard/device recorder focus restoration are covered by component tests; screen-reader E2E and real touch recorder capture remain pending."
     },
     {
       "id": "bindings.lifecycle",
