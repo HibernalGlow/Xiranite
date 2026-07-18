@@ -12,7 +12,15 @@ export interface ActionHandleItem {
   icon: ReactNode
   disabled?: boolean
   active?: boolean
+  /** Optional slot override. Coordinates use the eight compass points; ring 0 is nearest the handle. */
+  position?: ActionHandlePosition
   onSelect(): void
+}
+
+export interface ActionHandlePosition {
+  x: -1 | 0 | 1
+  y: -1 | 0 | 1
+  ring?: number
 }
 
 const DIRECTIONS = [
@@ -40,6 +48,8 @@ export interface ActionHandleLayout {
   ringStep?: number
   palettePadding?: number
   maxRings?: 1 | 2 | 3
+  /** Per-action slot overrides, useful for a user-editable wheel preset. */
+  positions?: Readonly<Record<string, ActionHandlePosition>>
 }
 
 interface ActionHandleProps {
@@ -48,6 +58,12 @@ interface ActionHandleProps {
   label?: string
   menuLabel?: string
   layout?: ActionHandleLayout
+}
+
+interface PlacedActionHandleItem {
+  item: ActionHandleItem
+  index: number
+  position: Required<ActionHandlePosition>
 }
 
 export function ActionHandle({
@@ -71,11 +87,17 @@ export function ActionHandle({
     palettePadding: Math.max(4, layout?.palettePadding ?? DEFAULT_ACTION_HANDLE_LAYOUT.palettePadding),
     maxRings: layout?.maxRings ?? DEFAULT_ACTION_HANDLE_LAYOUT.maxRings,
   }
-  const ringCount = Math.min(geometry.maxRings, Math.max(1, Math.ceil(items.length / DIRECTIONS.length)))
+  const placedItems: PlacedActionHandleItem[] = items
+    .map((item, index) => ({ item, index, position: resolvePosition(item, index, layout?.positions) }))
+    .filter((entry) => entry.position.ring < geometry.maxRings)
+    .slice(0, geometry.maxRings * DIRECTIONS.length)
+  const ringCount = Math.min(
+    geometry.maxRings,
+    Math.max(1, ...placedItems.map((entry) => entry.position.ring + 1)),
+  )
   const outerRadius = geometry.radius + (ringCount - 1) * geometry.ringStep
   const paletteSize = Math.ceil((outerRadius + geometry.itemSize / 2 + geometry.palettePadding) * 2)
   const paletteCenter = paletteSize / 2
-  const visibleItems = items.slice(0, ringCount * DIRECTIONS.length)
 
   useEffect(() => {
     if (!open) return
@@ -128,7 +150,7 @@ export function ActionHandle({
       </Button>
       {open ? createPortal(
         <div
-          className="fixed z-[100] overflow-visible rounded-md border bg-popover/98 text-popover-foreground shadow-xl backdrop-blur-xl"
+          className="fixed z-[100] overflow-visible rounded-full bg-transparent text-popover-foreground"
           style={{ left: palette.left, top: palette.top, width: paletteSize, height: paletteSize }}
           role="menu"
           aria-label={menuLabel}
@@ -137,10 +159,14 @@ export function ActionHandle({
           data-action-placement={palette.placement}
           data-action-rings={ringCount}
           data-action-palette-size={paletteSize}
+          data-action-palette-frame="circle"
         >
-          {visibleItems.map((item, index) => {
-            const ring = Math.floor(index / DIRECTIONS.length)
-            const direction = DIRECTIONS[index % DIRECTIONS.length]!
+          <span
+            className="pointer-events-none absolute inset-1 rounded-full border border-border/45 bg-popover/92 shadow-lg backdrop-blur-md"
+            aria-hidden="true"
+          />
+          {placedItems.map(({ item, index, position }) => {
+            const ring = position.ring
             const radius = geometry.radius + ring * geometry.ringStep
             return (
               <button
@@ -155,8 +181,8 @@ export function ActionHandle({
                 style={{
                   width: geometry.itemSize,
                   height: geometry.itemSize,
-                  left: paletteCenter + direction[0] * radius - geometry.itemSize / 2,
-                  top: paletteCenter + direction[1] * radius - geometry.itemSize / 2,
+                  left: paletteCenter + position.x * radius - geometry.itemSize / 2,
+                  top: paletteCenter + position.y * radius - geometry.itemSize / 2,
                 }}
                 aria-label={item.label}
                 title={item.label}
@@ -242,8 +268,7 @@ export function ActionHandle({
     const next = actionIndex(
       event.clientX - gesture.centerX,
       event.clientY - gesture.centerY,
-      ringCount,
-      visibleItems.length,
+      placedItems,
       geometry.radius,
       geometry.ringStep,
     )
@@ -279,34 +304,49 @@ export function ActionHandle({
   }
 }
 
-function directionSlot(deltaX: number, deltaY: number): number {
-  if (Math.hypot(deltaX, deltaY) < 24) return -1
-  const octant = Math.round(Math.atan2(deltaY, deltaX) / (Math.PI / 4))
-  return ({
-    "-4": 3,
-    "-3": 0,
-    "-2": 1,
-    "-1": 2,
-    "0": 4,
-    "1": 7,
-    "2": 6,
-    "3": 5,
-    "4": 3,
-  } as Record<string, number>)[String(octant)] ?? -1
-}
-
 function actionIndex(
   deltaX: number,
   deltaY: number,
-  ringCount: number,
-  itemCount: number,
+  placedItems: readonly PlacedActionHandleItem[],
   radius: number,
   ringStep: number,
 ): number {
   const distance = Math.hypot(deltaX, deltaY)
-  const slot = directionSlot(deltaX, deltaY)
-  if (slot < 0) return -1
-  const ring = Math.min(ringCount - 1, Math.max(0, Math.round((distance - radius) / ringStep)))
-  const index = ring * DIRECTIONS.length + slot
-  return index < itemCount ? index : -1
+  if (distance < 24 || placedItems.length === 0) return -1
+  const angle = Math.atan2(deltaY, deltaX)
+  const targetRing = Math.max(0, Math.round((distance - radius) / ringStep))
+  let best: { index: number; angleDistance: number; ringDistance: number } | undefined
+  for (const entry of placedItems) {
+    const slotAngle = Math.atan2(entry.position.y, entry.position.x)
+    const angleDistance = circularAngleDistance(angle, slotAngle)
+    const candidate = { index: entry.index, angleDistance, ringDistance: Math.abs(entry.position.ring - targetRing) }
+    if (!best || candidate.angleDistance < best.angleDistance - 0.01 || (Math.abs(candidate.angleDistance - best.angleDistance) <= 0.01 && candidate.ringDistance < best.ringDistance)) {
+      best = candidate
+    }
+  }
+  if (!best || best.angleDistance > Math.PI / 4) return -1
+  // Keep the radial gesture forgiving: users can drag past the nominal radius
+  // while still selecting a one-ring action, as in the original handle.
+  return best.index
+}
+
+function resolvePosition(
+  item: ActionHandleItem,
+  index: number,
+  overrides?: Readonly<Record<string, ActionHandlePosition>>,
+): Required<ActionHandlePosition> {
+  const fallback = DIRECTIONS[index % DIRECTIONS.length]!
+  const configured = item.position ?? overrides?.[item.id]
+  const x = configured?.x ?? fallback[0]
+  const y = configured?.y ?? fallback[1]
+  return {
+    x: x === 0 && y === 0 ? fallback[0] : x,
+    y: x === 0 && y === 0 ? fallback[1] : y,
+    ring: Math.max(0, Math.floor(configured?.ring ?? Math.floor(index / DIRECTIONS.length))),
+  }
+}
+
+function circularAngleDistance(left: number, right: number): number {
+  const difference = Math.abs(left - right) % (Math.PI * 2)
+  return Math.min(difference, Math.PI * 2 - difference)
 }
