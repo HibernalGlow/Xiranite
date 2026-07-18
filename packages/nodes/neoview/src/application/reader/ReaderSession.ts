@@ -73,6 +73,17 @@ export class CoreReaderSession implements ReaderSession {
     return this.#preloadPlan
   }
 
+  cancelSpeculativePreload(): ReaderPreloadPlan {
+    this.#assertOpen()
+    const plan = this.#preload.update(this.snapshot(), "layout", {
+      ...this.#preloadContext,
+      focused: false,
+    })
+    this.#preloadPlan = plan
+    this.#preloadTelemetry.updatePlan(plan)
+    return plan
+  }
+
   updatePreloadContext(context: ReaderPreloadContext): ReaderPreloadPlan {
     this.#assertOpen()
     const plan = this.#preload.update(this.snapshot(), "layout", context)

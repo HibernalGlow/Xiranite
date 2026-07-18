@@ -95,7 +95,8 @@ export interface ReaderDirectorySelectionDescriptorDto {
 
 export interface ReaderDirectorySelectionOperationSnapshotDto {
   id: string
-  kind: "delete" | "trash"
+  kind: "copy" | "move" | "delete" | "trash"
+  destinationPath?: string
   status: "running" | "completed" | "cancelled" | "failed"
   generation: number
   total: number
@@ -109,6 +110,10 @@ export interface ReaderDirectorySelectionOperationSnapshotDto {
   completedAt?: number
   error?: string
 }
+
+export type ReaderDirectoryClipboardSnapshotDto =
+  | { available: false }
+  | { available: true; mode: "copy" | "move"; generation: number; total: number; createdAt: number }
 
 export interface ReaderMetadataDto {
   book: {
@@ -186,6 +191,16 @@ export interface ReaderStorageDiagnosticsDto {
   }
   presentationDiskCache: { enabled: boolean; bytes?: number }
   solidArchiveCache: { retainedBytes: number }
+}
+
+export type ReaderPreloadActionDto = "cancel-speculative" | "release-retained"
+
+export interface ReaderPreloadActionResultDto {
+  action: ReaderPreloadActionDto
+  generation: number
+  cancelled: number
+  released: number
+  visibleRetained: number
 }
 
 export interface ReaderThumbnailWriterSnapshotDto {
@@ -504,6 +519,7 @@ export interface ReaderRuntimeConfigDto {
   folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
   inputBindings: ReaderInputBindingsConfig
+  radialMenu: ReaderRadialMenuConfig
 }
 
 export type {
@@ -513,10 +529,14 @@ export type {
   ReaderInputContext,
   ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
-import type { ReaderInputBindingsConfig } from "@xiranite/node-neoview/ui-core"
+import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig } from "@xiranite/node-neoview/ui-core"
 
 export interface ReaderInputBindingsPatch {
   inputBindings: { bindings?: ReaderInputBindingsConfig["bindings"]; reset?: "defaults" }
+}
+
+export interface ReaderRadialMenuPatch {
+  radialMenu: { config?: ReaderRadialMenuConfig; reset?: "defaults" }
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
@@ -685,6 +705,7 @@ export interface ReaderHttpClient {
   updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
+  updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
   cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
@@ -736,6 +757,7 @@ export interface ReaderHttpClient {
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   preloadDiagnostics?(sessionId: string, signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
+  runPreloadAction?(sessionId: string, action: ReaderPreloadActionDto, signal?: AbortSignal): Promise<ReaderPreloadActionResultDto>
   thumbnailMaintenance?(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshotDto>
   cleanupThumbnails?(command: ReaderThumbnailCleanupCommandDto, signal?: AbortSignal): Promise<ReaderThumbnailCleanupResultDto>
   clearThumbnailFailures?(limit?: number, signal?: AbortSignal): Promise<number>
@@ -750,6 +772,15 @@ export interface ReaderHttpClient {
   ): Promise<ReaderDirectorySelectionOperationSnapshotDto>
   directorySelectionOperation?(id: string, signal?: AbortSignal): Promise<ReaderDirectorySelectionOperationSnapshotDto>
   cancelDirectorySelectionOperation?(id: string, signal?: AbortSignal): Promise<ReaderDirectorySelectionOperationSnapshotDto & { cancelRequested: boolean }>
+  prepareDirectoryClipboard?(
+    sessionId: string,
+    selection: ReaderDirectorySelectionDescriptorDto,
+    mode: "copy" | "move",
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectoryClipboardSnapshotDto>
+  directoryClipboard?(signal?: AbortSignal): Promise<ReaderDirectoryClipboardSnapshotDto>
+  pasteDirectoryClipboard?(destinationPath: string, signal?: AbortSignal): Promise<ReaderDirectorySelectionOperationSnapshotDto>
+  clearDirectoryClipboard?(signal?: AbortSignal): Promise<ReaderDirectoryClipboardSnapshotDto>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
@@ -859,6 +890,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.inputBindings),
+    updateRadialMenu: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.radialMenu),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1032,6 +1069,15 @@ export function createReaderHttpClient(
     pageMediaInformation: (sessionId, signal) => request<ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
     preloadDiagnostics: (sessionId, signal) => request<ReaderStorageDiagnosticsDto>(`/reader/diagnostics?sessionId=${encodeURIComponent(sessionId)}`, { signal }),
+    runPreloadAction: (sessionId, action, signal) => request<ReaderPreloadActionResultDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/preload-actions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, confirmed: true }),
+        signal,
+      },
+    ),
     thumbnailMaintenance: (signal) => request<{ snapshot: ReaderThumbnailMaintenanceSnapshotDto }>(
       "/reader/thumbnails/maintenance",
       { signal },
@@ -1093,6 +1139,29 @@ export function createReaderHttpClient(
     ),
     cancelDirectorySelectionOperation: (id, signal) => request<ReaderDirectorySelectionOperationSnapshotDto & { cancelRequested: boolean }>(
       `/reader/files/selection-operations/${encodeURIComponent(id)}`,
+      { method: "DELETE", signal },
+    ),
+    prepareDirectoryClipboard: (sessionId, selection, mode, signal) => request<ReaderDirectoryClipboardSnapshotDto>(
+      "/reader/files/clipboard",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, selection, mode }),
+        signal,
+      },
+    ),
+    directoryClipboard: (signal) => request<ReaderDirectoryClipboardSnapshotDto>("/reader/files/clipboard", { signal }),
+    pasteDirectoryClipboard: (destinationPath, signal) => request<ReaderDirectorySelectionOperationSnapshotDto>(
+      "/reader/files/clipboard/paste",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ destinationPath }),
+        signal,
+      },
+    ),
+    clearDirectoryClipboard: (signal) => request<ReaderDirectoryClipboardSnapshotDto>(
+      "/reader/files/clipboard",
       { method: "DELETE", signal },
     ),
     listRecent: (offset, limit, signal) => request<{ items: ReaderRecentDto[] }>(

@@ -21,7 +21,8 @@ describe("useReaderImagePreloader", () => {
     })
     const mark = vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
     const pages = Array.from({ length: 5 }, (_, index) => page(index))
-    const view = render(<Fixture sessionId="reader-1" pages={pages} />)
+    const controls: Array<ReturnType<typeof useReaderImagePreloader>> = []
+    const view = render(<Fixture sessionId="reader-1" pages={pages} onControl={(value) => { controls.push(value) }} />)
 
     await waitFor(() => expect(instances).toHaveLength(5))
     await waitFor(() => expect(mark).toHaveBeenCalledWith(READER_PREFETCH_READY_MARK, { detail: 4 }))
@@ -33,11 +34,29 @@ describe("useReaderImagePreloader", () => {
     view.rerender(<Fixture sessionId="reader-2" pages={[]} />)
     expect(instances.every((image) => image.src === "")).toBe(true)
   })
+
+  it("[neoview.preload.cancel-session] releases speculative images without waiting for unmount", async () => {
+    const instances: FakeImage[] = []
+    vi.stubGlobal("Image", class extends FakeImage {
+      constructor() {
+        super()
+        instances.push(this)
+      }
+    })
+    let control: ReturnType<typeof useReaderImagePreloader> | undefined
+    render(<Fixture sessionId="reader-1" pages={[page(1), page(2)]} onControl={(value) => { control = value }} />)
+    await waitFor(() => expect(instances).toHaveLength(2))
+
+    control!.cancel()
+
+    expect(instances.every((image) => image.src === "")).toBe(true)
+  })
 })
 
-function Fixture({ sessionId, pages }: { sessionId: string; pages: readonly ReaderPageDto[] }) {
-  const prefetch = useReaderImagePreloader(sessionId)
-  useEffect(() => prefetch(pages), [pages, prefetch])
+function Fixture({ sessionId, pages, onControl }: { sessionId: string; pages: readonly ReaderPageDto[]; onControl?: (control: ReturnType<typeof useReaderImagePreloader>) => void }) {
+  const control = useReaderImagePreloader(sessionId)
+  useEffect(() => control.preload(pages), [control.preload, pages])
+  useEffect(() => onControl?.(control), [control, onControl])
   return null
 }
 

@@ -45,6 +45,29 @@ describe("useReaderAdjacentPagePreloader", () => {
     view.unmount()
     expect(signals[1]?.aborted).toBe(true)
   })
+
+  it("[neoview.preload.cancel-session] aborts discovery and stays idle while speculative work is disabled", () => {
+    const signals: AbortSignal[] = []
+    const client = clientWith({
+      listPages: vi.fn((_sessionId, _cursor, _limit, signal) => {
+        signals.push(signal!)
+        return new Promise(() => undefined)
+      }),
+    })
+    const view = renderHook(({ enabled }) => useReaderAdjacentPagePreloader({
+      client,
+      sessionId: "reader-1",
+      activePageIndex: 4,
+      totalPages: 20,
+      enabled,
+      preload: vi.fn(),
+    }), { initialProps: { enabled: true } })
+
+    view.rerender({ enabled: false })
+
+    expect(signals[0]?.aborted).toBe(true)
+    expect(client.listPages).toHaveBeenCalledTimes(1)
+  })
 })
 
 function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {

@@ -172,7 +172,7 @@ describe("reader-http-client", () => {
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
-  it("[neoview.preload.cache-state-client] scopes preload diagnostics to the active Reader session", async () => {
+  it("[neoview.preload.cache-state-client] [neoview.preload-status.diagnostics-client] scopes preload diagnostics to the active Reader session", async () => {
     const snapshot = { schemaVersion: 1, reader: { sessionPreload: { generation: 4, pages: [] } }, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
     const fetchMock = vi.fn(async () => Response.json(snapshot))
     vi.stubGlobal("fetch", fetchMock)
@@ -180,6 +180,36 @@ describe("reader-http-client", () => {
 
     await expect(client.preloadDiagnostics!("reader/one")).resolves.toEqual(snapshot)
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/diagnostics?sessionId=reader%2Fone")
+  })
+
+  it("[neoview.folder.clipboard-client] prepares a sparse clipboard and pastes it into the current directory", async () => {
+    const prepared = { available: true as const, mode: "copy" as const, generation: 4, total: 100_000, createdAt: 1 }
+    const pasted = { id: "job-1", kind: "copy", status: "running", generation: 4, total: 100_000, processed: 0, succeeded: 0, failed: 0, cancelled: 0, failureSamples: [], failureSamplesTruncated: false, startedAt: 1 }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json(prepared))
+      .mockResolvedValueOnce(Response.json(pasted))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    const selection = { generation: 4, allSelected: true, ranges: [], explicit: [] }
+
+    await expect(client.prepareDirectoryClipboard!("browser-1", selection, "copy")).resolves.toEqual(prepared)
+    await expect(client.pasteDirectoryClipboard!("D:/target")).resolves.toEqual(pasted)
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ sessionId: "browser-1", selection, mode: "copy" })
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ destinationPath: "D:/target" })
+  })
+
+  it("[neoview.preload.action-client] confirms authenticated session-scoped preload actions", async () => {
+    const result = { action: "cancel-speculative", generation: 8, cancelled: 2, released: 0, visibleRetained: 1 }
+    const fetchMock = vi.fn(async () => Response.json(result))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.runPreloadAction!("reader/one", "cancel-speculative")).resolves.toEqual(result)
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2Fone/preload-actions")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ action: "cancel-speculative", confirmed: true })
   })
 
   it("[neoview.thumbnail-maintenance.client] uses authenticated aggregate and bounded mutation routes", async () => {

@@ -3,8 +3,7 @@
  * @source-hash sha256:1cceb9bccf3022428af0708c673885636bd29e410abc2e7de79368f2f27e2b76
  * @migration-status partial
  */
-import { useCallback, useSyncExternalStore } from "react"
-
+import { lazy, Suspense, useCallback, useSyncExternalStore } from "react"
 import { cn } from "@/lib/utils"
 import type { ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
 import {
@@ -15,10 +14,12 @@ import {
 import type { ReaderPanelContext } from "../registry"
 import { useReaderPreloadDiagnostics } from "./useReaderPreloadDiagnostics"
 
+const LazyPreloadActionControls = lazy(() => import("./PreloadActionControls").then((module) => ({ default: module.PreloadActionControls })))
+
 const PAGES_BEHIND = 3
 const PAGES_AHEAD = 5
 
-export default function PreloadStatusCard({ session, client }: ReaderPanelContext) {
+export default function PreloadStatusCard({ session, client, disabled, onPreloadAction }: ReaderPanelContext) {
   if (!session) return null
   return (
     <PreloadStatusContent
@@ -27,6 +28,8 @@ export default function PreloadStatusCard({ session, client }: ReaderPanelContex
       frameGeneration={session.frame.generation}
       currentPageIndex={session.frame.anchorPageIndex}
       totalPages={session.book.pageCount}
+      disabled={disabled}
+      onPreloadAction={onPreloadAction}
     />
   )
 }
@@ -37,12 +40,16 @@ function PreloadStatusContent({
   frameGeneration,
   currentPageIndex,
   totalPages,
+  disabled,
+  onPreloadAction,
 }: {
   client: ReaderPanelContext["client"]
   sessionId: string
   frameGeneration: number
   currentPageIndex: number
   totalPages: number
+  disabled: boolean
+  onPreloadAction?: ReaderPanelContext["onPreloadAction"]
 }) {
   const diagnostics = useReaderPreloadDiagnostics(client, sessionId, frameGeneration)
   return (
@@ -54,6 +61,9 @@ function PreloadStatusContent({
       diagnosticsLoading={diagnostics.loading}
       diagnosticsError={diagnostics.error}
       onRetry={diagnostics.retry}
+      actionsDisabled={disabled}
+      onPreloadAction={onPreloadAction}
+      onActionComplete={diagnostics.retry}
     />
   )
 }
@@ -66,6 +76,9 @@ export function PreloadStatusView({
   diagnosticsLoading = false,
   diagnosticsError,
   onRetry,
+  actionsDisabled = false,
+  onPreloadAction,
+  onActionComplete,
   store = readerPreloadStatusStore,
 }: {
   sessionId: string
@@ -75,6 +88,9 @@ export function PreloadStatusView({
   diagnosticsLoading?: boolean
   diagnosticsError?: string
   onRetry?: () => void
+  actionsDisabled?: boolean
+  onPreloadAction?: ReaderPanelContext["onPreloadAction"]
+  onActionComplete?: () => void
   store?: ReaderPreloadStatusStore
 }) {
   const subscribe = useCallback((listener: () => void) => store.subscribe(sessionId, listener), [sessionId, store])
@@ -120,7 +136,7 @@ export function PreloadStatusView({
 
       <section className="space-y-1.5" aria-labelledby="nearby-preload-heading">
         <div className="flex items-center justify-between">
-          <h3 id="nearby-preload-heading" className="text-[10px] font-normal text-muted-foreground">附近页预解码</h3>
+          <h3 id="nearby-preload-heading" className="text-[10px] font-normal text-muted-foreground">附近页状态</h3>
           <span className="text-[10px] text-muted-foreground" aria-live="polite">
             {diagnosticsLoading ? "刷新中" : diagnostics ? "已同步" : "等待诊断"}
           </span>
@@ -153,6 +169,14 @@ export function PreloadStatusView({
         </div>
       ) : null}
 
+      <Suspense fallback={null}>
+        <LazyPreloadActionControls
+          disabled={actionsDisabled}
+          onAction={onPreloadAction}
+          onComplete={onActionComplete}
+        />
+      </Suspense>
+
       {diagnosticsError ? (
         <div className="flex items-center justify-between gap-2 rounded border border-destructive/40 bg-destructive/10 p-2 text-[10px] text-destructive" role="alert">
           <span>{diagnosticsError}</span>
@@ -173,8 +197,8 @@ function buildNearbyPages(currentPageIndex: number, totalPages: number): number[
 export function formatPreloadBytes(value: number | undefined): string {
   if (!Number.isFinite(value) || value! < 0) return "--"
   if (value! < 1_024) return `${value} B`
-  if (value! < 1_048_576) return `${(value! / 1_024).toFixed(2)} KB`
-  if (value! < 1_073_741_824) return `${(value! / 1_048_576).toFixed(2)} MB`
+  if (value! < 1_048_576) return `${(value! / 1_024).toFixed(1)} KB`
+  if (value! < 1_073_741_824) return `${(value! / 1_048_576).toFixed(1)} MB`
   return `${(value! / 1_073_741_824).toFixed(2)} GB`
 }
 
@@ -197,18 +221,28 @@ function PageStatus({ pageIndex, current, status, serverOutcome, serverAvailable
   const serverLabel = serverOutcome === "ready" ? "已缓存" : serverOutcome === "started" ? "服务端加载中" : serverOutcome === "failed" ? "服务端失败" : "冷页"
   const browserLabel = current ? "当前" : status === "ready" ? "已预解码" : status === "loading" ? "加载中" : status === "failed" ? "失败" : "未预解码"
   const label = serverAvailable ? `${browserLabel}，${serverLabel}` : browserLabel
+  const tone = current
+    ? "current"
+    : status === "failed" || serverOutcome === "failed"
+      ? "failed"
+      : status === "loading" || serverOutcome === "started"
+        ? "loading"
+        : status === "ready" || serverOutcome === "ready"
+          ? "cached"
+          : "cold"
   return (
     <div
       className={cn(
         "rounded border px-2 py-1 text-center",
-        current && "border-primary bg-primary/10 text-primary",
-        !current && status === "ready" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
-        !current && status === "loading" && "border-primary/40 bg-primary/10 text-primary",
-        !current && status === "failed" && "border-destructive/40 bg-destructive/10 text-destructive",
-        !current && !status && "border-border/60 bg-muted/20 text-muted-foreground",
+        tone === "current" && "border-primary bg-primary/10 text-primary",
+        tone === "cached" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
+        tone === "loading" && "border-primary/40 bg-primary/10 text-primary",
+        tone === "failed" && "border-destructive/40 bg-destructive/10 text-destructive",
+        tone === "cold" && "border-border/60 bg-muted/20 text-muted-foreground",
       )}
       aria-label={`第 ${pageIndex + 1} 页，${label}`}
       data-preload-nearby-page={pageIndex}
+      data-preload-tone={tone}
       data-server-cache-state={serverAvailable ? (serverOutcome === "ready" ? "cached" : serverOutcome === "started" ? "loading" : serverOutcome === "failed" ? "failed" : "cold") : undefined}
     >
       <span className="block text-[10px]">P{pageIndex + 1}</span>

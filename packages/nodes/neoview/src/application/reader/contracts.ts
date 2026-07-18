@@ -32,6 +32,7 @@ export interface ReaderSession extends AsyncDisposable {
   readonly generation: ReaderGeneration
   snapshot(): FrameSnapshot
   preloadPlan(): ReaderPreloadPlan | undefined
+  cancelSpeculativePreload(): ReaderPreloadPlan
   updatePreloadContext(context: ReaderPreloadContext): ReaderPreloadPlan
   preloadTelemetry(): ReaderPreloadTelemetrySnapshot
   reportPreload(report: ReaderPreloadReport): ReaderPreloadReportResult

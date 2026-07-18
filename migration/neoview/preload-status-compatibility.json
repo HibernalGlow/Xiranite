@@ -270,7 +270,8 @@
         "disabled",
         "pending",
         "desktop 几何",
-        "420x360 几何",
+        "1920x1080 页面几何",
+        "约 320px 侧栏几何",
         "零横向溢出",
         "活动图片不重挂"
       ],
@@ -345,7 +346,7 @@
       "plannedTestIds": [
         "neoview.preload-status.diagnostics-client"
       ],
-      "notes": "The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; desktop and 420x360 Chromium prove the lease metric and responsive geometry, while complete status still requires CLI/TUI presentation."
+      "notes": "The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; scripted 1920x1080 Chromium proves the lease metric and normal desktop sidebar geometry, while complete status still requires CLI/TUI presentation."
     },
     {
       "id": "preload.format",
@@ -370,7 +371,8 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.preload-status.format"
+        "neoview.preload-status.format",
+        "neoview.preload-status.ui"
       ],
       "plannedTestIds": [],
       "notes": "The React Card freezes byte thresholds, one-decimal usage and invalid-value degradation; CLI/TUI text projection remains pending."
@@ -400,7 +402,7 @@
         "neoview.preload-status.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The Card renders the clamped three-behind/five-ahead window without loading page content, overlays bounded browser events and passes desktop plus 420x360 Chromium geometry evidence."
+      "notes": "The Card renders the clamped three-behind/five-ahead window without loading page content, overlays bounded browser events and passes scripted 1920x1080 Chromium geometry evidence at the normal right-sidebar width."
     },
     {
       "id": "preload.cache-state",
@@ -430,10 +432,11 @@
         "neoview.preload.telemetry-http",
         "neoview.preload.cache-state-client",
         "neoview.preload.cache-state",
-        "neoview.preload-status.e2e"
+        "neoview.preload-status.e2e",
+        "neoview.preload-status.ui",
+        "neoview.card.preload-status-live"
       ],
       "plannedTestIds": [
-        "neoview.card.preload-status-live",
         "neoview.preload-status.partial-metrics"
       ],
       "notes": "The session-scoped diagnostics view projects only bounded page indexes and current-generation preload outcomes: ready is labelled cached, started remains server-loading, failed stays failed, and missing/cancelled/evicted entries are cold. The React nearby grid displays that server layer alongside independent browser loading/ready/failed state without exposing page IDs or paths; CLI/TUI projection remains pending."
@@ -486,22 +489,30 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
+        "core": "complete",
+        "transport": "complete",
         "gui": "partial",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
       },
       "testIds": [
+        "neoview.preload.cancel-speculative",
+        "neoview.preload.release-retained",
+        "neoview.preload.action-http",
+        "neoview.preload.action-client",
+        "neoview.preload.cancel-session",
+        "neoview.preload.release-visible-retained",
+        "neoview.preload.action-rollback",
+        "neoview.preload.action-lifecycle",
         "neoview.preload-status.e2e"
       ],
       "plannedTestIds": [
-        "neoview.preload-status.cancel",
-        "neoview.preload-status.clear",
-        "neoview.preload-status.action-http"
+        "neoview.preload.actions-keyboard",
+        "neoview.preload.action-cli",
+        "neoview.preload.action-tui"
       ],
-      "notes": "The legacy API exposed global trigger and clear primitives, but the frozen XR scope requires safer current-session ownership rather than a global cache mutation."
+      "notes": "XR replaces the legacy global primitives with confirmed current-session actions: cancel publishes a paused empty generation and resumes on navigation, while release trims only non-visible retained presentations. Core, HTTP, client, browser cancellation, two-session isolation, confirmation, rollback and active-image stability are covered; CLI/TUI commands and keyboard focus evidence remain pending."
     },
     {
       "id": "preload.refresh",
@@ -530,7 +541,7 @@
       "plannedTestIds": [
         "neoview.preload-status.diagnostics-cancel"
       ],
-      "notes": "The Card refreshes diagnostics immediately and at most once per two seconds while mounted, aborts on frame/session changes, exposes sanitized retry, and proves zero polling while collapsed in both Chromium viewports."
+      "notes": "The Card refreshes diagnostics immediately and at most once per two seconds while mounted, aborts on frame/session changes, exposes sanitized retry, and proves zero polling while collapsed in the scripted desktop flow."
     },
     {
       "id": "preload.states",
@@ -589,10 +600,12 @@
         "neoview.card.zero-mount",
         "neoview.settings.card-layout",
         "neoview.preload-status.chunk",
-        "neoview.preload-status.e2e"
+        "neoview.preload-status.action-chunk",
+        "neoview.preload-status.e2e",
+        "neoview.card.header-icon"
       ],
       "plannedTestIds": [],
-      "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 7,068-byte production chunk are gated, including desktop and constrained Chromium."
+      "notes": "The shared shell, source-verified Loader header icon, lazy registry and collapse zero-DOM lifecycle are gated. The base Card is a 7,709-byte deferred chunk and its action controller is a separate 2,368-byte second-level chunk; independent CardWindow chrome remains owned by the shared window migration."
     },
     {
       "id": "preload.data-contract",
@@ -621,10 +634,14 @@
         "neoview.preload.telemetry-generation",
         "neoview.preload.performance-telemetry",
         "neoview.preload.telemetry-http",
-        "neoview.diagnostics.wire-schema"
+        "neoview.diagnostics.wire-schema",
+        "neoview.preload.action-http",
+        "neoview.preload.action-client"
       ],
       "plannedTestIds": [
-        "neoview.preload-status.diagnostics-client"
+        "neoview.preload-status.diagnostics-client",
+        "neoview.preload.action-cli",
+        "neoview.preload.action-tui"
       ],
       "notes": "The browser DTO now consumes the shared diagnostics preload tiers and presentation capacity without a second endpoint; session plan/admission detail and explicit CLI/TUI Card projection remain pending."
     },
@@ -713,12 +730,15 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.preload-status.accessibility",
+        "neoview.preload.cancel-session",
+        "neoview.preload.release-visible-retained"
+      ],
+      "plannedTestIds": [
         "neoview.preload-status.actions-keyboard"
       ],
-      "notes": "The Card now exposes named summary/nearby/queue groups, a semantic progressbar, live sync status and a native retry button; cancel/clear controls and full focus evidence remain pending."
+      "notes": "The Card exposes named summary/nearby/queue/action groups, a semantic progressbar, live status, native retry/cancel buttons and a confirmed release dialog. Full keyboard focus-return evidence remains pending."
     },
     {
       "id": "preload.ui-parity",
@@ -729,7 +749,7 @@
         "src/lib/components/cards/CollapsibleCard.svelte",
         "src/lib/components/cardwindow/CardWindowContent.svelte"
       ],
-      "targetContract": "The two-column summary, compact memory meter, three-column nearby grid and current/cached/cold hierarchy remain readable without overlap or horizontal overflow at desktop and 420x360 Card widths.",
+      "targetContract": "The two-column summary, compact memory meter, three-column nearby grid and current/cached/cold hierarchy remain readable without overlap or horizontal overflow in a common 1920x1080 desktop viewport and its approximately 320px sidebar.",
       "surfaces": [
         "GUI"
       ],
@@ -742,12 +762,12 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.preload-status.e2e"
+        "neoview.preload-status.e2e",
+        "neoview.preload-status.ui",
+        "neoview.card.preload-status-live"
       ],
-      "plannedTestIds": [
-        "neoview.preload-status.ui"
-      ],
-      "notes": "The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with separately labelled server cached/cold and browser predecode states; desktop and constrained screenshots pass."
+      "plannedTestIds": ["neoview.preload-status.visual-baseline"],
+      "notes": "Scripted Playwright characterization now compares the legacy CardWindow and the XR Reader at the same 1920x1080 viewport. It freezes the two-column summary, compact 10px labels and approximately 320px sidebar geometry; the earlier 420x360 capture is retained only as historical stress evidence, not as the visual baseline. React preserves that skeleton, restores legacy KB/MB precision and cached emerald hierarchy, then adds separately labelled browser/server states and safe actions. Active-state pixel baseline and shared independent-window parity remain pending."
     },
     {
       "id": "preload.image-stability",
@@ -769,12 +789,13 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.preload-status.e2e"
+        "neoview.preload-status.e2e",
+        "neoview.preload.image-stability"
       ],
       "plannedTestIds": [
-        "neoview.preload-status.image-stability"
+        "neoview.preload-status.video-image-stability"
       ],
-      "notes": "Desktop and 420x360 Chromium prove diagnostics refresh plus collapse/reopen preserve the active Reader media node and issue zero duplicate requests for its exact asset URL. Future cancel/clear actions still require the same evidence."
+      "notes": "Scripted 1920x1080 Chromium proves diagnostics refresh, cancel, confirmed release and collapse/reopen preserve the active image node and issue zero duplicate requests for its exact asset URL. Video-node evidence remains pending."
     },
     {
       "id": "preload.performance",
@@ -803,12 +824,14 @@
         "neoview.preload-status-store",
         "neoview.preload.performance-telemetry",
         "neoview.preload-status.chunk",
-        "neoview.preload-status.e2e"
-      ],
-      "plannedTestIds": [
+        "neoview.preload-status.action-chunk",
+        "neoview.preload-status.e2e",
         "neoview.preload-status.poll-budget"
       ],
-      "notes": "The browser store and DOM are bounded, session-scoped cache outcomes contain only the current generation's candidate page indexes, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 7,068-byte chunk; the full Reader performance gate remains pending."
+      "plannedTestIds": [
+        "neoview.preload-status.full-reader-performance"
+      ],
+      "notes": "The browser store and DOM are bounded, session-scoped cache outcomes contain only the current generation's candidate page indexes, diagnostics poll at most once per two seconds only while mounted, and exact active-asset requests remain unchanged in the scripted 1920x1080 flow. The base Card is 7,709 bytes and action UI is a separate 2,368-byte chunk; the full Reader performance gate remains pending."
     },
     {
       "id": "preload.deviations",

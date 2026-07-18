@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 
 export function CollapsibleReaderCard({
   title,
+  icon,
   collapsed = false,
   height,
   children,
@@ -19,6 +20,7 @@ export function CollapsibleReaderCard({
   onHeightChange,
 }: {
   title: string
+  icon?: ReactNode
   collapsed?: boolean
   height?: number
   children: ReactNode
@@ -31,7 +33,10 @@ export function CollapsibleReaderCard({
   return (
     <section className="overflow-hidden border-b border-border/50 bg-transparent last:border-b-0" data-reader-card={title}>
       <header className="flex min-h-10 items-center justify-between gap-2 px-1 py-1.5">
-        <h3 className="truncate text-xs font-medium">{title}</h3>
+        <h3 className="flex min-w-0 items-center gap-1.5 truncate text-xs font-medium">
+          {icon ? <span className="shrink-0 text-muted-foreground" aria-hidden="true">{icon}</span> : null}
+          <span className="truncate">{title}</span>
+        </h3>
         <div className="flex items-center gap-0.5">
           {height === undefined ? null : (
             <Button

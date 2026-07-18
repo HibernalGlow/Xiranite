@@ -7,16 +7,18 @@ export function useReaderAdjacentPagePreloader({
   sessionId,
   activePageIndex,
   totalPages,
+  enabled = true,
   preload,
 }: {
   client: ReaderHttpClient
   sessionId?: string
   activePageIndex?: number
   totalPages?: number
+  enabled?: boolean
   preload(pages: readonly ReaderPageDto[]): void
 }): void {
   useEffect(() => {
-    if (!sessionId || activePageIndex === undefined || !totalPages || totalPages < 2) return
+    if (!enabled || !sessionId || activePageIndex === undefined || !totalPages || totalPages < 2) return
     const controller = new AbortController()
     const cursor = Math.max(0, activePageIndex - 1)
     const limit = Math.min(3, totalPages - cursor)
@@ -26,5 +28,5 @@ export function useReaderAdjacentPagePreloader({
       if (adjacent.length) preload(adjacent)
     }).catch(() => undefined)
     return () => controller.abort()
-  }, [activePageIndex, client, preload, sessionId, totalPages])
+  }, [activePageIndex, client, enabled, preload, sessionId, totalPages])
 }

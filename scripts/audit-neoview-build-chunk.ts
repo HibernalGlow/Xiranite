@@ -203,13 +203,20 @@ if (!imageInformationChunk || imageInformationChunk === readerSidebarChunk) {
 if (imageInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView ImageInformationCard chunk ${imageInformationChunk.fileName} is ${imageInformationChunk.bytes} bytes, above 8 KiB.`)
 }
-// [neoview.preload-status.chunk]
+// [neoview.preload-status.chunk] [neoview.preload-status.action-chunk]
 const preloadStatusChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PreloadStatusCard\.tsx$/i.test(module)))
 if (!preloadStatusChunk || preloadStatusChunk === neoViewChunk || preloadStatusChunk === readerSidebarChunk) {
   throw new Error("NeoView PreloadStatusCard did not produce an independent deferred production chunk.")
 }
 if (preloadStatusChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView PreloadStatusCard chunk ${preloadStatusChunk.fileName} is ${preloadStatusChunk.bytes} bytes, above 8 KiB.`)
+}
+const preloadActionControlsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PreloadActionControls\.tsx$/i.test(module)))
+if (!preloadActionControlsChunk || preloadActionControlsChunk === preloadStatusChunk || preloadActionControlsChunk === neoViewChunk || preloadActionControlsChunk === readerSidebarChunk) {
+  throw new Error("NeoView PreloadActionControls did not produce an independent second-level deferred chunk.")
+}
+if (preloadActionControlsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView PreloadActionControls chunk ${preloadActionControlsChunk.fileName} is ${preloadActionControlsChunk.bytes} bytes, above 8 KiB.`)
 }
 // [neoview.thumbnail-maintenance.chunk]
 const thumbnailMaintenanceChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]ThumbnailMaintenanceCard\.tsx$/i.test(module)))
@@ -240,6 +247,7 @@ const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((
 const folderGridWorkspaceChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderGridWorkspace\.tsx$/i.test(module)))
 const folderChromeLayoutChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderChromeLayout\.tsx$/i.test(module)))
 const folderSelectionBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSelectionBar\.tsx$/i.test(module)))
+const folderClipboardChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderClipboard\.tsx$/i.test(module)))
 const folderContextActionsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderContextActions\.tsx$/i.test(module)))
 const folderRenameDialogChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderRenameDialog\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
@@ -263,6 +271,12 @@ if (!folderSelectionBarChunk || folderSelectionBarChunk === folderMainChunk) {
 }
 if (folderSelectionBarChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView FolderSelectionBar chunk ${folderSelectionBarChunk.fileName} is ${folderSelectionBarChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!folderClipboardChunk || folderClipboardChunk === folderMainChunk || folderClipboardChunk === readerSidebarChunk || folderClipboardChunk === neoViewChunk || folderClipboardChunk === initialChunk) {
+  throw new Error("NeoView Folder clipboard did not produce an independent deferred production chunk.")
+}
+if (folderClipboardChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Folder clipboard chunk ${folderClipboardChunk.fileName} is ${folderClipboardChunk.bytes} bytes, above 8 KiB.`)
 }
 if (!folderContextActionsChunk || folderContextActionsChunk === folderMainChunk || folderContextActionsChunk === readerSidebarChunk || folderContextActionsChunk === neoViewChunk || folderContextActionsChunk === initialChunk) {
   throw new Error("NeoView Folder context actions did not produce a second-level deferred production chunk.")
@@ -357,9 +371,11 @@ console.log(JSON.stringify({
   storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },
   imageInformationChunk: { fileName: imageInformationChunk.fileName, bytes: imageInformationChunk.bytes },
   preloadStatusChunk: { fileName: preloadStatusChunk.fileName, bytes: preloadStatusChunk.bytes },
+  preloadActionControlsChunk: { fileName: preloadActionControlsChunk.fileName, bytes: preloadActionControlsChunk.bytes },
   sidebarControlCardChunk: { fileName: sidebarControlCardChunk.fileName, bytes: sidebarControlCardChunk.bytes },
   sidebarFloatingControllerChunk: { fileName: sidebarFloatingControllerChunk.fileName, bytes: sidebarFloatingControllerChunk.bytes },
   folderGridWorkspaceChunk: { fileName: folderGridWorkspaceChunk.fileName, bytes: folderGridWorkspaceChunk.bytes },
+  folderClipboardChunk: { fileName: folderClipboardChunk.fileName, bytes: folderClipboardChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },
