@@ -38,6 +38,7 @@ export interface SuperResolutionEngineCapability {
   executablePath?: string
   version?: string
   architecture?: string
+  daemonSupported?: boolean
   reason?: string
 }
 

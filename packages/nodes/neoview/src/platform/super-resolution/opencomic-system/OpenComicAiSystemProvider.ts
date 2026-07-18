@@ -4,6 +4,7 @@ import { resolve } from "node:path"
 import type {
   SuperResolutionCapabilitySnapshot,
   SuperResolutionEngine,
+  SuperResolutionEngineCapability,
   SuperResolutionExecutionContext,
   SuperResolutionProvider,
   SuperResolutionRequest,
@@ -78,12 +79,7 @@ export interface OpenComicSystemRuntime {
 }
 
 export interface OpenComicSystemCapabilityResolver {
-  resolve(engine: SuperResolutionEngine, options?: { refresh?: boolean; signal?: AbortSignal }): Promise<{
-    engine: SuperResolutionEngine
-    available: boolean
-    executablePath?: string
-    reason?: string
-  }>
+  resolve(engine: SuperResolutionEngine, options?: { refresh?: boolean; signal?: AbortSignal }): Promise<SuperResolutionEngineCapability>
   capabilities(options?: { refresh?: boolean; signal?: AbortSignal }): Promise<SuperResolutionCapabilitySnapshot>
 }
 
@@ -116,6 +112,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
   readonly #binaryPaths = new Map<SuperResolutionEngine, string>()
   #runtime?: Promise<OpenComicSystemRuntime>
   #configuredRuntime?: OpenComicSystemRuntime
+  #configuredDaemonCount?: number
   #disposed = false
 
   constructor(options: OpenComicAiSystemProviderOptions) {
@@ -144,6 +141,13 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#binaryPaths.set(request.model.engine, capability.executablePath)
 
     const runtime = await this.#runtimeInstance()
+    if (request.model.engine === "upscayl") {
+      const daemonCount = capability.daemonSupported === true ? this.#maxDaemons : 0
+      if (this.#configuredDaemonCount !== daemonCount) {
+        runtime.setConcurrentDaemons(daemonCount)
+        this.#configuredDaemonCount = daemonCount
+      }
+    }
     context.signal?.throwIfAborted()
     const startedAt = this.#now()
     const timeoutSignal = AbortSignal.timeout(this.#taskTimeoutMs)
@@ -200,6 +204,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#binaryPaths.clear()
     this.#runtime = undefined
     this.#configuredRuntime = undefined
+    this.#configuredDaemonCount = undefined
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -219,7 +224,8 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#assertActive()
     if (this.#configuredRuntime !== runtime) {
       runtime.setModelsPath(this.#modelsDirectory)
-      runtime.setConcurrentDaemons(this.#maxDaemons)
+      runtime.setConcurrentDaemons(0)
+      this.#configuredDaemonCount = 0
       runtime.setDaemonIdleTimeout(this.#daemonIdleTimeoutMs)
       runtime.setBinaryResolver(({ upscaler }) => {
         const executablePath = this.#binaryPaths.get(upscaler)

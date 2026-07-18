@@ -1070,6 +1070,7 @@
         "neoview.super-resolution.custom-model-collision",
         "neoview.super-resolution.custom-model-config",
         "neoview.super-resolution.custom-model-registration",
+        "neoview.super-resolution.daemon-capability",
         "neoview.super-resolution.explicit-path",
         "neoview.super-resolution.gpu-lease",
         "neoview.super-resolution.lazy",
@@ -1095,6 +1096,7 @@
         "neoview.super-resolution.probe-cache",
         "neoview.super-resolution.provider-abort",
         "neoview.super-resolution.provider-capability",
+        "neoview.super-resolution.provider-daemon-fallback",
         "neoview.super-resolution.provider-dispose",
         "neoview.super-resolution.provider-lazy",
         "neoview.super-resolution.provider-output",
@@ -1115,7 +1117,8 @@
       ],
       "knownDifferences": [
         "Versioned TOML preferences/conditions and legacy native/panel/localStorage import are implemented; unknown model IDs are reported and excluded from executable conditions, while legacy MangaJaNai directory conversion still requires an explicit custom-model manifest.",
-        "The system-only fork is not yet available through a remote immutable dependency, and real GPU benchmark evidence remains pending."
+        "All three installed Windows system CLIs pass the deterministic small-corpus GPU benchmark; the installed Upscayl build does not advertise daemon mode and is therefore run as a controlled short process. Larger real-page/driver coverage remains pending.",
+        "The system-only fork is not yet available through a remote immutable dependency."
       ]
     },
     {

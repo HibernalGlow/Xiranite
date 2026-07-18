@@ -71,6 +71,7 @@ export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/Ffmpe
 export type { FfprobePageMediaMetadataProviderOptions } from "./platform/video/FfprobePageMediaMetadataProvider.js"
 export type { SqliteLegacyThumbnailDatabaseMaintenanceOptions } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
 export {
+  detectSuperResolutionDaemonSupport,
   SystemSuperResolutionCliResolver,
   type SystemSuperResolutionCliProbeResult,
   type SystemSuperResolutionCliResolverOptions,
