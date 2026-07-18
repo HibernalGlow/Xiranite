@@ -97,6 +97,85 @@ describe("ReaderApp", () => {
     await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz"))
   })
 
+  it("[neoview.bindings.video-actions-react] routes multiple bindings and seek mode through the active native video", async () => {
+    const base = session("video-1", "http://127.0.0.1:41000/reader/video-1", 0)
+    const opened: ReaderSessionDto = {
+      ...base,
+      visiblePages: [{
+        ...base.visiblePages[0]!,
+        name: "clip.mp4",
+        mediaKind: "video",
+        mimeType: "video/mp4",
+      }],
+    }
+    const navigate = vi.fn(async () => ({ frame: opened.frame, visiblePages: opened.visiblePages }))
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({
+        ...runtimeConfig(),
+        media: { videoMinPlaybackRate: 0.5, videoMaxPlaybackRate: 2, videoPlaybackRateStep: 0.5 },
+        inputBindings: { bindings: [{
+          id: "mute-primary",
+          action: "video.toggle-mute",
+          context: "video",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyM" },
+        }, {
+          id: "mute-secondary",
+          action: "video.toggle-mute",
+          context: "video",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyU" },
+        }, {
+          id: "seek-mode",
+          action: "video.toggle-seek-mode",
+          context: "video",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyS" },
+        }, {
+          id: "next-page-in-video",
+          action: "reader.next-page",
+          context: "video",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyN" },
+        }] },
+      })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate,
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/video.cbz" client={client} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    const video = await waitFor(() => {
+      const element = document.querySelector<HTMLVideoElement>("[data-reader-page-video='video-1']")
+      expect(element).toBeTruthy()
+      return element!
+    })
+    Object.defineProperty(video, "duration", { configurable: true, value: 100 })
+    video.currentTime = 5
+    video.focus()
+
+    fireEvent.keyDown(video, { key: "m", code: "KeyM" })
+    expect(video.muted).toBe(true)
+    fireEvent.keyDown(video, { key: "u", code: "KeyU" })
+    expect(video.muted).toBe(false)
+    fireEvent.keyDown(video, { key: "s", code: "KeyS" })
+    fireEvent.keyDown(video, { key: "n", code: "KeyN" })
+    expect(video.currentTime).toBe(15)
+    expect(navigate).not.toHaveBeenCalled()
+
+    fireEvent(video, new Event("ended"))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
+  })
+
   it("[neoview.react.lifecycle] aborts superseded work and reports backend errors", async () => {
     let rejectOpen!: (error: Error) => void
     const client: ReaderHttpClient = {

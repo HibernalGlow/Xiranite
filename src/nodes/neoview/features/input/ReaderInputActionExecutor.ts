@@ -5,6 +5,7 @@ import {
   type ReaderInputAction,
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
+import type { ReaderVideoActionPort } from "../video/ReaderVideoController"
 
 export interface ReaderInputActionSession {
   pageCount: number
@@ -32,6 +33,7 @@ export interface ReaderInputActionControls {
   closeFile(): void | Promise<unknown>
   openSettings(): void
   openRadialMenu(): void
+  video?: ReaderVideoActionPort
   slideshow: {
     toggle(): void
     stop(): void
@@ -40,6 +42,7 @@ export interface ReaderInputActionControls {
 }
 
 export function executeReaderInputAction(action: ReaderInputAction, controls: ReaderInputActionControls): boolean {
+  action = remapVideoSeekAction(action, controls.video)
   const session = controls.session()
   const presentation = controls.presentation()
   switch (action) {
@@ -73,10 +76,28 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     case "reader.open-settings": controls.openSettings(); return true
     case "radial.open-default": controls.openRadialMenu(); return true
     case "radial.confirm": return true
+    case "video.play-pause": return controls.video?.playPause() ?? false
+    case "video.seek-forward": return controls.video?.seek(1) ?? false
+    case "video.seek-backward": return controls.video?.seek(-1) ?? false
+    case "video.toggle-mute": return controls.video?.toggleMute() ?? false
+    case "video.cycle-loop-mode": return controls.video?.cycleLoopMode() ?? false
+    case "video.volume-up": return controls.video?.adjustVolume(1) ?? false
+    case "video.volume-down": return controls.video?.adjustVolume(-1) ?? false
+    case "video.speed-up": return controls.video?.adjustSpeed(1) ?? false
+    case "video.speed-down": return controls.video?.adjustSpeed(-1) ?? false
+    case "video.toggle-speed": return controls.video?.toggleSpeed() ?? false
+    case "video.toggle-seek-mode": return controls.video?.toggleSeekMode() ?? false
     case "slideshow.toggle":
     case "slideshow.play-pause": controls.slideshow.toggle(); return true
     case "slideshow.stop": controls.slideshow.stop(); return true
     case "slideshow.skip": void controls.slideshow.skip(); return true
     default: return false
   }
+}
+
+function remapVideoSeekAction(action: ReaderInputAction, video: ReaderVideoActionPort | undefined): ReaderInputAction {
+  if (!video?.hasActiveVideo() || !video.isSeekMode()) return action
+  if (action === "reader.next-page" || action === "reader.page-right") return "video.seek-forward"
+  if (action === "reader.previous-page" || action === "reader.page-left") return "video.seek-backward"
+  return action
 }

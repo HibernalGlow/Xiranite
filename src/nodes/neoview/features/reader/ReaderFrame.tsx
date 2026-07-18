@@ -15,14 +15,17 @@ import {
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTransitionStore"
+import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
-import { PageImage } from "./PageImage"
+import { PageMedia } from "./PageMedia"
 
-export function ReaderFrame({ pages, presentation, colorFilter, pageTransition }: {
+export function ReaderFrame({ pages, presentation, colorFilter, pageTransition, videoController, onVideoListEnded }: {
   pages: ReaderPageDto[]
   presentation: ReaderPresentation
   colorFilter?: ReaderColorFilterPort
   pageTransition?: ReaderPageTransitionPort
+  videoController: ReaderVideoController
+  onVideoListEnded: () => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const viewport = useObservedSize(viewportRef)
@@ -59,12 +62,14 @@ export function ReaderFrame({ pages, presentation, colorFilter, pageTransition }
             } : undefined}
           >
             {pages.map((page) => (
-              <PageImage
+              <PageMedia
                 key={`${page.id}:${page.contentVersion}`}
                 page={page}
                 rotation={presentation.rotation}
                 scale={scale}
                 colorFilter={colorFilter}
+                videoController={videoController}
+                onVideoListEnded={onVideoListEnded}
               />
             ))}
           </div>

@@ -265,6 +265,10 @@
         "neoview.bindings.action-catalog",
         "neoview.bindings.action-executor",
         "neoview.bindings.action-executor-react",
+        "neoview.bindings.video-actions",
+        "neoview.bindings.video-actions-react",
+        "neoview.bindings.video-controller",
+        "neoview.bindings.video-surface",
         "neoview.bindings.adjacent-book-client",
         "neoview.control.adjacent-book",
         "neoview.control.adjacent-book-rollback",
@@ -277,7 +281,7 @@
         "neoview.bindings.config"
       ],
       "plannedTestIds": [],
-      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial and slideshow surfaces. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Video, destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
+      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
     },
     {
       "id": "bindings.context-routing",
@@ -305,10 +309,12 @@
       "testIds": [
         "neoview.bindings.context-routing",
         "neoview.bindings.dom-context",
-        "neoview.bindings.keyboard-runtime"
+        "neoview.bindings.keyboard-runtime",
+        "neoview.bindings.video-surface",
+        "neoview.bindings.video-actions-react"
       ],
       "plannedTestIds": [],
-      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. CLI/TUI context-stack projection remains pending."
+      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. The native video surface now advertises the video context and routes multiple bindings plus seek-mode remapping through the shared executor. CLI/TUI context-stack projection remains pending."
     },
     {
       "id": "bindings.keyboard",
@@ -799,10 +805,11 @@
       "testIds": [
         "neoview.bindings.dom-context",
         "neoview.bindings.keyboard-hold-runtime",
-        "neoview.bindings.radial-runtime"
+        "neoview.bindings.radial-runtime",
+        "neoview.bindings.video-lifecycle"
       ],
       "plannedTestIds": [],
-      "notes": "Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, and gamepad is conditionally loaded; focused listener-count and visibility E2E remain pending."
+      "notes": "Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, gamepad is conditionally loaded, and the external video controller releases ended listeners while falling back across mounted double-page videos. Focused listener-count and visibility E2E remain pending."
     },
     {
       "id": "bindings.shell",
