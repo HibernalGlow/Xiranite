@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { expect, test } from "@playwright/test"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
+import { DEFAULT_READER_INPUT_BINDINGS, type ReaderInputBinding } from "@xiranite/node-neoview/ui-core"
 
 import { startBackend } from "../../../packages/backend/src/index"
 import { createZipFixture, type ZipFixture } from "../../../packages/nodes/neoview/test/fixture-builders/create-zip-fixture"
@@ -89,7 +90,79 @@ test("[neoview.bindings.e2e] edits a contextual keyboard binding without leaking
   await page.keyboard.press("n")
   await expect(page.locator('img[alt="003.png"]')).toBeVisible()
 
-  await page.getByPlaceholder("选择 CBZ、ZIP、图片或目录").focus()
+  await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  await page.getByRole("button", { name: "操作绑定" }).click()
+  await page.getByRole("textbox", { name: "搜索操作绑定" }).focus()
   await page.keyboard.press("n")
   await expect(page.locator('img[alt="003.png"]')).toBeVisible()
+})
+
+test("[neoview.bindings.devices-e2e] routes mouse, hold, modified wheel and area input", async ({ page }) => {
+  const bindings: ReaderInputBinding[] = [
+    ...DEFAULT_READER_INPUT_BINDINGS.bindings,
+    { id: "e2e-mouse-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 0, action: "click" } },
+    { id: "e2e-mouse-hold-previous", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 1, action: "hold", durationMs: 120, moveTolerancePx: 12 } },
+    { id: "e2e-wheel-control-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "wheel", direction: "down", ctrl: true } },
+    { id: "e2e-area-first", action: "reader.first-page", context: "reader", enabled: true, input: { device: "area", area: "top-left", button: 0, action: "press" } },
+  ]
+  const configured = await fetch(`${backend.url}/reader/config`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+    body: JSON.stringify({ inputBindings: { bindings } }),
+  })
+  expect(configured.ok).toBe(true)
+
+  await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  const reader = page.locator('[data-reader-app="true"]')
+  await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+  const box = await reader.boundingBox()
+  expect(box).toBeTruthy()
+  const center = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+
+  await page.mouse.click(center.x, center.y)
+  await expect(page.locator('img[alt="002.png"]')).toBeVisible()
+
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down({ button: "middle" })
+  await page.waitForTimeout(170)
+  await page.mouse.up({ button: "middle" })
+  await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+
+  await page.keyboard.down("Control")
+  await page.mouse.wheel(0, 120)
+  await page.keyboard.up("Control")
+  await expect(page.locator('img[alt="002.png"]')).toBeVisible()
+
+  await page.mouse.move(box!.x + box!.width * 0.1, box!.y + box!.height * 0.25)
+  await page.mouse.down({ button: "left" })
+  await page.mouse.up({ button: "left" })
+  await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+
+})
+
+test("[neoview.bindings.radial-pointer-e2e] opens the copied ray menu from the configured right-button press", async ({ page }) => {
+  await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  const reader = page.locator('[data-reader-app="true"]')
+  const box = await reader.boundingBox()
+  expect(box).toBeTruthy()
+  const center = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down({ button: "right" })
+  const radial = page.locator("neoview-ray-menu")
+  await expect(radial).toBeAttached()
+  await page.mouse.up({ button: "right" })
+  await expect.poll(() => radial.evaluate((element) => Boolean((element as HTMLElement & { isOpen?: boolean }).isOpen))).toBe(true)
+  const radialGeometry = await radial.evaluate((element) => {
+    const menu = element.shadowRoot?.querySelector<HTMLElement>('[aria-label="Menu"]')
+    const rect = menu?.getBoundingClientRect()
+    return rect ? { width: rect.width, height: rect.height } : undefined
+  })
+  expect(radialGeometry?.width).toBeGreaterThan(0)
+  expect(radialGeometry?.height).toBeGreaterThan(0)
+  await page.keyboard.press("Escape")
+  await expect(radial).toHaveCount(0)
 })

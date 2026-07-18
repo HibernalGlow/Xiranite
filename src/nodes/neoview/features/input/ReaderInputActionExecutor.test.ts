@@ -18,6 +18,10 @@ describe("ReaderInputActionExecutor", () => {
     expect(controls.toggleShellEdge).toHaveBeenCalledWith("left")
     executeReaderInputAction("slideshow.skip", controls)
     expect(controls.slideshow.skip).toHaveBeenCalledOnce()
+    expect(executeReaderInputAction("viewer.toggle-progress-bar", controls)).toBe(true)
+    expect(executeReaderInputAction("viewer.toggle-progress-bar-glow", controls)).toBe(true)
+    expect(controls.viewerToggles?.toggleProgressBar).toHaveBeenCalledOnce()
+    expect(controls.viewerToggles?.toggleProgressBarGlow).toHaveBeenCalledOnce()
   })
 
   it("[neoview.bindings.video-actions] routes all video actions and remaps page actions in seek mode", () => {
@@ -82,6 +86,12 @@ function fixture(): ReaderInputActionControls & Record<"navigate" | "goTo" | "sw
       adjustSpeed: vi.fn(() => true),
       toggleSpeed: vi.fn(() => true),
       toggleSeekMode: vi.fn(() => true),
+    },
+    viewerToggles: {
+      subscribe: vi.fn(() => () => undefined),
+      getSnapshot: vi.fn(() => ({ progressBarVisible: true, progressBarGlow: true })),
+      toggleProgressBar: vi.fn(),
+      toggleProgressBarGlow: vi.fn(),
     },
     slideshow: { toggle: vi.fn(), stop: vi.fn(), skip: vi.fn() },
   }

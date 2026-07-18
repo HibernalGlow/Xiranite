@@ -1,9 +1,10 @@
-import { startTransition, useEffect, useRef, useState } from "react"
+import { startTransition, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Grid3X3, Hash, Pin, PinOff, Sparkles, Target } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
+import { ReaderViewerToggleStore, type ReaderViewerTogglePort } from "../viewer/ReaderViewerToggleStore"
 import { ReaderThumbnailSurface } from "./ReaderThumbnailSurface"
 
 const BATCH_SIZE = 64
@@ -21,6 +22,7 @@ export interface ThumbnailStripProps {
   disabled?: boolean
   pinned?: boolean
   onPinnedChange?(pinned: boolean): void
+  viewerToggles?: ReaderViewerTogglePort
   onSelect(pageIndex: number): void | Promise<void>
 }
 
@@ -39,6 +41,7 @@ export function ThumbnailStrip({
   disabled = false,
   pinned = false,
   onPinnedChange,
+  viewerToggles,
   onSelect,
 }: ThumbnailStripProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -49,7 +52,13 @@ export function ThumbnailStrip({
   const [showPageNumbers, setShowPageNumbers] = useState(true)
   const [showAreaGuide, setShowAreaGuide] = useState(false)
   const [showEdgeGuide, setShowEdgeGuide] = useState(false)
-  const [progressGlow, setProgressGlow] = useState(true)
+  const [fallbackViewerToggles] = useState(() => new ReaderViewerToggleStore())
+  const toggleStore = viewerToggles ?? fallbackViewerToggles
+  const { progressBarVisible, progressBarGlow } = useSyncExternalStore(
+    toggleStore.subscribe,
+    toggleStore.getSnapshot,
+    toggleStore.getSnapshot,
+  )
   const [renderWindow, setRenderWindow] = useState<RenderWindow>(() => ({
     start: 0,
     end: Math.min(totalPages, INITIAL_ITEMS),
@@ -155,7 +164,7 @@ export function ThumbnailStrip({
         <Button type="button" size="sm" variant={showPageNumbers ? "default" : "ghost"} aria-label="显示页码" aria-pressed={showPageNumbers} onClick={() => setShowPageNumbers((value) => !value)}><Hash /><span className="text-xs">页码</span></Button>
         <Button type="button" size="sm" variant={showAreaGuide ? "default" : "ghost"} aria-label="显示区域参考线" aria-pressed={showAreaGuide} onClick={() => setShowAreaGuide((value) => !value)}><Grid3X3 /><span className="text-xs">区域</span></Button>
         <Button type="button" size="sm" variant={showEdgeGuide ? "default" : "ghost"} aria-label="显示边栏触发区" aria-pressed={showEdgeGuide} onClick={() => setShowEdgeGuide((value) => !value)}><Target /><span className="text-xs">边栏</span></Button>
-        <Button type="button" size="sm" variant={progressGlow ? "default" : "ghost"} aria-label="进度条荧光" aria-pressed={progressGlow} onClick={() => setProgressGlow((value) => !value)}><Sparkles /><span className="text-xs">荧光</span></Button>
+        <Button type="button" size="sm" variant={progressBarGlow ? "default" : "ghost"} aria-label="进度条荧光" aria-pressed={progressBarGlow} onClick={() => toggleStore.toggleProgressBarGlow()}><Sparkles /><span className="text-xs">荧光</span></Button>
       </div>
       <div
         ref={viewportRef}
@@ -172,19 +181,21 @@ export function ThumbnailStrip({
         {showAreaGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-45" data-reader-area-guide="true">{Array.from({ length: 9 }, (_, index) => <span key={index} className="border border-primary/50" />)}</div> : null}
         {showEdgeGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 border-4 border-primary/55" data-reader-edge-guide="true" /> : null}
       </div>
-      <label className="sr-only" htmlFor={`neoview-bottom-progress-${sessionId}`}>阅读进度</label>
-      <input
-        id={`neoview-bottom-progress-${sessionId}`}
-        type="range"
-        aria-label="阅读进度"
-        className={cn("block h-2 w-full cursor-pointer accent-primary", progressGlow && "drop-shadow-[0_0_5px_color-mix(in_oklch,var(--primary)_75%,transparent)]")}
-        min={0}
-        max={Math.max(0, totalPages - 1)}
-        step={1}
-        value={Math.min(activePageIndex, Math.max(0, totalPages - 1))}
-        disabled={disabled || totalPages < 2}
-        onChange={(event) => void onSelect(Number(event.currentTarget.value))}
-      />
+      {progressBarVisible ? <>
+        <label className="sr-only" htmlFor={`neoview-bottom-progress-${sessionId}`}>阅读进度</label>
+        <input
+          id={`neoview-bottom-progress-${sessionId}`}
+          type="range"
+          aria-label="阅读进度"
+          className={cn("block h-2 w-full cursor-pointer accent-primary", progressBarGlow && "drop-shadow-[0_0_5px_color-mix(in_oklch,var(--primary)_75%,transparent)]")}
+          min={0}
+          max={Math.max(0, totalPages - 1)}
+          step={1}
+          value={Math.min(activePageIndex, Math.max(0, totalPages - 1))}
+          disabled={disabled || totalPages < 2}
+          onChange={(event) => void onSelect(Number(event.currentTarget.value))}
+        />
+      </> : null}
     </div>
   )
 }
