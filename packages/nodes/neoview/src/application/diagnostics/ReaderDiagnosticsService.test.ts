@@ -22,7 +22,13 @@ describe("ReaderDiagnosticsService", () => {
       assets: () => ({
         activeTransformFlights: 1,
         presentation: { entries: 3, bytes: 30, activeLeases: 2, maxBytes: 100, maxEntryBytes: 50, hits: 4, misses: 2, evictions: 1 },
-        thumbnails: { demands: 2, activeFlights: 1, queuedFlights: 0, runningFlights: 1, cachedEntries: 4, cachedBytes: 40 },
+        thumbnails: {
+          demands: 2, activeFlights: 1, queuedFlights: 0, runningFlights: 1, cachedEntries: 4, cachedBytes: 40,
+          telemetry: {
+            cacheHits: 3, cacheMisses: 4, completed: 2, failed: 1, cancelled: 1, evictions: 2,
+            byLane: { "reader-visible": { demands: 7, cacheHits: 3, cacheMisses: 4, completed: 2, failed: 1, cancelled: 1 } },
+          },
+        },
       }),
       presentationDiskCache: async () => ({
         enabled: true, entries: 5, bytes: 70, maxBytes: 500, maxEntryBytes: 100, activeLeases: 3,
@@ -61,6 +67,7 @@ describe("ReaderDiagnosticsService", () => {
       solidArchiveCache: { entries: 1, retainedBytes: 80, maxBytes: 200, activeEntries: 1, activeLeases: 4 },
       scheduler: expect.objectContaining({ cpu: expect.objectContaining({ active: 1, queued: 2 }) }),
     }))
+    expect(snapshot.assets.thumbnails?.telemetry).toMatchObject({ cacheHits: 3, cacheMisses: 4, completed: 2, failed: 1, cancelled: 1, evictions: 2 })
     expect(parseReaderDiagnosticsSnapshot(snapshot)).toEqual(snapshot)
     await service.close()
     await service.close()

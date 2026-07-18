@@ -875,6 +875,7 @@
         "neoview.thumbnail.coordinator.memory",
         "neoview.thumbnail.coordinator.context-release",
         "neoview.thumbnail.coordinator.prime-ttl",
+        "neoview.thumbnail.coordinator.telemetry",
         "neoview.thumbnail.generate.singleflight",
         "neoview.thumbnail.persist.batch",
         "neoview.thumbnail.persist-metadata",
