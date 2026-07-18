@@ -17,9 +17,15 @@ export interface ReaderFileUndoReceipt {
   original: ReaderFileMutation
   inverse: ReaderFileMutation
   guard: ReaderFileMutationGuard
+  providerData?: {
+    kind: "windows-recycle-bin"
+    itemPath: string
+  }
 }
 
 export interface ReaderFileMutationProvider {
+  /** True when trash operations can be restored to their original paths. */
+  readonly trashRestore?: boolean
   execute(operation: ReaderFileMutation, signal?: AbortSignal): Promise<ReaderFileUndoReceipt | undefined | void>
   undo?(receipt: ReaderFileUndoReceipt, signal?: AbortSignal): Promise<void>
 }

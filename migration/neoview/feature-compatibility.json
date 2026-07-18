@@ -167,7 +167,7 @@
         "src-tauri/src/commands/fs_commands/"
       ],
       "legacyCommandPatterns": [
-        "^(batch_copy|batch_move|batch_delete|batch_extract|copy_path|move_path|delete_path|delete_file|rename_path|move_to|create_directory|undo_last|is_path|path_exists|read$|write$|read_binary|read_text|write_text|save_binary|show_in|open_with|release_path)"
+        "^(batch_copy|batch_move|batch_delete|batch_extract|copy_path|move_path|delete_path|delete_file|rename_path|move_to|create_directory|undo_last|restore_from_trash|is_path|path_exists|read$|write$|read_binary|read_text|write_text|save_binary|show_in|open_with|release_path)"
       ],
       "settingsKeys": [
         "archive.allowFileOperations",
@@ -221,12 +221,15 @@
         "neoview.file-operations.system-service",
         "neoview.file-operations.system-platform",
         "neoview.file-operations.system-scheduler",
-        "neoview.file-operations.system-http"
+        "neoview.file-operations.system-http",
+        "neoview.file-operations.trash-restore-state",
+        "neoview.file-operations.trash-restore",
+        "neoview.file-operations.trash-restore-stale"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [],
       "knownDifferences": [
-        "trash restore 仍未实现；已启动的系统文件操作不可强制中断，取消只阻止尚未 admission 的项"
+        "Windows 回收站 trash restore 已具备 capability-aware 后端适配与 stale-path 保护；Linux/macOS 及不具备恢复能力的平台保持 unavailable，不生成 undo receipt；已启动的系统文件操作不可强制中断，取消只阻止尚未 admission 的项"
       ]
     },
     {

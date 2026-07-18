@@ -86,6 +86,25 @@ describe("ReaderFileOperationService", () => {
     expect(service.undoState()).toMatchObject({ available: false, count: 0 })
   })
 
+  it("[neoview.file-operations.trash-restore-state] exposes trash restore only when the provider supports it", async () => {
+    const undo = vi.fn(async () => undefined)
+    const provider: ReaderFileMutationProvider = {
+      trashRestore: true,
+      async execute(operation) {
+        return undoReceipt(operation, absolute("trashed"))
+      },
+      undo,
+    }
+    const service = new ReaderFileOperationService(provider)
+
+    const result = await service.execute({ operations: [{ kind: "trash", sourcePath: absolute("source") }] })
+    expect(result).toMatchObject({ succeeded: 1, undoable: 1 })
+    expect(service.undoState()).toMatchObject({ trashRestore: true, supportedKinds: expect.arrayContaining(["trash"]) })
+
+    await expect(service.undoLatest()).resolves.toMatchObject({ succeeded: 1, failed: 0 })
+    expect(undo).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.file-operations.undo-partial] retains the failed and unattempted receipts for a safe retry", async () => {
     const provider: ReaderFileMutationProvider = {
       async execute(operation) {

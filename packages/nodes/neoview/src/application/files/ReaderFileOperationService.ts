@@ -42,7 +42,7 @@ export interface ReaderFileUndoState {
   latestId?: string
   latestCreatedAt?: number
   supportedKinds: readonly ReaderFileMutation["kind"][]
-  trashRestore: false
+  trashRestore: boolean
   persistent: boolean
   persistenceError?: string
 }
@@ -136,8 +136,8 @@ export class ReaderFileOperationService {
       count: this.#undo.length,
       latestId: latest?.id,
       latestCreatedAt: latest?.createdAt,
-      supportedKinds: ["copy", "move", "rename", "create-directory"],
-      trashRestore: false,
+      supportedKinds: ["copy", "move", "rename", "create-directory", ...(this.provider.trashRestore ? ["trash" as const] : [])],
+      trashRestore: this.provider.trashRestore === true,
       persistent: Boolean(this.#journal),
       persistenceError: this.#persistenceError,
     }
