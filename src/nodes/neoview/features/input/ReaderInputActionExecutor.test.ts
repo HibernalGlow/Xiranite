@@ -52,9 +52,30 @@ describe("ReaderInputActionExecutor", () => {
     expect(executeReaderInputAction("video.play-pause", controls)).toBe(false)
     expect(executeReaderInputAction("upscale.toggle-auto", controls)).toBe(false)
   })
+
+  it("[neoview.bindings.viewer-toggle-provider] routes persistent toast and info overlay toggles", () => {
+    const switchToast = {
+      getSnapshot: vi.fn(() => ({ enableBook: false, enablePage: true, enableBoundaryToast: true })),
+      update: vi.fn(async (_patch: { enableBook?: boolean; enablePage?: boolean; enableBoundaryToast?: boolean }) => undefined),
+    }
+    const infoOverlay = {
+      getSnapshot: vi.fn(() => ({ enabled: true })),
+      update: vi.fn(async (_patch: { enabled?: boolean }) => undefined),
+    }
+    const controls = fixture({ switchToast, infoOverlay })
+
+    expect(executeReaderInputAction("viewer.toggle-page-switch-toast", controls)).toBe(true)
+    expect(executeReaderInputAction("viewer.toggle-book-switch-toast", controls)).toBe(true)
+    expect(executeReaderInputAction("viewer.toggle-boundary-toast", controls)).toBe(true)
+    expect(executeReaderInputAction("viewer.toggle-info-overlay", controls)).toBe(true)
+    expect(switchToast.update).toHaveBeenNthCalledWith(1, { enablePage: false })
+    expect(switchToast.update).toHaveBeenNthCalledWith(2, { enableBook: true })
+    expect(switchToast.update).toHaveBeenNthCalledWith(3, { enableBoundaryToast: false })
+    expect(infoOverlay.update).toHaveBeenCalledWith({ enabled: false })
+  })
 })
 
-function fixture(): ReaderInputActionControls & Record<"navigate" | "goTo" | "switchBook" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
+function fixture(overrides: Partial<Pick<ReaderInputActionControls, "switchToast" | "infoOverlay">> = {}): ReaderInputActionControls & Record<"navigate" | "goTo" | "switchBook" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
   const presentation = { ...DEFAULT_READER_PRESENTATION }
   return {
     session: () => ({ pageCount: 100, pageIndex: 10, direction: "right-to-left", pageMode: "single" }),
@@ -94,5 +115,6 @@ function fixture(): ReaderInputActionControls & Record<"navigate" | "goTo" | "sw
       toggleProgressBarGlow: vi.fn(),
     },
     slideshow: { toggle: vi.fn(), stop: vi.fn(), skip: vi.fn() },
+    ...overrides,
   }
 }
