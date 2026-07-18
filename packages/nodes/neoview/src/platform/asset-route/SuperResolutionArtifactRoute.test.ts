@@ -205,7 +205,7 @@ describe("SuperResolutionArtifactRoute", () => {
     expect((await route.handle(authorized("/reader/s/session-1/upscale-preload/retry?mode=nearby", { method: "POST" })))?.status).toBe(202)
     expect(retry).toHaveBeenCalledWith("reader:session-1:super-resolution", "nearby", expect.any(AbortSignal))
 
-    await route.releaseSession("session-1")
+    route.close()
     expect(releaseContext).toHaveBeenCalledWith("reader:session-1:super-resolution")
     await store.close()
   })
