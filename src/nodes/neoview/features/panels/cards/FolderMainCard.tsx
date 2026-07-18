@@ -44,6 +44,7 @@ import {
   directoryLoadedEntries,
   directoryPageHasMetadata,
   directoryPageCursors,
+  folderMetadataFieldsForView,
   folderErrorMessage,
   isAbortError,
   isEditableKeyboardEvent,
@@ -664,7 +665,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (!current || !client.listDirectoryBrowser) return
     const metadataFields = viewMode === "details"
       ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
-      : []
+      : folderMetadataFieldsForView(viewMode, current.metadataCapabilities)
     const cursors = directoryPageCursors(range.startIndex - 16, range.endIndex + 16, current.total, PAGE_SIZE)
     for (const cursor of cursors) {
       const requestKey = `${cursor}:${metadataFields.join(",")}`

@@ -6,6 +6,7 @@ import {
   directoryEntryAt,
   directoryPageHasMetadata,
   directoryPageCursors,
+  folderMetadataFieldsForView,
   folderErrorMessage,
   mergeDirectoryPage,
   normalizeFolderNavigationPath,
@@ -45,6 +46,16 @@ describe("DirectoryCatalog", () => {
     expect(directoryPageCursors(9_990, 9_999, 10_000, 128)).toEqual([9_984])
     expect(directoryPageHasMetadata(catalog, 9_984, [])).toBe(true)
     expect(directoryPageHasMetadata(catalog, 9_984, ["dimensions"])).toBe(false)
+  })
+
+  it("[neoview.folder.emm-visible-hydration] requests EMM fields only for rich visible renderers", () => {
+    const capabilities = ["rating", "collectTagCount", "tags", "dimensions"] as const
+
+    expect(folderMetadataFieldsForView("compact", capabilities)).toEqual([])
+    expect(folderMetadataFieldsForView("cover-list", capabilities)).toEqual(["rating", "collectTagCount", "tags"])
+    expect(folderMetadataFieldsForView("mosaic-list", capabilities)).toEqual(["rating", "collectTagCount", "tags"])
+    expect(folderMetadataFieldsForView("cover-grid", ["rating", "tags"])).toEqual(["rating", "tags"])
+    expect(folderMetadataFieldsForView("details", capabilities)).toEqual([])
   })
 
   it("[neoview.folder.memory-bound] evicts pages furthest from the viewport anchor", () => {
