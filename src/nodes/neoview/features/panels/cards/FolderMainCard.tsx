@@ -288,6 +288,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const snapshot = pendingInitialCloneRef.current
     pendingInitialCloneRef.current = undefined
     if (snapshot?.clonedPage) restoreClonedBrowser(snapshot)
+    else if (catalogRef.current && sameFolderOrChild(catalogRef.current.path, sourcePath)) focusSourceEntry(sourcePath)
     else void openBrowser(sourcePath)
   }, [sourcePath])
 
@@ -1044,6 +1045,24 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const toggleToolbar = (toolbar: "view" | "sort" | "size" | "more") => {
     setActiveToolbar((current) => current === toolbar ? undefined : toolbar)
   }
+
+  function focusSourceEntry(path: string): void {
+    const current = catalogRef.current
+    if (!current) return
+    for (const [cursor, entries] of current.pages) {
+      const offset = entries.findIndex((entry) => sameFolderPath(entry.path, path))
+      if (offset < 0) continue
+      const index = cursor + offset
+      focusedIndexRef.current = index
+      setFocusedIndex(index)
+      setFocusedPath(entries[offset]!.path)
+      setSelection(selectDirectorySingle(current.generation, entries[offset]!.path, index))
+      requestRange({ startIndex: index, endIndex: index })
+      if (viewUsesVirtuosoList(viewMode)) listRef.current?.scrollToIndex({ index, align: "center" })
+      else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index, align: "center" })
+      return
+    }
+  }
   const actionHandleItems = [
     { id: "thumbnail-refresh-cancel", label: "\u53d6\u6d88\u7f29\u7565\u56fe\u91cd\u8f7d", preview: "\u53d6\u6d88\u6b63\u5728\u8fdb\u884c\u7684\u7f29\u7565\u56fe\u91cd\u8f7d", icon: <RefreshCw className="size-4" />, disabled: !thumbnailRefreshPending, active: thumbnailRefreshPending, onSelect: cancelThumbnailRefresh },
     { id: "thumbnail-refresh-selected", label: "\u91cd\u8f7d\u9009\u4e2d\u7f29\u7565\u56fe", preview: "\u91cd\u8f7d\u5df2\u9009\u6587\u4ef6\u7684\u7f29\u7565\u56fe", icon: <RefreshCw className="size-4" />, disabled: thumbnailRefreshPending || !selectedPaths.size || !client.registerLibraryThumbnails || !viewUsesThumbnails(viewMode), active: thumbnailRefreshPending, onSelect: () => { void refreshSelectedThumbnails() } },
@@ -1624,4 +1643,13 @@ function sameFolderPath(left: string, right: string): boolean {
   return /^[a-z]:/iu.test(normalizedLeft) || /^[a-z]:/iu.test(normalizedRight)
     ? normalizedLeft.toLocaleLowerCase("en-US") === normalizedRight.toLocaleLowerCase("en-US")
     : normalizedLeft === normalizedRight
+}
+
+function sameFolderOrChild(folderPath: string, sourcePath: string): boolean {
+  const folder = folderPath.replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase()
+  const source = sourcePath.trim().replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase()
+  if (!folder || !source || folder === source) return folder === source
+  const separator = source.lastIndexOf("/")
+  const parent = separator < 0 ? source : source.slice(0, separator).replace(/\/+$/u, "")
+  return parent === folder || parent === `${folder}:`
 }

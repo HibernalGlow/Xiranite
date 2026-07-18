@@ -97,9 +97,11 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
 
   useEffect(() => {
     if (!context.sourcePath) return
-    setTabs((current) => current.map((tab) => tab.id === activeTabId && !tab.pinned && tab.sourcePath !== context.sourcePath && !sameFolderOrChild(tab.currentPath, context.sourcePath)
-      ? { ...tab, sourcePath: context.sourcePath!, currentPath: context.sourcePath!, title: folderTabTitle(context.sourcePath!) }
-      : tab))
+    setTabs((current) => current.map((tab) => {
+      if (tab.id !== activeTabId || tab.pinned || tab.sourcePath === context.sourcePath) return tab
+      if (sameFolderOrChild(tab.currentPath, context.sourcePath)) return { ...tab, sourcePath: context.sourcePath! }
+      return { ...tab, sourcePath: context.sourcePath!, currentPath: context.sourcePath!, title: folderTabTitle(context.sourcePath!) }
+    }))
   }, [context.sourcePath])
 
   useEffect(() => {
