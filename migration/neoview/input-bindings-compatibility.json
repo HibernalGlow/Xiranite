@@ -699,10 +699,11 @@
         "neoview.bindings.legacy-import-cli",
         "neoview.bindings.config-service",
         "neoview.bindings.tui",
-        "neoview.bindings.config-cli"
+        "neoview.bindings.config-cli",
+        "neoview.bindings.rollback-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "GUI HTTP persists canonical items atomically; CLI list/apply/reset and the terminal interaction inspect/apply/reset use the same strict parser and cross-process-locked config service. Real CLI roundtrips preserve multiple records for one action, while GUI failure rollback browser evidence remains pending."
+      "notes": "GUI HTTP persists canonical items atomically; CLI list/apply/reset and the terminal interaction inspect/apply/reset use the same strict parser and cross-process-locked config service. Real CLI roundtrips preserve multiple records for one action, and desktop Chromium now proves a failed GUI PATCH leaves the edited draft visible without replacing it with the last confirmed configuration."
     },
     {
       "id": "bindings.legacy-import",
@@ -765,10 +766,11 @@
         "neoview.bindings.editor",
         "neoview.bindings.conflict-ui",
         "neoview.bindings.reset-ui",
-        "neoview.bindings.e2e"
+        "neoview.bindings.e2e",
+        "neoview.bindings.rollback-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Core states and real PATCH success are covered in Chromium; interactive recording states and failed HTTP rollback E2E remain pending."
+      "notes": "Core states, real PATCH success and failed HTTP rollback are covered in Chromium; interactive recording state and its focus restoration remain pending."
     },
     {
       "id": "bindings.accessibility",

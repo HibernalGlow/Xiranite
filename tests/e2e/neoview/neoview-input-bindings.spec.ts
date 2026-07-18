@@ -97,6 +97,42 @@ test("[neoview.bindings.e2e] edits a contextual keyboard binding without leaking
   await expect(page.locator('img[alt="003.png"]')).toBeVisible()
 })
 
+test("[neoview.bindings.rollback-e2e] keeps the edited binding when persistence fails", async ({ page }) => {
+  const reset = await fetch(`${backend.url}/reader/config`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "x-xiranite-token": backend.token },
+    body: JSON.stringify({ inputBindings: DEFAULT_READER_INPUT_BINDINGS }),
+  })
+  expect(reset.ok).toBe(true)
+  await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+  await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  await page.getByRole("button", { name: "操作绑定" }).click()
+  const card = page.locator('[data-neoview-settings-card="input-bindings"]')
+  await card.getByRole("textbox", { name: "搜索操作绑定" }).fill("ArrowRight")
+  const row = card.getByRole("listitem")
+  await expect(row).toHaveCount(1)
+  const code = row.getByRole("textbox", { name: "键盘代码" })
+  await code.fill("KeyZ")
+
+  await page.route(`${backend.url}/reader/config`, async (route) => {
+    if (route.request().method() !== "PATCH" || !(route.request().postDataJSON() as { inputBindings?: unknown } | null)?.inputBindings) {
+      await route.continue()
+      return
+    }
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "simulated input binding failure" }) })
+  })
+  await card.getByRole("button", { name: "保存" }).click()
+  await expect(card.getByRole("alert")).toContainText("simulated input binding failure")
+  await card.getByRole("textbox", { name: "搜索操作绑定" }).fill("KeyZ")
+  const retainedRow = card.getByRole("listitem")
+  await expect(retainedRow).toHaveCount(1)
+  await expect(retainedRow.getByRole("textbox", { name: "键盘代码" })).toHaveValue("KeyZ")
+  await page.unroute(`${backend.url}/reader/config`)
+})
+
 test("[neoview.bindings.devices-e2e] routes mouse, hold, modified wheel and area input", async ({ page }) => {
   const bindings: ReaderInputBinding[] = [
     ...DEFAULT_READER_INPUT_BINDINGS.bindings,
