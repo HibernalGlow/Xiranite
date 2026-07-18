@@ -15,7 +15,7 @@ import {
   type ReaderDirectorySortPreferenceStore,
 } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
-import { canonicalizePlatformDirectoryPath } from "../filesystem/PlatformDirectoryPath.js"
+import { canonicalizePlatformDirectoryPath, normalizePlatformDirectoryPath } from "../filesystem/PlatformDirectoryPath.js"
 import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
 import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.js"
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
@@ -444,7 +444,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     const refresh = url.searchParams.get("refresh")
     if (refresh !== null && refresh !== "0" && refresh !== "1") return errorResponse("refresh must be 0 or 1", 400)
     try {
-      const result = await this.#browser.tree(sessionId, url.searchParams.get("path") ?? undefined, refresh === "1", signal)
+      const requestedPath = url.searchParams.get("path")
+      const normalizedPath = requestedPath === null ? undefined : normalizePlatformDirectoryPath(requestedPath)
+      const result = await this.#browser.tree(sessionId, normalizedPath, refresh === "1", signal)
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       if (signal.aborted) throw error
