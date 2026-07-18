@@ -5,6 +5,8 @@
   "title": "图像信息",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "visualBaseline": "output/playwright/legacy-neoview-image-information-card-1920x1080.png",
+  "visualTarget": "output/playwright/neoview-image-information-1920x1080.png",
   "completionRule": "Complete only when the image and video branches preserve every legacy field and formatter, media probing is deferred/cancellable and shared by GUI/CLI/TUI contracts, presentation-derived values are truthful, and desktop/constrained Chromium proves no active image remount or hot-path regression.",
   "sourceUiInventory": [
     {
@@ -146,7 +148,7 @@
       },
       "testIds": [
         "neoview.metadata.cards",
-        "neoview.image-information.zero-session",
+        "neoview.image-information.resident-empty",
         "neoview.image-information.probe-degradation"
       ],
       "plannedTestIds": [],
@@ -484,7 +486,8 @@
       "testIds": [
         "neoview.image-information.image-fields",
         "neoview.image-information.video-fields",
-        "neoview.image-information.image-e2e"
+        "neoview.image-information.image-e2e",
+        "neoview.image-information.resident-empty-1920x1080"
       ],
       "plannedTestIds": [],
       "notes": "Desktop and 420x360 Chromium prove the legacy order and compact geometry without clipping or horizontal overflow."
