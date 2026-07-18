@@ -4,6 +4,7 @@ import { ReaderFileTreeService } from "../browser/ReaderFileTreeService.js"
 import { ReaderFileTreeHeadlessController } from "./ReaderFileTreeHeadlessController.js"
 import { ReaderSearchHistoryService } from "../browser/ReaderSearchHistoryService.js"
 import { ReaderEmmTagSuggestionService } from "../metadata/ReaderEmmTagSuggestionService.js"
+import type { ReaderDirectoryEmmEditService } from "../metadata/ReaderDirectoryEmmEditService.js"
 
 describe("ReaderFileTreeHeadlessController", () => {
   it("[neoview.folder.headless] shares lazy tree, streaming search, exclusions and deterministic disposal", async () => {
@@ -106,6 +107,35 @@ describe("ReaderFileTreeHeadlessController", () => {
     await controller[Symbol.asyncDispose]()
     await controller[Symbol.asyncDispose]()
     expect(closeResources).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.folder.emm-edit-headless] lazily delegates generation-bound CAS batches to the shared editor", async () => {
+    const service = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: [{ name: "A.cbz", path: `${path}/A.cbz`, kind: "file", readerSupported: true }] }
+      },
+      async canonicalize(path) { return path },
+    })
+    const update = vi.fn(async (_sessionId, command) => ({
+      generation: command.generation + 1,
+      refreshRequired: false,
+      results: [{ index: 0, status: "succeeded" as const, metadata: { revision: 1, overrides: { rating: 5 }, inherited: ["manualTags", "translatedTitle"] as const } }],
+      succeeded: 1,
+      conflicts: 0,
+      failed: 0,
+    }))
+    const loadEmmEditor = vi.fn(async () => ({ update }) as unknown as ReaderDirectoryEmmEditService)
+    const controller = new ReaderFileTreeHeadlessController(service, { loadEmmEditor })
+    const opened = await controller.open({ path: "/library" })
+    const command = {
+      generation: opened.generation,
+      updates: [{ path: "/library/A.cbz", expectedRevision: 0, patch: { rating: 5 as const } }],
+    }
+
+    await expect(controller.editEmm(command)).resolves.toMatchObject({ generation: opened.generation + 1, succeeded: 1 })
+    expect(loadEmmEditor).toHaveBeenCalledOnce()
+    expect(update).toHaveBeenCalledWith(opened.sessionId, command, undefined)
+    await controller[Symbol.asyncDispose]()
   })
 
   it("[neoview.folder.headless-lazy-retry] retries rejected history and suggestion resource loads", async () => {

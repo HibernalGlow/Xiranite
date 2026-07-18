@@ -133,7 +133,7 @@ describe("Reader data store composition", () => {
     database.close()
   })
 
-  it("[neoview.folder.emm-headless-composition] lazily shares one legacy database for tag search, suggestions and history", async () => {
+  it("[neoview.folder.emm-headless-composition] [neoview.folder.emm-edit-headless-composition] lazily shares one legacy database for tag search, editing, suggestions and history", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-reader-folder-emm-headless-"))
     roots.push(root)
     const databasePath = join(root, "thumbnails.db")
@@ -162,6 +162,20 @@ describe("Reader data store composition", () => {
       await expect(controller.suggestEmmTags(4)).resolves.toEqual(expect.arrayContaining([
         expect.objectContaining({ category: "artist", tag: "Alice", favorite: false }),
       ]))
+      await expect(controller.editEmm({
+        generation: opened.generation,
+        updates: [{
+          path: bookPath,
+          expectedRevision: 0,
+          patch: { rating: 5, translatedTitle: "Alice translated" },
+        }],
+      })).resolves.toMatchObject({
+        generation: opened.generation + 1,
+        refreshRequired: false,
+        succeeded: 1,
+        conflicts: 0,
+        failed: 0,
+      })
       await expect(controller.recordSearchHistory("folder", "alice")).resolves.toMatchObject({ query: "alice" })
     } finally {
       await controller[Symbol.asyncDispose]()
@@ -170,6 +184,11 @@ describe("Reader data store composition", () => {
     const verified = await openDatabase(databasePath)
     expect(verified.get("SELECT query, use_count FROM xr_reader_search_history WHERE scope_id = 'folder'"))
       .toEqual({ query: "alice", use_count: 1 })
+    const override = verified.get("SELECT overrides_json, revision FROM xr_reader_emm_overrides") as { overrides_json: string; revision: number }
+    expect({ ...override, overrides_json: JSON.parse(override.overrides_json) }).toEqual({
+      overrides_json: { rating: 5, translatedTitle: "Alice translated" },
+      revision: 1,
+    })
     verified.close()
   })
 
@@ -222,6 +241,10 @@ describe("Reader data store composition", () => {
       expect(opened.metadataCapabilities).not.toContain("tags")
       expect(() => controller.search("", { maximumDepth: 0, includeTags: ["artist:alice"] })).toThrow("unavailable")
       await expect(controller.suggestEmmTags()).rejects.toThrow("unavailable")
+      await expect(controller.editEmm({
+        generation: opened.generation,
+        updates: [{ path: join(root, "book.cbz"), expectedRevision: 0, patch: { rating: 5 } }],
+      })).rejects.toThrow("unavailable")
     } finally {
       await controller[Symbol.asyncDispose]()
     }

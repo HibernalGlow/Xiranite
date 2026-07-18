@@ -7,6 +7,7 @@ import type {
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
   ReaderDirectoryFilter,
+  ReaderDirectoryEmmEditCommand,
 } from "./core.js"
 import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
@@ -44,7 +45,7 @@ export interface NeoviewBookSettingsTuiPort extends AsyncDisposable {
 
 export type NeoviewFileTreeTuiAction =
   | "tree" | "search" | "exclude" | "include" | "clear-cache"
-  | "history" | "delete-history" | "clear-history" | "emm-tags"
+  | "history" | "delete-history" | "clear-history" | "emm-tags" | "emm-edit"
 
 export interface NeoviewFileTreeTuiInput {
   action: NeoviewFileTreeTuiAction
@@ -59,6 +60,8 @@ export interface NeoviewFileTreeTuiInput {
   includeTags?: readonly string[]
   excludeTags?: readonly string[]
   tagMode?: "all" | "any"
+  emmUpdatesJson?: string
+  emmConcurrency?: number
   scope?: "folder" | "file" | "bookmark" | "history"
 }
 
@@ -172,13 +175,22 @@ export function createNeoviewFileTreeTuiDefinition(
       active = controller
       try {
         const needsTreeSession = input.action !== "history" && input.action !== "delete-history" && input.action !== "clear-history" && input.action !== "emm-tags"
-        if (needsTreeSession) {
-          await controller.open({ path: input.action === "exclude" || input.action === "include" ? dirname(input.path) : input.path })
-        }
+        const opened = needsTreeSession
+          ? await controller.open({ path: input.action === "exclude" || input.action === "include" ? dirname(input.path) : input.path })
+          : undefined
         if (input.action === "tree") {
           const page = await controller.tree()
           const paths = page?.entries.map((entry) => entry.path) ?? []
           return { success: true, message: `${paths.length} child directories.`, paths }
+        }
+        if (input.action === "emm-edit") {
+          if (!opened) throw new Error("Reader file tree session did not open.")
+          const result = await controller.editEmm(emmEditCommandFromInteraction(opened.generation, input))
+          return {
+            success: result.failed === 0 && result.conflicts === 0,
+            message: `EMM metadata: ${result.succeeded} succeeded, ${result.conflicts} conflicts, ${result.failed} failed.`,
+            paths: result.results.map((item) => JSON.stringify(item)),
+          }
         }
         if (input.action === "search") {
           await controller.setFilter(input.filter ?? "all")
@@ -476,10 +488,29 @@ function interactionTagList(value: unknown): string[] | undefined {
   return tags.length ? [...new Set(tags)] : undefined
 }
 
+function emmEditCommandFromInteraction(generation: number, input: NeoviewFileTreeTuiInput): ReaderDirectoryEmmEditCommand {
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(input.emmUpdatesJson ?? "")
+  } catch {
+    throw new Error("EMM updates must be valid JSON.")
+  }
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+    throw new Error("EMM updates must be an object containing updates.")
+  }
+  const record = decoded as Record<string, unknown>
+  return {
+    generation,
+    updates: record.updates as ReaderDirectoryEmmEditCommand["updates"],
+    ...(input.emmConcurrency === undefined ? {} : { concurrency: input.emmConcurrency }),
+  }
+}
+
 function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewFileTreeTuiInput, NeoviewFileTreeTuiResult> {
   const zh = language === "zh"
   const search = (values: Readonly<InteractionValues>) => values.action === "search"
   const searchOrSuggestions = (values: Readonly<InteractionValues>) => values.action === "search" || values.action === "emm-tags"
+  const emmEdit = (values: Readonly<InteractionValues>) => values.action === "emm-edit"
   const query = (values: Readonly<InteractionValues>) => values.action === "search" || values.action === "delete-history"
   const history = (values: Readonly<InteractionValues>) => values.action === "history" || values.action === "delete-history" || values.action === "clear-history"
   const needsPath = (action: NeoviewFileTreeTuiAction) => action !== "history" && action !== "delete-history" && action !== "clear-history" && action !== "emm-tags"
@@ -487,7 +518,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
     id: "neoview-file-tree",
     title: "NeoView File Tree",
     description: zh ? "目录树、递归搜索与排除规则" : "Directory tree, recursive search and exclusions",
-    initialValues: { action: "tree", path: "", query: "", mode: "text", filter: "all", includeTags: "", excludeTags: "", tagMode: "all", maximumDepth: 10, maximumResults: 512, caseSensitive: false, searchInPath: false },
+    initialValues: { action: "tree", path: "", query: "", mode: "text", filter: "all", includeTags: "", excludeTags: "", tagMode: "all", emmUpdatesJson: "", emmConcurrency: 4, maximumDepth: 10, maximumResults: 512, caseSensitive: false, searchInPath: false },
     fields: [
       { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
         { value: "tree", label: zh ? "展开树节点" : "Expand tree node" },
@@ -499,6 +530,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
         { value: "delete-history", label: zh ? "删除搜索记录" : "Delete search entry" },
         { value: "clear-history", label: zh ? "清空搜索历史" : "Clear search history" },
         { value: "emm-tags", label: zh ? "EMM 标签建议" : "EMM tag suggestions" },
+        { value: "emm-edit", label: zh ? "编辑 EMM 元数据" : "Edit EMM metadata" },
       ] },
       { id: "path", label: zh ? "目录路径" : "Directory path", kind: "text" },
       { id: "query", label: zh ? "搜索内容" : "Query", kind: "text", visibleWhen: query },
@@ -513,6 +545,8 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       { id: "includeTags", label: zh ? "包含 EMM 标签" : "Required EMM tags", kind: "text", visibleWhen: search },
       { id: "excludeTags", label: zh ? "排除 EMM 标签" : "Excluded EMM tags", kind: "text", visibleWhen: search },
       { id: "tagMode", label: zh ? "标签组合" : "Tag mode", kind: "select", options: [{ value: "all", label: zh ? "全部匹配" : "Match all" }, { value: "any", label: zh ? "任一匹配" : "Match any" }], visibleWhen: search },
+      { id: "emmUpdatesJson", label: zh ? "EMM 更新 JSON" : "EMM updates JSON", kind: "text", visibleWhen: emmEdit },
+      { id: "emmConcurrency", label: zh ? "EMM 更新并发" : "EMM edit concurrency", kind: "number", min: 1, max: 8, step: 1, visibleWhen: emmEdit },
       { id: "maximumDepth", label: zh ? "最大深度" : "Maximum depth", kind: "number", min: 0, max: 4096, step: 1, visibleWhen: search },
       { id: "maximumResults", label: zh ? "结果上限" : "Result limit", kind: "number", min: 1, max: 10000, step: 1, visibleWhen: searchOrSuggestions },
       { id: "caseSensitive", label: zh ? "区分大小写" : "Case sensitive", kind: "boolean", visibleWhen: search },
@@ -527,6 +561,8 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       includeTags: interactionTagList(values.includeTags),
       excludeTags: interactionTagList(values.excludeTags),
       tagMode: values.tagMode === "any" ? "any" : "all",
+      emmUpdatesJson: String(values.emmUpdatesJson ?? "").trim(),
+      emmConcurrency: Number(values.emmConcurrency ?? 4),
       maximumDepth: Number(values.maximumDepth ?? 10),
       maximumResults: Number(values.maximumResults ?? 512),
       caseSensitive: values.caseSensitive === true,
@@ -537,15 +573,19 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       ? (zh ? "请输入目录路径。" : "Enter a directory path.")
       : input.action === "search" && !input.query && !input.includeTags?.length && !input.excludeTags?.length
         ? (zh ? "请输入搜索内容或 EMM 标签。" : "Enter a search query or EMM tags.")
+        : input.action === "emm-edit" && !input.emmUpdatesJson
+          ? (zh ? "请输入 EMM 更新 JSON。" : "Enter EMM updates JSON.")
         : input.action === "delete-history" && !input.query
         ? (zh ? "请输入搜索内容。" : "Enter a search query.")
         : null,
     preview: (input) => [input.path, input.action === "search" ? `${input.mode}: ${input.query}` : input.action],
-    isDangerous: (input) => input.action === "exclude" || input.action === "include" || input.action === "clear-cache" || input.action === "delete-history" || input.action === "clear-history",
+    isDangerous: (input) => input.action === "exclude" || input.action === "include" || input.action === "clear-cache" || input.action === "delete-history" || input.action === "clear-history" || input.action === "emm-edit",
     dangerPrompt: (input) => ({
       title: zh ? "确认文件树操作" : "Confirm file-tree operation",
       body: input.action === "clear-cache"
         ? (zh ? "将清理当前有界树缓存。" : "The bounded file-tree cache will be cleared.")
+        : input.action === "emm-edit"
+          ? (zh ? "将非破坏性写入原 NeoView thumbnails.db 的 xr_ EMM 覆盖表。" : "This writes EMM overrides to the xr_ namespace in the original NeoView thumbnails.db.")
         : input.action === "delete-history" || input.action === "clear-history"
           ? (zh ? "将删除 NeoView 主数据库中的搜索历史。" : "This removes search history from the NeoView primary database.")
         : (zh ? "将修改 [nodes.neoview.folder.tree] 排除设置。" : "This changes [nodes.neoview.folder.tree] exclusions."),
@@ -697,7 +737,7 @@ function mutationResult(changed: boolean, name: string): NeoviewLibraryTuiResult
 
 function isFileTreeAction(value: unknown): value is NeoviewFileTreeTuiAction {
   return value === "tree" || value === "search" || value === "exclude" || value === "include" || value === "clear-cache"
-    || value === "history" || value === "delete-history" || value === "clear-history" || value === "emm-tags"
+    || value === "history" || value === "delete-history" || value === "clear-history" || value === "emm-tags" || value === "emm-edit"
 }
 
 function isSearchHistoryScope(value: unknown): value is "folder" | "file" | "bookmark" | "history" {

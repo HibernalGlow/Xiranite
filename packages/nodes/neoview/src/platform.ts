@@ -222,9 +222,19 @@ export async function createReaderFileTreeController(
         })
       }
     : undefined
+  const loadEmmEditor = loadSharedStore
+    ? async () => {
+        const store = await loadSharedStore()
+        if (!isReaderEmmOverrideStore(store)) throw new Error("Reader EMM metadata editing is unavailable.")
+        const { ReaderDirectoryEmmEditService } = await import("./application/metadata/ReaderDirectoryEmmEditService.js")
+        const { ReaderEmmMetadataService } = await import("./application/metadata/ReaderEmmMetadataService.js")
+        return new ReaderDirectoryEmmEditService(new ReaderEmmMetadataService(store), service)
+      }
+    : undefined
   return new ReaderFileTreeHeadlessController(service, {
     loadSearchHistory,
     loadEmmTagSuggestions,
+    loadEmmEditor,
     closeResources: async () => {
       emmTranslations.clear()
       await ownedDataStore?.close()
@@ -717,7 +727,7 @@ function isReaderBookSettingsStore(store: ReaderProgressStore | undefined): stor
     && typeof (store as Partial<ReaderBookSettingsStore>).importBookSettings === "function")
 }
 
-function isReaderEmmOverrideStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderEmmOverrideStore {
+function isReaderEmmOverrideStore(store: unknown): store is ReaderEmmOverrideStore {
   return Boolean(store
     && typeof (store as Partial<ReaderEmmOverrideStore>).getEmmOverride === "function"
     && typeof (store as Partial<ReaderEmmOverrideStore>).saveEmmOverride === "function")
