@@ -1,5 +1,7 @@
-import { cp, lstat, mkdir, rename as renamePath, rm, stat } from "node:fs/promises"
+import { execFile } from "node:child_process"
+import { cp, lstat, mkdir, rename as renamePath, rm } from "node:fs/promises"
 import { basename, dirname, normalize, resolve } from "node:path"
+import { promisify } from "node:util"
 import { moveFile, renameFile } from "move-file"
 import trash from "trash"
 
@@ -11,12 +13,18 @@ import type {
 } from "../../ports/ReaderFileMutationProvider.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
+const execFileAsync = promisify(execFile)
+const WINDOWS_FIND_TRASH_ITEM_SCRIPT = "$target = [IO.Path]::GetFullPath($env:XIRANITE_TRASH_SOURCE); $bin = (New-Object -ComObject Shell.Application).Namespace(10); if ($null -eq $bin) { exit 2 }; $item = $bin.Items() | Where-Object { $from = $_.ExtendedProperty('System.Recycle.DeletedFrom'); $from -and [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath([string]$from), $target) } | Sort-Object -Property @{ Expression = { $_.ExtendedProperty('System.Recycle.DateDeleted') }; Descending = $true } | Select-Object -First 1; if ($null -eq $item) { exit 3 }; Write-Output $item.Path"
+const WINDOWS_RESTORE_SCRIPT = "$bin = (New-Object -ComObject Shell.Application).Namespace(10); if ($null -eq $bin) { exit 2 }; $item = $bin.Items() | Where-Object { [StringComparer]::OrdinalIgnoreCase.Equals([string]$_.Path, $env:XIRANITE_TRASH_ITEM) } | Select-Object -First 1; if ($null -eq $item) { exit 3 }; $item.InvokeVerb('undelete')"
+
 export interface PlatformReaderFileMutationProviderOptions {
   scheduler?: ResourceScheduler
   ownerId?: string
   move?: typeof moveFile
   rename?: typeof renameFile
   trash?: (path: string) => Promise<void>
+  restoreTrash?: (path: string, itemPath: string, signal?: AbortSignal) => Promise<void>
+  identifyTrash?: (path: string, signal?: AbortSignal) => Promise<string | undefined>
 }
 
 export class PlatformReaderFileMutationProvider implements ReaderFileMutationProvider {
@@ -25,13 +33,21 @@ export class PlatformReaderFileMutationProvider implements ReaderFileMutationPro
   readonly #move: typeof moveFile
   readonly #rename: typeof renameFile
   readonly #trash: (path: string) => Promise<void>
+  readonly #restoreTrash?: (path: string, itemPath: string, signal?: AbortSignal) => Promise<void>
+  readonly #identifyTrash?: (path: string, signal?: AbortSignal) => Promise<string | undefined>
+  readonly trashRestore: boolean
 
   constructor(options: PlatformReaderFileMutationProviderOptions = {}) {
     this.#scheduler = options.scheduler
     this.#ownerId = options.ownerId ?? "neoview:file-operations"
     this.#move = options.move ?? moveFile
     this.#rename = options.rename ?? renameFile
+    const usesDefaultTrash = options.trash === undefined
     this.#trash = options.trash ?? ((path) => trash(path, { glob: false }))
+    this.#restoreTrash = options.restoreTrash
+    this.#identifyTrash = options.identifyTrash ?? (process.platform === "win32" && usesDefaultTrash ? identifyWindowsTrash : undefined)
+    if (options.restoreTrash === undefined && process.platform === "win32" && usesDefaultTrash) this.#restoreTrash = restoreWindowsTrash
+    this.trashRestore = Boolean(this.#restoreTrash && this.#identifyTrash)
   }
 
   async execute(operation: ReaderFileMutation, signal?: AbortSignal): Promise<ReaderFileUndoReceipt | undefined> {
@@ -44,7 +60,7 @@ export class PlatformReaderFileMutationProvider implements ReaderFileMutationPro
     }, signal)
     try {
       signal?.throwIfAborted()
-      const receipt = await this.#execute(operation)
+      const receipt = await this.#execute(operation, true)
       return receipt
     } finally {
       lease?.release()
@@ -60,6 +76,15 @@ export class PlatformReaderFileMutationProvider implements ReaderFileMutationPro
       ownerId: this.#ownerId,
     }, signal)
     try {
+      if (receipt.original.kind === "trash") {
+        if (!this.#restoreTrash || receipt.providerData?.kind !== "windows-recycle-bin") {
+          throw new Error("Reader trash restore is unavailable for this receipt.")
+        }
+        if (await pathExists(receipt.guard.path)) throw stalePath(receipt.guard.path)
+        await this.#restoreTrash(receipt.original.sourcePath, receipt.providerData.itemPath, signal)
+        await waitForRestoredPath(receipt.original.sourcePath, receipt.guard)
+        return
+      }
       const current = await snapshot(receipt.guard.path)
       if (!sameGuard(current, receipt.guard)) throw stalePath(receipt.guard.path)
       await this.#execute(receipt.inverse, false)
@@ -112,10 +137,19 @@ export class PlatformReaderFileMutationProvider implements ReaderFileMutationPro
       case "delete":
         await rm(operation.sourcePath, { recursive: true, force: false })
         return
-      case "trash":
-        await stat(operation.sourcePath)
+      case "trash": {
+        const guard = await snapshot(operation.sourcePath)
         await this.#trash(operation.sourcePath)
-        return
+        if (!createUndo || !this.trashRestore) return undefined
+        let itemPath: string | undefined
+        try {
+          itemPath = await this.#identifyTrash!(operation.sourcePath)
+        } catch {
+          // The trash mutation already succeeded; report it as non-undoable when item capture fails.
+          return undefined
+        }
+        return itemPath ? receipt(operation, operation, guard, { kind: "windows-recycle-bin", itemPath }) : undefined
+      }
       case "create-directory":
         await mkdir(operation.destinationPath, { recursive: false })
         return createUndo
@@ -132,8 +166,13 @@ function isWindowsCaseOnlyRename(sourcePath: string, destinationPath: string): b
   return source !== destination && source.toLocaleLowerCase("en-US") === destination.toLocaleLowerCase("en-US")
 }
 
-function receipt(original: ReaderFileMutation, inverse: ReaderFileMutation, guard: ReaderFileMutationGuard): ReaderFileUndoReceipt {
-  return { original, inverse, guard }
+function receipt(
+  original: ReaderFileMutation,
+  inverse: ReaderFileMutation,
+  guard: ReaderFileMutationGuard,
+  providerData?: ReaderFileUndoReceipt["providerData"],
+): ReaderFileUndoReceipt {
+  return { original, inverse, guard, providerData }
 }
 
 async function snapshot(path: string): Promise<ReaderFileMutationGuard> {
@@ -182,4 +221,58 @@ function errorCode(error: unknown): string | undefined {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
     ? error.code
     : undefined
+}
+
+async function identifyWindowsTrash(path: string, signal?: AbortSignal): Promise<string | undefined> {
+  signal?.throwIfAborted()
+  const result = await execFileAsync("powershell.exe", [
+    "-NoLogo",
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    WINDOWS_FIND_TRASH_ITEM_SCRIPT,
+  ], {
+    env: { ...process.env, XIRANITE_TRASH_SOURCE: path },
+    windowsHide: true,
+    maxBuffer: 256 * 1024,
+  })
+  const itemPath = result.stdout.trim()
+  return itemPath || undefined
+}
+
+async function restoreWindowsTrash(_path: string, itemPath: string, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted()
+  await execFileAsync("powershell.exe", [
+    "-NoLogo",
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    WINDOWS_RESTORE_SCRIPT,
+  ], {
+    env: { ...process.env, XIRANITE_TRASH_ITEM: itemPath },
+    windowsHide: true,
+    maxBuffer: 256 * 1024,
+  })
+}
+
+async function waitForRestoredPath(path: string, guard: ReaderFileMutationGuard): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (await pathMatchesRestoredShape(path, guard)) return
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
+  }
+  throw Object.assign(new Error(`Reader trash restore did not recreate the original path: ${path}`), { code: "ENOENT" })
+}
+
+async function pathMatchesRestoredShape(path: string, guard: ReaderFileMutationGuard): Promise<boolean> {
+  try {
+    const restored = await snapshot(path)
+    return restored.kind === guard.kind && (guard.kind !== "file" || restored.size === guard.size)
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return false
+    throw error
+  }
 }

@@ -420,8 +420,9 @@ describe("SqliteReaderDataStore", () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)
     await store.saveFileUndoTransaction(undoTransaction("older", 1, "D:/older"), 1)
-    await store.saveFileUndoTransaction(undoTransaction("newer", 2, "D:/newer"), 1)
-    await expect(store.loadFileUndoTransactions(50)).resolves.toEqual([undoTransaction("newer", 2, "D:/newer")])
+    const newer = undoTransaction("newer", 2, "D:/newer", { kind: "windows-recycle-bin", itemPath: "C:/\u0024Recycle.Bin/test/\u0024R-newer.txt" })
+    await store.saveFileUndoTransaction(newer, 1)
+    await expect(store.loadFileUndoTransactions(50)).resolves.toEqual([newer])
     await expect(store.removeFileUndoTransaction("newer")).resolves.toBe(true)
     await expect(store.loadFileUndoTransactions(50)).resolves.toEqual([])
     await store.close()
@@ -777,7 +778,7 @@ interface FixtureDatabase {
   close(): void
 }
 
-function undoTransaction(id: string, createdAt: number, path: string) {
+function undoTransaction(id: string, createdAt: number, path: string, providerData?: { kind: "windows-recycle-bin"; itemPath: string }) {
   const original = { kind: "copy" as const, sourcePath: `${path}-source`, destinationPath: path, overwrite: false }
   return {
     id,
@@ -788,6 +789,7 @@ function undoTransaction(id: string, createdAt: number, path: string) {
         original,
         inverse: { kind: "delete" as const, sourcePath: path },
         guard: { path, kind: "file" as const, size: 1, mtimeMs: 1, ctimeMs: 1, device: 1, inode: 1 },
+        ...(providerData ? { providerData } : {}),
       },
     }],
   }

@@ -2512,9 +2512,12 @@
         "tui": "pending",
         "evidence": "pending"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.file-operations.trash-restore",
+        "neoview.file-operations.trash-restore-stale"
+      ],
       "plannedTestIds": [],
-      "notes": "需平台能力声明。"
+      "notes": "后端 platform/receipt 已有 capability-aware Windows restore 与 stale-path 证据；GUI/CLI/TUI 的 undo transport、恢复冲突展示、跨进程 claim 和完整 FolderMain 交互仍待完成，因此维持 pending。"
     },
     {
       "id": "folder.op.bookmark",

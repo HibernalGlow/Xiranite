@@ -43,6 +43,46 @@ describe("PlatformReaderFileMutationProvider", () => {
     await expect(provider.execute({ kind: "trash", sourcePath: join(root, "missing") })).rejects.toMatchObject({ code: "ENOENT" })
   })
 
+  it("[neoview.file-operations.trash-restore] records a guarded trash receipt when restore is available", async () => {
+    const root = await temporaryRoot()
+    const source = join(root, "source.txt")
+    await writeFile(source, "reader")
+    const trashPath = vi.fn(async (path: string) => rm(path))
+    const restoreTrash = vi.fn(async (path: string) => writeFile(path, "reader"))
+    const identifyTrash = vi.fn(async () => "C:\\$Recycle.Bin\\test\\$R-source.txt")
+    const provider = new PlatformReaderFileMutationProvider({ trash: trashPath, restoreTrash, identifyTrash })
+
+    const receipt = await provider.execute({ kind: "trash", sourcePath: source })
+    expect(provider.trashRestore).toBe(true)
+    expect(receipt).toMatchObject({
+      original: { kind: "trash", sourcePath: source },
+      inverse: { kind: "trash", sourcePath: source },
+      providerData: { kind: "windows-recycle-bin", itemPath: "C:\\$Recycle.Bin\\test\\$R-source.txt" },
+    })
+
+    await provider.undo(receipt!)
+    expect(identifyTrash).toHaveBeenCalledWith(source)
+    expect(restoreTrash).toHaveBeenCalledWith(source, "C:\\$Recycle.Bin\\test\\$R-source.txt", undefined)
+    expect(await readFile(source, "utf8")).toBe("reader")
+  })
+
+  it("[neoview.file-operations.trash-restore-stale] refuses to restore over a replacement path", async () => {
+    const root = await temporaryRoot()
+    const source = join(root, "source.txt")
+    await writeFile(source, "reader")
+    const trashPath = vi.fn(async (path: string) => rm(path))
+    const restoreTrash = vi.fn(async (path: string) => writeFile(path, "restored"))
+    const identifyTrash = vi.fn(async () => "C:\\$Recycle.Bin\\test\\$R-source.txt")
+    const provider = new PlatformReaderFileMutationProvider({ trash: trashPath, restoreTrash, identifyTrash })
+
+    const receipt = await provider.execute({ kind: "trash", sourcePath: source })
+    await writeFile(source, "replacement")
+
+    await expect(provider.undo(receipt!)).rejects.toMatchObject({ code: "ESTALE" })
+    expect(restoreTrash).not.toHaveBeenCalled()
+    expect(await readFile(source, "utf8")).toBe("replacement")
+  })
+
   it.runIf(process.platform === "win32")("[neoview.folder.rename-case-platform] preserves content and undo for a case-only rename", async () => {
     const root = await temporaryRoot()
     const source = join(root, "book.cbz")

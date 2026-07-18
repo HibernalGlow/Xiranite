@@ -1571,6 +1571,10 @@ const UndoReceiptSchema = z.object({
     device: z.number().finite().nonnegative(),
     inode: z.number().finite().nonnegative(),
   }).strict(),
+  providerData: z.object({
+    kind: z.literal("windows-recycle-bin"),
+    itemPath: PathSchema,
+  }).strict().optional(),
 }).strict()
 const UndoTransactionSchema = z.object({
   id: z.string().min(1).max(128).refine((value) => !value.includes("\0")),
