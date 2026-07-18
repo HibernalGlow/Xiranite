@@ -33,6 +33,10 @@
       "types": "./dist/switch-toast.d.ts",
       "default": "./dist/switch-toast.js"
     },
+    "./info-overlay": {
+      "types": "./dist/info-overlay.d.ts",
+      "default": "./dist/info-overlay.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"

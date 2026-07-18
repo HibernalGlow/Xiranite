@@ -37,6 +37,13 @@ import {
   type ReaderSwitchToastPatch,
   type ReaderSwitchToastSettings,
 } from "../switch-toast/ReaderSwitchToast.js"
+import {
+  DEFAULT_READER_INFO_OVERLAY,
+  normalizeReaderInfoOverlay,
+  parseReaderInfoOverlayPatch,
+  type ReaderInfoOverlayPatch,
+  type ReaderInfoOverlaySettings,
+} from "../info-overlay/ReaderInfoOverlay.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -55,6 +62,7 @@ export interface NeoviewRuntimeConfig {
   colorFilter: ReaderColorFilterSettings
   pageTransition: ReaderPageTransitionSettings
   switchToast: ReaderSwitchToastSettings
+  infoOverlay: ReaderInfoOverlaySettings
   superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
@@ -497,6 +505,10 @@ export interface NeoviewSwitchToastPatch {
   switchToast: ReaderSwitchToastPatch | { reset: "defaults" }
 }
 
+export interface NeoviewInfoOverlayPatch {
+  infoOverlay: ReaderInfoOverlayPatch | { reset: "defaults" }
+}
+
 export const DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG: NeoviewShellMaterialConfig = {
   preset: "frosted",
   saturation: { top: 115, bottom: 115, sidebar: 115 },
@@ -555,6 +567,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     colorFilter: DEFAULT_READER_COLOR_FILTER,
     pageTransition: DEFAULT_READER_PAGE_TRANSITION,
     switchToast: DEFAULT_READER_SWITCH_TOAST,
+    infoOverlay: DEFAULT_READER_INFO_OVERLAY,
     superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
@@ -580,6 +593,13 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       ?? nestedValue(reader, "view", "switch_toast")
       ?? nestedValue(reader, "view", "switchToast"),
     "[nodes.neoview.view.switch_toast]",
+  )
+  const infoOverlay = optionalRecord(
+    view?.info_overlay
+      ?? view?.infoOverlay
+      ?? nestedValue(reader, "view", "info_overlay")
+      ?? nestedValue(reader, "view", "infoOverlay"),
+    "[nodes.neoview.view.info_overlay]",
   )
   const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
@@ -646,7 +666,14 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       showBookSwitchToast: view?.show_book_switch_toast
         ?? view?.showBookSwitchToast
         ?? nestedValue(reader, "view", "show_book_switch_toast")
-        ?? nestedValue(reader, "view", "showBookSwitchToast"),
+      ?? nestedValue(reader, "view", "showBookSwitchToast"),
+    }),
+    infoOverlay: normalizeReaderInfoOverlay({
+      enabled: infoOverlay?.enabled,
+      opacity: infoOverlay?.opacity,
+      showBorder: infoOverlay?.show_border ?? infoOverlay?.showBorder,
+      width: infoOverlay?.width,
+      height: infoOverlay?.height,
     }),
     superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
@@ -1046,6 +1073,42 @@ export function parseNeoviewSwitchToastPatch(value: unknown): {
     patch: { switchToast: settings },
     tomlPatch: { view: { switch_toast: switchToastToml(settings) } },
   }
+}
+
+export function parseNeoviewInfoOverlayPatch(value: unknown): {
+  patch: NeoviewInfoOverlayPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader info overlay patch")
+  if (Object.keys(record).some((key) => key !== "infoOverlay")) {
+    throw new Error("reader info overlay patch contains unsupported fields.")
+  }
+  const infoOverlay = requireRecord(record.infoOverlay, "reader info overlay patch.infoOverlay")
+  const mutation = parseReaderInfoOverlayPatch(infoOverlay)
+  const toml = infoOverlayToml(mutation)
+  if ("reset" in mutation) {
+    return {
+      patch: { infoOverlay: { reset: "defaults" } },
+      tomlPatch: { view: { info_overlay: toml } },
+    }
+  }
+  return {
+    patch: { infoOverlay: mutation },
+    tomlPatch: { view: { info_overlay: toml } },
+  }
+}
+
+function infoOverlayToml(value: ReaderInfoOverlayPatch | { reset: "defaults" }): Record<string, unknown> {
+  if ("reset" in value) {
+    return infoOverlayToml(DEFAULT_READER_INFO_OVERLAY)
+  }
+  const toml: Record<string, unknown> = {}
+  if (value.enabled !== undefined) toml.enabled = value.enabled
+  if (value.opacity !== undefined) toml.opacity = value.opacity
+  if (value.showBorder !== undefined) toml.show_border = value.showBorder
+  if (value.width !== undefined) toml.width = value.width
+  if (value.height !== undefined) toml.height = value.height
+  return toml
 }
 
 function switchToastToml(value: ReaderSwitchToastPatch): Record<string, unknown> {
