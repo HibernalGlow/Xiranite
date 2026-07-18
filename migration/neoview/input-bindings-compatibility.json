@@ -513,16 +513,21 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
+        "core": "complete",
         "transport": "not-applicable",
         "gui": "pending",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.bindings.radial-config",
+        "neoview.bindings.radial-validation",
+        "neoview.bindings.radial-legacy-shape",
+        "neoview.bindings.radial-persistence"
+      ],
       "plannedTestIds": [],
-      "notes": "Legacy opaque data remains importable but no XR editor/runtime exists yet."
+      "notes": "The frozen framework-agnostic ray-menu Web Component is copied byte-for-byte and a strict shared DTO now covers up to 16 menus, three layers, bounded children, action slots, cross-menu jumps and canonical [nodes.neoview.bindings].radial_menus persistence. React editor/runtime wiring remains pending."
     },
     {
       "id": "bindings.conflicts",

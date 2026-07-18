@@ -29,6 +29,17 @@ export {
 } from "./domain/presentation/presentation.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
 export {
+  cloneReaderRadialMenuConfig,
+  DEFAULT_READER_RADIAL_MENU_CONFIG,
+  parseReaderRadialMenuConfig,
+  parseReaderRadialMenuPatch,
+  type NeoviewRadialMenuPatch,
+  type ReaderRadialMenuConfig,
+  type ReaderRadialMenuDefinition,
+  type ReaderRadialMenuItem,
+  type ReaderRadialMenuVariant,
+} from "./application/config/ReaderRadialMenuConfig.js"
+export {
   cloneReaderInputBindings,
   DEFAULT_READER_INPUT_BINDINGS,
   matchingReaderInputBinding,
