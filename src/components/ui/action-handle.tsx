@@ -25,15 +25,38 @@ const DIRECTIONS = [
   [0, 1],
   [1, 1],
 ] as const
-const MAX_RINGS = 3
-const RING_STEP = 40
 
-export function ActionHandle({ items, disabled = false, label = "操作手柄", menuLabel = "操作" }: {
+const DEFAULT_ACTION_HANDLE_LAYOUT = {
+  itemSize: 30,
+  radius: 36,
+  ringStep: 30,
+  palettePadding: 6,
+  maxRings: 3,
+} as const
+
+export interface ActionHandleLayout {
+  itemSize?: number
+  radius?: number
+  ringStep?: number
+  palettePadding?: number
+  maxRings?: 1 | 2 | 3
+}
+
+interface ActionHandleProps {
   items: readonly ActionHandleItem[]
   disabled?: boolean
   label?: string
   menuLabel?: string
-}) {
+  layout?: ActionHandleLayout
+}
+
+export function ActionHandle({
+  items,
+  disabled = false,
+  label = "操作手柄",
+  menuLabel = "操作",
+  layout,
+}: ActionHandleProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const gestureRef = useRef<{ pointerId: number; centerX: number; centerY: number; selected: number }>()
   const suppressClickRef = useRef(false)
@@ -41,8 +64,16 @@ export function ActionHandle({ items, disabled = false, label = "操作手柄", 
   const [palette, setPalette] = useState({ left: 0, top: 0, placement: "bottom" })
   const [selected, setSelected] = useState(-1)
   const [previewed, setPreviewed] = useState(-1)
-  const ringCount = Math.min(MAX_RINGS, Math.max(1, Math.ceil(items.length / DIRECTIONS.length)))
-  const paletteSize = 144 + (ringCount - 1) * RING_STEP * 2
+  const geometry = {
+    itemSize: Math.max(24, layout?.itemSize ?? DEFAULT_ACTION_HANDLE_LAYOUT.itemSize),
+    radius: Math.max(28, layout?.radius ?? DEFAULT_ACTION_HANDLE_LAYOUT.radius),
+    ringStep: Math.max(24, layout?.ringStep ?? DEFAULT_ACTION_HANDLE_LAYOUT.ringStep),
+    palettePadding: Math.max(4, layout?.palettePadding ?? DEFAULT_ACTION_HANDLE_LAYOUT.palettePadding),
+    maxRings: layout?.maxRings ?? DEFAULT_ACTION_HANDLE_LAYOUT.maxRings,
+  }
+  const ringCount = Math.min(geometry.maxRings, Math.max(1, Math.ceil(items.length / DIRECTIONS.length)))
+  const outerRadius = geometry.radius + (ringCount - 1) * geometry.ringStep
+  const paletteSize = Math.ceil((outerRadius + geometry.itemSize / 2 + geometry.palettePadding) * 2)
   const paletteCenter = paletteSize / 2
   const visibleItems = items.slice(0, ringCount * DIRECTIONS.length)
 
@@ -97,7 +128,7 @@ export function ActionHandle({ items, disabled = false, label = "操作手柄", 
       </Button>
       {open ? createPortal(
         <div
-          className="fixed z-[100] rounded-md border bg-popover/98 text-popover-foreground shadow-xl backdrop-blur-xl"
+          className="fixed z-[100] overflow-visible rounded-md border bg-popover/98 text-popover-foreground shadow-xl backdrop-blur-xl"
           style={{ left: palette.left, top: palette.top, width: paletteSize, height: paletteSize }}
           role="menu"
           aria-label={menuLabel}
@@ -105,41 +136,49 @@ export function ActionHandle({ items, disabled = false, label = "操作手柄", 
           data-action-palette="true"
           data-action-placement={palette.placement}
           data-action-rings={ringCount}
+          data-action-palette-size={paletteSize}
         >
           {visibleItems.map((item, index) => {
             const ring = Math.floor(index / DIRECTIONS.length)
             const direction = DIRECTIONS[index % DIRECTIONS.length]!
-            const radius = 48 + ring * RING_STEP
+            const radius = geometry.radius + ring * geometry.ringStep
             return (
-            <button
-              key={item.id}
-              type="button"
-              role="menuitem"
-              className={cn(
-                "absolute grid size-10 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                item.active && "bg-primary/15 text-primary",
-                selected === index && "bg-primary text-primary-foreground",
-              )}
-              style={{
-                left: paletteCenter + direction[0] * radius - 20,
-                top: paletteCenter + direction[1] * radius - 20,
-              }}
-              aria-label={item.label}
-              title={item.label}
-              disabled={item.disabled}
-              onPointerEnter={() => setPreviewed(index)}
-              onPointerLeave={() => setPreviewed(-1)}
-              onFocus={() => setPreviewed(index)}
-              onBlur={() => setPreviewed(-1)}
-              onClick={() => selectItem(index)}
-            >
-              {item.icon}
-            </button>
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                className={cn(
+                  "absolute grid place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  item.active && "bg-primary/15 text-primary",
+                  selected === index && "bg-primary text-primary-foreground",
+                )}
+                style={{
+                  width: geometry.itemSize,
+                  height: geometry.itemSize,
+                  left: paletteCenter + direction[0] * radius - geometry.itemSize / 2,
+                  top: paletteCenter + direction[1] * radius - geometry.itemSize / 2,
+                }}
+                aria-label={item.label}
+                title={item.label}
+                disabled={item.disabled}
+                onPointerEnter={() => setPreviewed(index)}
+                onPointerLeave={() => setPreviewed(-1)}
+                onFocus={() => setPreviewed(index)}
+                onBlur={() => setPreviewed(-1)}
+                onClick={() => selectItem(index)}
+              >
+                {item.icon}
+              </button>
             )
           })}
           <span
-            className="absolute grid size-9 place-items-center rounded-full border bg-muted text-muted-foreground"
-            style={{ left: paletteCenter - 18, top: paletteCenter - 18 }}
+            className="absolute grid place-items-center rounded-full border bg-muted text-muted-foreground"
+            style={{
+              width: geometry.itemSize,
+              height: geometry.itemSize,
+              left: paletteCenter - geometry.itemSize / 2,
+              top: paletteCenter - geometry.itemSize / 2,
+            }}
             aria-hidden="true"
           >
             <Grip className="size-4" />
@@ -167,8 +206,6 @@ export function ActionHandle({ items, disabled = false, label = "操作手柄", 
       x: (bounds?.left ?? 0) + (bounds?.width ?? 0) / 2,
       y: (bounds?.top ?? 0) + (bounds?.height ?? 0) / 2,
     }
-    const width = paletteSize
-    const height = paletteSize
     const gap = 8
     const spaces = {
       bottom: window.innerHeight - (bounds?.bottom ?? triggerCenter.y),
@@ -178,15 +215,13 @@ export function ActionHandle({ items, disabled = false, label = "操作手柄", 
     }
     const placement = (Object.entries(spaces) as [keyof typeof spaces, number][])
       .toSorted((left, right) => right[1] - left[1])[0]?.[0] ?? "bottom"
-    // Keep the radial center over the trigger; only clamp when the viewport
-    // cannot contain the requested ring count.
     const desired = {
-      left: triggerCenter.x - width / 2,
-      top: triggerCenter.y - height / 2,
+      left: triggerCenter.x - paletteSize / 2,
+      top: triggerCenter.y - paletteSize / 2,
     }
     setPalette({
-      left: Math.max(gap, Math.min(window.innerWidth - width - gap, desired.left)),
-      top: Math.max(gap, Math.min(window.innerHeight - height - 52, desired.top)),
+      left: Math.max(gap, Math.min(window.innerWidth - paletteSize - gap, desired.left)),
+      top: Math.max(gap, Math.min(window.innerHeight - paletteSize - 52, desired.top)),
       placement,
     })
     return triggerCenter
@@ -204,7 +239,14 @@ export function ActionHandle({ items, disabled = false, label = "操作手柄", 
   function moveGesture(event: ReactPointerEvent<HTMLButtonElement>): void {
     const gesture = gestureRef.current
     if (!gesture || gesture.pointerId !== event.pointerId) return
-    const next = actionIndex(event.clientX - gesture.centerX, event.clientY - gesture.centerY, ringCount, visibleItems.length)
+    const next = actionIndex(
+      event.clientX - gesture.centerX,
+      event.clientY - gesture.centerY,
+      ringCount,
+      visibleItems.length,
+      geometry.radius,
+      geometry.ringStep,
+    )
     if (next === gesture.selected) return
     gesture.selected = next
     setSelected(next)
@@ -253,11 +295,18 @@ function directionSlot(deltaX: number, deltaY: number): number {
   } as Record<string, number>)[String(octant)] ?? -1
 }
 
-function actionIndex(deltaX: number, deltaY: number, ringCount: number, itemCount: number): number {
+function actionIndex(
+  deltaX: number,
+  deltaY: number,
+  ringCount: number,
+  itemCount: number,
+  radius: number,
+  ringStep: number,
+): number {
   const distance = Math.hypot(deltaX, deltaY)
   const slot = directionSlot(deltaX, deltaY)
   if (slot < 0) return -1
-  const ring = Math.min(ringCount - 1, Math.max(0, Math.round((distance - 48) / RING_STEP)))
+  const ring = Math.min(ringCount - 1, Math.max(0, Math.round((distance - radius) / ringStep)))
   const index = ring * DIRECTIONS.length + slot
   return index < itemCount ? index : -1
 }

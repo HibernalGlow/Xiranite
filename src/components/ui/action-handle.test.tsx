@@ -5,12 +5,20 @@ import { ActionHandle } from "./action-handle"
 
 afterEach(cleanup)
 
+function items(count: number, selected?: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: String(index),
+    label: `操作 ${index}`,
+    preview: index === selected ? "显示对应操作预览" : undefined,
+    icon: <span>{index}</span>,
+    onSelect: index === selected ? vi.fn() : vi.fn(),
+  }))
+}
+
 describe("ActionHandle", () => {
-  it("opens an accessible eight-slot palette and invokes a clicked action", () => {
+  it("opens a compact accessible palette anchored to the trigger center", () => {
     const selected = vi.fn()
-    render(<ActionHandle items={Array.from({ length: 8 }, (_, index) => ({
-      id: String(index), label: `操作 ${index}`, preview: index === 4 ? "显示对应操作栏" : undefined, icon: <span>{index}</span>, onSelect: index === 4 ? selected : vi.fn(),
-    }))} />)
+    render(<ActionHandle items={items(8, 4).map((item, index) => ({ ...item, onSelect: index === 4 ? selected : vi.fn() }))} />)
     const handle = screen.getByRole("button", { name: "操作手柄" })
     Object.defineProperty(handle, "getBoundingClientRect", { configurable: true, value: () => ({ left: 900, right: 928, top: 10, bottom: 38, width: 28, height: 28 }) })
 
@@ -18,20 +26,29 @@ describe("ActionHandle", () => {
     expect(screen.getAllByRole("menuitem")).toHaveLength(8)
     const menu = screen.getByRole("menu")
     expect(menu.getAttribute("data-action-placement")).toBe("left")
-    expect(Number.parseFloat(menu.getAttribute("style")?.match(/left:\s*([\d.]+)px/)?.[1] ?? "0") + 72).toBeCloseTo(914)
+    expect(menu.getAttribute("data-action-palette-size")).toBe("114")
+    expect(Number.parseFloat(menu.getAttribute("style")?.match(/left:\s*([\d.]+)px/)?.[1] ?? "0") + 57).toBeCloseTo(914)
     const action = screen.getByRole("menuitem", { name: "操作 4" })
     fireEvent.pointerEnter(action)
-    expect(screen.getByRole("status").textContent).toContain("显示对应操作栏")
+    expect(screen.getByRole("status").textContent).toContain("显示对应操作预览")
     fireEvent.click(action)
     expect(selected).toHaveBeenCalledOnce()
     expect(screen.queryByRole("menu")).toBeNull()
   })
 
+  it("accepts custom layout geometry without changing the trigger anchor", () => {
+    render(<ActionHandle items={items(9)} layout={{ itemSize: 40, radius: 50, ringStep: 40, palettePadding: 10, maxRings: 2 }} />)
+    const handle = screen.getByRole("button", { name: "操作手柄" })
+    Object.defineProperty(handle, "getBoundingClientRect", { configurable: true, value: () => ({ left: 100, top: 100, width: 28, height: 28 }) })
+    fireEvent.click(handle)
+    const menu = screen.getByRole("menu")
+    expect(menu.getAttribute("data-action-rings")).toBe("2")
+    expect(menu.getAttribute("data-action-palette-size")).toBe("240")
+  })
+
   it("selects a direction without invoking actions during pointer moves", () => {
     const selected = vi.fn()
-    render(<ActionHandle items={Array.from({ length: 8 }, (_, index) => ({
-      id: String(index), label: `操作 ${index}`, icon: <span>{index}</span>, onSelect: index === 4 ? selected : vi.fn(),
-    }))} />)
+    render(<ActionHandle items={items(8).map((item, index) => ({ ...item, onSelect: index === 4 ? selected : vi.fn() }))} />)
     const handle = screen.getByRole("button", { name: "操作手柄" })
     Object.defineProperty(handle, "getBoundingClientRect", { configurable: true, value: () => ({ left: 100, top: 100, width: 28, height: 28 }) })
 
@@ -44,16 +61,14 @@ describe("ActionHandle", () => {
 
   it("uses drag distance to select the same direction on a second ring", () => {
     const selected = vi.fn()
-    render(<ActionHandle items={Array.from({ length: 16 }, (_, index) => ({
-      id: String(index), label: `操作 ${index}`, icon: <span>{index}</span>, onSelect: index === 12 ? selected : vi.fn(),
-    }))} />)
+    render(<ActionHandle items={items(16).map((item, index) => ({ ...item, onSelect: index === 12 ? selected : vi.fn() }))} />)
     const handle = screen.getByRole("button", { name: "操作手柄" })
     Object.defineProperty(handle, "getBoundingClientRect", { configurable: true, value: () => ({ left: 100, right: 128, top: 100, bottom: 128, width: 28, height: 28 }) })
 
     fireEvent.pointerDown(handle, { button: 0, pointerId: 10, clientX: 114, clientY: 114 })
     expect(screen.getByRole("menu").getAttribute("data-action-rings")).toBe("2")
-    fireEvent.pointerMove(handle, { pointerId: 10, clientX: 214, clientY: 114 })
-    fireEvent.pointerUp(handle, { pointerId: 10, clientX: 214, clientY: 114 })
+    fireEvent.pointerMove(handle, { pointerId: 10, clientX: 184, clientY: 114 })
+    fireEvent.pointerUp(handle, { pointerId: 10, clientX: 184, clientY: 114 })
     expect(selected).toHaveBeenCalledOnce()
   })
 })
