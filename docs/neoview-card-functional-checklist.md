@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/color-filter-compatibility.json`、`migration/neoview/page-transition-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/progressive-upscale-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -476,11 +476,11 @@
   - 备注：File Card 默认以 watch:true 打开唯一 browser session，@parcel/watcher 仅监听活动当前目录且仍为 Node 端动态 import。当前目录直接子项事件进入 /changes：已有 service 单飞重读后递增 listing generation，list/grid/details 保持 Virtuoso 视口、path selection 与 focus identity，旧索引区间安全清除。递归子目录事件只进入独立 /tree/changes revision：32 个父路径有界 ring 仅让已加载展开节点重读，折叠节点按需失效，落后消费者才安全 reset 当前祖先链；Folder Tree 层级从不混入普通列表。两路 25 秒无变化均返回 204，错误停止续订；关闭 Tree、导航、关闭 session 和卸载会 Abort waiter，最后消费者关闭即 unsubscribe。desktop/420x360 已验证外部目录 create/delete 同时更新独立 Tree 和当前目录列表且焦点、选择、阅读图片稳定。DirectoryWatch 为 774-byte 二级 lazy chunk，FolderTreeWorkspace 为 13,837 bytes，@parcel/watcher 零浏览器模块。
 - [ ] `folder.arch.dispose` 取消、释放与休眠
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
-  - 目标：切换 Panel 或 Edge 自动隐藏时保留 File Card DOM、目录会话和交互状态，仅暂停 watcher 与缩略图需求；切目录、关闭标签和真正卸载 Card 时取消过期分页/扫描/缩略图并释放 watcher、thumbnail context、browser session 和 Worker。
+  - 目标：切换 Panel 或 Edge 自动隐藏时保留 File Card DOM、目录会话和交互状态，仅暂停 watcher 与缩略图需求；切目录只取消过期分页、扫描和在途缩略图需求，browser-session 级 thumbnail context 保留有界历史 capability；关闭标签和真正卸载 Card 时才释放 watcher、thumbnail context、browser session 和 Worker。
   - 源码：`components/FolderStack.svelte`、`utils/directoryTreeCache.ts`
-  - 测试：`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`、`neoview.folder.watch-long-poll`、`neoview.folder.watch-gui`、`neoview.folder.watch-live-e2e`、`neoview.folder.panel-keepalive`、`neoview.folder.panel-keepalive-e2e`
+  - 测试：`neoview.folder.file-tree-service`、`neoview.folder.watch-http`、`neoview.folder.watch-cancellation`、`neoview.folder.watch-long-poll`、`neoview.folder.watch-gui`、`neoview.folder.watch-live-e2e`、`neoview.folder.panel-keepalive`、`neoview.folder.panel-keepalive-e2e`、`neoview.folder.nav-visual-state-e2e`
   - 计划测试：无
-  - 备注：File Card 首次访问后在 Panel 切换和 Edge 自动隐藏期间保持 mounted，browser session、catalog、选择、标签与 DOM identity 均保留；隐藏态停止当前目录和独立 Folder Tree 的 watch，并停止注册新缩略图需求，恢复可见后继续同一会话。ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和真正 dispose 时释放 watcher；Card 分页、缩略图 context 和 generation 长轮询均在导航/卸载时 Abort，最后消费者关闭即 unsubscribe。搜索/Worker 休眠仍待完成。
+  - 备注：File Card 首次访问后在 Panel 切换和 Edge 自动隐藏期间保持 mounted，browser session、catalog、选择、标签与 DOM identity 均保留；隐藏态停止当前目录和独立 Folder Tree 的 watch，并停止注册新缩略图需求，恢复可见后继续同一会话。ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和真正 dispose 时释放 watcher；Card 分页和在途缩略图 generation 在导航时 Abort，但 browser-session thumbnail context 保留到标签关闭或真正卸载，最后消费者关闭即 unsubscribe。搜索/Worker 休眠仍待完成。
 
 ### navigation（7）
 
@@ -497,7 +497,7 @@
   - 源码：`stores/folderTabStore/navigationHistory.svelte.ts`、`components/FolderToolbar/NavigationButtons.svelte`
   - 测试：`neoview.folder.nav-history`、`neoview.folder.nav-history-ui`、`neoview.folder.nav-history-e2e`、`neoview.folder.nav-visual-state-e2e`
   - 计划测试：无
-  - 备注：ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot；grid 额外保存真实 scroller scrollTop，details 保存原始 scrollTop，并在虚拟行测量后恢复。每个访问项最多缓存 256 个缩略图 URL，返回或切换 renderer 时先呈现旧图再后台重校验，失败不会清空整批缓存。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖；在 A 缩略图 POST 人为延迟 8 秒时，返回后相同可见文件仍立即有图且滚动误差不超过 40px。普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。
+  - 备注：ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot；grid 额外保存真实 scroller scrollTop，details 保存原始 scrollTop，并在虚拟行测量后恢复。每个访问项最多缓存 256 个 path+profile 缩略图 URL，同 profile 返回或切换 renderer 时直接复用旧 URL，不重复注册或替换 img.src；显式刷新、watch generation 和 profile 变化才重新验证。真实 Chromium desktop/420x360 验证 A→B→后退 A→前进 B→再后退 A：两次访问状态互不覆盖、滚动误差不超过 40px、相同路径 URL 保持一致、旧 capability 返回 200。普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。
 - [ ] `folder.nav.parent` 返回上级并定位原目录
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：返回上级后自动选中并滚动到刚离开的子目录；远端批次尚未加载时先定位索引再取页。
@@ -628,11 +628,11 @@
   - 备注：文件夹已支持 4/9/16 选择，服务端按自然顺序稳定选取前 N 张并通过 sharp.composite() 合成为单个 WebP；前端每项始终只挂一个 img，文件项强制单预览。preview_count 已规范化写入 [nodes.neoview.folder]；仍缺缺图视觉 characterization、磁盘 profile 缓存与 10K/100K 性能门禁。
 - [ ] `folder.view.thumbnail-pipeline` 可见范围缩略图管线
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
-  - 目标：仅对可见+overscan 项按 32-64 对齐窗口注册，opaque URL 输出，按字节预算缓存并在 context 释放后取消低优先级任务。
+  - 目标：仅对可见+overscan 且当前 profile 缓存缺失的项按 32-64 对齐窗口注册，opaque URL 输出，按字节预算缓存；同一 browser session 的历史 capability 跨 generation 保留，context 释放后取消低优先级任务并撤销全部 capability。
   - 源码：`components/FolderList.svelte`、`components/FolderListItem.svelte`
-  - 测试：待补
+  - 测试：`neoview.thumbnail.library.http`、`neoview.browser.visible-thumbnails`、`neoview.folder.nav-visual-state-e2e`
   - 计划测试：`neoview.folder.thumbnail-visible-batch`、`neoview.folder.thumbnail-release`、`neoview.folder.thumbnail-opaque-mosaic`
-  - 备注：当前最多 64 项 demand 已接入；单封面与 4/9/16 mosaic 都使用 opaque URL 和单请求/单 img，mosaic profile 只进入有界内存 coordinator，避免覆盖旧单封面持久缓存键。
+  - 备注：当前最多 64 项 demand 已接入；单封面与 4/9/16 mosaic 都使用 opaque URL 和单请求/单 img，mosaic profile 只进入有界内存 coordinator，避免覆盖旧单封面持久缓存键。File Card 按 path+profile 保存最多 256 个 URL，同一视图前进/后退不重复注册也不替换 img.src；显式刷新、watch generation 或 folder mosaic profile 变化才重新注册。asset route 在 browser-session context 内保留旧 capability，新 generation 只取消在途旧需求；显式 DELETE context 后统一撤销。
 
 ### performance（2）
 
@@ -1036,7 +1036,7 @@
 | `archives` | 压缩包扫描 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/benchmark/ArchivesCard.svelte` | 性能设置、基准、系统监控和诊断 |
 | `realworld` | 实际场景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/benchmark/RealWorldCard.svelte` | 性能设置、基准、系统监控和诊断 |
 | `imageSource` | 图像源对比 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/benchmark/ImageSourceCard.svelte` | 性能设置、基准、系统监控和诊断 |
-| `protocolTest` | 协议测试 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | **registry-only**：旧 CardRenderer 没有组件映射；迁移前必须显式补齐或记录替代决策。 | 性能设置、基准、系统监控和诊断 |
+| `protocolTest` | 协议测试 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/benchmark/ProtocolTestCard.svelte` | 性能设置、基准、系统监控和诊断 |
 | `results` | 测试结果 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/benchmark/ResultsCard.svelte` | 性能设置、基准、系统监控和诊断 |
 | `summary` | 总结 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/benchmark/SummaryCard.svelte` | 性能设置、基准、系统监控和诊断 |
 | `pipelineLatency` | 实时延迟监控 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/benchmark/PipelineLatencyCard.svelte` | 性能设置、基准、系统监控和诊断 |
@@ -1112,7 +1112,7 @@
 - [ ] 验证 Reader 资源协议/HTTP 数据面
 - [ ] 覆盖鉴权、Range、取消、缓存与错误响应
 - [ ] 旧版无 Renderer 映射，迁移时必须补齐诊断 UI 或记录被替代能力
-- UI 基线：`registry-only`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+- UI 基线：`src/lib/cards/benchmark/ProtocolTestCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 #### `results` 测试结果
 
@@ -2279,9 +2279,9 @@
 |---|---|---:|---:|---|---|---|
 | `switchToast` | 切换提示 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
-| `colorFilter` | 颜色滤镜 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
+| `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
 | `imageTrim` | 图像裁剪 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
-| `pageTransition` | 翻页动画 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
+| `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
 | `animatedVideoMode` | 动图视频模式 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制 |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
 | `sidebarHeight` | 侧边栏高度 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/SidebarHeightCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知 |
@@ -2615,10 +2615,307 @@
 
 #### `colorFilter` 颜色滤镜
 
+- 细项清单：`migration/neoview/color-filter-compatibility.json`
 - [ ] 开关并配置亮度、对比度、饱和度、灰度/反色等颜色效果
 - [ ] 实时预览、单项复位和全部复位
 - [ ] 区分书籍级与全局设置并避免重复渲染链
 - UI 基线：`src/lib/cards/info/ColorFilterCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（9 组，102 项）
+
+- `color-filter-ui.colorize` 上色开关、预设与仅黑白条件控件
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 映射：`color-filter.colorize`、`color-filter.presets`、`color-filter.only-black-white`、`color-filter.custom-colors`、`color-filter.states`
+  - [ ] 上色 checkbox 默认关闭
+  - [ ] 上色开启后才挂载预设 select 与仅黑白 checkbox
+  - [ ] 预设默认值 redAndBlueGray / 红蓝灰
+  - [ ] redAndBlue / 红蓝
+  - [ ] redAndBlueGray / 红蓝灰
+  - [ ] blueSky / 蓝天
+  - [ ] violetAndBrown / 紫棕
+  - [ ] violetAndCarnation / 紫粉
+  - [ ] paleYellowAndBrown / 淡黄棕
+  - [ ] red / 红色
+  - [ ] orange / 橙色
+  - [ ] yellow / 黄色
+  - [ ] green / 绿色
+  - [ ] blue / 蓝色
+  - [ ] violet / 紫色
+  - [ ] 预设顺序保持 colorPresets 插入顺序
+  - [ ] 切换预设清空 customColors
+  - [ ] 仅黑白图像 checkbox 默认关闭
+  - [ ] 未知预设回退 redAndBlueGray
+- `color-filter-ui.sliders` 基础滤镜滑杆、值标签与默认值
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 映射：`color-filter.brightness`、`color-filter.contrast`、`color-filter.saturation`、`color-filter.sepia`、`color-filter.hue`、`color-filter.ui-parity`、`color-filter.performance`
+  - [ ] 亮度 range 50..150、隐式步长 1、默认 100、百分比值标签
+  - [ ] 对比度 range 50..150、隐式步长 1、默认 100、百分比值标签
+  - [ ] 饱和度 range 0..200、隐式步长 1、默认 100、百分比值标签
+  - [ ] 褐色 range 0..100、隐式步长 1、默认 0、百分比值标签
+  - [ ] 色相 range 0..360、隐式步长 1、默认 0、角度值标签
+  - [ ] oninput 时实时应用当前值
+  - [ ] 每行标签和值使用 justify-between 紧凑布局
+  - [ ] 滑杆使用完整 Card 宽度
+- `color-filter-ui.binary-reset` 反色、负片与全部重置
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 映射：`color-filter.invert-negative`、`color-filter.reset`、`color-filter.accessibility`、`color-filter.ui-parity`
+  - [ ] 反色 checkbox 默认关闭
+  - [ ] 负片 checkbox 默认关闭
+  - [ ] 反色与负片可同时选中
+  - [ ] 两个 checkbox 位于同一行且间距为 4
+  - [ ] RotateCcw 图标按钮位于上色标题行右侧
+  - [ ] 重置按钮 title 为重置所有滤镜
+  - [ ] 重置一次恢复所有默认值并同步渲染
+  - [ ] 重置后的默认预设仍为 redAndBlueGray
+- `color-filter-ui.visual-hierarchy` Card 内容层级、密度与响应式几何
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`
+  - 映射：`color-filter.ui-parity`、`color-filter.states`、`color-filter.accessibility`
+  - [ ] 内容使用纵向 space-y-3 text-sm
+  - [ ] 上色分组使用 space-y-2
+  - [ ] 滑杆分组使用 space-y-1
+  - [ ] 预设 select 为全宽、边框、圆角和 text-xs
+  - [ ] 仅黑白文字使用 muted foreground 与 text-xs
+  - [ ] 复选框 14px 或 16px 的紧凑尺寸
+  - [ ] 加载中为空内容的唯一旧状态
+  - [ ] 加载中文案居中并使用 muted foreground
+  - [ ] 常见 1920x1080 Reader 侧栏内无横向溢出
+  - [ ] 窄 Card 通过自然换行和稳定控件宽度保持可操作
+- `color-filter-ui.pipeline` SVG 上色与 CSS 基础滤镜流水线
+  - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 映射：`color-filter.pipeline`、`color-filter.custom-colors`、`color-filter.image-stability`、`color-filter.deviations`
+  - [ ] 上色使用固定语义滤镜 ID neoview-colorize-filter
+  - [ ] SVG filter 使用 color-interpolation-filters=sRGB
+  - [ ] SVG 使用 feComponentTransfer 与 table 类型 feFuncR/G/B
+  - [ ] 预设 ColorPoint h/s/m 通过权重展开和亮度保持算法生成 tableValues
+  - [ ] 自定义颜色至少 2 点时优先于预设
+  - [ ] 上色 CSS 顺序为 grayscale(100%) 后 url(#filterId)
+  - [ ] 基础 CSS 顺序为 brightness、saturate、contrast、sepia、hue-rotate、invert、negative
+  - [ ] 默认值不输出冗余 CSS filter 函数
+  - [ ] 反色输出 invert(100%)
+  - [ ] 负片输出 invert(100%) hue-rotate(180deg)
+  - [ ] 反色和负片同时开启时保留旧版顺序与叠加语义
+  - [ ] img 与 Canvas 渲染分支使用同一规范化 filter 字符串
+  - [ ] 禁用上色时移除 SVG 定义且保留基础滤镜
+- `color-filter-ui.black-white-detection` 仅黑白检测与迟到结果处理
+  - 源码：`src/lib/utils/colorFilters.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 映射：`color-filter.only-black-white`、`color-filter.lifecycle`、`color-filter.performance`、`color-filter.deviations`
+  - [ ] 只有上色与仅黑白同时开启时检测
+  - [ ] 旧版创建 crossOrigin=anonymous 的第二 Image
+  - [ ] 旧版使用最多 100x100 Canvas 采样
+  - [ ] 接近纯黑或纯白的像素不参与饱和度平均
+  - [ ] 没有中间调像素时判为黑白
+  - [ ] 平均饱和度小于 5 且最大饱和度小于 10 时判为黑白
+  - [ ] Canvas context、读像素或加载失败时判为非黑白
+  - [ ] 同一 URL 不重复检测
+  - [ ] URL 或设置变化时 token 拒绝迟到检测结果
+  - [ ] 彩色图在 onlyBlackAndWhite 下跳过上色但继续应用基础滤镜
+- `color-filter-ui.persistence` 旧 localStorage、规范化配置与复位语义
+  - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 映射：`color-filter.persistence`、`color-filter.scope`、`color-filter.reset`、`color-filter.data-contract`、`color-filter.deviations`
+  - [ ] 旧 localStorage key 为 neoview-filter-settings
+  - [ ] 旧 JSON 读取后以 defaultFilterSettings 补缺字段
+  - [ ] 旧 JSON 读取失败回退完整默认值
+  - [ ] 旧实现每次 oninput 立即写 localStorage
+  - [ ] 旧写入失败只记录错误且界面继续使用内存值
+  - [ ] XR 一次性导入旧 key 后写入唯一规范 TOML
+  - [ ] 目标路径为 [nodes.neoview.image.color_filter]
+  - [ ] 目标字段使用 snake_case 且严格校验类型、枚举和数值范围
+  - [ ] 目标配置写入串行、原子、失败回滚且保留未知未来字段
+  - [ ] 滑杆拖动中只本地预览，结束时至多一次 TOML PATCH
+  - [ ] 重置删除冗余覆盖或写入完整规范默认值，重启不得复活旧 localStorage
+  - [ ] 全局设置与未来书籍覆盖具有显式优先级而非双重真相源
+- `color-filter-ui.shell` Registry、懒加载、共享 Card 外壳与独立窗口
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/CardWindow.svelte`
+  - 映射：`color-filter.shell`、`color-filter.states`、`color-filter.lifecycle`、`color-filter.accessibility`、`color-filter.performance`
+  - [ ] Card ID 为 colorFilter
+  - [ ] 标题为颜色滤镜
+  - [ ] Palette 图标
+  - [ ] 默认 control Panel
+  - [ ] canHide=true
+  - [ ] CardRenderer 动态 import ColorFilterCard
+  - [ ] 动态 import 使用组件缓存
+  - [ ] 加载中与加载失败状态
+  - [ ] 共享 Card 外壳提供显隐、折叠、排序与高度
+  - [ ] 独立 CardWindow 支持标签切换、复制、排序和关闭
+  - [ ] Ctrl+W、Ctrl+Tab、Ctrl+Shift+Tab 与 Ctrl+T 属于独立窗口外壳
+  - [ ] Card 不可见或折叠时内容和订阅不挂载
+- `color-filter-ui.target-improvements` XR 明确改进与非回归边界
+  - 源码：`src/lib/utils/colorFilters.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 映射：`color-filter.image-stability`、`color-filter.performance`、`color-filter.lifecycle`、`color-filter.deviations`
+  - [ ] 滤镜更新始终保留当前 img DOM 身份
+  - [ ] 滤镜更新不改变当前 asset URL
+  - [ ] 滤镜更新不创建第二条图片请求或解码链
+  - [ ] 仅黑白检测从当前已解码 img 节点采样而非创建新 Image
+  - [ ] 仅黑白采样固定上限 64x64
+  - [ ] 采样结果以当前媒体身份和版本缓存
+  - [ ] 翻页或 dispose 取消并拒绝迟到采样结果
+  - [ ] React 声明式托管 SVG 定义而非 innerHTML 注入 body
+  - [ ] 不为视觉滤镜生成 sharp 变体、Blob URL 或 Canvas 主渲染副本
+  - [ ] 滤镜 UI 保持二级 lazy chunk 且不进入 Reader entry 或基础 Sidebar chunk
+
+##### 专用源码级验收项
+
+- [x] `color-filter.colorize` 开关上色并条件显示上色设置
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：The GUI exposes the legacy colorize checkbox, conditionally mounts preset and black-and-white controls, and applies changes to the active frame immediately without changing its asset identity.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`
+  - 测试：`neoview.color-filter.ui`、`neoview.color-filter.image-identity`
+  - 计划测试：无
+  - 备注：Implementation and rendered evidence are intentionally pending.
+- [ ] `color-filter.presets` 提供 12 个旧版上色预设
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：The canonical preset enum preserves all twelve IDs, Chinese labels, order and redAndBlueGray default: redAndBlue/红蓝, redAndBlueGray/红蓝灰, blueSky/蓝天, violetAndBrown/紫棕, violetAndCarnation/紫粉, paleYellowAndBrown/淡黄棕, red/红色, orange/橙色, yellow/黄色, green/绿色, blue/蓝色 and violet/紫色.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.presets`、`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
+  - 计划测试：`neoview.color-filter.presets`、`neoview.color-filter.preset-surfaces`
+  - 备注：Unknown imported preset IDs must normalize to redAndBlueGray while unknown TOML sibling fields remain intact.
+- [ ] `color-filter.custom-colors` 保留自定义颜色点数据契约
+  - 六维：`core=C transport=C gui=P cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 目标：The shared settings schema preserves bounded h/s/m ColorPoint arrays; two or more points override the preset and choosing a preset clears custom points. No custom-color editor is claimed as legacy Card UI.
+  - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.bounds`、`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`
+  - 计划测试：`neoview.color-filter.custom-colors`、`neoview.color-filter.custom-colors-validation`
+  - 备注：The old store exposes this API even though ColorFilterCard has no editor; the target must not invent a completed editor.
+- [x] `color-filter.only-black-white` 仅对黑白图像应用上色
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：When colorize and onlyBlackAndWhite are enabled, XR samples at most 64x64 pixels from the already decoded current img node, applies colorize only below the legacy average/max saturation thresholds, and retains every non-colorize filter for color images.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：`neoview.color-filter.black-white-detection`
+  - 计划测试：无
+  - 备注：Intentional improvement: replace the legacy second Image and 100x100 sample with a 64x64 current-node sample and no second URL/decode.
+- [ ] `color-filter.brightness` 亮度 50..150%
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Brightness is an integer range from 50 through 150 with implicit step 1, default 100 and a live percentage label.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.bounds`、`neoview.color-filter.config-http`、`neoview.color-filter.slider-commit`
+  - 计划测试：`neoview.color-filter.brightness`
+  - 备注：GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending.
+- [ ] `color-filter.contrast` 对比度 50..150%
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Contrast is an integer range from 50 through 150 with implicit step 1, default 100 and a live percentage label.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.bounds`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
+  - 计划测试：`neoview.color-filter.contrast`
+  - 备注：GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending.
+- [ ] `color-filter.saturation` 饱和度 0..200%
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Saturation is an integer range from 0 through 200 with implicit step 1, default 100 and a live percentage label.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.bounds`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
+  - 计划测试：`neoview.color-filter.saturation`
+  - 备注：GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending.
+- [ ] `color-filter.sepia` 褐色 0..100%
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Sepia is an integer range from 0 through 100 with implicit step 1, default 0 and a live percentage label.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.bounds`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
+  - 计划测试：`neoview.color-filter.sepia`
+  - 备注：GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending.
+- [ ] `color-filter.hue` 色相旋转 0..360°
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Hue rotation is an integer range from 0 through 360 degrees with implicit step 1, default 0 and a live degree label.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.bounds`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
+  - 计划测试：`neoview.color-filter.hue`
+  - 备注：GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending.
+- [ ] `color-filter.invert-negative` 反色与负片可独立或同时启用
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Invert and negative remain independent booleans; CSS preserves legacy ordering, including invert(100%) followed by invert(100%) hue-rotate(180deg) when both are enabled.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.css-order`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
+  - 计划测试：`neoview.color-filter.invert-negative`、`neoview.color-filter.css-order`
+  - 备注：The legacy double-inversion ordering is preserved; CLI/TUI surfaces remain pending.
+- [ ] `color-filter.reset` 一次重置全部滤镜
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：One named reset command atomically restores every canonical default, updates the active frame without remounting it and persists exactly one reset mutation.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.reset`、`neoview.color-filter.config-http`
+  - 计划测试：`neoview.color-filter.reset`、`neoview.color-filter.reset-surfaces`
+  - 备注：One aggregate reset is implemented; CLI/TUI surfaces remain pending.
+- [x] `color-filter.pipeline` 共享 SVG/CSS 滤镜流水线
+  - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：A browser-safe shared domain deterministically generates the legacy sRGB feComponentTransfer tables and ordered CSS filter string for img and Canvas presentation branches without server image variants.
+  - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：`neoview.color-filter.table-values`、`neoview.color-filter.css-order`、`neoview.color-filter.image-identity`
+  - 计划测试：无
+  - 备注：Browser-safe declarative SVG and CSS projection are implemented without image transcoding.
+- [ ] `color-filter.persistence` 旧 localStorage 导入与唯一 TOML 真相源
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Import neoview-filter-settings once, validate and normalize it, then persist the only runtime version under [nodes.neoview.image.color_filter] using snake_case fields, serialized atomic PATCH, failure rollback and unknown-field preservation.
+  - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.legacy-import`、`neoview.color-filter.toml`、`neoview.color-filter.persistence`、`neoview.color-filter.config-http`
+  - 计划测试：`neoview.color-filter.legacy-import`、`neoview.color-filter.toml`、`neoview.color-filter.persistence-rollback`、`neoview.color-filter.persistence-surfaces`
+  - 备注：Canonical fields: colorize_enabled, colorize_preset, custom_colors, only_black_and_white, brightness, contrast, saturation, sepia, hue_rotate, invert and negative.
+- [ ] `color-filter.scope` 全局默认与书籍覆盖范围明确
+  - 六维：`core=P transport=P gui=P cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：The Card labels the legacy-equivalent TOML value as the global default. Any book-specific override must use the shared book-settings contract with explicit book-over-global precedence and must never create a second localStorage or component-state source of truth.
+  - 源码：`src/lib/stores/filterStore.svelte.ts`
+  - 测试：`neoview.color-filter.scope`
+  - 计划测试：`neoview.color-filter.scope`、`neoview.color-filter.scope-precedence`
+  - 备注：Global TOML precedence is complete; book-specific override remains pending.
+- [ ] `color-filter.states` 加载、条件、提交、错误与回滚状态
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：The Card covers lazy loading, loaded defaults, colorize-disabled conditional content, active edits, pending persistence, validation failure, write failure with rollback, retry, reset and disposed states without stale visual state.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.color-filter.hydration-race`、`neoview.color-filter.persistence`、`neoview.color-filter.ui`
+  - 计划测试：`neoview.color-filter.states`、`neoview.color-filter.rollback`、`neoview.color-filter.retry`
+  - 备注：Conditional, rollback and stale hydration states are covered; explicit retry UI remains pending.
+- [x] `color-filter.shell` 共享 Card 外壳与独立窗口行为
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：colorFilter retains its 颜色滤镜 title, Palette icon, control Panel default, hideability, independent lazy boundary and shared docked/window Card behaviors.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/CardWindow.svelte`
+  - 测试：`neoview.color-filter.registry`、`neoview.color-filter.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Registry, independent Card chunk and shared Card rendering are covered.
+- [x] `color-filter.ui-parity` 旧版控件层级、标签、密度与响应式布局
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：The first target render preserves the compact vertical hierarchy, Chinese labels, control ordering, conditional preset section, right-aligned reset icon and value labels, then records any token-level improvement against scripted legacy and current 1920x1080 screenshots.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/cards/registry.ts`
+  - 测试：`neoview.color-filter.ui`、`neoview.color-filter.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Scripted legacy and target 1920x1080 screenshots characterize the compact hierarchy and 320px Control Panel geometry.
+- [x] `color-filter.accessibility` 命名控件、键盘调节与焦点语义
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：Every checkbox, select, range and icon command has an accessible name; native keyboard interaction and visible focus are preserved; ranges expose current/min/max values; conditional controls leave a predictable focus order; CardWindow shortcuts do not steal input editing gestures.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/CardWindow.svelte`
+  - 测试：`neoview.color-filter.ui`、`neoview.color-filter.ui-1920x1080`
+  - 计划测试：无
+  - 备注：All controls use native semantics; reset adds an explicit accessible name over the legacy title-only icon.
+- [ ] `color-filter.data-contract` 严格配置 DTO、版本与并发语义
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：One revisioned settings DTO validates exact booleans, preset enum, bounded integers and bounded ColorPoint arrays; GUI, CLI and TUI share normalization, compare-and-set/serialized mutation, stale-result rejection, reset and error semantics.
+  - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.hydration-race`、`neoview.color-filter.client`
+  - 计划测试：`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.config-race`、`neoview.color-filter.config-surfaces`
+  - 备注：Shared codec, HTTP DTO and GUI store are complete; CLI/TUI surfaces remain pending.
+- [ ] `color-filter.lifecycle` 懒加载、订阅、采样取消与释放
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：The Card and SVG definitions load only when needed, subscriptions dispose on collapse/hide/window close, current-node sampling is cancelled or made stale on page/session changes, and all owned DOM/cache state is released without affecting the active reader image.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/stackview/components/FrameImage.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.color-filter.black-white-detection`、`neoview.color-filter.registry`
+  - 计划测试：`neoview.color-filter.lifecycle`、`neoview.color-filter.sample-cancel`、`neoview.color-filter.dispose`
+  - 备注：Card loading, bounded sampling and cleanup are implemented; a dedicated stale-sample lifecycle test remains pending.
+- [ ] `color-filter.image-stability` 滤镜操作保持活动媒体身份与解码链
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Changing any filter preserves the exact current img node and asset URL, causes zero duplicate asset requests/decodes, creates no sharp/Blob variant and does not remount the ReaderFrame.
+  - 源码：`src/lib/stackview/components/FrameImage.svelte`、`src/lib/utils/colorFilters.ts`
+  - 测试：`neoview.color-filter.image-identity`、`neoview.color-filter.black-white-detection`
+  - 计划测试：`neoview.color-filter.image-stability`、`neoview.color-filter.zero-duplicate-request`、`neoview.color-filter.zero-duplicate-decode`
+  - 备注：Exact img identity and URL are covered; a real asset-route duplicate-request counter remains pending.
+- [ ] `color-filter.performance` 有界更新、采样、DOM、内存与 chunk 预算
+  - 六维：`core=C transport=N/A gui=P cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 目标：Pointer movement updates only presentation state, persistence happens at interaction end, black-and-white analysis reads at most 4096 pixels from the current node once per media version, DOM and cache ownership remain O(1), the Card stays independently lazy, and Reader navigation/image latency remains within the established NeoView gates.
+  - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`、`src/lib/stackview/components/FrameImage.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.color-filter.preview`、`neoview.color-filter.black-white-detection`、`neoview.color-filter.bounds`
+  - 计划测试：`neoview.color-filter.poll-budget`、`neoview.color-filter.sample-budget`、`neoview.color-filter.chunk`、`neoview.color-filter.performance`、`neoview.color-filter.surface-performance`
+  - 备注：O(1) store updates, 4096-pixel sampling and 3.5/4.3 KiB deferred chunks are proven; unified navigation timing remains pending.
+- [ ] `color-filter.deviations` 记录存储、采样、安全与交互改进
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Document and verify four intentional changes: localStorage becomes one-time import into canonical TOML; body innerHTML SVG injection becomes React-owned declarative SVG; second-Image 100x100 detection becomes 64x64 current-node sampling; write failures become visible rollback/retry. Legacy filter math, preset IDs, labels, ranges and ordering otherwise remain compatible.
+  - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：`neoview.color-filter.legacy-import`、`neoview.color-filter.table-values`、`neoview.color-filter.black-white-detection`、`neoview.color-filter.persistence`、`neoview.color-filter.config-http`
+  - 计划测试：`neoview.color-filter.deviations`、`neoview.color-filter.legacy-parity`
+  - 备注：The four documented XR replacements are implemented for GUI; CLI/TUI exposure remains pending.
 
 #### `imageTrim` 图像裁剪
 
@@ -2629,10 +2926,242 @@
 
 #### `pageTransition` 翻页动画
 
+- 细项清单：`migration/neoview/page-transition-compatibility.json`
 - [ ] 开关并选择翻页动画类型
 - [ ] 配置持续时间、缓动和方向
 - [ ] 预览、复位并尊重减少动态效果设置
 - UI 基线：`src/lib/cards/info/PageTransitionCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（7 组，71 项）
+
+- `page-transition-ui.enable-reset` 启用、条件内容与全部重置
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 映射：`page-transition.enable`、`page-transition.reset`、`page-transition.states`、`page-transition.ui-parity`
+  - [ ] 启用翻页动画 checkbox 默认关闭
+  - [ ] 启用开关与重置按钮位于同一标题行
+  - [ ] RotateCcw 图标按钮 title 为重置设置
+  - [ ] 关闭时不挂载类型、时长、缓动和预览区域
+  - [ ] 重置一次恢复 enabled=false、type=none、duration=0、easing=easeOutQuad
+  - [ ] 设置尚未加载时显示居中的加载中状态
+- `page-transition-ui.types` 动画类型选项、顺序与方向语义
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 映射：`page-transition.types`、`page-transition.direction`、`page-transition.runtime`、`page-transition.ui-parity`
+  - [ ] 类型 select 为全宽紧凑控件
+  - [ ] none / 无动画
+  - [ ] fade / 淡入淡出
+  - [ ] slide / 水平滑动
+  - [ ] slideUp / 垂直滑动
+  - [ ] zoom / 缩放
+  - [ ] flip / 翻转
+  - [ ] 类型顺序固定为 none、fade、slide、slideUp、zoom、flip
+  - [ ] next 与 prev 对 slide 使用相反 X 方向
+  - [ ] next 与 prev 对 slideUp 使用相反 Y 方向
+  - [ ] next 与 prev 对 zoom 使用 0.9 与 1.1 起始比例
+  - [ ] next 与 prev 对 flip 使用 -15deg 与 15deg 起始角
+  - [ ] fade 对两个方向使用相同透明度语义
+  - [ ] none 或 disabled 时不生成动画 class
+- `page-transition-ui.duration-easing` 时长滑杆、缓动选项与 CSS 映射
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 映射：`page-transition.duration`、`page-transition.easing`、`page-transition.data-contract`、`page-transition.ui-parity`
+  - [ ] 时长 range 最小 0ms、最大 500ms、步长 10ms
+  - [ ] 时长标题行右侧实时显示当前毫秒值
+  - [ ] 滑杆下方显示 0ms 与 500ms 边界标签
+  - [ ] store 对外部时长仍限制为 0..1000ms
+  - [ ] linear 映射 linear
+  - [ ] ease 映射 ease
+  - [ ] easeIn 映射 ease-in
+  - [ ] easeOut 映射 ease-out
+  - [ ] easeInOut 映射 ease-in-out
+  - [ ] easeOutQuad 映射 cubic-bezier(0.25, 0.46, 0.45, 0.94)
+  - [ ] easeOutCubic 映射 cubic-bezier(0.215, 0.61, 0.355, 1)
+  - [ ] 缓动 select 顺序固定为 linear、ease、easeIn、easeOut、easeInOut、easeOutQuad、easeOutCubic
+  - [ ] 默认缓动为 easeOutQuad
+- `page-transition-ui.preview` Card 内悬停预览
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`
+  - 映射：`page-transition.preview`、`page-transition.image-stability`、`page-transition.performance`
+  - [ ] 预览区位于分隔线上方标题之后
+  - [ ] 预览容器高度 64px 且裁剪溢出
+  - [ ] 预览盒显示当前动画类型中文名称
+  - [ ] 预览盒使用当前 duration 与 easing CSS
+  - [ ] 悬停时 scale(0.95) 且 opacity=0.7
+  - [ ] 预览不翻页、不请求图片且不改 Reader session
+- `page-transition-ui.persistence` 旧 localStorage 与目标 TOML 持久化
+  - 源码：`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 映射：`page-transition.persistence`、`page-transition.reset`、`page-transition.data-contract`、`page-transition.deviations`
+  - [ ] 旧 localStorage key 为 neoview-page-transition-settings
+  - [ ] 旧 JSON 读取后以默认值补齐缺失字段
+  - [ ] 旧 JSON 解析失败时回退完整默认值
+  - [ ] 旧实现每次 setEnabled/setType/setDuration/setEasing 立即写 localStorage
+  - [ ] 旧写入失败只记录错误且保留内存设置
+  - [ ] XR 一次性导入旧 key 后只写 [nodes.neoview.image.page_transition]
+  - [ ] 目标 TOML 使用 snake_case 严格字段
+  - [ ] 目标 PATCH 串行、原子、失败回滚且保留未知未来字段
+  - [ ] 滑杆移动仅本地预览，交互结束至多一次 PATCH
+  - [ ] reset 使用独占命令并一次写回全部规范默认值
+- `page-transition-ui.runtime-lifecycle` 帧变更检测、动画生命周期与稳定 DOM
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 映射：`page-transition.runtime`、`page-transition.direction`、`page-transition.reduced-motion`、`page-transition.lifecycle`、`page-transition.image-stability`、`page-transition.performance`
+  - [ ] 首次渲染不触发动画
+  - [ ] 无有效页索引不触发动画
+  - [ ] 页索引未变化不触发动画
+  - [ ] 页索引增大判定 next、减小判定 prev
+  - [ ] 动画先应用 enter 起点再于下一帧激活终点
+  - [ ] 过渡只作用于 transform 与 opacity
+  - [ ] 新动画开始前清除旧 cleanup timer
+  - [ ] duration+50ms 后移除动画 class 与 inline transition
+  - [ ] 组件销毁时清理 timer 与 store subscription
+  - [ ] 动画只包装稳定 ReaderFrame/PageImage，不更换 img 节点或 asset URL
+  - [ ] 快速连续翻页由单一有界动画状态合并，不累积 DOM 或 timer
+  - [ ] prefers-reduced-motion 时目标实现强制无动画且不改用户保存值
+- `page-transition-ui.shell-accessibility` Card registry、共享外壳、视觉和可访问性
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/CardWindow.svelte`、`src/lib/cards/info/PageTransitionCard.svelte`
+  - 映射：`page-transition.shell`、`page-transition.ui-parity`、`page-transition.accessibility`、`page-transition.lifecycle`、`page-transition.performance`
+  - [ ] Card ID 为 pageTransition
+  - [ ] 标题为翻页动画
+  - [ ] 默认 control Panel 且 canHide=true
+  - [ ] CardRenderer 动态导入并缓存组件
+  - [ ] 共享 Card 外壳负责显隐、折叠、排序与高度
+  - [ ] Card 隐藏、折叠或窗口关闭时内容、订阅和 timer 不挂载
+  - [ ] 所有 checkbox、select、range 和 reset 命令具有可访问名称
+  - [ ] 原生键盘可切换、选择和调整滑杆
+  - [ ] 1920x1080 常见 Reader 侧栏内无横向溢出
+  - [ ] 脚本截图同时记录旧版与目标展开态
+
+##### 专用源码级验收项
+
+- [ ] `page-transition.enable` 启用并条件挂载翻页动画设置
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：The Card preserves the legacy disabled default and only mounts type, duration, easing and preview controls while enabled.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`
+  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.ui`
+  - 计划测试：`neoview.page-transition.surfaces`
+  - 备注：GUI and canonical persistence are complete; CLI/TUI controls remain pending.
+- [ ] `page-transition.types` 六种旧版动画类型
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：The shared enum preserves none, fade, slide, slideUp, zoom and flip IDs, labels and order.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 测试：`neoview.page-transition.types`、`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.ui`
+  - 计划测试：`neoview.page-transition.surfaces`
+  - 备注：All six IDs, labels and order are shared; CLI/TUI selection surfaces remain pending.
+- [ ] `page-transition.duration` 0..500ms 时长控制
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：The GUI exposes 0..500ms in 10ms steps while the shared imported-value codec remains bounded.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`
+  - 测试：`neoview.page-transition.bounds`、`neoview.page-transition.slider-commit`、`neoview.page-transition.http`
+  - 计划测试：`neoview.page-transition.surfaces`
+  - 备注：The GUI uses 0..500ms/10ms and commits at interaction end; CLI/TUI remain pending.
+- [ ] `page-transition.easing` 七种旧版缓动
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：The shared enum and CSS projection preserve all seven easing IDs, labels, order and cubic-bezier values.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 测试：`neoview.page-transition.easing`、`neoview.page-transition.css`、`neoview.page-transition.http`、`neoview.page-transition.ui`
+  - 计划测试：`neoview.page-transition.surfaces`
+  - 备注：All seven IDs and exact CSS values are shared; CLI/TUI remain pending.
+- [x] `page-transition.preview` Card 内无副作用预览
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：Hover preview uses current duration/easing and never navigates, requests media or changes Reader session.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`
+  - 测试：`neoview.page-transition.preview`、`neoview.page-transition.ui-1920x1080`
+  - 计划测试：无
+  - 备注：The preview is local-only and covered by unit and scripted visual evidence.
+- [x] `page-transition.direction` 按页索引识别前后方向
+  - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：Frame changes derive next/prev from physical page movement and project the exact legacy directional transform origins.
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 测试：`neoview.page-transition.direction`、`neoview.page-transition.runtime`、`neoview.page-transition.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Shared projection and the stable React layer cover both directions.
+- [x] `page-transition.runtime` 稳定帧容器 CSS 动画
+  - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：One stable frame wrapper animates only transform and opacity, skips initial/unchanged frames and bounds rapid navigation cleanup.
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 测试：`neoview.page-transition.css`、`neoview.page-transition.runtime`、`neoview.page-transition.lifecycle`、`neoview.page-transition.ui-1920x1080`
+  - 计划测试：无
+  - 备注：The runtime owns one stable wrapper and one cleanup timer.
+- [x] `page-transition.reduced-motion` 尊重减少动态效果
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：XR intentionally suppresses runtime animation under prefers-reduced-motion without rewriting the persisted preference.
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 测试：`neoview.page-transition.reduced-motion`
+  - 计划测试：无
+  - 备注：Runtime suppression leaves the persisted enabled preference unchanged.
+- [ ] `page-transition.reset` 一次恢复全部默认值
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：One explicit reset restores all four defaults and commits exactly one canonical mutation.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 测试：`neoview.page-transition.reset`、`neoview.page-transition.http`、`neoview.page-transition.ui`
+  - 计划测试：`neoview.page-transition.surfaces`
+  - 备注：GUI reset is one aggregate mutation; CLI/TUI commands remain pending.
+- [ ] `page-transition.persistence` 旧 localStorage 一次导入并写入唯一 TOML
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Import neoview-page-transition-settings once and persist only [nodes.neoview.image.page_transition] through strict serialized atomic PATCH with rollback.
+  - 源码：`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 测试：`neoview.page-transition.legacy-import`、`neoview.page-transition.toml`、`neoview.page-transition.persistence`、`neoview.page-transition.http`
+  - 计划测试：`neoview.page-transition.persistence-surfaces`
+  - 备注：Legacy localStorage imports once into canonical TOML; CLI/TUI persistence entry points remain pending.
+- [ ] `page-transition.data-contract` 严格有界共享设置 DTO
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：One browser-safe DTO validates booleans, exact enums and bounded duration for GUI, CLI and TUI.
+  - 源码：`src/lib/stores/pageTransitionStore.svelte.ts`
+  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.client`、`neoview.page-transition.hydration-race`
+  - 计划测试：`neoview.page-transition.surfaces`
+  - 备注：Domain, HTTP and GUI share one strict DTO; CLI/TUI exposure remains pending.
+- [ ] `page-transition.states` 加载、条件、提交、错误与回滚状态
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：The Card covers lazy loading, disabled conditional content, preview, pending write, rollback, reset and disposal without stale state.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.page-transition.hydration-race`、`neoview.page-transition.persistence`、`neoview.page-transition.ui`
+  - 计划测试：`neoview.page-transition.retry`
+  - 备注：Conditional, stale hydration and rollback behavior are covered; explicit retry UI remains pending.
+- [x] `page-transition.shell` 共享 Card 外壳与延迟加载
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：pageTransition retains its title, control Panel default, hideability and independent deferred Card chunk.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/CardWindow.svelte`
+  - 测试：`neoview.page-transition.registry`、`neoview.page-transition.chunk`、`neoview.page-transition.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Registry, shared Card shell and independent lazy chunk are covered.
+- [x] `page-transition.ui-parity` 旧版控件层级、标签、密度与 1920x1080 几何
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：The target preserves compact ordering, Chinese labels, conditional hierarchy and preview geometry, characterized by scripted legacy and target 1920x1080 screenshots.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`
+  - 测试：`neoview.page-transition.ui`、`neoview.page-transition.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Legacy and target 1920x1080 scripted screenshots characterize the compact hierarchy.
+- [x] `page-transition.accessibility` 命名控件、原生键盘与焦点语义
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：Every checkbox, select, range and icon command has an accessible name and native keyboard behavior with visible focus.
+  - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/CardWindow.svelte`
+  - 测试：`neoview.page-transition.ui`、`neoview.page-transition.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Native controls and explicit icon labels preserve keyboard and focus semantics.
+- [x] `page-transition.lifecycle` timer、订阅和动画状态释放
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：Rapid navigation owns at most one cleanup timer and hidden/collapsed/unmounted surfaces release every subscription and transient animation state.
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.page-transition.lifecycle`、`neoview.page-transition.runtime`
+  - 计划测试：无
+  - 备注：Unmount and rapid navigation clear the single owned timer and transient styles.
+- [ ] `page-transition.image-stability` 动画保持活动图片与资源身份
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Configuration and runtime transitions never remount the active img, change its asset URL or create another decode path.
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 测试：`neoview.page-transition.image-identity`、`neoview.page-transition.runtime`
+  - 计划测试：`neoview.page-transition.zero-duplicate-request`
+  - 备注：Exact img identity and URL are covered during configuration; a real asset-route request counter remains pending.
+- [ ] `page-transition.performance` 合成动画、O(1) 状态与 chunk 预算
+  - 六维：`core=C transport=N/A gui=P cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 目标：Animations use compositor-friendly transform/opacity, bounded O(1) state and one timer; Card/domain remain deferred and navigation stays within existing gates.
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：`neoview.page-transition.css`、`neoview.page-transition.chunk`、`neoview.page-transition.runtime`、`neoview.page-transition.lifecycle`
+  - 计划测试：`neoview.page-transition.navigation-performance`、`neoview.page-transition.surface-performance`
+  - 备注：O(1) runtime and 3.7/2.0/5.7 KiB deferred chunks are proven; unified navigation and CLI/TUI timings remain pending.
+- [ ] `page-transition.deviations` 记录存储、提交和减少动态效果改进
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 目标：Document localStorage-to-TOML migration, slider end-only persistence, failure rollback and reduced-motion suppression while preserving legacy type/easing math and control hierarchy.
+  - 源码：`src/lib/stores/pageTransitionStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.legacy-import`、`neoview.page-transition.slider-commit`、`neoview.page-transition.reduced-motion`、`neoview.page-transition.persistence`
+  - 计划测试：`neoview.page-transition.surfaces`
+  - 备注：XR replaces localStorage with TOML, end-only slider writes and reduced-motion suppression while preserving legacy math.
 
 #### `animatedVideoMode` 动图视频模式
 
@@ -2991,21 +3520,21 @@
   - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：GUI, CLI and TUI share one versioned bounded override DTO with optional fields, strict enums/ranges, revision conflict handling and no raw local paths in remote output.
   - 源码：`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.service`、`neoview.book-settings.defaults`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless`、`neoview.book-settings.headless-rollback`、`neoview.book-settings.cli`、`neoview.book-settings.cli-validation`、`neoview.book-settings.cli-connect`、`neoview.book-settings.wire-schema`、`neoview.book-settings.tui`、`neoview.book-settings.tui-schema`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-envelope`、`neoview.book-settings.legacy-http`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.defaults`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless`、`neoview.book-settings.headless-rollback`、`neoview.book-settings.cli`、`neoview.book-settings.cli-validation`、`neoview.book-settings.cli-connect`、`neoview.book-settings.wire-schema`、`neoview.book-settings.tui`、`neoview.book-settings.tui-schema`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-envelope`、`neoview.book-settings.legacy-http`、`neoview.book-settings.legacy-cli`、`neoview.book-settings.legacy-cli-integration`、`neoview.book-settings.legacy-service-lifecycle`、`neoview.book-settings.legacy-file-controller`、`neoview.book-settings.legacy-file-validation`、`neoview.book-settings.legacy-tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：GUI HTTP, HeadlessController, local/loopback CLI and OpenTUI share the versioned Zod DTO, nullable inheritance, defaults, CAS queue and rollback without direct presentation-layer database access.
 - [ ] `book-settings.persistence` 迁移旧键并持久化规范覆盖
   - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Legacy neoview-book-settings imports once into the compatible NeoView business database or canonical config ownership, saves atomically, supports reset-to-inherit and never creates Reader business tables in xiranite.db.
   - 源码：`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.sqlite`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless-composition`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-importer`、`neoview.book-settings.legacy-transaction`、`neoview.book-settings.legacy-http`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
+  - 测试：`neoview.book-settings.sqlite`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless-composition`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-importer`、`neoview.book-settings.legacy-transaction`、`neoview.book-settings.legacy-http`、`neoview.book-settings.legacy-cli`、`neoview.book-settings.legacy-cli-integration`、`neoview.book-settings.legacy-file-controller`、`neoview.book-settings.legacy-file-validation`、`neoview.book-settings.legacy-tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：GUI HTTP, headless, CLI and OpenTUI use the same non-destructive xr_reader_book_settings table in the original thumbnails.db; direct/localStorage backup envelopes import in one merge/overwrite transaction, and Chromium proves all five GUI overrides survive close/reopen before nullable reset removes them.
 - [ ] `book-settings.lifecycle` 切书、折叠、取消与关闭释放
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Hidden/unmounted Cards do no work; switching books cancels obsolete reads/writes; session close releases pending updates and stale responses cannot affect the next book.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
-  - 测试：`neoview.card.book-settings-lifecycle`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.http`、`neoview.book-settings.legacy-cancel`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
+  - 测试：`neoview.card.book-settings-lifecycle`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.http`、`neoview.book-settings.legacy-cancel`、`neoview.book-settings.legacy-cli-integration`、`neoview.book-settings.legacy-service-lifecycle`、`neoview.book-settings.legacy-file-controller`、`neoview.book-settings.legacy-tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：Reads and writes use AbortSignal; the independently lazy Card unmount cancels pending work, switch identity keys the hook by session, and ReaderApp ignores updates for a different current session.
 - [ ] `book-settings.shell` 复用通用 Card 外壳
@@ -3109,7 +3638,7 @@
 | `upscaleStatus` | 处理状态 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleStatusCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 | `upscaleCache` | 缓存管理 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleCacheCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 | `upscaleConditions` | 条件超分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleConditionsCard.svelte` | 超分模型、预览、队列、缓存与保存 |
-| `progressiveUpscale` | 预超分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存 |
+| `progressiveUpscale` | 预超分 | deferred | partial | `core=C transport=P gui=- cli=P tui=- evidence=P` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 
 #### `upscaleControl` 超分控制
 
@@ -3148,10 +3677,162 @@
 
 #### `progressiveUpscale` 预超分
 
+- 细项清单：`migration/neoview/progressive-upscale-compatibility.json`
 - [ ] 配置相邻页/整书预超分范围和优先级
 - [ ] 启动、暂停、取消并显示进度
 - [ ] 服从阅读任务优先级、资源预算和缓存限制
 - UI 基线：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（6 组，36 项）
+
+- `progressive-upscale-ui.gates` Automatic and nearby-upscale gates
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stores/upscale/upscalePanelStore.svelte.ts`
+  - 映射：`progressive-upscale.settings`、`progressive-upscale.nearby-plan`
+  - [ ] Nearby upscale switch
+  - [ ] Switch disabled when automatic upscale is disabled
+  - [ ] Warning panel when automatic upscale is disabled
+  - [ ] Nearby-page explanatory copy
+  - [ ] Canonical auto/preload preference precedence
+- `progressive-upscale-ui.nearby-options` Nearby range and concurrency options
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stores/upscale/upscalePanelStore.svelte.ts`
+  - 映射：`progressive-upscale.settings`、`progressive-upscale.nearby-plan`、`progressive-upscale.resources`
+  - [ ] Nearby page-count select
+  - [ ] Page-count options 1, 2, 3, 5, 10 and 20
+  - [ ] Background concurrency select
+  - [ ] Concurrency options 1, 2, 3 and 4
+  - [ ] Controls hidden unless nearby and automatic upscale are enabled
+  - [ ] Immediate persistence after selection
+- `progressive-upscale-ui.progressive-options` Dwell-triggered progressive options
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stores/upscale/upscalePanelStore.svelte.ts`
+  - 映射：`progressive-upscale.settings`、`progressive-upscale.dwell`、`progressive-upscale.forward-bound`
+  - [ ] Progressive upscale switch
+  - [ ] Dwell-time select
+  - [ ] Dwell options 1, 2, 3, 5, 10, 15 and 30 seconds
+  - [ ] Maximum-page select
+  - [ ] Maximum options 5, 10, 20, 50, 100 and 999
+  - [ ] 999 displayed and interpreted as all remaining pages
+  - [ ] Controls hidden unless progressive and automatic upscale are enabled
+- `progressive-upscale-ui.progress` Completed, queued and total progress
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stackview/stores/upscaleStore.svelte.ts`
+  - 映射：`progressive-upscale.progress`、`progressive-upscale.data-contract`
+  - [ ] Upscaled-page count and total
+  - [ ] Pending plus processing task count
+  - [ ] Pending row hidden at zero
+  - [ ] Completed percentage progress bar
+  - [ ] Bounded task outcomes for settled, skipped, failed and cancelled pages
+- `progressive-upscale-ui.states` Progressive timer and execution states
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 映射：`progressive-upscale.dwell`、`progressive-upscale.progress`、`progressive-upscale.ui-parity`
+  - [ ] Running state with animated cyan indicator
+  - [ ] Countdown state with amber indicator and seconds
+  - [ ] Imminent state with green indicator
+  - [ ] Idle state with neutral indicator
+  - [ ] Progressive status hidden when disabled
+  - [ ] No duplicate dwell timer after setting changes
+- `progressive-upscale-ui.lifecycle` Navigation, cancellation and disposal lifecycle
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/core/preloadPipeline.ts`
+  - 映射：`progressive-upscale.generation`、`progressive-upscale.lifecycle`、`progressive-upscale.resources`
+  - [ ] Page change resets the dwell timer
+  - [ ] New generation cancels stale nearby work
+  - [ ] New generation cancels stale progressive work
+  - [ ] Card unmount clears dwell and countdown timers
+  - [ ] Reader session close releases all context work
+  - [ ] Current-page and view GPU work retain priority over background upscale
+  - [ ] Observer failure cannot change task outcome
+
+##### 专用源码级验收项
+
+- [ ] `progressive-upscale.settings` Versioned settings, defaults and legacy import
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：All six switches/numeric settings use the versioned [nodes.neoview.super_resolution.preferences] contract, preserve legacy defaults and option meanings, and import old upscalePanelSettings/PyO3 values without a second runtime settings store.
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stores/upscale/upscalePanelStore.svelte.ts`
+  - 测试：`neoview.super-resolution.preferences-config`、`neoview.super-resolution.legacy-preferences`、`neoview.super-resolution.legacy-settings-import`
+  - 计划测试：`neoview.super-resolution.progressive-settings-http`、`neoview.super-resolution.progressive-settings-gui`、`neoview.super-resolution.progressive-settings-tui`
+  - 备注：Core parsing and legacy import exist; shared mutation transport and presentation controls remain.
+- [ ] `progressive-upscale.nearby-plan` Nearby pages consume the Reader preload plan
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Select unique nearby pages in the existing ReaderPreloadPlan order, cap the batch by preloadPages, preserve candidate resource priority and execute through the one SuperResolutionPageService.
+  - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：`neoview.super-resolution.preload-plan`
+  - 计划测试：`neoview.super-resolution.preload-session-integration`
+  - 备注：Application service is complete; artifact destination and Reader session transport remain.
+- [ ] `progressive-upscale.dwell` Abortable dwell before progressive execution
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Use one abortable dwell per session generation; navigation, disable, close and disposal supersede the old timer without retaining intervals or starting stale GPU work.
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：`neoview.super-resolution.progressive`、`neoview.super-resolution.preload-generation`
+  - 计划测试：`neoview.super-resolution.progressive-navigation-cancel`
+  - 备注：Uses node:timers/promises with AbortSignal; countdown presentation remains.
+- [ ] `progressive-upscale.forward-bound` Forward-only progressive page bound
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：After dwell, process pages strictly after the current index in stable book order; honor progressiveMaxPages and preserve legacy 999=all-remaining semantics.
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：`neoview.super-resolution.progressive`
+  - 计划测试：`neoview.super-resolution.progressive-end-of-book`
+  - 备注：No reverse expansion or wrap-around is introduced.
+- [ ] `progressive-upscale.generation` Session generation supersession
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Nearby and progressive work use separate session-scoped generation slots; a newer generation aborts stale work, an older generation is rejected and same-generation callers share the active batch.
+  - 源码：`src/lib/core/preloadPipeline.ts`
+  - 测试：`neoview.super-resolution.preload-generation`
+  - 计划测试：`neoview.super-resolution.preload-same-generation`
+  - 备注：The service does not maintain a second page queue; p-map bounds only the current selected batch.
+- [ ] `progressive-upscale.resources` Bounded concurrency and host resource priority
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Use mature p-map for configured 1..32 batch concurrency, then retain the existing SuperResolutionService GPU lease, page materializer I/O lease and Reader candidate priorities; never create another worker pool or process queue.
+  - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：`neoview.super-resolution.preload-plan`、`neoview.super-resolution.gpu-lease`、`neoview.super-resolution.page-archive-materialize`
+  - 计划测试：`neoview.super-resolution.preload-gpu-pressure`
+  - 备注：backgroundConcurrency is an admission bound; the host scheduler remains the final global resource authority.
+- [ ] `progressive-upscale.progress` Bounded progress and outcome snapshot
+  - 六维：`core=C transport=C gui=- cli=P tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 目标：Expose planned, settled, failed and cancelled counts plus per-page settled/skipped/failed/cancelled outcomes; observer failures are isolated and recent state is bounded by the active Reader generation.
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stackview/stores/upscaleStore.svelte.ts`
+  - 测试：`neoview.super-resolution.preload-observer`、`neoview.super-resolution.preload-plan`、`neoview.super-resolution.preload-progress-snapshot`、`neoview.super-resolution.preload-pause`、`neoview.super-resolution.preload-running-pause`、`neoview.super-resolution.preload-retry`、`neoview.super-resolution.preload-progress-http`、`neoview.progressive-upscale.cli-connect`、`neoview.progressive-upscale.cli-mode`
+  - 计划测试：`neoview.super-resolution.preload-progress-gui`
+  - 备注：The service retains at most 128 session/mode records in lru-cache and exposes queued/countdown/running/completed/paused/cancelled/failed snapshots plus pause/retry over authenticated HTTP. Package remote headless and --connect CLI expose status/start/pause/retry with strict wire validation; local headless composition, TUI and GUI rendering remain pending.
+- [ ] `progressive-upscale.data-contract` Shared destination and page-result contract
+  - 六维：`core=C transport=C gui=- cli=P tui=- evidence=C`；阻塞：`gui`、`cli`、`tui`
+  - 目标：Platform code supplies an artifact destination without creating it; the application service passes book/page metadata, generation, priority, materialization budget and AbortSignal to the canonical page workflow and returns typed outcomes.
+  - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/stackview/stores/upscaleStore.svelte.ts`
+  - 测试：`neoview.super-resolution.preload-plan`、`neoview.super-resolution.preload-artifact`、`neoview.super-resolution.artifact-page-hit`、`neoview.super-resolution.artifact-page-shared`、`neoview.super-resolution.preload-http`、`neoview.progressive-upscale.cli-connect`、`neoview.progressive-upscale.wire-schema`
+  - 计划测试：无
+  - 备注：The canonical page policy plans once before resolving the opaque artifact fingerprint; preload warms the injected streaming store without exposing a raw destination, and authenticated HTTP returns only a session-scoped opaque digest URL. Remote headless validates artifact/outcome and preload DTO discriminants before publishing them to CLI consumers.
+- [ ] `progressive-upscale.cache` Bounded upscale artifact cache
+  - 六维：`core=C transport=C gui=- cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 目标：Replace the legacy unbounded in-memory Blob map and PyO3 cache with one streaming, byte-budgeted artifact store supporting fingerprint invalidation, current-book/age/all cleanup, stats and opaque asset leases without reading high-resolution outputs wholly into JS memory.
+  - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/UpscaleCacheCard.svelte`
+  - 测试：`neoview.super-resolution.artifact-stream-lease`、`neoview.super-resolution.artifact-maintenance`、`neoview.super-resolution.artifact-dedup-accounting`、`neoview.super-resolution.artifact-streaming-rss`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.artifact-corrupt`、`neoview.super-resolution.preload-http`
+  - 计划测试：`neoview.super-resolution.cache-controls`
+  - 备注：A dedicated cacache streaming store provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. Authenticated HTTP streams those leases with ETag/HEAD/cancel semantics; user-facing controls remain pending.
+- [ ] `progressive-upscale.lifecycle` Open, navigation, release and dispose lifecycle
+  - 六维：`core=C transport=C gui=- cli=- tui=- evidence=C`；阻塞：`gui`、`cli`、`tui`
+  - 目标：Start only after an enabled plan/dwell, cancel on navigation or session release, await active work during dispose, release archive inputs and provider processes, and leave zero timers/tasks after the Reader closes.
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/core/preloadPipeline.ts`
+  - 测试：`neoview.super-resolution.preload-generation`、`neoview.super-resolution.page-release`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.preload-http-session`、`neoview.super-resolution.http-composition-lazy`、`neoview.super-resolution.provider-dispose`
+  - 计划测试：无
+  - 备注：Reader session release aborts active artifact generation and invalidates its opaque URLs; controller disposal closes the lazy capability and owned store, while an unused composition creates no directory, runtime, CLI probe or process.
+- [ ] `progressive-upscale.ui-parity` Card hierarchy, density and state parity
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Preserve the source hierarchy, compact selects, warning, dividers, counts, progress bar, colored status indicators and conditional visibility in docked, settings-window and card-window layouts using XR tokens.
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.progressive-upscale.gui`、`neoview.progressive-upscale.geometry`
+  - 备注：No React Card has been implemented.
+- [ ] `progressive-upscale.accessibility` Keyboard and assistive semantics
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：All switches and selects have programmatic labels, predictable focus order and keyboard operation; status changes are announced without duplicating timers. The source Card defines no dedicated shortcut, so XR must not invent a conflicting global binding.
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.progressive-upscale.accessibility`
+  - 备注：Keyboard equivalence is required even though the old Card has no dedicated shortcut.
+- [ ] `progressive-upscale.deviations` Documented scheduler and cache replacements
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=C`；阻塞：`transport`、`gui`、`cli`、`tui`
+  - 目标：Record that XR replaces the source hand-written task queue, interval countdown ownership and unbounded Blob Map with ReaderPreloadPlan, p-map, abortable timers, host resource leases and a streaming artifact store while preserving user-visible options and states.
+  - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：`neoview.super-resolution.preload-plan`、`neoview.super-resolution.preload-generation`、`neoview.super-resolution.preload-artifact`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.artifact-streaming-rss`
+  - 计划测试：无
+  - 备注：The backend scheduler and cache replacements are complete and covered by repeatable tests; transport and user-visible parity remain separate pending surfaces.
 
 ### Panel: `history`（1）
 
@@ -4571,7 +5252,7 @@
 | `settingsNotification` | 通知设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/NotificationSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 | `settingsPanels` | 边栏管理 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/PanelManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `sidebar-management-settings` |
 | `settingsCards` | 卡片管理 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/CardManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `panel-layout-settings` |
-| `settingsBindings` | 操作绑定 | deferred | partial | `core=C transport=N/A gui=P cli=P tui=P evidence=P` | `src/lib/cards/settings/BindingsSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `input-bindings-settings` |
+| `settingsBindings` | 操作绑定 | deferred | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/settings/BindingsSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `input-bindings-settings` |
 | `settingsData` | 数据设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/DataSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 
 #### `settingsGeneral` 通用设置
@@ -4768,109 +5449,109 @@
 
 - [ ] `bindings.actions` 共享动作 registry
   - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
-  - 目标：All devices target stable action IDs; the initial Reader set covers previous/next, zoom in/out/reset, clockwise rotation and opening settings without embedding callbacks in persisted data.
+  - 目标：All legacy core and provider actions map to stable XR IDs; devices and radial slots reference the same catalog without embedding callbacks in persisted data.
   - 源码：`src/lib/actions/actionRegistry.ts`、`src/lib/stores/keybindings/keyMappings.svelte.ts`
-  - 测试：`neoview.bindings.context-routing`、`neoview.bindings.config`
+  - 测试：`neoview.bindings.action-catalog`、`neoview.bindings.action-executor`、`neoview.bindings.action-executor-react`、`neoview.bindings.video-actions`、`neoview.bindings.video-actions-react`、`neoview.bindings.video-controller`、`neoview.bindings.video-surface`、`neoview.bindings.adjacent-book-client`、`neoview.control.adjacent-book`、`neoview.control.adjacent-book-rollback`、`neoview.bindings.action-dispatch-headless`、`neoview.bindings.action-dispatch-capability`、`neoview.bindings.action-dispatch-cli`、`neoview.bindings.action-dispatch-tui`、`neoview.bindings.action-capability`、`neoview.bindings.context-routing`、`neoview.bindings.config`
   - 计划测试：无
-  - 备注：Seven Reader actions use stable IDs. The full legacy action registry and explicit CLI/TUI dispatch commands remain pending.
+  - 备注：All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending.
 - [ ] `bindings.context-routing` 按活动操作上下文解析绑定
   - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
-  - 目标：Global, reader, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.
+  - 目标：Global, reader, video, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.
   - 源码：`src/lib/stores/keybindings/constants.ts`、`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
-  - 测试：`neoview.bindings.context-routing`、`neoview.bindings.dom-context`
+  - 测试：`neoview.bindings.context-routing`、`neoview.bindings.dom-context`、`neoview.bindings.keyboard-runtime`、`neoview.bindings.video-surface`、`neoview.bindings.video-actions-react`
   - 计划测试：无
-  - 备注：The browser route derives editor/modal/panel/reader mode, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. CLI/TUI context-stack projection remains pending.
+  - 备注：The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. The native video surface now advertises the video context and routes multiple bindings plus seek-mode remapping through the shared executor. CLI/TUI context-stack projection remains pending.
 - [ ] `bindings.keyboard` 键盘与修饰键绑定
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore repeat/composition and remain disabled in incompatible contexts.
   - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.recording`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.recording`、`neoview.bindings.keyboard-hold`、`neoview.bindings.keyboard-hold-editor`、`neoview.bindings.keyboard-hold-runtime`
   - 计划测试：无
-  - 备注：react-hotkeys-hook owns the global listener and dynamic key set. The editor exposes physical codes and all modifiers; one-shot chord recording captures without leaking an action and Escape cancels.
+  - 备注：react-hotkeys-hook owns runtime matching, key-down/key-up lifecycle and capture-phase chord recording. The editor exposes physical codes, modifiers and bounded hold timing; Enter hold opens the radial menu after 450 ms and key-up/blur/unmount cancel pending timers.
 - [ ] `bindings.mouse` 鼠标按键绑定
-  - 六维：`core=C transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
-  - 目标：Left/middle/right/side buttons and single/double variants resolve through the same action/context route without stealing unbound pointer input.
+  - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Left/middle/right/side buttons and click/double-click/press/hold variants resolve through the same action/context route without stealing unbound pointer input.
   - 源码：`src/lib/components/dialogs/MouseSettingsPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.mouse-press`、`neoview.bindings.mouse-hold-runtime`
   - 计划测试：无
-  - 备注：Buttons 0..7 and single/double descriptors are editable and routed outside interactive controls. Press/hold and pointer recording remain pending.
+  - 备注：Buttons 0..7 and click/double-click/press/hold descriptors are editable and routed outside interactive controls. @use-gesture owns pointer recording and configurable hold duration/movement cancellation; Browser pointer evidence remains pending.
 - [ ] `bindings.wheel` 滚轮方向绑定
   - 六维：`core=C transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Up/down wheel gestures and modifiers use the maintained gesture engine and prevent default only when a binding handles the event.
   - 源码：`src/lib/components/dialogs/MouseSettingsPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`
   - 计划测试：无
-  - 备注：@use-gesture/react owns wheel recognition; direction and all four modifiers are editable, and interactive controls are excluded. Browser E2E remains pending.
+  - 备注：@use-gesture/react owns runtime and recording; direction and all four modifiers are editable, and interactive controls are excluded. Modifier recording and runtime still require Browser E2E.
 - [ ] `bindings.area-click` 九宫格区域点击
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Configurable viewport areas resolve clicks without coupling bindings to pixel coordinates.
   - 源码：`src/lib/components/dialogs/MouseRecordingArea.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
-  - 测试：待补
+  - 测试：`neoview.bindings.area-grid`、`neoview.bindings.area-editor`、`neoview.bindings.area-runtime`
   - 计划测试：无
-  - 备注：Not included in the first route.
+  - 备注：The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium geometry remain pending.
 - [ ] `bindings.touch` 触控滑动绑定
-  - 六维：`core=C transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
-  - 目标：One-to-three-finger directional swipes use the maintained gesture engine, respect active context and release all pointer work on unmount.
+  - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：One-to-three-finger directional swipes, taps and configurable long-press use the maintained gesture engine, respect active context and release all pointer work on unmount.
   - 源码：`src/lib/components/dialogs/GestureSettingsPanel.svelte`、`src/lib/components/dialogs/GestureVisualizer.svelte`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.touch-hold-runtime`
   - 计划测试：无
-  - 备注：Directional swipe and one-to-three-finger descriptors are editable and routed through @use-gesture/react outside interactive controls; touch recording and real-device E2E remain pending.
+  - 备注：Directional swipe, tap and configurable long-press descriptors for one to three fingers are editable and routed through @use-gesture/react outside interactive controls; real-device E2E remains pending.
 - [ ] `bindings.mouse-gesture` 鼠标轨迹手势
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Recorded direction sequences match with a bounded gesture engine and visual preview.
   - 源码：`src/lib/components/dialogs/MouseGestureRecorder.svelte`、`src/lib/stackview/layers/GestureLayer.svelte`
-  - 测试：待补
+  - 测试：`neoview.bindings.mouse-gesture-core`、`neoview.bindings.mouse-gesture`、`neoview.bindings.mouse-gesture-editor`、`neoview.bindings.mouse-gesture-recording`、`neoview.bindings.mouse-gesture-runtime`
   - 计划测试：无
-  - 备注：Not included in the first route.
+  - 备注：@use-gesture owns drag lifecycle while a shared pure quantizer emits at most 16 non-repeating direction segments. The Card supports button, instant/hold trigger, timing, sequence editing and live directional recording preview; real Chromium trajectory evidence remains pending.
 - [ ] `bindings.gamepad` 标准手柄按钮绑定
   - 六维：`core=C transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：XR adds standard Gamepad buttons through a maintained listener, starts polling only when an enabled gamepad binding exists and routes through the same action/context map.
   - 源码：`src/lib/stores/keybindings/types.ts`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`
   - 计划测试：无
-  - 备注：gamepad.js owns connection and button events; visual recording, connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity.
+  - 备注：gamepad.js owns runtime and modal button recording; connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity.
 - [ ] `bindings.radial-menu` 径向菜单配置与运行时
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Menu definitions, slots, trigger binding, hold/toggle mode and hit testing share the action registry and canonical persistence.
   - 源码：`src/lib/components/dialogs/RadialMenuSettingsPanel.svelte`、`src/lib/components/radial/RadialInputLayer.svelte`、`src/lib/stores/radialMenu/core.svelte.ts`
-  - 测试：待补
+  - 测试：`neoview.bindings.radial-config`、`neoview.bindings.radial-validation`、`neoview.bindings.radial-legacy-shape`、`neoview.bindings.radial-persistence`、`neoview.bindings.radial-http`、`neoview.bindings.radial-client`、`neoview.bindings.radial-runtime`、`neoview.radial-menu.editor`、`neoview.bindings.keyboard-hold-runtime`
   - 计划测试：无
-  - 备注：Legacy opaque data remains importable but no XR editor/runtime exists yet.
+  - 备注：All 13 ray-menu TypeScript files are copied byte-for-byte from source revision a4c4e074. React lazily adapts the original NeoViewRayMenu overlay and a complete settings editor covers enablement, menus, three layers, recursive slots, actions/cross-menu jumps, ordering, geometry, preview, reset and independent persistence. Right-button press, one-finger long-press and Enter hold open it; pointer/touch Chromium geometry and legacy toggle-mode evidence remain pending.
 - [ ] `bindings.conflicts` 冲突检测、禁用与删除
-  - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Enabled bindings with the same normalized input in one context are blocked; disabled collisions remain editable and every row can be enabled, disabled or deleted.
   - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`、`src/lib/stores/keybindings/core.svelte.ts`
-  - 测试：`neoview.bindings.conflicts`、`neoview.bindings.validation`、`neoview.bindings.conflict-ui`
+  - 测试：`neoview.bindings.conflicts`、`neoview.bindings.validation`、`neoview.bindings.conflict-ui`、`neoview.bindings.config-service-validation`、`neoview.bindings.tui.conflicts`、`neoview.bindings.config-cli`
   - 计划测试：无
-  - 备注：Pure domain, backend validation and GUI share the same normalized conflict key.
+  - 备注：Pure domain, backend validation, GUI, CLI and TUI share the same normalized conflict key; ambiguous enabled inputs are rejected before any atomic configuration write.
 - [ ] `bindings.recording` 交互式输入录制
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Keyboard, pointer, touch and gamepad recorders capture one bounded input with cancel/clear and no action leakage.
   - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`、`src/lib/components/dialogs/GestureVisualizer.svelte`
-  - 测试：待补
+  - 测试：`neoview.bindings.recording`、`neoview.bindings.recording-ime`、`neoview.bindings.device-recording`、`neoview.bindings.mouse-gesture-recording`
   - 计划测试：无
-  - 备注：The first Card exposes explicit descriptor editors; framework-backed recorders remain pending.
+  - 备注：react-hotkeys-hook records keyboard chords with IME isolation; @use-gesture/react records pointer, wheel, touch and bounded mouse trajectories with live direction preview; gamepad.js records standard buttons. Real touch and virtual-gamepad Chromium evidence remain pending.
 - [ ] `bindings.data-contract` 严格有界多设备 DTO
-  - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：A versioned bounded DTO accepts only known actions, contexts and device descriptors, rejects executable fields, duplicate IDs and ambiguous enabled bindings.
   - 源码：`src/lib/stores/keybindings/types.ts`、`src/lib/stores/keybindings/core.svelte.ts`
-  - 测试：`neoview.bindings.config`、`neoview.bindings.validation`、`neoview.bindings.devices`
+  - 测试：`neoview.bindings.config`、`neoview.bindings.validation`、`neoview.bindings.devices`、`neoview.bindings.multiple-inputs`、`neoview.bindings.keyboard-hold`、`neoview.bindings.action-catalog`、`neoview.bindings.legacy-action-conversion`、`neoview.bindings.config-service`、`neoview.bindings.tui.data-contract`、`neoview.bindings.config-cli`
   - 计划测试：无
-  - 备注：The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP.
+  - 备注：The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config, HTTP, CLI and TUI. Multiple records may share one action across all projections, preserving the legacy one-operation-to-many-inputs contract across devices and contexts; key-down and bounded key-hold remain distinct descriptors.
 - [ ] `bindings.persistence` 写入唯一 TOML 规范
-  - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Runtime writes only [nodes.neoview.bindings].items through the atomic config store and restores defaults with one command.
   - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/radialMenu/core.svelte.ts`
-  - 测试：`neoview.bindings.config`、`neoview.bindings.reset`、`neoview.bindings.reset-ui`
+  - 测试：`neoview.bindings.config`、`neoview.bindings.reset`、`neoview.bindings.reset-ui`、`neoview.bindings.radial-toml-shape`、`neoview.bindings.legacy-import-cli`、`neoview.bindings.config-service`、`neoview.bindings.tui`、`neoview.bindings.config-cli`
   - 计划测试：无
-  - 备注：GUI HTTP persists canonical items atomically. Explicit CLI/TUI edit commands and a real TOML roundtrip test remain pending.
+  - 备注：GUI HTTP persists canonical items atomically; CLI list/apply/reset and the terminal interaction inspect/apply/reset use the same strict parser and cross-process-locked config service. Real CLI roundtrips preserve multiple records for one action, while GUI failure rollback browser evidence remains pending.
 - [ ] `bindings.legacy-import` 一次性导入旧绑定与径向菜单
-  - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=P cli=C tui=P evidence=P`；阻塞：`gui`、`tui`、`evidence`
   - 目标：Legacy appSettings.keybindings/radialMenus and bindings.keybindings/radial_menus import once with a report and never remain a second runtime store.
   - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/radialMenu/core.svelte.ts`、`src/lib/cards/settings/BindingsSettingsCard.svelte`
-  - 测试：`neoview.settings.codec`、`neoview.bindings.reset`
+  - 测试：`neoview.settings.codec`、`neoview.bindings.reset`、`neoview.bindings.legacy-action-conversion`、`neoview.bindings.legacy-action-report`、`neoview.bindings.legacy-conflicts`、`neoview.bindings.legacy-radial`、`neoview.bindings.legacy-radial-report`、`neoview.bindings.legacy-import-transaction`、`neoview.bindings.legacy-import-cli`
   - 计划测试：无
-  - 备注：LegacySettingsCodec preserves the opaque source and canonical reads tolerate it; action-level conversion/reporting remains pending.
+  - 备注：The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. A GUI/TUI import projection remains pending.
 - [ ] `bindings.states` 搜索、空、冲突、保存与错误状态
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The editor exposes search/filter, empty, enabled/disabled, conflict, saving, success, failure and reset states without replacing the confirmed runtime configuration on failure.
@@ -4889,9 +5570,9 @@
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：One keyboard listener and one gesture route are stable; gamepad polling exists only with enabled bindings and all listener/gesture/recording work stops on unmount or hidden document.
   - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stackview/layers/GestureLayer.svelte`、`src/lib/components/radial/RadialInputLayer.svelte`
-  - 测试：`neoview.bindings.dom-context`
+  - 测试：`neoview.bindings.dom-context`、`neoview.bindings.keyboard-hold-runtime`、`neoview.bindings.radial-runtime`、`neoview.bindings.video-lifecycle`
   - 计划测试：无
-  - 备注：Framework adapters clean up on unmount and gamepad is conditionally loaded; focused listener-count and visibility E2E remain pending.
+  - 备注：Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, gamepad is conditionally loaded, and the external video controller releases ended listeners while falling back across mounted double-page videos. Focused listener-count and visibility E2E remain pending.
 - [x] `bindings.shell` 延迟设置 Card 与旧层级
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Operations Binding remains a deferred Settings Card with the legacy search/filter/list hierarchy and no Reader-entry editor code.

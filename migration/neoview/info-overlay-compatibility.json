@@ -1,0 +1,361 @@
+{
+  "schemaVersion": 2,
+  "featureId": "info-overlay",
+  "legacyCardId": "infoOverlay",
+  "title": "信息悬浮窗",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/InfoOverlayCard.tsx",
+  "sourceHash": "sha256:47bbb9b8824b6effc99211d400b5ad1520315cb91e2a6559e6dc3aaae4e844f1",
+  "visualBaseline": "output/playwright/legacy-neoview-info-overlay-1920x1080.png",
+  "completionRule": "Complete only when the reviewed AST prototype, every legacy Card control and label, automatic/custom size semantics, all runtime image/video/latency fields, drag/position replacement contract, canonical persistence, session and layer lifecycle, accessibility, scripted 1920x1080 visual evidence and bounded overlay/chunk/navigation performance have automated evidence. Field selection and auto-hide are frozen functional-scope additions, not falsely attributed to the legacy Card UI.",
+  "sourceUiInventory": [
+    {
+      "id": "info-overlay-ui.ast-prototype",
+      "title": "AST 生成的 React 结构基线",
+      "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte"],
+      "acceptanceItems": [
+        "prototype source hash 为 sha256:47bbb9b8824b6effc99211d400b5ad1520315cb91e2a6559e6dc3aaae4e844f1",
+        "prototype 保留 Fragment 与单一根内容容器",
+        "prototype 保留两个 Switch、透明度 number input、宽度 Slider、高度 Slider 和说明段落",
+        "prototype 保留 5 个本地设置字段与 sync/update 函数",
+        "prototype 保留 enabled/opacity/showBorder/width/height 的条件更新与 unchanged 短路",
+        "unsupported 节点为 $state、$effect、Svelte Switch/Slider 和 settingsManager",
+        "生产实现不得保留 Svelte rune、$lib import 或 GUI-only settingsManager"
+      ],
+      "mappedChecklistIds": ["info-overlay.ast-prototype", "info-overlay.data-contract", "info-overlay.deviations"]
+    },
+    {
+      "id": "info-overlay-ui.controls",
+      "title": "启用、透明度与边框控件",
+      "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/defaults.ts"],
+      "acceptanceItems": [
+        "启用悬浮窗 Switch 默认 false、位于标签右侧、scale-75",
+        "透明度 number input min=0、max=100、step=5、默认显示 85",
+        "透明度输入高 28px、宽 80px、text-xs，右侧重复显示整数百分比",
+        "输入以 parseFloat 解析；NaN 不更新；规范层将结果限制 0..1",
+        "opacity 默认 0.85",
+        "0% 表示仅文字无底色而不是隐藏内容",
+        "显示边框 Switch 默认 false、位于标签右侧、scale-75",
+        "说明精确为调节悬浮信息窗的背景透明度（0% - 100%，0% 为仅文字无底色）。",
+        "开关/数值变化只更新对应字段并保留其余配置",
+        "完全未变化时不触发写入"
+      ],
+      "mappedChecklistIds": ["info-overlay.enabled", "info-overlay.opacity", "info-overlay.border", "info-overlay.bounds", "info-overlay.ui-parity", "info-overlay.performance"]
+    },
+    {
+      "id": "info-overlay-ui.width",
+      "title": "宽度、自动状态与边界",
+      "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/types.ts", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "acceptanceItems": [
+        "宽度分组标签和值位于同一行",
+        "width undefined 时值标签显示自动",
+        "width 已设置时显示 n px",
+        "Slider type=single、min=120、max=1600、step=20、全宽",
+        "自动状态下 Slider thumb 投影 480，但不应仅因渲染写入 480",
+        "用户调整 Slider 后写入 120..1600 的自定义宽度",
+        "update API 中 width<=0 删除字段并恢复自动",
+        "旧 Card 没有可达的恢复自动控件，目标必须增加明确的自动/重置命令并记录视觉偏差",
+        "runtime undefined 时不设置 inline width，由内容自然决定",
+        "runtime 仍受 info-content max-width 70vw 限制"
+      ],
+      "mappedChecklistIds": ["info-overlay.width", "info-overlay.auto-size", "info-overlay.bounds", "info-overlay.runtime-geometry", "info-overlay.deviations"]
+    },
+    {
+      "id": "info-overlay-ui.height",
+      "title": "高度、自动状态与边界",
+      "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/types.ts", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "acceptanceItems": [
+        "高度分组标签和值位于同一行",
+        "height undefined 时值标签显示自动",
+        "height 已设置时显示 n px",
+        "Slider type=single、min=32、max=600、step=8、全宽",
+        "自动状态下 Slider thumb 投影 56，但不应仅因渲染写入 56",
+        "用户调整 Slider 后写入 32..600 的自定义高度",
+        "update API 中 height<=0 删除字段并恢复自动",
+        "旧 Card 没有可达的恢复自动控件，目标必须增加明确的自动/重置命令并记录视觉偏差",
+        "runtime undefined 时不设置 inline height，由内容自然决定",
+        "固定高度时内容 overflow hidden 且不得撑破 overlay"
+      ],
+      "mappedChecklistIds": ["info-overlay.height", "info-overlay.auto-size", "info-overlay.bounds", "info-overlay.runtime-geometry", "info-overlay.deviations"]
+    },
+    {
+      "id": "info-overlay-ui.runtime-fields",
+      "title": "图片、视频、文件与时间字段",
+      "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "acceptanceItems": [
+        "只有 enabled=true 且 imageInfo 非空时挂载层",
+        "图片显示 🖼️ badge，视频显示 🎬 badge",
+        "文件名始终显示、monospace、11px、font-semibold、最大 32vw、ellipsis，并以 title 提供完整值",
+        "width 和 height 同时存在时显示 width×height",
+        "视频 duration>0 时显示 m:ss 或 h:mm:ss",
+        "视频 frameRate 存在时四舍五入显示 nfps",
+        "视频 bitrate 以 Mbps/Kbps/bps 格式显示",
+        "videoCodec 显示为视频: codec，audioCodec 显示为音频: codec",
+        "createdAt 显示创建: 本地 zh-CN 日期时间",
+        "modifiedAt 显示修改: 本地 zh-CN 日期时间",
+        "无效日期保留原始字符串，缺失字段零 DOM",
+        "meta-row 支持 flex-wrap，字段缺失不留下空分隔符",
+        "功能摘要要求字段配置，但旧 Card 没有字段选择控件；目标字段显隐设置必须作为显式新增契约而非 legacy parity"
+      ],
+      "mappedChecklistIds": ["info-overlay.media-fields", "info-overlay.video-fields", "info-overlay.time-fields", "info-overlay.field-selection", "info-overlay.states", "info-overlay.deviations"]
+    },
+    {
+      "id": "info-overlay-ui.latency-fields",
+      "title": "传输、渲染与延迟追踪字段",
+      "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "acceptanceItems": [
+        "latencyTrace 缺失时 latency-row 零 DOM",
+        "protocol 显示 🌐 协议直连并使用 protocol 样式",
+        "file-url 显示 📁 文件直连并使用 direct 样式",
+        "tempfile 显示 💾 临时文件",
+        "tempfile-url 显示 💾 临时URL",
+        "其余 source 显示 📡 IPC传输并使用 ipc 样式",
+        "renderMode=img 显示 🖼️img，否则显示 🎨canvas",
+        "loadMs 显示加载:nms，decodeMs 显示解码:nms，均四舍五入",
+        "totalMs<100 为 green，100..299 为 yellow，>=300 为 red",
+        "cacheHit=true 显示 ✓缓存",
+        "dataSize truthy 时显示四舍五入 KB",
+        "latency-row monospace 10px、flex-wrap、gap 8px",
+        "诊断字段更新不得触发媒体重取或 Reader frame 重挂"
+      ],
+      "mappedChecklistIds": ["info-overlay.latency-fields", "info-overlay.performance", "info-overlay.image-stability", "info-overlay.states"]
+    },
+    {
+      "id": "info-overlay-ui.runtime-geometry",
+      "title": "层位置、拖动、材质与 z-index",
+      "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "acceptanceItems": [
+        "层 position=absolute、pointer-events none、z-index=LayerZIndex.INFO+5",
+        "默认 left=50%、top=1rem、transform translate(-50%,0)",
+        "info-content pointer-events auto、border-radius 6px、font-size 12px、max-width 70vw",
+        "背景为 theme background 与 clamp(opacity,0,1) 的 alpha",
+        "showBorder 时使用 1px border/60%",
+        "info-inner padding 8px 12px、gap 12px、cursor move、user-select none、overflow hidden",
+        "旧拖动仅 mouse down/move/up，offset 为组件瞬态且不持久化",
+        "drag start preventDefault/stopPropagation，禁用状态不开始拖动",
+        "mouseup 清除 window mousemove/mouseup listener",
+        "旧从居中 transform 切为无 transform 可能产生锚点跳变；目标保持视觉位置连续",
+        "目标使用 PointerEvent、pointer capture、viewport 有界位置与 keyboard/touch 等价操作",
+        "功能摘要要求位置配置；目标将位置纳入 canonical settings，旧瞬态 offset 仅作为行为证据",
+        "功能摘要要求自动隐藏，但旧 Card/runtime 无实现；目标需定义 idle/focus/hover 时序或明确替代决策"
+      ],
+      "mappedChecklistIds": ["info-overlay.runtime-geometry", "info-overlay.position", "info-overlay.drag", "info-overlay.auto-hide", "info-overlay.opacity", "info-overlay.border", "info-overlay.accessibility", "info-overlay.deviations"]
+    },
+    {
+      "id": "info-overlay-ui.persistence",
+      "title": "旧 settings 与唯一规范 TOML",
+      "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/types.ts", "src/lib/settings/defaults.ts", "src/lib/settings/settingsManager.ts", "src/lib/utils/viewerToggleActions.ts"],
+      "acceptanceItems": [
+        "旧设置路径为 view.infoOverlay",
+        "默认 enabled=false、opacity=0.85、showBorder=false、width/height undefined",
+        "viewer.toggleInfoOverlay 合并原对象并只翻转 enabled",
+        "旧 Card 对每个输入事件立即 settingsManager updateNestedSettings",
+        "XR 一次导入旧对象后只写 [nodes.neoview.view.info_overlay]",
+        "规范字段使用 snake_case、版本化、严格类型与范围",
+        "undefined/clear 宽高在 TOML 中具有可持久化的 auto 语义，重启不复活旧数值",
+        "局部 PATCH 保留未编辑字段及未知未来字段",
+        "Slider/drag 中仅本地或 DOM 预览，interaction end 至多一次串行原子 PATCH",
+        "number 输入 blur/change 或 debounce completion 合并写入",
+        "失败回滚最近确认值，迟到 hydrate/PATCH 不覆盖更新交互或 session",
+        "无变化更新零写入"
+      ],
+      "mappedChecklistIds": ["info-overlay.persistence", "info-overlay.legacy-import", "info-overlay.auto-size", "info-overlay.data-contract", "info-overlay.lifecycle", "info-overlay.performance"]
+    },
+    {
+      "id": "info-overlay-ui.lifecycle-accessibility",
+      "title": "层、session、Card 生命周期和可访问性",
+      "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "acceptanceItems": [
+        "Card 隐藏/折叠时编辑订阅零挂载，overlay runtime 由 enabled/session 独立控制",
+        "enabled=false 或 imageInfo=null 时 overlay 零 DOM",
+        "Reader session 切换清除旧 imageInfo/latencyTrace 与拖动状态",
+        "infoPanel 与 settings listener 在 layer 销毁时取消",
+        "拖动中卸载也必须清除全局 move/up listener",
+        "迟到旧 session metadata/latency 不显示在新页面",
+        "Switch、number、Slider 和自动尺寸命令均有可访问名称与 visible focus",
+        "透明度 number 暴露 min/max/step/value，Slider 暴露 slider role 与 aria-valuetext 自动/n px",
+        "overlay 拖动 handle 具有 aria-label 拖动以移动信息条",
+        "旧 role=button tabindex=0 无键盘处理不充分，目标提供方向键/重置位置",
+        "overlay 不抢 Reader 导航焦点，不拦截其外部 pointer events",
+        "覆盖 disabled、no-session、no-info、image、video、partial metadata、latency、dragging、pending、error、rollback、disposed 状态"
+      ],
+      "mappedChecklistIds": ["info-overlay.lifecycle", "info-overlay.accessibility", "info-overlay.states", "info-overlay.drag", "info-overlay.position", "info-overlay.data-contract"]
+    },
+    {
+      "id": "info-overlay-ui.shell-visual-performance",
+      "title": "Card 外壳、视觉证据与性能边界",
+      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte", "src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "acceptanceItems": [
+        "Card ID infoOverlay、标题信息悬浮窗、Info 图标、默认 info Panel、canHide=true",
+        "CardRenderer 与 CardWindowContent 动态加载且共享缓存/外壳",
+        "共享外壳负责显隐、折叠、排序、移动、高度和独立窗口",
+        "Card 根 text-xs、muted foreground、space-y-2，保持旧控件顺序与密度",
+        "1920x1080 legacy screenshot 占位为 output/playwright/legacy-neoview-info-overlay-1920x1080.png",
+        "目标截图同时覆盖展开 Card、图片 overlay、视频/latency characterization",
+        "约束 Card 下 number/百分比/Slider 不重叠或横向溢出",
+        "overlay 固定/custom 尺寸在 viewport 内可读且长文件名 ellipsis",
+        "disabled/no-info 热路径为 O(1) 分支与零 overlay DOM",
+        "overlay DOM 与字段数 O(1)，metadata 更新不创建历史列表",
+        "拖动 pointermove 只改 DOM/transient state，结束一次配置 PATCH",
+        "overlay/Card 更新保持活动 img DOM、asset URL 与 decode path",
+        "Card editor 与 overlay runtime 分离 lazy chunks，editor 不进入 Reader entry",
+        "导航、metadata burst、drag、chunk 与 1920x1080 rendering 有显式预算",
+        "Windows 重验证严格串行"
+      ],
+      "mappedChecklistIds": ["info-overlay.shell", "info-overlay.ui-parity", "info-overlay.responsive", "info-overlay.visual-evidence", "info-overlay.performance", "info-overlay.image-stability", "info-overlay.lifecycle"]
+    }
+  ],
+  "items": [
+    {
+      "id": "info-overlay.ast-prototype", "category": "ast-prototype", "title": "审查可重复 AST TSX 原型", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte"],
+      "targetContract": "The generated prototype preserves source hash, hierarchy, controls, attributes and events and explicitly replaces every Svelte/runtime-only node before production React work.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.ast-prototype", "neoview.info-overlay.ast-review"], "notes": "Prototype exists; production review remains."
+    },
+    {
+      "id": "info-overlay.enabled", "category": "capabilities", "title": "启用信息悬浮层", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "A default-off shared setting mounts the overlay only with a valid current media snapshot and unmounts it completely when disabled.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.enabled"], "notes": "Viewer toggle action updates the same canonical field."
+    },
+    {
+      "id": "info-overlay.opacity", "category": "settings", "title": "背景透明度 0..100%", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Preserve default 85%, 5% number step and strict 0..1 storage; zero removes background only and retains text.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.opacity"], "notes": "Invalid/non-finite input does not corrupt settings."
+    },
+    {
+      "id": "info-overlay.border", "category": "settings", "title": "显示信息层边框", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "A default-off boolean toggles only the legacy 1px border/60% style without changing geometry or content.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.border"], "notes": "Border is not a substitute for focus indication."
+    },
+    {
+      "id": "info-overlay.width", "category": "settings", "title": "自动或 120..1600px 宽度", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Preserve automatic undefined size and custom 120..1600/20px values, with explicit reachable reset-to-auto and viewport-safe projection.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.width"], "notes": "Legacy auto slider display value is 480."
+    },
+    {
+      "id": "info-overlay.height", "category": "settings", "title": "自动或 32..600px 高度", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Preserve automatic undefined size and custom 32..600/8px values, with explicit reachable reset-to-auto and content-safe projection.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.height"], "notes": "Legacy auto slider display value is 56."
+    },
+    {
+      "id": "info-overlay.auto-size", "category": "capabilities", "title": "恢复内容自动尺寸", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/types.ts"],
+      "targetContract": "Users can independently clear width and height to canonical auto, represented by absent/null reset semantics that survive restart.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.auto-size"], "notes": "Intentional UI completion: old update API could clear but old Card had no reachable command."
+    },
+    {
+      "id": "info-overlay.bounds", "category": "data-contract", "title": "严格尺寸与透明度边界", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/types.ts"],
+      "targetContract": "Reject non-finite/mistyped values, clamp opacity 0..1, width 120..1600 and height 32..600, and distinguish explicit auto clear from omitted patch.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.bounds"], "notes": "Invalid fields fall back independently."
+    },
+    {
+      "id": "info-overlay.media-fields", "category": "capabilities", "title": "图片/文件基础信息字段", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "Render media badge, full/ellipsized file name and dimensions from one current-session media snapshot with zero placeholders for missing data.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.media-fields"], "notes": "CLI/TUI expose the same snapshot fields without overlay styling."
+    },
+    {
+      "id": "info-overlay.video-fields", "category": "capabilities", "title": "视频时长、帧率、码率与 codec", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "For video snapshots, conditionally render formatted duration, fps, bitrate, video codec and audio codec using exact legacy formatting.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.video-fields"], "notes": "Image snapshots render zero video-only DOM."
+    },
+    {
+      "id": "info-overlay.time-fields", "category": "capabilities", "title": "创建与修改时间字段", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "Conditionally render created/modified timestamps using local zh-CN formatting and preserve invalid source text without throwing.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.time-fields"], "notes": "Shared raw timestamps remain locale-neutral in the DTO."
+    },
+    {
+      "id": "info-overlay.latency-fields", "category": "capabilities", "title": "传输、渲染、延迟与缓存字段", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "Render exact data-source labels, render mode, load/decode/total timing thresholds, cache hit and KB size from a bounded current-frame trace.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.latency-fields"], "notes": "Trace is diagnostic only and must not create a second media path."
+    },
+    {
+      "id": "info-overlay.field-selection", "category": "capabilities", "title": "配置悬浮层字段显隐", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/cards/info/InfoOverlayCard.svelte"],
+      "targetContract": "The frozen functional scope requires field visibility controls for page number, dimensions, file name and available runtime metadata, backed by one shared field enum.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.field-selection"], "notes": "No such legacy Card controls exist; this is an explicit scope-completion addition, not parity evidence."
+    },
+    {
+      "id": "info-overlay.runtime-geometry", "category": "capabilities", "title": "悬浮层尺寸、材质与默认位置", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Project canonical opacity/border/auto-or-fixed dimensions onto one absolute INFO+5 layer centered at top by default and bounded to the viewport.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.runtime-geometry"], "notes": "Overlay remains outside Reader frame identity."
+    },
+    {
+      "id": "info-overlay.position", "category": "settings", "title": "可恢复的有界悬浮层位置", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Expose resettable viewport-relative position through canonical settings while preserving centered/top defaults and stable geometry across resize.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.position"], "notes": "Legacy drag offsets were transient and mouse-only; functional scope explicitly requires position configuration."
+    },
+    {
+      "id": "info-overlay.drag", "category": "capabilities", "title": "指针、触摸与键盘移动", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Use bounded PointerEvent/pointer-capture movement, DOM-only transient updates and one completion persistence, with keyboard reset/nudge equivalents and no anchor jump.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.drag"], "notes": "Intentional improvement over legacy mouse window listeners and transform discontinuity."
+    },
+    {
+      "id": "info-overlay.auto-hide", "category": "capabilities", "title": "可配置自动隐藏", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Define a bounded auto-hide policy with enabled/delay/hover/focus behavior that preserves keyboard access and does not discard user visibility preference.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.auto-hide"], "notes": "Functional-scope addition: frozen legacy Card/runtime contains no auto-hide control or behavior."
+    },
+    {
+      "id": "info-overlay.persistence", "category": "settings", "title": "唯一规范 TOML 与原子更新", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/settingsManager.ts"],
+      "targetContract": "Persist only [nodes.neoview.view.info_overlay] through strict serialized partial PATCH, preserving unknown fields, coalescing interactions and rolling back failures.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.persistence"], "notes": "No GUI-only runtime settings or per-input disk writes."
+    },
+    {
+      "id": "info-overlay.legacy-import", "category": "settings", "title": "一次导入旧 view.infoOverlay", "sourceEvidence": ["src/lib/settings/types.ts", "src/lib/settings/defaults.ts"],
+      "targetContract": "Import enabled, opacity, showBorder and optional width/height once, normalize each field, then prevent legacy settings from overriding canonical TOML.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.legacy-import"], "notes": "Absent width/height import as auto."
+    },
+    {
+      "id": "info-overlay.data-contract", "category": "data-contract", "title": "共享配置、媒体快照与 latency DTO", "sourceEvidence": ["src/lib/settings/types.ts", "src/lib/stores/infoPanel.svelte.ts", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "GUI, CLI and TUI share browser-safe versioned configuration and current-session media/trace snapshots with cancellation, generation and stale-result semantics.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.data-contract"], "notes": "ReaderApp remains composition only and no Node builtin enters browser chunks."
+    },
+    {
+      "id": "info-overlay.states", "category": "interaction-states", "title": "Card、媒体、诊断与持久化状态", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Cover disabled, enabled-no-session, enabled-no-info, image, video, partial metadata, latency, auto/custom size, dragging, pending, error, rollback, stale and disposed states.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.states"], "notes": "Missing optional fields produce zero DOM rather than placeholders."
+    },
+    {
+      "id": "info-overlay.lifecycle", "category": "lifecycle", "title": "Card、layer、session、listener 与 pointer 释放", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "Hidden editors do no work, disabled/no-info layer is zero DOM, session generations reject stale data and every settings/store/pointer/timer subscription is released on unmount.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.lifecycle"], "notes": "Pointer cleanup must also run if unmounted mid-drag."
+    },
+    {
+      "id": "info-overlay.accessibility", "category": "keyboard-accessibility", "title": "命名控件、值语义与移动等价操作", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Every switch/input/slider/reset is named and keyboard-operable; overlay movement supports keyboard/touch, exposes state and never steals Reader navigation focus.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.accessibility"], "notes": "Legacy role=button/tabindex without keyboard handler is not sufficient."
+    },
+    {
+      "id": "info-overlay.shell", "category": "ui-parity", "title": "共享 Card 外壳与延迟加载", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
+      "targetContract": "infoOverlay retains its title, Info icon, info Panel default, hideability, shared Card/window behavior and independently deferred editor/runtime chunks.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.shell", "neoview.info-overlay.chunk"], "notes": "Editor code must not inflate Reader entry."
+    },
+    {
+      "id": "info-overlay.ui-parity", "category": "ui-parity", "title": "旧版控件层级、标签与密度", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte"],
+      "targetContract": "Preserve exact enabled/opacity/width/height/border ordering, Chinese labels, compact spacing, value text and explanatory copy, with explicit additions isolated and documented.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.ui"], "notes": "Auto reset, field selection and auto-hide are additions, not silent replacements."
+    },
+    {
+      "id": "info-overlay.responsive", "category": "ui-parity", "title": "约束 Card 与 overlay 响应式几何", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Controls never overlap or overflow at constrained Card widths, and auto/fixed overlay remains reachable/readable within desktop and resized viewports.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.responsive"], "notes": "Long file names ellipsize with accessible full text."
+    },
+    {
+      "id": "info-overlay.visual-evidence", "category": "tests", "title": "1920x1080 脚本视觉证据", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Terminal scripts capture legacy and target expanded Card plus image/video/latency overlay at 1920x1080 and compare hierarchy, labels, size, material and position.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.ui-1920x1080"], "notes": "Placeholder: output/playwright/legacy-neoview-info-overlay-1920x1080.png; use scripts, not in-app Browser."
+    },
+    {
+      "id": "info-overlay.image-stability", "category": "performance", "title": "Overlay 更新保持活动媒体身份", "sourceEvidence": ["src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Configuration, metadata updates, drag and layer mount/unmount never remount the active img/video, change its asset URL or create another decode path.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.image-stability"], "notes": "Overlay is a sibling presentation layer."
+    },
+    {
+      "id": "info-overlay.performance", "category": "performance", "title": "禁用路径、DOM、更新、写入与 chunk 预算", "sourceEvidence": ["src/lib/cards/CardRenderer.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "Disabled/no-info is zero DOM, field rendering is O(1), metadata and drag work is bounded, pointermove is DOM-only, completion writes once and editor/runtime chunks stay deferred within explicit budgets.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.performance", "neoview.info-overlay.chunk", "neoview.info-overlay.navigation-performance"], "notes": "Heavy verification runs strictly serial on Windows."
+    },
+    {
+      "id": "info-overlay.deviations", "category": "deviations", "title": "记录自动尺寸、位置、字段、隐藏与可访问性改进", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
+      "targetContract": "Document reachable auto reset, persistent bounded position, PointerEvent/keyboard movement, field-selection and auto-hide additions, strict config and end-only writes without removing legacy controls or runtime fields.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.deviations"], "notes": "Source gaps and functional-scope additions remain explicit until implemented and evidenced."
+    }
+  ]
+}
