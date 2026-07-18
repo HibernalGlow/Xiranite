@@ -34,6 +34,8 @@ describe("Reader media runtime config", () => {
       videoFormats: ["mp4", "comicvideo"],
       mediaMimeTypes: { comicimage: "image/webp", comicvideo: "video/mp4" },
       autoPlayAnimatedImages: false,
+      animatedVideoEnabled: false,
+      animatedVideoKeywords: ["[#dyna]"],
       videoMinPlaybackRate: 0.5,
       videoMaxPlaybackRate: 8,
       videoPlaybackRateStep: 0.5,

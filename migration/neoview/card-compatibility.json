@@ -534,10 +534,10 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
       "sourceComponent": "src/lib/cards/info/AnimatedVideoModeCard.svelte",
       "sourceDisposition": "component"
