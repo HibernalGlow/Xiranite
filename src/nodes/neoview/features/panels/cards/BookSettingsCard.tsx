@@ -1,6 +1,7 @@
 /**
  * @migrated-from src/lib/cards/properties/BookSettingsCard.svelte
  * @source-hash sha256:7034b5cf6da4a88be90a5cfd1d7b0bd1e4cf296429a5aad9bb30fec9379a9e22
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/BookSettingsCard.tsx
  * @migration-status adapted
  */
 import { type ReactNode } from "react"
@@ -36,6 +37,7 @@ export const BOOK_SETTINGS_CAPABILITY_AUDIT = [
 ] as const
 
 export default function BookSettingsPanelCard(context: ReaderPanelContext) {
+  if (context.panelActive === false) return <ReaderCardEmptyState />
   if (context.panelActive === false) return <ReaderCardEmptyState />
   if (!context.session) return <ReaderCardEmptyState>打开书本后编辑本书设置</ReaderCardEmptyState>
   return <ConnectedBookSettingsCard key={context.session.sessionId} context={context} sessionId={context.session.sessionId} />

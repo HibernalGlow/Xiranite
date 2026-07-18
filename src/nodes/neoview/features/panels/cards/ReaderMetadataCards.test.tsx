@@ -21,6 +21,14 @@ describe("Reader metadata cards", () => {
     expect(inactive.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
   })
 
+  it("[neoview.book-information.inactive-zero-work] keeps the shell without metadata while hidden", () => {
+    const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
+    const view = render(<BookInformationCard {...panelContext(clientWith(metadata), session())} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(metadata).not.toHaveBeenCalled()
+  })
+
   it("[neoview.time-information.states] shows loading for an active session and zero DOM without one", () => {
     const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
     const active = render(<TimeInformationCard {...panelContext(clientWith(metadata), session())} />)
