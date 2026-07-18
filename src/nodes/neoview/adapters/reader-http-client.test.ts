@@ -192,6 +192,39 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ operations: [operation] })
   })
 
+  it("[neoview.file-operations.undo-client] exposes state, confirmed undo and discard transport", async () => {
+    const state = {
+      available: true,
+      count: 1,
+      latestId: "undo-1",
+      latestCreatedAt: 123,
+      supportedKinds: ["copy", "move", "rename", "create-directory"],
+      trashRestore: false,
+      persistent: true,
+    }
+    const undo = { undoId: "undo-1", results: [], succeeded: 1, failed: 0, remaining: 0, journalPersisted: true }
+    const discard = { undoId: "undo-2", discarded: true, remaining: 0, journalPersisted: true }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input)).pathname
+      if (path.endsWith("/operations")) return Response.json(state)
+      if (path.endsWith("/undo/discard")) return Response.json(discard)
+      return Response.json(undo)
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.fileUndoState!()).resolves.toEqual(state)
+    await expect(client.undoLatestFileOperations!(true)).resolves.toEqual(undo)
+    await expect(client.discardFileUndo!(true)).resolves.toEqual(discard)
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/files/operations")
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/files/undo")
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ confirmed: true })
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe("http://127.0.0.1:41000/reader/files/undo/discard")
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ confirmed: true })
+    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.storage-information.diagnostics-client] reads the authenticated shared diagnostics snapshot", async () => {
     const snapshot = { schemaVersion: 1, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
     const fetchMock = vi.fn(async () => Response.json(snapshot))
@@ -671,7 +704,7 @@ describe("reader-http-client", () => {
   })
 
   it("[neoview.bindings.legacy-import-client] uses authenticated inspect and confirmed import endpoints", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input)
       if (url.endsWith("/inspect")) return Response.json({ report: { codecVersion: 1, sourceKind: "app-settings", entries: [], summary: {}, fullyRecognized: true }, configPatch: {} })
       return Response.json({ report: { codecVersion: 1, sourceKind: "app-settings", entries: [], summary: {}, fullyRecognized: true }, configPatch: {}, strategy: "merge", changed: true, backupCreated: true })
