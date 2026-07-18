@@ -80,6 +80,29 @@ describe("WritableLegacyThumbnailStore", () => {
     await store.close()
   })
 
+  it("[neoview.thumbnail.writer-scheduler] commits queued thumbnail writes through the host background I/O pool", async () => {
+    const path = await createFixture(roots)
+    const requests: ResourceTaskRequest[] = []
+    let releases = 0
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      resourceScheduler: {
+        acquire: async (request) => {
+          requests.push({ ...request })
+          return { release: () => { releases += 1 } }
+        },
+      },
+    })
+    await store.put({ key: "D:/scheduled.webp", category: "file", bytes: fixtureWebp(1) })
+    expect(requests).toEqual([{
+      resource: "io",
+      kind: "neoview.thumbnail.database-write",
+      priority: "background",
+    }])
+    expect(releases).toBe(1)
+    await store.close()
+  })
+
   it("[neoview.thumbnail.writer.journal-compat] preserves the legacy database journal mode", async () => {
     const path = await createFixture(roots)
     const setup = await openFixtureDatabase(path)
@@ -266,6 +289,8 @@ describe("WritableLegacyThumbnailStore", () => {
       category: index === 4 ? "folder" : "file",
       bytes: fixtureWebp(index),
     })))
+    requests.length = 0
+    releases = 0
     const snapshot = await store.maintenanceSnapshot()
     expect(snapshot).toMatchObject({
       totalRows: 5,
@@ -341,6 +366,36 @@ describe("WritableLegacyThumbnailStore", () => {
     expect(await store.get(unavailable, "file")).toBeDefined()
     expect(await store.get(missing, "file")).toBeUndefined()
     expect(await store.get("relative-invalid", "file")).toBeUndefined()
+    await store.close()
+  })
+
+  it("[neoview.thumbnail.maintenance-scheduler] schedules invalid-path reads, probes and deletion separately", async () => {
+    const path = await createFixture(roots)
+    const root = parse(resolve(path)).root
+    const missing = resolve(join(root, "xiranite-scheduled-missing.jpg"))
+    const requests: ResourceTaskRequest[] = []
+    let releases = 0
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      pathState: async (candidate) => candidate === root ? "exists" : "missing",
+      resourceScheduler: {
+        acquire: async (request) => {
+          requests.push({ ...request })
+          return { release: () => { releases += 1 } }
+        },
+      },
+    })
+    await store.put({ key: missing, category: "file", bytes: fixtureWebp(1) })
+    requests.length = 0
+    releases = 0
+    await expect(store.cleanupInvalid({ scanLimit: 10, deleteLimit: 10 })).resolves.toMatchObject({ scanned: 1, deleted: 1 })
+    expect(requests).toEqual([
+      { resource: "io", kind: "neoview.thumbnail.database-maintenance-scan", priority: "background" },
+      { resource: "io", kind: "neoview.thumbnail.path-state", priority: "background" },
+      { resource: "io", kind: "neoview.thumbnail.path-state", priority: "background" },
+      { resource: "io", kind: "neoview.thumbnail.database-maintenance-write", priority: "background" },
+    ])
+    expect(releases).toBe(4)
     await store.close()
   })
 

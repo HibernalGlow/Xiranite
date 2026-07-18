@@ -2382,6 +2382,8 @@ SQLite `getMany()` 仍复用原 `ReaderThumbnailStore` 和现有 `bun:sqlite`/`n
 - 关闭宿主时停止接收 demand、取消可取消生成、等待当前批写事务、关闭 writer，再关闭 read-only 连接；
 - 严禁测试直接修改用户真实 `%APPDATA%/NeoView/thumbnails.db`。
 
+在线 writer 与维护操作现已共用宿主 I/O scheduler：缩略图/失败记录批写使用 `neoview.thumbnail.database-write`，失败清理、空 Blob/过期记录和无效路径删除使用 `neoview.thumbnail.database-maintenance-write`，候选 key 分页使用 `neoview.thumbnail.database-maintenance-scan`，卷根与来源存在性检查使用 `neoview.thumbnail.path-state`。所有维护任务均为 `background`；SQLite busy 重试会在每次失败后先释放 host lease，再执行有界退避，避免锁等待占住 XR I/O slot。无效路径仍由现有 `p-map` 提供局部上限，但实际文件探测同时受宿主池约束；请求取消会停止后续探测，并且在进入删除事务前再次检查 signal。
+
 #### 18.5.8 完整测试与性能门槛
 
 实现必须覆盖三条独立语料链，而不是只用一张 PNG 证明 CRUD：
@@ -2632,7 +2634,7 @@ scripts/
 - 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。NeoView 已从 backend 宿主共享 CPU 池取得 lease，其他高负载节点仍需迁入同一 scheduler；
 - 已接入 transform singleflight、96 MiB/单条 24 MiB 的 L2 weighted LRU，以及惰性 `cacache` L3；冷请求保持边响应边有界收集，L3 使用 opaque typed key、SHA-256 完整性、原子发布、active lease、字节/年龄/低磁盘策略、proper-lockfile per-key 跨实例磁盘临界区和独立维护 API；request-bound 内存压力会定量收缩/清空 L2、释放 thumbnail L1、淘汰无 lease solid materialization、清空 tree metadata/目录大小后台批次并停止新 L2/L3/background admission。current/near presentation retention、archive/listing 逻辑字节核算、current listing 每 session 预算降级与统一 cache lease diagnostics 已接入；更多格式/尺寸/压力 corpus 仍待校准；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
-- ZIP/CBZ/EPUB entry stream 与压缩包页 presentation 已和 7-Zip 一样接入宿主 scheduler，并共享单个解压/变换 lease；library source stat、folder representative、SQLite 批量预热与精确维护统计也已合作式分块并进入宿主 I/O 池；继续审计破坏性维护/失效路径扫描、超分和其他高负载节点，补 queue/cache 指标与 benchmark；
+- ZIP/CBZ/EPUB entry stream 与压缩包页 presentation 已和 7-Zip 一样接入宿主 scheduler，并共享单个解压/变换 lease；library source stat、folder representative、SQLite 预热、精确统计、批写、清理和失效路径扫描均已进入宿主 I/O 池；继续审计超分和其他高负载节点，补 queue/cache 指标与 benchmark；
 - 已以原 `%APPDATA%\NeoView\thumbnails.db` 接入惰性单 writer、批量命中、受保护 HTTP URL、Page/file/folder/video/归档内视频生成、失败退避与有界在线维护；已完成 SQLite 原生一致性备份、XR writer/维护进程锁、显式离线 checkpoint/optimize/vacuum、验证备份恢复、`data_version` 外部写失效和 V1/V3/V4 调度行为收口；继续补真实大规模基准；
 - 已实现 loopback asset/control route、opaque token、ETag、文件 Range、ZIP 无伪 Range、背压与断开取消；
 - GUI、CLI 与 TUI 已使用共享 `openViewSource()` / `openPageStream()` contract；OpenTUI presentation adapter 复用宿主 `TerminalImageDecodeService`、`TerminalImagePreview`、字节 LRU、`p-queue` 和 `ResourceScheduler`，本地与 loopback remote controller 不维护第二套解码或页面 transport；
