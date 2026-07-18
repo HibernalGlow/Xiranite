@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
 import { BookOpen, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
+  DEFAULT_READER_RADIAL_MENU_CONFIG,
   READER_CARD_MANIFEST,
   READER_PANEL_MANIFEST,
   ReaderSlideshow,
@@ -11,6 +12,7 @@ import {
   type ReaderPresentation,
   type ReaderInputAction,
   type ReaderInputBindingsConfig,
+  type ReaderRadialMenuConfig,
 } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
@@ -43,6 +45,7 @@ import {
   type ReaderShellEdge,
   type ReaderShellLockMode,
   type ReaderInputBindingsPatch,
+  type ReaderRadialMenuPatch,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -104,6 +107,9 @@ function loadReaderSidebar(): Promise<ReaderSidebarModule> {
 const LazyReaderSidebar = lazy(async () => ({ default: (await loadReaderSidebar()).ReaderSidebar }))
 const LazyReaderGestureInputRuntime = lazy(async () => ({
   default: (await import("../features/input/ReaderGestureInputRuntime")).ReaderGestureInputRuntime,
+}))
+const LazyReaderRadialMenuOverlay = lazy(async () => ({
+  default: (await import("../features/input/ReaderRadialMenuOverlay")).ReaderRadialMenuOverlay,
 }))
 
 type ReaderSettingsWindowModule = typeof import("../features/settings/ReaderSettingsWindow")
@@ -195,6 +201,7 @@ export function ReaderApp({
   const folderViewWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const folderViewGenerationRef = useRef(0)
   const inputBindingsRef = useRef<ReaderInputBindingsConfig>(structuredClone(DEFAULT_READER_INPUT_BINDINGS))
+  const lastInputPointRef = useRef<{ x: number; y: number }>()
   const shellControlWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const shellControlGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
@@ -226,6 +233,8 @@ export function ReaderApp({
   const [historyListPreferences, setHistoryListPreferences] = useState<ReaderHistoryListPreferencesDto>(() => ({ ...INITIAL_HISTORY_LIST_PREFERENCES }))
   const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
+  const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+  const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const prefetchController = useReaderImagePreloader(session?.sessionId)
@@ -269,6 +278,7 @@ export function ReaderApp({
       }
       inputBindingsRef.current = config.inputBindings
       setInputBindings(config.inputBindings)
+      setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
       if (!presentationTouchedRef.current) {
         setPresentation((current) => ({ ...current, fitMode: config.viewDefaults.fitMode }))
       }
@@ -507,6 +517,13 @@ export function ReaderApp({
     return updated
   }
 
+  async function persistRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRadialMenuConfig> {
+    if (!clientRef.current.updateRadialMenu) throw new Error("当前 Reader 后端不支持轮盘设置。")
+    const updated = await clientRef.current.updateRadialMenu({ radialMenu: patch })
+    setRadialMenu(updated)
+    return updated
+  }
+
   function executeInputAction(action: ReaderInputAction): void {
     switch (action) {
       case "reader.previous-page":
@@ -534,10 +551,21 @@ export function ReaderApp({
       case "reader.open-settings":
         setSettingsOpen(true)
         break
+      case "radial.open-default": {
+        if (!radialMenu.enabled || !radialMenu.menus.some((menu) => menu.layers.some((layer) => layer.length))) break
+        const point = lastInputPointRef.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+        setRadialMenuRequest((current) => ({ id: (current?.id ?? 0) + 1, ...point }))
+        break
+      }
     }
   }
 
   const inputRouter = useReaderInputRouter({ config: inputBindings, disabled: busy, execute: executeInputAction })
+
+  const handleInputPointerDown: PointerEventHandler<HTMLElement> = (event) => {
+    lastInputPointRef.current = { x: event.clientX, y: event.clientY }
+    inputRouter.onPointerDown(event)
+  }
 
   async function persistSlideshow(patch: ReaderSlideshowPatch["slideshow"]) {
     slideshow.configure(patch)
@@ -925,12 +953,14 @@ export function ReaderApp({
       data-input-context="reader"
       className="h-full min-h-0 w-full touch-none overflow-hidden bg-background text-foreground"
       tabIndex={0}
-      onPointerDown={inputRouter.onPointerDown}
+      onPointerDown={handleInputPointerDown}
       onPointerUp={inputRouter.onPointerUp}
+      onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
     >
       <Suspense fallback={null}>
         <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={surface.ref} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
       </Suspense>
+      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       <FloatingWindowTitlebarReservation />
       <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
         <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
@@ -953,10 +983,12 @@ export function ReaderApp({
             shell={shell}
             viewDefaults={viewDefaults}
             inputBindings={inputBindings}
+            radialMenu={radialMenu}
             onClose={() => setSettingsOpen(false)}
             onBoardLayout={commitBoardLayout}
             onViewDefaults={applyConfiguredViewDefaults}
             onInputBindings={persistInputBindings}
+            onRadialMenu={persistRadialMenu}
           />
         </Suspense>
       ) : null}

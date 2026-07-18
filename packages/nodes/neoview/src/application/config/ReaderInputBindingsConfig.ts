@@ -73,8 +73,14 @@ function parseInput(value: unknown, label: string): ReaderInputDescriptor {
   const source = requireRecord(value, label)
   const device = requiredEnum(source.device, ["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad", "area"] as const, `${label}.device`)
   if (device === "keyboard") {
-    rejectUnknown(source, ["device", "code", "ctrl", "alt", "shift", "meta"], label)
-    return { device, code: requiredString(source.code, `${label}.code`, 64), ...modifiers(source, label) }
+    rejectUnknown(source, ["device", "code", "trigger", "durationMs", "ctrl", "alt", "shift", "meta"], label)
+    const trigger = source.trigger === undefined ? "down" : requiredEnum(source.trigger, ["down", "hold"] as const, `${label}.trigger`)
+    return {
+      device,
+      code: requiredString(source.code, `${label}.code`, 64),
+      ...(trigger === "hold" ? { trigger, durationMs: source.durationMs === undefined ? 450 : boundedInteger(source.durationMs, 100, 5_000, `${label}.durationMs`) } : {}),
+      ...modifiers(source, label),
+    }
   }
   if (device === "mouse") {
     rejectUnknown(source, ["device", "button", "action", "click", "durationMs", "moveTolerancePx"], label)

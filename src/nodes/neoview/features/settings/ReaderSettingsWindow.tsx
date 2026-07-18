@@ -2,7 +2,7 @@ import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Mon
 import { Suspense, useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
+import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRadialMenuPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
 
 export function ReaderSettingsWindow({
@@ -13,6 +13,8 @@ export function ReaderSettingsWindow({
   onViewDefaults,
   inputBindings,
   onInputBindings,
+  radialMenu,
+  onRadialMenu,
 }: {
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
@@ -21,6 +23,8 @@ export function ReaderSettingsWindow({
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
+  radialMenu: ReaderRuntimeConfigDto["radialMenu"]
+  onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
 }) {
   const [active, setActive] = useState<SettingsSectionId>("sidebar")
   return (
@@ -50,7 +54,7 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} />
+            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} />
           </div>
         </div>
       </DialogContent>
@@ -66,6 +70,8 @@ function SettingsSection({
   onViewDefaults,
   inputBindings,
   onInputBindings,
+  radialMenu,
+  onRadialMenu,
 }: {
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
@@ -74,6 +80,8 @@ function SettingsSection({
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
+  radialMenu: ReaderRuntimeConfigDto["radialMenu"]
+  onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
 }) {
   const definitions = settingsCardsForSection(sectionId)
   if (!definitions.length) return <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} />
@@ -81,7 +89,7 @@ function SettingsSection({
     const Card = lazyReaderSettingsCard(definition.id)
     return Card ? (
       <Suspense key={definition.id} fallback={<div className="h-24 animate-pulse rounded-md bg-muted/35" aria-label={`正在加载${definition.title}`} />}>
-        <Card shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} onSave={onSave} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} />
+        <Card shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onSave} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} />
       </Suspense>
     ) : null
   })

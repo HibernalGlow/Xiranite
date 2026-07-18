@@ -7,12 +7,13 @@ export const READER_INPUT_ACTIONS = [
   "reader.reset-view",
   "reader.rotate-clockwise",
   "reader.open-settings",
+  "radial.open-default",
 ] as const
 
 export type ReaderInputContext = typeof READER_INPUT_CONTEXTS[number]
 export type ReaderInputAction = typeof READER_INPUT_ACTIONS[number]
 
-export const READER_INPUT_ACTION_CATEGORIES = ["navigation", "view", "session"] as const
+export const READER_INPUT_ACTION_CATEGORIES = ["navigation", "view", "session", "radial"] as const
 export type ReaderInputActionCategory = typeof READER_INPUT_ACTION_CATEGORIES[number]
 
 export const READER_VIEW_AREAS = [
@@ -31,7 +32,7 @@ export interface ReaderInputActionMetadata {
 }
 
 export type ReaderInputDescriptor =
-  | { device: "keyboard"; code: string; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
+  | { device: "keyboard"; code: string; trigger?: "down" | "hold"; durationMs?: number; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
   | { device: "mouse"; button: number; action: "click" | "double-click" | "press" | "hold"; durationMs?: number; moveTolerancePx?: number }
   | { device: "mouse-gesture"; button: number; directions: ReaderMouseGestureDirection[]; trigger: "instant" | "hold"; durationMs?: number; moveTolerancePx?: number }
   | { device: "wheel"; direction: "up" | "down"; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
@@ -72,6 +73,7 @@ export const READER_INPUT_ACTION_METADATA: Readonly<Record<ReaderInputAction, Re
   "reader.reset-view": { label: "重置视图", category: "view" },
   "reader.rotate-clockwise": { label: "顺时针旋转", category: "view" },
   "reader.open-settings": { label: "打开设置", category: "session" },
+  "radial.open-default": { label: "打开默认轮盘", category: "radial" },
 }
 
 export const READER_INPUT_ACTION_LABELS: Readonly<Record<ReaderInputAction, string>> = Object.fromEntries(
@@ -82,6 +84,7 @@ export const READER_INPUT_ACTION_CATEGORY_LABELS: Readonly<Record<ReaderInputAct
   navigation: "导航",
   view: "视图",
   session: "会话",
+  radial: "轮盘",
 }
 
 export const READER_INPUT_CONTEXT_LABELS: Readonly<Record<ReaderInputContext, string>> = {
@@ -100,10 +103,13 @@ export const DEFAULT_READER_INPUT_BINDINGS: ReaderInputBindingsConfig = {
     binding("keyboard-zoom-out", "reader.zoom-out", "reader", { device: "keyboard", code: "Minus" }),
     binding("keyboard-reset", "reader.reset-view", "reader", { device: "keyboard", code: "Digit0" }),
     binding("keyboard-rotate", "reader.rotate-clockwise", "reader", { device: "keyboard", code: "KeyR" }),
+    binding("keyboard-radial", "radial.open-default", "reader", { device: "keyboard", code: "Enter", trigger: "hold", durationMs: 450 }),
     binding("touch-previous", "reader.previous-page", "reader", { device: "touch", gesture: "swipe-right", fingers: 1 }),
     binding("touch-next", "reader.next-page", "reader", { device: "touch", gesture: "swipe-left", fingers: 1 }),
     binding("gamepad-previous", "reader.previous-page", "reader", { device: "gamepad", button: 4 }),
     binding("gamepad-next", "reader.next-page", "reader", { device: "gamepad", button: 5 }),
+    binding("mouse-radial", "radial.open-default", "reader", { device: "mouse", button: 2, action: "press" }),
+    binding("touch-radial", "radial.open-default", "reader", { device: "touch", gesture: "long-press", fingers: 1, durationMs: 450, moveTolerancePx: 12 }),
   ],
 }
 
@@ -114,7 +120,7 @@ export function readerInputConflictKey(binding: Pick<ReaderInputBinding, "contex
 export function readerInputDescriptorKey(input: ReaderInputDescriptor): string {
   switch (input.device) {
     case "keyboard":
-      return `keyboard:${modifiers(input)}:${input.code}`
+      return `keyboard:${modifiers(input)}:${input.code}:${input.trigger ?? "down"}`
     case "mouse":
       return `mouse:${input.button}:${input.action}`
     case "mouse-gesture":

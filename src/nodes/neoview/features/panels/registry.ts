@@ -22,6 +22,7 @@ import type {
   ReaderBookmarkListPreferencesDto,
   ReaderBookSettingsUpdateDto,
   ReaderHistoryListPreferencesDto,
+  ReaderRadialMenuPatch,
   ReaderHttpClient,
   ReaderPageListPreferencesDto,
   ReaderPreloadActionResultDto,
@@ -102,6 +103,8 @@ export interface ReaderSettingsCardContext {
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
+  radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
+  onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
 }
 
 export interface LegacyPanelConfig {

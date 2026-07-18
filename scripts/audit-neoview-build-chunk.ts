@@ -315,6 +315,8 @@ const settingsWindowChunk = neoViewChunks.find((chunk) => chunk.modules.some((mo
 const sidebarManagementSettingsCardChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]SidebarManagementSettingsCard\.tsx$/i.test(module)))
 const panelLayoutEditorChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]PanelLayoutEditor\.tsx$/i.test(module)))
 const inputBindingsSettingsCardChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]InputBindingsSettingsCard\.tsx$/i.test(module)))
+const radialMenuSettingsEditorChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]RadialMenuSettingsEditor\.tsx$/i.test(module)))
+const radialMenuOverlayChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]input[/\\]ReaderRadialMenuOverlay\.tsx$/i.test(module)))
 const gamepadRuntimeChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]node_modules[/\\]gamepad\.js[/\\]/i.test(module)))
 // [neoview.bindings.chunk]
 const gestureInputRuntimeChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]input[/\\]ReaderGestureInputRuntime\.tsx$/i.test(module)))
@@ -323,6 +325,8 @@ if (!settingsWindowChunk) throw new Error("NeoView settings window did not produ
 if (!sidebarManagementSettingsCardChunk) throw new Error("NeoView SidebarManagementSettingsCard did not produce a deferred production chunk.")
 if (!panelLayoutEditorChunk) throw new Error("NeoView PanelLayoutEditor did not produce a second-level deferred production chunk.")
 if (!inputBindingsSettingsCardChunk || inputBindingsSettingsCardChunk === settingsWindowChunk || inputBindingsSettingsCardChunk === neoViewChunk) throw new Error("NeoView InputBindingsSettingsCard did not produce a second-level deferred production chunk.")
+if (!radialMenuSettingsEditorChunk || radialMenuSettingsEditorChunk === inputBindingsSettingsCardChunk || radialMenuSettingsEditorChunk === settingsWindowChunk || radialMenuSettingsEditorChunk === neoViewChunk) throw new Error("NeoView radial-menu editor did not produce a third-level deferred production chunk.")
+if (!radialMenuOverlayChunk || radialMenuOverlayChunk === neoViewChunk || radialMenuOverlayChunk === initialChunk) throw new Error("Copied ray-menu runtime leaked into an eager Reader/initial chunk.")
 if (!gamepadRuntimeChunk || gamepadRuntimeChunk === neoViewChunk || gamepadRuntimeChunk === initialChunk) throw new Error("gamepad.js leaked into an eager Reader/initial chunk.")
 if (!gestureInputRuntimeChunk || gestureInputRuntimeChunk === neoViewChunk || gestureInputRuntimeChunk === initialChunk) throw new Error("NeoView gesture input runtime leaked into an eager Reader/initial chunk.")
 if (!kanbanRuntimeChunk) throw new Error("Dice UI Kanban runtime chunk is missing from the PanelLayoutEditor build.")
@@ -333,6 +337,8 @@ if (initialChunk === kanbanRuntimeChunk || neoViewChunk === kanbanRuntimeChunk |
 if (panelLayoutEditorChunk.bytes > 64 * 1024) throw new Error(`NeoView PanelLayoutEditor chunk ${panelLayoutEditorChunk.fileName} is ${panelLayoutEditorChunk.bytes} bytes, above 64 KiB.`)
 if (sidebarManagementSettingsCardChunk.bytes > 16 * 1024) throw new Error(`NeoView SidebarManagementSettingsCard chunk ${sidebarManagementSettingsCardChunk.fileName} is ${sidebarManagementSettingsCardChunk.bytes} bytes, above 16 KiB.`)
 if (inputBindingsSettingsCardChunk.bytes > 24 * 1024) throw new Error(`NeoView InputBindingsSettingsCard chunk ${inputBindingsSettingsCardChunk.fileName} is ${inputBindingsSettingsCardChunk.bytes} bytes, above 24 KiB.`)
+if (radialMenuSettingsEditorChunk.bytes > 16 * 1024) throw new Error(`NeoView radial-menu editor chunk ${radialMenuSettingsEditorChunk.fileName} is ${radialMenuSettingsEditorChunk.bytes} bytes, above 16 KiB.`)
+if (radialMenuOverlayChunk.bytes > 40 * 1024) throw new Error(`NeoView copied ray-menu runtime chunk ${radialMenuOverlayChunk.fileName} is ${radialMenuOverlayChunk.bytes} bytes, above 40 KiB.`)
 if (gestureInputRuntimeChunk.bytes > 40 * 1024) throw new Error(`NeoView gesture input runtime chunk ${gestureInputRuntimeChunk.fileName} is ${gestureInputRuntimeChunk.bytes} bytes, above 40 KiB.`)
 if (kanbanRuntimeChunk.bytes > 64 * 1024) throw new Error(`Dice UI Kanban runtime chunk ${kanbanRuntimeChunk.fileName} is ${kanbanRuntimeChunk.bytes} bytes, above 64 KiB.`)
 const ordinaryReaderChunks = [neoViewChunk, ...deferredPanelChunks.filter((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]ReaderSidebar\.tsx$/i.test(module)))]

@@ -33,12 +33,18 @@ import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder
 const LazyReaderDeviceInputRecorder = lazy(async () => ({
   default: (await import("../../input/ReaderDeviceInputRecorder")).ReaderDeviceInputRecorder,
 }))
+const LazyRadialMenuSettingsEditor = lazy(async () => ({
+  default: (await import("./RadialMenuSettingsEditor")).RadialMenuSettingsEditor,
+}))
 
 type RecordableReaderDevice = Extract<ReaderInputDescriptor["device"], "mouse" | "mouse-gesture" | "wheel" | "touch" | "gamepad">
 
-export function InputBindingsSettingsCard({ inputBindings, onInputBindings }: ReaderSettingsCardContext) {
+export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radialMenu, onRadialMenu }: ReaderSettingsCardContext) {
   if (!inputBindings || !onInputBindings) return null
-  return <InputBindingsEditor value={inputBindings} onSave={onInputBindings} />
+  return <div className="grid gap-6">
+    <InputBindingsEditor value={inputBindings} onSave={onInputBindings} />
+    {radialMenu && onRadialMenu ? <Suspense fallback={<div className="h-32 animate-pulse rounded bg-muted/30" />}><LazyRadialMenuSettingsEditor value={radialMenu} onSave={onRadialMenu} /></Suspense> : null}
+  </div>
 }
 
 export function InputBindingsEditor({
@@ -274,7 +280,15 @@ function KeyboardInputEditor({ input, disabled, recording, onRecord, onChange }:
   onRecord(): void
   onChange(input: ReaderInputDescriptor): void
 }) {
-  return <div className="grid gap-1"><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1"><Input className="h-8 text-xs" value={input.code} disabled={disabled || recording} onChange={(event) => onChange({ ...input, code: event.currentTarget.value })} aria-label="键盘代码" /><Button type="button" size="sm" variant={recording ? "default" : "outline"} disabled={disabled && !recording} onClick={onRecord} aria-label={recording ? "取消录制键盘输入" : "录制键盘输入"}><Radio />{recording ? "录制中" : "录制"}</Button></div><ModifierEditor input={input} disabled={disabled || recording} onChange={onChange} /></div>
+  return <div className="grid gap-1">
+    <div className="grid grid-cols-[minmax(0,1fr)_6rem_auto] gap-1">
+      <Input className="h-8 text-xs" value={input.code} disabled={disabled || recording} onChange={(event) => onChange({ ...input, code: event.currentTarget.value })} aria-label="键盘代码" />
+      <select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.trigger ?? "down"} disabled={disabled || recording} onChange={(event) => onChange(event.currentTarget.value === "hold" ? { ...input, trigger: "hold", durationMs: input.durationMs ?? 450 } : { device: "keyboard", code: input.code, ctrl: input.ctrl, alt: input.alt, shift: input.shift, meta: input.meta })} aria-label="键盘触发方式"><option value="down">按下</option><option value="hold">长按</option></select>
+      <Button type="button" size="sm" variant={recording ? "default" : "outline"} disabled={disabled && !recording} onClick={onRecord} aria-label={recording ? "取消录制键盘输入" : "录制键盘输入"}><Radio />{recording ? "录制中" : "录制"}</Button>
+    </div>
+    <ModifierEditor input={input} disabled={disabled || recording} onChange={onChange} />
+    {input.trigger === "hold" ? <label className="grid gap-0.5 text-[10px] text-muted-foreground">长按毫秒<Input className="h-8 text-xs" type="number" min={100} max={5000} value={input.durationMs ?? 450} disabled={disabled || recording} onChange={(event) => onChange({ ...input, durationMs: Number(event.currentTarget.value) })} /></label> : null}
+  </div>
 }
 
 function ModifierEditor<T extends Extract<ReaderInputDescriptor, { device: "keyboard" | "wheel" }>>({ input, disabled, onChange }: { input: T; disabled: boolean; onChange(input: T): void }) {

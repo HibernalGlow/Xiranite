@@ -32,6 +32,15 @@ describe("ReaderInputBindingsConfig", () => {
     expect(parsed.patch.inputBindings.bindings?.[1]?.input).toEqual({ device: "mouse", button: 3, action: "click" })
   })
 
+  it("[neoview.bindings.keyboard-hold] persists hold timing independently from key-down", () => {
+    const bindings = [
+      { id: "enter-down", action: "reader.next-page", context: "reader", enabled: true, input: { device: "keyboard", code: "Enter" } },
+      { id: "enter-hold", action: "radial.open-default", context: "reader", enabled: true, input: { device: "keyboard", code: "Enter", trigger: "hold", durationMs: 450 } },
+    ]
+    const parsed = parseNeoviewInputBindingsPatch({ inputBindings: { bindings } })
+    expect(parsed.patch.inputBindings.bindings).toEqual(bindings)
+  })
+
   it("[neoview.bindings.validation] rejects ambiguous or executable input", () => {
     const same = { device: "keyboard", code: "KeyX" }
     expect(() => parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [
