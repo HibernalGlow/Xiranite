@@ -669,7 +669,7 @@ describe("FolderMainCard", () => {
     await ui.findByTitle("C:/B/b.cbz")
     fireEvent.click(ui.getByTitle("C:/B/b.cbz"), { ctrlKey: true })
     selectFolderViewMode(ui, "详细信息")
-    fireEvent.click(ui.getByRole("button", { name: "关闭标签 B" }))
+    fireEvent.click(await ui.findByRole("button", { name: "关闭标签 B" }))
 
     await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b", true))
     expect(ui.queryByRole("tab", { name: "B" })).toBeNull()
@@ -1782,6 +1782,57 @@ describe("FolderMainCard", () => {
     const currentView = within(view.container)
     await waitFor(() => expect(currentView.getByTitle("评分 4.8")).toBeTruthy())
     expect(currentView.getByTitle("收藏标签 3")).toBeTruthy()
+  })
+
+  it("[neoview.folder.emm-visible-hydration] hydrates only the visible rich page and leaves compact browsing untouched", async () => {
+    const total = 100_000
+    const entriesAt = (cursor: number) => Array.from({ length: Math.min(128, total - cursor) }, (_, offset) => ({
+      name: `book-${cursor + offset}.cbz`,
+      path: `C:/books/book-${cursor + offset}.cbz`,
+      kind: "file" as const,
+      readerSupported: true,
+    }))
+    const opened = page({
+      total,
+      metadataCapabilities: ["rating", "collectTagCount", "tags"],
+      entries: entriesAt(0),
+    })
+    const listDirectoryBrowser = vi.fn(async (_sessionId: string, cursor: number, _limit: number, _signal: AbortSignal | undefined, fields?: readonly string[]) => page({
+      ...opened,
+      cursor,
+      metadataFields: (fields ?? []) as ReaderDirectoryPageDto["metadataFields"],
+      entries: entriesAt(cursor).map((entry, index) => ({
+        ...entry,
+        rating: 4.5,
+        collectTagCount: 2,
+        tags: index === 0 ? ["artist:alice"] : [],
+      })),
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      listDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    await currentView.findByTitle("C:/books/book-0.cbz")
+    expect(listDirectoryBrowser).not.toHaveBeenCalled()
+
+    selectFolderViewMode(currentView, "封面列表")
+    await waitFor(() => expect(listDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      0,
+      128,
+      expect.any(AbortSignal),
+      ["rating", "collectTagCount", "tags"],
+    ))
+    await waitFor(() => expect(view.container.querySelector('[data-folder-entry-metadata="tags"]')).toBeTruthy())
+    expect(listDirectoryBrowser.mock.calls.every((call) => call[1] === 0)).toBe(true)
+    view.unmount()
   })
 
   it("[neoview.folder.details-lazy] loads the sparse Niko view only after explicit activation", async () => {

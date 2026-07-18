@@ -12,6 +12,9 @@ import type {
 import { rebaseDirectorySelection, type DirectorySelectionModel } from "./DirectorySelection"
 
 const DIRECTORY_VIEWPORT_HEIGHT = 288
+export const FOLDER_EMM_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
+  "rating", "collectTagCount", "tags",
+]
 
 export interface DirectoryCatalog {
   sessionId: string
@@ -148,6 +151,19 @@ export function directoryPageHasMetadata(
 ): boolean {
   const hydrated = catalog.pageMetadataFields.get(cursor)
   return Boolean(hydrated && fields.every((field) => hydrated.has(field)))
+}
+
+/**
+ * Rich folder renderers show EMM fields in their visible rows. Keep compact
+ * browsing free of metadata work and let the server advertise unsupported
+ * fields through the page capabilities before requesting a visible page.
+ */
+export function folderMetadataFieldsForView(
+  mode: ReaderFolderViewMode,
+  capabilities: readonly ReaderDirectoryMetadataFieldDto[],
+): readonly ReaderDirectoryMetadataFieldDto[] {
+  if (mode === "compact" || mode === "details") return []
+  return FOLDER_EMM_METADATA_FIELDS.filter((field) => capabilities.includes(field))
 }
 
 export function directoryEntryAt(catalog: DirectoryCatalog, index: number): ReaderDirectoryEntryDto | undefined {
