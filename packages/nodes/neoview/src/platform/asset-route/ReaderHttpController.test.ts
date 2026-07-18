@@ -19,6 +19,11 @@ import {
   type ReaderPageTransitionSettings,
 } from "../../domain/page-transition/ReaderPageTransition.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
+import {
+  DEFAULT_READER_SWITCH_TOAST,
+  normalizeReaderSwitchToast,
+  type ReaderSwitchToastSettings,
+} from "../../application/switch-toast/ReaderSwitchToast.js"
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
@@ -537,6 +542,51 @@ describe("ReaderHttpController", () => {
       await controller[Symbol.asyncDispose]()
       await readOnly[Symbol.asyncDispose]()
       await failing[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.switch-toast.http] serializes strict switch toast patches and exclusive reset", async () => {
+    let current: ReaderSwitchToastSettings = { ...DEFAULT_READER_SWITCH_TOAST, enableBook: true }
+    const updateSwitchToast = vi.fn(async (patch, tomlPatch) => {
+      void tomlPatch
+      current = "reset" in patch.switchToast
+        ? { ...DEFAULT_READER_SWITCH_TOAST }
+        : normalizeReaderSwitchToast({ ...current, ...patch.switchToast })
+      return current
+    })
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      switchToast: current,
+      updateSwitchToast,
+    })
+    const readOnly = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      expect(await (await controller.handle(authorizedRequest("/reader/config")))!.json()).toMatchObject({
+        switchToast: { enableBook: true, positionX: 20, opacity: 0.92 },
+      })
+      const patched = (await controller.handle(jsonRequest("/reader/config", {
+        switchToast: { enablePage: true, positionX: 96, opacity: 0.7 },
+      }, true, "PATCH")))!
+      expect(patched.status).toBe(200)
+      expect(await patched.json()).toMatchObject({ switchToast: { enableBook: true, enablePage: true, positionX: 96, opacity: 0.7 } })
+      expect(updateSwitchToast).toHaveBeenLastCalledWith(
+        { switchToast: { enablePage: true, positionX: 96, opacity: 0.7 } },
+        { view: { switch_toast: { enable_page: true, position_x: 96, opacity: 0.7 } } },
+      )
+      expect((await controller.handle(jsonRequest("/reader/config", {
+        switchToast: { positionY: 4_097 },
+      }, true, "PATCH")))?.status).toBe(400)
+      expect((await readOnly.handle(jsonRequest("/reader/config", {
+        switchToast: { enableBook: true },
+      }, true, "PATCH")))?.status).toBe(405)
+      const reset = (await controller.handle(jsonRequest("/reader/config", {
+        switchToast: { reset: "defaults" },
+      }, true, "PATCH")))!
+      expect(await reset.json()).toMatchObject({ switchToast: DEFAULT_READER_SWITCH_TOAST })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+      await readOnly[Symbol.asyncDispose]()
     }
   })
 

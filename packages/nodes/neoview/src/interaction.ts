@@ -13,7 +13,7 @@ import type {
 import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
 import type { ReaderFileMutation, ReaderFileOperationService } from "./core.js"
-import type { ReaderInputBinding, ReaderInputBindingsConfig } from "./domain/input/ReaderInputBindings.js"
+import type { ReaderInputBinding, ReaderInputBindingsConfig, ReaderInputContext, ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { createReaderBookSettingsMigrationFileController, createReaderFileOperationService, createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
 import type {
   ReaderBookSettingsMigrationFileImportResult,
@@ -23,6 +23,12 @@ import type { ReaderBookSettingsMigrationInspection } from "./application/migrat
 import { ReaderInputBindingsConfigService } from "./platform/config/ReaderInputBindingsConfigService.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction, type ReaderHeadlessInputActionResult } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
+import { executeReaderHeadlessInputBinding, type ReaderHeadlessInputBindingResult } from "./application/headless/ReaderHeadlessInputBindingExecutor.js"
+import type {
+  RemoteSuperResolutionArtifactCacheCleanupKind,
+  RemoteSuperResolutionArtifactCacheCleanupResult,
+  RemoteSuperResolutionArtifactCacheSnapshot,
+} from "./platform/remote/RemoteReaderHeadlessController.js"
 
 export interface NeoviewTuiInput {
   path: string
@@ -51,6 +57,26 @@ export interface NeoviewBookSettingsTuiPort extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
   updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
+}
+
+export interface NeoviewUpscaleCacheTuiInput {
+  action: "stats" | "cleanup-age" | "cleanup-book" | "clear-all"
+  path: string
+}
+
+export interface NeoviewUpscaleCacheTuiResult {
+  success: boolean
+  message: string
+  snapshot?: RemoteSuperResolutionArtifactCacheSnapshot | RemoteSuperResolutionArtifactCacheCleanupResult
+}
+
+export interface NeoviewUpscaleCacheTuiPort extends AsyncDisposable {
+  open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
+  getUpscaleArtifactCache(signal?: AbortSignal): Promise<RemoteSuperResolutionArtifactCacheSnapshot>
+  cleanupUpscaleArtifactCache(
+    kind: RemoteSuperResolutionArtifactCacheCleanupKind,
+    signal?: AbortSignal,
+  ): Promise<RemoteSuperResolutionArtifactCacheCleanupResult>
 }
 
 export interface NeoviewBookSettingsMigrationTuiInput {
@@ -139,20 +165,22 @@ export interface NeoviewFileOperationTuiResult {
   lines?: readonly string[]
 }
 
-export type NeoviewInputBindingsTuiAction = "inspect" | "apply" | "reset" | "dispatch"
+export type NeoviewInputBindingsTuiAction = "inspect" | "apply" | "reset" | "dispatch" | "dispatch-binding"
 
 export interface NeoviewInputBindingsTuiInput {
   action: NeoviewInputBindingsTuiAction
   bindings?: readonly ReaderInputBinding[]
   path?: string
   inputAction?: ReaderInputAction
+  input?: ReaderInputDescriptor
+  contexts?: readonly ReaderInputContext[]
 }
 
 export interface NeoviewInputBindingsTuiResult {
   success: boolean
   message: string
   config?: ReaderInputBindingsConfig
-  dispatch?: ReaderHeadlessInputActionResult
+  dispatch?: ReaderHeadlessInputActionResult | ReaderHeadlessInputBindingResult
 }
 
 export interface NeoviewInputBindingsTuiPort {
@@ -234,6 +262,42 @@ export function createNeoviewBookSettingsMigrationTuiDefinition(
         return { success: false, message: error instanceof Error ? error.message : String(error) }
       }
     },
+  }
+}
+
+export function createNeoviewUpscaleCacheTuiDefinition(
+  language: "zh" | "en" = "zh",
+  createController: () => Promise<NeoviewUpscaleCacheTuiPort>,
+  archivePasswords?: OpenHeadlessReaderInput["archivePasswords"],
+): TerminalInteractionDefinition<NeoviewUpscaleCacheTuiInput, NeoviewUpscaleCacheTuiResult> {
+  let activeAbort: AbortController | undefined
+  return {
+    schema: createNeoviewUpscaleCacheTuiSchema(language),
+    async run(input) {
+      const abort = new AbortController()
+      activeAbort = abort
+      const controller = await createController()
+      try {
+        await controller.open({ path: input.path, archivePasswords, signal: abort.signal })
+        const snapshot = input.action === "stats"
+          ? await controller.getUpscaleArtifactCache(abort.signal)
+          : await controller.cleanupUpscaleArtifactCache(upscaleCacheActionKind(input.action), abort.signal)
+        const removed = isUpscaleCacheCleanupResult(snapshot)
+          ? ` Removed ${snapshot.removedEntries} entries (${snapshot.removedBytes} bytes).`
+          : ""
+        return {
+          success: true,
+          message: `Upscale cache: ${snapshot.entries} entries, ${snapshot.bytes}/${snapshot.maxBytes} bytes.${removed}`,
+          snapshot,
+        }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      } finally {
+        if (activeAbort === abort) activeAbort = undefined
+        await controller[Symbol.asyncDispose]()
+      }
+    },
+    cancel: () => activeAbort?.abort(),
   }
 }
 
@@ -459,12 +523,19 @@ export function createNeoviewInputBindingsTuiDefinition(
     schema: createNeoviewInputBindingsTuiSchema(language),
     async run(input) {
       try {
-        if (input.action === "dispatch") {
+        if (input.action === "dispatch" || input.action === "dispatch-binding") {
           const controller = await createController()
           try {
             await controller.open({ path: input.path ?? "" })
-            const dispatch = await executeReaderHeadlessInputAction(input.inputAction!, controller)
-            return { success: dispatch.handled, message: dispatch.handled ? `Input action handled: ${dispatch.action}.` : `Input action unsupported: ${dispatch.action} (${dispatch.reason}).`, dispatch }
+            const dispatch = input.action === "dispatch-binding"
+              ? await executeReaderHeadlessInputBinding(await service.inspect(), input.input!, input.contexts ?? ["reader"], controller)
+              : await executeReaderHeadlessInputAction(input.inputAction!, controller)
+            const handled = "result" in dispatch ? dispatch.result.handled : dispatch.handled
+            const action = "action" in dispatch ? dispatch.action : input.inputAction!
+            const reason = "result" in dispatch && !dispatch.result.handled
+              ? dispatch.result.reason
+              : !handled && "reason" in dispatch ? dispatch.reason : undefined
+            return { success: handled, message: handled ? `Input action handled: ${action}.` : `Input action unsupported: ${action} (${reason}).`, dispatch }
           } finally {
             await controller[Symbol.asyncDispose]()
           }
@@ -631,6 +702,75 @@ function createNeoviewBookSettingsMigrationTuiSchema(
       }
     },
   }
+}
+
+function createNeoviewUpscaleCacheTuiSchema(
+  language: "zh" | "en",
+): TerminalInteractionSchema<NeoviewUpscaleCacheTuiInput, NeoviewUpscaleCacheTuiResult> {
+  const zh = language === "zh"
+  return {
+    id: "neoview-upscale-cache",
+    title: zh ? "NeoView 超分缓存" : "NeoView Upscale Cache",
+    description: zh ? "检查或清理运行中 Reader 的超分 artifact 缓存" : "Inspect or clean the running Reader upscale artifact cache",
+    initialValues: { action: "stats", path: "" },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
+        { value: "stats", label: zh ? "缓存统计" : "Cache stats" },
+        { value: "cleanup-age", label: zh ? "清理过期缓存" : "Clean expired artifacts" },
+        { value: "cleanup-book", label: zh ? "清理当前书籍" : "Clean current book" },
+        { value: "clear-all", label: zh ? "清空全部缓存" : "Clear all artifacts" },
+      ] },
+      { id: "path", label: zh ? "书籍路径" : "Book path", kind: "text" },
+    ],
+    toInput: (values) => ({
+      action: isUpscaleCacheTuiAction(values.action) ? values.action : "stats",
+      path: String(values.path ?? "").trim(),
+    }),
+    validate: (_values, input) => input.path ? null : zh ? "请输入书籍路径。" : "Enter a book path.",
+    preview: (input) => [input.path, input.action],
+    isDangerous: (input) => input.action !== "stats",
+    dangerPrompt: (input) => ({
+      title: zh ? "确认清理超分缓存" : "Confirm upscale cache cleanup",
+      body: input.action === "clear-all"
+        ? (zh ? "将清空运行中 Reader 的全部超分 artifact。" : "This clears every upscale artifact owned by the running Reader.")
+        : input.action === "cleanup-book"
+          ? (zh ? "将清理当前书籍的超分 artifact。" : "This clears upscale artifacts for the selected book.")
+          : (zh ? "将清理超过保留期限的超分 artifact。" : "This clears upscale artifacts older than the retention limit."),
+      confirmLabel: zh ? "确认清理" : "Clean",
+    }),
+    result: (result) => ({
+      success: result.success,
+      message: result.message,
+      lines: result.snapshot ? upscaleCacheResultLines(result.snapshot) : [],
+    }),
+  }
+}
+
+function isUpscaleCacheTuiAction(value: unknown): value is NeoviewUpscaleCacheTuiInput["action"] {
+  return value === "stats" || value === "cleanup-age" || value === "cleanup-book" || value === "clear-all"
+}
+
+function upscaleCacheActionKind(action: Exclude<NeoviewUpscaleCacheTuiInput["action"], "stats">): RemoteSuperResolutionArtifactCacheCleanupKind {
+  if (action === "cleanup-age") return "age"
+  if (action === "cleanup-book") return "book"
+  return "all"
+}
+
+function upscaleCacheResultLines(
+  snapshot: RemoteSuperResolutionArtifactCacheSnapshot | RemoteSuperResolutionArtifactCacheCleanupResult,
+): string[] {
+  return [
+    `entries=${snapshot.entries} bytes=${snapshot.bytes}/${snapshot.maxBytes}`,
+    `activeLeases=${snapshot.activeLeases} hits=${snapshot.hits} misses=${snapshot.misses} writes=${snapshot.writes}`,
+    `rejectedWrites=${snapshot.rejectedWrites} evictions=${snapshot.evictions} integrityFailures=${snapshot.integrityFailures}`,
+    ...(isUpscaleCacheCleanupResult(snapshot) ? [`removedEntries=${snapshot.removedEntries} removedBytes=${snapshot.removedBytes} reason=${snapshot.reason}`] : []),
+  ]
+}
+
+function isUpscaleCacheCleanupResult(
+  snapshot: RemoteSuperResolutionArtifactCacheSnapshot | RemoteSuperResolutionArtifactCacheCleanupResult,
+): snapshot is RemoteSuperResolutionArtifactCacheCleanupResult {
+  return "removedEntries" in snapshot && "removedBytes" in snapshot && "reason" in snapshot
 }
 
 function bookSettingsPatchFromInteraction(values: Readonly<InteractionValues>): ReaderBookSettingsPatch {
@@ -896,7 +1036,7 @@ function createNeoviewFileOperationTuiSchema(language: "zh" | "en"): TerminalInt
 function createNeoviewInputBindingsTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewInputBindingsTuiInput, NeoviewInputBindingsTuiResult> {
   const zh = language === "zh"
   const applying = (values: Readonly<InteractionValues>) => values.action === "apply"
-  const dispatching = (values: Readonly<InteractionValues>) => values.action === "dispatch"
+  const dispatching = (values: Readonly<InteractionValues>) => values.action === "dispatch" || values.action === "dispatch-binding"
   return {
     id: "neoview-input-bindings",
     title: zh ? "NeoView 操作绑定" : "NeoView Input Bindings",
@@ -908,27 +1048,36 @@ function createNeoviewInputBindingsTuiSchema(language: "zh" | "en"): TerminalInt
         { value: "apply", label: zh ? "应用完整绑定 JSON" : "Apply complete bindings JSON" },
         { value: "reset", label: zh ? "恢复默认绑定" : "Reset defaults" },
         { value: "dispatch", label: zh ? "派发动作" : "Dispatch action" },
+        { value: "dispatch-binding", label: zh ? "按绑定派发输入" : "Dispatch configured input" },
       ] },
       { id: "bindingsJson", label: zh ? "绑定数组 JSON" : "Bindings array JSON", kind: "multiline", lines: 14, visibleWhen: applying },
       { id: "path", label: zh ? "书籍路径" : "Book path", kind: "text", visibleWhen: dispatching },
       { id: "inputAction", label: zh ? "动作 ID" : "Action ID", kind: "text", visibleWhen: dispatching },
+      { id: "inputJson", label: zh ? "输入 JSON" : "Input JSON", kind: "multiline", lines: 5, visibleWhen: (values) => values.action === "dispatch-binding" },
+      { id: "contextsJson", label: zh ? "上下文 JSON" : "Contexts JSON", kind: "text", visibleWhen: (values) => values.action === "dispatch-binding" },
     ],
     toInput: (values) => ({
-      action: values.action === "apply" || values.action === "reset" || values.action === "dispatch" ? values.action : "inspect",
+      action: values.action === "apply" || values.action === "reset" || values.action === "dispatch" || values.action === "dispatch-binding" ? values.action : "inspect",
       bindings: values.action === "apply" ? parseBindingsJson(values.bindingsJson) : undefined,
-      path: values.action === "dispatch" ? String(values.path ?? "").trim() : undefined,
+      path: values.action === "dispatch" || values.action === "dispatch-binding" ? String(values.path ?? "").trim() : undefined,
       inputAction: values.action === "dispatch" ? inputActionValue(values.inputAction) : undefined,
+      input: values.action === "dispatch-binding" ? parseInputDescriptor(values.inputJson) : undefined,
+      contexts: values.action === "dispatch-binding" ? parseInputContexts(values.contextsJson) : undefined,
     }),
     validate: (values, input) => input.action === "apply"
       ? bindingJsonError(values.bindingsJson, zh)
-      : input.action === "dispatch" && !input.path
+      : (input.action === "dispatch" || input.action === "dispatch-binding") && !input.path
         ? (zh ? "请输入书籍路径。" : "Enter a book path.")
         : input.action === "dispatch" && !input.inputAction
           ? (zh ? "请输入有效的 XR 或旧动作 ID。" : "Enter a valid XR or legacy action ID.")
+          : input.action === "dispatch-binding" && !input.input
+            ? (zh ? "请输入有效的输入 descriptor JSON。" : "Enter a valid input descriptor JSON.")
           : null,
     preview: (input) => input.action === "apply"
       ? [zh ? `绑定数：${input.bindings?.length ?? 0}` : `Bindings: ${input.bindings?.length ?? 0}`]
-      : input.action === "dispatch" ? [input.path ?? "", input.inputAction ?? ""] : [input.action],
+      : input.action === "dispatch" ? [input.path ?? "", input.inputAction ?? ""]
+        : input.action === "dispatch-binding" ? [input.path ?? "", JSON.stringify(input.input), JSON.stringify(input.contexts)]
+        : [input.action],
     isDangerous: (input) => input.action === "apply" || input.action === "reset",
     dangerPrompt: (input) => ({
       title: zh ? "确认修改操作绑定" : "Confirm input binding change",
@@ -1014,6 +1163,24 @@ function itemsResult(items: readonly unknown[], name: string): NeoviewLibraryTui
 
 function mutationResult(changed: boolean, name: string): NeoviewLibraryTuiResult {
   return { success: true, message: changed ? `${name} removed.` : `${name} not found.` }
+}
+
+function parseInputDescriptor(value: unknown): ReaderInputDescriptor | undefined {
+  try {
+    const parsed = JSON.parse(String(value ?? "")) as unknown
+    return isRecord(parsed) && typeof parsed.device === "string" ? parsed as ReaderInputDescriptor : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function parseInputContexts(value: unknown): ReaderInputContext[] {
+  try {
+    const parsed = JSON.parse(String(value ?? "[\"reader\"]")) as unknown
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is ReaderInputContext => entry === "global" || entry === "reader" || entry === "video" || entry === "panel" || entry === "editor" || entry === "modal") : ["reader"]
+  } catch {
+    return ["reader"]
+  }
 }
 
 function commaSeparatedValues(value: string | undefined): string[] {

@@ -29,6 +29,10 @@
       "types": "./dist/page-transition.d.ts",
       "default": "./dist/page-transition.js"
     },
+    "./switch-toast": {
+      "types": "./dist/switch-toast.d.ts",
+      "default": "./dist/switch-toast.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"

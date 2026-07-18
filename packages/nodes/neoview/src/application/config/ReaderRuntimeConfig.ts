@@ -30,6 +30,13 @@ import {
   type ReaderPageTransitionPatch,
   type ReaderPageTransitionSettings,
 } from "../../domain/page-transition/ReaderPageTransition.js"
+import {
+  DEFAULT_READER_SWITCH_TOAST,
+  normalizeReaderSwitchToast,
+  parseReaderSwitchToastPatch,
+  type ReaderSwitchToastPatch,
+  type ReaderSwitchToastSettings,
+} from "../switch-toast/ReaderSwitchToast.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -47,6 +54,7 @@ export interface NeoviewRuntimeConfig {
   media: NeoviewMediaConfig
   colorFilter: ReaderColorFilterSettings
   pageTransition: ReaderPageTransitionSettings
+  switchToast: ReaderSwitchToastSettings
   superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
@@ -268,14 +276,42 @@ export interface NeoviewShellSidebarConfig {
   horizontalPosition: number
 }
 
+export interface NeoviewShellSidebarInteractionConfig {
+  showDragHandle: boolean
+  enableBlankAreaCollapse: boolean
+  blankAreaCollapseMode: "single" | "double"
+}
+
+export type NeoviewShellSurface = "top" | "bottom" | "sidebar"
+export type NeoviewShellMaterialPreset = "solid" | "soft" | "frosted" | "custom"
+export type NeoviewShellSurfaceValues = Record<NeoviewShellSurface, number>
+
+export interface NeoviewShellMaterialConfig {
+  preset: NeoviewShellMaterialPreset
+  saturation: NeoviewShellSurfaceValues
+  highlight: NeoviewShellSurfaceValues
+  shadow: NeoviewShellSurfaceValues
+}
+
+export interface NeoviewShellMaterialPatch {
+  preset?: NeoviewShellMaterialPreset
+  opacity?: Partial<NeoviewShellSurfaceValues>
+  blur?: Partial<NeoviewShellSurfaceValues>
+  saturation?: Partial<NeoviewShellSurfaceValues>
+  highlight?: Partial<NeoviewShellSurfaceValues>
+  shadow?: Partial<NeoviewShellSurfaceValues>
+}
+
 export interface NeoviewShellConfig {
   showDelayMs: number
   hideDelayMs: number
   opacity: { top: number; bottom: number; sidebar: number }
   blur: { top: number; bottom: number; sidebar: number }
+  material?: NeoviewShellMaterialConfig
   floatingControl: NeoviewShellFloatingControlConfig
   edges: Record<"top" | "right" | "bottom" | "left", NeoviewShellEdgeConfig>
   sidebars: Record<"left" | "right", NeoviewShellSidebarConfig>
+  sidebarInteraction: NeoviewShellSidebarInteractionConfig
   panelLayout: Record<string, NeoviewPanelLayout>
   cardLayout: Record<string, NeoviewCardLayout>
 }
@@ -329,6 +365,8 @@ export interface NeoviewShellControlPatch {
       position?: { x: number; y: number }
     }
     edges?: Partial<Record<"top" | "right" | "bottom" | "left", Partial<NeoviewShellEdgeConfig>>>
+    sidebarInteraction?: Partial<NeoviewShellSidebarInteractionConfig>
+    material?: NeoviewShellMaterialPatch
     reset?: "known-defaults"
   }
 }
@@ -455,11 +493,23 @@ export interface NeoviewPageTransitionPatch {
   pageTransition: ReaderPageTransitionPatch | { reset: "defaults" }
 }
 
+export interface NeoviewSwitchToastPatch {
+  switchToast: ReaderSwitchToastPatch | { reset: "defaults" }
+}
+
+export const DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG: NeoviewShellMaterialConfig = {
+  preset: "frosted",
+  saturation: { top: 115, bottom: 115, sidebar: 115 },
+  highlight: { top: 35, bottom: 35, sidebar: 35 },
+  shadow: { top: 45, bottom: 45, sidebar: 45 },
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
   opacity: { top: 85, bottom: 85, sidebar: 85 },
   blur: { top: 12, bottom: 12, sidebar: 12 },
+  material: DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG,
   floatingControl: { enabled: true, position: { x: 100, y: 100 } },
   edges: {
     top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32, lockMode: "auto" },
@@ -470,6 +520,11 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   sidebars: {
     left: { width: 320, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
     right: { width: 280, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+  },
+  sidebarInteraction: {
+    showDragHandle: false,
+    enableBlankAreaCollapse: true,
+    blankAreaCollapseMode: "single",
   },
   panelLayout: Object.fromEntries(READER_PANEL_MANIFEST.map((panel) => [panel.id, {
     visible: panel.defaultVisible,
@@ -499,6 +554,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
     colorFilter: DEFAULT_READER_COLOR_FILTER,
     pageTransition: DEFAULT_READER_PAGE_TRANSITION,
+    switchToast: DEFAULT_READER_SWITCH_TOAST,
     superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
@@ -515,8 +571,16 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const historyList = optionalRecord(config.history_list, "[nodes.neoview.history_list]")
   const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
+  const view = optionalRecord(config.view, "[nodes.neoview.view]")
   const colorFilter = optionalRecord(image?.color_filter, "[nodes.neoview.image.color_filter]")
   const pageTransition = optionalRecord(image?.page_transition, "[nodes.neoview.image.page_transition]")
+  const switchToast = optionalRecord(
+    view?.switch_toast
+      ?? view?.switchToast
+      ?? nestedValue(reader, "view", "switch_toast")
+      ?? nestedValue(reader, "view", "switchToast"),
+    "[nodes.neoview.view.switch_toast]",
+  )
   const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
@@ -578,6 +642,12 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     media: parseMediaConfig(image, subtitle),
     colorFilter: parseColorFilterConfig(colorFilter),
     pageTransition: parsePageTransitionConfig(pageTransition),
+    switchToast: parseSwitchToastConfig(switchToast, {
+      showBookSwitchToast: view?.show_book_switch_toast
+        ?? view?.showBookSwitchToast
+        ?? nestedValue(reader, "view", "show_book_switch_toast")
+        ?? nestedValue(reader, "view", "showBookSwitchToast"),
+    }),
     superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
@@ -648,6 +718,33 @@ function parsePageTransitionConfig(value: Record<string, unknown> | undefined): 
     duration: value.duration,
     easing: value.easing,
   })
+}
+
+function parseSwitchToastConfig(
+  value: Record<string, unknown> | undefined,
+  legacy: { showBookSwitchToast?: unknown },
+): ReaderSwitchToastSettings {
+  if (!value) return normalizeReaderSwitchToast(undefined, legacy)
+  return normalizeReaderSwitchToast({
+    enableBook: value.enable_book ?? value.enableBook,
+    enablePage: value.enable_page ?? value.enablePage,
+    enableAction: value.enable_action ?? value.enableAction,
+    enableBoundaryToast: value.enable_boundary_toast ?? value.enableBoundaryToast,
+    showBookPath: value.show_book_path ?? value.showBookPath,
+    showBookPageProgress: value.show_book_page_progress ?? value.showBookPageProgress,
+    showBookType: value.show_book_type ?? value.showBookType,
+    showPageIndex: value.show_page_index ?? value.showPageIndex,
+    showPageSize: value.show_page_size ?? value.showPageSize,
+    showPageDimensions: value.show_page_dimensions ?? value.showPageDimensions,
+    bookTitleTemplate: value.book_title_template ?? value.bookTitleTemplate,
+    bookDescriptionTemplate: value.book_description_template ?? value.bookDescriptionTemplate,
+    pageTitleTemplate: value.page_title_template ?? value.pageTitleTemplate,
+    pageDescriptionTemplate: value.page_description_template ?? value.pageDescriptionTemplate,
+    positionX: value.position_x ?? value.positionX,
+    positionY: value.position_y ?? value.positionY,
+    opacity: value.opacity,
+    liquidGlass: value.liquid_glass ?? value.liquidGlass,
+  }, legacy)
 }
 
 function parseSuperResolutionCustomModels(value: unknown): readonly SuperResolutionCustomModelManifest[] {
@@ -920,6 +1017,58 @@ export function parseNeoviewPageTransitionPatch(value: unknown): {
     patch: { pageTransition: settings },
     tomlPatch: { image: { page_transition: pageTransitionToml(settings) } },
   }
+}
+
+export function parseNeoviewSwitchToastPatch(value: unknown): {
+  patch: NeoviewSwitchToastPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader switch toast patch")
+  if (Object.keys(record).some((key) => key !== "switchToast")) {
+    throw new Error("reader switch toast patch contains unsupported fields.")
+  }
+  const switchToast = requireRecord(record.switchToast, "reader switch toast patch.switchToast")
+  if (switchToast.reset !== undefined) {
+    if (switchToast.reset !== "defaults") {
+      throw new Error('reader switch toast patch.reset must be "defaults".')
+    }
+    if (Object.keys(switchToast).length !== 1) {
+      throw new Error("reader switch toast patch.reset cannot be combined with other fields.")
+    }
+    return {
+      patch: { switchToast: { reset: "defaults" } },
+      tomlPatch: { view: { switch_toast: switchToastToml(DEFAULT_READER_SWITCH_TOAST) } },
+    }
+  }
+  const settings = parseReaderSwitchToastPatch(switchToast)
+  if (!Object.keys(settings).length) throw new Error("reader switch toast patch must change at least one field.")
+  return {
+    patch: { switchToast: settings },
+    tomlPatch: { view: { switch_toast: switchToastToml(settings) } },
+  }
+}
+
+function switchToastToml(value: ReaderSwitchToastPatch): Record<string, unknown> {
+  const toml: Record<string, unknown> = {}
+  if (value.enableBook !== undefined) toml.enable_book = value.enableBook
+  if (value.enablePage !== undefined) toml.enable_page = value.enablePage
+  if (value.enableAction !== undefined) toml.enable_action = value.enableAction
+  if (value.enableBoundaryToast !== undefined) toml.enable_boundary_toast = value.enableBoundaryToast
+  if (value.showBookPath !== undefined) toml.show_book_path = value.showBookPath
+  if (value.showBookPageProgress !== undefined) toml.show_book_page_progress = value.showBookPageProgress
+  if (value.showBookType !== undefined) toml.show_book_type = value.showBookType
+  if (value.showPageIndex !== undefined) toml.show_page_index = value.showPageIndex
+  if (value.showPageSize !== undefined) toml.show_page_size = value.showPageSize
+  if (value.showPageDimensions !== undefined) toml.show_page_dimensions = value.showPageDimensions
+  if (value.bookTitleTemplate !== undefined) toml.book_title_template = value.bookTitleTemplate
+  if (value.bookDescriptionTemplate !== undefined) toml.book_description_template = value.bookDescriptionTemplate
+  if (value.pageTitleTemplate !== undefined) toml.page_title_template = value.pageTitleTemplate
+  if (value.pageDescriptionTemplate !== undefined) toml.page_description_template = value.pageDescriptionTemplate
+  if (value.positionX !== undefined) toml.position_x = value.positionX
+  if (value.positionY !== undefined) toml.position_y = value.positionY
+  if (value.opacity !== undefined) toml.opacity = value.opacity
+  if (value.liquidGlass !== undefined) toml.liquid_glass = value.liquidGlass
+  return toml
 }
 
 function pageTransitionToml(value: ReaderPageTransitionPatch): Record<string, unknown> {
@@ -1481,13 +1630,13 @@ export function parseNeoviewShellControlPatch(value: unknown): {
   if (unknownRoot.length) throw new Error(`reader shell control patch contains unsupported fields: ${unknownRoot.join(", ")}.`)
   const expectedRevision = boundedInteger(record.expectedRevision, 0, Number.MAX_SAFE_INTEGER, "reader shell control patch.expectedRevision")
   const control = requireRecord(record.shellControl, "reader shell control patch.shellControl")
-  const unknownControl = Object.keys(control).filter((key) => key !== "floating" && key !== "edges" && key !== "reset")
+  const unknownControl = Object.keys(control).filter((key) => key !== "floating" && key !== "edges" && key !== "sidebarInteraction" && key !== "material" && key !== "reset")
   if (unknownControl.length) throw new Error(`reader shell control patch contains unsupported fields: ${unknownControl.join(", ")}.`)
   const reset = control.reset === undefined
     ? undefined
     : optionalEnum(control.reset, "reader shell control patch.reset", ["known-defaults"] as const)
-  if (reset && (control.floating !== undefined || control.edges !== undefined)) {
-    throw new Error("reader shell control patch.reset cannot be combined with floating or edges.")
+  if (reset && (control.floating !== undefined || control.edges !== undefined || control.sidebarInteraction !== undefined || control.material !== undefined)) {
+    throw new Error("reader shell control patch.reset cannot be combined with floating, edges, sidebarInteraction or material.")
   }
   if (reset) {
     return {
@@ -1495,6 +1644,15 @@ export function parseNeoviewShellControlPatch(value: unknown): {
       tomlPatch: shellControlTomlPatch(
         DEFAULT_NEOVIEW_SHELL_CONFIG.floatingControl,
         DEFAULT_NEOVIEW_SHELL_CONFIG.edges,
+        DEFAULT_NEOVIEW_SHELL_CONFIG.sidebarInteraction,
+        {
+          preset: DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.preset,
+          opacity: DEFAULT_NEOVIEW_SHELL_CONFIG.opacity,
+          blur: DEFAULT_NEOVIEW_SHELL_CONFIG.blur,
+          saturation: DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.saturation,
+          highlight: DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.highlight,
+          shadow: DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.shadow,
+        },
       ),
     }
   }
@@ -1544,19 +1702,65 @@ export function parseNeoviewShellControlPatch(value: unknown): {
     if (!Object.keys(edgePatches).length) throw new Error("reader shell control patch.edges must change at least one edge.")
     patch.shellControl.edges = edgePatches
   }
-  if (!patch.shellControl.floating && !patch.shellControl.edges) throw new Error("reader shell control patch must change at least one field.")
+  let sidebarInteractionPatch: NeoviewShellControlPatch["shellControl"]["sidebarInteraction"]
+  if (control.sidebarInteraction !== undefined) {
+    const interaction = requireRecord(control.sidebarInteraction, "reader shell control patch.sidebarInteraction")
+    const unknown = Object.keys(interaction).filter((key) => !["showDragHandle", "enableBlankAreaCollapse", "blankAreaCollapseMode"].includes(key))
+    if (unknown.length) throw new Error(`reader shell control patch.sidebarInteraction contains unsupported fields: ${unknown.join(", ")}.`)
+    sidebarInteractionPatch = {}
+    if (interaction.showDragHandle !== undefined) sidebarInteractionPatch.showDragHandle = requiredBoolean(interaction.showDragHandle, "sidebarInteraction.showDragHandle")
+    if (interaction.enableBlankAreaCollapse !== undefined) sidebarInteractionPatch.enableBlankAreaCollapse = requiredBoolean(interaction.enableBlankAreaCollapse, "sidebarInteraction.enableBlankAreaCollapse")
+    if (interaction.blankAreaCollapseMode !== undefined) {
+      sidebarInteractionPatch.blankAreaCollapseMode = optionalEnum(interaction.blankAreaCollapseMode, "sidebarInteraction.blankAreaCollapseMode", ["single", "double"] as const)
+    }
+    if (!Object.keys(sidebarInteractionPatch).length) throw new Error("reader shell control patch.sidebarInteraction must change at least one field.")
+    patch.shellControl.sidebarInteraction = sidebarInteractionPatch
+  }
+  let materialPatch: NeoviewShellControlPatch["shellControl"]["material"]
+  if (control.material !== undefined) {
+    const material = requireRecord(control.material, "reader shell control patch.material")
+    const unknown = Object.keys(material).filter((key) => !["preset", "opacity", "blur", "saturation", "highlight", "shadow"].includes(key))
+    if (unknown.length) throw new Error(`reader shell control patch.material contains unsupported fields: ${unknown.join(", ")}.`)
+    materialPatch = {}
+    if (material.preset !== undefined) {
+      materialPatch.preset = optionalEnum(material.preset, "material.preset", ["solid", "soft", "frosted", "custom"] as const)
+    }
+    if (material.opacity !== undefined) materialPatch.opacity = shellSurfaceNumberPatch(material.opacity, "material.opacity", 0, 100)
+    if (material.blur !== undefined) materialPatch.blur = shellSurfaceNumberPatch(material.blur, "material.blur", 0, 20)
+    if (material.saturation !== undefined) materialPatch.saturation = shellSurfaceNumberPatch(material.saturation, "material.saturation", 50, 180)
+    if (material.highlight !== undefined) materialPatch.highlight = shellSurfaceNumberPatch(material.highlight, "material.highlight", 0, 100)
+    if (material.shadow !== undefined) materialPatch.shadow = shellSurfaceNumberPatch(material.shadow, "material.shadow", 0, 100)
+    if (!Object.keys(materialPatch).length) throw new Error("reader shell control patch.material must change at least one field.")
+    patch.shellControl.material = materialPatch
+  }
+  if (!patch.shellControl.floating && !patch.shellControl.edges && !patch.shellControl.sidebarInteraction && !patch.shellControl.material) throw new Error("reader shell control patch must change at least one field.")
   return {
     patch,
-    tomlPatch: shellControlTomlPatch(floatingPatch, edgePatches),
+    tomlPatch: shellControlTomlPatch(floatingPatch, edgePatches, sidebarInteractionPatch, materialPatch),
   }
 }
 
 const NEOVIEW_SHELL_EDGES = ["top", "right", "bottom", "left"] as const
 type NeoviewShellEdge = typeof NEOVIEW_SHELL_EDGES[number]
+const NEOVIEW_SHELL_SURFACES = ["top", "bottom", "sidebar"] as const
+
+function shellSurfaceNumberPatch(value: unknown, label: string, minimum: number, maximum: number): Partial<NeoviewShellSurfaceValues> {
+  const source = requireRecord(value, label)
+  const unknown = Object.keys(source).filter((key) => !NEOVIEW_SHELL_SURFACES.includes(key as NeoviewShellSurface))
+  if (unknown.length) throw new Error(`${label} contains unsupported surfaces: ${unknown.join(", ")}.`)
+  const result: Partial<NeoviewShellSurfaceValues> = {}
+  for (const surface of NEOVIEW_SHELL_SURFACES) {
+    if (source[surface] !== undefined) result[surface] = boundedNumber(source[surface], minimum, maximum, minimum, `${label}.${surface}`)
+  }
+  if (!Object.keys(result).length) throw new Error(`${label} must change at least one surface.`)
+  return result
+}
 
 function shellControlTomlPatch(
   floating: Partial<NeoviewShellFloatingControlConfig> | undefined,
   edges: Partial<Record<NeoviewShellEdge, Partial<NeoviewShellEdgeConfig>>> | undefined,
+  sidebarInteraction: Partial<NeoviewShellSidebarInteractionConfig> | undefined,
+  material: NeoviewShellMaterialPatch | undefined,
 ): Record<string, unknown> {
   const panels: Record<string, unknown> = {}
   if (floating) {
@@ -1575,6 +1779,35 @@ function shellControlTomlPatch(
       if (source.lockMode !== undefined) value.lock_mode = source.lockMode
       return [edge, value]
     }))
+  }
+  if (sidebarInteraction) {
+    const value: Record<string, unknown> = {}
+    if (sidebarInteraction.showDragHandle !== undefined) value.show_drag_handle = sidebarInteraction.showDragHandle
+    if (sidebarInteraction.enableBlankAreaCollapse !== undefined) value.enable_blank_area_collapse = sidebarInteraction.enableBlankAreaCollapse
+    if (sidebarInteraction.blankAreaCollapseMode !== undefined) value.blank_area_collapse_mode = sidebarInteraction.blankAreaCollapseMode
+    panels.sidebar_interaction = value
+  }
+  if (material) {
+    if (material.opacity) {
+      if (material.opacity.top !== undefined) panels.top_toolbar_opacity = material.opacity.top
+      if (material.opacity.bottom !== undefined) panels.bottom_bar_opacity = material.opacity.bottom
+      if (material.opacity.sidebar !== undefined) panels.sidebar_opacity = material.opacity.sidebar
+    }
+    if (material.blur) {
+      if (material.blur.top !== undefined) panels.top_toolbar_blur = material.blur.top
+      if (material.blur.bottom !== undefined) panels.bottom_bar_blur = material.blur.bottom
+      if (material.blur.sidebar !== undefined) panels.sidebar_blur = material.blur.sidebar
+    }
+    const value: Record<string, unknown> = {}
+    if (material.preset !== undefined) value.preset = material.preset
+    for (const key of ["saturation", "highlight", "shadow"] as const) {
+      const values = material[key]
+      if (!values) continue
+      for (const surface of NEOVIEW_SHELL_SURFACES) {
+        if (values[surface] !== undefined) value[`${surface}_${key}`] = values[surface]
+      }
+    }
+    if (Object.keys(value).length) panels.material = value
   }
   return { panels }
 }
@@ -1715,6 +1948,8 @@ function parseShellOptions(
   const right = optionalRecord(sidebars?.right, "[nodes.neoview.panels.sidebars.right]")
   const autoHideToolbar = optionalBoolean(panels.auto_hide_toolbar, "[nodes.neoview.panels].auto_hide_toolbar")
   const canonicalControl = optionalRecord(panels.sidebar_control, "[nodes.neoview.panels.sidebar_control]")
+  const canonicalInteraction = optionalRecord(panels.sidebar_interaction, "[nodes.neoview.panels.sidebar_interaction]")
+  const canonicalMaterial = optionalRecord(panels.material, "[nodes.neoview.panels.material]")
   const canonicalPosition = optionalRecord(canonicalControl?.position, "[nodes.neoview.panels.sidebar_control.position]")
   const legacyView = optionalRecord(reader?.view, "[nodes.neoview.reader.view]")
   const legacyControl = optionalRecord(
@@ -1742,6 +1977,13 @@ function parseShellOptions(
       bottom: boundedNumber(panels.bottom_bar_blur, 0, 20, DEFAULT_NEOVIEW_SHELL_CONFIG.blur.bottom, "bottom_bar_blur"),
       sidebar: boundedNumber(panels.sidebar_blur, 0, 20, DEFAULT_NEOVIEW_SHELL_CONFIG.blur.sidebar, "sidebar_blur"),
     },
+    material: {
+      preset: optionalEnum(canonicalMaterial?.preset, "material.preset", ["solid", "soft", "frosted", "custom"] as const)
+        ?? DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.preset,
+      saturation: shellMaterialValues(canonicalMaterial, "saturation", 50, 180, DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.saturation),
+      highlight: shellMaterialValues(canonicalMaterial, "highlight", 0, 100, DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.highlight),
+      shadow: shellMaterialValues(canonicalMaterial, "shadow", 0, 100, DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.shadow),
+    },
     floatingControl: {
       enabled: optionalBoolean(canonicalControl?.enabled, "sidebar_control.enabled")
         ?? optionalBoolean(legacyControl?.enabled, "reader.view.sidebar_control.enabled")
@@ -1756,6 +1998,14 @@ function parseShellOptions(
       edgeConfig(edge, optionalRecord(canonicalEdges?.[edge], `[nodes.neoview.panels.edges.${edge}]`), legacyEdges[edge]),
     ])) as NeoviewShellConfig["edges"],
     sidebars: { left: sidebarConfig("left", left), right: sidebarConfig("right", right) },
+    sidebarInteraction: {
+      showDragHandle: optionalBoolean(canonicalInteraction?.show_drag_handle, "sidebar_interaction.show_drag_handle")
+        ?? DEFAULT_NEOVIEW_SHELL_CONFIG.sidebarInteraction.showDragHandle,
+      enableBlankAreaCollapse: optionalBoolean(canonicalInteraction?.enable_blank_area_collapse, "sidebar_interaction.enable_blank_area_collapse")
+        ?? DEFAULT_NEOVIEW_SHELL_CONFIG.sidebarInteraction.enableBlankAreaCollapse,
+      blankAreaCollapseMode: optionalEnum(canonicalInteraction?.blank_area_collapse_mode, "sidebar_interaction.blank_area_collapse_mode", ["single", "double"] as const)
+        ?? DEFAULT_NEOVIEW_SHELL_CONFIG.sidebarInteraction.blankAreaCollapseMode,
+    },
     panelLayout: parsePanelLayout(panels),
     cardLayout: parseCardLayout(panels),
   }
@@ -1974,6 +2224,19 @@ function optionalConfigPath(value: unknown, path: string): string | undefined {
     throw new Error(`${path} must be an empty string or a non-empty path without NUL.`)
   }
   return value.trim()
+}
+
+function shellMaterialValues(
+  source: Record<string, unknown> | undefined,
+  key: "saturation" | "highlight" | "shadow",
+  minimum: number,
+  maximum: number,
+  defaults: NeoviewShellSurfaceValues,
+): NeoviewShellSurfaceValues {
+  return Object.fromEntries(NEOVIEW_SHELL_SURFACES.map((surface) => [
+    surface,
+    boundedNumber(source?.[`${surface}_${key}`], minimum, maximum, defaults[surface], `material.${surface}_${key}`),
+  ])) as NeoviewShellSurfaceValues
 }
 
 function requiredManifestIdentifier(value: unknown, path: string): string {

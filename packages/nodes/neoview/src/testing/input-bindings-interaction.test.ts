@@ -33,6 +33,9 @@ describe("NeoView input-bindings terminal interaction", () => {
     expect(schema.toInput({ action: "dispatch", path: " book.cbz ", inputAction: "nextPage" })).toEqual({
       action: "dispatch", bindings: undefined, path: "book.cbz", inputAction: "reader.next-page",
     })
+    expect(schema.toInput({ action: "dispatch-binding", path: "book.cbz", inputJson: JSON.stringify({ device: "keyboard", code: "KeyK" }), contextsJson: JSON.stringify(["video"]) })).toMatchObject({
+      action: "dispatch-binding", path: "book.cbz", input: { device: "keyboard", code: "KeyK" }, contexts: ["video"],
+    })
   })
 
   it("[neoview.bindings.tui.conflicts] reports shared conflict validation without claiming a write", async () => {
@@ -58,6 +61,32 @@ describe("NeoView input-bindings terminal interaction", () => {
 
     await expect(definition.run({ action: "dispatch", path: "book.cbz", inputAction: "reader.next-page" }, () => undefined)).resolves.toMatchObject({
       success: true, dispatch: { handled: true, action: "reader.next-page" },
+    })
+    expect(next).toHaveBeenCalledOnce()
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.bindings.context-stack-tui] resolves configured input before dispatching the headless action", async () => {
+    const snapshot = readerSnapshot()
+    const dispose = vi.fn(async () => undefined)
+    const next = vi.fn(async () => snapshot)
+    const controller = {
+      open: vi.fn(async () => snapshot), inspect: vi.fn(() => snapshot), next,
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderHeadlessController
+    const service = { inspect: vi.fn(async () => ({ bindings: [
+      { id: "video-key", action: "reader.next-page", context: "video", enabled: true, input: { device: "keyboard", code: "KeyK" } },
+    ] })) } as unknown as NeoviewInputBindingsTuiPort
+    const definition = createNeoviewInputBindingsTuiDefinition("en", service, async () => controller)
+
+    await expect(definition.run({
+      action: "dispatch-binding",
+      path: "book.cbz",
+      input: { device: "keyboard", code: "KeyK" },
+      contexts: ["video"],
+    }, () => undefined)).resolves.toMatchObject({
+      success: true,
+      dispatch: { matched: true, bindingId: "video-key", context: "video", action: "reader.next-page", result: { handled: true } },
     })
     expect(next).toHaveBeenCalledOnce()
     expect(dispose).toHaveBeenCalledOnce()

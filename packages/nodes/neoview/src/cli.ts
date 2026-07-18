@@ -253,6 +253,10 @@ export async function runProgram(
     await runInputBindingsUi(args.slice(1), host)
     return
   }
+  if (command === "upscale-cache-ui") {
+    await runUpscaleCacheUi(args.slice(1), host, dependencies)
+    return
+  }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
   const parsed = parseArguments(args.slice(1), command)
@@ -2486,6 +2490,54 @@ async function runInputBindingsUi(args: readonly string[], host: CliHost): Promi
   })
 }
 
+async function runUpscaleCacheUi(
+  args: readonly string[],
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView upscale-cache-ui requires an interactive terminal.")
+  const connection = parseReaderUiConnectionArgs(args)
+  if (!connection.baseUrl) throw usage("NeoView upscale-cache-ui requires --connect to the running Reader backend.")
+  const credentials = credentialsFromEnvironment(parseArguments(connection.credentialArgs), host)
+  try {
+    const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+    const flags = resolveTerminalUiFlags(connection.terminalArgs, { language: "zh", renderer: "opentui", theme: "nord" })
+    if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+      throw usage(flags.error ?? `Unknown upscale-cache-ui argument: ${flags.args[0]}`)
+    }
+    const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+    if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+      throw usage(`Unknown terminal theme: ${flags.theme}.`)
+    }
+    const createController = async () => {
+      const controller = await (dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!)({
+        baseUrl: connection.baseUrl!,
+        token: connectionToken(connection.tokenVariable, host),
+      })
+      if (!controller.getUpscaleArtifactCache || !controller.cleanupUpscaleArtifactCache) {
+        await controller[Symbol.asyncDispose]()
+        throw missingUpscaleArtifactCacheCapability()
+      }
+      return {
+        open: (input: OpenHeadlessReaderInput) => controller.open(input),
+        getUpscaleArtifactCache: (signal?: AbortSignal) => controller.getUpscaleArtifactCache!(signal),
+        cleanupUpscaleArtifactCache: (kind: RemoteSuperResolutionArtifactCacheCleanupKind, signal?: AbortSignal) => controller.cleanupUpscaleArtifactCache!(kind, signal),
+        [Symbol.asyncDispose]: () => controller[Symbol.asyncDispose](),
+      }
+    }
+    const { createNeoviewUpscaleCacheTuiDefinition } = await import("./interaction.js")
+    await runTerminalUi(createNeoviewUpscaleCacheTuiDefinition(flags.language, createController, credentials.inputs), {
+      host,
+      language: flags.language,
+      renderer: flags.renderer,
+      theme: flags.theme,
+      reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["upscale-cache-ui", ...args] } : undefined,
+    })
+  } finally {
+    credentials.clear()
+  }
+}
+
 function usage(message: string): CliUsageError {
   return new CliUsageError(`${message}\n\n${formatCliHelp()}`)
 }
@@ -2507,6 +2559,7 @@ function formatCliHelp(): string {
     "  upscale-preload-retry <path>  Retry one preload mode (--mode)",
     "  upscale-cache-stats <path>    Inspect the running artifact cache (--connect)",
     "  upscale-cache-cleanup <path>  Clean age/current-book/all artifacts (--kind, --yes, --connect)",
+    "  upscale-cache-ui              Open remote artifact-cache maintenance UI (--connect)",
     "  input-action-dispatch <path> Dispatch one supported action (--action)",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
