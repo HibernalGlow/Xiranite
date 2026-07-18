@@ -1,8 +1,10 @@
 import type { PageByteRange, PageContent, PageSource, PageSourceExecution } from "../../domain/page/page-content.js"
-import type { ArchiveProvider } from "../../ports/ArchiveProvider.js"
+import type { ArchivePreloadDemandTarget, ArchiveProvider } from "../../ports/ArchiveProvider.js"
 import type { ArchiveCredentialStore } from "../../application/reader/ArchiveCredentialStore.js"
 
 export class ArchivePageContent implements PageContent {
+  readonly archivePreloadTarget: ArchivePreloadDemandTarget
+
   constructor(
     readonly provider: ArchiveProvider,
     readonly entryId: string,
@@ -10,7 +12,15 @@ export class ArchivePageContent implements PageContent {
     readonly contentType: string,
     readonly credentials?: ArchiveCredentialStore,
     readonly entryPaths: readonly string[] = [],
-  ) {}
+  ) {
+    this.archivePreloadTarget = {
+      owner: provider,
+      entryId,
+      update: async ({ generation, direction, directionConfidence, targetIds }) => {
+        await provider.updatePreloadDemand?.({ generation, direction, directionConfidence, entryIds: targetIds })
+      },
+    }
+  }
 
   async load(signal?: AbortSignal): Promise<PageSource> {
     signal?.throwIfAborted()

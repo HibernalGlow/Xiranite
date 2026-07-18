@@ -78,6 +78,7 @@ import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirecto
 import { platformReaderBookCandidate } from "../filesystem/PlatformReaderBookCandidate.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
+import { ReaderArchivePreloadDemandBridge } from "../archives/ReaderArchivePreloadDemandBridge.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 import { SuperResolutionArtifactRoute } from "./SuperResolutionArtifactRoute.js"
 import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
@@ -312,6 +313,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #baseUrl: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
+  readonly #archivePreloadDemand = new ReaderArchivePreloadDemandBridge()
   readonly #disposeThumbnailStore?: () => void | Promise<void>
   readonly #disposeSuperResolutionArtifacts?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
@@ -747,6 +749,11 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     try {
       await this.#sourceChanges[Symbol.asyncDispose]()
+    } catch (error) {
+      errors.push(error)
+    }
+    try {
+      await this.#archivePreloadDemand.close()
     } catch (error) {
       errors.push(error)
     }
@@ -1350,6 +1357,13 @@ export class ReaderHttpController implements AsyncDisposable {
     const stale = results.filter((result) => result.reason === "stale-generation").length
     const rejected = results.length - accepted
     const status = accepted > 0 ? 202 : stale > 0 ? 409 : 400
+    const demandedPageIds = new Set(
+      session.preloadTelemetry().outcomes
+        .filter((event) => event.outcome === "started")
+        .map((event) => event.pageId),
+    )
+    void this.#archivePreloadDemand.update(session.id, session.book.pages, session.preloadPlan(), demandedPageIds)
+      .catch(() => undefined)
     return jsonResponse({ generation: body.generation, accepted, rejected, stale }, status)
   }
 
@@ -1570,6 +1584,11 @@ export class ReaderHttpController implements AsyncDisposable {
   async #releaseSession(session: ReaderSession): Promise<void> {
     const errors: unknown[] = []
     const superResolutionRelease = this.#superResolutionArtifacts?.releaseSession(session.id) ?? Promise.resolve()
+    try {
+      await this.#archivePreloadDemand.release(session.id)
+    } catch (error) {
+      errors.push(error)
+    }
     try {
       await this.#service.closeSession(session.id)
     } catch (error) {
@@ -1822,6 +1841,9 @@ export class ReaderHttpController implements AsyncDisposable {
       if (candidate.tier === "near") pageIds.push(...candidate.pageIds)
     }
     this.#assets.retainSessionPages(session.id, pageIds)
+    // Do not consume adjacent archive pages merely because the backend built a
+    // plan. Only explicit client "started" telemetry becomes archive demand.
+    void this.#archivePreloadDemand.update(session.id, session.book.pages, preload, new Set()).catch(() => undefined)
   }
 
   #visiblePages(session: ReaderSession, frame: FrameSnapshot): ReaderPageDto[] {

@@ -45,6 +45,19 @@ export interface ArchivePreloadDemand {
   direction: ArchivePreloadDirection
   directionConfidence: number
   entryIds: readonly string[]
+  /** Opaque provider scope used when several sessions share one materializer. */
+  ownerId?: string
+}
+
+export type ArchivePreloadDemandUpdate = Omit<ArchivePreloadDemand, "entryIds"> & {
+  targetIds: readonly string[]
+}
+
+/** A page-local adapter used to group several page entries by one provider. */
+export interface ArchivePreloadDemandTarget {
+  readonly owner: object
+  readonly entryId: string
+  update(demand: ArchivePreloadDemandUpdate): Promise<void>
 }
 
 export interface MaterializedEntryLease extends AsyncDisposable {

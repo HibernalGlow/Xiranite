@@ -30,6 +30,7 @@ import { parseSevenZipSlt } from "./sevenzip-slt.js"
 import { archiveIndexPayloadBytes } from "../ArchiveIndexMetrics.js"
 
 const MAX_STDERR_BYTES = 256 * 1024
+let nextPreloadOwnerId = 1
 type SevenZipChild = ChildProcessByStdio<Writable, Readable, Readable>
 
 export interface SevenZipArchiveProviderOptions {
@@ -74,6 +75,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   readonly #maxMaterializedBytes?: number
   readonly #solidArchiveCache?: SolidArchiveCache
   readonly #rawPassword?: Uint8Array
+  readonly #preloadOwnerId = `neoview-archive-provider-${nextPreloadOwnerId++}`
   readonly #lifecycle = new AbortController()
   readonly #active = new Map<number, ActiveExtraction>()
   readonly #activeFileReads = new Set<Promise<void>>()
@@ -156,7 +158,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       if (!this.#entriesById.has(entryId)) throw new Error(`Archive preload entry not found: ${entryId}`)
     }
     if (this.#solidPreloadDemand && demand.generation < this.#solidPreloadDemand.generation) return
-    this.#solidPreloadDemand = { ...demand, entryIds: [...demand.entryIds] }
+    this.#solidPreloadDemand = { ...demand, ownerId: this.#preloadOwnerId, entryIds: [...demand.entryIds] }
     if (!demand.entryIds.length && !this.#solidMaterializer) return
     const materializer = await this.#solidMaterializerInstance(this.#rawPassword)
     materializer.updatePreloadDemand?.(this.#solidPreloadDemand)
