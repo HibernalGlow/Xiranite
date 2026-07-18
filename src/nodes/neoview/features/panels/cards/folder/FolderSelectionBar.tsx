@@ -8,9 +8,10 @@ import type {
   ReaderDirectorySelectionOperationSnapshotDto,
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
+import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import { useFolderClipboard } from "./FolderClipboard"
 
-export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
+export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, switchToast, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
   client: ReaderHttpClient
   sessionId: string
   selection: ReaderDirectorySelectionDescriptorDto
@@ -20,6 +21,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   disabled: boolean
   chainSelectMode: boolean
   clickBehavior: "open" | "select"
+  switchToast?: ReaderSwitchToastPort
   onSelectAll(): void
   onInvert(): void
   onToggleChain(): void
@@ -63,14 +65,27 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
             setFeedback(snapshot.failed > 0
               ? { kind: "alert", text: permanent ? `永久删除 ${snapshot.succeeded} 项，${snapshot.failed} 项失败。` : `移到回收站 ${snapshot.succeeded} 项，${snapshot.failed} 项失败。` }
               : { kind: "status", text: permanent ? `已永久删除 ${snapshot.succeeded} 项。` : `已将 ${snapshot.succeeded} 项移到回收站。` })
+            switchToast?.show({
+              title: snapshot.failed > 0
+                ? permanent ? `永久删除 ${snapshot.succeeded} 项，${snapshot.failed} 项失败。` : `移到回收站 ${snapshot.succeeded} 项，${snapshot.failed} 项失败。`
+                : permanent ? `已永久删除 ${snapshot.succeeded} 项。` : `已将 ${snapshot.succeeded} 项移到回收站。`,
+            })
           }
         } else if (snapshot.status === "failed") {
-          setFeedback({ kind: "alert", text: snapshot.error ?? "批量文件操作失败。" })
+          const message = snapshot.error ?? "批量文件操作失败。"
+          setFeedback({ kind: "alert", text: message })
+          switchToast?.show({ title: message })
         } else if (snapshot.status === "cancelled") {
-          setFeedback({ kind: "status", text: `已取消；已处理 ${snapshot.processed} / ${snapshot.total} 项。` })
+          const message = `已取消；已处理 ${snapshot.processed} / ${snapshot.total} 项。`
+          setFeedback({ kind: "status", text: message })
+          switchToast?.show({ title: message })
         }
       } catch (error) {
-        if (!controller.signal.aborted) setFeedback({ kind: "alert", text: errorMessage(error) })
+        if (!controller.signal.aborted) {
+          const message = errorMessage(error)
+          setFeedback({ kind: "alert", text: message })
+          switchToast?.show({ title: message })
+        }
       }
     }
     void poll()
@@ -87,7 +102,9 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
       operationKindRef.current = kind
       setOperation(await client.startDirectorySelectionOperation(sessionId, selection, kind))
     } catch (error) {
-      setFeedback({ kind: "alert", text: errorMessage(error) })
+      const message = errorMessage(error)
+      setFeedback({ kind: "alert", text: message })
+      switchToast?.show({ title: message })
     }
   }
 
@@ -96,7 +113,9 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
     try {
       setOperation(await client.cancelDirectorySelectionOperation(operation.id))
     } catch (error) {
-      setFeedback({ kind: "alert", text: errorMessage(error) })
+      const message = errorMessage(error)
+      setFeedback({ kind: "alert", text: message })
+      switchToast?.show({ title: message })
     }
   }
 

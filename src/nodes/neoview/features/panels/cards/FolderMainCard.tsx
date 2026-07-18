@@ -213,7 +213,7 @@ export default function FolderMainCard(context: ReaderPanelContext) {
   )
 }
 
-function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, folderTabCount, maxFolderTabs, onCreateTab, currentFolderTabPinned, canReopenFolderTab, onDuplicateCurrentTab, onToggleCurrentTabPinned, onReopenFolderTab, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, switchToast, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, folderTabCount, maxFolderTabs, onCreateTab, currentFolderTabPinned, canReopenFolderTab, onDuplicateCurrentTab, onToggleCurrentTabPinned, onReopenFolderTab, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
   const clipboard = useFolderClipboard()
   const pendingInitialCloneRef = useRef(initialClone)
   const sessionIdRef = useRef<string | undefined>(undefined)
@@ -1103,6 +1103,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onActivate={activate}
             onOpenInNewTab={onOpenInNewTab}
             onOpenAsBook={onOpen}
+            switchToast={switchToast}
             onRenamed={(destinationPath) => navigate(
               { action: "refresh" },
               { keepTree: true, focusPath: destinationPath, selectFocus: true },
@@ -1295,6 +1296,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             total={catalog.total}
             currentPath={catalog.path}
             disabled={disabled || loading}
+            switchToast={switchToast}
             chainSelectMode={chainSelectMode}
             clickBehavior={checkModeClickBehavior}
             onSelectAll={() => setSelection(selectAllDirectoryEntries(catalog.generation))}
