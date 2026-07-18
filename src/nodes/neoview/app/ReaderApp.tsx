@@ -859,6 +859,7 @@ export function ReaderApp({
     onPageModeChange: updateCurrentBookPageMode,
     onReadingDirectionChange: updateCurrentBookReadingDirection,
     sourcePath: path,
+    pickDirectory,
     systemActions: {
       copyText,
       copyFiles,

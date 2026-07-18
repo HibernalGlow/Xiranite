@@ -51,6 +51,7 @@ export interface ReaderPanelContext {
   onReadingDirectionChange?(direction: FrameSnapshot["direction"]): void | Promise<void>
   sourcePath?: string
   onOpen?(path: string): void | Promise<void>
+  pickDirectory?: () => Promise<string | undefined>
   systemActions?: {
     copyText?(text: string): Promise<void>
     copyFiles?(paths: string[]): Promise<void>

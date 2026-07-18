@@ -65,6 +65,7 @@ for (const chunk of deferredPanelChunks) {
 // [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk] [neoview.shared-entry.chunk]
 const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
 const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
+const historyCleanupChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]history[/\\]HistoryCleanupDialog\.tsx$/i.test(module)))
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
 const pageListToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]PageListToolbar\.tsx$/i.test(module)))
 const pagePrewarmChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]prewarmPageThumbnails\.ts$/i.test(module)))
@@ -77,6 +78,12 @@ if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
 }
 if (!historyListChunk || historyListChunk === readerSidebarChunk) {
   throw new Error("NeoView HistoryListCard did not produce an independent deferred production chunk.")
+}
+if (!historyCleanupChunk || historyCleanupChunk === historyListChunk || historyCleanupChunk === readerSidebarChunk) {
+  throw new Error("NeoView HistoryCleanupDialog did not produce a second-level deferred production chunk.")
+}
+if (historyCleanupChunk.bytes > 12 * 1024) {
+  throw new Error(`NeoView HistoryCleanupDialog chunk ${historyCleanupChunk.fileName} is ${historyCleanupChunk.bytes} bytes, above 12 KiB.`)
 }
 if (!pageNavigationChunk || pageNavigationChunk === readerSidebarChunk) {
   throw new Error("NeoView PageNavigationCard did not produce an independent deferred production chunk.")
@@ -291,6 +298,7 @@ console.log(JSON.stringify({
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   historyListChunk: { fileName: historyListChunk.fileName, bytes: historyListChunk.bytes },
+  historyCleanupChunk: { fileName: historyCleanupChunk.fileName, bytes: historyCleanupChunk.bytes },
   bookmarkListChunk: { fileName: bookmarkListChunk.fileName, bytes: bookmarkListChunk.bytes },
   pageNavigationChunk: { fileName: pageNavigationChunk.fileName, bytes: pageNavigationChunk.bytes },
   thumbnailSurfaceChunk: { fileName: thumbnailSurfaceChunk.fileName, bytes: thumbnailSurfaceChunk.bytes },

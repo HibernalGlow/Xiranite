@@ -864,7 +864,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
@@ -881,13 +881,16 @@
         "neoview.library.cleanup-folder-sqlite",
         "neoview.library.advanced-cleanup",
         "neoview.history.cleanup-state-sqlite",
-        "neoview.bookmark.advanced-cleanup-sqlite"
+        "neoview.bookmark.advanced-cleanup-sqlite",
+        "neoview.history.cleanup-e2e",
+        "neoview.history.cleanup-client",
+        "neoview.history.cleanup-gui",
+        "neoview.history.cleanup-folder-gui",
+        "neoview.history.cleanup-cancel-gui",
+        "neoview.history.cleanup-lazy-chunk"
       ],
-      "plannedTestIds": [
-        "neoview.history.cleanup",
-        "neoview.history.e2e"
-      ],
-      "notes": "Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. Every History deletion path atomically clears progress, media progress and path-stack state without touching bookmarks or book settings; Bookmark cleanup removes memberships with rows while preserving custom list definitions. Complete GUI/CLI/TUI controls and final E2E evidence remain pending."
+      "plannedTestIds": [],
+      "notes": "Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. The independently lazy React dialog preserves the legacy count/day/folder/all controls, adds invalid-path cleanup, requires confirmation, exposes pending/cancel/result/error states, reuses the host directory picker and refreshes only after success. Desktop and 420x360 Chromium prove the real route and stable Reader image; explicit CLI/TUI cleanup controls remain pending."
     },
     {
       "id": "history.sync-folder",
