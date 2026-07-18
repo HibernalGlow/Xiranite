@@ -1,12 +1,13 @@
 import type { ReactNode } from "react"
 
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { formatStorageBytes } from "./reader-metadata-format"
 import { useReaderMetadata } from "./useReaderMetadata"
 import { useReaderStorageDiagnostics } from "./useReaderStorageDiagnostics"
 
 export default function StorageInformationCard({ session, client }: ReaderPanelContext) {
-  if (!session) return null
+  if (!session) return <ReaderCardEmptyState>打开书本后显示存储信息</ReaderCardEmptyState>
   return <StorageInformationContent session={session} client={client} />
 }
 

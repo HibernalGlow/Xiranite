@@ -26,9 +26,9 @@ const SLIDERS = [
   { key: "hueRotate", label: "色相旋转", min: 0, max: 360, suffix: "°" },
 ] as const
 
-export default function DockedColorFilterCard({ colorFilter, disabled }: ReaderPanelContext) {
+export default function DockedColorFilterCard({ colorFilter }: ReaderPanelContext) {
   if (!colorFilter) return <p className="text-xs text-muted-foreground">颜色滤镜尚未就绪。</p>
-  return <ColorFilterCard store={colorFilter} disabled={disabled} />
+  return <ColorFilterCard store={colorFilter} />
 }
 
 export function ColorFilterCard({ store, disabled = false }: { store: ReaderColorFilterPort; disabled?: boolean }) {

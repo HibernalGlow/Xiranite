@@ -57,7 +57,7 @@ describe("NeoView panel and card registries", () => {
     expect(cardsForPanel("info").map((card) => card.id)).toContain("preload-status")
     expect(CARD_DEFINITIONS.find((card) => card.id === "preload-status")?.icon).toBeTruthy()
     expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["book-settings"])
-    expect(cardsForPanel("properties", undefined, false)).toEqual([])
+    expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["book-settings"])
   })
 
   it("[neoview.thumbnail-maintenance.registry] keeps maintenance session-independent and undocked by default", () => {
@@ -68,10 +68,10 @@ describe("NeoView panel and card registries", () => {
       requiresSession: false,
       canHide: true,
     })
-    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition"])
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition", "sidebar-height"])
     expect(cardsForPanel("control", {
       cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
-    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition", "thumbnail-maintenance"])
+    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition", "sidebar-height", "thumbnail-maintenance"])
   })
 
   it("[neoview.color-filter.registry] exposes the session-independent legacy control Card lazily", () => {
@@ -119,6 +119,14 @@ describe("NeoView panel and card registries", () => {
         "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
         "panel-layout-settings": { panelId: "settings", visible: true, expanded: true, order: 0 },
       },
-    } as never, false).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "settings"])
+    } as never, false).map((panel) => panel.id)).toEqual(["folder", "pageList", "history", "bookmark", "settings"])
+  })
+
+  it("[neoview.shell.resident-cards] keeps configured panels and session-dependent Card shells resident before opening a book", () => {
+    expect(availablePanels("left", undefined, false).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
+    expect(availablePanels("right", undefined, false).map((panel) => panel.id)).toEqual(["info", "properties", "control"])
+    expect(cardsForPanel("info", undefined, false).map((card) => card.id)).toEqual([
+      "book-information", "image-information", "storage-information", "time-information", "preload-status",
+    ])
   })
 })

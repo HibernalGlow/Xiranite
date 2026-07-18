@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import {
   formatMediaBitRate,
   formatMediaDuration,
@@ -14,7 +15,7 @@ import { useReaderMetadata } from "./useReaderMetadata"
 import { useReaderPageMediaInformation } from "./useReaderPageMediaInformation"
 
 export default function ImageInformationCard(context: ReaderPanelContext) {
-  if (!context.session) return null
+  if (!context.session) return <ReaderCardEmptyState>打开书本后显示图像信息</ReaderCardEmptyState>
   return <ImageInformationContent {...context} session={context.session} />
 }
 

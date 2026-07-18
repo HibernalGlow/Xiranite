@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import {
   createSparsePageCatalog,
   mergeSparsePagePositions,
@@ -30,7 +31,7 @@ const PageListContextActions = lazy(() => import("./page-list/PageListContextAct
 const catalogBatchModule = import("./page-list/requestPageCatalogBatch")
 
 export default function PageNavigationCard(context: ReaderPanelContext) {
-  if (!context.session) return null
+  if (!context.session) return <ReaderCardEmptyState>打开书本后显示页面导航</ReaderCardEmptyState>
   return (
     <PageListCard
       sessionId={context.session.sessionId}

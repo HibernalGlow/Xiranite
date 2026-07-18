@@ -42,7 +42,9 @@ describe("ReaderSidebar layout gestures", () => {
 
   it("[neoview.shell.drag] bounds position and corner size before one persistence commit", () => {
     const commit = vi.fn()
-    render(<ReaderSidebar side="left" context={context()} shell={shell("half")} onLayoutCommit={commit} />)
+    const config = shell("half")
+    config.sidebarInteraction = { showDragHandle: true, enableBlankAreaCollapse: true, blankAreaCollapseMode: "single" }
+    render(<ReaderSidebar side="left" context={context()} shell={config} onLayoutCommit={commit} />)
     const move = screen.getByRole("button", { name: "移动左侧栏" })
     fireEvent.pointerDown(move, { pointerId: 8, clientX: 0, clientY: 0 })
     fireEvent.pointerMove(move, { pointerId: 8, clientX: window.innerWidth, clientY: window.innerHeight })
@@ -135,6 +137,13 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
+  })
+
+  it("[neoview.shell.resident-cards] renders stable sessionless Card shells and empty states", async () => {
+    render(<ReaderSidebar side="left" context={context(false)} shell={shell()} />)
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
+    expect(await screen.findByText("打开书本后显示页面导航")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "折叠页面导航" })).toBeTruthy()
   })
 })
 

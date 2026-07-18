@@ -12,10 +12,11 @@
  */
 import { Suspense, useRef, useState } from "react"
 import { Pin, PinOff } from "lucide-react"
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react"
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
 
 import { cn } from "@/lib/utils"
+import { readerShellMaterialDraft, readerShellMaterialStyle } from "../material/ReaderShellMaterial"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 import { InfoPanelActions } from "./InfoPanelActions"
 import {
@@ -62,6 +63,8 @@ export function ReaderSidebar({
       data-reader-sidebar={side}
       data-reader-edge-chrome={side}
       style={style}
+      onClick={handleBlankClick}
+      onDoubleClick={handleBlankDoubleClick}
     >
       <div
         aria-label={`调整${side === "left" ? "左" : "右"}侧栏宽度`}
@@ -126,7 +129,7 @@ export function ReaderSidebar({
               <span aria-hidden="true">{panel.emoji}</span>
               <h2 className="truncate text-sm font-semibold">{panel.title}</h2>
               {panel.id === "info" ? <InfoPanelActions context={context} /> : null}
-              {layout?.height !== "full" ? (
+              {layout?.height !== "full" && shell?.sidebarInteraction?.showDragHandle ? (
                 <button
                   type="button"
                   aria-label={`移动${side === "left" ? "左" : "右"}侧栏`}
@@ -173,6 +176,23 @@ export function ReaderSidebar({
       />
     </aside>
   )
+
+  function handleBlankClick(event: ReactMouseEvent<HTMLElement>): void {
+    if (shell?.sidebarInteraction?.blankAreaCollapseMode !== "single") return
+    collapseFromBlankArea(event.target)
+  }
+
+  function handleBlankDoubleClick(event: ReactMouseEvent<HTMLElement>): void {
+    if (shell?.sidebarInteraction?.blankAreaCollapseMode !== "double") return
+    collapseFromBlankArea(event.target)
+  }
+
+  function collapseFromBlankArea(target: EventTarget | null): void {
+    if (!shell?.sidebarInteraction?.enableBlankAreaCollapse || !context.shellControl) return
+    if (target instanceof Element && target.closest(BLANK_AREA_INTERACTIVE_SELECTOR)) return
+    context.shellControl.setPinned(side, false)
+    context.shellControl.requestOpen(side, false)
+  }
 
   function startGesture(event: ReactPointerEvent<HTMLElement>, kind: SidebarGesture["kind"]): void {
     if (!layout || !asideRef.current) return
@@ -244,6 +264,8 @@ export function ReaderSidebar({
   }
 }
 
+const BLANK_AREA_INTERACTIVE_SELECTOR = "button,a,input,textarea,select,label,[role='button'],[role='switch'],[data-menu-button]"
+
 interface SidebarGesture {
   kind: "width" | "corner" | "move"
   pointerId: number
@@ -271,14 +293,13 @@ function sidebarStyle(
 ): CSSProperties {
   const height = sidebarHeight(layout)
   return {
+    ...readerShellMaterialStyle(readerShellMaterialDraft(shell), "sidebar"),
     width: layout.width,
     maxWidth: "calc(100vw - 2rem)",
     height,
     top: height === "100%" ? 0 : `${(100 - Number.parseFloat(height)) * (layout.verticalAlign / 100)}%`,
     left: side === "left" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
     right: side === "right" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
-    backgroundColor: `color-mix(in oklch, var(--background) ${shell.opacity.sidebar}%, transparent)`,
-    backdropFilter: `blur(${shell.blur.sidebar}px)`,
   }
 }
 

@@ -22,9 +22,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import type { ReaderPageTransitionPort } from "../../page-transition/ReaderPageTransitionStore"
 import type { ReaderPanelContext } from "../registry"
 
-export default function DockedPageTransitionCard({ pageTransition, disabled }: ReaderPanelContext) {
+export default function DockedPageTransitionCard({ pageTransition }: ReaderPanelContext) {
   if (!pageTransition) return <p className="text-xs text-muted-foreground">翻页动画尚未就绪。</p>
-  return <PageTransitionCard store={pageTransition} disabled={disabled} />
+  return <PageTransitionCard store={pageTransition} />
 }
 
 export function PageTransitionCard({ store, disabled = false }: {
