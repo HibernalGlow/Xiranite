@@ -2127,26 +2127,26 @@
 ##### 专用源码级验收项
 
 - [ ] `time.fields` 显示当前页创建与修改时间
-  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：TimeInformation Card renders created and modified rows from the current page metadata without substituting unrelated values.
   - 源码：`src/lib/cards/info/TimeCard.svelte`
-  - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.cards`、`neoview.time-information.e2e`
+  - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.cards`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`、`neoview.time-information.e2e`
   - 计划测试：无
-  - 备注：Filesystem and archive page timestamps are verified through the shared loader, HTTP and GUI contracts.
+  - 备注：Filesystem and archive page timestamps are captured during book load, copied into bounded headless page snapshots and projected consistently by React, CLI and TUI without additional stat work.
 - [ ] `time.access-source` 访问时间与时间来源语义
-  - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：The shared DTO distinguishes filesystem, archive-entry and book-source timestamps; unavailable fields stay unknown.
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/types/metadata.ts`
-  - 测试：`neoview.time-information.archive-source`、`neoview.time-information.archive-invalid`、`neoview.time-information.e2e`
+  - 测试：`neoview.time-information.archive-source`、`neoview.time-information.archive-invalid`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`、`neoview.time-information.e2e`
   - 计划测试：无
-  - 备注：Intentional XR extension required by the frozen functional scope.
+  - 备注：The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English; this remains an intentional XR extension required by the frozen functional scope.
 - [ ] `time.format` 本地时区与未知值格式
-  - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Finite timestamps use zh-CN local time; missing or invalid values render an em dash.
   - 源码：`src/lib/cards/info/TimeCard.svelte`
-  - 测试：`neoview.time-information.format`
+  - 测试：`neoview.time-information.format`、`neoview.time-information.projection`、`neoview.time-information.projection-invalid`、`neoview.time-information.cli-projection`、`neoview.tui.reader`
   - 计划测试：无
-  - 备注：The target rejects invalid numeric timestamps instead of exposing Invalid Date.
+  - 备注：One browser-safe formatter uses local zh-CN/en-US time and rejects missing, non-finite or invalid values as an em dash across React, CLI and TUI without exposing Invalid Date.
 - [ ] `time.states` 加载、空、错误与重试
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The Card has stable loading, empty, error and retry states and never shows stale data as current.
@@ -2162,12 +2162,12 @@
   - 计划测试：`neoview.time-information.lazy-chunk`
   - 备注：Shared shell tests apply and the Time-specific production chunk is independently gated.
 - [ ] `time.data-contract` 共享可取消时间 DTO
-  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：GUI, CLI and TUI receive the same bounded session metadata DTO with generation, cancellation and source semantics.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/book/core.svelte.ts`、`src/lib/services/metadataService.ts`
-  - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.client`、`neoview.metadata.cards`、`neoview.metadata.cancel`
+  - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.client`、`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`
   - 计划测试：无
-  - 备注：Page timestamps are captured during book load, avoiding a second content decode path.
+  - 备注：Page timestamps are captured during book load and copied into the existing headless page DTO, avoiding a second endpoint, file stat, content decode path or persistence store.
 - [ ] `time.lifecycle` 会话切换、取消与释放
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Hidden/unmounted Cards do no work; the final subscriber aborts; generation changes cannot publish old metadata.
@@ -2202,7 +2202,7 @@
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/services/metadataService.ts`
   - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.time-information.e2e`
   - 计划测试：`neoview.time-information.lazy-chunk`
-  - 备注：The production Time Card chunk is 1679 bytes and browser evidence confirms one request per generation.
+  - 备注：The production Time Card chunk is 1816 bytes; its shared projection remains in the deferred 10602-byte ui-core host chunk, and browser evidence confirms one request per generation.
 - [ ] `time.deviations` 记录访问时间、来源与错误状态扩展
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document that accessedAt, timeSource, loading/error/retry are intentional additions; archive outer-file times are never misrepresented as entry times.

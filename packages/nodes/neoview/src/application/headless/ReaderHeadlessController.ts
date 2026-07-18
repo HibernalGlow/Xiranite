@@ -51,6 +51,7 @@ export interface HeadlessReaderPageSnapshot {
   byteLength?: number
   dimensions?: ReaderPage["dimensions"]
   contentVersion: string
+  timestamps?: ReaderPage["timestamps"]
 }
 
 export interface HeadlessReaderSnapshot {
@@ -408,6 +409,7 @@ function pageSnapshot(page: ReaderPage): HeadlessReaderPageSnapshot {
     byteLength: page.byteLength,
     dimensions: page.dimensions ? { ...page.dimensions } : undefined,
     contentVersion: page.contentVersion,
+    timestamps: page.timestamps ? { ...page.timestamps } : undefined,
   }
 }
 

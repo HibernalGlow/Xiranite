@@ -378,6 +378,23 @@ describe("NeoView CLI", () => {
     expect(output.join("\n")).toContain("Progress: 66.7%")
   })
 
+  it("[neoview.time-information.cli-projection] prints captured page timestamps without additional filesystem work", async () => {
+    const output: unknown[] = []
+    const base = snapshot(0)
+    const reader = fakeReader({ open: async () => ({
+      ...base,
+      visiblePages: [{ ...base.visiblePages[0]!, timestamps: { source: "archive-entry", createdAtMs: 1_700_000_000_000, modifiedAtMs: 1_700_000_100_000, accessedAtMs: 1_700_000_200_000 } }],
+    }) })
+    await runProgram(["inspect", "book.cbz"], host(output), { createController: async () => reader })
+
+    const text = output.join("\n")
+    expect(text).toContain("Created:")
+    expect(text).toContain("Modified:")
+    expect(text).toContain("Accessed:")
+    expect(text).toContain("Time source: Archive entry")
+    expect(text).not.toContain("Invalid Date")
+  })
+
   it("[neoview.cli.pages] lists a bounded page window", async () => {
     const output: unknown[] = []
     const reader = fakeReader()

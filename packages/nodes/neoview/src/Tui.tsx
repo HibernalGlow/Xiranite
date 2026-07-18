@@ -31,6 +31,7 @@ import type {
 import type { NeoviewTuiInput, NeoviewTuiResult } from "./interaction.js"
 import { createReaderHeadlessController } from "./platform.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
+import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
 
 export interface ReaderTuiPort extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
@@ -222,10 +223,11 @@ function ReaderWorkbench({
     ...snapshot.book,
     currentPage: snapshot.book.pageCount > 0 ? snapshot.frame.anchorPageIndex + 1 : 0,
   }, language) : undefined
+  const timeInformation = projectReaderTimeInformation(currentPage?.timestamps, language)
   const busy = phase === "opening" || phase === "navigating"
   const pagePaneWidth = Math.max(24, Math.min(42, Math.floor(dimensions.width * 0.3)))
   const framePaneWidth = Math.max(20, dimensions.width - pagePaneWidth - 8)
-  const previewHeight = Math.max(6, dimensions.height - 21)
+  const previewHeight = Math.max(6, dimensions.height - 23)
   const visiblePageCount = Math.max(1, snapshot?.visiblePages.length ?? 1)
   const previewWidth = Math.max(8, Math.floor((framePaneWidth - visiblePageCount + 1) / visiblePageCount))
   const openPage = useCallback(async (pageIndex: number, signal: AbortSignal) => {
@@ -289,9 +291,11 @@ function ReaderWorkbench({
                   />
                 ))}
               </box>
-              <box height={3} flexShrink={0} marginTop={1} paddingLeft={1} paddingRight={1} flexDirection="column">
+              <box height={5} flexShrink={0} marginTop={1} paddingLeft={1} paddingRight={1} flexDirection="column">
                 <text fg={theme.colors.primary}><b>{snapshot.visiblePages.map((page) => page.name).join("  |  ")}</b></text>
                 <text fg={theme.colors.mutedForeground}>{`${bookInformation?.pageText} · ${currentPage?.dimensions ? `${currentPage.dimensions.width} x ${currentPage.dimensions.height}` : currentPage?.mimeType ?? currentPage?.mediaKind ?? "-"}`}</text>
+                <text fg={theme.colors.mutedForeground}>{`${language === "zh" ? "创建" : "Created"}: ${timeInformation.createdText} · ${language === "zh" ? "修改" : "Modified"}: ${timeInformation.modifiedText}`}</text>
+                <text fg={theme.colors.mutedForeground}>{`${language === "zh" ? "访问" : "Accessed"}: ${timeInformation.accessedText} · ${timeInformation.sourceLabel}`}</text>
               </box>
               <ProgressBar value={bookInformation?.progressPercent ?? 0} label={status} />
             </box>

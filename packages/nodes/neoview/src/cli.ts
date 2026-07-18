@@ -38,6 +38,7 @@ import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistor
 import type { ReaderCompositionOptions } from "./platform.js"
 import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRestoreResult } from "./platform/backup/ReaderBackupBundleService.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
+import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
@@ -1464,13 +1465,19 @@ function printInspect(snapshot: HeadlessReaderSnapshot, json: boolean, host: Cli
   writeLine(host, `Page: ${book.pageText}`)
   writeLine(host, `Progress: ${book.progressText}`)
   writeLine(host, frameLine(snapshot))
-  for (const page of snapshot.visiblePages) writeLine(host, pageLine(page))
+  for (const page of snapshot.visiblePages) {
+    writeLine(host, pageLine(page))
+    printPageTime(page, host)
+  }
 }
 
 function printFrame(snapshot: HeadlessReaderSnapshot, json: boolean, host: CliHost): void {
   if (json) return writeJson(host, { frame: snapshot.frame, visiblePages: snapshot.visiblePages })
   writeLine(host, frameLine(snapshot))
-  for (const page of snapshot.visiblePages) writeLine(host, pageLine(page))
+  for (const page of snapshot.visiblePages) {
+    writeLine(host, pageLine(page))
+    printPageTime(page, host)
+  }
 }
 
 function printPages(pages: readonly HeadlessReaderPageSnapshot[], cursor: number, total: number, json: boolean, host: CliHost): void {
@@ -1551,6 +1558,14 @@ function pageLine(page: HeadlessReaderPageSnapshot): string {
   const size = page.dimensions ? ` ${page.dimensions.width}x${page.dimensions.height}` : ""
   const bytes = page.byteLength === undefined ? "" : ` ${page.byteLength} bytes`
   return `${String(page.index + 1).padStart(5)}  ${page.name}  ${page.mediaKind}${size}${bytes}`
+}
+
+function printPageTime(page: HeadlessReaderPageSnapshot, host: CliHost): void {
+  const time = projectReaderTimeInformation(page.timestamps, "en")
+  writeLine(host, `  Created: ${time.createdText}`)
+  writeLine(host, `  Modified: ${time.modifiedText}`)
+  writeLine(host, `  Accessed: ${time.accessedText}`)
+  writeLine(host, `  Time source: ${time.sourceLabel}`)
 }
 
 async function extractPage(
