@@ -1869,6 +1869,7 @@
         "neoview.diagnostics.snapshot",
         "neoview.diagnostics.wire-schema",
         "neoview.diagnostics.http",
+        "neoview.diagnostics.history-export-http",
         "neoview.diagnostics.runtime-http",
         "neoview.diagnostics.backend",
         "neoview.diagnostics.cli",
