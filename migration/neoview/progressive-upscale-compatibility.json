@@ -238,10 +238,10 @@
       ],
       "targetContract": "Platform code supplies an artifact destination without creating it; the application service passes book/page metadata, generation, priority, materialization budget and AbortSignal to the canonical page workflow and returns typed outcomes.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "complete", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-artifact", "neoview.super-resolution.artifact-page-hit", "neoview.super-resolution.artifact-page-shared"],
-      "plannedTestIds": ["neoview.super-resolution.preload-http"],
-      "notes": "The canonical page policy now plans once before resolving the opaque artifact fingerprint; preload can warm the injected streaming store without exposing a raw destination. The authenticated opaque HTTP asset remains pending."
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "complete" },
+      "testIds": ["neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-artifact", "neoview.super-resolution.artifact-page-hit", "neoview.super-resolution.artifact-page-shared", "neoview.super-resolution.preload-http"],
+      "plannedTestIds": [],
+      "notes": "The canonical page policy plans once before resolving the opaque artifact fingerprint; preload warms the injected streaming store without exposing a raw destination, and authenticated HTTP returns only a session-scoped opaque digest URL."
     },
     {
       "id": "progressive-upscale.cache",
@@ -253,10 +253,10 @@
       ],
       "targetContract": "Replace the legacy unbounded in-memory Blob map and PyO3 cache with one streaming, byte-budgeted artifact store supporting fingerprint invalidation, current-book/age/all cleanup, stats and opaque asset leases without reading high-resolution outputs wholly into JS memory.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "complete", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.artifact-stream-lease", "neoview.super-resolution.artifact-maintenance", "neoview.super-resolution.artifact-dedup-accounting", "neoview.super-resolution.artifact-streaming-rss", "neoview.super-resolution.artifact-demand-cancel", "neoview.super-resolution.artifact-corrupt"],
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
+      "testIds": ["neoview.super-resolution.artifact-stream-lease", "neoview.super-resolution.artifact-maintenance", "neoview.super-resolution.artifact-dedup-accounting", "neoview.super-resolution.artifact-streaming-rss", "neoview.super-resolution.artifact-demand-cancel", "neoview.super-resolution.artifact-corrupt", "neoview.super-resolution.preload-http"],
       "plannedTestIds": ["neoview.super-resolution.cache-controls"],
-      "notes": "A dedicated cacache streaming store now provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. It remains intentionally separate from the buffering presentation cache; user-facing controls and HTTP delivery remain pending."
+      "notes": "A dedicated cacache streaming store provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. Authenticated HTTP streams those leases with ETag/HEAD/cancel semantics; user-facing controls remain pending."
     },
     {
       "id": "progressive-upscale.lifecycle",
@@ -268,10 +268,10 @@
       ],
       "targetContract": "Start only after an enabled plan/dwell, cancel on navigation or session release, await active work during dispose, release archive inputs and provider processes, and leave zero timers/tasks after the Reader closes.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "partial", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.preload-generation", "neoview.super-resolution.page-release"],
-      "plannedTestIds": ["neoview.super-resolution.preload-session-close", "neoview.super-resolution.preload-process-cleanup"],
-      "notes": "Application disposal exists; Reader session composition is still pending."
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "complete" },
+      "testIds": ["neoview.super-resolution.preload-generation", "neoview.super-resolution.page-release", "neoview.super-resolution.artifact-demand-cancel", "neoview.super-resolution.preload-http-session", "neoview.super-resolution.http-composition-lazy", "neoview.super-resolution.provider-dispose"],
+      "plannedTestIds": [],
+      "notes": "Reader session release aborts active artifact generation and invalidates its opaque URLs; controller disposal closes the lazy capability and owned store, while an unused composition creates no directory, runtime, CLI probe or process."
     },
     {
       "id": "progressive-upscale.ui-parity",

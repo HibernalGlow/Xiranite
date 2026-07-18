@@ -21,6 +21,8 @@ import type { ReaderDirectoryMetadataField } from "./ports/ReaderDirectoryMetada
 import type { ResourceScheduler } from "./ports/ResourceScheduler.js"
 import type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 import type { ReaderPresentationDiskCache } from "./ports/ReaderPresentationDiskCache.js"
+import type { SuperResolutionArtifactPagePort } from "./ports/SuperResolutionArtifactPagePort.js"
+import type { SuperResolutionArtifactStore } from "./ports/SuperResolutionArtifactStore.js"
 import type { ReaderFileTreeWatcher } from "./ports/ReaderFileTreeWatcher.js"
 import type { ReaderFileTreeScanner } from "./ports/ReaderFileTreeScanner.js"
 import type { ReaderLibraryService } from "./application/library/ReaderLibraryService.js"
@@ -86,6 +88,11 @@ export {
   type SuperResolutionArtifactKeyInput,
 } from "./platform/super-resolution/SuperResolutionArtifactKey.js"
 export {
+  SuperResolutionArtifactRoute,
+  SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION,
+  type SuperResolutionArtifactRouteOptions,
+} from "./platform/asset-route/SuperResolutionArtifactRoute.js"
+export {
   OpenComicAiSystemProvider,
   type OpenComicAiSystemProviderOptions,
   type OpenComicSystemBinaryRequest,
@@ -146,6 +153,7 @@ export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & Neoview
   legacyThumbnailDatabasePath?: string | false
   loadLegacyThumbnailStore?: (databasePath?: string) => Promise<ReaderThumbnailStore>
   useDefaultLegacyProgressStore?: boolean
+  superResolutionArtifactCacheRoot?: string
 }
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
@@ -353,6 +361,50 @@ export async function createReaderHttpController(
     thumbnailStore = ownedThumbnailStore
     disposeThumbnailStore = () => ownedThumbnailStore.close()
   }
+  const injectedArtifactPages = options.superResolutionArtifactPages
+  const injectedArtifactStore = options.superResolutionArtifactStore
+  if (Boolean(injectedArtifactPages) !== Boolean(injectedArtifactStore)) {
+    throw new TypeError("superResolutionArtifactPages and superResolutionArtifactStore must be injected together")
+  }
+  let superResolutionArtifactPages: SuperResolutionArtifactPagePort | undefined = injectedArtifactPages
+  let superResolutionArtifactStore: SuperResolutionArtifactStore | undefined = injectedArtifactStore
+  let disposeSuperResolutionArtifacts = options.disposeSuperResolutionArtifacts
+  if (!superResolutionArtifactPages || !superResolutionArtifactStore) {
+    const { join } = await import("node:path")
+    const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+    const { CacacheSuperResolutionArtifactStore } = await import(
+      "./platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
+    )
+    const { LazySuperResolutionPagePort } = await import("./platform/super-resolution/LazySuperResolutionPagePort.js")
+    const root = options.superResolutionArtifactCacheRoot
+      ?? join(new LegacyNeoViewDataLocator().locate().appDataDirectory, "upscale-artifacts")
+    const ownedStore = new CacacheSuperResolutionArtifactStore({ root })
+    const ownedPages = new LazySuperResolutionPagePort(async () => {
+      const { createOpenComicAiSystemCapability } = await import(
+        "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
+      )
+      const capability = await createOpenComicAiSystemCapability({
+        ...options,
+        runtimeConfig: runtimeConfig.superResolution,
+        resourceScheduler: options.resourceScheduler,
+        artifactStore: ownedStore,
+      })
+      return capability && {
+        pages: capability.pages,
+        artifactPages: capability.artifactPages,
+        listModels: () => capability.service.listModels(),
+        capabilities: (capabilityOptions?: { refresh?: boolean; signal?: AbortSignal }) => capability.service.capabilities(capabilityOptions),
+        dispose: () => capability.dispose(),
+      }
+    })
+    superResolutionArtifactPages = ownedPages
+    superResolutionArtifactStore = ownedStore
+    disposeSuperResolutionArtifacts = async () => {
+      const results = await Promise.allSettled([ownedPages[Symbol.asyncDispose](), ownedStore.close()])
+      const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+      if (errors.length) throw new AggregateError(errors, "Failed to close super-resolution artifact resources.")
+    }
+  }
   return new ReaderHttpController({
     ...options,
     progressStore,
@@ -376,6 +428,7 @@ export async function createReaderHttpController(
     slideshow: runtimeConfig.slideshow,
     media: runtimeConfig.media,
     colorFilter: runtimeConfig.colorFilter,
+    pageTransition: runtimeConfig.pageTransition,
     inputBindings: runtimeConfig.inputBindings,
     radialMenu: runtimeConfig.radialMenu,
     presentationDiskCache,
@@ -435,6 +488,12 @@ export async function createReaderHttpController(
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).colorFilter
     },
+    updatePageTransition: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).pageTransition
+    },
     updateInputBindings: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
@@ -464,6 +523,9 @@ export async function createReaderHttpController(
     }),
     thumbnailStore,
     disposeThumbnailStore,
+    superResolutionArtifactPages,
+    superResolutionArtifactStore,
+    disposeSuperResolutionArtifacts,
   })
 }
 

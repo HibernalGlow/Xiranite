@@ -11,6 +11,10 @@ import {
   DEFAULT_READER_COLOR_FILTER,
   type ReaderColorFilterSettings,
 } from "../../domain/color-filter/ReaderColorFilter.js"
+import {
+  DEFAULT_READER_PAGE_TRANSITION,
+  type ReaderPageTransitionSettings,
+} from "../../domain/page-transition/ReaderPageTransition.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
@@ -41,6 +45,8 @@ import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../
 import { ReaderPageMediaInformationService } from "../../application/metadata/ReaderPageMediaInformationService.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
+import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
+import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionArtifactStore.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
@@ -60,6 +66,7 @@ import { platformReaderBookCandidate } from "../filesystem/PlatformReaderBookCan
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
+import { SuperResolutionArtifactRoute } from "./SuperResolutionArtifactRoute.js"
 import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
 import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
@@ -97,6 +104,7 @@ import {
   parseNeoviewSlideshowPatch,
   parseNeoviewMediaPatch,
   parseNeoviewColorFilterPatch,
+  parseNeoviewPageTransitionPatch,
   parseNeoviewBookmarkListPatch,
   parseNeoviewHistoryListPatch,
   parseNeoviewPageListPatch,
@@ -106,6 +114,7 @@ import {
   type NeoviewMediaConfig,
   type NeoviewMediaPatch,
   type NeoviewColorFilterPatch,
+  type NeoviewPageTransitionPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -206,6 +215,9 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   disposeLibraryService?: boolean
   presentationDiskCache?: ReaderPresentationDiskCache
   disposePresentationDiskCache?: boolean
+  superResolutionArtifactPages?: SuperResolutionArtifactPagePort
+  superResolutionArtifactStore?: SuperResolutionArtifactStore
+  disposeSuperResolutionArtifacts?: () => void | Promise<void>
   shellOptions?: NeoviewShellConfig
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
@@ -226,6 +238,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateMedia?: (patch: NeoviewMediaPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewMediaConfig>
   colorFilter?: ReaderColorFilterSettings
   updateColorFilter?: (patch: NeoviewColorFilterPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderColorFilterSettings>
+  pageTransition?: ReaderPageTransitionSettings
+  updatePageTransition?: (patch: NeoviewPageTransitionPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderPageTransitionSettings>
   inputBindings?: ReaderInputBindingsConfig
   updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
   radialMenu?: ReaderRadialMenuConfig
@@ -241,6 +255,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
 export class ReaderHttpController implements AsyncDisposable {
   readonly #service: CoreReaderService
   readonly #assets: ReaderAssetRoute
+  readonly #superResolutionArtifacts?: SuperResolutionArtifactRoute
   readonly #libraryThumbnails: LibraryThumbnailRoute
   readonly #thumbnailPipeline: PlatformThumbnailPipeline
   readonly #thumbnailMaintenance: ThumbnailMaintenanceRoute
@@ -272,6 +287,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
   readonly #disposeThumbnailStore?: () => void | Promise<void>
+  readonly #disposeSuperResolutionArtifacts?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
   #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
@@ -282,6 +298,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #slideshow: NeoviewSlideshowConfig
   #media: NeoviewMediaConfig
   #colorFilter: ReaderColorFilterSettings
+  #pageTransition: ReaderPageTransitionSettings
   #inputBindings: ReaderInputBindingsConfig
   #radialMenu: ReaderRadialMenuConfig
   #sessionOptions: Partial<ReaderSessionOptions>
@@ -294,6 +311,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   readonly #updateMedia?: ReaderHttpControllerOptions["updateMedia"]
   readonly #updateColorFilter?: ReaderHttpControllerOptions["updateColorFilter"]
+  readonly #updatePageTransition?: ReaderHttpControllerOptions["updatePageTransition"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
@@ -305,6 +323,9 @@ export class ReaderHttpController implements AsyncDisposable {
   }>()
 
   constructor(options: ReaderHttpControllerOptions) {
+    if (Boolean(options.superResolutionArtifactPages) !== Boolean(options.superResolutionArtifactStore)) {
+      throw new TypeError("superResolutionArtifactPages and superResolutionArtifactStore must be provided together")
+    }
     const initialMedia = options.media ?? DEFAULT_NEOVIEW_MEDIA_CONFIG
     this.#mediaFormats = new ReaderMediaFormatRegistryRef(initialMedia)
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -412,6 +433,14 @@ export class ReaderHttpController implements AsyncDisposable {
         this.#directoryBrowser.releaseMemoryPressure()
       },
     })
+    this.#superResolutionArtifacts = options.superResolutionArtifactPages && options.superResolutionArtifactStore
+      ? new SuperResolutionArtifactRoute(
+          this.#service,
+          options.superResolutionArtifactPages,
+          options.superResolutionArtifactStore,
+          options,
+        )
+      : undefined
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
     this.#thumbnailMaintenance = new ThumbnailMaintenanceRoute({ token: options.token, thumbnailStore: options.thumbnailStore })
     this.#directoryBrowser = new ReaderDirectoryBrowserRoute(
@@ -474,6 +503,7 @@ export class ReaderHttpController implements AsyncDisposable {
       ? new ReaderMediaProgressService(options.mediaProgressStore)
       : undefined
     this.#disposeThumbnailStore = options.disposeThumbnailStore
+    this.#disposeSuperResolutionArtifacts = options.disposeSuperResolutionArtifacts
     this.#token = options.token
     this.#baseUrl = options.baseUrl.replace(/\/$/, "")
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
@@ -485,6 +515,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
     this.#media = initialMedia
     this.#colorFilter = options.colorFilter ?? DEFAULT_READER_COLOR_FILTER
+    this.#pageTransition = options.pageTransition ?? DEFAULT_READER_PAGE_TRANSITION
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
     this.#sessionOptions = options.sessionOptions ?? {}
@@ -497,6 +528,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSlideshow = options.updateSlideshow
     this.#updateMedia = options.updateMedia
     this.#updateColorFilter = options.updateColorFilter
+    this.#updatePageTransition = options.updatePageTransition
     this.#updateInputBindings = options.updateInputBindings
     this.#updateRadialMenu = options.updateRadialMenu
   }
@@ -508,6 +540,8 @@ export class ReaderHttpController implements AsyncDisposable {
 
     const assetResponse = await this.#assets.handle(request)
     if (assetResponse) return assetResponse
+    const superResolutionArtifactResponse = await this.#superResolutionArtifacts?.handle(request)
+    if (superResolutionArtifactResponse) return superResolutionArtifactResponse
     const libraryThumbnailResponse = await this.#libraryThumbnails.handle(request)
     if (libraryThumbnailResponse) return libraryThumbnailResponse
     const thumbnailMaintenanceResponse = await this.#thumbnailMaintenance.handle(request)
@@ -634,6 +668,7 @@ export class ReaderHttpController implements AsyncDisposable {
     for (const load of this.#bookMetadataLoads.values()) load.controller.abort()
     this.#bookMetadataLoads.clear()
     this.#assets.close()
+    this.#superResolutionArtifacts?.close()
     this.#libraryThumbnails.close()
     const errors: unknown[] = []
     try {
@@ -698,6 +733,13 @@ export class ReaderHttpController implements AsyncDisposable {
     if (this.#disposeThumbnailStore) {
       try {
         await this.#disposeThumbnailStore()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (this.#disposeSuperResolutionArtifacts) {
+      try {
+        await this.#disposeSuperResolutionArtifacts()
       } catch (error) {
         errors.push(error)
       }
@@ -810,6 +852,27 @@ export class ReaderHttpController implements AsyncDisposable {
       const operation = this.#configUpdateQueue.then(async () => {
         updated = await this.#updateColorFilter!(parsed.patch, parsed.tomlPatch)
         this.#colorFilter = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    if (Object.hasOwn(body, "pageTransition")) {
+      if (!this.#updatePageTransition) return jsonResponse({ error: "Reader page transition config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewPageTransitionPatch>
+      try {
+        parsed = parseNeoviewPageTransitionPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: ReaderPageTransitionSettings | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updatePageTransition!(parsed.patch, parsed.tomlPatch)
+        this.#pageTransition = updated
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
@@ -1023,6 +1086,7 @@ export class ReaderHttpController implements AsyncDisposable {
       slideshow: this.#slideshow,
       media: this.#media,
       colorFilter: this.#colorFilter,
+      pageTransition: this.#pageTransition,
       inputBindings: this.#inputBindings,
       radialMenu: this.#radialMenu,
     }
@@ -1400,6 +1464,7 @@ export class ReaderHttpController implements AsyncDisposable {
 
   async #releaseSession(session: ReaderSession): Promise<void> {
     const errors: unknown[] = []
+    this.#superResolutionArtifacts?.releaseSession(session.id)
     try {
       await this.#service.closeSession(session.id)
     } catch (error) {

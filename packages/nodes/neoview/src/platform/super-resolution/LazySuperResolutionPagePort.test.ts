@@ -28,6 +28,29 @@ describe("LazySuperResolutionPagePort", () => {
     await port[Symbol.asyncDispose]()
   })
 
+  it("[neoview.super-resolution.artifact-lazy] reuses the same lazy capability for artifact execution", async () => {
+    const acquireOrGenerate = vi.fn(async () => ({
+      status: "bypassed" as const,
+      decision: { kind: "run" as const, reason: "test", modelId: "model", scale: 2, useCache: false },
+    }))
+    const load = vi.fn(async () => ({
+      ...capability(vi.fn(), async () => undefined),
+      artifactPages: { acquireOrGenerate },
+    }))
+    const port = new LazySuperResolutionPagePort(load)
+    await expect(port.acquireOrGenerate({
+      page: pageInput().page,
+      trigger: "manual",
+      artifactFor: () => ({
+        key: `neoview:super-resolution:v1:${"a".repeat(43)}`,
+        metadata: { bookKey: "book", contentType: "image/png", extension: "png" },
+      }),
+    })).resolves.toMatchObject({ status: "bypassed" })
+    expect(load).toHaveBeenCalledOnce()
+    expect(acquireOrGenerate).toHaveBeenCalledOnce()
+    await port[Symbol.asyncDispose]()
+  })
+
   it("[neoview.super-resolution.headless-cancel] cancels one waiter without poisoning the shared load", async () => {
     const run = vi.fn(async () => ({ decision: { kind: "skip" as const, reason: "test" } }))
     let resolveLoad!: (value: ReturnType<typeof capability<typeof run>>) => void
