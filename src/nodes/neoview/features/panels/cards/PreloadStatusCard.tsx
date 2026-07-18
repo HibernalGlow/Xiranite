@@ -85,6 +85,7 @@ export function PreloadStatusView({
     ? Math.min(100, Math.max(0, presentation.bytes / presentation.maxBytes * 100))
     : undefined
   const predecodeByPage = new Map(snapshot.entries.map((entry) => [entry.pageIndex, entry.status]))
+  const serverByPage = new Map(diagnostics?.reader?.sessionPreload?.pages.map((entry) => [entry.pageIndex, entry.outcome]) ?? [])
   const nearbyPages = buildNearbyPages(currentPageIndex, totalPages)
   const preload = diagnostics?.reader?.preload
 
@@ -131,6 +132,8 @@ export function PreloadStatusView({
               pageIndex={pageIndex}
               current={pageIndex === currentPageIndex}
               status={predecodeByPage.get(pageIndex)}
+              serverOutcome={serverByPage.get(pageIndex)}
+              serverAvailable={Boolean(diagnostics?.reader?.sessionPreload)}
             />
           ))}
         </div>
@@ -184,8 +187,16 @@ function Metric({ metricId, label, value }: { metricId: string; label: string; v
   )
 }
 
-function PageStatus({ pageIndex, current, status }: { pageIndex: number; current: boolean; status?: ReaderPreloadEntryStatus }) {
-  const label = current ? "当前" : status === "ready" ? "已预解码" : status === "loading" ? "加载中" : status === "failed" ? "失败" : "未预解码"
+function PageStatus({ pageIndex, current, status, serverOutcome, serverAvailable }: {
+  pageIndex: number
+  current: boolean
+  status?: ReaderPreloadEntryStatus
+  serverOutcome?: "started" | "ready" | "failed" | "cancelled" | "evicted"
+  serverAvailable: boolean
+}) {
+  const serverLabel = serverOutcome === "ready" ? "已缓存" : serverOutcome === "started" ? "服务端加载中" : serverOutcome === "failed" ? "服务端失败" : "冷页"
+  const browserLabel = current ? "当前" : status === "ready" ? "已预解码" : status === "loading" ? "加载中" : status === "failed" ? "失败" : "未预解码"
+  const label = serverAvailable ? `${browserLabel}，${serverLabel}` : browserLabel
   return (
     <div
       className={cn(
@@ -198,6 +209,7 @@ function PageStatus({ pageIndex, current, status }: { pageIndex: number; current
       )}
       aria-label={`第 ${pageIndex + 1} 页，${label}`}
       data-preload-nearby-page={pageIndex}
+      data-server-cache-state={serverAvailable ? (serverOutcome === "ready" ? "cached" : serverOutcome === "started" ? "loading" : serverOutcome === "failed" ? "failed" : "cold") : undefined}
     >
       <span className="block text-[10px]">P{pageIndex + 1}</span>
       <span className="block text-[9px]">{label}</span>

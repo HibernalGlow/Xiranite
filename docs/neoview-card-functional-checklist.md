@@ -1346,7 +1346,7 @@
   - 计划测试：`neoview.preload-status.diagnostics-client`
   - 备注：The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; desktop and 420x360 Chromium prove the lease metric and responsive geometry, while complete status still requires CLI/TUI presentation.
 - [ ] `preload.format` 保持内存与百分比格式
-  - 六维：`core=N/A transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Bytes use the legacy 1024 thresholds and B/KB/MB/GB labels, usage renders one decimal place, and missing or zero-capacity metrics degrade without invalid percentages.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
   - 测试：`neoview.preload-status.format`
@@ -1360,12 +1360,12 @@
   - 计划测试：无
   - 备注：The Card renders the clamped three-behind/five-ahead window without loading page content, overlays bounded browser events and passes desktop plus 420x360 Chromium geometry evidence.
 - [ ] `preload.cache-state` 区分服务端缓存与浏览器预解码状态
-  - 六维：`core=N/A transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Server current/cached/cold truth and browser loading/ready/failed predecode state are separately labelled; a page may expose both layers without one being inferred from the other.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
-  - 测试：`neoview.preload-status-store`
-  - 计划测试：`neoview.card.preload-status-live`、`neoview.preload-status.cache-state`、`neoview.preload-status.partial-metrics`
-  - 备注：Browser loading, ready and failed events exist; the server cached/cold window is not connected to the React Card.
+  - 测试：`neoview.preload-status-store`、`neoview.preload.telemetry`、`neoview.preload.telemetry-http`、`neoview.preload.cache-state-client`、`neoview.preload.cache-state`、`neoview.preload-status.e2e`
+  - 计划测试：`neoview.card.preload-status-live`、`neoview.preload-status.partial-metrics`
+  - 备注：The session-scoped diagnostics view projects only bounded page indexes and current-generation preload outcomes: ready is labelled cached, started remains server-loading, failed stays failed, and missing/cancelled/evicted entries are cold. The React nearby grid displays that server layer alongside independent browser loading/ready/failed state without exposing page IDs or paths; CLI/TUI projection remains pending.
 - [ ] `preload.queue-priority` 显示预读队列、优先级与 admission
   - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：The Card truthfully exposes visible, near, ahead, background and separately owned thumbnail work together with normal, reduced and paused admission from the shared scheduler and preload plan.
@@ -1400,7 +1400,7 @@
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
   - 测试：`neoview.card.parallel-core`、`neoview.card.zero-mount`、`neoview.settings.card-layout`、`neoview.preload-status.chunk`、`neoview.preload-status.e2e`
   - 计划测试：无
-  - 备注：The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,857-byte production chunk are gated, including desktop and constrained Chromium.
+  - 备注：The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 7,068-byte production chunk are gated, including desktop and constrained Chromium.
 - [ ] `preload.data-contract` 共享有界 preload 与 diagnostics DTO
   - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：GUI, CLI and TUI share one versioned, path-free contract for session generation, plan, telemetry, bounded performance metrics and server cache capacity with cancellation and stale-result semantics.
@@ -1435,7 +1435,7 @@
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
   - 测试：`neoview.preload-status.e2e`
   - 计划测试：`neoview.preload-status.ui`
-  - 备注：The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending.
+  - 备注：The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with separately labelled server cached/cold and browser predecode states; desktop and constrained screenshots pass.
 - [ ] `preload.image-stability` 状态观察与控制不重挂活动媒体
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Event updates, diagnostics refresh, retry, cancel and clear preserve the active Reader media node and asset URL and issue zero duplicate requests for the active asset.
@@ -1449,7 +1449,7 @@
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/api/pageManager.ts`
   - 测试：`neoview.preload-status-store`、`neoview.preload.performance-telemetry`、`neoview.preload-status.chunk`、`neoview.preload-status.e2e`
   - 计划测试：`neoview.preload-status.poll-budget`
-  - 备注：The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,857-byte chunk; the full Reader performance gate remains pending.
+  - 备注：The browser store and DOM are bounded, session-scoped cache outcomes contain only the current generation's candidate page indexes, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 7,068-byte chunk; the full Reader performance gate remains pending.
 - [ ] `preload.deviations` 记录 XR 三层状态、激活采样与安全控制扩展
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document that legacy Tauri memory/cache polling is replaced by authenticated shared diagnostics, session preload plan/telemetry and a separately labelled browser predecode event store; polling is active-only, errors are sanitized and retryable, queue/admission/cancel/clear controls are frozen-scope extensions, cancel and clear are current-session scoped, and only Card layout is persisted.

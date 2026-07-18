@@ -47,6 +47,7 @@ export interface ReaderPreloadTelemetrySnapshot {
   rejectedReports: number
   duplicateReports: number
   performance: ReaderPreloadPerformanceDiagnostics
+  outcomes: readonly { pageId: string; outcome: ReaderPreloadOutcome }[]
 }
 
 export interface ReaderPreloadDiagnostics {
@@ -155,6 +156,7 @@ export class ReaderPreloadTelemetry {
       rejectedReports: this.#rejectedReports,
       duplicateReports: this.#duplicateReports,
       performance: { ...this.#performance },
+      outcomes: [...this.#states].map(([pageId, outcome]) => ({ pageId, outcome })),
     }
   }
 

@@ -364,7 +364,7 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
@@ -417,22 +417,26 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "partial",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.preload-status-store"
+        "neoview.preload-status-store",
+        "neoview.preload.telemetry",
+        "neoview.preload.telemetry-http",
+        "neoview.preload.cache-state-client",
+        "neoview.preload.cache-state",
+        "neoview.preload-status.e2e"
       ],
       "plannedTestIds": [
         "neoview.card.preload-status-live",
-        "neoview.preload-status.cache-state",
         "neoview.preload-status.partial-metrics"
       ],
-      "notes": "Browser loading, ready and failed events exist; the server cached/cold window is not connected to the React Card."
+      "notes": "The session-scoped diagnostics view projects only bounded page indexes and current-generation preload outcomes: ready is labelled cached, started remains server-loading, failed stays failed, and missing/cancelled/evicted entries are cold. The React nearby grid displays that server layer alongside independent browser loading/ready/failed state without exposing page IDs or paths; CLI/TUI projection remains pending."
     },
     {
       "id": "preload.queue-priority",
@@ -588,7 +592,7 @@
         "neoview.preload-status.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 6,857-byte production chunk are gated, including desktop and constrained Chromium."
+      "notes": "The shared shell, lazy registry, collapse zero-DOM lifecycle and independent 7,068-byte production chunk are gated, including desktop and constrained Chromium."
     },
     {
       "id": "preload.data-contract",
@@ -743,7 +747,7 @@
       "plannedTestIds": [
         "neoview.preload-status.ui"
       ],
-      "notes": "The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with explicit browser predecode labels; desktop and constrained screenshots pass, while server cached/cold parity remains pending."
+      "notes": "The React Card restores the two-column summary, compact memory meter with an explicit active-lease replacement for legacy lockedCount, and the three-column nine-page window with separately labelled server cached/cold and browser predecode states; desktop and constrained screenshots pass."
     },
     {
       "id": "preload.image-stability",
@@ -804,7 +808,7 @@
       "plannedTestIds": [
         "neoview.preload-status.poll-budget"
       ],
-      "notes": "The browser store and DOM are bounded, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 6,857-byte chunk; the full Reader performance gate remains pending."
+      "notes": "The browser store and DOM are bounded, session-scoped cache outcomes contain only the current generation's candidate page indexes, diagnostics poll at most once per two seconds only while mounted, exact active-asset requests remain unchanged in both Chromium viewports, and the Card is an independent 7,068-byte chunk; the full Reader performance gate remains pending."
     },
     {
       "id": "preload.deviations",
