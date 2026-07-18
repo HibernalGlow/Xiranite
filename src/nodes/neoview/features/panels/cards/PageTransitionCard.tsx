@@ -21,8 +21,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 
 import type { ReaderPageTransitionPort } from "../../page-transition/ReaderPageTransitionStore"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
-export default function DockedPageTransitionCard({ pageTransition }: ReaderPanelContext) {
+export default function DockedPageTransitionCard({ pageTransition, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
   if (!pageTransition) return <p className="text-xs text-muted-foreground">翻页动画尚未就绪。</p>
   return <PageTransitionCard store={pageTransition} />
 }

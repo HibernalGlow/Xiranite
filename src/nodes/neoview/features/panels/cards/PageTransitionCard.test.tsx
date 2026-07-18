@@ -53,4 +53,17 @@ describe("PageTransitionCard", () => {
     render(<DockedPageTransitionCard pageTransition={store} disabled client={{} as never} onGoTo={() => undefined} />)
     expect(screen.getByRole("checkbox", { name: "启用翻页动画" }).getAttribute("data-disabled")).toBeNull()
   })
+  it("[neoview.page-transition.inactive-zero-subscription] keeps an empty shell while hidden and subscribes after activation", async () => {
+    const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
+    const subscribe = vi.spyOn(store, "subscribe")
+    const context = { pageTransition: store, disabled: false, client: {} as never, onGoTo: () => undefined }
+    const view = render(<DockedPageTransitionCard {...context} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(subscribe).not.toHaveBeenCalled()
+
+    view.rerender(<DockedPageTransitionCard {...context} panelActive />)
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalled())
+    expect(view.container.querySelector('[data-neoview-card="page-transition"]')).toBeTruthy()
+  })
 })
