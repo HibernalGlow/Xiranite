@@ -888,10 +888,11 @@
       "testIds": [
         "neoview.folder.nav-history",
         "neoview.folder.nav-history-ui",
-        "neoview.folder.nav-history-e2e"
+        "neoview.folder.nav-history-e2e",
+        "neoview.folder.nav-visual-state-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot，details 保存原始 scrollTop 并在虚拟行测量后保持同一行锚点。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖，普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。"
+      "notes": "ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot；grid 额外保存真实 scroller scrollTop，details 保存原始 scrollTop，并在虚拟行测量后恢复。每个访问项最多缓存 256 个缩略图 URL，返回或切换 renderer 时先呈现旧图再后台重校验，失败不会清空整批缓存。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖；在 A 缩略图 POST 人为延迟 8 秒时，返回后相同可见文件仍立即有图且滚动误差不超过 40px。普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。"
     },
     {
       "id": "folder.nav.parent",
@@ -2354,16 +2355,27 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.folder.clipboard-batch-job",
+        "neoview.folder.clipboard-destination",
+        "neoview.folder.clipboard-conflict",
+        "neoview.folder.clipboard-http",
+        "neoview.folder.clipboard-client",
+        "neoview.folder.clipboard-lifecycle",
+        "neoview.folder.clipboard-conflict-ui",
+        "neoview.folder.clipboard-ui",
+        "neoview.folder.clipboard-context",
+        "neoview.folder.clipboard-e2e"
+      ],
       "plannedTestIds": [],
-      "notes": "文件事务服务独立于 React。"
+      "notes": "后端在 Copy/Cut 时立即把 session generation + 稀疏 selection descriptor 解析成不可变批次源，前端不物化 100K 路径；Paste 才通过现有 ReaderFileOperationService 分 256 项启动 copy/move job。复制可重复粘贴，剪切启动一次后即消费；默认 overwrite=false，EEXIST 与其他失败进入 64 项有界样本并继续批次，跨卷 move 由现有 move-file 平台适配器处理。FolderMainCard 顶层 Provider 跨 Panel/标签/侧栏隐藏保留摘要与轮询，完成后只有目标当前目录复用原 browser session refresh。GUI 已覆盖单项菜单、批量选择栏、当前目录工具栏、进度、取消、部分失败和 desktop/420x360 真实文件 copy/move，Card 与阅读图片不重挂。CLI/TUI 现有直接 copy/move 命令复用同一文件事务服务，但稀疏 selection clipboard prepare/paste 生命周期尚未公开。生产模块归属为 FolderMainCard 31,608 bytes、FolderSelectionBar 4,972 bytes、FolderClipboard 独立延迟 chunk 2,487 bytes；NeoView entry 14,440 bytes。"
     },
     {
       "id": "folder.op.copy-metadata",

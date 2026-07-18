@@ -857,6 +857,83 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
   }
 })
 
+test("[neoview.folder.clipboard-e2e] copies and moves files across current-directory views without reloading the File Card", async ({ page }) => {
+  const root = join(fixture.directory, "zz-folder-clipboard")
+  const source = join(root, "source")
+  const copyTarget = join(root, "copied")
+  const moveTarget = join(root, "moved")
+  const first = join(source, "first.cbz")
+  const second = join(source, "second.cbz")
+  await Promise.all([mkdir(source, { recursive: true }), mkdir(copyTarget, { recursive: true }), mkdir(moveTarget, { recursive: true })])
+  await Promise.all([writeFile(first, "first"), writeFile(second, "second")])
+  let browserSessionOpens = 0
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname === "/reader/browser/sessions") browserSessionOpens += 1
+    })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const image = page.locator("img[data-reader-page-image]").first()
+    await expect(image).toBeVisible({ timeout: 20_000 })
+    await image.evaluate((element) => element.setAttribute("data-clipboard-image-instance", "stable"))
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderPane = page.locator('[data-neoview-folder-pane="true"]')
+    await folderPane.evaluate((element) => element.setAttribute("data-clipboard-card-instance", "stable"))
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+
+    const navigatePath = async (path: string) => {
+      const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+      const editPath = breadcrumb.getByRole("button", { name: "编辑路径" })
+      await editPath.focus()
+      await editPath.press("Enter")
+      const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+      await input.fill(path)
+      await input.press("Enter")
+      await expect(breadcrumb.locator('[aria-current="page"]')).toHaveAttribute("title", path)
+    }
+
+    await navigatePath(source)
+    await expect(folderCard).toHaveAttribute("data-selection-total", "2")
+    await folderCard.getByRole("button", { name: "多选模式" }).click()
+    let selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
+    await selectionBar.getByRole("button", { name: "选择全部项目" }).click()
+    await selectionBar.getByRole("button", { name: "复制所选项目" }).click()
+    await expect(selectionBar.getByRole("button", { name: "粘贴到当前目录" })).toBeEnabled()
+    await selectionBar.getByRole("button", { name: "关闭多选模式" }).click()
+
+    await navigatePath(copyTarget)
+    await folderCard.getByRole("button", { name: "粘贴到当前目录" }).click()
+    await expect(folderCard.getByTitle(join(copyTarget, "first.cbz"), { exact: true })).toBeVisible({ timeout: 20_000 })
+    await expect(folderCard.getByTitle(join(copyTarget, "second.cbz"), { exact: true })).toBeVisible()
+    await expect.poll(() => pathExists(join(copyTarget, "first.cbz"))).toBe(true)
+    await expect.poll(() => pathExists(first)).toBe(true)
+
+    await folderCard.getByRole("button", { name: "多选模式" }).click()
+    await folderCard.getByTitle(join(copyTarget, "first.cbz"), { exact: true }).click({ modifiers: ["Control"] })
+    selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+    await selectionBar.getByRole("button", { name: "剪切所选项目" }).click()
+    await selectionBar.getByRole("button", { name: "关闭多选模式" }).click()
+
+    await navigatePath(moveTarget)
+    await folderCard.getByRole("button", { name: "粘贴到当前目录" }).click()
+    await expect(folderCard.getByTitle(join(moveTarget, "first.cbz"), { exact: true })).toBeVisible({ timeout: 20_000 })
+    await expect.poll(() => pathExists(join(copyTarget, "first.cbz"))).toBe(false)
+    await expect.poll(() => pathExists(join(moveTarget, "first.cbz"))).toBe(true)
+    expect(await folderPane.getAttribute("data-clipboard-card-instance")).toBe("stable")
+    expect(await image.getAttribute("data-clipboard-image-instance")).toBe("stable")
+    expect(browserSessionOpens).toBe(1)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.folder.single-click-open-e2e] opens folders and files while modified clicks select", async ({ page }) => {
   const clickRoot = join(fixture.directory, "zz-single-click-open")
   const nested = join(clickRoot, "nested")
@@ -1111,7 +1188,7 @@ test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory vi
     await expect.poll(() => detailsScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(900)
     const firstVisitRow = detailsHost.getByText("history-030.cbz", { exact: true }).locator("xpath=ancestor::tr")
     await expect(firstVisitRow).toBeVisible()
-    await firstVisitRow.click()
+    await firstVisitRow.click({ modifiers: ["Control"] })
     await expect(firstVisitRow).toHaveAttribute("data-state", "selected")
     await detailsScroll.evaluate((element) => {
       element.scrollTop = 960
@@ -1125,7 +1202,7 @@ test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory vi
     await navigatePath(firstPath)
     await folderCard.getByRole("radio", { name: "紧凑列表" }).click()
     const secondVisitItem = folderCard.getByTitle(join(firstPath, "history-000.cbz"), { exact: true })
-    await secondVisitItem.click()
+    await secondVisitItem.click({ modifiers: ["Control"] })
     await expect(secondVisitItem).toHaveAttribute("aria-selected", "true")
 
     await currentBreadcrumb.focus()
@@ -1163,6 +1240,82 @@ test("[neoview.folder.nav-history-e2e] restores each Explorer-style directory vi
     await expect(folderCard.getByRole("button", { name: "前进" })).toBeDisabled()
   } finally {
     await rm(historyRoot, { recursive: true, force: true })
+  }
+})
+
+test("[neoview.folder.nav-visual-state-e2e] restores grid position and cached thumbnails before revalidation", async ({ page }) => {
+  const root = join(fixture.directory, "zz-navigation-visual-state")
+  const firstPath = join(root, "A")
+  const secondPath = join(root, "B")
+  await Promise.all([mkdir(firstPath, { recursive: true }), mkdir(secondPath, { recursive: true })])
+  await Promise.all([
+    ...Array.from({ length: 80 }, (_, index) => writeFile(join(firstPath, `image-${String(index).padStart(3, "0")}.png`), ONE_PIXEL_PNG)),
+    writeFile(join(secondPath, "other.png"), ONE_PIXEL_PNG),
+  ])
+  let delayNextThumbnailBatch = false
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    await page.route("**/reader/library/thumbnails", async (route) => {
+      const request = route.request()
+      const body = request.method() === "POST" ? request.postDataJSON() as { items?: Array<{ path?: string }> } : undefined
+      if (delayNextThumbnailBatch && body?.items?.some((item) => item.path?.startsWith(firstPath))) {
+        delayNextThumbnailBatch = false
+        await new Promise((resolve) => setTimeout(resolve, 8_000))
+      }
+      await route.continue()
+    })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const currentBreadcrumb = breadcrumb.locator('[aria-current="page"]')
+    const navigatePath = async (path: string) => {
+      const edit = breadcrumb.getByRole("button", { name: "编辑路径" })
+      await edit.focus()
+      await edit.press("Enter")
+      const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+      await input.fill(path)
+      await input.press("Enter")
+      await expect(currentBreadcrumb).toHaveAttribute("title", path)
+    }
+
+    await navigatePath(firstPath)
+    await folderCard.getByRole("radio", { name: "封面网格" }).click()
+    const gridScroll = folderCard.locator('[data-testid="virtuoso-scroller"]')
+    await expect(gridScroll).toBeVisible()
+    await gridScroll.evaluate((element) => { element.scrollTop = 1_500; element.dispatchEvent(new Event("scroll")) })
+    await expect.poll(() => gridScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(1_200)
+    await expect.poll(() => folderCard.locator('[data-folder-entry="true"] img').count()).toBeGreaterThan(0)
+    await expect.poll(async () => Number(await folderCard.getAttribute("data-thumbnail-cache-size"))).toBeGreaterThan(0)
+    const savedScrollTop = await gridScroll.evaluate((element) => element.scrollTop)
+    const savedNavigationEntryId = await gridScroll.getAttribute("data-folder-navigation-entry-id")
+    const savedThumbnailPaths = await folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries) => entries
+      .filter((entry) => entry.querySelector("img"))
+      .map((entry) => (entry as HTMLElement).dataset.folderPath)
+      .filter((path): path is string => Boolean(path)))
+
+    await navigatePath(secondPath)
+    delayNextThumbnailBatch = true
+    await folderCard.getByRole("button", { name: "后退" }).click()
+    await expect(currentBreadcrumb).toHaveAttribute("title", firstPath)
+    await expect(gridScroll).toHaveAttribute("data-folder-navigation-entry-id", savedNavigationEntryId!)
+    await expect(gridScroll).toHaveAttribute("data-folder-restore-scroll-top", String(savedScrollTop))
+    await expect.poll(async () => Number(await folderCard.getAttribute("data-restored-thumbnail-cache-size"))).toBeGreaterThan(0)
+    await expect.poll(async () => Math.abs(await gridScroll.evaluate((element) => element.scrollTop) - savedScrollTop)).toBeLessThanOrEqual(40)
+    await expect.poll(async () => {
+      const currentThumbnailPaths = await folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries) => entries
+        .filter((entry) => entry.querySelector("img"))
+        .map((entry) => (entry as HTMLElement).dataset.folderPath))
+      return savedThumbnailPaths.some((path) => currentThumbnailPaths.includes(path))
+    }).toBe(true)
+  } finally {
+    await rm(root, { recursive: true, force: true })
   }
 })
 
@@ -2225,6 +2378,15 @@ test("[neoview.slideshow.config-e2e] loads and persists slideshow controls", asy
   expect(persisted).toContain("random = true")
   expect(persisted).toContain("fade_transition = false")
 })
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch (error) {
+    return Boolean(error && typeof error === "object" && "code" in error && error.code !== "ENOENT")
+  }
+}
 
 const CURRENT_THUMBNAIL_SCHEMA = `
   PRAGMA journal_mode = WAL;

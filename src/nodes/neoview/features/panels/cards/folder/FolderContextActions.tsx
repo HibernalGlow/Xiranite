@@ -1,9 +1,10 @@
-import { BookOpen, BookmarkPlus, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Trash2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Scissors, Trash2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
 import { publishReaderLibraryMutation } from "../../../library/reader-library-mutations"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import { useFolderClipboard } from "./FolderClipboard"
 
 const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
 
@@ -19,6 +20,9 @@ export default function FolderContextActions({
   client,
   disabled,
   copyText,
+  sessionId,
+  generation,
+  currentPath,
   onActivate,
   onOpenInNewTab,
   onOpenAsBook,
@@ -28,12 +32,16 @@ export default function FolderContextActions({
   client: ReaderHttpClient
   disabled: boolean
   copyText?: (text: string) => Promise<void>
+  sessionId?: string
+  generation?: number
+  currentPath?: string
   onActivate(entry: FolderContextEntry): void | Promise<void>
   onOpenInNewTab(path: string): void
   onOpenAsBook?: (path: string) => void | Promise<void>
   onRenamed?(destinationPath: string): void | Promise<void>
   onTrashed?(entry: FolderContextEntry): void | Promise<void>
 }) {
+  const clipboard = useFolderClipboard()
   const contextMenu = useContextMenu()
   const operationRef = useRef<AbortController>()
   const [pending, setPending] = useState(false)
@@ -79,6 +87,30 @@ export default function FolderContextActions({
           operationRef.current = undefined
           setPending(false)
         }
+      }
+      return
+    }
+    if (action === "copy" || action === "cut") {
+      if (!sessionId || generation === undefined) return
+      try {
+        await clipboard.prepare(sessionId, {
+          generation,
+          allSelected: false,
+          ranges: [],
+          explicit: [{ path: entry.path, index: entry.index }],
+        }, action === "copy" ? "copy" : "move")
+      } catch {
+        // The shared clipboard surface owns accessible failure feedback.
+      }
+      return
+    }
+    if (action === "paste") {
+      const destinationPath = entry.kind === "directory" ? entry.path : currentPath
+      if (!destinationPath) return
+      try {
+        await clipboard.paste(destinationPath)
+      } catch {
+        // The shared clipboard surface owns accessible failure feedback.
       }
       return
     }
@@ -156,6 +188,8 @@ export default function FolderContextActions({
       disabled,
       pending,
       canCopyText: Boolean(copyText),
+      canClipboard: Boolean(sessionId && generation !== undefined && client.prepareDirectoryClipboard),
+      canPaste: clipboard.clipboard.available && Boolean(client.pasteDirectoryClipboard),
       canOpenSystem: Boolean(client.openSystemPath),
       canReveal: Boolean(client.revealSystemPath),
       canOpenAsBook: Boolean(onOpenAsBook),
@@ -186,7 +220,7 @@ export default function FolderContextActions({
   )
 }
 
-type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy-path" | "copy-name" | "toggle-bookmark" | "rename" | "trash"
+type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "rename" | "trash"
 
 export function buildFolderContextMenuItems(
   entry: FolderContextEntry,
@@ -194,6 +228,8 @@ export function buildFolderContextMenuItems(
     disabled: boolean
     pending: boolean
     canCopyText: boolean
+    canClipboard: boolean
+    canPaste: boolean
     canOpenSystem: boolean
     canReveal: boolean
     canOpenAsBook: boolean
@@ -223,6 +259,10 @@ export function buildFolderContextMenuItems(
   items.push(
     { id: "neoview-folder-system-open", label: "用默认软件打开", icon: <ExternalLink />, disabled: unavailable || !options.canOpenSystem, onSelect: () => options.onAction("system-open", entry) },
     { id: "neoview-folder-reveal", label: "在资源管理器中显示", icon: <FolderOpen />, disabled: unavailable || !options.canReveal, onSelect: () => options.onAction("reveal", entry) },
+    { type: "separator" },
+    { id: "neoview-folder-copy", label: "复制", icon: <Copy />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("copy", entry) },
+    { id: "neoview-folder-cut", label: "剪切", icon: <Scissors />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("cut", entry) },
+    { id: "neoview-folder-paste", label: entry.kind === "directory" ? "粘贴到此文件夹" : "粘贴到当前文件夹", icon: <ClipboardPaste />, disabled: unavailable || !options.canPaste, onSelect: () => options.onAction("paste", entry) },
     { type: "separator" },
     { id: "neoview-folder-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", entry) },
     { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },

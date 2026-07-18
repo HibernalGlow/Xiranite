@@ -115,6 +115,39 @@ describe("ReaderFileOperationHttpController", () => {
     expect(response?.status).toBe(409)
     expect(load).not.toHaveBeenCalled()
   })
+
+  it("[neoview.folder.clipboard-http] captures an immutable sparse source and pastes copy or consumes move", async () => {
+    const execute = vi.fn(async () => undefined)
+    const source = createReaderDirectorySelectionBatchSource(directoryEntries(3), 7, {
+      generation: 7,
+      allSelected: true,
+      ranges: [],
+      explicit: [],
+    })
+    const controller = new ReaderFileOperationHttpController(
+      async () => new ReaderFileOperationService({ execute }),
+      vi.fn(async () => source),
+    )
+    const selection = { generation: 7, allSelected: true, ranges: [], explicit: [] }
+
+    const copied = await controller.handle(jsonRequest({ sessionId: "browser-1", selection, mode: "copy" }, "/reader/files/clipboard"))
+    expect(copied?.status).toBe(201)
+    expect(await copied?.json()).toMatchObject({ available: true, mode: "copy", total: 3, generation: 7 })
+    const copyPaste = await controller.handle(jsonRequest({ destinationPath: absolute("copy-target") }, "/reader/files/clipboard/paste"))
+    expect(copyPaste?.status).toBe(202)
+    const copyJob = await copyPaste?.json() as { id: string }
+    await vi.waitFor(async () => {
+      const response = await controller.handle(new Request(`http://127.0.0.1/reader/files/selection-operations/${copyJob.id}`))
+      expect(await response?.json()).toMatchObject({ status: "completed", succeeded: 3 })
+    })
+    expect(await (await controller.handle(new Request("http://127.0.0.1/reader/files/clipboard")))?.json()).toMatchObject({ available: true, mode: "copy" })
+
+    await controller.handle(jsonRequest({ sessionId: "browser-1", selection, mode: "move" }, "/reader/files/clipboard"))
+    const movePaste = await controller.handle(jsonRequest({ destinationPath: absolute("move-target") }, "/reader/files/clipboard/paste"))
+    expect(movePaste?.status).toBe(202)
+    expect(await (await controller.handle(new Request("http://127.0.0.1/reader/files/clipboard")))?.json()).toEqual({ available: false })
+    await controller.close()
+  })
 })
 
 function jsonRequest(body: unknown, path = "/reader/files/operations"): Request {

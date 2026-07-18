@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { basename, isAbsolute, join } from "node:path"
 
 import type { ReaderDirectorySelectionBatchSource } from "../browser/ReaderDirectorySelection.js"
 import type {
@@ -11,12 +12,13 @@ const MAX_ACTIVE_JOBS = 4
 const MAX_RETAINED_JOBS = 16
 const MAX_FAILURE_SAMPLES = 64
 
-export type ReaderDirectorySelectionOperationKind = "delete" | "trash"
+export type ReaderDirectorySelectionOperationKind = "copy" | "move" | "delete" | "trash"
 export type ReaderDirectorySelectionOperationStatus = "running" | "completed" | "cancelled" | "failed"
 
 export interface ReaderDirectorySelectionOperationSnapshot {
   id: string
   kind: ReaderDirectorySelectionOperationKind
+  destinationPath?: string
   status: ReaderDirectorySelectionOperationStatus
   generation: number
   total: number
@@ -48,9 +50,15 @@ export class ReaderDirectorySelectionOperationService implements AsyncDisposable
   start(
     source: ReaderDirectorySelectionBatchSource,
     kind: ReaderDirectorySelectionOperationKind,
+    destinationPath?: string,
   ): ReaderDirectorySelectionOperationSnapshot {
     this.#assertOpen()
-    if (kind !== "delete" && kind !== "trash") throw new TypeError("Reader selection operation kind is invalid.")
+    if (kind !== "copy" && kind !== "move" && kind !== "delete" && kind !== "trash") {
+      throw new TypeError("Reader selection operation kind is invalid.")
+    }
+    if ((kind === "copy" || kind === "move") && (!destinationPath || !isAbsolute(destinationPath) || destinationPath.includes("\0"))) {
+      throw new TypeError(`Reader ${kind} selection operation requires an absolute destinationPath.`)
+    }
     if (source.selectedCount < 1) throw new RangeError("Reader selection operation requires at least one selected entry.")
     if (this.#activeJobCount() >= MAX_ACTIVE_JOBS) {
       throw new Error(`Reader selection operations cannot exceed ${MAX_ACTIVE_JOBS} active jobs.`)
@@ -60,6 +68,7 @@ export class ReaderDirectorySelectionOperationService implements AsyncDisposable
     const job: SelectionOperationJob = {
       id,
       kind,
+      destinationPath,
       status: "running",
       generation: source.generation,
       total: source.selectedCount,
@@ -114,7 +123,9 @@ export class ReaderDirectorySelectionOperationService implements AsyncDisposable
     try {
       for (const entries of source.batches(OPERATION_BATCH_SIZE, job.controller.signal)) {
         const result = await this.fileOperations.execute({
-          operations: entries.map((entry) => ({ kind: job.kind, sourcePath: entry.path })),
+          operations: entries.map((entry) => job.kind === "copy" || job.kind === "move"
+            ? { kind: job.kind, sourcePath: entry.path, destinationPath: join(job.destinationPath!, basename(entry.path)), overwrite: false }
+            : { kind: job.kind, sourcePath: entry.path }),
           signal: job.controller.signal,
         })
         job.processed += result.results.length
@@ -165,6 +176,7 @@ function snapshotOf(job: SelectionOperationJob): ReaderDirectorySelectionOperati
   return {
     id: job.id,
     kind: job.kind,
+    destinationPath: job.destinationPath,
     status: job.status,
     generation: job.generation,
     total: job.total,

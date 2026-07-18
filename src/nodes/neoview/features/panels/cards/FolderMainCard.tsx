@@ -6,7 +6,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, ClipboardPaste, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -77,6 +77,7 @@ import {
   type DirectorySelectionModel,
 } from "./folder/DirectorySelection"
 import { FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
+import { FolderClipboardProvider, useFolderClipboard } from "./folder/FolderClipboard"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import {
   EMPTY_VIRTUOSO_COMPONENTS,
@@ -89,6 +90,7 @@ import {
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
 const MAX_THUMBNAILS = 64
+const MAX_CACHED_THUMBNAIL_URLS = 256
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const LIST_HEIGHT = 288
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
@@ -159,7 +161,9 @@ export interface SavedDirectoryState {
   anchorIndex: number
   listSnapshot?: StateSnapshot
   gridSnapshot?: GridStateSnapshot
+  gridScrollTop?: number
   detailsScrollTop?: number
+  thumbnailUrls?: ReadonlyMap<string, string>
 }
 
 export interface FolderBrowserCloneSnapshot {
@@ -180,13 +184,16 @@ export default function FolderMainCard(context: ReaderPanelContext) {
       }
     : DEFAULT_FOLDER_VIEW
   return (
-    <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
-      <FolderTabsHost context={context} folderView={folderView} BrowserPane={FolderBrowserPane} />
-    </Suspense>
+    <FolderClipboardProvider client={context.client}>
+      <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
+        <FolderTabsHost context={context} folderView={folderView} BrowserPane={FolderBrowserPane} />
+      </Suspense>
+    </FolderClipboardProvider>
   )
 }
 
 function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+  const clipboard = useFolderClipboard()
   const pendingInitialCloneRef = useRef(initialClone)
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
@@ -199,11 +206,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const thumbnailContextSequenceRef = useRef(0)
   const thumbnailContextRef = useRef<string | undefined>(undefined)
   const thumbnailSignatureRef = useRef("")
+  const clipboardCompletionRef = useRef<string>()
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const listRef = useRef<VirtuosoHandle>(null)
   const gridRef = useRef<VirtuosoGridHandle>(null)
   const listHostRef = useRef<HTMLDivElement>(null)
   const gridSnapshotRef = useRef<GridStateSnapshot | undefined>(undefined)
+  const gridScrollTopRef = useRef(0)
   const detailsScrollTopRef = useRef(0)
   const focusedIndexRef = useRef<number | undefined>(undefined)
   const chainAnchorIndexRef = useRef<number | undefined>(undefined)
@@ -263,6 +272,16 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
 
   useEffect(() => {
+    const completed = clipboard.lastCompleted
+    if (!completed || clipboardCompletionRef.current === completed.id) return
+    clipboardCompletionRef.current = completed.id
+    const current = catalogRef.current
+    if (completed.destinationPath && current && sameFolderPath(completed.destinationPath, current.path)) {
+      void navigate({ action: "refresh" }, { keepTree: true })
+    }
+  }, [clipboard.lastCompleted?.id])
+
+  useEffect(() => {
     if (!active || !catalog || !viewUsesThumbnails(viewMode)) return
     registerVisibleThumbnails()
   }, [active, catalog?.sessionId, catalog?.generation, viewMode, previewCount])
@@ -301,12 +320,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       request.signal,
     ).then((batch) => {
       if (request.signal.aborted || generation !== thumbnailGenerationRef.current) return
-      setThumbnailUrls(new Map(batch.items.flatMap((item) => {
+      const resolved = batch.items.flatMap((item) => {
         const path = pathById.get(item.id)
         return path ? [[path, item.thumbnailUrl] as const] : []
-      })))
-    }).catch((cause) => {
-      if (!request.signal.aborted && !isAbortError(cause)) setThumbnailUrls(new Map())
+      })
+      setThumbnailUrls((currentUrls) => mergeThumbnailUrls(currentUrls, resolved, MAX_CACHED_THUMBNAIL_URLS))
+    }).catch(() => {
+      // Keep the bounded visit cache visible when background revalidation fails.
     })
   }
 
@@ -410,7 +430,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     catalogRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
     releaseThumbnailContext()
-    setThumbnailUrls(new Map())
     const next = createDirectoryCatalog(page)
     chainAnchorIndexRef.current = undefined
     commitCatalog(next)
@@ -442,6 +461,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       restored = { ...restored, total: page.total, listSnapshot: undefined, gridSnapshot: undefined }
     }
     gridSnapshotRef.current = restored.gridSnapshot
+    gridScrollTopRef.current = restored.gridScrollTop ?? 0
     detailsScrollTopRef.current = restored.detailsScrollTop ?? 0
     focusedIndexRef.current = restored.focusedIndex
     setFocusedIndex(restored.focusedIndex)
@@ -449,6 +469,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setPreviewCount(restored.previewCount)
     setMultiSelectMode(restored.multiSelectMode)
     setRestoreState(restored)
+    setThumbnailUrls(restored.thumbnailUrls ?? new Map())
     setSelection(restored.selection)
     setFocusedPath(restored.focusedPath)
   }
@@ -570,7 +591,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       focusedIndex: focusedIndexRef.current,
       anchorIndex: range.startIndex,
       gridSnapshot: viewUsesGrid(viewMode) ? gridSnapshotRef.current : undefined,
+      gridScrollTop: viewUsesGrid(viewMode) ? gridScrollTopRef.current : undefined,
       detailsScrollTop: viewMode === "details" ? detailsScrollTopRef.current : undefined,
+      thumbnailUrls: viewUsesThumbnails(viewMode) ? thumbnailUrls : undefined,
     }
     return { current, state }
   }
@@ -641,11 +664,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       focusedPath,
       focusedIndex: focusedIndexRef.current,
       anchorIndex,
+      thumbnailUrls,
     }
     if (current) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, nextState)
     if (!viewUsesThumbnails(next)) {
       releaseThumbnailContext()
-      setThumbnailUrls(new Map())
     }
     setRestoreState(nextState)
     setViewMode(next)
@@ -865,6 +888,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       data-folder-tab-position={tabLayout.layout}
       data-selection-count={selectedCount}
       data-selection-total={catalog?.total ?? 0}
+      data-thumbnail-cache-size={thumbnailUrls.size}
+      data-restored-thumbnail-cache-size={restoreState?.thumbnailUrls?.size ?? 0}
       data-selection-ranges={selection.ranges.length}
       data-selection-all={selection.allSelected || undefined}
       onContextMenuCapture={(event) => {
@@ -913,6 +938,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             client={client}
             disabled={disabled || loading}
             copyText={systemActions?.copyText}
+            sessionId={catalog?.sessionId}
+            generation={catalog?.generation}
+            currentPath={catalog?.path}
             onActivate={activate}
             onOpenInNewTab={onOpenInNewTab}
             onOpenAsBook={onOpen}
@@ -972,6 +1000,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             <Home />
           </BrowserButton>
           <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
+          <BrowserButton
+            label={clipboard.operation?.status === "running" ? `正在粘贴 ${clipboard.operation.processed} / ${clipboard.operation.total}` : "粘贴到当前目录"}
+            disabled={!catalog || loading || !clipboard.clipboard.available || clipboard.operation?.status === "running"}
+            onClick={() => { if (catalog) void clipboard.paste(catalog.path) }}
+          >
+            <ClipboardPaste />
+          </BrowserButton>
           <BrowserButton
             label={multiSelectMode ? "退出多选" : "多选模式"}
             disabled={!catalog || loading}
@@ -1123,6 +1158,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             selection={directorySelectionDescriptor(selection)}
             selectedCount={selectedCount}
             total={catalog.total}
+            currentPath={catalog.path}
             disabled={disabled || loading}
             chainSelectMode={chainSelectMode}
             clickBehavior={checkModeClickBehavior}
@@ -1148,6 +1184,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         </Suspense>
       ) : null}
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
+      {active && clipboard.feedback ? (
+        <div role={clipboard.feedback.kind} className={clipboard.feedback.kind === "alert" ? "rounded bg-destructive/10 px-2 py-1 text-xs text-destructive" : "sr-only"}>
+          {clipboard.feedback.text}
+        </div>
+      ) : null}
       <div
         className="grid min-h-0 overflow-hidden"
         style={{
@@ -1271,9 +1312,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               showReturnFooter={showReturnFooter}
               returnFooterContext={returnFooterContext}
               restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
+              initialScrollTop={restoreState?.viewMode === viewMode ? restoreState.gridScrollTop : undefined}
               initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.gridSnapshot ? restoreIndex : undefined}
               onRangeChange={requestRange}
               onStateChange={(snapshot) => { gridSnapshotRef.current = snapshot }}
+              onScrollTopChange={(scrollTop) => { gridScrollTopRef.current = scrollTop }}
               onSelect={selectEntry}
             />
           </Suspense>
@@ -1339,4 +1382,28 @@ interface DirectoryItemProps {
 
 function BrowserButton({ label, disabled = false, clickDisabled = false, active = false, onClick, onContextMenu, children }: { label: string; disabled?: boolean; clickDisabled?: boolean; active?: boolean; onClick(): void; onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void; children: ReactNode }) {
   return <Button type="button" size="icon-sm" variant={active ? "default" : "ghost"} aria-label={label} title={label} aria-disabled={disabled || clickDisabled} aria-pressed={active || undefined} disabled={disabled} onClick={() => { if (!clickDisabled) onClick() }} onContextMenu={onContextMenu}>{children}</Button>
+}
+
+export function mergeThumbnailUrls(
+  current: ReadonlyMap<string, string>,
+  additions: readonly (readonly [string, string])[],
+  maximum: number,
+): ReadonlyMap<string, string> {
+  if (!additions.length) return current
+  const next = new Map(current)
+  for (const [path, url] of additions) {
+    next.delete(path)
+    next.set(path, url)
+  }
+  while (next.size > maximum) next.delete(next.keys().next().value as string)
+  return next
+}
+
+function sameFolderPath(left: string, right: string): boolean {
+  const normalize = (value: string) => value.replaceAll("\\", "/").replace(/\/+$/u, "")
+  const normalizedLeft = normalize(left)
+  const normalizedRight = normalize(right)
+  return /^[a-z]:/iu.test(normalizedLeft) || /^[a-z]:/iu.test(normalizedRight)
+    ? normalizedLeft.toLocaleLowerCase("en-US") === normalizedRight.toLocaleLowerCase("en-US")
+    : normalizedLeft === normalizedRight
 }

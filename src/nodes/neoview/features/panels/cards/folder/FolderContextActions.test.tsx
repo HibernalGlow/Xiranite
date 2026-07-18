@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ContextMenuProvider } from "@/components/context-menu"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderContextActions, { buildFolderContextMenuItems, folderContextEntry } from "./FolderContextActions"
+import { FolderClipboardProvider } from "./FolderClipboard"
 
 afterEach(cleanup)
 
@@ -83,12 +84,63 @@ describe("FolderContextActions", () => {
     await waitFor(() => expect(openSystemPath).toHaveBeenCalledWith("D:/library/readme.txt", expect.any(AbortSignal)))
   })
 
+  it("[neoview.folder.clipboard-context] copies one concrete entry and pastes into a directory", async () => {
+    const prepared = { available: true as const, mode: "copy" as const, generation: 3, total: 1, createdAt: 1 }
+    const prepareDirectoryClipboard = vi.fn(async () => prepared)
+    const pasteDirectoryClipboard = vi.fn(async () => ({
+      id: "copy-1", kind: "copy" as const, destinationPath: "D:/library/series", status: "completed" as const,
+      generation: 3, total: 1, processed: 1, succeeded: 1, failed: 0, cancelled: 0,
+      failureSamples: [], failureSamplesTruncated: false, startedAt: 1, completedAt: 2,
+    }))
+    const client = clientWith({ prepareDirectoryClipboard, pasteDirectoryClipboard })
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderClipboardProvider client={client}>
+          <FolderContextActions
+            client={client}
+            disabled={false}
+            sessionId="browser-1"
+            generation={3}
+            currentPath="D:/library"
+            onActivate={vi.fn()}
+            onOpenInNewTab={vi.fn()}
+          />
+          <button
+            data-context-menu="neoview-folder-entry"
+            data-folder-index="4"
+            data-folder-path="D:/library/series"
+            data-folder-name="series"
+            data-folder-kind="directory"
+            data-folder-reader-supported="true"
+          >series</button>
+        </FolderClipboardProvider>
+      </ContextMenuProvider>,
+    )
+
+    const target = screen.getByRole("button", { name: "series" })
+    fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "复制" }))
+    await waitFor(() => expect(prepareDirectoryClipboard).toHaveBeenCalledWith("browser-1", {
+      generation: 3,
+      allSelected: false,
+      ranges: [],
+      explicit: [{ path: "D:/library/series", index: 4 }],
+    }, "copy"))
+
+    fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "粘贴到此文件夹" }))
+    await waitFor(() => expect(pasteDirectoryClipboard).toHaveBeenCalledWith("D:/library/series"))
+  })
+
   it("[neoview.folder.context-data] rejects incomplete DOM payloads and preserves capability disabled states", () => {
     expect(folderContextEntry({ folderIndex: "x", folderPath: "D:/x", folderName: "x", folderKind: "file" })).toBeUndefined()
     const items = buildFolderContextMenuItems({ index: 0, path: "D:/x.cbz", name: "x.cbz", kind: "file", readerSupported: true }, {
       disabled: false,
       pending: false,
       canCopyText: false,
+      canClipboard: false,
+      canPaste: false,
       canOpenSystem: false,
       canReveal: false,
       canOpenAsBook: false,
@@ -101,7 +153,7 @@ describe("FolderContextActions", () => {
     expect(items.find((item) => item.id === "neoview-folder-system-open")?.disabled).toBe(true)
     expect(items.find((item) => item.id === "neoview-folder-reveal")?.disabled).toBe(true)
     expect(items.find((item) => item.id === "neoview-folder-copy-path")?.disabled).toBe(true)
-    expect(items.find((item) => item.id === "neoview-folder-add-bookmark")?.disabled).toBe(true)
+    expect(items.find((item) => item.id === "neoview-folder-toggle-bookmark")?.disabled).toBe(true)
     expect(items.find((item) => item.id === "neoview-folder-rename")?.disabled).toBe(true)
   })
 
@@ -137,7 +189,7 @@ describe("FolderContextActions", () => {
     )
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "series" }), { clientX: 20, clientY: 30 })
-    await user.click(await screen.findByRole("menuitem", { name: "添加到书签" }))
+    await user.click(await screen.findByRole("menuitem", { name: "添加/移除书签" }))
 
     await waitFor(() => expect(saveBookmark).toHaveBeenCalledWith({
       source: { kind: "path", path: "D:/library/series" },
@@ -179,7 +231,7 @@ describe("FolderContextActions", () => {
     )
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "target.cbz" }), { clientX: 20, clientY: 30 })
-    await user.click(await screen.findByRole("menuitem", { name: "添加到书签" }))
+    await user.click(await screen.findByRole("menuitem", { name: "添加/移除书签" }))
     await waitFor(() => expect(saveBookmark).toHaveBeenCalledWith(expect.objectContaining({
       source: { kind: "path", path: "D:/library/target.cbz" },
       kind: "file",
@@ -336,10 +388,12 @@ describe("FolderContextActions", () => {
   })
 })
 
-function clientWith(actions: Partial<Pick<ReaderHttpClient, "openSystemPath" | "revealSystemPath" | "saveBookmark" | "executeFileOperations">>): ReaderHttpClient {
+function clientWith(actions: Partial<Pick<ReaderHttpClient, "openSystemPath" | "revealSystemPath" | "saveBookmark" | "executeFileOperations" | "prepareDirectoryClipboard" | "pasteDirectoryClipboard">>): ReaderHttpClient {
   return {
     config: vi.fn(), updateSidebarLayout: vi.fn(), updateCardLayout: vi.fn(), updateBoardLayout: vi.fn(), updateViewDefaults: vi.fn(),
     updateSlideshow: vi.fn(), open: vi.fn(), listPages: vi.fn(), navigate: vi.fn(), goTo: vi.fn(), updateSessionOptions: vi.fn(), close: vi.fn(),
+    findBookmarkByPath: vi.fn(async () => undefined),
+    removeBookmark: vi.fn(async () => undefined),
     ...actions,
   }
 }
