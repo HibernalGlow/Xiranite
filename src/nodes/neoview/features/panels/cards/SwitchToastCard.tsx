@@ -329,11 +329,11 @@ function DraftTextarea({ label, value, placeholder, className, onCommit }: {
 function VariableTable({ values }: { values: readonly (readonly [string, string])[] }) {
   return (
     <div className="mt-1 overflow-hidden rounded-md border bg-background/60">
-      <Table className="w-full text-[11px]">
+      <Table className="w-full table-fixed text-[11px]" data-switch-toast-variable-table="true">
         <TableHeader><TableRow><TableHead className="h-auto w-28 px-2 py-1">变量</TableHead><TableHead className="h-auto px-2 py-1">说明</TableHead></TableRow></TableHeader>
         <TableBody>
           {values.map(([variable, description]) => (
-            <TableRow key={variable}><TableCell className="px-2 py-1 font-mono">{variable}</TableCell><TableCell className="px-2 py-1">{description}</TableCell></TableRow>
+            <TableRow key={variable}><TableCell className="break-all px-2 py-1 font-mono">{variable}</TableCell><TableCell className="break-words px-2 py-1">{description}</TableCell></TableRow>
           ))}
         </TableBody>
       </Table>
