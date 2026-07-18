@@ -1161,7 +1161,7 @@
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
 | `preloadStatus` | 预加载状态 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/PreloadStatusCard.svelte` | 预读、渐进加载、流传输和全局调度；XR `preload-status` |
-| `bookInfo` | 书籍信息 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/BookInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `book-information` |
+| `bookInfo` | 书籍信息 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/BookInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `book-information` |
 | `infoOverlay` | 信息悬浮窗 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/InfoOverlayCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
 | `imageInfo` | 图像信息 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `image-information` |
 | `storage` | 存储信息 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/StorageCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `storage-information` |
@@ -1559,26 +1559,26 @@
 ##### 专用源码级验收项
 
 - [ ] `book.primary-title` 显示规范书籍名称
-  - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：The Card displays the current book display name with full-value tooltip and bounded wrapping.
   - 源码：`src/lib/cards/info/BookInfoCard.svelte`
-  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.headless-contract`、`neoview.book-information.e2e`
+  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.headless-contract`、`neoview.book-information.projection`、`neoview.book-information.cli-projection`、`neoview.tui.reader`、`neoview.book-information.e2e`
   - 计划测试：无
-  - 备注：Original displayName remains the canonical fallback.
+  - 备注：Original displayName remains the canonical fallback through the shared browser-safe projection used by React, CLI and TUI.
 - [ ] `book.translated-title` 优先显示有效 EMM 译名
-  - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：A bounded non-empty translated_title from the exact legacy EMM book record becomes the emphasized primary title.
   - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/stores/emmMetadata.svelte.ts`
-  - 测试：`neoview.book-information.emm-codec`、`neoview.book-information.emm-sqlite`、`neoview.book-information.shared-contract`、`neoview.book-information.headless-contract`、`neoview.book-information.legacy-fields`、`neoview.book-information.e2e`
+  - 测试：`neoview.book-information.emm-codec`、`neoview.book-information.emm-sqlite`、`neoview.book-information.shared-contract`、`neoview.book-information.headless-contract`、`neoview.book-information.projection`、`neoview.book-information.cli-projection`、`neoview.tui.reader`、`neoview.book-information.legacy-fields`、`neoview.book-information.e2e`
   - 计划测试：无
-  - 备注：Only a trimmed title up to 4096 characters crosses the shared DTO; raw emm_json and tags never do.
+  - 备注：Only a trimmed title up to 4096 characters crosses the shared DTO; React, CLI and TUI use it as the same preferred title while raw emm_json and tags never cross the boundary.
 - [x] `book.original-title` 条件显示原名
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：The original-name row appears only when the normalized translated title differs from displayName.
   - 源码：`src/lib/cards/info/BookInfoCard.svelte`
-  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
+  - 测试：`neoview.book-information.legacy-fields`、`neoview.book-information.projection`、`neoview.book-information.cli-projection`、`neoview.tui.reader`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
   - 计划测试：无
-  - 备注：Equal, empty or malformed translations do not duplicate the name.
+  - 备注：Equal, empty or malformed translations do not duplicate the name; CLI emits Original title only for a distinct translation and TUI keeps the translated primary title compact.
 - [ ] `book.path` 显示规范书源路径
   - 六维：`core=N/A transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：The Card exposes the canonical opened book source path, not an uncommitted input value or archive entry path.
@@ -1587,26 +1587,26 @@
   - 计划测试：无
   - 备注：GUI wraps the full canonical path; headless surfaces intentionally redact local absolute paths while sharing source kind and title.
 - [ ] `book.type` 保留完整书源类型语义
-  - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：folder, archive, PDF, EPUB, media, image and unknown sources have stable shared type semantics and legacy labels.
   - 源码：`src/lib/cards/info/BookInfoCard.svelte`
-  - 测试：`neoview.book-information.shared-contract`、`neoview.book-information.headless-contract`、`neoview.book-information.legacy-fields`、`neoview.book-information.e2e`
+  - 测试：`neoview.book-information.shared-contract`、`neoview.book-information.headless-contract`、`neoview.book-information.projection`、`neoview.book-information.cli-projection`、`neoview.tui.reader`、`neoview.book-information.legacy-fields`、`neoview.book-information.e2e`
   - 计划测试：无
-  - 备注：The shared contract preserves document format instead of collapsing PDF and EPUB.
+  - 备注：The shared projection preserves folder, archive, path/file, PDF, EPUB, media, image, document and unknown labels across React, CLI and TUI.
 - [ ] `book.pagination` 显示 1-based 当前页与总页数
-  - 六维：`core=N/A transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=N/A transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Current page and page count derive from the active frame and update after navigation.
   - 源码：`src/lib/cards/info/BookInfoCard.svelte`
-  - 测试：`neoview.metadata.http`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
+  - 测试：`neoview.metadata.http`、`neoview.book-information.projection`、`neoview.book-information.cli-projection`、`neoview.tui.reader`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
   - 计划测试：无
-  - 备注：Zero-page books remain representable and navigation updates the frame-derived value.
+  - 备注：The shared projection clamps a 1-based current page, preserves 0 / 0 for empty books and updates CLI/TUI from the same active frame used by React.
 - [ ] `book.progress` 计算有界一位小数进度
-  - 六维：`core=N/A transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=N/A transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Progress clamps current to total, renders one decimal for non-empty books and an em dash for zero pages.
   - 源码：`src/lib/cards/info/BookInfoCard.svelte`
-  - 测试：`neoview.metadata.http`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
+  - 测试：`neoview.metadata.http`、`neoview.book-information.projection`、`neoview.book-information.projection-zero`、`neoview.book-information.cli-projection`、`neoview.tui.reader`、`neoview.book-information.zero-pages`、`neoview.book-information.e2e`
   - 计划测试：无
-  - 备注：The backend omits progress for zero pages and clamps the numerator before the GUI formats one decimal.
+  - 备注：React, CLI and TUI share the same clamped one-decimal percentage and em dash for zero-page books; the TUI ProgressBar consumes the projected percentage rather than recomputing it.
 - [ ] `book.states` 加载、空、错误与重试
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The Card has stable loading, empty, error and retry states and never presents stale book metadata as current.
@@ -1622,12 +1622,12 @@
   - 计划测试：无
   - 备注：The actions belong to the shared Info Panel, use host/authenticated capabilities and expose live feedback.
 - [ ] `book.data-contract` 共享有界静态书籍元数据契约
-  - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：GUI, CLI and TUI share source identity, source format, page count and a bounded translated title loaded once per session book identity.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/emmMetadata.svelte.ts`、`src/lib/services/metadataService.ts`
-  - 测试：`neoview.book-information.emm-codec`、`neoview.book-information.emm-path`、`neoview.book-information.emm-sqlite`、`neoview.book-information.shared-contract`、`neoview.metadata.http`、`neoview.book-information.headless-contract`
+  - 测试：`neoview.book-information.emm-codec`、`neoview.book-information.emm-path`、`neoview.book-information.emm-sqlite`、`neoview.book-information.shared-contract`、`neoview.metadata.http`、`neoview.book-information.headless-contract`、`neoview.book-information.legacy-fields`、`neoview.book-information.projection`、`neoview.book-information.projection-zero`、`neoview.book-information.cli-projection`、`neoview.tui.reader`
   - 计划测试：无
-  - 备注：One application service serves HTTP and local headless surfaces without a second database, raw EMM JSON or image decode path.
+  - 备注：One application service serves HTTP and local headless snapshots without a second database, raw EMM JSON or image decode path; a browser-safe pure projection now provides identical title, original-title, type, page and progress semantics to React, CLI and TUI.
 - [ ] `book.lifecycle` 会话切换、去重、取消与释放
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Hidden/unmounted Cards do no work; static book metadata is deduplicated; generation and session changes cannot publish stale values; close releases pending work.
@@ -1641,7 +1641,7 @@
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
   - 测试：`neoview.card.collapse`、`neoview.card.resize-patch`、`neoview.settings.card-layout`
   - 计划测试：`neoview.book-information.lazy-chunk`
-  - 备注：Book remains non-hideable in the manifest and builds as an independent 2655-byte deferred chunk.
+  - 备注：Book remains non-hideable in the manifest and builds as an independent 2,480-byte deferred chunk.
 - [ ] `book.persistence` 仅持久化共享 Card 布局
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Book content has no settings; order, expanded state and height persist only through canonical [nodes.neoview] layout.
@@ -1667,9 +1667,9 @@
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：O(1) DOM, zero hidden work, one bounded static EMM read per session book, shared frame metadata and an independent deferred Book Card chunk under 8 KiB.
   - 源码：`src/lib/cards/info/BookInfoCard.svelte`、`src/lib/services/metadataService.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.metadata.http`、`neoview.book-information.headless-contract`、`neoview.book-information.e2e`
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.metadata.http`、`neoview.book-information.headless-contract`、`neoview.book-information.projection-chunk`、`neoview.book-information.e2e`
   - 计划测试：`neoview.book-information.lazy-chunk`
-  - 备注：Book chunk is 2655 bytes; entry is 24667 bytes; session EMM reads are O(1), cached and blob-free.
+  - 备注：Book Card is 2,480 bytes and the shared projection remains in the deferred 10,356-byte ui-core host chunk; the initial build contains zero NeoView modules, session EMM reads are O(1), cached and blob-free, and no extra request or subscription was introduced.
 - [ ] `book.deviations` 记录所有权与可访问性扩展
   - 六维：`core=N/A transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document that source size remains Storage-owned and that host clipboard, authenticated reveal, loading/error/retry, semantic dl and action feedback replace weaker legacy behavior.

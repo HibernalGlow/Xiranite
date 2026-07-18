@@ -218,17 +218,20 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.book-information.legacy-fields",
         "neoview.book-information.headless-contract",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.book-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Original displayName remains the canonical fallback."
+      "notes": "Original displayName remains the canonical fallback through the shared browser-safe projection used by React, CLI and TUI."
     },
     {
       "id": "book.translated-title",
@@ -248,8 +251,8 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
@@ -257,11 +260,14 @@
         "neoview.book-information.emm-sqlite",
         "neoview.book-information.shared-contract",
         "neoview.book-information.headless-contract",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.book-information.legacy-fields",
         "neoview.book-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Only a trimmed title up to 4096 characters crosses the shared DTO; raw emm_json and tags never do."
+      "notes": "Only a trimmed title up to 4096 characters crosses the shared DTO; React, CLI and TUI use it as the same preferred title while raw emm_json and tags never cross the boundary."
     },
     {
       "id": "book.original-title",
@@ -272,23 +278,28 @@
       ],
       "targetContract": "The original-name row appears only when the normalized translated title differs from displayName.",
       "surfaces": [
-        "GUI"
+        "GUI",
+        "CLI",
+        "TUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
+        "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "not-applicable",
-        "tui": "not-applicable",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "complete"
       },
       "testIds": [
         "neoview.book-information.legacy-fields",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.book-information.zero-pages",
         "neoview.book-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Equal, empty or malformed translations do not duplicate the name."
+      "notes": "Equal, empty or malformed translations do not duplicate the name; CLI emits Original title only for a distinct translation and TUI keeps the translated primary title compact."
     },
     {
       "id": "book.path",
@@ -337,18 +348,21 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.book-information.shared-contract",
         "neoview.book-information.headless-contract",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.book-information.legacy-fields",
         "neoview.book-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The shared contract preserves document format instead of collapsing PDF and EPUB."
+      "notes": "The shared projection preserves folder, archive, path/file, PDF, EPUB, media, image, document and unknown labels across React, CLI and TUI."
     },
     {
       "id": "book.pagination",
@@ -367,17 +381,20 @@
         "core": "not-applicable",
         "transport": "complete",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.metadata.http",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.book-information.zero-pages",
         "neoview.book-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Zero-page books remain representable and navigation updates the frame-derived value."
+      "notes": "The shared projection clamps a 1-based current page, preserves 0 / 0 for empty books and updates CLI/TUI from the same active frame used by React."
     },
     {
       "id": "book.progress",
@@ -396,17 +413,21 @@
         "core": "not-applicable",
         "transport": "complete",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.metadata.http",
+        "neoview.book-information.projection",
+        "neoview.book-information.projection-zero",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.book-information.zero-pages",
         "neoview.book-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The backend omits progress for zero pages and clamps the numerator before the GUI formats one decimal."
+      "notes": "React, CLI and TUI share the same clamped one-decimal percentage and em dash for zero-page books; the TUI ProgressBar consumes the projected percentage rather than recomputing it."
     },
     {
       "id": "book.states",
@@ -483,9 +504,9 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
-        "cli": "partial",
-        "tui": "partial",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
@@ -494,10 +515,15 @@
         "neoview.book-information.emm-sqlite",
         "neoview.book-information.shared-contract",
         "neoview.metadata.http",
-        "neoview.book-information.headless-contract"
+        "neoview.book-information.headless-contract",
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.projection",
+        "neoview.book-information.projection-zero",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader"
       ],
       "plannedTestIds": [],
-      "notes": "One application service serves HTTP and local headless surfaces without a second database, raw EMM JSON or image decode path."
+      "notes": "One application service serves HTTP and local headless snapshots without a second database, raw EMM JSON or image decode path; a browser-safe pure projection now provides identical title, original-title, type, page and progress semantics to React, CLI and TUI."
     },
     {
       "id": "book.lifecycle",
@@ -562,7 +588,7 @@
       "plannedTestIds": [
         "neoview.book-information.lazy-chunk"
       ],
-      "notes": "Book remains non-hideable in the manifest and builds as an independent 2655-byte deferred chunk."
+      "notes": "Book remains non-hideable in the manifest and builds as an independent 2,480-byte deferred chunk."
     },
     {
       "id": "book.persistence",
@@ -679,12 +705,13 @@
         "neoview.metadata.cancel",
         "neoview.metadata.http",
         "neoview.book-information.headless-contract",
+        "neoview.book-information.projection-chunk",
         "neoview.book-information.e2e"
       ],
       "plannedTestIds": [
         "neoview.book-information.lazy-chunk"
       ],
-      "notes": "Book chunk is 2655 bytes; entry is 24667 bytes; session EMM reads are O(1), cached and blob-free."
+      "notes": "Book Card is 2,480 bytes and the shared projection remains in the deferred 10,356-byte ui-core host chunk; the initial build contains zero NeoView modules, session EMM reads are O(1), cached and blob-free, and no extra request or subscription was introduced."
     },
     {
       "id": "book.deviations",

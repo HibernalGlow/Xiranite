@@ -166,11 +166,19 @@ if (timeInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView TimeInformationCard chunk ${timeInformationChunk.fileName} is ${timeInformationChunk.bytes} bytes, above 8 KiB.`)
 }
 const bookInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookInformationCard\.tsx$/i.test(module)))
+// [neoview.book-information.projection-chunk]
+const bookInformationProjectionChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]domain[/\\]book[/\\]BookInformationProjection\.ts$/i.test(module)))
 if (!bookInformationChunk || bookInformationChunk === readerSidebarChunk) {
   throw new Error("NeoView BookInformationCard did not produce an independent deferred production chunk.")
 }
 if (bookInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView BookInformationCard chunk ${bookInformationChunk.fileName} is ${bookInformationChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!bookInformationProjectionChunk || bookInformationProjectionChunk === initialChunk || bookInformationProjectionChunk === neoViewChunk || bookInformationProjectionChunk === readerSidebarChunk) {
+  throw new Error("NeoView BookInformation projection leaked into an eager initial/reader/sidebar chunk.")
+}
+if (bookInformationProjectionChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView BookInformation projection host chunk ${bookInformationProjectionChunk.fileName} is ${bookInformationProjectionChunk.bytes} bytes, above 16 KiB.`)
 }
 const storageInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]StorageInformationCard\.tsx$/i.test(module)))
 if (!storageInformationChunk || storageInformationChunk === readerSidebarChunk) {
@@ -325,6 +333,7 @@ console.log(JSON.stringify({
   entrySurfaceChunk: { fileName: entrySurfaceChunk.fileName, bytes: entrySurfaceChunk.bytes },
   timeInformationChunk: { fileName: timeInformationChunk.fileName, bytes: timeInformationChunk.bytes },
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
+  bookInformationProjectionChunk: { fileName: bookInformationProjectionChunk.fileName, bytes: bookInformationProjectionChunk.bytes },
   storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },
   imageInformationChunk: { fileName: imageInformationChunk.fileName, bytes: imageInformationChunk.bytes },
   preloadStatusChunk: { fileName: preloadStatusChunk.fileName, bytes: preloadStatusChunk.bytes },

@@ -346,7 +346,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
