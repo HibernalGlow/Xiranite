@@ -6,7 +6,8 @@ import { formatStorageBytes } from "./reader-metadata-format"
 import { useReaderMetadata } from "./useReaderMetadata"
 import { useReaderStorageDiagnostics } from "./useReaderStorageDiagnostics"
 
-export default function StorageInformationCard({ session, client }: ReaderPanelContext) {
+export default function StorageInformationCard({ session, client, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
   if (!session) return <ReaderCardEmptyState>打开书本后显示存储信息</ReaderCardEmptyState>
   return <StorageInformationContent session={session} client={client} />
 }
