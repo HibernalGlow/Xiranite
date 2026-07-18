@@ -2284,7 +2284,7 @@
 | `animatedVideoMode` | 动图视频模式 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制 |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
 | `sidebarHeight` | 侧边栏高度 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/SidebarHeightCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知 |
-| `thumbnailMaintenance` | 缩略图维护 | integration | partial | `core=C transport=C gui=C cli=C tui=N/A evidence=P` | `src/lib/cards/properties/ThumbnailMaintenanceCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-maintenance` |
+| `thumbnailMaintenance` | 缩略图维护 | integration | partial | `core=C transport=C gui=P cli=C tui=N/A evidence=P` | `src/lib/cards/properties/ThumbnailMaintenanceCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-maintenance` |
 
 #### `switchToast` 切换提示
 
@@ -2657,9 +2657,9 @@
 #### `thumbnailMaintenance` 缩略图维护
 
 - 细项清单：`migration/neoview/thumbnail-maintenance-compatibility.json`
-- [ ] 查看缩略图数据库状态
-- [ ] 扫描缺失/失效项并重建、清理或迁移
-- [ ] 显示可取消任务进度、空间回收和错误
+- [ ] 查看缩略图数据库与 writer 聚合状态
+- [ ] 在线有界清理空 Blob、过期、失效路径和失败记录
+- [ ] 备份、恢复、压缩、规范化与迁移保留在确认式离线 CLI，并显示结果与错误
 - UI 基线：`src/lib/cards/properties/ThumbnailMaintenanceCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ##### 专用逐控件库存（6 组，32 项）
@@ -2721,71 +2721,71 @@
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：An explicitly visible and expanded Card loads one authenticated aggregate snapshot containing total/file/folder rows, Blob/database/WAL/SHM bytes, empty and failed rows, failure reasons and bounded writer status; it never returns database paths or thumbnail keys.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance-service`、`neoview.thumbnail.maintenance.http`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`
+  - 测试：`neoview.thumbnail.maintenance-service`、`neoview.thumbnail.maintenance.http`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：无
   - 备注：XR expands the legacy four summary values with separately labelled file, folder, Blob, sidecar and writer aggregates already owned by the shared maintenance service.
 - [ ] `thumbnail-maintenance.invalid-cleanup` 有界扫描并清理确认失效路径
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Invalid cleanup scans at most 2000 rows, deletes at most 500 confirmed missing local sources, preserves unavailable-volume rows, reports scanned/deleted/preserved/wrapped counts and refreshes statistics after success.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance.invalid-paths`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`
+  - 测试：`neoview.thumbnail.maintenance.invalid-paths`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：无
   - 备注：The legacy unbounded command is replaced by explicit scan/delete budgets and unavailable-volume preservation.
 - [ ] `thumbnail-maintenance.empty-cleanup` 有界清理空 Blob
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Empty-Blob cleanup requires an authenticated mutation header, deletes at most 1000 rows per request, reports the exact deleted count and reloads aggregate statistics.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance.online`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`
+  - 测试：`neoview.thumbnail.maintenance.online`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：无
   - 备注：The Card uses the shared bounded online writer and never opens SQLite directly.
 - [ ] `thumbnail-maintenance.expired-cleanup` 清理过期文件缩略图并保留文件夹
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The user chooses 1..3650 days; cleanup always sends preserveFolders=true, deletes at most 1000 rows, reports deleted count and cutoff, and refreshes statistics.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance-service`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`
+  - 测试：`neoview.thumbnail.maintenance-service`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：无
   - 备注：Unlike the legacy checkbox, folder preservation is mandatory because folder thumbnails are shared compatibility data.
 - [ ] `thumbnail-maintenance.failure-cleanup` 有界清除生成失败记录
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Failure cleanup is disabled at zero failures, requires an authenticated mutation header, clears at most 1000 records, reports the deleted count and reloads statistics without exposing keys or error payloads.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance-service`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`
+  - 测试：`neoview.thumbnail.maintenance-service`、`neoview.thumbnail.maintenance.bounded`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.card-actions`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：无
   - 备注：Clearing failures permits later demand generation to retry; it does not eagerly regenerate thumbnails.
 - [ ] `thumbnail-maintenance.states` 加载、不可用、成功、失败与取消状态
-  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 六维：`core=C transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：The Card has one in-flight operation, disables duplicate commands, distinguishes initial loading, unavailable 501, temporary 503, success and sanitized failure states, aborts work on unmount and ignores stale completions.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance-cancel-service`、`neoview.thumbnail.maintenance-cancel-http`、`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.card-lifecycle`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`
+  - 测试：`neoview.thumbnail.maintenance-cancel-service`、`neoview.thumbnail.maintenance-cancel-http`、`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.card-lifecycle`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：`neoview.thumbnail-maintenance.cancel-ui`
   - 备注：There is no interval polling; refresh is initial-load, explicit-command and explicit-refresh only.
 - [ ] `thumbnail-maintenance.data-boundary` 沿用唯一 NeoView 兼容数据库与共享 writer
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：All Card reads and mutations flow through the shared service and original %APPDATA%/NeoView/thumbnails.db xr-compatible adapter; no Reader tables are added to xiranite.db, no second NeoView database is created and old tables, indexes, metadata.version, user_version and journal settings are untouched.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance.online`、`neoview.thumbnail.maintenance.http`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.client`
-  - 计划测试：`neoview.thumbnail-maintenance.database-e2e`
+  - 测试：`neoview.thumbnail.maintenance.online`、`neoview.thumbnail.maintenance.http`、`neoview.thumbnail.maintenance-cli`、`neoview.thumbnail-maintenance.client`、`neoview.thumbnail-maintenance.database-e2e`
+  - 计划测试：无
   - 备注：The browser client receives aggregate DTOs only and cannot address database paths or row keys.
 - [ ] `thumbnail-maintenance.accessibility` 紧凑控制的名称、范围与状态反馈
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：The refresh icon has an accessible name and title, numeric days input has a label and min/max, buttons expose disabled/busy state, and command outcomes use an aria-live status without changing Card geometry unexpectedly.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.card-actions`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`
+  - 测试：`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.card-actions`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：`neoview.thumbnail-maintenance.keyboard`
   - 备注：Familiar Lucide icons keep visible labels on destructive commands; only refresh is icon-only.
 - [ ] `thumbnail-maintenance.ui-parity` 保持旧版信息密度与控件层级
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Preserve the header, compact two-column statistics, invalid/empty/failure group, expiration group, result message and explanatory hierarchy with equivalent Lucide semantics and constrained-sidebar wrapping; intentional omissions are recorded separately.
   - 源码：`src/lib/cards/properties/ThumbnailMaintenanceCard.svelte`、`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`、`src/lib/cards/registry.ts`
   - 测试：`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.card-actions`
   - 计划测试：`neoview.thumbnail-maintenance.visual`
   - 备注：The Card remains a control-panel Card and is default-hidden in XR to prevent an aggregate database scan during ordinary Reader use.
 - [ ] `thumbnail-maintenance.performance` 零隐藏工作、单飞请求与独立延迟 chunk
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：The default-hidden Card performs no work until explicitly docked and expanded, keeps one request in flight, performs no polling, aborts on unmount, does not remount or re-request active media, and remains in an independent deferred chunk under 16 KiB outside entry and ReaderSidebar base chunks.
   - 源码：`src/lib/cards/properties/ThumbnailMaintenanceCard.svelte`、`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail-maintenance.card-lifecycle`、`neoview.thumbnail-maintenance.chunk`
-  - 计划测试：`neoview.thumbnail-maintenance.e2e`、`neoview.thumbnail-maintenance.image-stability`
+  - 测试：`neoview.thumbnail-maintenance.card-lifecycle`、`neoview.thumbnail-maintenance.chunk`、`neoview.thumbnail-maintenance.e2e`、`neoview.thumbnail-maintenance.image-stability`
+  - 计划测试：`neoview.thumbnail-maintenance.performance`
   - 备注：Statistics are cooperative and demand-only; no timer or global store is introduced.
 - [ ] `thumbnail-maintenance.deviations` 高风险数据库动作使用确认式离线替代契约
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
