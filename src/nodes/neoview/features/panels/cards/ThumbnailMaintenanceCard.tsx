@@ -3,6 +3,8 @@
  * @source-hash sha256:cf84c01530d011d23b609559c6b97a3ebc421d38fa000f744572b7d191481b72
  * @migrated-from src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte
  * @source-hash sha256:44efe1d10d1d1cb7bd2b0d6a27d9929876041b842ae1222dac617c007bdd8677
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/ThumbnailMaintenanceCard.tsx
+ * @unsupported-source-nodes path-prefix deletion, VACUUM, and key normalization remain offline-only by contract
  * @migration-status adapted
  */
 import { Clock, Database, FolderX, Loader2, RefreshCcw, ShieldX, Trash2, X } from "lucide-react"

@@ -2,6 +2,7 @@
   "schemaVersion": 2,
   "featureId": "thumbnail-maintenance",
   "legacyCardId": "thumbnailMaintenance",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/ThumbnailMaintenanceCard.tsx",
   "title": "缩略图维护",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
