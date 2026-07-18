@@ -545,6 +545,26 @@ describe("reader-http-client", () => {
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.folder.size-client] posts a bounded generation-scoped directory size batch", async () => {
+    const batch = {
+      sessionId: "browser-1",
+      generation: 7,
+      results: [{ path: "D:/books/series", status: "ok", bytes: 1234, fileCount: 8 }],
+    }
+    const fetchMock = vi.fn(async () => Response.json(batch))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.directorySizes!("browser/1", 7, ["D:/books/series"])).resolves.toEqual(batch)
+
+    const [input, init] = fetchMock.mock.calls[0]!
+    const url = new URL(String(input))
+    expect(url.pathname).toBe("/reader/browser/s/browser%2F1/directory-sizes")
+    expect(init).toMatchObject({ method: "POST" })
+    expect(JSON.parse(String(init?.body))).toEqual({ generation: 7, paths: ["D:/books/series"] })
+    expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.folder.tree-roots-client] requests authenticated platform roots independently of a session", async () => {
     const roots = [{ path: "D:\\", label: "Data (D:)", kind: "fixed", available: true }]
     const fetchMock = vi.fn(async () => Response.json({ roots }))

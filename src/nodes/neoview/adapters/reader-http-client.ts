@@ -3,6 +3,7 @@ import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranit
 import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
 import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/switch-toast"
 import type { ReaderInfoOverlayPatch, ReaderInfoOverlaySettings } from "@xiranite/node-neoview/info-overlay"
+import type { ReaderImageTrimPatch, ReaderImageTrimSettings } from "@xiranite/node-neoview/image-trim"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -340,6 +341,16 @@ export interface ReaderDirectoryEntryDto {
   tags?: readonly string[]
 }
 
+export type ReaderDirectorySizeBatchItemDto =
+  | { path: string; status: "ok"; bytes: number; fileCount: number }
+  | { path: string; status: "failed"; error: string }
+
+export interface ReaderDirectorySizeBatchDto {
+  sessionId: string
+  generation: number
+  results: readonly ReaderDirectorySizeBatchItemDto[]
+}
+
 export interface ReaderDirectorySelectionResolutionDto {
   sessionId: string
   generation: number
@@ -602,6 +613,7 @@ export interface ReaderRuntimeConfigDto {
   pageTransition: ReaderPageTransitionSettings
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
+  imageTrim?: ReaderImageTrimSettings
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
 }
@@ -696,6 +708,10 @@ export interface ReaderSwitchToastConfigPatch {
 
 export interface ReaderInfoOverlayConfigPatch {
   infoOverlay: ReaderInfoOverlayPatch | { reset: "defaults" }
+}
+
+export interface ReaderImageTrimConfigPatch {
+  imageTrim: ReaderImageTrimPatch | { reset: "defaults" }
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
@@ -872,6 +888,7 @@ export interface ReaderHttpClient {
   updatePageTransition?(patch: ReaderPageTransitionConfigPatch, signal?: AbortSignal): Promise<ReaderPageTransitionSettings>
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
+  updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
@@ -895,6 +912,7 @@ export interface ReaderHttpClient {
   ): Promise<ReaderDirectorySearchResultDto>
   treeDirectoryBrowser?(sessionId: string, path?: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderDirectoryTreePageDto>
   watchDirectoryTreeBrowser?(sessionId: string, afterRevision: number, signal?: AbortSignal): Promise<ReaderDirectoryTreeChangesDto | undefined>
+  directorySizes?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectorySizeBatchDto>
   resolveDirectorySelection?(sessionId: string, selection: ReaderDirectorySelectionDescriptorDto, previewLimit?: number, signal?: AbortSignal): Promise<ReaderDirectorySelectionResolutionDto>
   readDirectoryEmm?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectoryEmmReadResultDto>
   editDirectoryEmm?(sessionId: string, command: ReaderDirectoryEmmEditCommandDto, signal?: AbortSignal): Promise<ReaderDirectoryEmmEditResultDto>
@@ -1101,6 +1119,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.infoOverlay),
+    updateImageTrim: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.imageTrim),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1191,6 +1215,15 @@ export function createReaderHttpClient(
     watchDirectoryTreeBrowser: (sessionId, afterRevision, signal) => request<ReaderDirectoryTreeChangesDto | undefined>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/tree/changes?after=${afterRevision}`,
       { signal },
+    ),
+    directorySizes: (sessionId, generation, paths, signal) => request<ReaderDirectorySizeBatchDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/directory-sizes`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ generation, paths }),
+        signal,
+      },
     ),
     resolveDirectorySelection: (sessionId, selection, previewLimit = 64, signal) => request<ReaderDirectorySelectionResolutionDto>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/selection`,
