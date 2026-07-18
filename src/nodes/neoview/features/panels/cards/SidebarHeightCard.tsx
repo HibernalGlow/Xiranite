@@ -1,6 +1,7 @@
 /**
  * @migrated-from src/lib/cards/info/SidebarHeightCard.svelte
  * @source-hash sha256:f2c99617bdd104a04a2d495d4edc1e96454d7ba8e45de604410e87e2638f3978
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/SidebarHeightCard.tsx
  * @migrated-from src/lib/stores/sidebarConfig.svelte.ts
  * @source-hash sha256:1680afb71b6e283189094e52657164937d1b8fafb080183b361091af883ee20a
  * @features panels-toolbar-shell
