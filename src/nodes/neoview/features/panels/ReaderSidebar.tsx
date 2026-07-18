@@ -146,6 +146,7 @@ export function ReaderSidebar({
                   <CollapsibleReaderCard
                     key={card.id}
                     title={card.title}
+                    icon={card.icon ? <card.icon className="size-3.5" /> : undefined}
                     collapsed={cardLayout ? !cardLayout.expanded : false}
                     height={cardLayout?.height}
                     onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}

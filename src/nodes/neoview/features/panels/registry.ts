@@ -15,6 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
+import { Loader, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -23,6 +24,7 @@ import type {
   ReaderHistoryListPreferencesDto,
   ReaderHttpClient,
   ReaderPageListPreferencesDto,
+  ReaderPreloadActionResultDto,
   ReaderRuntimeConfigDto,
   ReaderSessionDto,
   ReaderShellConfigDto,
@@ -49,6 +51,7 @@ export interface ReaderPanelContext {
   onPageListPreferences?(patch: Partial<ReaderPageListPreferencesDto>): Promise<void>
   onPageModeChange?(pageMode: "single" | "double"): void | Promise<void>
   onReadingDirectionChange?(direction: FrameSnapshot["direction"]): void | Promise<void>
+  onPreloadAction?(action: "cancel-speculative" | "release-retained", signal?: AbortSignal): Promise<ReaderPreloadActionResultDto>
   sourcePath?: string
   onOpen?(path: string): void | Promise<void>
   pickDirectory?: () => Promise<string | undefined>
@@ -85,6 +88,7 @@ export interface ReaderCardDefinition {
   defaultPanel: LegacyPanelId
   canHide: boolean
   requiresSession: boolean
+  icon?: LucideIcon
   settingsSectionId?: "view" | "sidebar" | "cards" | "bindings"
   defaultSidebarVisible?: boolean
   load(): Promise<{ default: ComponentType<ReaderPanelContext> }>
@@ -143,6 +147,10 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
 }
 
+const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
+  "preload-status": Loader,
+}
+
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
   "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
@@ -156,6 +164,7 @@ export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = READER_CARD_MAN
   defaultPanel: definition.defaultPanelId as LegacyPanelId,
   canHide: definition.canHide,
   requiresSession: definition.requiresSession,
+  ...(CARD_ICONS[definition.id] ? { icon: CARD_ICONS[definition.id] } : {}),
   defaultSidebarVisible: definition.defaultVisible,
   load: CARD_LOADERS[definition.id],
   ...(definition.settingsSectionId ? { settingsSectionId: definition.settingsSectionId } : {}),

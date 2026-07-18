@@ -114,6 +114,27 @@ describe("CoreReaderService", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.preload.cancel-speculative] pauses a fresh empty generation, cancels active telemetry and resumes on navigation", async () => {
+    const service = new CoreReaderService(async () => book(8))
+    const session = await service.openViewSource({ kind: "directory", path: "C:/book" }, { initialPage: 2 })
+    const initial = session.preloadPlan()!
+    const startedPageId = initial.candidates[0]!.pageIds[0]!
+    expect(session.reportPreload({ generation: initial.generation, pageId: startedPageId, outcome: "started" })).toEqual({ accepted: true })
+
+    const cancelled = session.cancelSpeculativePreload()
+    expect(cancelled).toMatchObject({ admission: "paused", candidates: [], frameGeneration: session.generation })
+    expect(cancelled.generation).toBeGreaterThan(initial.generation)
+    expect(session.preloadTelemetry()).toMatchObject({ active: 0, started: 1, cancelled: 1, generation: cancelled.generation })
+    expect(session.reportPreload({ generation: initial.generation, pageId: startedPageId, outcome: "ready" }))
+      .toEqual({ accepted: false, reason: "stale-generation" })
+
+    await session.next()
+    expect(session.preloadPlan()).toMatchObject({ admission: "normal" })
+    expect(session.preloadPlan()!.generation).toBeGreaterThan(cancelled.generation)
+    expect(session.preloadPlan()!.candidates.length).toBeGreaterThan(0)
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.session.lifecycle] disposes a loaded book when cancellation wins the post-load race", async () => {
     const controller = new AbortController()
     const loaded = book(1)

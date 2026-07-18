@@ -62,7 +62,9 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.history.cleanup-e2e] [neoview.bookmark.thumbnail-e2e] [neoview.bookmark.thumbnail-lease-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
+test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.history.cleanup-e2e] [neoview.bookmark.thumbnail-e2e] [neoview.bookmark.thumbnail-lease-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] [neoview.card.preload-status-live] [neoview.preload-status.ui] [neoview.preload-status.poll-budget] [neoview.preload.cancel-session] [neoview.preload.release-visible-retained] [neoview.preload.image-stability] reuses bounded Card surfaces", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-desktop", "Card visual acceptance uses the 1920x1080 desktop viewport")
+  await page.setViewportSize({ width: 1920, height: 1080 })
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
   const pageCatalogRequests: string[] = []
@@ -386,6 +388,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
 
   const preloadCard = rightSidebar.locator('[data-reader-card="预加载状态"]')
   await expect(preloadCard).toBeVisible()
+  await preloadCard.scrollIntoViewIfNeeded()
   await expect(preloadCard.getByText("内存池", { exact: true })).toBeVisible()
   await expect(preloadCard.locator('[data-preload-metric="active-leases"]')).toContainText(/^活动租约 \d+$/)
   await expect(preloadCard.getByRole("progressbar", { name: "服务端呈现缓存使用率" })).toBeVisible()
@@ -405,8 +408,44 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const activeAssetUrl = new URL((await readerImage.getAttribute("src"))!, page.url()).href
   const activeAssetRequestsBeforePreloadActions = imageRequests.filter((url) => url === activeAssetUrl).length
   expect(await preloadCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+  expect(await preloadCard.evaluate((node) => {
+    const rect = node.getBoundingClientRect()
+    return [0.2, 0.5, 0.8].every((x) => {
+      const middle = document.elementFromPoint(rect.left + rect.width * x, rect.top + rect.height / 2)
+      return Boolean(middle && node.contains(middle))
+    })
+  })).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   await preloadCard.screenshot({ path: testInfo.outputPath(`neoview-preload-status-${testInfo.project.name}.png`) })
+
+  const cancelResponse = page.waitForResponse((response) => response.url().endsWith(`/reader/s/${encodeURIComponent(opened.sessionId)}/preload-actions`)
+    && response.request().postData()?.includes('"action":"cancel-speculative"') === true)
+  await preloadCard.getByRole("button", { name: "取消预读" }).click()
+  const cancelled = await cancelResponse
+  expect(cancelled.status()).toBe(200)
+  const cancelledBody = await cancelled.json() as { action: string; generation: number; cancelled: number; released: number }
+  expect(cancelledBody).toMatchObject({ action: "cancel-speculative", cancelled: 0, released: 0 })
+  expect(cancelledBody.generation).toBeGreaterThan(currentSnapshot.preload!.generation)
+  await expect(preloadCard.getByText("已取消 0 个预读任务")).toBeVisible()
+  await expect(preloadCard.getByLabel("浏览器预解码状态")).toContainText("加载中0已就绪0失败0")
+
+  await preloadCard.getByRole("button", { name: "释放缓存" }).click()
+  await expect(page.getByRole("alertdialog")).toBeVisible()
+  const releaseResponse = page.waitForResponse((response) => response.url().endsWith(`/reader/s/${encodeURIComponent(opened.sessionId)}/preload-actions`)
+    && response.request().postData()?.includes('"action":"release-retained"') === true)
+  await page.getByRole("button", { name: "释放", exact: true }).click()
+  const released = await releaseResponse
+  expect(released.status()).toBe(200)
+  expect(await released.json()).toMatchObject({ action: "release-retained", cancelled: 0 })
+  await expect(preloadCard.getByText(/已释放 \d+ 个缓存项，保留 \d+ 个可见页/)).toBeVisible()
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  expect(imageRequests.filter((url) => url === activeAssetUrl)).toHaveLength(activeAssetRequestsBeforePreloadActions)
+  await preloadCard.screenshot({ path: testInfo.outputPath("neoview-preload-actions-card-1920x1080.png") })
+  await preloadCard.screenshot({ path: join(process.cwd(), "output", "playwright", "neoview-preload-actions-card-1920x1080.png") })
+  await page.screenshot({
+    path: join(process.cwd(), "output", "playwright", "neoview-preload-actions-1920x1080.png"),
+    animations: "disabled",
+  })
 
   const requestsBeforeCollapse = diagnosticsRequests
   await rightSidebar.getByRole("button", { name: "折叠预加载状态" }).click()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import { readerPreloadStatusStore } from "./ReaderPreloadStatusStore"
@@ -11,19 +11,34 @@ interface PreloadedImage {
   pageIndex: number
 }
 
-export function useReaderImagePreloader(sessionId?: string): (pages: readonly ReaderPageDto[]) => void {
+export interface ReaderImagePreloader {
+  preload(pages: readonly ReaderPageDto[]): void
+  cancel(): void
+  releaseRetained(preserveAssetUrls?: ReadonlySet<string>): void
+}
+
+export function useReaderImagePreloader(sessionId?: string): ReaderImagePreloader {
   const imagesRef = useRef(new Map<string, PreloadedImage>())
+
+  const releaseRetained = useCallback((preserveAssetUrls: ReadonlySet<string> = new Set()) => {
+    const images = imagesRef.current
+    for (const [assetUrl, entry] of images) {
+      if (preserveAssetUrls.has(assetUrl)) continue
+      entry.image.src = ""
+      images.delete(assetUrl)
+      if (sessionId) readerPreloadStatusStore.evict(sessionId, entry.pageIndex)
+    }
+  }, [sessionId])
 
   useEffect(() => {
     const images = imagesRef.current
     return () => {
-      for (const entry of images.values()) entry.image.src = ""
-      images.clear()
+      releaseRetained()
       if (sessionId) readerPreloadStatusStore.clear(sessionId)
     }
-  }, [sessionId])
+  }, [releaseRetained, sessionId])
 
-  return useCallback((pages: readonly ReaderPageDto[]) => {
+  const preload = useCallback((pages: readonly ReaderPageDto[]) => {
     if (typeof Image === "undefined" || !sessionId) return
     const images = imagesRef.current
     for (const page of pages) {
@@ -53,4 +68,11 @@ export function useReaderImagePreloader(sessionId?: string): (pages: readonly Re
       }
     }
   }, [sessionId])
+
+  const cancel = useCallback(() => {
+    releaseRetained()
+    if (sessionId) readerPreloadStatusStore.clear(sessionId)
+  }, [releaseRetained, sessionId])
+
+  return useMemo(() => ({ preload, cancel, releaseRetained }), [cancel, preload, releaseRetained])
 }

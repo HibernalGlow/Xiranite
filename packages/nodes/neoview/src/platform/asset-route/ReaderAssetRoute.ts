@@ -186,6 +186,16 @@ export class ReaderAssetRoute {
     await this.#seekableMediaCache?.releaseSession(sessionId)
   }
 
+  releaseSessionRetainedPresentations(
+    sessionId: ReaderSessionId,
+    visiblePageIds: readonly PageId[],
+  ): { released: number; retained: number } {
+    const before = this.#retainedPresentations.get(sessionId)?.size ?? 0
+    this.retainSessionPages(sessionId, visiblePageIds)
+    const retained = this.#retainedPresentations.get(sessionId)?.size ?? 0
+    return { released: Math.max(0, before - retained), retained }
+  }
+
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     const thumbnailMatch = THUMBNAIL_PATH.exec(url.pathname)

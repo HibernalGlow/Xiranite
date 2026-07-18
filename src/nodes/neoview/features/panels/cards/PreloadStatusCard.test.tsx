@@ -11,7 +11,7 @@ afterEach(() => {
 })
 
 describe("PreloadStatusCard", () => {
-  it("[neoview.preload-status.nearby-window] renders the bounded legacy page window and actual browser events", () => {
+  it("[neoview.preload-status.nearby-window] [neoview.preload-status.ui] [neoview.preload-status.accessibility] renders the bounded legacy page window and actual browser events", () => {
     const store = new ReaderPreloadStatusStore(4)
     const view = render(
       <PreloadStatusView sessionId="reader-1" currentPageIndex={4} totalPages={20} store={store} />,
@@ -55,7 +55,7 @@ describe("PreloadStatusCard", () => {
 
     expect(screen.getByText("12 项")).toBeTruthy()
     expect(screen.queryByText("2 / 4")).toBeNull()
-    expect(screen.getByText("64.00 MB / 256.00 MB")).toBeTruthy()
+    expect(screen.getByText("64.0 MB / 256.0 MB")).toBeTruthy()
     expect(screen.getByText("活动租约").textContent).toContain("1")
     const progress = screen.getByRole("progressbar", { name: "服务端呈现缓存使用率" })
     expect(progress.getAttribute("aria-valuenow")).toBe("25")
@@ -75,9 +75,13 @@ describe("PreloadStatusCard", () => {
     const view = render(<PreloadStatusView sessionId="reader-1" currentPageIndex={4} totalPages={20} diagnostics={diagnostics} />)
 
     expect(view.container.querySelector('[data-preload-nearby-page="4"]')?.getAttribute("data-server-cache-state")).toBe("cached")
+    expect(view.container.querySelector('[data-preload-nearby-page="4"]')?.getAttribute("data-preload-tone")).toBe("current")
     expect(view.container.querySelector('[data-preload-nearby-page="5"]')?.getAttribute("data-server-cache-state")).toBe("loading")
+    expect(view.container.querySelector('[data-preload-nearby-page="5"]')?.getAttribute("data-preload-tone")).toBe("loading")
     expect(view.container.querySelector('[data-preload-nearby-page="6"]')?.getAttribute("data-server-cache-state")).toBe("failed")
+    expect(view.container.querySelector('[data-preload-nearby-page="6"]')?.getAttribute("data-preload-tone")).toBe("failed")
     expect(view.container.querySelector('[data-preload-nearby-page="7"]')?.getAttribute("data-server-cache-state")).toBe("cold")
+    expect(view.container.querySelector('[data-preload-nearby-page="7"]')?.getAttribute("data-preload-tone")).toBe("cold")
     expect(screen.getByLabelText("第 5 页，当前，已缓存")).toBeTruthy()
   })
 
@@ -101,7 +105,7 @@ describe("PreloadStatusCard", () => {
     expect(view.container.querySelector('[data-preload-metric="active-leases"]')?.textContent).toContain("--")
   })
 
-  it("[neoview.preload-status.states] exposes sanitized retry without hiding the live predecode state", () => {
+  it("[neoview.preload-status.states] [neoview.preload-status.retry] exposes sanitized retry without hiding the live predecode state", () => {
     const retry = vi.fn()
     const store = new ReaderPreloadStatusStore(4)
     store.ready("reader-1", 5)
@@ -122,7 +126,7 @@ describe("PreloadStatusCard", () => {
     expect(retry).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.preload-status.refresh] polls only while mounted and aborts obsolete requests", async () => {
+  it("[neoview.preload-status.refresh] [neoview.preload-status.diagnostics-cancel] polls only while mounted and aborts obsolete requests", async () => {
     vi.useFakeTimers()
     const signals: AbortSignal[] = []
     const diagnostics = vi.fn(async (signal?: AbortSignal) => {
@@ -179,13 +183,61 @@ describe("PreloadStatusCard", () => {
     expect(document.querySelectorAll("[data-preload-nearby-page]")).toHaveLength(0)
   })
 
-  it("[neoview.preload-status.format] freezes legacy byte boundaries and invalid degradation", () => {
+  it("[neoview.preload.cancel-session] [neoview.preload.release-visible-retained] exposes confirmed session-scoped actions", async () => {
+    const diagnostics = vi.fn(async () => diagnosticsDto())
+    const onPreloadAction = vi.fn(async (action: "cancel-speculative" | "release-retained") => ({
+      action,
+      generation: 8,
+      cancelled: action === "cancel-speculative" ? 2 : 0,
+      released: action === "release-retained" ? 3 : 0,
+      visibleRetained: 1,
+    }))
+    render(<PreloadStatusCard {...panelContext(diagnostics, sessionDto())} onPreloadAction={onPreloadAction} />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "取消预读" }))
+    expect(await screen.findByText("已取消 2 个预读任务")).toBeTruthy()
+    expect(onPreloadAction).toHaveBeenLastCalledWith("cancel-speculative", expect.any(AbortSignal))
+
+    fireEvent.click(await screen.findByRole("button", { name: "释放缓存" }))
+    expect(screen.getByRole("alertdialog")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "释放", exact: true }))
+    expect(await screen.findByText("已释放 3 个缓存项，保留 1 个可见页")).toBeTruthy()
+    expect(onPreloadAction).toHaveBeenLastCalledWith("release-retained", expect.any(AbortSignal))
+  })
+
+  it("[neoview.preload.action-rollback] sanitizes failures without reporting a committed action", async () => {
+    const onPreloadAction = vi.fn(async () => { throw new Error("D:/private/cache") })
+    render(<PreloadStatusCard {...panelContext(vi.fn(async () => diagnosticsDto()), sessionDto())} onPreloadAction={onPreloadAction} />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "取消预读" }))
+
+    const alert = await screen.findByRole("alert")
+    expect(alert.textContent).toBe("预加载操作失败，请重试")
+    expect(alert.textContent).not.toContain("D:/private")
+  })
+
+  it("[neoview.preload.action-lifecycle] aborts an active action when the Card unmounts", async () => {
+    let actionSignal: AbortSignal | undefined
+    const onPreloadAction = vi.fn((_action: "cancel-speculative" | "release-retained", signal?: AbortSignal) => {
+      actionSignal = signal
+      return new Promise<never>(() => undefined)
+    })
+    const view = render(<PreloadStatusCard {...panelContext(vi.fn(async () => diagnosticsDto()), sessionDto())} onPreloadAction={onPreloadAction} />)
+    fireEvent.click(await screen.findByRole("button", { name: "取消预读" }))
+    await waitFor(() => expect(onPreloadAction).toHaveBeenCalledOnce())
+
+    view.unmount()
+
+    expect(actionSignal?.aborted).toBe(true)
+  })
+
+  it("[neoview.preload-status.format] [neoview.preload-status.ui] freezes legacy byte boundaries and invalid degradation", () => {
     expect(formatPreloadBytes(undefined)).toBe("--")
     expect(formatPreloadBytes(-1)).toBe("--")
     expect(formatPreloadBytes(0)).toBe("0 B")
     expect(formatPreloadBytes(1_023)).toBe("1023 B")
-    expect(formatPreloadBytes(1_024)).toBe("1.00 KB")
-    expect(formatPreloadBytes(1_048_576)).toBe("1.00 MB")
+    expect(formatPreloadBytes(1_024)).toBe("1.0 KB")
+    expect(formatPreloadBytes(1_048_576)).toBe("1.0 MB")
     expect(formatPreloadBytes(1_073_741_824)).toBe("1.00 GB")
   })
 })

@@ -6,6 +6,14 @@ import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 afterEach(cleanup)
 
 describe("CollapsibleReaderCard", () => {
+  it("[neoview.card.header-icon] preserves an explicitly registered legacy header icon", () => {
+    render(
+      <CollapsibleReaderCard title="预加载状态" icon={<span data-testid="loader-icon" />}>content</CollapsibleReaderCard>,
+    )
+    expect(screen.getByTestId("loader-icon")).toBeTruthy()
+    expect(screen.getByText("预加载状态")).toBeTruthy()
+  })
+
   it("[neoview.card.zero-mount] is controlled and does not mount collapsed content", () => {
     const changed = vi.fn()
     const view = render(

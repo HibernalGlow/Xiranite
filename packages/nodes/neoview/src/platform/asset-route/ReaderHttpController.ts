@@ -119,6 +119,13 @@ import {
   type NeoviewInputBindingsPatch,
 } from "../../application/config/ReaderInputBindingsConfig.js"
 import {
+  cloneReaderRadialMenuConfig,
+  DEFAULT_READER_RADIAL_MENU_CONFIG,
+  parseReaderRadialMenuPatch,
+  type NeoviewRadialMenuPatch,
+  type ReaderRadialMenuConfig,
+} from "../../application/config/ReaderRadialMenuConfig.js"
+import {
   DEFAULT_READER_INPUT_BINDINGS,
   cloneReaderInputBindings,
   type ReaderInputBindingsConfig,
@@ -133,6 +140,7 @@ const SESSION_PAGE_ACTION_PATH = /^\/reader\/s\/([^/]+)\/pages\/([^/]+)\/actions
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
 const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
 const SESSION_PRELOAD_CONTEXT_PATH = /^\/reader\/s\/([^/]+)\/preload-context$/
+const SESSION_PRELOAD_ACTIONS_PATH = /^\/reader\/s\/([^/]+)\/preload-actions$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const SESSION_BOOK_SETTINGS_PATH = /^\/reader\/s\/([^/]+)\/book-settings$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
@@ -212,6 +220,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateMedia?: (patch: NeoviewMediaPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewMediaConfig>
   inputBindings?: ReaderInputBindingsConfig
   updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
+  radialMenu?: ReaderRadialMenuConfig
+  updateRadialMenu?: (patch: NeoviewRadialMenuPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderRadialMenuConfig>
   maxSeekableMediaEntryBytes?: number
   maxSeekableMediaTotalBytes?: number
   loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>
@@ -264,6 +274,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #slideshow: NeoviewSlideshowConfig
   #media: NeoviewMediaConfig
   #inputBindings: ReaderInputBindingsConfig
+  #radialMenu: ReaderRadialMenuConfig
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
@@ -274,6 +285,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   readonly #updateMedia?: ReaderHttpControllerOptions["updateMedia"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
+  readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
   readonly #bookMetadataLoads = new Map<string, {
@@ -463,6 +475,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
     this.#media = initialMedia
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
+    this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
@@ -473,6 +486,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSlideshow = options.updateSlideshow
     this.#updateMedia = options.updateMedia
     this.#updateInputBindings = options.updateInputBindings
+    this.#updateRadialMenu = options.updateRadialMenu
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -587,6 +601,11 @@ export class ReaderHttpController implements AsyncDisposable {
     if (preloadEventsMatch && request.method === "POST") return this.#reportPreloadEvents(preloadEventsMatch[1]!, request)
     const preloadContextMatch = SESSION_PRELOAD_CONTEXT_PATH.exec(url.pathname)
     if (preloadContextMatch && request.method === "PATCH") return this.#updatePreloadContext(preloadContextMatch[1]!, request)
+    const preloadActionsMatch = SESSION_PRELOAD_ACTIONS_PATH.exec(url.pathname)
+    if (preloadActionsMatch) {
+      if (request.method !== "POST") return methodNotAllowed("POST")
+      return this.#preloadAction(preloadActionsMatch[1]!, request)
+    }
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
     if (optionsMatch && request.method === "PATCH") return this.#updateSessionOptions(optionsMatch[1]!, request)
     const bookSettingsMatch = SESSION_BOOK_SETTINGS_PATH.exec(url.pathname)
@@ -737,6 +756,27 @@ export class ReaderHttpController implements AsyncDisposable {
       const operation = this.#configUpdateQueue.then(async () => {
         updated = await this.#updateInputBindings!(parsed.patch, parsed.tomlPatch)
         this.#inputBindings = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    if (Object.hasOwn(body, "radialMenu")) {
+      if (!this.#updateRadialMenu) return jsonResponse({ error: "Reader radial menu is read-only" }, 405)
+      let parsed: ReturnType<typeof parseReaderRadialMenuPatch>
+      try {
+        parsed = parseReaderRadialMenuPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: ReaderRadialMenuConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateRadialMenu!(parsed.patch, parsed.tomlPatch)
+        this.#radialMenu = updated
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
@@ -950,6 +990,7 @@ export class ReaderHttpController implements AsyncDisposable {
       slideshow: this.#slideshow,
       media: this.#media,
       inputBindings: this.#inputBindings,
+      radialMenu: this.#radialMenu,
     }
   }
 
@@ -1129,6 +1170,38 @@ export class ReaderHttpController implements AsyncDisposable {
     } catch (error) {
       return jsonResponse({ error: errorMessage(error) }, 400)
     }
+  }
+
+  async #preloadAction(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    if (!body || Object.keys(body).length !== 2 || body.confirmed !== true
+      || (body.action !== "cancel-speculative" && body.action !== "release-retained")) {
+      return jsonResponse({ error: "Preload action must be cancel-speculative or release-retained with confirmed=true" }, 400)
+    }
+    const frame = session.snapshot()
+    const visiblePageIds = [...new Set(frame.pages.map((page) => page.pageId))]
+    if (body.action === "cancel-speculative") {
+      const before = session.preloadTelemetry().cancelled
+      const preload = session.cancelSpeculativePreload()
+      const cancelled = session.preloadTelemetry().cancelled - before
+      return jsonResponse({
+        action: body.action,
+        generation: preload.generation,
+        cancelled,
+        released: 0,
+        visibleRetained: visiblePageIds.length,
+      })
+    }
+    const retention = this.#assets.releaseSessionRetainedPresentations(session.id, visiblePageIds)
+    return jsonResponse({
+      action: body.action,
+      generation: session.preloadPlan()?.generation ?? 0,
+      cancelled: 0,
+      released: retention.released,
+      visibleRetained: visiblePageIds.length,
+    })
   }
 
   async #updateSessionOptions(encodedSessionId: string, request: Request): Promise<Response> {
@@ -1830,6 +1903,10 @@ function jsonResponse(data: unknown, status = 200): Response {
       "x-content-type-options": "nosniff",
     },
   })
+}
+
+function methodNotAllowed(allow: string): Response {
+  return new Response("Method not allowed", { status: 405, headers: { allow } })
 }
 
 function schedulerSnapshot(

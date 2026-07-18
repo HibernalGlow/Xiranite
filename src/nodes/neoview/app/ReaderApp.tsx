@@ -228,7 +228,8 @@ export function ReaderApp({
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
-  const prefetchPages = useReaderImagePreloader(session?.sessionId)
+  const prefetchController = useReaderImagePreloader(session?.sessionId)
+  const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
 
@@ -326,6 +327,20 @@ export function ReaderApp({
     const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal))
     if (updated && !slideshowAction) slideshow.resetOnUserAction()
     return updated
+  }
+
+  async function runPreloadAction(action: "cancel-speculative" | "release-retained", signal?: AbortSignal) {
+    const activeSession = session
+    if (!activeSession || !client.runPreloadAction) throw new Error("当前后端不支持预加载控制")
+    const result = await client.runPreloadAction(activeSession.sessionId, action, signal)
+    if (sessionRef.current !== activeSession.sessionId) throw new Error("Reader 会话已切换")
+    if (action === "cancel-speculative") {
+      prefetchController.cancel()
+      setCancelledPreloadFrame({ sessionId: activeSession.sessionId, generation: activeSession.frame.generation })
+    } else {
+      prefetchController.releaseRetained(new Set(activeSession.visiblePages.map((page) => page.assetUrl)))
+    }
+    return result
   }
 
   async function updateNavigation(
@@ -760,7 +775,8 @@ export function ReaderApp({
     sessionId: session?.sessionId,
     activePageIndex: frame?.anchorPageIndex,
     totalPages: session?.book.pageCount,
-    preload: prefetchPages,
+    enabled: !session || cancelledPreloadFrame?.sessionId !== session.sessionId || cancelledPreloadFrame.generation !== session.frame.generation,
+    preload: prefetchController.preload,
   })
 
   const topEdge: ReaderControlledEdgeSlot = {
@@ -858,6 +874,7 @@ export function ReaderApp({
     onPageListPreferences: persistPageListPreferences,
     onPageModeChange: updateCurrentBookPageMode,
     onReadingDirectionChange: updateCurrentBookReadingDirection,
+    onPreloadAction: runPreloadAction,
     sourcePath: path,
     pickDirectory,
     systemActions: {

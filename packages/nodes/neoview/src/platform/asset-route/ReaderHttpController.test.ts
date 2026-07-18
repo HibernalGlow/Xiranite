@@ -443,6 +443,60 @@ describe("ReaderHttpController", () => {
     }
   })
 
+  it("[neoview.preload.action-http] strictly cancels speculative work and releases only session retention", async () => {
+    const directory = await createBookDirectory()
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
+      const session = await opened.json() as ReaderSessionDto
+      const candidate = session.preload!.candidates[0]!.pageIds[0]!
+      expect((await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/preload-events`, {
+        generation: session.preload!.generation,
+        events: [{ pageId: candidate, outcome: "started" }],
+      })))?.status).toBe(202)
+
+      const actionPath = `/reader/s/${session.sessionId}/preload-actions`
+      expect((await controller.handle(authorizedRequest(actionPath)))?.status).toBe(405)
+      expect((await controller.handle(jsonRequest(actionPath, { action: "cancel-speculative", confirmed: false })))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest(actionPath, { action: "cancel-speculative", confirmed: true, extra: true })))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest(actionPath, { action: "global-clear", confirmed: true })))?.status).toBe(400)
+
+      const cancelled = (await controller.handle(jsonRequest(actionPath, {
+        action: "cancel-speculative",
+        confirmed: true,
+      })))!
+      expect(cancelled.status).toBe(200)
+      const cancelledBody = await cancelled.json()
+      expect(cancelledBody).toEqual({
+        action: "cancel-speculative",
+        generation: expect.any(Number),
+        cancelled: 1,
+        released: 0,
+        visibleRetained: 1,
+      })
+      expect(JSON.stringify(cancelledBody)).not.toContain(directory)
+      const paused = (await (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`)))!.json()) as ReaderSessionDto
+      expect(paused.preload).toMatchObject({ generation: cancelledBody.generation, admission: "paused", candidates: [] })
+
+      const navigated = (await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" })))!
+      await expect(navigated.json()).resolves.toMatchObject({ preload: { admission: "normal" } })
+      const released = (await controller.handle(jsonRequest(actionPath, {
+        action: "release-retained",
+        confirmed: true,
+      })))!
+      expect(released.status).toBe(200)
+      expect(await released.json()).toEqual({
+        action: "release-retained",
+        generation: expect.any(Number),
+        cancelled: 0,
+        released: 0,
+        visibleRetained: 1,
+      })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.session.hibernate-concurrent] coalesces concurrent last-session idle checks", async () => {
     const directory = await createBookDirectory()
     const hibernate = vi.spyOn(ReaderAssetRoute.prototype, "hibernate")

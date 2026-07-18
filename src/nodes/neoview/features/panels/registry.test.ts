@@ -55,6 +55,7 @@ describe("NeoView panel and card registries", () => {
 
   it("[neoview.card.parallel-core] exposes preload and current-book settings without eager loading", () => {
     expect(cardsForPanel("info").map((card) => card.id)).toContain("preload-status")
+    expect(CARD_DEFINITIONS.find((card) => card.id === "preload-status")?.icon).toBeTruthy()
     expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["book-settings"])
     expect(cardsForPanel("properties", undefined, false)).toEqual([])
   })
