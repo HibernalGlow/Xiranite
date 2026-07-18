@@ -322,10 +322,13 @@
       "testIds": [
         "neoview.bindings.devices",
         "neoview.bindings.editor",
-        "neoview.bindings.recording"
+        "neoview.bindings.recording",
+        "neoview.bindings.keyboard-hold",
+        "neoview.bindings.keyboard-hold-editor",
+        "neoview.bindings.keyboard-hold-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "react-hotkeys-hook owns both runtime matching and capture-phase chord recording. The editor exposes physical codes and all modifiers; recording ignores IME composition, does not leak an action and Escape cancels."
+      "notes": "react-hotkeys-hook owns runtime matching, key-down/key-up lifecycle and capture-phase chord recording. The editor exposes physical codes, modifiers and bounded hold timing; Enter hold opens the radial menu after 450 ms and key-up/blur/unmount cancel pending timers."
     },
     {
       "id": "bindings.mouse",
@@ -515,7 +518,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
         "evidence": "partial"
@@ -526,10 +529,13 @@
         "neoview.bindings.radial-legacy-shape",
         "neoview.bindings.radial-persistence",
         "neoview.bindings.radial-http",
-        "neoview.bindings.radial-client"
+        "neoview.bindings.radial-client",
+        "neoview.bindings.radial-runtime",
+        "neoview.radial-menu.editor",
+        "neoview.bindings.keyboard-hold-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "The frozen framework-agnostic ray-menu Web Component is copied byte-for-byte. A strict shared DTO covers up to 16 menus, three layers, bounded children, action slots and cross-menu jumps; authenticated HTTP persists it independently at [nodes.neoview.bindings].radial_menus. React editor/runtime wiring remains pending."
+      "notes": "All 13 ray-menu TypeScript files are copied byte-for-byte from source revision a4c4e074. React lazily adapts the original NeoViewRayMenu overlay and a complete settings editor covers enablement, menus, three layers, recursive slots, actions/cross-menu jumps, ordering, geometry, preview, reset and independent persistence. Right-button press, one-finger long-press and Enter hold open it; pointer/touch Chromium geometry and legacy toggle-mode evidence remain pending."
     },
     {
       "id": "bindings.conflicts",
@@ -617,10 +623,11 @@
         "neoview.bindings.config",
         "neoview.bindings.validation",
         "neoview.bindings.devices",
-        "neoview.bindings.multiple-inputs"
+        "neoview.bindings.multiple-inputs",
+        "neoview.bindings.keyboard-hold"
       ],
       "plannedTestIds": [],
-      "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP. Multiple records may share one action, preserving the legacy one-operation-to-many-inputs contract across devices and contexts."
+      "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP. Multiple records may share one action, preserving the legacy one-operation-to-many-inputs contract across devices and contexts; key-down and bounded key-hold are distinct descriptors."
     },
     {
       "id": "bindings.persistence",
@@ -759,10 +766,12 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.bindings.dom-context"
+        "neoview.bindings.dom-context",
+        "neoview.bindings.keyboard-hold-runtime",
+        "neoview.bindings.radial-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "Framework adapters clean up on unmount and gamepad is conditionally loaded; focused listener-count and visibility E2E remain pending."
+      "notes": "Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, and gamepad is conditionally loaded; focused listener-count and visibility E2E remain pending."
     },
     {
       "id": "bindings.shell",

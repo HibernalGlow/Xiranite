@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ReaderInputAction, ReaderInputBindingsConfig } from "@xiranite/node-neoview/ui-core"
 import { readerInputContexts, useReaderInputRouter } from "./ReaderInputRouter"
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe("ReaderInputRouter", () => {
   it("[neoview.bindings.dom-context] derives editor, modal, panel and reader modes", () => {
@@ -59,6 +59,25 @@ describe("ReaderInputRouter", () => {
     expect(execute).not.toHaveBeenCalled()
     fireEvent.pointerUp(screen.getByTestId("reader"), { pointerType: "mouse", button: 3, detail: 1 })
     expect(execute).toHaveBeenCalledWith("reader.next-page")
+  })
+
+  it("[neoview.bindings.keyboard-hold-runtime] dispatches after the threshold and cancels on keyup", () => {
+    vi.useFakeTimers()
+    const execute = vi.fn()
+    render(<Harness config={{ bindings: [
+      { id: "hold", action: "radial.open-default", context: "reader", enabled: true, input: { device: "keyboard", code: "Enter", trigger: "hold", durationMs: 450 } },
+    ] }} execute={execute} />)
+    const reader = screen.getByTestId("reader")
+    fireEvent.keyDown(reader, { key: "Enter", code: "Enter" })
+    vi.advanceTimersByTime(449)
+    expect(execute).not.toHaveBeenCalled()
+    fireEvent.keyUp(reader, { key: "Enter", code: "Enter" })
+    vi.advanceTimersByTime(1)
+    expect(execute).not.toHaveBeenCalled()
+    fireEvent.keyDown(reader, { key: "Enter", code: "Enter" })
+    vi.advanceTimersByTime(450)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(execute).toHaveBeenCalledWith("radial.open-default")
   })
 
   it("[neoview.bindings.mouse-press] dispatches press once without a release click", () => {

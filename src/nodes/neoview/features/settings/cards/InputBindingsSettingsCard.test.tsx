@@ -49,6 +49,13 @@ describe("InputBindingsSettingsCard", () => {
     expect(screen.queryByText("请按下组合键；按 Escape 取消录制。")).toBeNull()
   })
 
+  it("[neoview.bindings.keyboard-hold-editor] edits a long-press without replacing other bindings for the action", () => {
+    render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard"), binding("mouse", "mouse")] }} onSave={vi.fn()} />)
+    fireEvent.change(screen.getByRole("combobox", { name: "键盘触发方式" }), { target: { value: "hold" } })
+    expect(screen.getByDisplayValue("450")).toBeTruthy()
+    expect(screen.getAllByRole("listitem")).toHaveLength(2)
+  })
+
   it("[neoview.bindings.mouse-gesture-editor] edits press, hold timing and a bounded direction sequence", () => {
     render(<InputBindingsEditor value={{ bindings: [binding("mouse", "mouse"), binding("gesture", "mouse-gesture")] }} onSave={vi.fn()} />)
     fireEvent.change(screen.getByRole("combobox", { name: "鼠标动作" }), { target: { value: "hold" } })

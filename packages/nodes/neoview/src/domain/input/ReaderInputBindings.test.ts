@@ -33,7 +33,8 @@ describe("ReaderInputBindings", () => {
   })
 
   it("[neoview.bindings.devices] normalizes keyboard, mouse, wheel, touch and gamepad inputs", () => {
-    expect(readerInputDescriptorKey({ device: "keyboard", code: "KeyR", ctrl: true })).toBe("keyboard:C---:KeyR")
+    expect(readerInputDescriptorKey({ device: "keyboard", code: "KeyR", ctrl: true })).toBe("keyboard:C---:KeyR:down")
+    expect(readerInputDescriptorKey({ device: "keyboard", code: "KeyR", ctrl: true, trigger: "hold", durationMs: 450 })).toBe("keyboard:C---:KeyR:hold")
     expect(readerInputDescriptorKey({ device: "mouse", button: 3, action: "click" })).toBe("mouse:3:click")
     expect(readerInputDescriptorKey({ device: "mouse-gesture", button: 2, directions: ["left", "down"], trigger: "instant" })).toBe("mouse-gesture:2:instant:left-down")
     expect(readerInputDescriptorKey({ device: "wheel", direction: "down", shift: true })).toBe("wheel:--S-:down")

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../adapters/reader-http-client"
+import { DEFAULT_READER_RADIAL_MENU_CONFIG } from "@xiranite/node-neoview/ui-core"
 
 vi.mock("./cards/PanelLayoutEditor", () => ({ default: () => <div data-testid="panel-layout-editor">editor</div> }))
 
@@ -18,10 +19,12 @@ describe("ReaderSettingsWindow", () => {
         shell={shell()}
         viewDefaults={{ fitMode: "fit", pageMode: "single" }}
         inputBindings={{ bindings: [] }}
+        radialMenu={DEFAULT_READER_RADIAL_MENU_CONFIG}
         onClose={vi.fn()}
         onBoardLayout={save}
         onViewDefaults={saveViewDefaults}
         onInputBindings={vi.fn(async () => ({ bindings: [] }))}
+        onRadialMenu={vi.fn(async () => DEFAULT_READER_RADIAL_MENU_CONFIG)}
       />,
     )
     expect(screen.getByRole("dialog")).toBeTruthy()

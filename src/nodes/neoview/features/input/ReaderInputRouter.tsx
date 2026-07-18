@@ -21,6 +21,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   const bindingsRef = useRef(config.bindings)
   bindingsRef.current = config.bindings
   const handledAreaPressPointers = useRef(new Set<number>())
+  const keyboardHoldTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   const keyboardKeys = useMemo(() => config.bindings.flatMap((binding) => {
     if (!binding.enabled || binding.input.device !== "keyboard") return []
@@ -30,15 +31,26 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
 
   useHotkeys<HTMLElement>(keyboardKeys, (event) => {
     if (disabled || event.repeat || event.isComposing) return
-    const handled = dispatch({
+    const input = {
       device: "keyboard",
       code: event.code,
       ctrl: event.ctrlKey || undefined,
       alt: event.altKey || undefined,
       shift: event.shiftKey || undefined,
       meta: event.metaKey || undefined,
-    }, event.target)
-    if (handled) event.preventDefault()
+    } as const
+    const handled = dispatch({ ...input, trigger: "down" }, event.target)
+    const holdBinding = matchingReaderInputBinding(bindingsRef.current, { ...input, trigger: "hold" }, readerInputContexts(event.target))
+    if (holdBinding) {
+      const key = keyboardEventKey(event)
+      const existing = keyboardHoldTimers.current.get(key)
+      if (existing) clearTimeout(existing)
+      keyboardHoldTimers.current.set(key, setTimeout(() => {
+        keyboardHoldTimers.current.delete(key)
+        void executeRef.current(holdBinding.action)
+      }, holdBinding.input.device === "keyboard" ? holdBinding.input.durationMs ?? 450 : 450))
+    }
+    if (handled || holdBinding) event.preventDefault()
   }, {
     useKey: false,
     enableOnFormTags: true,
@@ -46,6 +58,34 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
     preventDefault: false,
     enabled: keyboardKeys.length > 0,
   }, [disabled, keyboardKeys])
+
+  useHotkeys<HTMLElement>(keyboardKeys, (event) => {
+    const key = keyboardEventKey(event)
+    const timer = keyboardHoldTimers.current.get(key)
+    if (!timer) return
+    clearTimeout(timer)
+    keyboardHoldTimers.current.delete(key)
+  }, {
+    useKey: false,
+    enableOnFormTags: true,
+    enableOnContentEditable: true,
+    keydown: false,
+    keyup: true,
+    enabled: keyboardKeys.length > 0,
+  }, [keyboardKeys])
+
+  useEffect(() => {
+    const clear = () => {
+      for (const timer of keyboardHoldTimers.current.values()) clearTimeout(timer)
+      keyboardHoldTimers.current.clear()
+    }
+    window.addEventListener("blur", clear)
+    if (disabled) clear()
+    return () => {
+      window.removeEventListener("blur", clear)
+      clear()
+    }
+  }, [config.bindings, disabled])
 
   const onPointerUp: PointerEventHandler<HTMLElement> = (event) => {
     if (disabled || event.pointerType !== "mouse" || isInteractive(event.target)) return
@@ -109,6 +149,10 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   }
 
   return { claimPointer, dispatch, onPointerDown, onPointerUp }
+}
+
+function keyboardEventKey(event: KeyboardEvent): string {
+  return `${event.code}:${event.ctrlKey}:${event.altKey}:${event.shiftKey}:${event.metaKey}`
 }
 
 function readerAreaInput(event: Parameters<PointerEventHandler<HTMLElement>>[0], action: "click" | "double-click" | "press"): ReaderInputDescriptor | undefined {
