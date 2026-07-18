@@ -169,6 +169,45 @@ describe("NeoView CLI", () => {
     expect(dispose).toHaveBeenCalledTimes(2)
   })
 
+  it("[neoview.folder.emm-search-cli] forwards structured EMM tag filters through the shared search controller", async () => {
+    const closeSearch = vi.fn(async () => undefined)
+    const dispose = vi.fn(async () => undefined)
+    const search = vi.fn(() => ({
+      events: {
+        async *[Symbol.asyncIterator]() {
+          yield { type: "meta", sessionId: "browser-1", rootPath: "D:/library", generation: 1, query: "", mode: "text" }
+          yield { type: "complete", scanned: 0, matched: 0, truncated: false }
+        },
+      },
+      close: closeSearch,
+      [Symbol.asyncDispose]: closeSearch,
+    }))
+    const controller = {
+      open: vi.fn(async () => ({ sessionId: "browser-1" })),
+      setFilter: vi.fn(async () => undefined),
+      search,
+      recordSearchHistory: vi.fn(async () => undefined),
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderFileTreeHeadlessController
+    const dependencies = { createController: async () => fakeReader(), createFileTreeController: async () => controller }
+
+    await runProgram([
+      "folder-search", "D:/library",
+      "--tag", "artist:Alice", "--tag", "genre:Comedy",
+      "--exclude-tag", "genre:Horror", "--tag-mode", "any", "--json",
+    ], host([]), dependencies)
+    expect(search).toHaveBeenCalledWith("", expect.objectContaining({
+      includeTags: ["artist:Alice", "genre:Comedy"],
+      excludeTags: ["genre:Horror"],
+      tagMode: "any",
+    }))
+    expect(closeSearch).toHaveBeenCalledOnce()
+    expect(dispose).toHaveBeenCalledOnce()
+    await expect(runProgram(["folder-search", "D:/library", "--tag", "artist:Alice", "--tag-mode", "invalid"], host([]), dependencies))
+      .rejects.toThrow("--tag-mode must be all or any")
+    expect(dispose).toHaveBeenCalledTimes(2)
+  })
+
   it("[neoview.folder.search-history-import-cli] inspects and imports legacy history through the dedicated importer", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-search-history-cli-"))
     const inputPath = join(directory, "settings.json")

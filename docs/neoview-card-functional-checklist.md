@@ -782,12 +782,12 @@
   - 计划测试：无
   - 备注：ReaderFileTreeService 已提供 session-scoped text/glob NDJSON 搜索、硬预算、背压、宿主 I/O lease 与四条取消/释放路径；GUI 以每 16 项有界批次在流完成前增量发布到 Virtuoso，CLI 文本流/有界 JSON 与通用 OpenTUI folder-ui 复用同一服务。旧 includeSubfolders=true 默认值与开关已规范化到 [nodes.neoview.folder.search]，真实 Chromium 覆盖关闭/恢复、TOML 重读和活动阅读图像稳定。原版视觉 characterization 仍待迁移。
 - [ ] `folder.search.emm-tags` EMM 标签、收藏标签与随机标签搜索
-  - 六维：`core=P transport=P gui=- cli=P tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=- cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：支持 EMM 标签条件、收藏标签快捷筛选和随机标签；标签组合修饰键行为与原版一致。
   - 源码：`components/FavoriteTagPanel.svelte`、`components/SearchResultList.svelte`
-  - 测试：`neoview.folder.emm-search-batch`、`neoview.folder.emm-search-query`、`neoview.folder.emm-search-http`、`neoview.folder.emm-tag-suggestions`、`neoview.folder.emm-tag-sqlite`、`neoview.folder.emm-tag-suggestions-http`、`neoview.folder.emm-translation-source`、`neoview.folder.emm-tag-translation`、`neoview.folder.emm-tags-cli`
+  - 测试：`neoview.folder.emm-search-batch`、`neoview.folder.emm-search-query`、`neoview.folder.emm-search-http`、`neoview.folder.emm-tag-suggestions`、`neoview.folder.emm-tag-sqlite`、`neoview.folder.emm-tag-suggestions-http`、`neoview.folder.emm-translation-source`、`neoview.folder.emm-tag-translation`、`neoview.folder.emm-tags-cli`、`neoview.folder.emm-search-cli`、`neoview.folder.emm-search-tui`、`neoview.folder.emm-tags-tui`、`neoview.folder.tui`
   - 计划测试：无
-  - 备注：结构化 include/exclude tag 与 all/any 组合已通过唯一 ReaderFileTreeSearch 契约；ReaderMetadataHydratingScanner 对当前 listing 和递归 scanner 都按 128 项调用现有 EMM metadata provider，继续使用旧库批量查询、NDJSON 背压和同一取消链，不扫描 UI store。随机普通标签由 SQLite JSON1 在最多 50 个旧 emm_json 行内展开去重，并与唯一 collect-tag source 的最多 3 个收藏标签合并。翻译由 8 MiB 有界、mtime 缓存且可释放的 platform source 惰性补充。完整 GUI、手动翻译路径、组合修饰键和显式 CLI/TUI surface 仍待完成。
+  - 备注：结构化 include/exclude tag 与 all/any 组合已通过唯一 ReaderFileTreeSearch 契约；ReaderMetadataHydratingScanner 对当前 listing 和递归 scanner 都按 128 项调用现有 EMM metadata provider，继续使用旧库批量查询、NDJSON 背压和同一取消链，不扫描 UI store。随机普通标签由 SQLite JSON1 在最多 50 个旧 emm_json 行内展开去重，并与唯一 collect-tag source 的最多 3 个收藏标签合并；翻译由 8 MiB 有界、mtime 缓存且可释放的 platform source 惰性补充。CLI folder-search 支持 tag-only、重复 include/exclude tag 与 all/any，folder-emm-tags 继续提供建议；OpenTUI 复用同一 search/suggestion service，不复制标签解析、SQLite 查询或翻译逻辑。完整 GUI、收藏标签快捷应用和原版组合修饰键交互仍待完成。
 
 ### filtering（1）
 
