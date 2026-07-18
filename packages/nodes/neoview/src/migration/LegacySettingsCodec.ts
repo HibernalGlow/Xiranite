@@ -1,3 +1,8 @@
+import {
+  LegacySuperResolutionSettingsCodec,
+  type DecodedLegacySuperResolutionSettings,
+} from "./LegacySuperResolutionSettingsCodec.js"
+
 export const NEOVIEW_CONFIG_SCHEMA_VERSION = 1 as const
 export const LEGACY_NEOVIEW_SETTINGS_SOURCE_HASH = "sha256:78e22b555978be0712e053efe890a6621a965de6284e5c5df4901df0f704fcea"
 
@@ -244,6 +249,12 @@ const SENSITIVE_KEY = /(?:password|passwd|token|secret|credential|api[_-]?key|au
 const SENSITIVE_STORAGE_KEY = /(?:gist-sync|ai-api|api-config|auth|credential|secret|token|password)/i
 const THEME_STORAGE_KEYS = new Set(["theme-mode", "theme-name", "runtime-theme", "custom-themes"])
 const PENDING_EXTENDED_KEYS = new Set(["bookmarks", "history", "searchHistory", "folderRatings"])
+const legacySuperResolution = new LegacySuperResolutionSettingsCodec()
+const LEGACY_NATIVE_SUPER_RESOLUTION_KEYS = new Set([
+  "enableSuperResolution",
+  "superResolutionModel",
+  "currentImageUpscaleEnabled",
+])
 
 export class LegacySettingsCodec {
   readonly version = 1 as const
@@ -408,7 +419,19 @@ function mapNativeSettings(
       entries.push({ sourcePath, disposition: "invalid", message: "Expected an object section." })
       continue
     }
-    mapSchemaObject(value, schema, config, target, sourcePath, entries)
+    if (key === "image") {
+      applyLegacySuperResolution(legacySuperResolution.decodeNativeImage(value, sourcePath), config, entries)
+      mapSchemaObject(
+        Object.fromEntries(Object.entries(value).filter(([childKey]) => !LEGACY_NATIVE_SUPER_RESOLUTION_KEYS.has(childKey))),
+        schema,
+        config,
+        target,
+        sourcePath,
+        entries,
+      )
+    } else {
+      mapSchemaObject(value, schema, config, target, sourcePath, entries)
+    }
   }
 }
 
@@ -505,7 +528,6 @@ function mapExtendedSettings(
     uiState: ["ui", "state"],
     panelsLayout: ["panels", "layout"],
     historySettings: ["history", "selection_sync"],
-    upscalePanelSettings: ["upscale"],
     insightsCardsSettings: ["panels", "insights_cards_settings"],
     insightsCards: ["panels", "insights_cards"],
     cardConfigs: ["panels", "card_configs"],
@@ -546,6 +568,10 @@ function mapExtendedSettings(
     if (PENDING_EXTENDED_KEYS.has(key)) {
       pending[key] = cloneJson(value)
       entries.push({ sourcePath, disposition: "pending-data", message: "Runtime data requires its dedicated database importer and is not written to TOML." })
+      continue
+    }
+    if (key === "upscalePanelSettings") {
+      applyLegacySuperResolution(legacySuperResolution.decodePanel(value, sourcePath), config, entries)
       continue
     }
     const target = targets[key]
@@ -591,7 +617,8 @@ function mapRawLocalStorage(
         entries.push({ sourcePath, disposition: "skipped", message: "Module upscale was not selected." })
         continue
       }
-      mapOpaqueSetting(parseStorageJson(raw, sourcePath, entries), config, ["upscale"], sourcePath, entries)
+      const parsed = parseStorageJson(raw, sourcePath, entries)
+      if (parsed !== undefined) applyLegacySuperResolution(legacySuperResolution.decodePanel(parsed, sourcePath), config, entries)
       continue
     }
     if (isKnownPendingStorageKey(key)) {
@@ -606,6 +633,17 @@ function mapRawLocalStorage(
     }
     entries.push({ sourcePath, disposition: "unknown", message: "Unmapped localStorage key." })
   }
+}
+
+function applyLegacySuperResolution(
+  decoded: DecodedLegacySuperResolutionSettings,
+  config: Record<string, unknown>,
+  entries: LegacySettingsReportEntry[],
+): void {
+  const superResolution = isRecord(config.super_resolution) ? config.super_resolution : {}
+  const existing = isRecord(superResolution.preferences) ? superResolution.preferences : {}
+  setPath(config, ["super_resolution", "preferences"], { ...existing, ...decoded.preferencesPatch })
+  entries.push(...decoded.entries)
 }
 
 function mapOpaqueSetting(

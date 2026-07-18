@@ -1073,6 +1073,10 @@
         "neoview.super-resolution.explicit-path",
         "neoview.super-resolution.gpu-lease",
         "neoview.super-resolution.lazy",
+        "neoview.super-resolution.legacy-conditions",
+        "neoview.super-resolution.legacy-preferences",
+        "neoview.super-resolution.legacy-settings-import",
+        "neoview.super-resolution.legacy-validation",
         "neoview.super-resolution.no-overwrite",
         "neoview.super-resolution.output-lock",
         "neoview.super-resolution.path-probe",
@@ -1083,6 +1087,7 @@
         "neoview.super-resolution.provider-lazy",
         "neoview.super-resolution.provider-output",
         "neoview.super-resolution.provider-run",
+        "neoview.super-resolution.preferences-config",
         "neoview.super-resolution.runtime-loader",
         "neoview.super-resolution.runtime-loader-contract",
         "neoview.super-resolution.runtime-loader-missing",
@@ -1097,7 +1102,7 @@
         "upscale-warm"
       ],
       "knownDifferences": [
-        "TOML custom model manifests and runtime registration are implemented; legacy custom-model settings import remains pending.",
+        "Versioned TOML preferences/conditions and legacy native/panel/localStorage import are implemented; unknown model IDs are reported and excluded from executable conditions, while legacy MangaJaNai directory conversion still requires an explicit custom-model manifest.",
         "The system-only fork is not yet available through a remote immutable dependency, and real GPU benchmark evidence remains pending."
       ]
     },

@@ -39,6 +39,21 @@ describe("NeoView super-resolution TOML config", () => {
       `checksums = { "model.param" = "${"a".repeat(64)}", "model.bin" = "${"b".repeat(64)}" }`,
       'input_blob = "in0"',
       'output_blob = "out0"',
+      "[nodes.neoview.super_resolution.preferences]",
+      "schema_version = 1",
+      "auto_upscale_enabled = true",
+      'default_model_id = "realesr-animevideov3"',
+      "default_scale = 2",
+      "[[nodes.neoview.super_resolution.preferences.conditions]]",
+      'id = "small-page"',
+      'name = "Small page"',
+      "enabled = true",
+      "priority = 0",
+      "[nodes.neoview.super_resolution.preferences.conditions.match]",
+      "max_width = 1024",
+      "[nodes.neoview.super_resolution.preferences.conditions.action]",
+      'model_id = "realesr-animevideov3"',
+      "scale = 2",
       "",
     ].join("\n"), "utf8")
 
@@ -60,6 +75,17 @@ describe("NeoView super-resolution TOML config", () => {
           modelDirectory: "illustration-janai",
           modelFiles: ["model.param", "model.bin"],
         }],
+        preferences: {
+          schemaVersion: 1,
+          autoUpscaleEnabled: true,
+          defaultModelId: "realesr-animevideov3",
+          defaultScale: 2,
+          conditions: [{
+            id: "small-page",
+            match: { maxWidth: 1024 },
+            action: { modelId: "realesr-animevideov3", scale: 2 },
+          }],
+        },
       },
     })
   })
