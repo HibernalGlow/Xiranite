@@ -1,3 +1,10 @@
+/**
+ * @migrated-from src/lib/cards/info/StorageCard.svelte
+ * @source-hash sha256:5146af9c4e87cbdd05062bac90c7f356c4b26aa0d369cc063e34adf2b9ec5db3
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/StorageCard.tsx
+ * @features metadata-dimensions-properties
+ * @migration-status adapted
+ */
 import type { ReactNode } from "react"
 
 import type { ReaderPanelContext } from "../registry"

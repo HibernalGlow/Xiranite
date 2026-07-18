@@ -1,6 +1,7 @@
 /**
  * @migrated-from src/lib/cards/info/PreloadStatusCard.svelte
  * @source-hash sha256:1cceb9bccf3022428af0708c673885636bd29e410abc2e7de79368f2f27e2b76
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/PreloadStatusCard.tsx
  * @migration-status partial
  */
 import { lazy, Suspense, useCallback, useSyncExternalStore } from "react"
