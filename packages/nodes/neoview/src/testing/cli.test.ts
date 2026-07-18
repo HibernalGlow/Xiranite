@@ -1055,6 +1055,7 @@ describe("NeoView CLI", () => {
   it("[neoview.thumbnail.maintenance-cli] reuses the bounded store API and never prints database keys", async () => {
     const output: unknown[] = []
     const cleanupInvalid = vi.fn(async () => ({ scanned: 10, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false }))
+    const cleanup = vi.fn(async () => 0)
     const clearFailures = vi.fn(async () => 3)
     const dispose = vi.fn(async () => undefined)
     const openThumbnailStore = vi.fn(async () => ({
@@ -1068,7 +1069,7 @@ describe("NeoView CLI", () => {
         failuresByReason: { "decode-error": 1 },
         writer: { pendingWrites: 0, flushing: false, committedBatches: 1, committedWrites: 2, busyRetries: 0, failedBatches: 0 },
       }),
-      cleanup: vi.fn(async () => 0),
+      cleanup,
       cleanupInvalid,
       clearFailures,
       [Symbol.asyncDispose]: dispose,
@@ -1098,13 +1099,23 @@ describe("NeoView CLI", () => {
       "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "invalid", "--limit", "501", "--yes",
     ], host([]), dependencies)).rejects.toThrow("from 1 to 500")
 
+    const prefixOutput: unknown[] = []
+    await runProgram([
+      "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "path-prefix", "--prefix", " D:/library ", "--limit", "20", "--yes", "--json",
+    ], host(prefixOutput), dependencies)
+    expect(JSON.parse(prefixOutput.join(""))).toEqual({ operation: "path-prefix", prefix: "D:/library", deleted: 0 })
+    expect(cleanup).toHaveBeenLastCalledWith({ kind: "path-prefix", prefix: "D:/library", limit: 20 }, undefined)
+    await expect(runProgram([
+      "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "path-prefix", "--limit", "20", "--yes",
+    ], host([]), dependencies)).rejects.toThrow("requires --prefix")
+
     const failureOutput: unknown[] = []
     await runProgram([
       "thumbnail-db-clear-failures", "private/thumbnails.db", "--reason", "decode-error", "--limit", "50", "--yes", "--json",
     ], host(failureOutput), dependencies)
     expect(JSON.parse(failureOutput.join(""))).toEqual({ operation: "clear-failures", deleted: 3 })
     expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 50 }, undefined)
-    expect(dispose).toHaveBeenCalledTimes(3)
+    expect(dispose).toHaveBeenCalledTimes(4)
   })
 
   it("[neoview.thumbnail.database-maintenance-cli] requires confirmation and keeps offline work behind one shared adapter", async () => {
