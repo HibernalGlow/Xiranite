@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { open, readFile, rm, stat } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
+import { readFileSync } from "node:fs"
 import { CliUsageError, createCliHost, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import type {
@@ -46,9 +47,10 @@ import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRest
 import type { ReaderBookSettingsMigrationFilePort } from "./platform/migration/ReaderBookSettingsMigrationFileController.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
 import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
-import type { ReaderInputBinding } from "./domain/input/ReaderInputBindings.js"
+import type { ReaderInputBinding, ReaderInputContext, ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
+import { executeReaderHeadlessInputBinding } from "./application/headless/ReaderHeadlessInputBindingExecutor.js"
 import type {
   RemoteSuperResolutionArtifactResult,
   RemoteSuperResolutionArtifactCacheCleanupKind,
@@ -63,7 +65,7 @@ const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
-  "input-action-dispatch", "settings-inspect", "settings-import",
+  "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
   "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
   "book-settings-get", "book-settings-set", "book-settings-legacy-inspect", "book-settings-legacy-import",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
@@ -128,6 +130,8 @@ const VALUE_FLAGS = new Set([
   "--page-mode",
   "--horizontal-book",
   "--input",
+  "--input-json",
+  "--contexts-json",
   "--action",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
@@ -287,6 +291,10 @@ export async function runProgram(
     return
   }
   if (command.startsWith("input-bindings-")) {
+    if (command === "input-bindings-dispatch") {
+      await runInputBindingsDispatchCommand(parsed, host)
+      return
+    }
     await runInputBindingsCommand(command, parsed, host)
     return
   }
@@ -487,6 +495,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set([
       "--json", "--config", "--entry", "--password-env", "--archive-password-env", "--index", "--output", "--force",
     ]))
+    return
+  }
+  if (command === "input-bindings-dispatch") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--input-json", "--contexts-json"]))
     return
   }
   if (command.startsWith("upscale-preload-")) {
@@ -2444,6 +2456,51 @@ async function runBookSettingsUi(
   }
 }
 
+async function runInputBindingsDispatchCommand(parsed: ParsedArguments, host: CliHost): Promise<void> {
+  if (parsed.positionals.length !== 1) throw usage("input-bindings-dispatch requires exactly one book path.")
+  const inputJson = oneValue(parsed, "--input-json")
+  if (!inputJson) throw usage("input-bindings-dispatch requires --input-json <descriptor.json|inline-json>.")
+  const input = parseInputDescriptorCli(inputJson, host.cwd)
+  const contexts = parseInputContextsCli(oneValue(parsed, "--contexts-json"), host.cwd)
+  const { ReaderInputBindingsConfigService } = await import("./platform/config/ReaderInputBindingsConfigService.js")
+  const service = new ReaderInputBindingsConfigService({ configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env })
+  const controller = await createReaderHeadlessController({ configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env })
+  try {
+    await controller.open({ path: resolve(host.cwd, parsed.positionals[0]!) })
+    const result = await executeReaderHeadlessInputBinding(await service.inspect(), input, contexts, controller)
+    if (parsed.booleans.has("--json")) writeJson(host, result)
+    else if (!result.matched) writeLine(host, `Input binding not found (${contexts.join(",")}).`)
+    else writeLine(host, result.result.handled
+      ? `Input binding handled: ${result.bindingId} -> ${result.action} (${result.context}).`
+      : `Input binding unsupported: ${result.bindingId} -> ${result.action} (${result.result.reason}).`)
+  } finally {
+    await controller[Symbol.asyncDispose]()
+  }
+}
+
+function parseInputDescriptorCli(value: string, cwd: string): ReaderInputDescriptor {
+  const raw = value.trim().startsWith("{") ? value : requireCliJson(value, cwd)
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch (error) { throw usage(`Invalid --input-json: ${error instanceof Error ? error.message : String(error)}`) }
+  if (!parsed || typeof parsed !== "object" || typeof (parsed as { device?: unknown }).device !== "string") throw usage("--input-json must contain a Reader input descriptor.")
+  return parsed as ReaderInputDescriptor
+}
+
+function parseInputContextsCli(value: string | undefined, cwd: string): ReaderInputContext[] {
+  if (!value) return ["reader"]
+  const raw = value.trim().startsWith("[") ? value : requireCliJson(value, cwd)
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch (error) { throw usage(`Invalid --contexts-json: ${error instanceof Error ? error.message : String(error)}`) }
+  if (!Array.isArray(parsed) || !parsed.length || parsed.some((entry) => !["global", "reader", "video", "panel", "editor", "modal"].includes(String(entry)))) {
+    throw usage("--contexts-json must be a non-empty JSON array of Reader contexts.")
+  }
+  return parsed as ReaderInputContext[]
+}
+
+function requireCliJson(value: string, cwd: string): string {
+  try { return readFileSync(resolve(cwd, value), "utf8") } catch (error) { throw usage(`Cannot read JSON input ${value}: ${error instanceof Error ? error.message : String(error)}`) }
+}
+
 async function runBookSettingsMigrationUi(args: readonly string[], host: CliHost): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView book-settings-migration-ui requires an interactive terminal.")
   const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
@@ -2561,6 +2618,7 @@ function formatCliHelp(): string {
     "  upscale-cache-cleanup <path>  Clean age/current-book/all artifacts (--kind, --yes, --connect)",
     "  upscale-cache-ui              Open remote artifact-cache maintenance UI (--connect)",
     "  input-action-dispatch <path> Dispatch one supported action (--action)",
+    "  input-bindings-dispatch <path> Dispatch a configured input (--input-json, --contexts-json)",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
     "  input-bindings-list       Inspect canonical multi-device bindings",
@@ -2662,6 +2720,8 @@ function formatCliHelp(): string {
     "  --tag-mode MODE      Required-tag mode: all or any",
     "  --input PATH         JSON input for folder-emm-edit: { updates, concurrency? }",
     "  --action ID          Stable XR or legacy action ID for input-action-dispatch",
+    "  --input-json JSON|PATH  Input descriptor JSON for input-bindings-dispatch",
+    "  --contexts-json JSON|PATH  Active context stack for input-bindings-dispatch",
     "  --node PATH          Explicit tree node for tree/cache commands",
     "  --depth N            Recursive search depth (0..4096)",
     "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",
