@@ -56,6 +56,8 @@ import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
 import { executeReaderInputAction } from "../features/input/ReaderInputActionExecutor"
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
+import { createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
+import { migrateLegacyReaderPageTransition } from "../features/page-transition/LegacyReaderPageTransitionMigration"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -219,6 +221,13 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
+  const [pageTransition] = useState(() => createReaderPageTransitionStore({
+    async persist(settings, reset, signal) {
+      if (!clientRef.current.updatePageTransition) return settings
+      return await clientRef.current.updatePageTransition({ pageTransition: reset ? { reset: "defaults" } : settings }, signal)
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  }))
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const [shellControlStore] = useState(() => createReaderShellControlStore({
     edges: {
@@ -256,6 +265,7 @@ export function ReaderApp({
     operationRef.current?.abort()
     slideshow.dispose()
     colorFilter.dispose()
+    pageTransition.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
   }, [])
@@ -282,6 +292,16 @@ export function ReaderApp({
             storage: localStorage,
             canonical: config.colorFilter,
             persist: async (settings) => colorFilter.update(settings),
+          }).catch((cause) => setError(errorMessage(cause)))
+        }
+      }
+      if (config.pageTransition) {
+        pageTransition.hydrate(config.pageTransition)
+        if (typeof localStorage !== "undefined") {
+          void migrateLegacyReaderPageTransition({
+            storage: localStorage,
+            canonical: config.pageTransition,
+            persist: async (settings) => pageTransition.update(settings),
           }).catch((cause) => setError(errorMessage(cause)))
         }
       }
@@ -1021,6 +1041,7 @@ export function ReaderApp({
     shell,
     shellControl,
     colorFilter,
+    pageTransition,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
     onViewDefaults: applyConfiguredViewDefaults,
@@ -1078,7 +1099,7 @@ export function ReaderApp({
             </div>
           ) : (
             <Suspense fallback={null}>
-              <LazyReaderFrame pages={session.visiblePages} presentation={presentation} colorFilter={colorFilter} />
+              <LazyReaderFrame pages={session.visiblePages} presentation={presentation} colorFilter={colorFilter} pageTransition={pageTransition} />
             </Suspense>
           )}
           {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}

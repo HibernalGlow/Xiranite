@@ -25,6 +25,10 @@
       "types": "./dist/color-filter.d.ts",
       "default": "./dist/color-filter.js"
     },
+    "./page-transition": {
+      "types": "./dist/page-transition.d.ts",
+      "default": "./dist/page-transition.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"

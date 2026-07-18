@@ -68,10 +68,10 @@ describe("NeoView panel and card registries", () => {
       requiresSession: false,
       canHide: true,
     })
-    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control", "color-filter"])
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition"])
     expect(cardsForPanel("control", {
       cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
-    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "thumbnail-maintenance"])
+    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition", "thumbnail-maintenance"])
   })
 
   it("[neoview.color-filter.registry] exposes the session-independent legacy control Card lazily", () => {
@@ -85,6 +85,19 @@ describe("NeoView panel and card registries", () => {
     })
     expect(definition?.icon).toBeTruthy()
     expect(cardsForPanel("control", undefined, false).map((card) => card.id)).toContain("color-filter")
+  })
+
+  it("[neoview.page-transition.registry] exposes the session-independent legacy control Card lazily", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "page-transition")
+    expect(definition).toMatchObject({
+      title: "翻页动画",
+      defaultPanel: "control",
+      defaultSidebarVisible: true,
+      requiresSession: false,
+      canHide: true,
+    })
+    expect(definition?.icon).toBeTruthy()
+    expect(cardsForPanel("control", undefined, false).map((card) => card.id)).toContain("page-transition")
   })
 
   it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {

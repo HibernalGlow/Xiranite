@@ -23,6 +23,13 @@ import {
   type ReaderColorFilterPatch,
   type ReaderColorFilterSettings,
 } from "../../domain/color-filter/ReaderColorFilter.js"
+import {
+  DEFAULT_READER_PAGE_TRANSITION,
+  normalizeReaderPageTransition,
+  parseReaderPageTransitionPatch,
+  type ReaderPageTransitionPatch,
+  type ReaderPageTransitionSettings,
+} from "../../domain/page-transition/ReaderPageTransition.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -39,6 +46,7 @@ export interface NeoviewRuntimeConfig {
   slideshow: NeoviewSlideshowConfig
   media: NeoviewMediaConfig
   colorFilter: ReaderColorFilterSettings
+  pageTransition: ReaderPageTransitionSettings
   superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
@@ -443,6 +451,10 @@ export interface NeoviewColorFilterPatch {
   colorFilter: ReaderColorFilterPatch | { reset: "defaults" }
 }
 
+export interface NeoviewPageTransitionPatch {
+  pageTransition: ReaderPageTransitionPatch | { reset: "defaults" }
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -486,6 +498,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
     colorFilter: DEFAULT_READER_COLOR_FILTER,
+    pageTransition: DEFAULT_READER_PAGE_TRANSITION,
     superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
@@ -503,6 +516,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
   const colorFilter = optionalRecord(image?.color_filter, "[nodes.neoview.image.color_filter]")
+  const pageTransition = optionalRecord(image?.page_transition, "[nodes.neoview.image.page_transition]")
   const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
@@ -563,6 +577,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     media: parseMediaConfig(image, subtitle),
     colorFilter: parseColorFilterConfig(colorFilter),
+    pageTransition: parsePageTransitionConfig(pageTransition),
     superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
@@ -622,6 +637,16 @@ function parseColorFilterConfig(value: Record<string, unknown> | undefined): Rea
     hueRotate: value.hue_rotate,
     invert: value.invert,
     negative: value.negative,
+  })
+}
+
+function parsePageTransitionConfig(value: Record<string, unknown> | undefined): ReaderPageTransitionSettings {
+  if (!value) return DEFAULT_READER_PAGE_TRANSITION
+  return normalizeReaderPageTransition({
+    enabled: value.enabled,
+    type: value.type,
+    duration: value.duration,
+    easing: value.easing,
   })
 }
 
@@ -866,6 +891,44 @@ export function parseNeoviewColorFilterPatch(value: unknown): {
     patch: { colorFilter: settings },
     tomlPatch: { image: { color_filter: colorFilterToml(settings) } },
   }
+}
+
+export function parseNeoviewPageTransitionPatch(value: unknown): {
+  patch: NeoviewPageTransitionPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader page transition patch")
+  if (Object.keys(record).some((key) => key !== "pageTransition")) {
+    throw new Error("reader page transition patch contains unsupported fields.")
+  }
+  const pageTransition = requireRecord(record.pageTransition, "reader page transition patch.pageTransition")
+  if (pageTransition.reset !== undefined) {
+    if (pageTransition.reset !== "defaults") {
+      throw new Error('reader page transition patch.reset must be "defaults".')
+    }
+    if (Object.keys(pageTransition).length !== 1) {
+      throw new Error("reader page transition patch.reset cannot be combined with other fields.")
+    }
+    return {
+      patch: { pageTransition: { reset: "defaults" } },
+      tomlPatch: { image: { page_transition: pageTransitionToml(DEFAULT_READER_PAGE_TRANSITION) } },
+    }
+  }
+  const settings = parseReaderPageTransitionPatch(pageTransition)
+  if (!Object.keys(settings).length) throw new Error("reader page transition patch must change at least one field.")
+  return {
+    patch: { pageTransition: settings },
+    tomlPatch: { image: { page_transition: pageTransitionToml(settings) } },
+  }
+}
+
+function pageTransitionToml(value: ReaderPageTransitionPatch): Record<string, unknown> {
+  const toml: Record<string, unknown> = {}
+  if (value.enabled !== undefined) toml.enabled = value.enabled
+  if (value.type !== undefined) toml.type = value.type
+  if (value.duration !== undefined) toml.duration = value.duration
+  if (value.easing !== undefined) toml.easing = value.easing
+  return toml
 }
 
 function colorFilterToml(value: ReaderColorFilterPatch): Record<string, unknown> {

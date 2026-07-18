@@ -14,12 +14,15 @@ import {
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
+import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTransitionStore"
+import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
 import { PageImage } from "./PageImage"
 
-export function ReaderFrame({ pages, presentation, colorFilter }: {
+export function ReaderFrame({ pages, presentation, colorFilter, pageTransition }: {
   pages: ReaderPageDto[]
   presentation: ReaderPresentation
   colorFilter?: ReaderColorFilterPort
+  pageTransition?: ReaderPageTransitionPort
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const viewport = useObservedSize(viewportRef)
@@ -46,24 +49,26 @@ export function ReaderFrame({ pages, presentation, colorFilter }: {
       data-reader-effective-scale={scale}
     >
       <div className="grid h-max min-h-full w-max min-w-full place-items-center p-2">
-        <div
-          className="flex shrink-0 items-center justify-center gap-1"
-          data-reader-frame="true"
-          style={frameSize && scale ? {
-            width: frameSize.width * scale + gap,
-            height: frameSize.height * scale,
-          } : undefined}
-        >
-          {pages.map((page) => (
-            <PageImage
-              key={`${page.id}:${page.contentVersion}`}
-              page={page}
-              rotation={presentation.rotation}
-              scale={scale}
-              colorFilter={colorFilter}
-            />
-          ))}
-        </div>
+        <ReaderPageTransitionLayer pageIndex={pages[0]?.index} store={pageTransition}>
+          <div
+            className="flex shrink-0 items-center justify-center gap-1"
+            data-reader-frame="true"
+            style={frameSize && scale ? {
+              width: frameSize.width * scale + gap,
+              height: frameSize.height * scale,
+            } : undefined}
+          >
+            {pages.map((page) => (
+              <PageImage
+                key={`${page.id}:${page.contentVersion}`}
+                page={page}
+                rotation={presentation.rotation}
+                scale={scale}
+                colorFilter={colorFilter}
+              />
+            ))}
+          </div>
+        </ReaderPageTransitionLayer>
       </div>
     </div>
   )
