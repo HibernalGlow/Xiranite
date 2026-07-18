@@ -91,4 +91,23 @@ describe("ResourceSchedulerService", () => {
     next.release()
     expect(scheduler.snapshot().cpu).toMatchObject({ active: 0, released: 2 })
   })
+
+  it("[xiranite.scheduler.close] rejects queued work, preserves active lease release, and is idempotent", async () => {
+    const scheduler = new ResourceSchedulerService({
+      pools: { cpu: { maxConcurrent: 1, reservedInteractive: 0 } },
+    })
+    const active = await scheduler.acquire({ resource: "cpu", kind: "active", priority: "interactive" })
+    const queued = scheduler.acquire({ resource: "cpu", kind: "queued", priority: "background" })
+
+    scheduler.close()
+    scheduler.close()
+
+    await expect(queued).rejects.toMatchObject({ name: "AbortError" })
+    expect(scheduler.snapshot().cpu).toMatchObject({ active: 1, queued: 0, cancelled: 1 })
+    await expect(scheduler.acquire({ resource: "cpu", kind: "after-close", priority: "interactive" })).rejects.toMatchObject({ name: "AbortError" })
+
+    active.release()
+    active.release()
+    expect(scheduler.snapshot().cpu).toMatchObject({ active: 0, released: 1 })
+  })
 })

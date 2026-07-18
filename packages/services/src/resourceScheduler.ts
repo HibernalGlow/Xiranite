@@ -44,7 +44,7 @@ const DEFAULT_POOLS: Record<ResourceClass, ResourcePoolOptions> = {
   gpu: { maxConcurrent: 1, reservedInteractive: 0 },
 }
 
-export class ResourceSchedulerService implements ResourceScheduler {
+export class ResourceSchedulerService implements ResourceScheduler, AsyncDisposable {
   readonly #pools: Record<ResourceClass, PriorityResourcePool>
 
   constructor(options: ResourceSchedulerServiceOptions = {}) {
@@ -67,6 +67,17 @@ export class ResourceSchedulerService implements ResourceScheduler {
       gpu: this.#pools.gpu.snapshot(),
     }
   }
+
+  close(): void {
+    this.#pools.cpu.close()
+    this.#pools.io.close()
+    this.#pools.gpu.close()
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    this.close()
+    return Promise.resolve()
+  }
 }
 
 class PriorityResourcePool {
@@ -85,6 +96,7 @@ class PriorityResourcePool {
   #queueWaitSamples = 0
   #totalQueueWaitMs = 0
   #maxQueueWaitMs = 0
+  #closed = false
 
   constructor(options: ResourcePoolOptions, private readonly now: () => number) {
     this.#maxConcurrent = boundedInteger(options.maxConcurrent, "maxConcurrent", 1, 64)
@@ -97,6 +109,7 @@ class PriorityResourcePool {
   }
 
   acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease> {
+    if (this.#closed) return Promise.reject(resourceSchedulerClosedError())
     signal?.throwIfAborted()
     return new Promise<ResourceLease>((resolve, reject) => {
       const waiting: WaitingTask = { request, enqueuedAtMs: this.now(), resolve, reject, signal }
@@ -139,7 +152,21 @@ class PriorityResourcePool {
     }
   }
 
+  close(): void {
+    if (this.#closed) return
+    this.#closed = true
+    const error = resourceSchedulerClosedError()
+    for (const queue of Object.values(this.#queues)) {
+      for (const waiting of queue.splice(0)) {
+        waiting.signal?.removeEventListener("abort", waiting.abort!)
+        this.#cancelled += 1
+        waiting.reject(error)
+      }
+    }
+  }
+
   #drain(): void {
+    if (this.#closed) return
     while (this.#active < this.#maxConcurrent) {
       const interactive = this.#queues.interactive.shift()
       if (interactive) {
@@ -177,6 +204,10 @@ class PriorityResourcePool {
       },
     })
   }
+}
+
+function resourceSchedulerClosedError(): DOMException {
+  return new DOMException("Resource scheduler is closed.", "AbortError")
 }
 
 function boundedInteger(value: number, name: string, minimum: number, maximum: number): number {

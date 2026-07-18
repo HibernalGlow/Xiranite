@@ -26,6 +26,19 @@ describe("backend", () => {
     expect(body.workspaces).toEqual([{ id: "ws-default", label: "Default", createdAt: 100, updatedAt: 100 }])
   })
 
+  test("closes an owned resource scheduler without closing an injected scheduler", async () => {
+    const owned = await createDefaultBackend({ repository: createMemoryWorkspaceRepository() })
+    owned.close()
+    await expect(owned.resources.acquire({ resource: "cpu", kind: "after-close", priority: "interactive" })).rejects.toMatchObject({ name: "AbortError" })
+
+    const injected = new ResourceSchedulerService()
+    const external = await createDefaultBackend({ repository: createMemoryWorkspaceRepository(), resourceScheduler: injected })
+    external.close()
+    const lease = await injected.acquire({ resource: "cpu", kind: "external", priority: "interactive" })
+    lease.release()
+    injected.close()
+  })
+
   test("manages node presets through database-backed config routes", async () => {
     const dataDir = await createTempDataDir()
     try {
