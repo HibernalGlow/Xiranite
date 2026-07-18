@@ -268,16 +268,12 @@
         "neoview.bindings.adjacent-book-client",
         "neoview.control.adjacent-book",
         "neoview.control.adjacent-book-rollback",
-        "neoview.bindings.action-dispatch-headless",
-        "neoview.bindings.action-dispatch-capability",
-        "neoview.bindings.action-dispatch-cli",
-        "neoview.bindings.action-dispatch-tui",
         "neoview.bindings.action-capability",
         "neoview.bindings.context-routing",
         "neoview.bindings.config"
       ],
       "plannedTestIds": [],
-      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial and slideshow surfaces. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Video, destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
+      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The shared executor currently closes page and adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial and slideshow surfaces; adjacent books reuse the atomic backend resolver and update the adopted path from canonical metadata. Video, destructive file, upscale, remaining viewer toggles, dynamic Card actions and CLI/TUI dispatch remain pending."
     },
     {
       "id": "bindings.context-routing",
@@ -566,20 +562,17 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "complete",
-        "tui": "complete",
+        "cli": "partial",
+        "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.bindings.conflicts",
         "neoview.bindings.validation",
-        "neoview.bindings.conflict-ui",
-        "neoview.bindings.config-service-validation",
-        "neoview.bindings.tui-schema",
-        "neoview.bindings.config-cli"
+        "neoview.bindings.conflict-ui"
       ],
       "plannedTestIds": [],
-      "notes": "Pure domain, backend validation, GUI, CLI and TUI share the same normalized conflict key; ambiguous enabled inputs are rejected before any atomic configuration write."
+      "notes": "Pure domain, backend validation and GUI share the same normalized conflict key."
     },
     {
       "id": "bindings.recording",
@@ -629,8 +622,8 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "partial",
-        "cli": "complete",
-        "tui": "complete",
+        "cli": "partial",
+        "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
@@ -640,13 +633,10 @@
         "neoview.bindings.multiple-inputs",
         "neoview.bindings.keyboard-hold",
         "neoview.bindings.action-catalog",
-        "neoview.bindings.legacy-action-conversion",
-        "neoview.bindings.config-service",
-        "neoview.bindings.tui-schema",
-        "neoview.bindings.config-cli"
+        "neoview.bindings.legacy-action-conversion"
       ],
       "plannedTestIds": [],
-      "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config, HTTP, CLI and TUI. Multiple records may share one action across all projections, preserving the legacy one-operation-to-many-inputs contract across devices and contexts; key-down and bounded key-hold remain distinct descriptors."
+      "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP. Multiple records may share one action, preserving the legacy one-operation-to-many-inputs contract across devices and contexts; key-down and bounded key-hold are distinct descriptors."
     },
     {
       "id": "bindings.persistence",
@@ -666,8 +656,8 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "partial",
-        "cli": "complete",
-        "tui": "complete",
+        "cli": "partial",
+        "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
@@ -675,13 +665,10 @@
         "neoview.bindings.reset",
         "neoview.bindings.reset-ui",
         "neoview.bindings.radial-toml-shape",
-        "neoview.bindings.legacy-import-cli",
-        "neoview.bindings.config-service",
-        "neoview.bindings.tui",
-        "neoview.bindings.config-cli"
+        "neoview.bindings.legacy-import-cli"
       ],
       "plannedTestIds": [],
-      "notes": "GUI HTTP persists canonical items atomically; CLI list/apply/reset and the terminal interaction inspect/apply/reset use the same strict parser and cross-process-locked config service. Real CLI roundtrips preserve multiple records for one action, while GUI failure rollback browser evidence remains pending."
+      "notes": "GUI HTTP persists canonical items atomically, and the real settings-import CLI round-trips multiple bindings plus radial menus through xiranite.config.toml and the production runtime parser. Explicit CLI/TUI inspect, edit and dispatch commands remain pending."
     },
     {
       "id": "bindings.legacy-import",
