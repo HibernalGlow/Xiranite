@@ -500,10 +500,11 @@
         "neoview.bindings.mouse-gesture",
         "neoview.bindings.mouse-gesture-editor",
         "neoview.bindings.mouse-gesture-recording",
-        "neoview.bindings.mouse-gesture-runtime"
+        "neoview.bindings.mouse-gesture-runtime",
+        "neoview.bindings.devices-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "@use-gesture owns drag lifecycle while a shared pure quantizer emits at most 16 non-repeating direction segments. The Card supports button, instant/hold trigger, timing, sequence editing and live directional recording preview; real Chromium trajectory evidence remains pending."
+      "notes": "@use-gesture owns drag lifecycle while a shared pure quantizer emits at most 16 non-repeating direction segments. The Card supports button, instant/hold trigger, timing, sequence editing and live directional recording preview; desktop and 420x360 Chromium now prove a configured right/down trajectory dispatch without leaking the middle-button hold action."
     },
     {
       "id": "bindings.gamepad",
