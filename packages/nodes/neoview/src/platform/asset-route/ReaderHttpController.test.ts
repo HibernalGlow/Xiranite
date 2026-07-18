@@ -9,6 +9,10 @@ import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import { DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG } from "../../application/config/ReaderRuntimeConfig.js"
+import {
+  DEFAULT_READER_COLOR_FILTER,
+  normalizeReaderColorFilter,
+} from "../../domain/color-filter/ReaderColorFilter.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 
 const cleanupDirectories: string[] = []
@@ -389,6 +393,83 @@ describe("ReaderHttpController", () => {
       )
     } finally {
       await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.color-filter.config-http] exposes and serializes strict color filter config updates", async () => {
+    let current = { ...DEFAULT_READER_COLOR_FILTER, contrast: 115 }
+    const updateColorFilter = vi.fn(async (patch, tomlPatch) => {
+      void tomlPatch
+      current = "reset" in patch.colorFilter
+        ? { ...DEFAULT_READER_COLOR_FILTER }
+        : normalizeReaderColorFilter({ ...current, ...patch.colorFilter })
+      return current
+    })
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      colorFilter: { ...DEFAULT_READER_COLOR_FILTER, contrast: 115 },
+      updateColorFilter,
+    })
+    const readOnly = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+    })
+    const failing = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      updateColorFilter: async () => { throw new Error("config disk unavailable") },
+    })
+    try {
+      expect(await (await controller.handle(authorizedRequest("/reader/config")))!.json()).toMatchObject({
+        colorFilter: { colorizePreset: "redAndBlueGray", contrast: 115 },
+      })
+      const patched = (await controller.handle(jsonRequest("/reader/config", {
+        colorFilter: { brightness: 120, onlyBlackAndWhite: true },
+      }, true, "PATCH")))!
+      expect(patched.status).toBe(200)
+      expect(await patched.json()).toMatchObject({ colorFilter: { brightness: 120, onlyBlackAndWhite: true } })
+      expect(updateColorFilter).toHaveBeenLastCalledWith(
+        { colorFilter: { brightness: 120, onlyBlackAndWhite: true } },
+        { image: { color_filter: { brightness: 120, only_black_and_white: true } } },
+      )
+
+      const reset = (await controller.handle(jsonRequest("/reader/config", {
+        colorFilter: { reset: "defaults" },
+      }, true, "PATCH")))!
+      expect(reset.status).toBe(200)
+      expect(await reset.json()).toMatchObject({ colorFilter: DEFAULT_READER_COLOR_FILTER })
+      expect(updateColorFilter).toHaveBeenLastCalledWith(
+        { colorFilter: { reset: "defaults" } },
+        { image: { color_filter: {
+          colorize_enabled: false,
+          colorize_preset: "redAndBlueGray",
+          custom_colors: [],
+          only_black_and_white: false,
+          brightness: 100,
+          contrast: 100,
+          saturation: 100,
+          sepia: 0,
+          hue_rotate: 0,
+          invert: false,
+          negative: false,
+        } } },
+      )
+      expect((await controller.handle(jsonRequest("/reader/config", {
+        colorFilter: { brightness: 151 },
+      }, true, "PATCH")))?.status).toBe(400)
+      expect((await readOnly.handle(jsonRequest("/reader/config", {
+        colorFilter: { brightness: 120 },
+      }, true, "PATCH")))?.status).toBe(405)
+      const failed = (await failing.handle(jsonRequest("/reader/config", {
+        colorFilter: { brightness: 120 },
+      }, true, "PATCH")))!
+      expect(failed.status).toBe(500)
+      expect(await failed.json()).toEqual({ error: "config disk unavailable" })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+      await readOnly[Symbol.asyncDispose]()
+      await failing[Symbol.asyncDispose]()
     }
   })
 

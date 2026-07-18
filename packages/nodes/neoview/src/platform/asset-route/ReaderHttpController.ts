@@ -7,6 +7,10 @@ import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/fr
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { ReaderMediaFormatRegistryRef } from "../../domain/page/media.js"
+import {
+  DEFAULT_READER_COLOR_FILTER,
+  type ReaderColorFilterSettings,
+} from "../../domain/color-filter/ReaderColorFilter.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
@@ -92,6 +96,7 @@ import {
   parseNeoviewSidebarLayoutPatch,
   parseNeoviewSlideshowPatch,
   parseNeoviewMediaPatch,
+  parseNeoviewColorFilterPatch,
   parseNeoviewBookmarkListPatch,
   parseNeoviewHistoryListPatch,
   parseNeoviewPageListPatch,
@@ -100,6 +105,7 @@ import {
   type NeoviewSlideshowPatch,
   type NeoviewMediaConfig,
   type NeoviewMediaPatch,
+  type NeoviewColorFilterPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -218,6 +224,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
   media?: NeoviewMediaConfig
   updateMedia?: (patch: NeoviewMediaPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewMediaConfig>
+  colorFilter?: ReaderColorFilterSettings
+  updateColorFilter?: (patch: NeoviewColorFilterPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderColorFilterSettings>
   inputBindings?: ReaderInputBindingsConfig
   updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
   radialMenu?: ReaderRadialMenuConfig
@@ -273,6 +281,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #folderView: NeoviewFolderViewConfig
   #slideshow: NeoviewSlideshowConfig
   #media: NeoviewMediaConfig
+  #colorFilter: ReaderColorFilterSettings
   #inputBindings: ReaderInputBindingsConfig
   #radialMenu: ReaderRadialMenuConfig
   #sessionOptions: Partial<ReaderSessionOptions>
@@ -284,6 +293,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateFolderView?: ReaderHttpControllerOptions["updateFolderView"]
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   readonly #updateMedia?: ReaderHttpControllerOptions["updateMedia"]
+  readonly #updateColorFilter?: ReaderHttpControllerOptions["updateColorFilter"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
@@ -474,6 +484,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#folderView = options.folderView ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
     this.#media = initialMedia
+    this.#colorFilter = options.colorFilter ?? DEFAULT_READER_COLOR_FILTER
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
     this.#sessionOptions = options.sessionOptions ?? {}
@@ -485,6 +496,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateFolderView = options.updateFolderView
     this.#updateSlideshow = options.updateSlideshow
     this.#updateMedia = options.updateMedia
+    this.#updateColorFilter = options.updateColorFilter
     this.#updateInputBindings = options.updateInputBindings
     this.#updateRadialMenu = options.updateRadialMenu
   }
@@ -786,6 +798,27 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "colorFilter")) {
+      if (!this.#updateColorFilter) return jsonResponse({ error: "Reader color filter config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewColorFilterPatch>
+      try {
+        parsed = parseNeoviewColorFilterPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: ReaderColorFilterSettings | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateColorFilter!(parsed.patch, parsed.tomlPatch)
+        this.#colorFilter = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "media")) {
       if (!this.#updateMedia) return jsonResponse({ error: "Reader media config is read-only" }, 405)
       let updated: NeoviewMediaConfig | undefined
@@ -989,6 +1022,7 @@ export class ReaderHttpController implements AsyncDisposable {
       folderView: this.#folderView,
       slideshow: this.#slideshow,
       media: this.#media,
+      colorFilter: this.#colorFilter,
       inputBindings: this.#inputBindings,
       radialMenu: this.#radialMenu,
     }

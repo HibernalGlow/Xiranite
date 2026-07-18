@@ -1,4 +1,5 @@
 import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ViewSource } from "@xiranite/node-neoview/ui-core"
+import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -371,6 +372,8 @@ export interface ReaderDirectoryPageDto {
   canGoBack: boolean
   canGoForward: boolean
   generation: number
+  filter?: ReaderDirectoryFilterDto
+  filterOptions?: ReaderDirectoryFilterDto[]
   sort: ReaderDirectorySortDto
   sortFields: ReaderDirectorySortFieldDto[]
   metadataFields: ReaderDirectoryMetadataFieldDto[]
@@ -518,6 +521,7 @@ export interface ReaderRuntimeConfigDto {
   historyList: ReaderHistoryListPreferencesDto
   folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
+  colorFilter: ReaderColorFilterSettings
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
 }
@@ -535,8 +539,14 @@ export interface ReaderInputBindingsPatch {
   inputBindings: { bindings?: ReaderInputBindingsConfig["bindings"]; reset?: "defaults" }
 }
 
+export type ReaderDirectoryFilterDto = "all" | "archive" | "directory" | "video"
+
 export interface ReaderRadialMenuPatch {
   radialMenu: { config?: ReaderRadialMenuConfig; reset?: "defaults" }
+}
+
+export interface ReaderColorFilterConfigPatch {
+  colorFilter: ReaderColorFilterPatch | { reset: "defaults" }
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
@@ -706,6 +716,7 @@ export interface ReaderHttpClient {
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
+  updateColorFilter?(patch: ReaderColorFilterConfigPatch, signal?: AbortSignal): Promise<ReaderColorFilterSettings>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
   cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
@@ -732,6 +743,7 @@ export interface ReaderHttpClient {
   recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
   removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>
   clearSearchHistory?(scope: ReaderSearchHistoryScopeDto, signal?: AbortSignal): Promise<number>
+  filterDirectoryBrowser?(sessionId: string, filter: ReaderDirectoryFilterDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   sortDirectoryBrowser?(sessionId: string, sort: ReaderDirectorySortDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   updateDirectorySortPreference?(
     sessionId: string,
@@ -896,6 +908,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.radialMenu),
+    updateColorFilter: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.colorFilter),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -994,6 +1012,15 @@ export function createReaderHttpClient(
       `/reader/browser/search-history?scope=${encodeURIComponent(scope)}`,
       { method: "DELETE", signal },
     ).then((value) => value.cleared),
+    filterDirectoryBrowser: (sessionId, filter, focusPath, signal) => request<ReaderDirectoryPageDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/filter`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filter, focusPath }),
+        signal,
+      },
+    ),
     sortDirectoryBrowser: (sessionId, sort, focusPath, signal) => request<ReaderDirectoryPageDto>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/sort`,
       {
