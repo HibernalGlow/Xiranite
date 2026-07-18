@@ -2,6 +2,7 @@ import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
+import type { ReaderShortcutResolver } from "../../ports/ReaderShortcutResolver.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 
@@ -13,6 +14,7 @@ export interface PlatformReaderBookLoaderOptions {
   solidArchiveCache?: SolidArchiveCache
   maxSolidArchiveCacheBytes?: number
   mediaFormats?: ReaderMediaTypeResolver
+  shortcutResolver?: ReaderShortcutResolver
 }
 
 export function createPlatformReaderBookLoader(options: PlatformReaderBookLoaderOptions = {}): ReaderBookLoader {
@@ -21,7 +23,7 @@ export function createPlatformReaderBookLoader(options: PlatformReaderBookLoader
     switch (source.kind) {
       case "path": {
         const { detectViewSource } = await import("../filesystem/detectViewSource.js")
-        return load(await detectViewSource(source.path, signal, options.mediaFormats), loadOptions)
+        return load(await detectViewSource(source.path, signal, options.mediaFormats, options.shortcutResolver), loadOptions)
       }
       case "directory": {
         const { loadDirectoryBook } = await import("../filesystem/DirectoryBookLoader.js")

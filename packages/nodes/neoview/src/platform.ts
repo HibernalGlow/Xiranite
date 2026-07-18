@@ -75,6 +75,10 @@ import type {
 } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
+export {
+  WindowsReaderShortcutResolver,
+  type WindowsReaderShortcutResolverOptions,
+} from "./platform/windows/WindowsReaderShortcutResolver.js"
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPipelineOptions } from "./platform/thumbnails/PlatformThumbnailPipeline.js"
 export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "./ports/VideoThumbnailProvider.js"
@@ -214,10 +218,12 @@ export async function createReaderFileTreeController(
   const { LazyReaderDirectoryMetadataProvider } = await import("./application/browser/LazyReaderDirectoryMetadataProvider.js")
   const { LazyReaderDataStoreResource } = await import("./platform/persistence/LazyReaderDataStoreResource.js")
   const { platformReaderDirectoryEntryType } = await import("./platform/filesystem/PlatformReaderDirectoryEntryClassifier.js")
+  const { WindowsReaderShortcutResolver } = await import("./platform/windows/WindowsReaderShortcutResolver.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const { ReaderMediaFormatRegistry } = await import("./domain/page/media.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
   const mediaFormats = new ReaderMediaFormatRegistry(runtimeConfig.media)
+  const shortcutResolver = new WindowsReaderShortcutResolver()
   const externalSearchHistoryStore = options.searchHistoryStore || undefined
   const externalSharedStore = isReaderFileTreeDataStore(externalSearchHistoryStore)
     ? externalSearchHistoryStore
@@ -245,7 +251,7 @@ export async function createReaderFileTreeController(
     return commitNeoviewFileTreeExclusions(paths, options)
   }
   const service = new ReaderFileTreeService(
-    new PlatformDirectoryListingProvider(mediaFormats),
+    new PlatformDirectoryListingProvider(mediaFormats, shortcutResolver),
     metadataProvider,
     undefined,
     {
@@ -851,8 +857,10 @@ export async function createReaderHeadlessController(
   const { PlatformDirectoryListingProvider } = await import("./platform/filesystem/PlatformDirectoryListingProvider.js")
   const { PlatformDirectoryMetadataProvider } = await import("./platform/filesystem/PlatformDirectoryMetadataProvider.js")
   const { platformReaderBookCandidate } = await import("./platform/filesystem/PlatformReaderBookCandidate.js")
+  const { WindowsReaderShortcutResolver } = await import("./platform/windows/WindowsReaderShortcutResolver.js")
+  const shortcutResolver = options.shortcutResolver ?? new WindowsReaderShortcutResolver()
   const adjacentBooks = new ReaderAdjacentBookService(
-    new PlatformDirectoryListingProvider(mediaFormats),
+    new PlatformDirectoryListingProvider(mediaFormats, shortcutResolver),
     new PlatformDirectoryMetadataProvider(isReaderDirectoryEmmRecordStore(progressStore) ? progressStore : undefined),
     (entry) => platformReaderBookCandidate(entry, mediaFormats),
   )

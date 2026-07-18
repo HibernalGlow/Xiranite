@@ -301,6 +301,11 @@ export {
 } from "./application/library/ReaderLibraryCleanupService.js"
 export type { ReaderPathStatus, ReaderPathStatusProvider } from "./ports/ReaderPathStatusProvider.js"
 export type {
+  ReaderShortcutResolution,
+  ReaderShortcutResolutionStatus,
+  ReaderShortcutResolver,
+} from "./ports/ReaderShortcutResolver.js"
+export type {
   ReaderFileMutation,
   ReaderFileMutationGuard,
   ReaderFileMutationProvider,
