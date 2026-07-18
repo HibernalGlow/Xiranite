@@ -10,7 +10,7 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { Suspense, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { Pin, PinOff } from "lucide-react"
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react"
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
@@ -46,14 +46,23 @@ export function ReaderSidebar({
   onCardLayoutCommit?(patch: ReaderCardLayoutPatch): void
 }) {
   const hasSession = Boolean(context.session)
-  const panels = availablePanels(side, shell, hasSession)
+  const panels = useMemo(() => availablePanels(side, shell, hasSession), [hasSession, shell, side])
+  const panelIds = useMemo(() => panels.map((panel) => panel.id), [panels])
   const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
-  const [mountedPanels, setMountedPanels] = useState<ReadonlySet<LegacyPanelId>>(() => new Set([activePanel]))
+  const [mountedPanels, setMountedPanels] = useState<ReadonlySet<LegacyPanelId>>(() => new Set(panelIds))
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]
   const asideRef = useRef<HTMLElement>(null)
   const gestureRef = useRef<SidebarGesture | undefined>(undefined)
   const style = layout && shell ? sidebarStyle(layout, shell, side) : undefined
+
+  useEffect(() => {
+    setMountedPanels((current) => {
+      const missing = panelIds.filter((panelId) => !current.has(panelId))
+      if (!missing.length) return current
+      return new Set([...current, ...missing])
+    })
+  }, [panelIds])
 
   return (
     <aside
