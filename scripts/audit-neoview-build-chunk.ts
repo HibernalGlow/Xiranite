@@ -64,6 +64,8 @@ for (const chunk of deferredPanelChunks) {
 }
 // [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk] [neoview.shared-entry.chunk]
 const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
+// [neoview.bookmark.context-actions-chunk]
+const bookmarkContextActionsChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]bookmark[/\\]BookmarkContextActions\.tsx$/i.test(module)))
 const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
 // [neoview.history.cleanup-lazy-chunk]
 const historyCleanupChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]history[/\\]HistoryCleanupDialog\.tsx$/i.test(module)))
@@ -76,6 +78,12 @@ const thumbnailSurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((
 const entrySurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]shared[/\\]ReaderEntrySurface\.tsx$/i.test(module)))
 if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
   throw new Error("NeoView BookmarkListCard did not produce an independent deferred production chunk.")
+}
+if (!bookmarkContextActionsChunk || bookmarkContextActionsChunk === bookmarkListChunk || bookmarkContextActionsChunk === readerSidebarChunk || bookmarkContextActionsChunk === neoViewChunk || bookmarkContextActionsChunk === initialChunk) {
+  throw new Error("NeoView Bookmark context actions did not produce a second-level deferred production chunk.")
+}
+if (bookmarkContextActionsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Bookmark context actions chunk ${bookmarkContextActionsChunk.fileName} is ${bookmarkContextActionsChunk.bytes} bytes, above 8 KiB.`)
 }
 if (!historyListChunk || historyListChunk === readerSidebarChunk) {
   throw new Error("NeoView HistoryListCard did not produce an independent deferred production chunk.")
@@ -302,6 +310,7 @@ console.log(JSON.stringify({
   historyListChunk: { fileName: historyListChunk.fileName, bytes: historyListChunk.bytes },
   historyCleanupChunk: { fileName: historyCleanupChunk.fileName, bytes: historyCleanupChunk.bytes },
   bookmarkListChunk: { fileName: bookmarkListChunk.fileName, bytes: bookmarkListChunk.bytes },
+  bookmarkContextActionsChunk: { fileName: bookmarkContextActionsChunk.fileName, bytes: bookmarkContextActionsChunk.bytes },
   pageNavigationChunk: { fileName: pageNavigationChunk.fileName, bytes: pageNavigationChunk.bytes },
   thumbnailSurfaceChunk: { fileName: thumbnailSurfaceChunk.fileName, bytes: thumbnailSurfaceChunk.bytes },
   entrySurfaceChunk: { fileName: entrySurfaceChunk.fileName, bytes: entrySurfaceChunk.bytes },

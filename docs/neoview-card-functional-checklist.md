@@ -3838,9 +3838,9 @@
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Single bookmark actions preserve legacy file commands and authenticated host capabilities.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`
-  - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`、`neoview.bookmark.thumbnail-e2e`
+  - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`
   - 计划测试：无
-  - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; copy, reveal, system-open, rename, tags and new-tab actions remain pending.
+  - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open and Explorer reveal with capability-aware disabled states. Rename, tags, thumbnail reload and new-tab actions remain pending.
 - [ ] `bookmark.batch-edit` 批量编辑书签与列表成员关系
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Selected bookmarks can be added to multiple lists or removed through one bounded operation.
@@ -3887,35 +3887,35 @@
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：List tabs, rows, selection, menus and destructive confirmations are keyboard/touch operable with stable accessible names.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
-  - 测试：`neoview.bookmark.card`
+  - 测试：`neoview.bookmark.card`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`
   - 计划测试：无
-  - 备注：Row actions are named; selection and context actions remain incomplete.
+  - 备注：Rows and context actions have stable accessible names, destructive removal uses the shared confirmation contract, and desktop/card Chromium exercise the real pointer menu. Shift+F10 and post-confirm focus restoration remain pending.
 - [x] `bookmark.ui-parity` 保持旧版文件条目信息密度
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Folder-style thumbnails, title/path hierarchy, action density and selection states fit desktop and 420x360 Cards without overlap.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.selection`
+  - 测试：`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.selection`、`neoview.bookmark.context-actions-e2e`
   - 计划测试：无
-  - 备注：Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, stable Reader media and zero horizontal overflow.
+  - 备注：Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, host context actions, stable Reader media and zero horizontal overflow.
 - [ ] `bookmark.performance` 有界 DOM、可见缩略图与独立 chunk
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：The Card renders a bounded virtual window, registers only visible thumbnails, performs zero hidden work and stays in an independent deferred chunk.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.bookmark.chunk`
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.bookmark.chunk`、`neoview.bookmark.context-actions-chunk`
   - 计划测试：无
-  - 备注：Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, and the 13.71 KiB Card remains deferred; a 10K Chromium request-count run and visited-page metadata eviction remain pending.
+  - 备注：Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, the 14,429-byte Card remains deferred, and the 3,244-byte context-action module stays in a second-level chunk; a 10K Chromium request-count run and visited-page metadata eviction remain pending.
 - [ ] `bookmark.image-stability` 缩略图工作不重挂活动阅读图像
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Opening the Card, scrolling thumbnails and switching lists preserve the active Reader media node and asset URL.
   - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/shared/FileListPanel.svelte`
-  - 测试：`neoview.bookmark.thumbnail-e2e`
+  - 测试：`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions-e2e`
   - 计划测试：无
-  - 备注：Real Chromium proves opening and thumbnail mutation preserve the active image; scrolling and list-switch identity checks remain pending.
+  - 备注：Real Chromium proves opening, thumbnail mutation and copy/system-open/reveal context actions preserve the active image; scrolling and list-switch identity checks remain pending.
 - [ ] `bookmark.deviations` 记录共享后端与视觉 primitive 扩展
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document authenticated thumbnail batching and the shared React entry visual as XR implementations of the legacy FileListPanel reuse contract.
   - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`
-  - 测试：`neoview.shared-entry.variants`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.batch-contract`、`neoview.bookmark.thumbnail-e2e`
+  - 测试：`neoview.shared-entry.variants`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.batch-contract`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions-e2e`
   - 计划测试：无
   - 备注：Authenticated visible-window thumbnails, stable ID selection, bounded batch routes and the shared slot-based entry surface replace the legacy in-process FileListPanel wiring without removing bookmark fields or creating a second business store.
 
