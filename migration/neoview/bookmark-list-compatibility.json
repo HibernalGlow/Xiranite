@@ -957,10 +957,11 @@
         "neoview.bookmark.card",
         "neoview.bookmark.context-actions",
         "neoview.bookmark.context-capabilities",
-        "neoview.bookmark.context-actions-e2e"
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.focus-restoration"
       ],
       "plannedTestIds": [],
-      "notes": "Rows and context actions have stable accessible names, destructive removal uses the shared confirmation contract, and desktop/card Chromium exercise the real pointer menu. Shift+F10 and post-confirm focus restoration remain pending."
+      "notes": "Rows and context actions have stable accessible names, destructive removal uses the shared confirmation contract, and desktop/card Chromium exercise the real pointer menu. The active custom-list delete path now restores focus to the all-list tab after confirmation; Shift+F10 remains pending."
     },
     {
       "id": "bookmark.ui-parity",

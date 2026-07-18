@@ -43,6 +43,8 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [viewMode, setViewMode] = useState<BookmarkViewMode>("compact")
   const anchorIndexRef = useRef<number>()
+  const listTabRefs = useRef(new Map<string, HTMLButtonElement>())
+  const newListButtonRef = useRef<HTMLButtonElement>(null)
   const selectedBookmarks = useMemo(
     () => loadedBookmarks.filter((item) => selectedIds.has(item.id)),
     [loadedBookmarks, selectedIds],
@@ -186,11 +188,24 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
 
   async function confirmDeleteList() {
     if (!client.removeBookmarkList || !deleteList || deleteList.system) return
+    const deletedListId = deleteList.id
     const deleted = await mutate(async () => {
-      await client.removeBookmarkList!(deleteList.id)
-      if (activeListId === deleteList.id) await switchList("all", "all")
+      await client.removeBookmarkList!(deletedListId)
+      if (activeListId === deletedListId) await switchList("all", "all")
     })
-    if (deleted) setDeleteList(undefined)
+    if (deleted) {
+      setDeleteList(undefined)
+      focusListAfterDelete()
+    }
+  }
+
+  function focusListAfterDelete() {
+    const focus = () => {
+      (listTabRefs.current.get("all") ?? newListButtonRef.current)?.focus()
+    }
+    if (typeof window === "undefined") return
+    if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(focus)
+    else focus()
   }
 
   async function toggleStar(item: ReaderBookmarkDto) {
@@ -295,6 +310,10 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
             <button
               key={list.id}
               type="button"
+              ref={(node) => {
+                if (node) listTabRefs.current.set(list.id, node)
+                else listTabRefs.current.delete(list.id)
+              }}
               className={list.id === activeListId
                 ? "h-7 shrink-0 rounded-full border border-primary/60 bg-primary/15 px-3 text-xs text-primary"
                 : "h-7 shrink-0 rounded-full border border-border bg-background/80 px-3 text-xs hover:bg-accent"}
@@ -306,7 +325,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
             </button>
           ))}
         </div>
-        <Button type="button" size="icon-sm" variant="ghost" aria-label="新建书签列表" title="新建书签列表" disabled={disabled} onClick={openCreateList}><ListPlus /></Button>
+        <Button ref={newListButtonRef} type="button" size="icon-sm" variant="ghost" aria-label="新建书签列表" title="新建书签列表" disabled={disabled} onClick={openCreateList}><ListPlus /></Button>
         {activeList && !activeList.system ? <Button type="button" size="icon-sm" variant="ghost" aria-label="编辑当前书签列表" title="编辑当前书签列表" disabled={disabled} onClick={() => openEditList(activeList)}><Pencil /></Button> : null}
         <Button type="button" size="icon-sm" variant="ghost" aria-label="收藏当前书籍" title="收藏当前书籍" disabled={disabled || !sourcePath} onClick={() => void addCurrent()}><BookmarkPlus /></Button>
       </div>
