@@ -264,6 +264,38 @@ describe("PlatformThumbnailPipeline", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.database-read-pipeline] cooperatively chunks a maximum-size visible prewarm", async () => {
+    const sources = Array.from({ length: 130 }, (_, index) => librarySource("file", `D:/library/book-${index}.cbz`, 100))
+    const getMany = vi.fn(async (keys: readonly string[]) => new Map(keys.map((key) => [key, {
+      bytes: fixtureWebp(Number(key.match(/(\d+)\.cbz$/)?.[1]) & 0xff),
+      contentType: "image/webp",
+      sourceSize: 100,
+      date: "2026-07-18 00:00:00",
+    }])))
+    const schedulerRequests: ResourceTaskRequest[] = []
+    const pipeline = new PlatformThumbnailPipeline({
+      thumbnailStore: { get: async () => undefined, getMany },
+      resourceScheduler: {
+        acquire: async (request) => {
+          schedulerRequests.push({ ...request })
+          return { release() {} }
+        },
+      },
+    })
+    await expect(pipeline.prewarmLibrary(sources)).resolves.toEqual({
+      requested: 130,
+      databaseHits: 130,
+      primed: 130,
+    })
+    expect(getMany.mock.calls.map(([keys]) => keys.length)).toEqual([64, 64, 2])
+    expect(schedulerRequests).toEqual(Array.from({ length: 3 }, () => ({
+      resource: "io",
+      kind: "neoview.thumbnail.database-read",
+      priority: "view",
+    })))
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.folder.reuse] reuses the representative file WebP without another decode", async () => {
     const page = fixturePage("D:/library/folder/001.png")
     const representative = fixtureWebp(9)

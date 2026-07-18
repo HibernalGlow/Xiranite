@@ -790,6 +790,9 @@
         "neoview.thumbnail.scheduler-priority",
         "neoview.thumbnail.library.describe-scheduler",
         "neoview.thumbnail.folder-index-scheduler",
+        "neoview.thumbnail.database-read-cooperative",
+        "neoview.thumbnail.database-read-cancellation",
+        "neoview.thumbnail.database-read-pipeline",
         "terminal.image.decode.cancellation",
         "terminal.image.decode.scheduler"
       ],
