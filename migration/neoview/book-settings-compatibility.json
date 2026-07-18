@@ -521,6 +521,9 @@
         "neoview.book-settings.legacy-codec",
         "neoview.book-settings.legacy-envelope",
         "neoview.book-settings.legacy-http",
+        "neoview.book-settings.legacy-cli",
+        "neoview.book-settings.legacy-cli-integration",
+        "neoview.book-settings.legacy-service-lifecycle",
         "neoview.book-settings.persistence-e2e",
         "neoview.book-settings.inheritance-e2e"
       ],
@@ -559,6 +562,8 @@
         "neoview.book-settings.legacy-importer",
         "neoview.book-settings.legacy-transaction",
         "neoview.book-settings.legacy-http",
+        "neoview.book-settings.legacy-cli",
+        "neoview.book-settings.legacy-cli-integration",
         "neoview.book-settings.persistence-e2e",
         "neoview.book-settings.inheritance-e2e"
       ],
@@ -593,6 +598,8 @@
         "neoview.book-settings.service",
         "neoview.book-settings.http",
         "neoview.book-settings.legacy-cancel",
+        "neoview.book-settings.legacy-cli-integration",
+        "neoview.book-settings.legacy-service-lifecycle",
         "neoview.book-settings.persistence-e2e",
         "neoview.book-settings.inheritance-e2e"
       ],

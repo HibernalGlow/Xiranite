@@ -501,7 +501,10 @@
         "neoview.book-settings.legacy-importer",
         "neoview.book-settings.legacy-cancel",
         "neoview.book-settings.legacy-transaction",
-        "neoview.book-settings.legacy-http"
+        "neoview.book-settings.legacy-http",
+        "neoview.book-settings.legacy-cli",
+        "neoview.book-settings.legacy-cli-integration",
+        "neoview.book-settings.legacy-service-lifecycle"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [

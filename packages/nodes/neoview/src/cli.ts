@@ -26,6 +26,8 @@ import type {
   HeadlessSuperResolutionPageResult,
   HeadlessSuperResolutionCapabilitySnapshot,
   ReaderHeadlessController,
+  LegacyBookSettingsImportResult,
+  LegacyBookSettingsReport,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -36,7 +38,7 @@ import {
   type ReaderThumbnailMaintenancePort,
 } from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 import { help } from "./help.js"
-import { createReaderBackupBundleService, createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService, createReaderSettingsPortableService } from "./platform.js"
+import { createReaderBackupBundleService, createReaderBookSettingsMigrationService, createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService, createReaderSettingsPortableService } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
@@ -58,7 +60,7 @@ const COMMANDS = new Set([
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "input-action-dispatch", "settings-inspect", "settings-import",
   "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
-  "book-settings-get", "book-settings-set",
+  "book-settings-get", "book-settings-set", "book-settings-legacy-inspect", "book-settings-legacy-import",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
   "settings-backup",
   "settings-backup-inspect", "settings-backup-restore",
@@ -140,6 +142,7 @@ export interface NeoviewCliDependencies {
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
   createSearchHistoryImporter?: (databasePath?: string) => Promise<LegacySearchHistoryImporter>
+  createBookSettingsMigrationService?: (databasePath?: string) => Promise<CliBookSettingsMigrationService>
   createLibraryController?: (databasePath?: string) => Promise<ReaderLibraryHeadlessController>
   createFileOperationService?: (databasePath?: string) => Promise<ReaderFileOperationService>
   createSystemIntegrationService?: () => Promise<ReaderSystemIntegrationService>
@@ -155,6 +158,15 @@ export interface NeoviewCliDependencies {
 }
 
 interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, AsyncDisposable {}
+
+interface CliBookSettingsMigrationService extends AsyncDisposable {
+  import(
+    content: string,
+    strategy: "merge" | "overwrite",
+    confirmed: boolean,
+    signal?: AbortSignal,
+  ): Promise<LegacyBookSettingsImportResult>
+}
 
 export interface CliReaderController extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
@@ -278,6 +290,11 @@ export async function runProgram(
   if (command.startsWith("search-history-")) {
     if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one legacy settings JSON path.`)
     await runSearchHistoryImportCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("book-settings-legacy-")) {
+    if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one legacy settings JSON path.`)
+    await runLegacyBookSettingsMigrationCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
     return
   }
   if (command.startsWith("library-")) {
@@ -466,6 +483,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
       "--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index",
       "--expected-revision", "--favorite", "--rating", "--direction", "--page-mode", "--horizontal-book",
     ]))
+    return
+  }
+  if (command === "book-settings-legacy-inspect") {
+    rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
+  if (command === "book-settings-legacy-import") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--strategy", "--database"]))
     return
   }
   if (command === "settings-export") {
@@ -1107,6 +1132,57 @@ async function runSearchHistoryImportCommand(
     else writeLine(host, `Applied: ${imported.applied}; cleared=${imported.cleared}; skipped-newer=${imported.skippedNewer}; issues=${decoded.issues.length}`)
   } finally {
     await importer[Symbol.asyncDispose]()
+  }
+}
+
+async function runLegacyBookSettingsMigrationCommand(
+  command: string,
+  inputPath: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const inputStat = await stat(inputPath)
+  if (!inputStat.isFile()) throw usage(`Legacy book settings input is not a file: ${inputPath}`)
+  if (inputStat.size > MAX_SETTINGS_BYTES) throw usage(`Legacy book settings input exceeds ${MAX_SETTINGS_BYTES} bytes.`)
+  const content = await readFile(inputPath, "utf8")
+  const { LegacyBookSettingsCodec } = await import("./migration/LegacyBookSettingsCodec.js")
+  const report = new LegacyBookSettingsCodec().decode(content).report
+  if (command === "book-settings-legacy-inspect") {
+    printLegacyBookSettingsMigration(report, undefined, parsed.booleans.has("--json"), host)
+    return
+  }
+  if (!parsed.booleans.has("--yes")) {
+    throw usage("book-settings-legacy-import requires --yes after reviewing book-settings-legacy-inspect output.")
+  }
+  const strategy = oneValue(parsed, "--strategy") ?? "merge"
+  if (strategy !== "merge" && strategy !== "overwrite") throw usage("--strategy must be merge or overwrite.")
+  const databasePath = oneValue(parsed, "--database")
+    ? resolve(host.cwd, oneValue(parsed, "--database")!)
+    : undefined
+  const createService = dependencies.createBookSettingsMigrationService ?? createReaderBookSettingsMigrationService
+  const service = await createService(databasePath)
+  try {
+    const result = await service.import(content, strategy, true)
+    printLegacyBookSettingsMigration(report, result, parsed.booleans.has("--json"), host)
+  } finally {
+    await service[Symbol.asyncDispose]()
+  }
+}
+
+function printLegacyBookSettingsMigration(
+  report: LegacyBookSettingsReport,
+  result: LegacyBookSettingsImportResult | undefined,
+  json: boolean,
+  host: CliHost,
+): void {
+  if (json) {
+    writeJson(host, result ? { report, result } : { report })
+    return
+  }
+  writeLine(host, `Legacy book settings: valid=${report.validEntries}/${report.totalEntries} invalidEntries=${report.invalidEntries} invalidFields=${report.invalidFields} unknownFields=${report.unknownFields}`)
+  if (result) {
+    writeLine(host, `Imported: inserted=${result.applied.inserted} updated=${result.applied.updated} unchanged=${result.applied.unchanged} unresolved=${result.unresolvedSources} duplicateIdentities=${result.duplicateIdentities}`)
   }
 }
 
@@ -2333,6 +2409,8 @@ function formatCliHelp(): string {
     "  settings-backup-restore <directory> Restore offline with explicit quarantine",
     "  book-settings-get <book>            Read inherited/effective per-book settings",
     "  book-settings-set <book>            Update revisioned per-book settings",
+    "  book-settings-legacy-inspect <json>  Inspect legacy per-book settings without opening SQLite",
+    "  book-settings-legacy-import <json>   Import legacy per-book settings (--yes)",
     "  reader-data-inspect <json>  Preview legacy history/bookmark migration",
     "  reader-data-import <json>   Import legacy reader data into thumbnails.db",
     "  search-history-inspect <json>  Preview legacy search-history migration",

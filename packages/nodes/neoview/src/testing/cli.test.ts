@@ -910,6 +910,67 @@ describe("NeoView CLI", () => {
     }
   })
 
+  it("[neoview.book-settings.legacy-cli] inspects privately and imports through the shared migration service", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-book-settings-cli-"))
+    const inputPath = join(directory, "book-settings.json")
+    const databasePath = join(directory, "thumbnails.db")
+    const privateBookPath = "D:/private/Book.cbz"
+    const content = JSON.stringify({
+      [privateBookPath]: {
+        favorite: true,
+        rating: 5,
+        readingDirection: "right-to-left",
+        unknown: "ignored",
+      },
+    })
+    await writeFile(inputPath, content)
+    const importSettings = vi.fn(async () => ({
+      applied: { inserted: 1, updated: 0, unchanged: 0 },
+      unresolvedSources: 0,
+      duplicateIdentities: 0,
+    }))
+    const dispose = vi.fn(async () => undefined)
+    const createBookSettingsMigrationService = vi.fn(async () => ({
+      import: importSettings,
+      [Symbol.asyncDispose]: dispose,
+    }))
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createBookSettingsMigrationService,
+    } as unknown as Parameters<typeof runProgram>[2]
+    try {
+      const previewOutput: unknown[] = []
+      await runProgram(["book-settings-legacy-inspect", inputPath, "--json"], host(previewOutput), dependencies)
+      const previewText = previewOutput.join("")
+      expect(previewText).not.toContain(privateBookPath)
+      expect(JSON.parse(previewText)).toEqual({
+        report: { totalEntries: 1, validEntries: 1, invalidEntries: 0, invalidFields: 0, unknownFields: 1 },
+      })
+      expect(createBookSettingsMigrationService).not.toHaveBeenCalled()
+
+      await expect(runProgram(["book-settings-legacy-import", inputPath], host([]), dependencies))
+        .rejects.toThrow("requires --yes")
+      expect(createBookSettingsMigrationService).not.toHaveBeenCalled()
+
+      const importOutput: unknown[] = []
+      await runProgram([
+        "book-settings-legacy-import", inputPath, "--database", databasePath,
+        "--strategy", "overwrite", "--yes", "--json",
+      ], host(importOutput), dependencies)
+      expect(createBookSettingsMigrationService).toHaveBeenCalledWith(databasePath)
+      expect(importSettings).toHaveBeenCalledWith(content, "overwrite", true)
+      expect(dispose).toHaveBeenCalledOnce()
+      const importText = importOutput.join("")
+      expect(importText).not.toContain(privateBookPath)
+      expect(JSON.parse(importText)).toMatchObject({
+        report: { validEntries: 1 },
+        result: { applied: { inserted: 1 }, unresolvedSources: 0, duplicateIdentities: 0 },
+      })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.thumbnail.inspect-cli] inspects the original app-data path without creating a database", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-thumbnail-inspect-"))
     try {
