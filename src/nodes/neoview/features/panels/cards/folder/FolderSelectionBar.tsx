@@ -1,4 +1,4 @@
-import { Ban, CheckSquare, ClipboardPaste, Copy, Link, LoaderCircle, MousePointer2, Scissors, Square, SquareX, Trash, Trash2, X } from "lucide-react"
+import { Ban, CheckSquare, ClipboardPaste, Copy, Link, LoaderCircle, MousePointer2, Scissors, Square, SquareX, Trash, Trash2, Undo2, X } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -6,6 +6,7 @@ import { useContextMenu } from "@/components/context-menu"
 import type {
   ReaderDirectorySelectionDescriptorDto,
   ReaderDirectorySelectionOperationSnapshotDto,
+  ReaderFileUndoStateDto,
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
@@ -39,6 +40,8 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   deleteCompletedRef.current = onDeleteCompleted
   const operationKindRef = useRef<"trash" | "delete">("trash")
   const [operation, setOperation] = useState<ReaderDirectorySelectionOperationSnapshotDto>()
+  const [undoState, setUndoState] = useState<ReaderFileUndoStateDto>()
+  const [undoPending, setUndoPending] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
 
   useEffect(() => {
@@ -60,6 +63,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
           finished = true
           if (operationKindRef.current === "delete") await deleteCompletedRef.current?.(snapshot)
           else await completedRef.current(snapshot)
+          if (operationKindRef.current === "trash") void refreshUndoState()
           if (!controller.signal.aborted) {
             const permanent = operationKindRef.current === "delete"
             setFeedback(snapshot.failed > 0
@@ -98,6 +102,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   async function startDestructiveOperation(kind: "trash" | "delete") {
     if (!client.startDirectorySelectionOperation || selectedCount === 0 || operation?.status === "running") return
     setFeedback(undefined)
+    setUndoState(undefined)
     try {
       operationKindRef.current = kind
       setOperation(await client.startDirectorySelectionOperation(sessionId, selection, kind))
@@ -116,6 +121,40 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
       const message = errorMessage(error)
       setFeedback({ kind: "alert", text: message })
       switchToast?.show({ title: message })
+    }
+  }
+
+  async function refreshUndoState() {
+    if (!client.fileUndoState) return
+    try {
+      setUndoState(await client.fileUndoState())
+    } catch {
+      setUndoState(undefined)
+    }
+  }
+
+  async function undoLatestTrash() {
+    if (undoPending || !undoState?.available || !client.undoLatestFileOperations) return
+    const controller = new AbortController()
+    setUndoPending(true)
+    setFeedback(undefined)
+    try {
+      const result = await client.undoLatestFileOperations(true, controller.signal)
+      if (result.failed > 0) throw new Error(`撤销完成 ${result.succeeded} 项，${result.failed} 项失败。`)
+      const completed = operation
+      if (completed) await completedRef.current(completed)
+      setUndoState(undefined)
+      const message = `已撤销 ${result.succeeded} 项回收站操作`
+      setFeedback({ kind: "status", text: message })
+      switchToast?.show({ title: message })
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        const message = errorMessage(error)
+        setFeedback({ kind: "alert", text: `撤销失败：${message}` })
+        switchToast?.show({ title: `撤销失败：${message}` })
+      }
+    } finally {
+      setUndoPending(false)
     }
   }
 
@@ -205,6 +244,13 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
               onSelect: () => { void startDestructiveOperation("delete") },
             })}
           ><Trash /></Action>
+          {undoState?.available && client.undoLatestFileOperations ? (
+            <Action
+              label="撤销上次移到回收站"
+              disabled={disabled || undoPending}
+              onClick={() => { void undoLatestTrash() }}
+            ><Undo2 /></Action>
+          ) : null}
           </>
         )}
         <Action label="取消全部选择" disabled={disabled || running || selectedCount === 0} onClick={onClear}><SquareX /></Action>

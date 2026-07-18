@@ -61,6 +61,71 @@ describe("FolderSelectionBar", () => {
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("已将 100000 项移到回收站"))
   })
 
+  it("[neoview.folder.undo-delete] exposes the persisted undo journal after trash and refreshes after undo", async () => {
+    const running = operation({ status: "running", processed: 0 })
+    const completed = operation({ status: "completed", processed: 2, succeeded: 2 })
+    const startDirectorySelectionOperation = vi.fn(async () => running)
+    const directorySelectionOperation = vi.fn(async () => completed)
+    const fileUndoState = vi.fn(async () => ({
+      available: true,
+      count: 1,
+      latestId: "undo-1",
+      supportedKinds: ["trash" as const],
+      trashRestore: true,
+      persistent: true,
+    }))
+    const undoLatestFileOperations = vi.fn(async () => ({
+      undoId: "undo-1",
+      results: [],
+      succeeded: 2,
+      failed: 0,
+      remaining: 0,
+    }))
+    const onTrashCompleted = vi.fn(async () => undefined)
+    const contextMenu: ContextMenuAPI = {
+      register: () => () => undefined,
+      show: () => undefined,
+      confirm: (item) => { void item.onSelect?.() },
+    }
+    const client = {
+      startDirectorySelectionOperation,
+      directorySelectionOperation,
+      fileUndoState,
+      undoLatestFileOperations,
+    } as unknown as ReaderHttpClient
+
+    render(
+      <ContextMenuBuilderContext.Provider value={contextMenu}>
+        <FolderSelectionBar
+          client={client}
+          sessionId="browser-1"
+          selection={{ generation: 7, allSelected: false, ranges: [], explicit: [{ path: "D:/library/a.cbz", index: 0 }] }}
+          selectedCount={2}
+          total={2}
+          currentPath="D:/library"
+          disabled={false}
+          chainSelectMode={false}
+          clickBehavior="select"
+          onSelectAll={vi.fn()}
+          onInvert={vi.fn()}
+          onToggleChain={vi.fn()}
+          onToggleClickBehavior={vi.fn()}
+          onClear={vi.fn()}
+          onClose={vi.fn()}
+          onTrashCompleted={onTrashCompleted}
+        />
+      </ContextMenuBuilderContext.Provider>,
+    )
+
+    fireEvent.click(screen.getByLabelText("将所选项目移到回收站"))
+    await waitFor(() => expect(directorySelectionOperation).toHaveBeenCalledWith(running.id, expect.any(AbortSignal)))
+    await waitFor(() => expect(screen.getByLabelText("撤销上次移到回收站")).toBeTruthy())
+    fireEvent.click(screen.getByLabelText("撤销上次移到回收站"))
+    await waitFor(() => expect(undoLatestFileOperations).toHaveBeenCalledWith(true, expect.any(AbortSignal)))
+    await waitFor(() => expect(onTrashCompleted).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole("status").textContent).toContain("已撤销 2 项回收站操作")
+  })
+
   it("[neoview.folder.permanent-delete-batch-ui] sends delete without materializing the sparse selection", async () => {
     const running = operation({ kind: "delete", status: "running", processed: 0 })
     const completed = operation({ kind: "delete", status: "completed", processed: 100_000, succeeded: 100_000 })
