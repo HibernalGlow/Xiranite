@@ -425,6 +425,14 @@ export type {
   SuperResolutionRequest,
   SuperResolutionResult,
 } from "./ports/SuperResolutionProvider.js"
+export type {
+  SuperResolutionArtifactCleanupResult,
+  SuperResolutionArtifactLease,
+  SuperResolutionArtifactMetadata,
+  SuperResolutionArtifactProducer,
+  SuperResolutionArtifactStore,
+  SuperResolutionArtifactStoreSnapshot,
+} from "./ports/SuperResolutionArtifactStore.js"
 export {
   SuperResolutionPreferencesWireSchema,
   parseSuperResolutionPreferences,
