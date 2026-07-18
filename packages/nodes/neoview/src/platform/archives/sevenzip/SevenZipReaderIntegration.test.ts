@@ -230,6 +230,35 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     }
   })
 
+  it.skipIf(!solidRarFixture)("[neoview.sevenzip.rar5-corrupt-reader-e2e] rejects a damaged solid RAR5 through Reader Core", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
+    const corruptedPath = join(directory, "reader-corrupt-rar.cbr")
+    const { readFile } = await import("node:fs/promises")
+    const bytes = new Uint8Array(await readFile(solidRarFixture!.path))
+    bytes[Math.max(8, Math.floor(bytes.byteLength / 2))] ^= 0xff
+    await writeFile(corruptedPath, bytes)
+
+    const service = new CoreReaderService(
+      createPlatformReaderBookLoader(),
+      new StreamingImageMetadataProbe(),
+    )
+    const route = new ReaderAssetRoute(service, {
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+    })
+    try {
+      await expect((async () => {
+        const session = await service.openViewSource({ kind: "path", path: corruptedPath })
+        const page = session.book.pages[0]
+        if (!page) throw new Error("Corrupted RAR unexpectedly exposed no page.")
+        const response = await route.handle(new Request(route.pageUrl(session.id, page.id)))
+        if (!response) throw new Error("Corrupted RAR unexpectedly returned no asset response.")
+        return response.arrayBuffer()
+      })()).rejects.toThrow()
+    } finally {
+      route.close()
+      await service[Symbol.asyncDispose]()
+    }
+  })
   it("[neoview.sevenzip.solid-session-cache] reuses a complete solid extraction across HTTP reader sessions", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const tempDirectory = join(directory, "solid-session-cache")
     await mkdir(tempDirectory)
