@@ -34,6 +34,7 @@ let solidNestedArchivePath = ""
 let encryptedSolidArchivePath = ""
 let innerFixture: ZipFixture | undefined
 let encryptedSolidRarFixture: RarFixture | undefined
+let solidRarFixture: RarFixture | undefined
 const SYSTEM_INTEGRATION_TIMEOUT_MS = 30_000
 
 beforeAll(async () => {
@@ -62,6 +63,20 @@ beforeAll(async () => {
         { path: "pages/readme.txt", bytes: new TextEncoder().encode("not a page") },
       ],
     })
+    try {
+      solidRarFixture = await createRarFixture({
+        executablePath: rarExecutable,
+        solid: true,
+        entries: [
+          { path: "pages/2.png", bytes: ONE_PIXEL_PNG },
+          { path: "pages/10.png", bytes: ONE_PIXEL_PNG },
+          { path: "pages/readme.txt", bytes: new TextEncoder().encode("not a page") },
+        ],
+      })
+    } catch {
+      // Keep this capability-aware when the installed RAR CLI cannot write RAR5.
+      solidRarFixture = undefined
+    }
   }
   await execFileAsync(executable.path, [
     "a", "-t7z", "-mx=1", "-ms=on", "-bd", "-bb0", "--", solidArchivePath, "pages",
@@ -84,6 +99,7 @@ afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true })
   await innerFixture?.cleanup()
   await encryptedSolidRarFixture?.cleanup()
+  await solidRarFixture?.cleanup()
 })
 
 describe.skipIf(!executable)("CB7 reader system integration", () => {
@@ -198,6 +214,29 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
       expect(session.book.pages.map((page) => page.entryPath)).toEqual(["pages/2.png", "pages/10.png"])
       const response = (await route.handle(new Request(route.pageUrl(session.id, session.book.pages[1]!.id))))!
       expect(response.status).toBe(200)
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+    } finally {
+      route.close()
+      await service[Symbol.asyncDispose]()
+    }
+  })
+
+  it.skipIf(!solidRarFixture)("[neoview.sevenzip.rar5-reader-e2e] reads an unencrypted solid RAR5 through Reader Core", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
+    const service = new CoreReaderService(
+      createPlatformReaderBookLoader(),
+      new StreamingImageMetadataProbe(),
+    )
+    const route = new ReaderAssetRoute(service, {
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+    })
+    try {
+      const session = await service.openViewSource({ kind: "path", path: solidRarFixture!.path })
+      expect(session.book.pages.map((page) => page.entryPath)).toEqual(["pages/2.png", "pages/10.png"])
+      const page = session.book.pages[1]!
+      const response = (await route.handle(new Request(route.pageUrl(session.id, page.id))))!
+      expect(response.status).toBe(200)
+      expect(response.headers.get("content-type")).toBe("image/png")
       expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
     } finally {
       route.close()
