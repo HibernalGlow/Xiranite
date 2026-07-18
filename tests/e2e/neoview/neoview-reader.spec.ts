@@ -857,6 +857,60 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
   }
 })
 
+test("[neoview.folder.single-click-open-e2e] opens folders and files while modified clicks select", async ({ page }) => {
+  const clickRoot = join(fixture.directory, "zz-single-click-open")
+  const nested = join(clickRoot, "nested")
+  const book = join(clickRoot, "book.cbz")
+  await mkdir(nested, { recursive: true })
+  await writeFile(book, "")
+  let readerOpenRequests = 0
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname === "/reader/sessions") readerOpenRequests += 1
+    })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    await expect(page.locator("img[data-reader-page-image]").first()).toBeVisible({ timeout: 20_000 })
+
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const editPath = breadcrumb.getByRole("button", { name: "编辑路径" })
+    await editPath.focus()
+    await editPath.press("Enter")
+    const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+    await input.fill(clickRoot)
+    await input.press("Enter")
+    await expect(folderCard).toHaveAttribute("data-selection-total", "2")
+
+    await folderCard.getByTitle(nested, { exact: true }).click()
+    await expect(breadcrumb.locator('[aria-current="page"]')).toHaveAttribute("title", nested)
+    expect(readerOpenRequests).toBe(1)
+
+    await folderCard.getByRole("button", { name: "后退" }).click()
+    await expect(breadcrumb.locator('[aria-current="page"]')).toHaveAttribute("title", clickRoot)
+    const bookEntry = folderCard.getByTitle(book, { exact: true })
+    await bookEntry.click({ modifiers: ["Control"] })
+    await expect(folderCard).toHaveAttribute("data-selection-count", "1")
+    expect(readerOpenRequests).toBe(1)
+
+    const openedBook = page.waitForRequest((request) => request.method() === "POST"
+      && new URL(request.url()).pathname === "/reader/sessions"
+      && request.postDataJSON().path === book)
+    await bookEntry.click()
+    await openedBook
+    expect(readerOpenRequests).toBe(2)
+  } finally {
+    await rm(clickRoot, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.folder.path-navigation] keeps breadcrumb navigation scoped to the current directory", async ({ page }) => {
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }

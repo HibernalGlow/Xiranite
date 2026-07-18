@@ -12,6 +12,7 @@ import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../
 import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
+import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
 type BookmarkViewMode = "compact" | "content" | "banner" | "thumbnail"
@@ -468,8 +469,10 @@ function BookmarkRow({
         "aria-pressed": selected,
         disabled,
         "data-bookmark-row-button": index,
-        onClick: (event) => onSelect(item, index, event),
-        onDoubleClick: canOpen ? onOpen : undefined,
+        onClick: (event) => {
+          if (readerEntryClickIntent(event) === "select") onSelect(item, index, event)
+          else if (canOpen) onOpen()
+        },
         onKeyDown: handleKeyDown,
       }}
       trailing={viewMode === "compact" || viewMode === "content" ? (

@@ -10,6 +10,7 @@ import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../
 import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
+import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 
 interface PendingDelete {
   ids: readonly string[]
@@ -396,8 +397,10 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
         "data-history-row-button": index,
         "data-library-item-focus": "true",
         onFocus: () => onFocus(index),
-        onClick: (event) => onSelect(item, index, event),
-        onDoubleClick: canOpen ? onOpen : undefined,
+        onClick: (event) => {
+          if (readerEntryClickIntent(event) === "select") onSelect(item, index, event)
+          else if (canOpen) onOpen()
+        },
         onKeyDown: handleKeyDown,
       }}
       trailing={viewMode === "compact" || viewMode === "content" ? (

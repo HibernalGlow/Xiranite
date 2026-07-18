@@ -221,7 +221,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const firstSeededRow = bookmarkCard.locator(`[data-bookmark-id="${seededBookmarks[0].id}"]`)
   const secondSeededRow = bookmarkCard.locator(`[data-bookmark-id="${seededBookmarks[1].id}"]`)
   await expect(firstSeededRow).toBeVisible()
-  await firstSeededRow.locator("[data-bookmark-row-button]").click()
+  await firstSeededRow.locator("[data-bookmark-row-button]").click({ modifiers: ["Control"] })
   await secondSeededRow.locator("[data-bookmark-row-button]").click({ modifiers: ["Control"] })
   await expect(bookmarkContent).toHaveAttribute("data-selection-count", "2")
   await bookmarkCard.screenshot({ path: testInfo.outputPath(`neoview-bookmark-selection-${testInfo.project.name}.png`) })
@@ -235,7 +235,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(secondSeededRow).toBeVisible()
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 
-  await firstSeededRow.locator("[data-bookmark-row-button]").click()
+  await firstSeededRow.locator("[data-bookmark-row-button]").click({ modifiers: ["Control"] })
   await secondSeededRow.locator("[data-bookmark-row-button]").click({ modifiers: ["Control"] })
   await bookmarkCard.getByRole("button", { name: "删除所选书签" }).click()
   const batchDeleteResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmarks/batch") && response.request().method() === "DELETE")

@@ -10,6 +10,52 @@ import FolderMainCard from "./FolderMainCard"
 afterEach(cleanup)
 
 describe("FolderMainCard", () => {
+  it("[neoview.folder.single-click-open] opens files and folders by default while modified clicks select", async () => {
+    const opened = page({
+      entries: [
+        { name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true },
+        { name: "notes.txt", path: "C:/books/notes.txt", kind: "file", readerSupported: false },
+        { name: "series", path: "C:/books/series", kind: "directory", readerSupported: true },
+      ],
+      total: 3,
+    })
+    const nested = page({ navigationEntryId: 2, path: "C:/books/series", parentPath: "C:/books", generation: 2 })
+    const onOpen = vi.fn()
+    const openSystemPath = vi.fn(async () => undefined)
+    const navigateDirectoryBrowser = vi.fn(async () => nested)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      openSystemPath,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={onOpen} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    fireEvent.click(await ui.findByTitle("C:/books/book.cbz"))
+    expect(onOpen).toHaveBeenCalledOnce()
+    expect(onOpen).toHaveBeenCalledWith("C:/books/book.cbz")
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
+
+    fireEvent.click(ui.getByTitle("C:/books/notes.txt"))
+    expect(openSystemPath).toHaveBeenCalledWith("C:/books/notes.txt")
+    fireEvent.click(ui.getByTitle("C:/books/book.cbz"), { ctrlKey: true })
+    expect(onOpen).toHaveBeenCalledOnce()
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+
+    fireEvent.click(ui.getByTitle("C:/books/series"))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "path", path: "C:/books/series" },
+      expect.any(AbortSignal),
+      "C:/books/series",
+    ))
+  })
+
   it("[neoview.browser.card] lazily opens, navigates, and disposes its shared browser session", async () => {
     const opened = page({ path: "C:/books", parentPath: "C:/" })
     const parent = page({ navigationEntryId: 2, path: "C:/", parentPath: undefined, generation: 2 })
@@ -163,7 +209,7 @@ describe("FolderMainCard", () => {
 
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/A", expect.any(AbortSignal), undefined, true))
     await activeCard().findByTitle("C:/A/a.cbz")
-    fireEvent.click(activeCard().getByTitle("C:/A/a.cbz"))
+    fireEvent.click(activeCard().getByTitle("C:/A/a.cbz"), { ctrlKey: true })
     fireEvent.click(activeCard().getByRole("radio", { name: "详细信息" }))
     await waitFor(() => expect(activeCard().getByRole("radio", { name: "详细信息" }).getAttribute("data-state")).toBe("on"))
 
@@ -279,7 +325,7 @@ describe("FolderMainCard", () => {
     }
 
     await ui.findByTitle("C:/A/a.cbz")
-    fireEvent.click(ui.getByTitle("C:/A/a.cbz"))
+    fireEvent.click(ui.getByTitle("C:/A/a.cbz"), { ctrlKey: true })
     fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
     await openMenu("A", "复制标签")
 
@@ -327,7 +373,7 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledTimes(1))
     fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
     await ui.findByTitle("C:/B/b.cbz")
-    fireEvent.click(ui.getByTitle("C:/B/b.cbz"))
+    fireEvent.click(ui.getByTitle("C:/B/b.cbz"), { ctrlKey: true })
     fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
     fireEvent.click(ui.getByRole("button", { name: "关闭标签 B" }))
 
@@ -444,7 +490,7 @@ describe("FolderMainCard", () => {
     expect(onFolderView).not.toHaveBeenCalled()
 
     view.rerender(renderCard(folderViewConfig({ homePath: "C:/home" })))
-    fireEvent.click(ui.getByTitle("C:/current/book.cbz"))
+    fireEvent.click(ui.getByTitle("C:/current/book.cbz"), { ctrlKey: true })
     fireEvent.click(ui.getByRole("button", { name: "刷新" }))
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "refresh" }, expect.any(AbortSignal), "C:/current/book.cbz"))
     await waitFor(() => expect(ui.getByTitle("C:/current/book.cbz").getAttribute("aria-selected")).toBe("true"))
@@ -557,14 +603,14 @@ describe("FolderMainCard", () => {
     }
 
     await waitFor(() => expect(currentItem("C:/A", 1)).toBeTruthy())
-    fireEvent.click(currentItem("C:/A", 1))
+    fireEvent.click(currentItem("C:/A", 1), { ctrlKey: true })
     fireEvent.click(viewButton(4))
     await waitFor(() => expect(currentItem("C:/A", 1).getAttribute("data-preview-mode")).toBe("cover-grid"))
 
     await navigatePath("C:/B")
     await navigatePath("C:/A")
     fireEvent.click(viewButton(0))
-    fireEvent.click(currentItem("C:/A", 3))
+    fireEvent.click(currentItem("C:/A", 3), { ctrlKey: true })
     expect(currentItem("C:/A", 3).getAttribute("aria-selected")).toBe("true")
 
     fireEvent.click(view.container.querySelector("svg.lucide-arrow-left")!.closest("button")!)
@@ -600,7 +646,7 @@ describe("FolderMainCard", () => {
     )
     const ui = within(view.container)
     await waitFor(() => expect(ui.getByTitle("C:/books/a.cbz")).toBeTruthy())
-    fireEvent.click(ui.getByTitle("C:/books/a.cbz"))
+    fireEvent.click(ui.getByTitle("C:/books/a.cbz"), { ctrlKey: true })
     await waitFor(() => expect(waits).toHaveLength(1))
 
     await act(async () => waits[0]!.resolve(page({
@@ -883,7 +929,7 @@ describe("FolderMainCard", () => {
     const host = await currentView.findByRole("listbox", { name: "文件项目" })
     const first = await currentView.findByTitle("C:/books/item-0.cbz")
 
-    fireEvent.click(first)
+    fireEvent.click(first, { ctrlKey: true })
     fireEvent.keyDown(host, { key: "End", ctrlKey: true })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
     expect(host.getAttribute("data-focused-index")).toBe("99999")
@@ -1045,12 +1091,12 @@ describe("FolderMainCard", () => {
     )
     const currentView = within(view.container)
     const list = await currentView.findByRole("listbox", { name: "文件项目" })
-    fireEvent.click(await currentView.findByTitle("C:\\books\\book.cbz"))
+    fireEvent.click(await currentView.findByTitle("C:\\books\\book.cbz"), { ctrlKey: true })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
     fireEvent.click(await currentView.findByRole("button", { name: "文件树" }))
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-tree="true"]')).toBeTruthy())
     expect(list.isConnected).toBe(true)
-    expect(currentView.getByTitle("C:\\books\\book.cbz")).toBeTruthy()
+    expect(within(list).getByTitle("C:\\books\\book.cbz")).toBeTruthy()
     const tree = currentView.getByRole("tree", { name: "文件树" })
     fireEvent.focus(tree)
     fireEvent.keyDown(tree, { key: "ArrowDown" })

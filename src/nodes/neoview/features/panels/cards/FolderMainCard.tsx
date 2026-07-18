@@ -77,6 +77,7 @@ import {
   type DirectorySelectionModel,
 } from "./folder/DirectorySelection"
 import { FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
+import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import {
   EMPTY_VIRTUOSO_COMPONENTS,
   FOLDER_LIST_COMPONENTS,
@@ -708,12 +709,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         anchorPath: focusedPath,
         endPath: entry.path,
       }))
-    } else if ((multiSelectMode && checkModeClickBehavior === "select") || event.ctrlKey || event.metaKey) {
+    } else if (readerEntryClickIntent(event, multiSelectMode && checkModeClickBehavior === "select") === "select") {
       setSelection((current) => toggleDirectorySelection(current, generation, entry.path, index))
-    } else if (multiSelectMode) {
-      activate(entry)
     } else {
-      setSelection(selectDirectorySingle(generation, entry.path, index))
+      activate(entry)
     }
   }
 
@@ -802,8 +801,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }
 
   function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "path" | "readerSupported">) {
-    if (entry.kind === "directory") void navigate({ action: "path", path: entry.path })
+    if (entry.kind === "directory") void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
     else if (entry.readerSupported) void onOpen?.(entry.path)
+    else void client.openSystemPath?.(entry.path)
   }
 
   function beginNavigation(): number {
@@ -1232,7 +1232,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                   visualMode={viewMode}
                   thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
                   onSelect={selectEntry}
-                  onActivate={activate}
                 />
               )
             }}
@@ -1251,7 +1250,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               onRangeChange={requestRange}
               onScrollTopChange={(scrollTop) => { detailsScrollTopRef.current = scrollTop }}
               onSelect={selectEntry}
-              onActivate={activate}
               onLayoutChange={(details) => { void onFolderView?.({ details }) }}
               showReturnFooter={showReturnFooter}
               returnFooterContext={returnFooterContext}
@@ -1277,7 +1275,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               onRangeChange={requestRange}
               onStateChange={(snapshot) => { gridSnapshotRef.current = snapshot }}
               onSelect={selectEntry}
-              onActivate={activate}
             />
           </Suspense>
         ) : null}
@@ -1291,7 +1288,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   )
 }
 
-function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
+function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
   const rich = visualMode !== "compact"
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
@@ -1304,7 +1301,6 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
       disabled={disabled}
       title={entry.path}
       onClick={(event) => onSelect(entry, index, event)}
-      onDoubleClick={() => onActivate(entry)}
       tabIndex={-1}
       data-preview-mode={visualMode}
       data-folder-entry="true"
@@ -1339,7 +1335,6 @@ interface DirectoryItemProps {
   showRating: boolean
   showCollectTagCount: boolean
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
-  onActivate(entry: ReaderDirectoryEntryDto): void
 }
 
 function BrowserButton({ label, disabled = false, clickDisabled = false, active = false, onClick, onContextMenu, children }: { label: string; disabled?: boolean; clickDisabled?: boolean; active?: boolean; onClick(): void; onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void; children: ReactNode }) {
