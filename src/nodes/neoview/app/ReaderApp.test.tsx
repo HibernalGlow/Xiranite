@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
+
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
@@ -68,6 +70,18 @@ describe("ReaderApp", () => {
           context: "reader",
           enabled: true,
           input: { device: "keyboard", code: "KeyB" },
+        }, {
+          id: "progress-glow",
+          action: "viewer.toggle-progress-bar-glow",
+          context: "reader",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyH" },
+        }, {
+          id: "progress-visible",
+          action: "viewer.toggle-progress-bar",
+          context: "reader",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyG" },
         }] },
       })),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
@@ -88,10 +102,17 @@ describe("ReaderApp", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
-    fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "l", code: "KeyL" })
+    const reader = document.querySelector("[data-reader-app]")!
+    const progress = screen.getByRole("slider", { name: "阅读进度" })
+    expect(progress.className).toContain("drop-shadow")
+    fireEvent.keyDown(reader, { key: "h", code: "KeyH" })
+    expect(progress.className).not.toContain("drop-shadow")
+    fireEvent.keyDown(reader, { key: "g", code: "KeyG" })
+    expect(screen.queryByRole("slider", { name: "阅读进度" })).toBeNull()
+    fireEvent.keyDown(reader, { key: "l", code: "KeyL" })
 
     await waitFor(() => expect(goTo).toHaveBeenCalledWith("reader-1", 1, expect.any(AbortSignal)))
-    fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "b", code: "KeyB" })
+    fireEvent.keyDown(reader, { key: "b", code: "KeyB" })
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
     await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz"))

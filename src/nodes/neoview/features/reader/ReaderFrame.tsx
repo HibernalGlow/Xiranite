@@ -12,19 +12,23 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 
-import type { ReaderPageDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTransitionStore"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
 import { PageMedia } from "./PageMedia"
 
-export function ReaderFrame({ pages, presentation, colorFilter, pageTransition, videoController, onVideoListEnded }: {
+export function ReaderFrame({ pages, presentation, colorFilter, pageTransition, videoController, sessionId, client, media, onSubtitleConfigChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   presentation: ReaderPresentation
   colorFilter?: ReaderColorFilterPort
   pageTransition?: ReaderPageTransitionPort
   videoController: ReaderVideoController
+  sessionId: string
+  client: ReaderHttpClient
+  media?: ReaderMediaConfigDto
+  onSubtitleConfigChange(patch: Partial<ReaderSubtitleConfigDto>): Promise<void>
   onVideoListEnded: () => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -67,8 +71,13 @@ export function ReaderFrame({ pages, presentation, colorFilter, pageTransition, 
                 page={page}
                 rotation={presentation.rotation}
                 scale={scale}
+                fallbackSize={available}
                 colorFilter={colorFilter}
                 videoController={videoController}
+                sessionId={sessionId}
+                client={client}
+                media={media}
+                onSubtitleConfigChange={onSubtitleConfigChange}
                 onVideoListEnded={onVideoListEnded}
               />
             ))}

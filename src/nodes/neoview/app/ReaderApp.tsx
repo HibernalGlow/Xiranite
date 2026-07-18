@@ -4,8 +4,7 @@ import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
   DEFAULT_READER_RADIAL_MENU_CONFIG,
-  READER_CARD_MANIFEST,
-  READER_PANEL_MANIFEST,
+  READER_INPUT_ACTION_LABELS,
   ReaderSlideshow,
   type ReaderPresentation,
   type ReaderInputAction,
@@ -28,6 +27,8 @@ import {
   type ReaderNavigationDto,
   type ReaderBookSettingsUpdateDto,
   type ReaderRuntimeConfigDto,
+  type ReaderMediaConfigDto,
+  type ReaderSubtitleConfigDto,
   type ReaderPageListPreferencesDto,
   type ReaderSessionDto,
   type ReaderShellConfigDto,
@@ -40,6 +41,7 @@ import {
   type ReaderSlideshowConfig,
   type ReaderSlideshowPatch,
   type ReaderShellControlPatch,
+  type ReaderShellMaterialPatch,
   type ReaderShellEdge,
   type ReaderShellLockMode,
   type ReaderInputBindingsPatch,
@@ -57,8 +59,13 @@ import { executeReaderInputAction } from "../features/input/ReaderInputActionExe
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
 import { createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
-import { ReaderVideoController, type ReaderVideoRuntimeConfig } from "../features/video/ReaderVideoController"
+import { ReaderVideoController } from "../features/video/ReaderVideoController"
+import { ReaderViewerToggleStore } from "../features/viewer/ReaderViewerToggleStore"
 import { migrateLegacyReaderPageTransition } from "../features/page-transition/LegacyReaderPageTransitionMigration"
+import { migrateLegacySidebarHeight } from "../features/panels/cards/LegacySidebarHeightMigration"
+import { ReaderPanelDndProvider } from "../features/panels/ReaderPanelDnd"
+import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/material/ReaderShellMaterial"
+import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -141,6 +148,9 @@ function loadReaderViewToolbar(): Promise<ReaderViewToolbarModule> {
 const LazyReaderViewToolbar = lazy(async () => ({ default: (await loadReaderViewToolbar()).ReaderViewToolbar }))
 
 const LazySidebarFloatingController = lazy(() => import("../features/shell/SidebarFloatingController"))
+const LazyReaderSwitchToastRuntime = lazy(async () => ({
+  default: (await import("../features/switch-toast/ReaderSwitchToastRuntime")).ReaderSwitchToastRuntime,
+}))
 
 function loadReaderPresentation(): Promise<unknown> {
   return Promise.all([loadReaderFrame(), loadReaderViewToolbar()])
@@ -229,7 +239,15 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
+  const [switchToast] = useState(() => createReaderSwitchToastStore({
+    async persist(settings, reset, signal) {
+      if (!clientRef.current.updateSwitchToast) return settings
+      return await clientRef.current.updateSwitchToast({ switchToast: reset ? { reset: "defaults" } : settings }, signal)
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  }))
   const [videoController] = useState(() => new ReaderVideoController())
+  const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const [shellControlStore] = useState(() => createReaderShellControlStore({
     edges: {
@@ -255,6 +273,7 @@ export function ReaderApp({
   const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+  const [media, setMedia] = useState<ReaderMediaConfigDto>()
   const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
@@ -268,6 +287,7 @@ export function ReaderApp({
     slideshow.dispose()
     colorFilter.dispose()
     pageTransition.dispose()
+    switchToast.dispose()
     videoController.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
@@ -276,8 +296,8 @@ export function ReaderApp({
   useEffect(() => {
     const controller = new AbortController()
     void clientRef.current.config(controller.signal).then((config) => {
-      const media = (config as typeof config & { media?: ReaderVideoRuntimeConfig }).media
-      if (media) videoController.configure(media)
+      setMedia(config.media)
+      videoController.configure(config.media)
       if (viewDefaultsGenerationRef.current === 0) {
         viewDefaultsRef.current = config.viewDefaults
         confirmedViewDefaultsRef.current = config.viewDefaults
@@ -310,8 +330,28 @@ export function ReaderApp({
           }).catch((cause) => setError(errorMessage(cause)))
         }
       }
+      if (config.switchToast) switchToast.hydrate(config.switchToast)
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
+      if (typeof localStorage !== "undefined") {
+        void migrateLegacySidebarHeight({
+          storage: localStorage,
+          canonical: config.shell,
+          persist: async ({ left, right, interaction }) => {
+            let updated = await clientRef.current.updateSidebarLayout(left)
+            updated = await clientRef.current.updateSidebarLayout(right)
+            if (clientRef.current.updateShellControl) {
+              updated = await clientRef.current.updateShellControl({
+                expectedRevision: updated.revision ?? 0,
+                shellControl: { sidebarInteraction: interaction },
+              })
+            }
+            shellRef.current = updated
+            setShell(updated)
+            shellControlStore.hydrate(shellControlHydration(updated))
+          },
+        }).catch((cause) => setError(errorMessage(cause)))
+      }
       if (folderViewGenerationRef.current === 0) {
         folderViewRef.current = config.folderView
         confirmedFolderViewRef.current = config.folderView
@@ -373,6 +413,11 @@ export function ReaderApp({
   }
 
   async function navigate(action: "next" | "previous", slideshowAction = false): Promise<boolean> {
+    const current = slideshowSessionRef.current
+    const atBoundary = action === "next" ? current?.frame.atEnd : current?.frame.atStart
+    if (atBoundary && !slideshowAction && switchToast.getSnapshot().enableBoundaryToast) {
+      switchToast.show({ title: action === "next" ? "已是最后一页" : "已是第一页" })
+    }
     const updated = await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal))
     if (updated && !slideshowAction) slideshow.resetOnUserAction()
     return updated
@@ -383,6 +428,13 @@ export function ReaderApp({
     const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal))
     if (updated && !slideshowAction) slideshow.resetOnUserAction()
     return updated
+  }
+
+  async function persistSubtitleConfig(patch: Partial<ReaderSubtitleConfigDto>): Promise<void> {
+    if (!client.updateMedia) return
+    const updated = await client.updateMedia({ media: { subtitle: patch } })
+    setMedia(updated)
+    videoController.configure(updated)
   }
 
   async function runPreloadAction(action: "cancel-speculative" | "release-retained", signal?: AbortSignal) {
@@ -571,6 +623,9 @@ export function ReaderApp({
   }
 
   function executeInputAction(action: ReaderInputAction): void {
+    if (switchToast.getSnapshot().enableAction) {
+      switchToast.show({ title: `操作：${READER_INPUT_ACTION_LABELS[action]}` })
+    }
     executeReaderInputAction(action, {
       session: () => session ? {
         pageCount: session.book.pageCount,
@@ -596,6 +651,7 @@ export function ReaderApp({
       openSettings: () => setSettingsOpen(true),
       openRadialMenu,
       video: videoController,
+      viewerToggles,
       slideshow: {
         toggle: () => slideshow.toggle(),
         stop: () => slideshow.stop(),
@@ -909,7 +965,9 @@ export function ReaderApp({
 
   async function commitBoardLayout(patch: ReaderBoardLayoutPatch) {
     try {
-      setShell(await clientRef.current.updateBoardLayout(patch))
+      const updated = await clientRef.current.updateBoardLayout(patch)
+      shellRef.current = updated
+      setShell(updated)
     } catch (cause) {
       if (cause instanceof ReaderHttpError && cause.status === 409) {
         const latest = await clientRef.current.config().catch(() => undefined)
@@ -918,6 +976,66 @@ export function ReaderApp({
       setError(errorMessage(cause))
       throw cause
     }
+  }
+
+  async function commitDraggedPanelLayout(nextShell: ReaderShellConfigDto, patch: ReaderBoardLayoutPatch): Promise<void> {
+    const previous = shellRef.current
+    shellRef.current = nextShell
+    setShell(nextShell)
+    try {
+      const updated = await clientRef.current.updateBoardLayout(patch)
+      shellRef.current = updated
+      setShell(updated)
+    } catch (cause) {
+      if (cause instanceof ReaderHttpError && cause.status === 409) {
+        const latest = await clientRef.current.config().catch(() => undefined)
+        if (latest) {
+          shellRef.current = latest.shell
+          setShell(latest.shell)
+        } else if (shellRef.current === nextShell) {
+          shellRef.current = previous
+          setShell(previous)
+        }
+      } else if (shellRef.current === nextShell) {
+        shellRef.current = previous
+        setShell(previous)
+      }
+      setError(errorMessage(cause))
+      throw cause
+    }
+  }
+
+  async function commitShellMaterial(material: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto> {
+    const update = clientRef.current.updateShellControl
+    if (!update) throw new Error("Reader shell material config is read-only.")
+    let resolveOperation!: (value: ReaderShellConfigDto) => void
+    let rejectOperation!: (reason?: unknown) => void
+    const result = new Promise<ReaderShellConfigDto>((resolve, reject) => {
+      resolveOperation = resolve
+      rejectOperation = reject
+    })
+    shellControlWriteQueueRef.current = shellControlWriteQueueRef.current.then(async () => {
+      try {
+        const updated = await update({
+          expectedRevision: shellRef.current?.revision ?? 0,
+          shellControl: { material },
+        })
+        shellRef.current = updated
+        setShell(updated)
+        resolveOperation(updated)
+      } catch (cause) {
+        if (cause instanceof ReaderHttpError && cause.status === 409) {
+          const latest = await clientRef.current.config().catch(() => undefined)
+          if (latest) {
+            shellRef.current = latest.shell
+            setShell(latest.shell)
+          }
+        }
+        setError(errorMessage(cause))
+        rejectOperation(cause)
+      }
+    })
+    return result
   }
 
   async function choose(source: "file" | "directory") {
@@ -1016,6 +1134,7 @@ export function ReaderApp({
           disabled={busy}
           pinned={shell?.edges.bottom.pinned ?? false}
           onPinnedChange={(pinned) => shellControl.setPinned("bottom", pinned)}
+          viewerToggles={viewerToggles}
           onSelect={goTo}
         />
       </div>
@@ -1048,6 +1167,8 @@ export function ReaderApp({
     shellControl,
     colorFilter,
     pageTransition,
+    switchToast,
+    onSidebarLayout: commitSidebarLayout,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
     onViewDefaults: applyConfiguredViewDefaults,
@@ -1056,7 +1177,7 @@ export function ReaderApp({
     presentation,
     ...(session ? { session } : {}),
   }
-  const leftEdge: ReaderControlledEdgeSlot | undefined = (session || hasSessionlessPanel("left", shell)) && (shell?.edges.left.enabled ?? true) ? {
+  const leftEdge: ReaderControlledEdgeSlot | undefined = shell && shell.edges.left.enabled ? {
     ariaLabel: "NeoView 左侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
@@ -1068,7 +1189,7 @@ export function ReaderApp({
       </Suspense>
     ),
   } : undefined
-  const rightEdge: ReaderControlledEdgeSlot | undefined = (session || hasSessionlessPanel("right", shell)) && (shell?.edges.right.enabled ?? true) ? {
+  const rightEdge: ReaderControlledEdgeSlot | undefined = shell && shell.edges.right.enabled ? {
     ariaLabel: "NeoView 右侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
@@ -1095,10 +1216,14 @@ export function ReaderApp({
       <Suspense fallback={null}>
         <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={surface.ref} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
       </Suspense>
+      <Suspense fallback={null}>
+        <LazyReaderSwitchToastRuntime port={switchToast} session={session} sourcePath={path} />
+      </Suspense>
       {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       <FloatingWindowTitlebarReservation />
-      <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
-        <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
+      <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
+        <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
+          <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
           {!session ? (
             <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
               <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
@@ -1111,14 +1236,19 @@ export function ReaderApp({
                 colorFilter={colorFilter}
                 pageTransition={pageTransition}
                 videoController={videoController}
+                sessionId={session.sessionId}
+                client={client}
+                media={media}
+                onSubtitleConfigChange={persistSubtitleConfig}
                 onVideoListEnded={() => void navigate("next")}
               />
             </Suspense>
           )}
           {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
-          {shell ? <DeferredSidebarFloatingController control={shellControl} disabled={busy} /> : null}
-        </div>
-      </ReaderControlledEdgeShell>
+          {shell ? <DeferredSidebarFloatingController control={shellControl} shell={shell} disabled={busy} /> : null}
+          </div>
+        </ReaderControlledEdgeShell>
+      </ReaderPanelDndProvider>
       {settingsOpen && shell ? (
         <Suspense fallback={null}>
           <LazyReaderSettingsWindow
@@ -1131,6 +1261,7 @@ export function ReaderApp({
             onViewDefaults={applyConfiguredViewDefaults}
             onInputBindings={persistInputBindings}
             onRadialMenu={persistRadialMenu}
+            onMaterial={commitShellMaterial}
           />
         </Suspense>
       ) : null}
@@ -1138,7 +1269,7 @@ export function ReaderApp({
   )
 }
 
-function DeferredSidebarFloatingController({ control, disabled }: { control: ReaderShellControlPort; disabled: boolean }) {
+function DeferredSidebarFloatingController({ control, shell, disabled }: { control: ReaderShellControlPort; shell: ReaderShellConfigDto; disabled: boolean }) {
   const enabled = useSyncExternalStore(
     control.store.subscribe,
     () => control.store.getSnapshot().floating.enabled,
@@ -1146,7 +1277,7 @@ function DeferredSidebarFloatingController({ control, disabled }: { control: Rea
   )
   return enabled ? (
     <Suspense fallback={null}>
-      <LazySidebarFloatingController control={control} disabled={disabled} />
+      <LazySidebarFloatingController control={control} disabled={disabled} materialStyle={readerShellMaterialStyle(readerShellMaterialDraft(shell), "sidebar")} />
     </Suspense>
   ) : null
 }
@@ -1178,26 +1309,9 @@ function defaultShellControlSnapshot(): ReaderShellControlSnapshot {
   }
 }
 
-function hasSessionlessPanel(side: "left" | "right", shell: ReaderShellConfigDto | undefined): boolean {
-  if (!shell) return false
-  return READER_CARD_MANIFEST.some((card) => {
-    if (card.requiresSession) return false
-    const cardConfig = shell.cardLayout[card.id]
-    if (!(cardConfig?.visible ?? card.defaultVisible)) return false
-    const panelId = cardConfig?.panelId ?? card.defaultPanelId
-    const panelConfig = shell.panelLayout[panelId]
-    const panelManifest = READER_PANEL_MANIFEST.find((panel) => panel.id === panelId)
-    return (panelConfig?.visible ?? panelManifest?.defaultVisible ?? true)
-      && (panelConfig?.position ?? panelManifest?.defaultPosition ?? "left") === side
-  })
-}
-
 function edgeSurfaceStyle(shell: ReaderShellConfigDto | undefined, edge: "top" | "bottom"): React.CSSProperties | undefined {
   if (!shell) return undefined
-  return {
-    backgroundColor: `color-mix(in oklch, var(--background) ${shell.opacity[edge]}%, transparent)`,
-    backdropFilter: `blur(${shell.blur[edge]}px)`,
-  }
+  return readerShellMaterialStyle(readerShellMaterialDraft(shell), edge)
 }
 
 function readerPathSegments(path: string): string[] {
