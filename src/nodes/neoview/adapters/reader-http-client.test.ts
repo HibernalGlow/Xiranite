@@ -182,6 +182,34 @@ describe("reader-http-client", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/diagnostics?sessionId=reader%2Fone")
   })
 
+  it("[neoview.thumbnail-maintenance.client] uses authenticated aggregate and bounded mutation routes", async () => {
+    const snapshot = {
+      totalRows: 10, fileRows: 7, folderRows: 3, blobBytes: 100, emptyBlobs: 1, failedRows: 2,
+      failuresByReason: { decode: 2 }, writer: { pendingWrites: 0, flushing: false, committedBatches: 1, committedWrites: 2, busyRetries: 0, failedBatches: 0 },
+    }
+    const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
+      const url = String(request)
+      if (url.endsWith("/reader/thumbnails/maintenance")) return Response.json({ snapshot })
+      if (url.endsWith("/cleanup")) return Response.json({ result: { scanned: 20, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false } })
+      return Response.json({ deleted: 2 })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.thumbnailMaintenance!()).resolves.toEqual(snapshot)
+    await expect(client.cleanupThumbnails!({ kind: "invalid", scanLimit: 50, limit: 10 })).resolves.toEqual({
+      kind: "invalid", scanned: 20, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false,
+    })
+    await expect(client.clearThumbnailFailures!(10)).resolves.toBe(2)
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ kind: "invalid", scanLimit: 50, limit: 10 })
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST" })
+    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ limit: 10 })
+  })
+
   it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request)

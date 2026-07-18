@@ -57,6 +57,7 @@ export const READER_CARD_MANIFEST = [
   card("preload-status", "预加载状态", "info", true, true, 4, true, true),
   card("book-settings", "本书设置", "properties", true, true, 0, true, true),
   card("sidebar-control", "侧栏控制", "control", true, true, 0, true, false),
+  card("thumbnail-maintenance", "缩略图维护", "control", false, true, 1, true, false),
 ] as const satisfies readonly ReaderCardManifestEntry[]
 
 export type ReaderPanelId = typeof READER_PANEL_MANIFEST[number]["id"]

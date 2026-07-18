@@ -59,6 +59,20 @@ describe("NeoView panel and card registries", () => {
     expect(cardsForPanel("properties", undefined, false)).toEqual([])
   })
 
+  it("[neoview.thumbnail-maintenance.registry] keeps maintenance session-independent and undocked by default", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "thumbnail-maintenance")
+    expect(definition).toMatchObject({
+      defaultPanel: "control",
+      defaultSidebarVisible: false,
+      requiresSession: false,
+      canHide: true,
+    })
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control"])
+    expect(cardsForPanel("control", {
+      cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
+    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "thumbnail-maintenance"])
+  })
+
   it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {
     expect(availablePanels("left").map((panel) => panel.id)).not.toContain("settings")
     expect(availablePanels("left", {
