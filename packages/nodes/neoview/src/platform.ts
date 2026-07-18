@@ -760,7 +760,7 @@ export async function createReaderHeadlessController(
           pages: capability.pages,
           listModels: () => capability.service.listModels(),
           capabilities: (capabilityOptions?: { refresh?: boolean; signal?: AbortSignal }) => capability.service.capabilities(capabilityOptions),
-          dispose: () => capability.service.dispose(),
+          dispose: () => capability.dispose(),
         }
       },
     )

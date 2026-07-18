@@ -3,6 +3,7 @@ import type { SuperResolutionCustomModelManifest, SuperResolutionModelManifest }
 import { SuperResolutionService } from "../../../application/super-resolution/SuperResolutionService.js"
 import { SuperResolutionPolicyService } from "../../../application/super-resolution/SuperResolutionPolicyService.js"
 import { SuperResolutionPageService } from "../../../application/super-resolution/SuperResolutionPageService.js"
+import { SuperResolutionPreloadService } from "../../../application/super-resolution/SuperResolutionPreloadService.js"
 import type { ReaderPageMaterializer } from "../../../ports/ReaderPageMaterializer.js"
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
@@ -38,6 +39,9 @@ export interface OpenComicAiSystemCapability {
   service: SuperResolutionService
   policy: SuperResolutionPolicyService
   pages: SuperResolutionPageService
+  preload: SuperResolutionPreloadService
+  dispose(): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
 }
 
 export async function createOpenComicAiSystemService(
@@ -87,17 +91,26 @@ export async function createOpenComicAiSystemCapability(
       models,
     })
   const policy = new SuperResolutionPolicyService(config.preferences)
+  const pages = new SuperResolutionPageService(
+    service,
+    policy,
+    options.pageMaterializer ?? new PlatformReaderPageMaterializer({
+      resourceScheduler: options.resourceScheduler,
+      purpose: "super-resolution",
+    }),
+  )
+  const dispose = async () => {
+    await preload.dispose()
+    await service.dispose()
+  }
+  const preload = new SuperResolutionPreloadService(pages, config.preferences)
   return {
     service,
     policy,
-    pages: new SuperResolutionPageService(
-      service,
-      policy,
-      options.pageMaterializer ?? new PlatformReaderPageMaterializer({
-        resourceScheduler: options.resourceScheduler,
-        purpose: "super-resolution",
-      }),
-    ),
+    pages,
+    preload,
+    dispose,
+    [Symbol.asyncDispose]: dispose,
   }
 }
 
