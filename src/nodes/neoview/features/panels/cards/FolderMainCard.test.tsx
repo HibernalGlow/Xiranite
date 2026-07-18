@@ -867,8 +867,15 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledOnce())
     const before = registerLibraryThumbnails.mock.calls.length
 
-    selectFolderHandleAction(ui, "\u91cd\u8f7d\u7f29\u7565\u56fe")
+    fireEvent.click(ui.getByTitle("C:/books/folder"), { ctrlKey: true })
+    selectFolderHandleAction(ui, "\u91cd\u8f7d\u9009\u4e2d\u7f29\u7565\u56fe")
     await waitFor(() => expect(registerLibraryThumbnails.mock.calls.length).toBe(before + 1))
+    expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual([
+      expect.objectContaining({ path: "C:/books/folder", refresh: true }),
+    ])
+
+    selectFolderHandleAction(ui, "\u91cd\u8f7d\u7f29\u7565\u56fe")
+    await waitFor(() => expect(registerLibraryThumbnails.mock.calls.length).toBe(before + 2))
     expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([
       expect.objectContaining({ path: "C:/books/folder", refresh: true }),
       expect.objectContaining({ path: "C:/books/book.cbz", refresh: true }),

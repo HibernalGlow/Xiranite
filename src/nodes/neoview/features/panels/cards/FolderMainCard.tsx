@@ -309,15 +309,20 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     queueMicrotask(() => requestRange(visibleRangeRef.current))
   }, [catalog?.sessionId, catalog?.generation, viewMode])
 
-  async function registerVisibleThumbnails(refresh = false): Promise<void> {
+  async function registerVisibleThumbnails(refresh = false, targetPaths?: ReadonlySet<string>): Promise<void> {
     const current = catalogRef.current
     if (!current || !viewUsesThumbnails(viewMode) || !client.registerLibraryThumbnails) return
     const range = visibleRangeRef.current
-    const visible = directoryLoadedEntries(current, range.startIndex, range.endIndex, MAX_THUMBNAILS)
+    const candidates = targetPaths
+      ? [...current.pages].flatMap(([cursor, entries]) => entries.map((entry, offset) => ({ index: cursor + offset, entry })))
+      : directoryLoadedEntries(current, range.startIndex, range.endIndex, MAX_THUMBNAILS)
+    const visible = candidates
       .filter(({ entry }) => entry.kind === "directory" || entry.kind === "file")
+      .filter(({ entry }) => !targetPaths || targetPaths.has(entry.path))
       .filter(({ entry }) => refresh || thumbnailProfilesRef.current.get(entry.path) !== thumbnailProfile(entry, viewMode, previewCount))
+      .slice(0, MAX_THUMBNAILS)
     if (!visible.length) return
-    const signature = `${refresh ? `refresh:${++thumbnailRefreshSequenceRef.current}` : "normal"}:${current.sessionId}:${current.generation}:${viewMode}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
+    const signature = `${refresh ? `refresh:${++thumbnailRefreshSequenceRef.current}` : "normal"}:${targetPaths ? "selected" : "visible"}:${current.sessionId}:${current.generation}:${viewMode}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
     if (thumbnailSignatureRef.current === signature) return
     thumbnailSignatureRef.current = signature
     thumbnailRequestRef.current?.abort()
@@ -365,15 +370,18 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     })
   }
 
-  async function refreshVisibleThumbnails() {
+  async function refreshThumbnails(targetPaths?: ReadonlySet<string>) {
     if (thumbnailRefreshPending) return
     setThumbnailRefreshPending(true)
     try {
-      await registerVisibleThumbnails(true)
+      await registerVisibleThumbnails(true, targetPaths)
     } finally {
       setThumbnailRefreshPending(false)
     }
   }
+
+  const refreshVisibleThumbnails = () => refreshThumbnails()
+  const refreshSelectedThumbnails = () => refreshThumbnails(selectedPaths)
 
   const restoreIndex = catalog && restoreState
     ? Math.min(Math.max(restoreState.focusedIndex ?? restoreState.anchorIndex, 0), Math.max(0, catalog.total - 1))
@@ -986,6 +994,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setActiveToolbar((current) => current === toolbar ? undefined : toolbar)
   }
   const actionHandleItems = [
+    { id: "thumbnail-refresh-selected", label: "\u91cd\u8f7d\u9009\u4e2d\u7f29\u7565\u56fe", preview: "\u91cd\u8f7d\u5df2\u9009\u6587\u4ef6\u7684\u7f29\u7565\u56fe", icon: <RefreshCw className="size-4" />, disabled: thumbnailRefreshPending || !selectedPaths.size || !client.registerLibraryThumbnails || !viewUsesThumbnails(viewMode), active: thumbnailRefreshPending, onSelect: () => { void refreshSelectedThumbnails() } },
     { id: "thumbnail-refresh", label: "\u91cd\u8f7d\u7f29\u7565\u56fe", preview: "\u91cd\u8f7d\u5f53\u524d\u53ef\u89c1\u9879\u7684\u7f29\u7565\u56fe", icon: <RefreshCw className="size-4" />, disabled: thumbnailRefreshPending || !client.registerLibraryThumbnails || !viewUsesThumbnails(viewMode), active: thumbnailRefreshPending, onSelect: () => { void refreshVisibleThumbnails() } },
     { id: "view", label: "视图", preview: "显示六种文件视图切换栏", icon: <CurrentViewIcon className="size-4" />, active: activeToolbar === "view", onSelect: () => toggleToolbar("view") },
     { id: "search", label: "搜索文件", preview: searchOpen ? "关闭当前搜索面板" : "打开当前目录搜索面板", icon: <Search className="size-4" />, active: searchOpen, onSelect: () => setSearchOpen((current) => !current) },
