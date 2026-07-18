@@ -178,7 +178,12 @@ describe("Reader metadata cards", () => {
     render(<BookInformationCard {...panelContext(clientWith(vi.fn(async () => value)), session())} />)
 
     expect(await screen.findByText("译名")).toBeTruthy()
-    expect(screen.getByText("原名")).toBeTruthy()
+    expect(screen.getByText("名称:")).toBeTruthy()
+    expect(screen.getByText("原名:")).toBeTruthy()
+    expect(screen.getByText("路径:")).toBeTruthy()
+    expect(screen.getByText("类型:")).toBeTruthy()
+    expect(screen.getByText("页码:")).toBeTruthy()
+    expect(screen.getByText("进度:")).toBeTruthy()
     expect(screen.getByText("demo.cbz")).toBeTruthy()
     expect(screen.getByText("压缩包")).toBeTruthy()
     expect(screen.queryByText("源大小")).toBeNull()
