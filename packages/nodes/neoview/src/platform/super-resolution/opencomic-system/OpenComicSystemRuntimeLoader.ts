@@ -42,6 +42,8 @@ function isOpenComicSystemRuntime(value: unknown): value is OpenComicSystemRunti
   return Array.isArray(runtime.modelsList)
     && runtime.modelsList.every((model) => typeof model === "string")
     && typeof runtime.model === "function"
+    && typeof runtime.registerModels === "function"
+    && typeof runtime.unregisterModel === "function"
     && typeof runtime.setBinaryResolver === "function"
     && typeof runtime.setModelsPath === "function"
     && typeof runtime.setConcurrentDaemons === "function"
