@@ -146,9 +146,13 @@ function ReaderEdgeSurface({
       }
     }
     const handlePointerDown = (event: PointerEvent) => {
-      if (!protectedInteractionRef.current) return
       const target = event.target
-      if (target instanceof Element && isProtectedFloatingElement(target)) return
+      if (target instanceof Element && isProtectedFloatingElement(target)) {
+        protectedInteractionRef.current = true
+        clearTimer(hideTimerRef)
+        return
+      }
+      if (!protectedInteractionRef.current) return
       protectedInteractionRef.current = false
       if (!(target instanceof Node) || !surfaceRef.current?.contains(target)) scheduleHide()
     }
@@ -183,7 +187,7 @@ function ReaderEdgeSurface({
 
   function scheduleHide() {
     clearTimer(showTimerRef)
-    if (!automatic || !visibleRef.current || hideTimerRef.current !== undefined || protectedInteractionRef.current || composingRef.current || isInputting()) return
+    if (!automatic || !visibleRef.current || hideTimerRef.current !== undefined || protectedInteractionRef.current || composingRef.current || isInputting() || hasProtectedFloatingLayer()) return
     hideTimerRef.current = setTimeout(() => {
       hideTimerRef.current = undefined
       if (!protectedInteractionRef.current && !composingRef.current && !isInputting() && !hasProtectedFloatingLayer()) requestOpen(false, "leave")
@@ -192,7 +196,7 @@ function ReaderEdgeSurface({
 
   function handleSurfaceLeave(event: ReactPointerEvent<HTMLDivElement>) {
     const related = event.relatedTarget
-    if (related instanceof Element && isProtectedFloatingElement(related)) {
+    if (hasProtectedFloatingLayer() || (related instanceof Element && isProtectedFloatingElement(related))) {
       clearTimer(hideTimerRef)
       return
     }
@@ -234,6 +238,11 @@ function ReaderEdgeSurface({
           )}
           onPointerEnter={() => clearTimer(hideTimerRef)}
           onPointerLeave={handleSurfaceLeave}
+          onPointerDownCapture={() => {
+            if (!automatic) return
+            protectedInteractionRef.current = true
+            clearTimer(hideTimerRef)
+          }}
           onFocusCapture={() => clearTimer(hideTimerRef)}
           onBlurCapture={(event) => {
             if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) scheduleHide()

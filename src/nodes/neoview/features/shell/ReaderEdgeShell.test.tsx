@@ -208,6 +208,53 @@ describe("ReaderEdgeShell", () => {
     expect(requests).toHaveBeenCalledWith("right", false, "leave")
   })
 
+  it("[neoview.shell.floating-menu-protection] keeps an edge open through a portal menu selection", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <div>cards</div>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    const region = screen.getByRole("region", { name: "left edge" })
+    const menu = document.createElement("div")
+    menu.setAttribute("role", "menu")
+    document.body.appendChild(menu)
+    fireEvent.pointerLeave(region)
+    act(() => vi.advanceTimersByTime(100))
+    expect(requests).not.toHaveBeenCalled()
+    fireEvent.pointerDown(menu)
+    menu.remove()
+    fireEvent.pointerDown(window)
+    act(() => vi.advanceTimersByTime(20))
+    expect(requests).toHaveBeenCalledWith("left", false, "leave")
+  })
+
+  it("[neoview.shell.edge-interaction-protection] keeps an edge open while a side control is being operated", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <button type="button">side action</button>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    const region = screen.getByRole("region", { name: "left edge" })
+    const action = screen.getByRole("button", { name: "side action" })
+    fireEvent.pointerDown(action)
+    fireEvent.pointerLeave(region)
+    act(() => vi.advanceTimersByTime(100))
+    expect(requests).not.toHaveBeenCalled()
+    fireEvent.pointerDown(window)
+    act(() => vi.advanceTimersByTime(20))
+    expect(requests).toHaveBeenCalledWith("left", false, "leave")
+  })
+
   it("[neoview.shell.pointer-commit] does not render React state on pointer movement", () => {
     const renders = vi.fn()
     render(
