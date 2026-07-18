@@ -1,5 +1,7 @@
 /**
  * @migrated-from src/lib/cards/info/ColorFilterCard.svelte
+ * @source-hash sha256:4417b1cd588927c5b35921af0e3cdc3c182b63a9681459085ae3643c78bfca91
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/ColorFilterCard.tsx
  * @features color-filter
  * @migration-status adapted
  */

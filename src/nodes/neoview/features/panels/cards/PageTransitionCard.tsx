@@ -1,6 +1,7 @@
 /**
  * @migrated-from src/lib/cards/info/PageTransitionCard.svelte
  * @source-hash sha256:394878e16926095fe21609f72d4ba961f9c650dd2416fc724833b3dba3b21375
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/PageTransitionCard.tsx
  * @features page-transition
  * @migration-status adapted
  */
