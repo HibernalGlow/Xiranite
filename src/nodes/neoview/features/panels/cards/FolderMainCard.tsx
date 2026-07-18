@@ -37,6 +37,7 @@ import type {
 } from "../../../adapters/reader-http-client"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
+import type { FolderContextEntry } from "./folder/FolderContextActions"
 import {
   createDirectoryCatalog,
   directoryEntryAt,
@@ -263,6 +264,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [selection, setSelection] = useState<DirectorySelectionModel>(() => createDirectorySelection(0))
+  const [renameRequest, setRenameRequest] = useState<FolderContextEntry>()
   const [focusedPath, setFocusedPath] = useState<string>()
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const [thumbnailUrls, setThumbnailUrls] = useState<ReadonlyMap<string, string>>(() => new Map())
@@ -915,6 +917,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         bubbles: true,
         detail: { index: currentIndex, ...entry },
       }))
+    } else if (event.key === "F2") {
+      const entry = directoryEntryAt(currentCatalog, currentIndex)
+      if (!entry || !client.executeFileOperations) return
+      setRenameRequest({ index: currentIndex, ...entry })
     } else if (event.key === "Enter") {
       const entry = directoryEntryAt(currentCatalog, currentIndex)
       if (entry) activate(entry)
@@ -1156,6 +1162,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             )}
             onCatalogUpdate={(update) => commitCatalog(update(catalog!))}
             onRefreshEmm={() => updateSort(catalog!.sort)}
+            renameRequest={renameRequest}
+            onRenameRequestHandled={() => setRenameRequest(undefined)}
           />
         </Suspense>
       ) : null}

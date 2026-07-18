@@ -37,6 +37,8 @@ export default function FolderContextActions({
   onTrashed,
   onCatalogUpdate = () => undefined,
   onRefreshEmm = () => undefined,
+  renameRequest,
+  onRenameRequestHandled,
 }: {
   client: ReaderHttpClient
   disabled: boolean
@@ -54,6 +56,8 @@ export default function FolderContextActions({
   onTrashed?(entry: FolderContextEntry): void | Promise<void>
   onCatalogUpdate?(update: FolderCatalogUpdater): void
   onRefreshEmm?(focusPath: string): Promise<void> | void
+  renameRequest?: FolderContextEntry
+  onRenameRequestHandled?(): void
 }) {
   const clipboard = useFolderClipboard()
   const contextMenu = useContextMenu()
@@ -215,6 +219,12 @@ export default function FolderContextActions({
     window.addEventListener("neoview-folder-trash-request", requestTrash)
     return () => window.removeEventListener("neoview-folder-trash-request", requestTrash)
   }, [client.executeFileOperations, contextMenu, disabled, pending])
+
+  useEffect(() => {
+    if (!renameRequest || disabled || pending || !client.executeFileOperations) return
+    setRenameEntry(renameRequest)
+    onRenameRequestHandled?.()
+  }, [client.executeFileOperations, disabled, onRenameRequestHandled, pending, renameRequest])
 
   useContextMenuBuilder("neoview-folder-entry", ({ data }) => {
     const entry = folderContextEntry(data)
