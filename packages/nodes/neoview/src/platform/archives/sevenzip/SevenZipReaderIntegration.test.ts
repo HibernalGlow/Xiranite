@@ -11,6 +11,7 @@ import {
   createRarFixture,
   resolveRarFixtureExecutable,
   type RarFixture,
+  type RarFixtureOptions,
 } from "../../../../test/fixture-builders/create-rar-fixture.js"
 import { ReaderAssetRoute } from "../../asset-route/ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "../../asset-route/ReaderHttpController.js"
@@ -27,6 +28,14 @@ const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
   "base64",
 )
+const solidRarFixture = await optionalRarFixture(rarExecutable, {
+  solid: true,
+  entries: [
+    { path: "pages/2.png", bytes: ONE_PIXEL_PNG },
+    { path: "pages/10.png", bytes: ONE_PIXEL_PNG },
+    { path: "pages/readme.txt", bytes: new TextEncoder().encode("not a page") },
+  ],
+})
 let directory = ""
 let archivePath = ""
 let solidArchivePath = ""
@@ -34,7 +43,6 @@ let solidNestedArchivePath = ""
 let encryptedSolidArchivePath = ""
 let innerFixture: ZipFixture | undefined
 let encryptedSolidRarFixture: RarFixture | undefined
-let solidRarFixture: RarFixture | undefined
 const SYSTEM_INTEGRATION_TIMEOUT_MS = 30_000
 
 beforeAll(async () => {
@@ -259,6 +267,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
       await service[Symbol.asyncDispose]()
     }
   })
+
   it("[neoview.sevenzip.solid-session-cache] reuses a complete solid extraction across HTTP reader sessions", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const tempDirectory = join(directory, "solid-session-cache")
     await mkdir(tempDirectory)
@@ -367,6 +376,18 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     expect(await readdir(tempDirectory)).toEqual([])
   })
 })
+
+async function optionalRarFixture(
+  executablePath: string | undefined,
+  options: Omit<RarFixtureOptions, "executablePath">,
+): Promise<RarFixture | undefined> {
+  if (!executablePath) return undefined
+  try {
+    return await createRarFixture({ ...options, executablePath })
+  } catch {
+    return undefined
+  }
+}
 
 class RecordingScheduler implements ResourceScheduler {
   readonly requests: ResourceTaskRequest[] = []
