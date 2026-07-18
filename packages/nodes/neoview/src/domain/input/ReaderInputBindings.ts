@@ -132,8 +132,7 @@ export function matchingReaderInputBinding(
   contexts: readonly ReaderInputContext[],
 ): ReaderInputBinding | undefined {
   const descriptor = readerInputDescriptorKey(input)
-  const active = new Set<ReaderInputContext>(contexts)
-  if (!active.has("editor") && !active.has("modal")) active.add("global")
+  const active = new Set<ReaderInputContext>(["global", ...contexts])
   return [...bindings]
     .filter((candidate) => candidate.enabled && active.has(candidate.context) && readerInputDescriptorKey(candidate.input) === descriptor)
     .sort((left, right) => READER_INPUT_CONTEXT_PRIORITY[right.context] - READER_INPUT_CONTEXT_PRIORITY[left.context])[0]

@@ -40,13 +40,40 @@ describe("InputBindingsSettingsCard", () => {
   it("[neoview.bindings.recording] records one keyboard chord and supports cancellation", () => {
     render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
-    fireEvent.keyDown(window, { code: "KeyK", key: "k", ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(document, { code: "KeyK", key: "k", ctrlKey: true, shiftKey: true })
     expect((screen.getByRole("textbox", { name: "键盘代码" }) as HTMLInputElement).value).toBe("KeyK")
     expect((screen.getByLabelText("Ctrl") as HTMLInputElement).checked).toBe(true)
     expect((screen.getByLabelText("Shift") as HTMLInputElement).checked).toBe(true)
     fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
-    fireEvent.keyDown(window, { code: "Escape", key: "Escape" })
+    fireEvent.keyDown(document, { code: "Escape", key: "Escape" })
     expect(screen.queryByText("请按下组合键；按 Escape 取消录制。")).toBeNull()
+  })
+
+  it("[neoview.bindings.recording-ime] ignores IME composition without ending the recording", () => {
+    render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
+    fireEvent.keyDown(document, { code: "KeyJ", key: "Process", isComposing: true })
+    expect((screen.getByRole("textbox", { name: "键盘代码" }) as HTMLInputElement).value).toBe("KeyN")
+    expect(screen.getByText("请按下组合键；按 Escape 取消录制。")).toBeTruthy()
+    fireEvent.keyDown(document, { code: "KeyK", key: "k" })
+    expect((screen.getByRole("textbox", { name: "键盘代码" }) as HTMLInputElement).value).toBe("KeyK")
+  })
+
+  it("[neoview.bindings.device-recording] opens and cancels the maintained device recorder", async () => {
+    render(<InputBindingsEditor value={{ bindings: [binding("mouse", "mouse")] }} onSave={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "录制鼠标输入" }))
+    expect(await screen.findByRole("dialog", { name: "鼠标录制" })).toBeTruthy()
+    fireEvent.keyDown(document, { code: "Escape", key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "鼠标录制" })).toBeNull())
+  })
+
+  it("[neoview.bindings.device-recording] records wheel direction and modifiers through use-gesture", async () => {
+    render(<InputBindingsEditor value={{ bindings: [binding("wheel", "wheel")] }} onSave={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "录制滚轮输入" }))
+    const recorder = await screen.findByRole("dialog", { name: "滚轮录制" })
+    fireEvent(recorder, new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -120, shiftKey: true }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "滚轮录制" })).toBeNull())
+    expect((screen.getByRole("combobox", { name: "滚轮方向" }) as HTMLSelectElement).value).toBe("up")
   })
 
   it("[neoview.bindings.reset-ui] restores canonical defaults through one command", async () => {

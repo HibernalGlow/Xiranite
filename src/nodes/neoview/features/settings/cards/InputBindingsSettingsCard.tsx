@@ -21,12 +21,17 @@ import {
   type ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
 import { AlertTriangle, Keyboard, Plus, Radio, RotateCcw, Save, Search, Trash2, X } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import type { ReaderSettingsCardContext } from "../../panels/registry"
+import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder"
+
+const LazyReaderDeviceInputRecorder = lazy(async () => ({
+  default: (await import("../../input/ReaderDeviceInputRecorder")).ReaderDeviceInputRecorder,
+}))
 
 export function InputBindingsSettingsCard({ inputBindings, onInputBindings }: ReaderSettingsCardContext) {
   if (!inputBindings || !onInputBindings) return null
@@ -44,36 +49,15 @@ export function InputBindingsEditor({
   const [query, setQuery] = useState("")
   const [context, setContext] = useState("all")
   const [category, setCategory] = useState<"all" | ReaderInputActionCategory>("all")
-  const [recordingId, setRecordingId] = useState<string>()
+  const [deviceRecording, setDeviceRecording] = useState<{ id: string; device: Exclude<ReaderInputDescriptor["device"], "keyboard"> }>()
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
   useEffect(() => setDraft(cloneReaderInputBindings(value)), [value])
-  useEffect(() => {
-    if (!recordingId) return
-    const capture = (event: KeyboardEvent) => {
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      if (event.code === "Escape") {
-        setRecordingId(undefined)
-        return
-      }
-      if (["ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "MetaLeft", "MetaRight"].includes(event.code)) return
-      replace(recordingId, (binding) => ({
-        ...binding,
-        input: {
-          device: "keyboard",
-          code: event.code,
-          ctrl: event.ctrlKey || undefined,
-          alt: event.altKey || undefined,
-          shift: event.shiftKey || undefined,
-          meta: event.metaKey || undefined,
-        },
-      }))
-      setRecordingId(undefined)
-    }
-    window.addEventListener("keydown", capture, true)
-    return () => window.removeEventListener("keydown", capture, true)
-  }, [recordingId])
+  const recordKeyboard = useCallback((id: string, input: Extract<ReaderInputDescriptor, { device: "keyboard" }>) => {
+    replace(id, (binding) => ({ ...binding, input }))
+  }, [])
+  const { recordingId, toggleRecording, cancelRecording } = useReaderKeyboardRecorder(recordKeyboard)
+  const activeRecordingId = recordingId ?? deviceRecording?.id
   const conflicts = useMemo(() => readerInputConflicts(draft.bindings), [draft.bindings])
   const conflictIds = useMemo(() => new Set(conflicts.flatMap((current) => current.bindingIds)), [conflicts])
   const visible = draft.bindings.filter((binding) => {
@@ -108,8 +92,8 @@ export function InputBindingsEditor({
       <header className="flex flex-wrap items-center gap-2 border-b pb-3">
         <Keyboard className="size-4 text-muted-foreground" />
         <h2 className="mr-auto text-lg font-semibold">操作绑定</h2>
-        <Button type="button" size="sm" variant="outline" disabled={saving || Boolean(recordingId)} onClick={() => void commit({ reset: "defaults" })}><RotateCcw />恢复默认</Button>
-        <Button type="button" size="sm" disabled={saving || conflicts.length > 0 || Boolean(recordingId)} onClick={() => void commit({ bindings: draft.bindings })}><Save />保存</Button>
+        <Button type="button" size="sm" variant="outline" disabled={saving || Boolean(activeRecordingId)} onClick={() => void commit({ reset: "defaults" })}><RotateCcw />恢复默认</Button>
+        <Button type="button" size="sm" disabled={saving || conflicts.length > 0 || Boolean(activeRecordingId)} onClick={() => void commit({ bindings: draft.bindings })}><Save />保存</Button>
       </header>
 
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_auto]">
@@ -125,14 +109,26 @@ export function InputBindingsEditor({
           <option value="all">全部上下文</option>
           {READER_INPUT_CONTEXTS.map((item) => <option key={item} value={item}>{READER_INPUT_CONTEXT_LABELS[item]}</option>)}
         </select>
-        <Button type="button" variant="outline" disabled={Boolean(recordingId)} onClick={() => setDraft((current) => ({ bindings: [...current.bindings, newBinding(current.bindings)] }))}><Plus />添加绑定</Button>
+        <Button type="button" variant="outline" disabled={Boolean(activeRecordingId)} onClick={() => setDraft((current) => ({ bindings: [...current.bindings, newBinding(current.bindings)] }))}><Plus />添加绑定</Button>
       </div>
 
       {recordingId ? (
         <div role="status" className="flex items-center gap-2 rounded border border-primary/50 bg-primary/10 px-3 py-2 text-xs">
           <Radio className="size-4 animate-pulse" />请按下组合键；按 Escape 取消录制。
-          <Button type="button" size="xs" variant="ghost" className="ml-auto" onClick={() => setRecordingId(undefined)}><X />取消</Button>
+          <Button type="button" size="xs" variant="ghost" className="ml-auto" onClick={cancelRecording}><X />取消</Button>
         </div>
+      ) : null}
+      {deviceRecording ? (
+        <Suspense fallback={null}>
+          <LazyReaderDeviceInputRecorder
+            device={deviceRecording.device}
+            onCancel={() => setDeviceRecording(undefined)}
+            onRecord={(input) => {
+              replace(deviceRecording.id, (binding) => ({ ...binding, input }))
+              setDeviceRecording(undefined)
+            }}
+          />
+        </Suspense>
       ) : null}
       {conflicts.length ? (
         <div role="alert" className="flex items-start gap-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -146,9 +142,12 @@ export function InputBindingsEditor({
             key={binding.id}
             binding={binding}
             conflicted={conflictIds.has(binding.id)}
-            disabled={saving || Boolean(recordingId && recordingId !== binding.id)}
-            recording={recordingId === binding.id}
-            onRecord={() => setRecordingId(recordingId === binding.id ? undefined : binding.id)}
+            disabled={saving || Boolean(activeRecordingId && activeRecordingId !== binding.id)}
+            recording={activeRecordingId === binding.id}
+            onRecord={() => {
+              if (binding.input.device === "keyboard") toggleRecording(binding.id)
+              else setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device })
+            }}
             onChange={(next) => replace(binding.id, () => next)}
             onRemove={() => setDraft((current) => ({ bindings: current.bindings.filter((item) => item.id !== binding.id) }))}
           />
@@ -201,10 +200,13 @@ function InputDescriptorEditor({ input, disabled, recording, onRecord, onChange 
         <option value="keyboard">键盘</option><option value="mouse">鼠标</option><option value="wheel">滚轮</option><option value="touch">触控</option><option value="gamepad">手柄</option>
       </select>
       {input.device === "keyboard" ? <KeyboardInputEditor input={input} disabled={disabled} recording={recording} onRecord={onRecord} onChange={onChange} /> : null}
-      {input.device === "mouse" ? <div className="grid grid-cols-2 gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.button} disabled={disabled} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) })} aria-label="鼠标按钮">{Array.from({ length: 8 }, (_, button) => <option key={button} value={button}>{mouseButtonLabel(button)}</option>)}</select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.click} disabled={disabled} onChange={(event) => onChange({ ...input, click: event.currentTarget.value as typeof input.click })} aria-label="鼠标点击方式"><option value="single">单击</option><option value="double">双击</option></select></div> : null}
-      {input.device === "wheel" ? <div className="grid gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.direction} disabled={disabled} onChange={(event) => onChange({ ...input, direction: event.currentTarget.value as typeof input.direction })} aria-label="滚轮方向"><option value="up">向上</option><option value="down">向下</option></select><ModifierEditor input={input} disabled={disabled} onChange={onChange} /></div> : null}
-      {input.device === "touch" ? <div className="grid grid-cols-[1fr_5rem] gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.gesture} disabled={disabled} onChange={(event) => onChange({ ...input, gesture: event.currentTarget.value as typeof input.gesture })} aria-label="触控手势"><option value="swipe-left">左滑</option><option value="swipe-right">右滑</option><option value="swipe-up">上滑</option><option value="swipe-down">下滑</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.fingers} disabled={disabled} onChange={(event) => onChange({ ...input, fingers: Number(event.currentTarget.value) as 1 | 2 | 3 })} aria-label="触控手指数"><option value={1}>1 指</option><option value={2}>2 指</option><option value={3}>3 指</option></select></div> : null}
-      {input.device === "gamepad" ? <Input className="h-8 text-xs" type="number" min={0} max={31} value={input.button} disabled={disabled} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) })} aria-label="手柄按钮编号" /> : null}
+      {input.device !== "keyboard" ? <div className="grid gap-1">
+        {input.device === "mouse" ? <div className="grid grid-cols-2 gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.button} disabled={disabled || recording} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) })} aria-label="鼠标按钮">{Array.from({ length: 8 }, (_, button) => <option key={button} value={button}>{mouseButtonLabel(button)}</option>)}</select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.click} disabled={disabled || recording} onChange={(event) => onChange({ ...input, click: event.currentTarget.value as typeof input.click })} aria-label="鼠标点击方式"><option value="single">单击</option><option value="double">双击</option></select></div> : null}
+        {input.device === "wheel" ? <div className="grid gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.direction} disabled={disabled || recording} onChange={(event) => onChange({ ...input, direction: event.currentTarget.value as typeof input.direction })} aria-label="滚轮方向"><option value="up">向上</option><option value="down">向下</option></select><ModifierEditor input={input} disabled={disabled || recording} onChange={onChange} /></div> : null}
+        {input.device === "touch" ? <div className="grid grid-cols-[1fr_5rem] gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.gesture} disabled={disabled || recording} onChange={(event) => onChange({ ...input, gesture: event.currentTarget.value as typeof input.gesture })} aria-label="触控手势"><option value="swipe-left">左滑</option><option value="swipe-right">右滑</option><option value="swipe-up">上滑</option><option value="swipe-down">下滑</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.fingers} disabled={disabled || recording} onChange={(event) => onChange({ ...input, fingers: Number(event.currentTarget.value) as 1 | 2 | 3 })} aria-label="触控手指数"><option value={1}>1 指</option><option value={2}>2 指</option><option value={3}>3 指</option></select></div> : null}
+        {input.device === "gamepad" ? <Input className="h-8 text-xs" type="number" min={0} max={31} value={input.button} disabled={disabled || recording} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) })} aria-label="手柄按钮编号" /> : null}
+        <Button type="button" size="sm" variant={recording ? "default" : "outline"} disabled={disabled && !recording} onClick={onRecord} aria-label={recording ? `取消录制${deviceLabel(input.device)}` : `录制${deviceLabel(input.device)}`}><Radio />{recording ? "录制中" : "录制"}</Button>
+      </div> : null}
     </div>
   )
 }
@@ -246,6 +248,10 @@ function mouseButtonLabel(button: number): string {
 
 function modifierLabel(key: "ctrl" | "alt" | "shift" | "meta"): string {
   return key === "ctrl" ? "Ctrl" : key === "alt" ? "Alt" : key === "shift" ? "Shift" : "Meta"
+}
+
+function deviceLabel(device: Exclude<ReaderInputDescriptor["device"], "keyboard">): string {
+  return device === "mouse" ? "鼠标输入" : device === "wheel" ? "滚轮输入" : device === "touch" ? "触控手势" : "手柄按钮"
 }
 
 function formatInput(input: ReaderInputDescriptor): string {
