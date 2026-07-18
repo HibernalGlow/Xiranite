@@ -93,6 +93,7 @@ import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigration
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
 import { ReaderSourceWatchService } from "../../application/reader/ReaderSourceWatchService.js"
 import type { ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
+import type { ReaderExplorerContextMenuProvider } from "../../ports/ReaderExplorerContextMenuProvider.js"
 import { PlatformReaderSourceWatcher } from "../filesystem/PlatformReaderSourceWatcher.js"
 import type { ReaderSettingsMigrationService } from "../../application/migration/ReaderSettingsMigrationService.js"
 import type { ReaderSettingsPortableService } from "../../application/migration/ReaderSettingsPortableService.js"
@@ -279,6 +280,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   loadSettingsPortableService?: () => Promise<ReaderSettingsPortableService>
   loadBookSettingsMigrationService?: () => Promise<ReaderBookSettingsMigrationService>
   sourceWatcher?: ReaderSourceWatcher
+  explorerContextMenu?: ReaderExplorerContextMenuProvider
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -519,7 +521,11 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
       const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")
       const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
-      return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({ scheduler: options.resourceScheduler }))
+      const { WindowsReaderExplorerContextMenuProvider } = await import("../windows/WindowsReaderExplorerContextMenuProvider.js")
+      return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({
+        scheduler: options.resourceScheduler,
+        explorerContextMenu: options.explorerContextMenu ?? new WindowsReaderExplorerContextMenuProvider(),
+      }))
     })
     this.#settingsMigration = options.loadSettingsMigrationService
       ? new ReaderSettingsMigrationHttpController(
