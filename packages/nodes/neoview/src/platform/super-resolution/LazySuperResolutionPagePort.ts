@@ -1,5 +1,6 @@
 import type {
   ReaderHeadlessSuperResolutionPort,
+  ReaderHeadlessSuperResolutionArtifactFactory,
 } from "../../application/headless/ReaderHeadlessController.js"
 import type {
   SuperResolutionPageInput,
@@ -51,13 +52,17 @@ export interface SuperResolutionPageCapability {
 }
 
 export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutionPort, SuperResolutionArtifactPagePort, SuperResolutionPreloadControlPort {
+  readonly artifactFor?: ReaderHeadlessSuperResolutionArtifactFactory
   #capability?: Promise<SuperResolutionPageCapability | undefined>
   #resolvedCapability?: SuperResolutionPageCapability
   #disposed = false
 
   constructor(
     private readonly load: () => Promise<SuperResolutionPageCapability | undefined>,
-  ) {}
+    options: { artifactFor?: ReaderHeadlessSuperResolutionArtifactFactory } = {},
+  ) {
+    this.artifactFor = options.artifactFor
+  }
 
   async run(
     input: SuperResolutionPageInput,

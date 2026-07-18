@@ -10,7 +10,7 @@ import { ReaderBookSettingsService } from "../reader/ReaderBookSettingsService.j
 import type { ReaderAdjacentBookService } from "../reader/ReaderAdjacentBookService.js"
 import { ReaderBookMetadataService } from "../metadata/ReaderBookMetadataService.js"
 import { ReaderEmmMetadataService } from "../metadata/ReaderEmmMetadataService.js"
-import { ReaderHeadlessController } from "./ReaderHeadlessController.js"
+import { ReaderHeadlessController, type ReaderHeadlessSuperResolutionPort } from "./ReaderHeadlessController.js"
 
 describe("ReaderHeadlessController", () => {
   it("[neoview.headless.session] opens and replaces books without exposing source paths", async () => {
@@ -212,6 +212,68 @@ describe("ReaderHeadlessController", () => {
       await controller[Symbol.asyncDispose]()
     }
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.super-resolution.headless-preload] reuses the session plan and releases its preload context", async () => {
+    const startPlan = vi.fn(async (input: Parameters<NonNullable<ReaderHeadlessSuperResolutionPort["startPlan"]>>[0]) => {
+      expect(input.contextId).toMatch(/^reader:.+:super-resolution$/u)
+      expect(input.plan.generation).toBe(1)
+      expect(input.artifactFor).toBeTypeOf("function")
+      const page = input.pages[0]!
+      const descriptor = await input.artifactFor!(page, {
+        contextId: input.contextId,
+        generation: input.plan.generation,
+        trigger: "preload",
+        signal: new AbortController().signal,
+        decision: { kind: "run", reason: "test", modelId: "model", scale: 2, useCache: true },
+      })
+      expect(descriptor.metadata.bookKey).toBe("D:/private/preload.cbz")
+      return []
+    })
+    const startProgressive = vi.fn(async () => [])
+    const pause = vi.fn(async () => [])
+    const retry = vi.fn(async () => [])
+    const releaseContext = vi.fn(async () => undefined)
+    const port: ReaderHeadlessSuperResolutionPort = {
+      run: vi.fn(),
+      inspect: vi.fn(async () => ({ available: false, reason: "test", models: [], engines: [] })),
+      startPlan,
+      startProgressive,
+      snapshots: vi.fn(async () => []),
+      pause,
+      retry,
+      releaseContext,
+      artifactFor: vi.fn((_bookPath, _page, _context) => ({
+        key: "neoview:super-resolution:test",
+        metadata: { bookKey: "D:/private/preload.cbz", contentType: "image/png" as const, extension: "png" as const },
+      })),
+      [Symbol.asyncDispose]: vi.fn(async () => undefined),
+    }
+    const controller = new ReaderHeadlessController(
+      new CoreReaderService(async () => book("D:/private/preload.cbz", [])),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      port,
+    )
+    try {
+      await controller.open({ path: "D:/private/preload.cbz" })
+      await controller.startUpscalePreload("nearby")
+      await controller.startUpscalePreload("progressive")
+      await controller.pauseUpscalePreload()
+      await controller.retryUpscalePreload("nearby")
+      expect(startPlan).toHaveBeenCalledOnce()
+      expect(startProgressive).toHaveBeenCalledOnce()
+      expect(pause).toHaveBeenCalledOnce()
+      expect(retry).toHaveBeenCalledOnce()
+    } finally {
+      await controller.closeBook()
+      await controller[Symbol.asyncDispose]()
+    }
+    expect(releaseContext).toHaveBeenCalledWith(expect.stringContaining("super-resolution"))
   })
 
   it("[neoview.headless.media-progress] shares restore and durable updates with CLI/TUI", async () => {

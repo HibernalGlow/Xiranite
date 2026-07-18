@@ -30,6 +30,15 @@ import type {
   SuperResolutionPageResult,
 } from "../super-resolution/SuperResolutionPageService.js"
 import type {
+  SuperResolutionArtifactDescriptor,
+  SuperResolutionArtifactRunDecision,
+} from "../../ports/SuperResolutionArtifact.js"
+import type {
+  SuperResolutionArtifactDestinationContext,
+  SuperResolutionPreloadLiveSnapshot,
+} from "../../ports/SuperResolutionPreload.js"
+import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
+import type {
   SuperResolutionCapabilitySnapshot,
   SuperResolutionExecutionContext,
   SuperResolutionModelManifest,
@@ -88,12 +97,19 @@ export interface ReaderHeadlessBookSettingsOptions {
   defaults: ReaderBookSettingsDefaults
 }
 
-export interface ReaderHeadlessSuperResolutionPort extends AsyncDisposable {
+export type ReaderHeadlessSuperResolutionArtifactFactory = (
+  bookPath: string,
+  page: ReaderPage,
+  context: SuperResolutionArtifactDestinationContext & { decision: SuperResolutionArtifactRunDecision },
+) => SuperResolutionArtifactDescriptor | Promise<SuperResolutionArtifactDescriptor>
+
+export interface ReaderHeadlessSuperResolutionPort extends AsyncDisposable, Partial<SuperResolutionPreloadControlPort> {
   run(
     input: SuperResolutionPageInput,
     context?: SuperResolutionExecutionContext,
   ): Promise<SuperResolutionPageResult>
   inspect(options?: { refresh?: boolean; signal?: AbortSignal }): Promise<HeadlessSuperResolutionCapabilitySnapshot>
+  artifactFor?: ReaderHeadlessSuperResolutionArtifactFactory
 }
 
 export type HeadlessSuperResolutionCapabilitySnapshot =
@@ -191,6 +207,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
       this.#bookMetadata = bookMetadata
       adopted = true
       if (previous) await this.#mediaProgress?.flush(previous.book.id)
+      if (previous) await this.superResolution?.releaseContext?.(preloadContextId(previous.id))
       await previous?.close()
       return snapshotOf(next, bookMetadata)
     } catch (error) {
@@ -296,6 +313,53 @@ export class ReaderHeadlessController implements AsyncDisposable {
     return this.superResolution.inspect(options)
   }
 
+  getUpscalePreload(signal?: AbortSignal): Promise<readonly SuperResolutionPreloadLiveSnapshot[]> {
+    const session = this.#requireSession()
+    return this.#requirePreload().snapshots(preloadContextId(session.id), signal)
+  }
+
+  async startUpscalePreload(
+    mode: "nearby" | "progressive" = "nearby",
+    signal?: AbortSignal,
+  ): Promise<readonly SuperResolutionPreloadLiveSnapshot[]> {
+    const session = this.#requireSession()
+    const preload = this.#requirePreload()
+    const plan = session.preloadPlan()
+    const contextId = preloadContextId(session.id)
+    const artifactFor = this.#artifactFactory(session)
+    if (mode === "nearby") {
+      if (!plan) throw new Error("Reader preload plan is unavailable.")
+      return preload.startPlan({
+        contextId,
+        plan,
+        pages: session.book.pages,
+        bookPath: session.book.source.path,
+        artifactFor,
+      }, signal)
+    }
+    return preload.startProgressive({
+      contextId,
+      generation: plan?.generation ?? Number(session.generation),
+      currentPageIndex: session.snapshot().anchorPageIndex,
+      pages: session.book.pages,
+      bookPath: session.book.source.path,
+      artifactFor,
+    }, signal)
+  }
+
+  pauseUpscalePreload(signal?: AbortSignal): Promise<readonly SuperResolutionPreloadLiveSnapshot[]> {
+    const session = this.#requireSession()
+    return this.#requirePreload().pause(preloadContextId(session.id), signal)
+  }
+
+  retryUpscalePreload(
+    mode: "nearby" | "progressive" = "nearby",
+    signal?: AbortSignal,
+  ): Promise<readonly SuperResolutionPreloadLiveSnapshot[]> {
+    const session = this.#requireSession()
+    return this.#requirePreload().retry(preloadContextId(session.id), mode, signal)
+  }
+
   async getMediaProgress(): Promise<ReaderMediaProgressRecord | undefined> {
     const session = this.#requireVideoSession()
     if (!this.#mediaProgress) return undefined
@@ -375,6 +439,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     this.#session = undefined
     this.#bookMetadata = undefined
     if (session) await this.#mediaProgress?.flush(session.book.id)
+    if (session) await this.superResolution?.releaseContext?.(preloadContextId(session.id))
     await session?.close()
   }
 
@@ -386,6 +451,13 @@ export class ReaderHeadlessController implements AsyncDisposable {
       this.#session = undefined
       this.#bookMetadata = undefined
       const errors: unknown[] = []
+      if (session) {
+        try {
+          await this.superResolution?.releaseContext?.(preloadContextId(session.id))
+        } catch (error) {
+          errors.push(error)
+        }
+      }
       for (const dispose of [
         this.#mediaProgress ? () => this.#mediaProgress!.close() : undefined,
         session ? () => session.close() : undefined,
@@ -409,6 +481,22 @@ export class ReaderHeadlessController implements AsyncDisposable {
     this.#assertOpen()
     if (!this.#session) throw new Error("No reader book is open.")
     return this.#session
+  }
+
+  #requirePreload(): ReaderHeadlessSuperResolutionPort & SuperResolutionPreloadControlPort {
+    const port = this.superResolution
+    if (!port?.startPlan || !port.startProgressive || !port.snapshots || !port.pause || !port.retry) {
+      throw new Error("Reader super-resolution preload is unavailable.")
+    }
+    return port as ReaderHeadlessSuperResolutionPort & SuperResolutionPreloadControlPort
+  }
+
+  #artifactFactory(session: ReaderSession) {
+    if (!this.superResolution?.artifactFor) {
+      throw new Error("Reader super-resolution artifact cache is unavailable.")
+    }
+    return (page: ReaderPage, context: SuperResolutionArtifactDestinationContext & { decision: SuperResolutionArtifactRunDecision }) =>
+      this.superResolution!.artifactFor!(session.book.source.path, page, context)
   }
 
   #requireVideoSession(): ReaderSession {
@@ -520,4 +608,8 @@ function assertSlice(cursor: number, limit: number, pageCount: number): void {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
     throw new RangeError(`Invalid reader page limit: ${limit}`)
   }
+}
+
+function preloadContextId(sessionId: string): string {
+  return `reader:${sessionId}:super-resolution`
 }
