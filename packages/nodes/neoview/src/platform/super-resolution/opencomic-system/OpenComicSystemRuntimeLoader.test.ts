@@ -29,6 +29,8 @@ function fakeRuntime() {
   return {
     modelsList: ["model"],
     model: vi.fn(() => ({ upscaler: "upscayl", scales: [2] })),
+    registerModels: vi.fn(() => []),
+    unregisterModel: vi.fn(() => false),
     setBinaryResolver: vi.fn(),
     setModelsPath: vi.fn(),
     setConcurrentDaemons: vi.fn(),

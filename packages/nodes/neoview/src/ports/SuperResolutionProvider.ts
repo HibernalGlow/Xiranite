@@ -10,7 +10,7 @@ export interface SuperResolutionModelManifest {
   inputBlob?: string
   outputBlob?: string
   license?: string
-  checksum?: string
+  checksums?: Readonly<Record<string, string>>
 }
 
 export interface SuperResolutionEngineCapability {

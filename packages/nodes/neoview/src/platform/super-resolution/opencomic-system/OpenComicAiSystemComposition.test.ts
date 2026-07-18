@@ -45,6 +45,10 @@ describe("OpenComic AI system composition", () => {
         engine: "upscayl",
         scales: [2, 4],
         modelFiles: ["model.param", "model.bin"],
+        inputBlob: "in0",
+        outputBlob: "out0",
+        license: "MIT",
+        checksums: { "model.param": "a".repeat(64), "model.bin": "b".repeat(64) },
       },
       {
         id: "realcugan-pro",
@@ -52,6 +56,10 @@ describe("OpenComic AI system composition", () => {
         engine: "realcugan",
         scales: [2],
         modelFiles: undefined,
+        inputBlob: undefined,
+        outputBlob: undefined,
+        license: undefined,
+        checksums: undefined,
       },
     ])
     expect(runtime.pipeline).not.toHaveBeenCalled()
@@ -69,6 +77,10 @@ describe("OpenComic AI system composition", () => {
       engine: "upscayl",
       scales: [2, 4],
       modelFiles: undefined,
+      inputBlob: undefined,
+      outputBlob: undefined,
+      license: undefined,
+      checksums: undefined,
     }])
   })
 })
@@ -77,8 +89,19 @@ function fakeRuntime() {
   return {
     modelsList: ["realesr-animevideov3", "realcugan-pro"],
     model: vi.fn((id: string) => id === "realesr-animevideov3"
-      ? { name: "AnimeVideoV3", upscaler: "upscayl", scales: [4, 2, 2], files: ["model.param", "model.bin"] }
+      ? {
+          name: "AnimeVideoV3",
+          upscaler: "upscayl",
+          scales: [4, 2, 2],
+          files: ["model.param", "model.bin"],
+          inputBlob: "in0",
+          outputBlob: "out0",
+          license: "MIT",
+          checksums: { "model.param": "a".repeat(64), "model.bin": "b".repeat(64) },
+        }
       : { upscaler: "realcugan", scales: [2] }),
+    registerModels: vi.fn(() => []),
+    unregisterModel: vi.fn(() => false),
     setBinaryResolver: vi.fn(),
     setModelsPath: vi.fn(),
     setConcurrentDaemons: vi.fn(),

@@ -82,6 +82,10 @@ export function runtimeModels(runtime: OpenComicSystemRuntime): readonly SuperRe
       engine: model.upscaler,
       scales,
       modelFiles: model.files ? [...model.files] : undefined,
+      inputBlob: model.inputBlob,
+      outputBlob: model.outputBlob,
+      license: model.license,
+      checksums: model.checksums ? { ...model.checksums } : undefined,
     })
   }
   return models

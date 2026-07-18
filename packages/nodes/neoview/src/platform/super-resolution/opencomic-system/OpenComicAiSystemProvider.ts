@@ -33,11 +33,17 @@ export interface OpenComicSystemModelInfo {
   folder?: string
   files?: readonly string[]
   scaleFiles?: Readonly<Record<number, string>>
+  license?: string
+  checksums?: Readonly<Record<string, string>>
+  inputBlob?: string
+  outputBlob?: string
 }
 
 export interface OpenComicSystemRuntime {
   readonly modelsList: readonly string[]
   model(modelId: string): OpenComicSystemModelInfo
+  registerModels(manifests: readonly unknown[]): readonly OpenComicSystemModelInfo[]
+  unregisterModel(modelId: string): boolean
   setBinaryResolver(resolver?: (request: OpenComicSystemBinaryRequest) => string): void
   setModelsPath(path: string): void
   setConcurrentDaemons(count: number): void
