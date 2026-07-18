@@ -721,10 +721,13 @@
       "testIds": [
         "neoview.bookmark.card",
         "neoview.library.bookmarks",
-        "neoview.bookmark.thumbnail-e2e"
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.context-actions",
+        "neoview.bookmark.context-capabilities",
+        "neoview.bookmark.context-actions-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; copy, reveal, system-open, rename, tags and new-tab actions remain pending."
+      "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open and Explorer reveal with capability-aware disabled states. Rename, tags, thumbnail reload and new-tab actions remain pending."
     },
     {
       "id": "bookmark.batch-edit",
@@ -934,10 +937,13 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.bookmark.card"
+        "neoview.bookmark.card",
+        "neoview.bookmark.context-actions",
+        "neoview.bookmark.context-capabilities",
+        "neoview.bookmark.context-actions-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Row actions are named; selection and context actions remain incomplete."
+      "notes": "Rows and context actions have stable accessible names, destructive removal uses the shared confirmation contract, and desktop/card Chromium exercise the real pointer menu. Shift+F10 and post-confirm focus restoration remain pending."
     },
     {
       "id": "bookmark.ui-parity",
@@ -962,10 +968,11 @@
       "testIds": [
         "neoview.bookmark.view-modes",
         "neoview.bookmark.thumbnail-e2e",
-        "neoview.bookmark.selection"
+        "neoview.bookmark.selection",
+        "neoview.bookmark.context-actions-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, stable Reader media and zero horizontal overflow."
+      "notes": "Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, host context actions, stable Reader media and zero horizontal overflow."
     },
     {
       "id": "bookmark.performance",
@@ -995,10 +1002,11 @@
         "neoview.bookmark.thumbnail-lease",
         "neoview.bookmark.thumbnail-e2e",
         "neoview.bookmark.thumbnail-lease-e2e",
-        "neoview.bookmark.chunk"
+        "neoview.bookmark.chunk",
+        "neoview.bookmark.context-actions-chunk"
       ],
       "plannedTestIds": [],
-      "notes": "Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, and the 13.71 KiB Card remains deferred; a 10K Chromium request-count run and visited-page metadata eviction remain pending."
+      "notes": "Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, the 14,429-byte Card remains deferred, and the 3,244-byte context-action module stays in a second-level chunk; a 10K Chromium request-count run and visited-page metadata eviction remain pending."
     },
     {
       "id": "bookmark.image-stability",
@@ -1021,10 +1029,11 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.bookmark.thumbnail-e2e"
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.context-actions-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Real Chromium proves opening and thumbnail mutation preserve the active image; scrolling and list-switch identity checks remain pending."
+      "notes": "Real Chromium proves opening, thumbnail mutation and copy/system-open/reveal context actions preserve the active image; scrolling and list-switch identity checks remain pending."
     },
     {
       "id": "bookmark.deviations",
@@ -1052,7 +1061,8 @@
         "neoview.shared-entry.variants",
         "neoview.bookmark.thumbnail-visible",
         "neoview.bookmark.batch-contract",
-        "neoview.bookmark.thumbnail-e2e"
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.context-actions-e2e"
       ],
       "plannedTestIds": [],
       "notes": "Authenticated visible-window thumbnails, stable ID selection, bounded batch routes and the shared slot-based entry surface replace the legacy in-process FileListPanel wiring without removing bookmark fields or creating a second business store."

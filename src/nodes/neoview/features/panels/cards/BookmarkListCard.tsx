@@ -1,5 +1,5 @@
 import { BookmarkPlus, FolderOpen, GalleryHorizontalEnd, Grid2X2, List, ListPlus, Pencil, Rows3, Star, Trash2, X } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,7 +17,9 @@ type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmark
 type BookmarkViewMode = "compact" | "content" | "banner" | "thumbnail"
 type VisibleBookmarks = { listId: string; items: readonly ReaderBookmarkDto[] }
 
-export default function BookmarkListCard({ client, disabled, onOpen, session, sourcePath, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
+const LazyBookmarkContextActions = lazy(() => import("./bookmark/BookmarkContextActions"))
+
+export default function BookmarkListCard({ client, disabled, onOpen, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
   const [lists, setLists] = useState<readonly ReaderBookmarkListDto[]>([])
   const [listsReady, setListsReady] = useState(false)
   const [activeListId, setActiveListId] = useState(() => bookmarkListPreferences?.activeListId ?? "all")
@@ -252,6 +254,17 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
 
   return (
     <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true" data-selection-count={selectedIds.size} data-bookmark-view-mode={viewMode} data-visible-bookmarks={visibleBookmarks.items.length} data-thumbnail-items={thumbnailItems.length}>
+      <Suspense fallback={null}>
+        <LazyBookmarkContextActions
+          client={client}
+          disabled={disabled}
+          items={loadedBookmarks}
+          copyText={systemActions?.copyText}
+          onOpen={onOpen ? (item) => onOpen(item.source.path) : undefined}
+          onToggleStar={toggleStar}
+          onRemove={remove}
+        />
+      </Suspense>
       <div className="flex items-center gap-1">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" aria-label="书签列表">
           {lists.map((list) => (
@@ -428,6 +441,8 @@ function BookmarkRow({
     <ReaderEntrySurface
       variant={viewMode}
       selected={selected}
+      data-context-menu="neoview-bookmark-entry"
+      data-bookmark-context-id={item.id}
       data-bookmark-id={item.id}
       leading={viewMode === "compact" || viewMode === "content" ? <Checkbox checked={selected} aria-label={`选择书签：${item.name}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
       media={viewMode === "compact" ? undefined : (
