@@ -19,7 +19,7 @@ import {
   type ThumbnailDatabaseAccessLock,
 } from "./ThumbnailDatabaseAccessLock.js"
 import type { LegacyThumbnailCategory, LegacyThumbnailRecord } from "./ReadonlyLegacyThumbnailStore.js"
-import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import type { ResourcePriority, ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { readLegacyThumbnailStatistics } from "./LegacyThumbnailStatistics.js"
 
 export interface WritableLegacyThumbnailStoreOptions {
@@ -264,7 +264,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
           "DELETE FROM failed_thumbnails WHERE key IN (SELECT key FROM failed_thumbnails WHERE reason = ?1 ORDER BY last_attempt LIMIT ?2)",
           options.reason,
           options.limit,
-        ).changes)
+        ).changes, "neoview.thumbnail.database-maintenance-write", signal)
   }
 
   async cleanup(request: ReaderThumbnailCleanupRequest, signal?: AbortSignal): Promise<number> {
@@ -288,7 +288,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
           "DELETE FROM thumbs WHERE key IN (SELECT key FROM thumbs WHERE category = 'file' AND date IS NOT NULL AND date < ?1 ORDER BY date LIMIT ?2)",
           request.cutoff,
           request.limit,
-        ).changes)
+        ).changes, "neoview.thumbnail.database-maintenance-write", signal)
   }
 
   async cleanupInvalid(options: { scanLimit: number; deleteLimit: number }, signal?: AbortSignal): Promise<ReaderThumbnailInvalidCleanupResult> {
@@ -300,14 +300,24 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     signal?.throwIfAborted()
     let wrapped = false
     const previousCursor = this.#invalidScanCursor
-    let rows = this.#database.all(
-      "SELECT key FROM thumbs WHERE key > ?1 ORDER BY key LIMIT ?2",
-      previousCursor,
-      options.scanLimit,
+    let rows = await this.#withIoLease(
+      "neoview.thumbnail.database-maintenance-scan",
+      "background",
+      signal,
+      () => this.#database.all(
+        "SELECT key FROM thumbs WHERE key > ?1 ORDER BY key LIMIT ?2",
+        previousCursor,
+        options.scanLimit,
+      ),
     )
     if (!rows.length && previousCursor) {
       wrapped = true
-      rows = this.#database.all("SELECT key FROM thumbs ORDER BY key LIMIT ?1", options.scanLimit)
+      rows = await this.#withIoLease(
+        "neoview.thumbnail.database-maintenance-scan",
+        "background",
+        signal,
+        () => this.#database.all("SELECT key FROM thumbs ORDER BY key LIMIT ?1", options.scanLimit),
+      )
     }
     const keys = rows.map((row) => requireString(row.key, "thumbs.key"))
     const nextCursor = keys.at(-1) ?? (wrapped ? "" : previousCursor)
@@ -324,7 +334,12 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
       const root = parse(source).root
       let rootState = roots.get(root)
       if (!rootState) {
-        rootState = await this.#pathState(root)
+        rootState = await this.#withIoLease(
+          "neoview.thumbnail.path-state",
+          "background",
+          signal,
+          () => this.#pathState(root),
+        )
         signal?.throwIfAborted()
         roots.set(root, rootState)
       }
@@ -332,7 +347,12 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
         unavailableVolumeRowsPreserved += 1
         return
       }
-      const sourceState = await this.#pathState(source)
+      const sourceState = await this.#withIoLease(
+        "neoview.thumbnail.path-state",
+        "background",
+        signal,
+        () => this.#pathState(source),
+      )
       signal?.throwIfAborted()
       if (sourceState === "missing") invalid.push(key)
       else if (sourceState === "unavailable") unavailableVolumeRowsPreserved += 1
@@ -342,7 +362,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     const deleted = deleteKeys.length ? await this.#runTransaction(() => {
       const placeholders = deleteKeys.map((_, index) => `?${index + 1}`).join(", ")
       return this.#database.run(`DELETE FROM thumbs WHERE key IN (${placeholders})`, ...deleteKeys).changes
-    }) : 0
+    }, "neoview.thumbnail.database-maintenance-write", signal) : 0
     this.#invalidScanCursor = nextCursor
     return { scanned: keys.length, deleted, unavailableVolumeRowsPreserved, wrapped }
   }
@@ -392,7 +412,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
           if (item.kind === "thumbnail") this.#writeThumbnail(item.value)
           else this.#writeFailure(item.value)
         }
-      })
+      }, "neoview.thumbnail.database-write")
       this.#committedBatches += 1
       this.#committedWrites += batch.length
       this.#lastError = undefined
@@ -404,10 +424,21 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     }
   }
 
-  async #runTransaction<T>(operation: () => T): Promise<T> {
+  async #runTransaction<T>(
+    operation: () => T,
+    resourceKind: string,
+    signal?: AbortSignal,
+  ): Promise<T> {
     let lastError: unknown
     for (let attempt = 0; attempt <= this.#writeBusyRetries; attempt += 1) {
+      let lease: Awaited<ReturnType<ResourceScheduler["acquire"]>> | undefined
       try {
+        signal?.throwIfAborted()
+        lease = await this.#resourceScheduler?.acquire({
+          resource: "io",
+          kind: resourceKind,
+          priority: "background",
+        }, signal)
         this.#accessLock.assertHeld()
         this.#database.exec("BEGIN IMMEDIATE")
         const result = operation()
@@ -419,10 +450,30 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
         try { this.#database.exec("ROLLBACK") } catch { /* transaction did not start */ }
         if (!isSqliteBusy(error) || attempt >= this.#writeBusyRetries) break
         this.#busyRetries += 1
+      } finally {
+        lease?.release()
+      }
+      signal?.throwIfAborted()
+      if (attempt < this.#writeBusyRetries) {
         await delay(Math.min(5_000, this.#writeBusyBaseDelayMs * 2 ** attempt))
       }
     }
     throw lastError
+  }
+
+  async #withIoLease<T>(
+    kind: string,
+    priority: ResourcePriority,
+    signal: AbortSignal | undefined,
+    operation: () => T | Promise<T>,
+  ): Promise<T> {
+    const lease = await this.#resourceScheduler?.acquire({ resource: "io", kind, priority }, signal)
+    try {
+      signal?.throwIfAborted()
+      return await operation()
+    } finally {
+      lease?.release()
+    }
   }
 
   #writeThumbnail(value: ReaderThumbnailWrite): void {
