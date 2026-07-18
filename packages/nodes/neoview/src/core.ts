@@ -391,6 +391,13 @@ export {
   type SuperResolutionPolicyServiceOptions,
   type SuperResolutionPolicyTrigger,
 } from "./application/super-resolution/SuperResolutionPolicyService.js"
+export {
+  SuperResolutionPageService,
+  type SuperResolutionPageInput,
+  type SuperResolutionPageResult,
+  type SuperResolutionPolicyResolver,
+  type SuperResolutionRunner,
+} from "./application/super-resolution/SuperResolutionPageService.js"
 export type {
   SuperResolutionCapabilitySnapshot,
   SuperResolutionCustomModelManifest,

@@ -2,10 +2,13 @@ import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import type { SuperResolutionCustomModelManifest, SuperResolutionModelManifest } from "../../../ports/SuperResolutionProvider.js"
 import { SuperResolutionService } from "../../../application/super-resolution/SuperResolutionService.js"
 import { SuperResolutionPolicyService } from "../../../application/super-resolution/SuperResolutionPolicyService.js"
+import { SuperResolutionPageService } from "../../../application/super-resolution/SuperResolutionPageService.js"
+import type { ReaderPageMaterializer } from "../../../ports/ReaderPageMaterializer.js"
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
 import type { NeoviewRuntimeLoadOptions } from "../../config/loadNeoviewRuntimeConfig.js"
 import { SystemSuperResolutionCliResolver } from "../SystemSuperResolutionCliResolver.js"
+import { PlatformReaderPageMaterializer } from "../../content/PlatformReaderPageMaterializer.js"
 import {
   OpenComicAiSystemProvider,
   type OpenComicSystemCapabilityResolver,
@@ -26,6 +29,7 @@ export interface OpenComicAiSystemCompositionOptions extends NeoviewRuntimeLoadO
   modelsDirectory?: string
   resolveDefaultModelsDirectory?: () => string | Promise<string>
   ownerId?: string
+  pageMaterializer?: ReaderPageMaterializer
 }
 
 const registeredCustomModels = new WeakMap<object, Map<string, string>>()
@@ -33,6 +37,7 @@ const registeredCustomModels = new WeakMap<object, Map<string, string>>()
 export interface OpenComicAiSystemCapability {
   service: SuperResolutionService
   policy: SuperResolutionPolicyService
+  pages: SuperResolutionPageService
 }
 
 export async function createOpenComicAiSystemService(
@@ -76,13 +81,23 @@ export async function createOpenComicAiSystemCapability(
     daemonIdleTimeoutMs: config.daemonIdleTimeoutMs,
     taskTimeoutMs: config.taskTimeoutMs,
   })
-  return {
-    service: new SuperResolutionService(provider, {
+  const service = new SuperResolutionService(provider, {
       scheduler: options.resourceScheduler,
       ownerId: options.ownerId ?? "neoview:super-resolution",
       models,
-    }),
-    policy: new SuperResolutionPolicyService(config.preferences),
+    })
+  const policy = new SuperResolutionPolicyService(config.preferences)
+  return {
+    service,
+    policy,
+    pages: new SuperResolutionPageService(
+      service,
+      policy,
+      options.pageMaterializer ?? new PlatformReaderPageMaterializer({
+        resourceScheduler: options.resourceScheduler,
+        purpose: "super-resolution",
+      }),
+    ),
   }
 }
 

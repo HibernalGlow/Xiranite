@@ -130,6 +130,7 @@ describe("OpenComic AI system composition", () => {
       modelId: "realesr-animevideov3",
       scale: 2,
     })
+    expect(capability?.pages).toBeDefined()
     await capability?.service.dispose()
   })
 
