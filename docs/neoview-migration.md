@@ -1706,6 +1706,8 @@ TUI 交付顺序固定为：
 - Xiranite 只在共享超分包（预定 `@xiranite/super-resolution`）中声明该依赖，NeoView、GUI、CLI、TUI 均通过共享 service 调用，不各自直接依赖 fork；
 - fork 的 `origin` 指向 `https://github.com/HibernalGlow/opencomic-ai-bin.git`，另设只读 `upstream` 指向 `https://github.com/ollm/opencomic-ai-bin.git`；同步上游时先审查模型表、CLI 参数和 daemon 协议差异，再运行兼容与性能测试，不直接覆盖本地 system-only 改造。
 
+截至 2026-07-18，本地 `ref/opencomic-ai-system/` 的 `codex/system-cli-only` 分支已经形成两个隔离提交：`b86caac` 将包收口为 `@hibernalglow/opencomic-ai-system@0.1.0`，增加宿主 `binaryResolver`，移除生产入口的 YOLO/ONNX/Potrace 和包内 `win/linux/mac` 路径，并通过 `package.json#files` 与 pack 审计禁止发布 exe、动态库、原生 `.node`、ONNX、模型 `.bin/.param` 和 Python；`610e34b` 修复 daemon 参数拆分、跨 chunk `Ready>`、`Error -> Ready>` 成功误判、Windows/Unicode/引号 quoting，以及 process error/exit/close、主动 close 时当前和排队任务悬空。fork 自身 `npm test` 当前 15 项通过，`npm pack --dry-run` 仅包含 8 个文件，压缩包大小 23,943 bytes。上述提交目前只存在于本地 fork，尚未推送或发布，因此 Xiranite 不得声明不可从远端解析的 Git SHA，也不得从 `ref/` 直接 import；等用户明确授权推送或发布后再锁定完整 SHA/语义版本。
+
 预发布依赖示例：
 
 ```json
@@ -1758,12 +1760,12 @@ daemon_idle_timeout_ms = 300000
 
 `upscayl-bin` 使用长驻 daemon，等待 `Ready>` 后才发送首个任务，同一 GPU/模型实例内部串行；不同 GPU 是否并行由全局调度器决定。默认每个 GPU 最多一个 daemon，避免多个 Xiranite 工具争抢显存。`waifu2x` 和 `realcugan` 当前按受控短进程执行，统一纳入取消、超时、进程树终止和空闲回收；未来若其 CLI 提供可靠 daemon，再通过同一 Provider 契约增加 capability，调用方不变。
 
-不能照搬 `opencomic-ai-bin` 当前 wrapper 的所有实现细节。接入前必须修复或覆盖以下边界：
+不能照搬上游 `opencomic-ai-bin` 当前 wrapper 的所有实现细节。system-only fork 已覆盖参数拆分、协议分块、Error 状态、quoting 和 daemon 基础队列清理，但 Xiranite 共享 Provider 仍必须把取消、超时、输出校验、进程树终止和宿主 GPU lease 一并闭环。完整门禁如下：
 
 - `-x` TTA 是无值参数，不能按固定 flag/value 两两拆分；
 - `Ready>` 需要跨 stderr chunk 缓冲解析；
-- 出现 `Error` 后再次进入 `Ready>` 不能被误判为任务成功，必须检查协议状态、退出信息和输出文件；
-- daemon 启动失败、处理中退出、取消和 idle quit 都必须 settle 当前 Promise 并清空/转移队列；
+- 出现 `Error` 后再次进入 `Ready>` 不能被误判为任务成功；fork 已返回非零任务结果，Provider 还必须检查退出信息、输出文件存在性和尺寸；
+- daemon 启动失败、处理中 error/exit/close 和主动/idle quit 都必须 settle 当前 Promise 并清空队列；fork 已覆盖这些基础生命周期，Provider 继续负责 `AbortSignal`、超时与 Windows 进程树终止；
 - 路径包含空格、引号、Unicode、长路径时不能通过 shell 字符串拼接，必须使用参数数组或经过测试的 daemon quoting；
 - stdout/stderr 只承载控制日志和进度，不传输图片字节。
 
