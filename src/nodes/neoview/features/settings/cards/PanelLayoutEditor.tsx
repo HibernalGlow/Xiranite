@@ -14,14 +14,18 @@ const HIDDEN_COLUMN = "__hidden__"
 export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShellConfigDto; onSave(patch: ReaderBoardLayoutPatch): Promise<void> }) {
   const [columns, setColumns] = useState<LayoutColumns>(() => createPanelLayoutColumns(shell))
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string>()
   const latestColumnsRef = useRef(columns)
   latestColumnsRef.current = columns
 
   async function save() {
     if (saving) return
     setSaving(true)
+    setError(undefined)
     try {
       await onSave(createPanelBoardPatch(shell, latestColumnsRef.current))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setSaving(false)
     }
@@ -32,9 +36,13 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
       <Kanban
         value={columns}
         getItemValue={(item) => item.id}
-        onValueChange={(next) => setColumns((current) => layoutColumnsRespectPolicy(next) ? next : current)}
+        onValueChange={(next) => {
+          if (saving) return
+          setError(undefined)
+          setColumns((current) => layoutColumnsRespectPolicy(next) ? next : current)
+        }}
       >
-        <KanbanBoard className="h-[min(28rem,calc(100vh-16rem))] min-h-72 gap-3 overflow-x-auto">
+        <KanbanBoard className={`h-[min(28rem,calc(100vh-16rem))] min-h-72 gap-3 overflow-x-auto${saving ? " pointer-events-none opacity-60" : ""}`}>
           {Object.entries(columns).map(([panelId, cards]) => (
             <KanbanColumn key={panelId} value={panelId} className="h-full w-60 shrink-0 bg-muted/35" data-panel-layout-column={panelId}>
               <div className="flex h-8 items-center justify-between px-1 text-xs font-semibold">
@@ -53,7 +61,11 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
                       aria-label={`移动${card.title}到`}
                       className="max-w-24 rounded border bg-background px-1 py-0.5 text-[10px]"
                       value={panelId}
-                      onChange={(event) => setColumns((current) => movePanelLayoutCard(current, card.id, event.target.value))}
+                      disabled={saving}
+                      onChange={(event) => {
+                        setError(undefined)
+                        setColumns((current) => movePanelLayoutCard(current, card.id, event.target.value))
+                      }}
                     >
                       {cardCanHide(card.id) ? <option value={HIDDEN_COLUMN}>隐藏</option> : null}
                       {PANEL_DEFINITIONS.filter(isCardHostPanel).map((panel) => <option key={panel.id} value={panel.id}>{panel.title}</option>)}
@@ -66,6 +78,7 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
         </KanbanBoard>
         <KanbanOverlay>{({ value }) => <div className="rounded-md border bg-card px-3 py-2 text-xs shadow-xl">{cardTitle(String(value))}</div>}</KanbanOverlay>
       </Kanban>
+      {error ? <p role="alert" className="text-sm text-destructive">保存失败：{error}</p> : null}
       <div className="flex justify-end">
         <Button type="button" size="sm" disabled={saving} onClick={() => void save()}><Save />保存面板布局</Button>
       </div>

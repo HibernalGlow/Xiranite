@@ -56,6 +56,22 @@ describe("PanelLayoutEditor", () => {
     view.rerender(<PanelLayoutEditor shell={updated} onSave={vi.fn()} />)
     expect(document.querySelector('[data-panel-layout-column="pageList"]')?.textContent).toContain("右侧栏")
   })
+
+  it("surfaces save failures and retries with the preserved local draft", async () => {
+    const save = vi.fn()
+      .mockRejectedValueOnce(new Error("board write failed"))
+      .mockResolvedValueOnce(undefined)
+    render(<PanelLayoutEditor shell={shell()} onSave={save} />)
+
+    const saveButton = screen.getAllByRole("button").at(-1) as HTMLButtonElement
+    fireEvent.click(saveButton)
+    expect((await screen.findByRole("alert")).textContent).toContain("board write failed")
+    await waitFor(() => expect((saveButton as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
 })
 
 function shell(): ReaderShellConfigDto {
