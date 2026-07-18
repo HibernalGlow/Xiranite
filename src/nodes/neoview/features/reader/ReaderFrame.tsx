@@ -14,15 +14,17 @@ import {
 
 import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTransitionStore"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
 import { PageMedia } from "./PageMedia"
 
-export function ReaderFrame({ pages, presentation, colorFilter, pageTransition, videoController, sessionId, client, media, onSubtitleConfigChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, onSubtitleConfigChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   presentation: ReaderPresentation
   colorFilter?: ReaderColorFilterPort
+  imageTrim?: ReaderImageTrimPort
   pageTransition?: ReaderPageTransitionPort
   videoController: ReaderVideoController
   sessionId: string
@@ -73,6 +75,7 @@ export function ReaderFrame({ pages, presentation, colorFilter, pageTransition, 
                 scale={scale}
                 fallbackSize={available}
                 colorFilter={colorFilter}
+                imageTrim={imageTrim}
                 videoController={videoController}
                 sessionId={sessionId}
                 client={client}

@@ -23,6 +23,10 @@ import {
   DEFAULT_READER_INFO_OVERLAY,
   type ReaderInfoOverlaySettings,
 } from "../../application/info-overlay/ReaderInfoOverlay.js"
+import {
+  DEFAULT_READER_IMAGE_TRIM,
+  type ReaderImageTrimSettings,
+} from "../../application/image-trim/ReaderImageTrim.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
@@ -116,6 +120,7 @@ import {
   parseNeoviewPageTransitionPatch,
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
+  parseNeoviewImageTrimPatch,
   parseNeoviewBookmarkListPatch,
   parseNeoviewHistoryListPatch,
   parseNeoviewPageListPatch,
@@ -128,6 +133,7 @@ import {
   type NeoviewPageTransitionPatch,
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
+  type NeoviewImageTrimPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -258,6 +264,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateSwitchToast?: (patch: NeoviewSwitchToastPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderSwitchToastSettings>
   infoOverlay?: ReaderInfoOverlaySettings
   updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
+  imageTrim?: ReaderImageTrimSettings
+  updateImageTrim?: (patch: NeoviewImageTrimPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderImageTrimSettings>
   inputBindings?: ReaderInputBindingsConfig
   updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
   radialMenu?: ReaderRadialMenuConfig
@@ -319,6 +327,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #pageTransition: ReaderPageTransitionSettings
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
+  #imageTrim: ReaderImageTrimSettings
   #inputBindings: ReaderInputBindingsConfig
   #radialMenu: ReaderRadialMenuConfig
   #sessionOptions: Partial<ReaderSessionOptions>
@@ -334,6 +343,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updatePageTransition?: ReaderHttpControllerOptions["updatePageTransition"]
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
+  readonly #updateImageTrim?: ReaderHttpControllerOptions["updateImageTrim"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
@@ -541,6 +551,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#pageTransition = options.pageTransition ?? DEFAULT_READER_PAGE_TRANSITION
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
+    this.#imageTrim = options.imageTrim ?? DEFAULT_READER_IMAGE_TRIM
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
     this.#sessionOptions = options.sessionOptions ?? {}
@@ -556,6 +567,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updatePageTransition = options.updatePageTransition
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
+    this.#updateImageTrim = options.updateImageTrim
     this.#updateInputBindings = options.updateInputBindings
     this.#updateRadialMenu = options.updateRadialMenu
   }
@@ -951,6 +963,27 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "imageTrim")) {
+      if (!this.#updateImageTrim) return jsonResponse({ error: "Reader image trim config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewImageTrimPatch>
+      try {
+        parsed = parseNeoviewImageTrimPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: ReaderImageTrimSettings | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateImageTrim!(parsed.patch, parsed.tomlPatch)
+        this.#imageTrim = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "media")) {
       if (!this.#updateMedia) return jsonResponse({ error: "Reader media config is read-only" }, 405)
       let updated: NeoviewMediaConfig | undefined
@@ -1158,6 +1191,7 @@ export class ReaderHttpController implements AsyncDisposable {
       pageTransition: this.#pageTransition,
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
+      imageTrim: this.#imageTrim,
       inputBindings: this.#inputBindings,
       radialMenu: this.#radialMenu,
     }

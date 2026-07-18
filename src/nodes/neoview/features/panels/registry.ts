@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Bell, Info, Loader, Palette, Play, type LucideIcon } from "lucide-react"
+import { Bell, Crop, Info, Loader, Palette, Play, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -40,6 +40,7 @@ import type { ReaderSwitchToastPort } from "../switch-toast/ReaderSwitchToastSto
 import type { InfoOverlayPort } from "./cards/InfoOverlayCard"
 
 export type ReaderPanelSide = "left" | "right"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 export type LegacyPanelId = ReaderPanelId
 
 export interface ReaderPanelContext {
@@ -81,6 +82,7 @@ export interface ReaderPanelContext {
   infoOverlay?: InfoOverlayPort
 }
 
+  imageTrim?: ReaderImageTrimPort
 export interface ReaderPanelDefinition {
   id: LegacyPanelId
   title: string
@@ -162,6 +164,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
+  "image-trim": () => import("./cards/ImageTrimCard"),
   "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
 }
 
@@ -175,6 +178,7 @@ const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
+  "image-trim": Crop,
   "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
   "sidebar-management-settings": async () => ({ default: (await import("../settings/cards/SidebarManagementSettingsCard")).SidebarManagementSettingsCard }),
   "input-bindings-settings": async () => ({ default: (await import("../settings/cards/InputBindingsSettingsCard")).InputBindingsSettingsCard }),

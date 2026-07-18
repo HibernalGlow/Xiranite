@@ -41,6 +41,7 @@ try {
     await target.click()
     console.log(`clicked ${options.clickSelector}`)
   }
+  if (options.waitMs > 0) await page.waitForTimeout(options.waitMs)
   await Promise.race([
     page.evaluate(() => document.fonts.ready),
     new Promise((resolve) => setTimeout(resolve, 2_000)),
@@ -59,13 +60,14 @@ function parseArgs(args: readonly string[]) {
   }))
   const url = values.get("--url")
   const output = values.get("--output")
-  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--wait-label=<label> | --check-label=<label> | --click-selector=<selector>] [--probe-module=<path>] [--viewport=1920x1080]")
+  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--wait-label=<label> | --check-label=<label> | --click-selector=<selector>] [--wait-ms=<ms>] [--probe-module=<path>] [--viewport=1920x1080]")
   const [width, height] = (values.get("--viewport") ?? "1920x1080").split("x").map(Number)
   if (!Number.isInteger(width) || !Number.isInteger(height) || width! <= 0 || height! <= 0) throw new Error("Invalid viewport")
   return {
     url,
     output: resolve(output),
     waitLabel: values.get("--wait-label"),
+    waitMs: Number(values.get("--wait-ms") ?? 0),
     checkLabel: values.get("--check-label"),
     clickSelector: values.get("--click-selector"),
     probeModule: values.get("--probe-module"),

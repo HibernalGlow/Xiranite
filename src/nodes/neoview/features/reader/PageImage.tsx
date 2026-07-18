@@ -8,22 +8,26 @@ import {
   projectReaderColorFilterTables,
   type ReaderColorFilterSettings,
 } from "@xiranite/node-neoview/color-filter"
+import { readerImageTrimClipPath } from "@xiranite/node-neoview/image-trim"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 
 export interface PageImageProps {
   page: ReaderPageDto
   rotation?: ReaderRotation
   scale?: number
   colorFilter?: ReaderColorFilterPort
+  imageTrim?: ReaderImageTrimPort
 }
 
 const NOOP_SUBSCRIBE = () => () => undefined
 const DEFAULT_COLOR_FILTER_SNAPSHOT = () => DEFAULT_READER_COLOR_FILTER
+const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
 
-export function PageImage({ page, rotation = 0, scale, colorFilter }: PageImageProps) {
+export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const generatedId = useId()
   const filterId = `neoview-color-filter-${generatedId.replaceAll(":", "")}`
@@ -32,6 +36,11 @@ export function PageImage({ page, rotation = 0, scale, colorFilter }: PageImageP
     colorFilter?.getSnapshot ?? DEFAULT_COLOR_FILTER_SNAPSHOT,
     colorFilter?.getSnapshot ?? DEFAULT_COLOR_FILTER_SNAPSHOT,
   )
+  const trimSettings = useSyncExternalStore(
+    imageTrim?.subscribe ?? NOOP_SUBSCRIBE,
+    imageTrim?.getSnapshot ?? DEFAULT_IMAGE_TRIM_SNAPSHOT,
+    imageTrim?.getSnapshot ?? DEFAULT_IMAGE_TRIM_SNAPSHOT,
+  )
   const [blackAndWhite, setBlackAndWhite] = useState<boolean>()
   const dimensions = page.dimensions
   const measured = dimensions !== undefined && scale !== undefined
@@ -39,6 +48,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter }: PageImageP
   const colorizeAllowed = settings.colorizeEnabled && (!settings.onlyBlackAndWhite || blackAndWhite === true)
   const tables = projectReaderColorFilterTables(settings)
   const filter = projectReaderColorFilterCss(settings, { filterId, colorizeAllowed })
+  const trimClipPath = trimSettings ? readerImageTrimClipPath(trimSettings) : undefined
 
   useEffect(() => {
     if (!settings.colorizeEnabled || !settings.onlyBlackAndWhite) {
@@ -72,6 +82,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter }: PageImageP
       transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
     } satisfies React.CSSProperties : {}),
     filter: filter || undefined,
+    clipPath: trimClipPath,
   }
   return (
     <div
