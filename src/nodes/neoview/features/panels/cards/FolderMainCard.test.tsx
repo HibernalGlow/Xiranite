@@ -274,6 +274,7 @@ describe("FolderMainCard", () => {
     view.rerender(renderCard("C:/books/two.cbz"))
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("C:\\books"))
     expect(openDirectoryBrowser).toHaveBeenCalledOnce()
+    expect(view.container.querySelector('[data-folder-path="C:/books/two.cbz"]')?.getAttribute("aria-selected")).toBe("true")
     view.unmount()
   })
 
