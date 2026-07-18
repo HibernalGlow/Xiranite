@@ -29,7 +29,7 @@ import {
 } from "../../application/image-trim/ReaderImageTrim.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
-import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
+import type { ReaderSession, ReaderSessionId, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import {
   ReaderBookSettingsRevisionConflict,
   ReaderBookSettingsService,
@@ -1321,11 +1321,13 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: "action must be next, previous or goTo" }, 400)
     }
     try {
+      const previousPreloadGeneration = session.preloadPlan()?.generation
       const frame = body.action === "next"
         ? await session.next(request.signal)
         : body.action === "previous"
           ? await session.previous(request.signal)
           : await session.goTo(requirePageIndex(body.pageIndex), request.signal)
+      await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, session.preloadPlan()?.generation)
       this.#retainSessionFrame(session, frame)
       return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), preload: session.preloadPlan() })
     } catch (error) {
@@ -1377,11 +1379,13 @@ export class ReaderHttpController implements AsyncDisposable {
     const context = parsePreloadViewportContext(body)
     if (context === "invalid") return jsonResponse({ error: "Invalid preload viewport context" }, 400)
     try {
+      const previousPreloadGeneration = session.preloadPlan()?.generation
       const resources = deriveReaderPreloadResourceContext({
         scheduler: this.#schedulerSnapshot?.(),
         memoryPressure: this.#assets.snapshot().memoryPressure,
       })
       const preload = session.updatePreloadContext({ ...context, ...resources })
+      await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, preload.generation)
       this.#retainSessionFrame(session, session.snapshot(), preload)
       return jsonResponse({ preload })
     } catch (error) {
@@ -1401,7 +1405,9 @@ export class ReaderHttpController implements AsyncDisposable {
     const visiblePageIds = [...new Set(frame.pages.map((page) => page.pageId))]
     if (body.action === "cancel-speculative") {
       const before = session.preloadTelemetry().cancelled
+      const previousPreloadGeneration = session.preloadPlan()?.generation
       const preload = session.cancelSpeculativePreload()
+      await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, preload.generation)
       const cancelled = session.preloadTelemetry().cancelled - before
       return jsonResponse({
         action: body.action,
@@ -1445,11 +1451,13 @@ export class ReaderHttpController implements AsyncDisposable {
       pageMode = record.pageMode
     }
     try {
+      const previousPreloadGeneration = session.preloadPlan()?.generation
       const current = session.snapshot().layout
       const frame = await session.updateOptions({
         ...(direction === undefined ? {} : { direction }),
         ...(pageMode === undefined ? {} : { layout: { ...current, pageMode } }),
       }, request.signal)
+      await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, session.preloadPlan()?.generation)
       this.#retainSessionFrame(session, frame)
       return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), preload: session.preloadPlan() })
     } catch (error) {
@@ -1477,6 +1485,7 @@ export class ReaderHttpController implements AsyncDisposable {
         body.patch,
         defaults,
         async (effective, signal) => {
+          const previousPreloadGeneration = session.preloadPlan()?.generation
           const current = session.snapshot()
           const frame = await session.updateOptions({
             direction: effective.direction,
@@ -1486,6 +1495,7 @@ export class ReaderHttpController implements AsyncDisposable {
               treatWidePageAsSingle: effective.horizontalBook,
             },
           }, signal)
+          await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, session.preloadPlan()?.generation)
           this.#retainSessionFrame(session, frame)
         },
         request.signal,
@@ -1833,6 +1843,15 @@ export class ReaderHttpController implements AsyncDisposable {
       visiblePages: this.#visiblePages(session, frame),
       preload: session.preloadPlan(),
     }
+  }
+
+  async #releaseStaleSuperResolutionPreload(
+    sessionId: ReaderSessionId,
+    previousGeneration: number | undefined,
+    nextGeneration: number | undefined,
+  ): Promise<void> {
+    if (previousGeneration === undefined || nextGeneration === undefined || previousGeneration === nextGeneration) return
+    await this.#superResolutionArtifacts?.releaseSession(sessionId)
   }
 
   #retainSessionFrame(session: ReaderSession, frame: FrameSnapshot, preload = session.preloadPlan()): void {
