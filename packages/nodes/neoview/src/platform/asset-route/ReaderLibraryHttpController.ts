@@ -20,7 +20,7 @@ export class ReaderLibraryHttpController {
     try {
       if (url.pathname === "/reader/library/recents" && request.method === "GET") {
         return jsonResponse({
-          items: await this.library.listRecent(paging(url)),
+          items: await this.library.listRecent(libraryQuery(url)),
         })
       }
       if (url.pathname === "/reader/library/recents/cleanup" && request.method === "POST") {
@@ -90,7 +90,7 @@ export class ReaderLibraryHttpController {
       }
       if (url.pathname === "/reader/library/bookmarks" && request.method === "GET") {
         return jsonResponse({
-          items: await this.library.listBookmarks({ ...paging(url), listId: url.searchParams.get("listId") || undefined }),
+          items: await this.library.listBookmarks({ ...libraryQuery(url), listId: url.searchParams.get("listId") || undefined }),
         })
       }
       if (url.pathname === "/reader/library/bookmarks" && request.method === "POST") {
@@ -191,6 +191,14 @@ function paging(url: URL): { limit: number; offset: number } {
     limit: queryInteger(url.searchParams.get("limit"), 1, 500, 100),
     offset: queryInteger(url.searchParams.get("offset"), 0, Number.MAX_SAFE_INTEGER, 0),
   }
+}
+
+function libraryQuery(url: URL): { limit: number; offset: number; filter?: "all" | "archive" | "directory" | "video" } {
+  const filter = url.searchParams.get("filter")
+  if (filter !== null && filter !== "all" && filter !== "archive" && filter !== "directory" && filter !== "video") {
+    throw new Error("Reader library filter must be all, archive, directory or video.")
+  }
+  return { ...paging(url), ...(filter !== null ? { filter } : {}) }
 }
 
 function parseBookmark(body: Record<string, unknown>): SaveReaderBookmarkInput | undefined {

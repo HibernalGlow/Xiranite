@@ -7,6 +7,7 @@ import type {
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
+import { assertReaderDirectoryFilter } from "../../domain/browser/ReaderDirectoryFilter.js"
 
 export const READER_SYSTEM_BOOKMARK_LIST_IDS = ["all", "default", "favorites"] as const
 
@@ -72,7 +73,7 @@ export class ReaderLibraryService implements AsyncDisposable {
 
   listRecent(query: Partial<ReaderRecentQuery> = {}): Promise<readonly ReaderProgressRecord[]> {
     this.#assertOpen()
-    return this.store.listRecent(normalizePage(query))
+    return this.store.listRecent(normalizeLibraryQuery(query))
   }
 
   removeRecent(bookId: string): Promise<boolean> {
@@ -121,7 +122,7 @@ export class ReaderLibraryService implements AsyncDisposable {
   listBookmarks(query: Partial<ReaderBookmarkQuery> = {}): Promise<readonly ReaderBookmarkRecord[]> {
     this.#assertOpen()
     const listId = query.listId?.trim()
-    return this.store.listBookmarks({ ...normalizePage(query), ...(listId ? { listId } : {}) })
+    return this.store.listBookmarks({ ...normalizeLibraryQuery(query), ...(listId ? { listId } : {}) })
   }
 
   findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined> {
@@ -361,10 +362,15 @@ const SYSTEM_BOOKMARK_LISTS = [
   { id: "favorites", name: "收藏", isFavorite: true, createdAt: 0, updatedAt: 0, system: true },
 ] as const
 
-function normalizePage(query: Partial<ReaderRecentQuery>): ReaderRecentQuery {
+function normalizeLibraryQuery(query: Partial<ReaderRecentQuery>): ReaderRecentQuery {
   const offset = query.offset ?? 0
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Reader library offset is invalid.")
-  return { limit: normalizeLimit(query.limit ?? 100, 100), offset }
+  if (query.filter !== undefined) assertReaderDirectoryFilter(query.filter)
+  return {
+    limit: normalizeLimit(query.limit ?? 100, 100),
+    offset,
+    ...(query.filter !== undefined ? { filter: query.filter } : {}),
+  }
 }
 
 function normalizeCleanupLimit(limit: number): number {

@@ -6,7 +6,7 @@ import type { ReaderLibraryStore } from "../../ports/ReaderLibraryStore.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 
 describe("ReaderLibraryHttpController", () => {
-  it("[neoview.library.http] exposes bounded shared recents and bookmark commands", async () => {
+  it("[neoview.library.http] [neoview.folder.filter-library-http] exposes bounded shared recents and bookmark commands", async () => {
     const store = createStore()
     store.listRecent.mockResolvedValue([])
     store.listBookmarks.mockResolvedValue([])
@@ -43,6 +43,9 @@ describe("ReaderLibraryHttpController", () => {
     const recent = (await controller.handle(request("/reader/library/recents?limit=900&offset=2")))!
     expect(await recent.json()).toEqual({ items: [] })
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 500, offset: 2 })
+    expect((await controller.handle(request("/reader/library/recents?limit=20&offset=3&filter=video")))?.status).toBe(200)
+    expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 3, filter: "video" })
+    expect((await controller.handle(request("/reader/library/recents?filter=invalid")))?.status).toBe(400)
     expect((await controller.handle(request("/reader/library/recents/book-1", { method: "DELETE" })))?.status).toBe(204)
     store.deleteRecentBatch.mockResolvedValue({ deleted: 1, missingIds: ["missing"] })
     const recentBatch = (await controller.handle(jsonRequest("/reader/library/recents/batch", { ids: ["one", "missing"] }, "DELETE")))!
@@ -131,7 +134,9 @@ describe("ReaderLibraryHttpController", () => {
       body: JSON.stringify({ starred: false }),
       signal: aborted.signal,
     }))).rejects.toMatchObject({ name: "AbortError" })
-    expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites")))?.status).toBe(200)
+    expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites&filter=archive")))?.status).toBe(200)
+    expect(store.listBookmarks).toHaveBeenLastCalledWith({ limit: 100, offset: 0, listId: "favorites", filter: "archive" })
+    expect((await controller.handle(request("/reader/library/bookmarks?filter=invalid")))?.status).toBe(400)
     expect((await controller.handle(request("/reader/library/bookmark-lists")))?.status).toBe(200)
     store.listRecent.mockResolvedValueOnce([{ bookId: "missing", source: { kind: "archive", path: "D:/missing.cbz" }, displayName: "Missing", pageIndex: 0, pageCount: 1, updatedAt: 1 }])
     store.listBookmarks.mockResolvedValueOnce([])

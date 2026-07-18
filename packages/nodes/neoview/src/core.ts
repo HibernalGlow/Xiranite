@@ -64,7 +64,7 @@ export {
   READER_DIRECTORY_FILTERS,
   type ReaderDirectoryEntryType,
   type ReaderDirectoryFilter,
-} from "./application/browser/ReaderDirectoryFilter.js"
+} from "./domain/browser/ReaderDirectoryFilter.js"
 export { ReaderDirectoryListingScanner } from "./application/browser/ReaderDirectoryListingScanner.js"
 export { ReaderMetadataHydratingScanner } from "./application/browser/ReaderMetadataHydratingScanner.js"
 export { ReaderEmmTagSuggestionService } from "./application/metadata/ReaderEmmTagSuggestionService.js"

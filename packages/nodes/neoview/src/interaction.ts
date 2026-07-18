@@ -6,6 +6,7 @@ import type {
   OpenHeadlessReaderInput,
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
+  ReaderDirectoryFilter,
 } from "./core.js"
 import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
@@ -54,6 +55,7 @@ export interface NeoviewFileTreeTuiInput {
   maximumResults?: number
   caseSensitive?: boolean
   searchInPath?: boolean
+  filter?: ReaderDirectoryFilter
   scope?: "folder" | "file" | "bookmark" | "history"
 }
 
@@ -81,6 +83,7 @@ export interface NeoviewLibraryTuiInput {
   favorite?: boolean
   cleanupKind?: "recents" | "bookmarks" | "both"
   concurrency?: number
+  filter?: ReaderDirectoryFilter
 }
 
 export interface NeoviewLibraryTuiResult {
@@ -175,6 +178,7 @@ export function createNeoviewFileTreeTuiDefinition(
           return { success: true, message: `${paths.length} child directories.`, paths }
         }
         if (input.action === "search") {
+          await controller.setFilter(input.filter ?? "all")
           const handle = controller.search(input.query ?? "", {
             mode: input.mode,
             caseSensitive: input.caseSensitive,
@@ -240,7 +244,7 @@ export function createNeoviewLibraryTuiDefinition(
       const controller = await createController()
       try {
         const limit = input.limit ?? 100
-        if (input.action === "list-recents") return itemsResult(await controller.listRecent(limit), "recent entries")
+        if (input.action === "list-recents") return itemsResult(await controller.listRecent(limit, 0, input.filter ?? "all"), "recent entries")
         if (input.action === "cleanup-recents") {
           const deleted = await controller.clearRecentBefore(input.before ?? 0, Math.min(limit, 500))
           return { success: true, message: `${deleted} recent entries deleted.` }
@@ -255,7 +259,7 @@ export function createNeoviewLibraryTuiDefinition(
           return { success: true, message: `${result.deleted}/${result.missing} invalid entries deleted.`, lines: [JSON.stringify(result)] }
         }
         if (input.action === "delete-recent") return mutationResult(await controller.removeRecent(input.id ?? ""), "Recent entry")
-        if (input.action === "list-bookmarks") return itemsResult(await controller.listBookmarks(input.listId, limit), "bookmarks")
+        if (input.action === "list-bookmarks") return itemsResult(await controller.listBookmarks(input.listId, limit, 0, input.filter ?? "all"), "bookmarks")
         if (input.action === "add-bookmark") {
           const item = await controller.savePathBookmark({
             path: input.path ?? "",
@@ -445,6 +449,17 @@ function bookSettingsResultLines(settings: ReaderBookSettingsSnapshot): string[]
   ))
 }
 
+const READER_DIRECTORY_FILTER_OPTIONS: Array<{ value: ReaderDirectoryFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "archive", label: "Archive" },
+  { value: "directory", label: "Directory" },
+  { value: "video", label: "Video" },
+]
+
+function readerDirectoryFilterValue(value: unknown): ReaderDirectoryFilter {
+  return value === "archive" || value === "directory" || value === "video" ? value : "all"
+}
+
 function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewFileTreeTuiInput, NeoviewFileTreeTuiResult> {
   const zh = language === "zh"
   const search = (values: Readonly<InteractionValues>) => values.action === "search"
@@ -455,7 +470,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
     id: "neoview-file-tree",
     title: "NeoView File Tree",
     description: zh ? "目录树、递归搜索与排除规则" : "Directory tree, recursive search and exclusions",
-    initialValues: { action: "tree", path: "", query: "", mode: "text", maximumDepth: 10, maximumResults: 512, caseSensitive: false, searchInPath: false },
+    initialValues: { action: "tree", path: "", query: "", mode: "text", filter: "all", maximumDepth: 10, maximumResults: 512, caseSensitive: false, searchInPath: false },
     fields: [
       { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
         { value: "tree", label: zh ? "展开树节点" : "Expand tree node" },
@@ -476,6 +491,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
         { value: "history", label: zh ? "阅读历史" : "Reading history" },
       ], visibleWhen: history },
       { id: "mode", label: zh ? "匹配方式" : "Match mode", kind: "select", options: [{ value: "text", label: zh ? "文本" : "Text" }, { value: "glob", label: "Glob" }], visibleWhen: search },
+      { id: "filter", label: zh ? "类型筛选" : "Type filter", kind: "select", options: READER_DIRECTORY_FILTER_OPTIONS, visibleWhen: search },
       { id: "maximumDepth", label: zh ? "最大深度" : "Maximum depth", kind: "number", min: 0, max: 4096, step: 1, visibleWhen: search },
       { id: "maximumResults", label: zh ? "结果上限" : "Result limit", kind: "number", min: 1, max: 10000, step: 1, visibleWhen: search },
       { id: "caseSensitive", label: zh ? "区分大小写" : "Case sensitive", kind: "boolean", visibleWhen: search },
@@ -486,6 +502,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       path: String(values.path ?? "").trim(),
       query: String(values.query ?? "").trim(),
       mode: values.mode === "glob" ? "glob" : "text",
+      filter: readerDirectoryFilterValue(values.filter),
       maximumDepth: Number(values.maximumDepth ?? 10),
       maximumResults: Number(values.maximumResults ?? 512),
       caseSensitive: values.caseSensitive === true,
@@ -520,13 +537,14 @@ function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteracti
     id: "neoview-library",
     title: "NeoView Library",
     description: zh ? "最近阅读、书签和书签列表" : "Recent reading, bookmarks and bookmark lists",
-    initialValues: { action: "list-recents", path: "", id: "", name: "", listId: "", before: Date.now(), limit: 100, starred: false, favorite: false },
+    initialValues: { action: "list-recents", path: "", id: "", name: "", listId: "", filter: "all", before: Date.now(), limit: 100, starred: false, favorite: false },
     fields: [
       { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: LIBRARY_ACTIONS.map(([value, en, cn]) => ({ value, label: zh ? cn : en })) },
       { id: "path", label: zh ? "路径" : "Path", kind: "text", visibleWhen: actionIs("add-bookmark") },
       { id: "id", label: "ID", kind: "text", visibleWhen: actionIs("delete-recent", "delete-bookmark", "add-bookmark-list", "delete-bookmark-list") },
       { id: "name", label: zh ? "名称" : "Name", kind: "text", visibleWhen: actionIs("add-bookmark", "add-bookmark-list") },
       { id: "listId", label: zh ? "书签列表 ID" : "Bookmark list ID", kind: "text", visibleWhen: actionIs("list-bookmarks", "add-bookmark") },
+      { id: "filter", label: zh ? "类型筛选" : "Type filter", kind: "select", options: READER_DIRECTORY_FILTER_OPTIONS, visibleWhen: actionIs("list-recents", "list-bookmarks") },
       { id: "before", label: zh ? "早于时间戳" : "Before timestamp", kind: "number", min: 0, max: Number.MAX_SAFE_INTEGER, step: 1, visibleWhen: actionIs("cleanup-recents") },
       { id: "cleanupKind", label: zh ? "清理范围" : "Cleanup scope", kind: "select", options: [
         { value: "both", label: zh ? "历史与书签" : "Recents and bookmarks" },
@@ -544,6 +562,7 @@ function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteracti
       id: String(values.id ?? "").trim(),
       name: String(values.name ?? "").trim(),
       listId: String(values.listId ?? "").trim() || undefined,
+      filter: readerDirectoryFilterValue(values.filter),
       before: Number(values.before ?? 0),
       limit: Number(values.limit ?? 100),
       starred: values.starred === true,

@@ -4,14 +4,21 @@ import type { ReaderBookmarkListRecord, ReaderBookmarkRecord, ReaderLibraryStore
 import { ReaderLibraryService } from "./ReaderLibraryService.js"
 
 describe("ReaderLibraryService", () => {
-  it("[neoview.library.contract] normalizes paging and synthesizes system bookmark lists", async () => {
+  it("[neoview.library.contract] [neoview.folder.filter-library-service] normalizes paging, filters and synthesizes system bookmark lists", async () => {
     const store = createStore()
     store.listRecent.mockResolvedValue([])
+    store.listBookmarks.mockResolvedValue([])
     store.listBookmarkLists.mockResolvedValue([customList])
     const service = new ReaderLibraryService(store, () => 2000, () => "generated")
 
     await service.listRecent({ limit: 900, offset: 4 })
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 500, offset: 4 })
+    await service.listRecent({ limit: 20, offset: 5, filter: "video" })
+    expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 5, filter: "video" })
+    await service.listBookmarks({ listId: " reading ", limit: 20, offset: 5, filter: "archive" })
+    expect(store.listBookmarks).toHaveBeenLastCalledWith({ limit: 20, offset: 5, filter: "archive", listId: "reading" })
+    expect(() => service.listRecent({ filter: "invalid" as never })).toThrow("filter is invalid")
+    expect(() => service.listBookmarks({ filter: "invalid" as never })).toThrow("filter is invalid")
     await expect(service.listBookmarkLists()).resolves.toEqual([
       expect.objectContaining({ id: "all", system: true }),
       expect.objectContaining({ id: "default", system: true }),

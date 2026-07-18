@@ -1,9 +1,11 @@
 import type { ViewSource } from "../domain/book/book.js"
 import type { ReaderProgressRecord } from "./ReaderProgressStore.js"
+import type { ReaderDirectoryFilter } from "../domain/browser/ReaderDirectoryFilter.js"
 
 export interface ReaderRecentQuery {
   limit: number
   offset: number
+  filter?: ReaderDirectoryFilter
 }
 
 export interface ReaderBookmarkQuery extends ReaderRecentQuery {

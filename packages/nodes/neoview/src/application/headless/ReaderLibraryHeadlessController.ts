@@ -1,6 +1,7 @@
 import type { ReaderLibraryService, SaveReaderBookmarkListInput, UpdateReaderBookmarkInput } from "../library/ReaderLibraryService.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderLibraryCleanupRequest, ReaderLibraryCleanupService } from "../library/ReaderLibraryCleanupService.js"
+import type { ReaderDirectoryFilter } from "../../domain/browser/ReaderDirectoryFilter.js"
 
 export interface ReaderLibrarySourceIdentity {
   source: Exclude<ViewSource, { kind: "path" }>
@@ -24,9 +25,9 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
     private readonly cleanup?: ReaderLibraryCleanupService,
   ) {}
 
-  listRecent(limit = 100, offset = 0) {
+  listRecent(limit = 100, offset = 0, filter?: ReaderDirectoryFilter) {
     this.#assertOpen()
-    return this.library.listRecent({ limit, offset })
+    return this.library.listRecent({ limit, offset, filter })
   }
 
   removeRecent(bookId: string) {
@@ -59,9 +60,9 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
     return this.library.removeOldestBookmarks(limit, signal)
   }
 
-  listBookmarks(listId?: string, limit = 100, offset = 0) {
+  listBookmarks(listId?: string, limit = 100, offset = 0, filter?: ReaderDirectoryFilter) {
     this.#assertOpen()
-    return this.library.listBookmarks({ listId, limit, offset })
+    return this.library.listBookmarks({ listId, limit, offset, filter })
   }
 
   async savePathBookmark(input: SavePathBookmarkInput) {

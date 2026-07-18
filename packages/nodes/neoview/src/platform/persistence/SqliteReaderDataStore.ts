@@ -347,9 +347,11 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
 
   async listRecent(query: ReaderRecentQuery): Promise<readonly ReaderProgressRecord[]> {
     this.#assertOpen()
+    const filter = librarySourceFilterPredicate(query.filter, "source_json")
+    const where = filter ? `WHERE ${filter}` : ""
     return this.database.all(
       `SELECT book_id, source_json, display_name, page_index, page_count, updated_at
-       FROM xr_reader_progress ORDER BY updated_at DESC, book_id ASC LIMIT ?1 OFFSET ?2`,
+       FROM xr_reader_progress ${where} ORDER BY updated_at DESC, book_id ASC LIMIT ?1 OFFSET ?2`,
       query.limit,
       query.offset,
     ).map(parseProgress)
@@ -500,9 +502,12 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
   async listBookmarks(query: ReaderBookmarkQuery): Promise<readonly ReaderBookmarkRecord[]> {
     this.#assertOpen()
     const condition = bookmarkListCondition(query.listId)
+    const filter = librarySourceFilterPredicate(query.filter, "b.source_json")
+    const predicates = [condition.sql, filter].filter(Boolean)
+    const where = predicates.length ? `WHERE ${predicates.join(" AND ")}` : ""
     const rows = this.database.all(
       `SELECT id, source_json, name, kind, starred, created_at, updated_at
-       FROM xr_reader_bookmarks b ${condition.sql}
+       FROM xr_reader_bookmarks b ${where}
        ORDER BY updated_at DESC, id ASC LIMIT ?${condition.bindings.length + 1} OFFSET ?${condition.bindings.length + 2}`,
       ...condition.bindings,
       query.limit,
@@ -1290,25 +1295,36 @@ function bookmarkListCondition(listId: string | undefined): { sql: string; bindi
   if (!listId || listId === "all") return { sql: "", bindings: [] }
   if (listId === "favorites") {
     return {
-      sql: `WHERE b.starred = 1 OR EXISTS (
+      sql: `(b.starred = 1 OR EXISTS (
         SELECT 1 FROM xr_reader_bookmark_memberships m
         JOIN xr_reader_bookmark_lists l ON l.id = m.list_id
         WHERE m.bookmark_id = b.id AND l.is_favorite = 1
-      )`,
+      ))`,
       bindings: [],
     }
   }
   if (listId === "default") {
     return {
-      sql: `WHERE NOT EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id)
-        OR EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id AND m.list_id = 'default')`,
+      sql: `(NOT EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id)
+        OR EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id AND m.list_id = 'default'))`,
       bindings: [],
     }
   }
   return {
-    sql: "WHERE EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id AND m.list_id = ?1)",
+    sql: "EXISTS (SELECT 1 FROM xr_reader_bookmark_memberships m WHERE m.bookmark_id = b.id AND m.list_id = ?1)",
     bindings: [listId],
   }
+}
+
+function librarySourceFilterPredicate(filter: ReaderRecentQuery["filter"], sourceColumn: string): string {
+  if (filter === undefined || filter === "all") return ""
+  if (filter === "archive") {
+    return `(json_extract(${sourceColumn}, '$.kind') = 'archive'
+      OR (json_extract(${sourceColumn}, '$.kind') = 'document' AND json_extract(${sourceColumn}, '$.format') = 'epub'))`
+  }
+  if (filter === "directory") return `json_extract(${sourceColumn}, '$.kind') = 'directory'`
+  if (filter === "video") return `json_extract(${sourceColumn}, '$.kind') = 'media'`
+  throw new Error("Reader library type filter is invalid.")
 }
 
 function parseProgress(row: Record<string, unknown>): ReaderProgressRecord {

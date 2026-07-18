@@ -792,12 +792,12 @@
 ### filtering（1）
 
 - [ ] `folder.filter.type` 类型筛选
-  - 六维：`core=P transport=P gui=- cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=- cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：支持全部、压缩包、文件夹、视频类型筛选，并与排序、搜索和虚拟源组合。
   - 源码：`components/FolderToolbar/TypeFilterBar.svelte`、`utils/virtualPathLoader.ts`
-  - 测试：`neoview.folder.filter-service`、`neoview.folder.filter-http`、`neoview.folder.filter-media-registry`、`neoview.folder.filter-headless`、`neoview.folder.filter-search`
+  - 测试：`neoview.folder.filter-service`、`neoview.folder.filter-http`、`neoview.folder.filter-media-registry`、`neoview.folder.filter-headless`、`neoview.folder.filter-search`、`neoview.folder.filter-library-service`、`neoview.folder.filter-library-headless`、`neoview.folder.filter-library-http`、`neoview.folder.filter-library-sqlite`、`neoview.folder.filter-cli`、`neoview.folder.filter-library-cli`、`neoview.folder.filter-tui`、`neoview.folder.filter-library-tui`、`neoview.folder.tui`、`neoview.library.tui`
   - 计划测试：无
-  - 备注：后端已在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，递归搜索继承同一 filter 并保留原 AsyncIterable 背压/取消链，archive helper 与 TOML media registry 是 GUI/Headless 唯一分类源。仍保持 pending，直到 TypeFilterBar GUI、虚拟源组合和显式 CLI/TUI 命令完成。
+  - 备注：后端已在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，递归搜索继承同一 filter 并保留原 AsyncIterable 背压/取消链，archive helper 与 TOML media registry 是唯一分类源。History/Bookmark 虚拟源通过同一领域 filter 在 SQLite LIMIT/OFFSET 前筛选，EPUB 归入 archive，bookmark list membership 与 filter 使用括号化 predicate 安全组合；HTTP、Headless、CLI 和 OpenTUI 均复用同一契约。TypeFilterBar GUI 与虚拟源前端接线仍待另一 GUI 纵切完成。
 
 ### tree（4）
 
