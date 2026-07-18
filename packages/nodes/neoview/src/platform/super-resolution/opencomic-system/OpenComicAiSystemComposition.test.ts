@@ -111,6 +111,18 @@ describe("OpenComic AI system composition", () => {
     }])
   })
 
+  it("[neoview.super-resolution.preload-composition] shares the page workflow instead of creating another provider", async () => {
+    const runtime = fakeRuntime()
+    const capability = await createOpenComicAiSystemCapability({
+      runtimeConfig: enabledConfig,
+      loadRuntime: async () => runtime,
+      cliResolver: fakeResolver(),
+      modelsDirectory: "D:/models",
+    })
+    expect(capability?.preload).toBeDefined()
+    await capability?.dispose()
+  })
+
   it("[neoview.super-resolution.policy-composition] composes policy and execution around one runtime config", async () => {
     const capability = await createOpenComicAiSystemCapability({
       loadRuntime: async () => fakeRuntime(),

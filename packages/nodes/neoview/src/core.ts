@@ -402,6 +402,16 @@ export {
   type SuperResolutionPolicyResolver,
   type SuperResolutionRunner,
 } from "./application/super-resolution/SuperResolutionPageService.js"
+export {
+  SuperResolutionPreloadService,
+  type SuperResolutionArtifactDestinationContext,
+  type SuperResolutionArtifactDestinationResolver,
+  type SuperResolutionPreloadBatchResult,
+  type SuperResolutionPreloadPageOutcome,
+  type SuperResolutionPreloadPageRunner,
+  type SuperResolutionPreloadPlanInput,
+  type SuperResolutionProgressiveInput,
+} from "./application/super-resolution/SuperResolutionPreloadService.js"
 export type {
   SuperResolutionCapabilitySnapshot,
   SuperResolutionCustomModelManifest,
