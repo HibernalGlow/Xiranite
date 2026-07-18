@@ -252,6 +252,31 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.same-directory-open] keeps the directory session when the active book changes in place", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [
+        { name: "one.cbz", path: "C:/books/one.cbz", kind: "file", readerSupported: true },
+        { name: "two.cbz", path: "C:/books/two.cbz", kind: "file", readerSupported: true },
+      ],
+      total: 2,
+    })
+    const openDirectoryBrowser = vi.fn(async () => opened)
+    const client = { openDirectoryBrowser, closeDirectoryBrowser: vi.fn(async () => undefined) } as unknown as ReaderHttpClient
+    const renderCard = (sourcePath: string) => (
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath={sourcePath} onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>
+    )
+    const view = render(renderCard("C:/books/one.cbz"))
+    await within(view.container).findByTitle("C:/books/two.cbz")
+
+    view.rerender(renderCard("C:/books/two.cbz"))
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("C:\\books"))
+    expect(openDirectoryBrowser).toHaveBeenCalledOnce()
+    view.unmount()
+  })
+
   it("[neoview.folder.rename-focus] refreshes the same browser session and selects the renamed path", async () => {
     const opened = page({
       path: "C:/books",
