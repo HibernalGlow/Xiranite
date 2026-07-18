@@ -129,10 +129,10 @@ function parseItem(value: unknown, label: string, depth: number): ReaderRadialMe
     label: text(source.label, `${label}.label`, 80),
     action,
     slotIndex: integer(source.slotIndex ?? 0, 0, 63, `${label}.slotIndex`),
-    moveToMenuId,
-    icon: source.icon === undefined ? undefined : text(source.icon, `${label}.icon`, 80),
-    disabled: source.disabled === undefined ? undefined : boolean(source.disabled, `${label}.disabled`) || undefined,
-    children: source.children === undefined ? undefined : itemArray(source.children, `${label}.children`, depth + 1),
+    ...(moveToMenuId ? { moveToMenuId } : {}),
+    ...(source.icon === undefined ? {} : { icon: text(source.icon, `${label}.icon`, 80) }),
+    ...(source.disabled === true ? { disabled: boolean(source.disabled, `${label}.disabled`) } : source.disabled === undefined || source.disabled === false ? {} : { disabled: boolean(source.disabled, `${label}.disabled`) }),
+    ...(source.children === undefined ? {} : { children: itemArray(source.children, `${label}.children`, depth + 1) }),
   }
 }
 

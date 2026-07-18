@@ -91,8 +91,20 @@ describe("LegacySettingsCodec", () => {
       appSettings: {
         version: "1.0.0",
         timestamp: 123,
-        keybindings: { next: ["ArrowRight"] },
-        radialMenus: { reader: ["next"] },
+        keybindings: [{
+          action: "nextPage",
+          bindings: [{ type: "keyboard", key: "ArrowRight" }, { type: "mouse", gesture: "wheel-down" }],
+        }],
+        radialMenus: {
+          id: "default",
+          name: "旧轮盘",
+          items: [{ id: "next", label: "下一页", action: "nextPage" }],
+          radius: 120,
+          innerRadius: 40,
+          variant: "slice",
+          startAngle: -90,
+          sweepAngle: 360,
+        },
         emmMetadata: { enableEMM: true, fileListTagDisplayMode: "collect" },
         fileBrowser: { sortField: "name", sortOrder: "asc" },
         theme: { mode: "dark" },
@@ -107,12 +119,17 @@ describe("LegacySettingsCodec", () => {
     })
 
     expect(result.configPatch).toMatchObject({
-      bindings: { keybindings: { next: ["ArrowRight"] }, radial_menus: { reader: ["next"] } },
       integrations: { emm: { enable_emm: true, file_list_tag_display_mode: "collect" } },
       file_browser: { sort_field: "name", sort_order: "asc" },
       panels: { layout: { sidebars: ["pages"] } },
       system: { excluded_paths: ["D:/skip"] },
     })
+    expect(result.configPatch.bindings).toMatchObject({ radial_menus: { activeMenuId: "default" } })
+    expect((result.configPatch.bindings as { items: unknown[] }).items).toEqual([
+      expect.objectContaining({ action: "reader.next-page", input: expect.objectContaining({ device: "keyboard", code: "ArrowRight" }) }),
+      expect.objectContaining({ action: "reader.next-page", input: expect.objectContaining({ device: "wheel", direction: "down" }) }),
+    ])
+    expect((result.configPatch.bindings as { radial_menus: { menus: Array<{ layers: unknown[][] }> } }).radial_menus.menus[0]?.layers[0]?.[0]).toMatchObject({ action: "reader.next-page" })
     expect(result.pendingData).toEqual({
       bookmarks: [{ name: "Book", path: "D:/book.cbz" }],
       history: [{ path: "D:/book.cbz", currentPage: 4 }],
@@ -169,6 +186,37 @@ describe("LegacySettingsCodec", () => {
     expect(result.report.entries).toEqual(expect.arrayContaining([
       expect.objectContaining({ sourcePath: "rawLocalStorage.neoview-gist-sync", disposition: "rejected-sensitive" }),
       expect.objectContaining({ sourcePath: "rawLocalStorage.neoview-history", disposition: "pending-data" }),
+    ]))
+  })
+
+  it("[neoview.bindings.legacy-import-transaction] converts raw localStorage bindings and radial menus into canonical TOML", () => {
+    const result = codec.decode({
+      version: "2.0.0",
+      backupType: "manual",
+      rawLocalStorage: {
+        "neoview-keybindings": JSON.stringify([{
+          action: "nextPage",
+          bindings: [{ type: "keyboard", key: "ArrowRight" }, { type: "keyboard", key: "Space" }],
+          contextBindings: [{ context: "viewer", input: { type: "mouse", gesture: "click", button: "right" } }],
+        }]),
+        "neoview-radial-menus": JSON.stringify({
+          id: "default",
+          name: "旧轮盘",
+          items: [{ id: "next", label: "下一页", action: "nextPage" }],
+        }),
+      },
+    }, { modules: ["keybindings"] })
+
+    const bindings = result.configPatch.bindings as { items: unknown[]; radial_menus: { menus: Array<{ layers: unknown[][] }> } }
+    expect(bindings.items).toEqual([
+      expect.objectContaining({ action: "reader.next-page", context: "global", input: expect.objectContaining({ device: "keyboard", code: "ArrowRight" }) }),
+      expect.objectContaining({ action: "reader.next-page", context: "global", input: expect.objectContaining({ device: "keyboard", code: "Space" }) }),
+      expect.objectContaining({ action: "reader.next-page", context: "reader", input: expect.objectContaining({ device: "mouse", button: 2, action: "click" }) }),
+    ])
+    expect(bindings.radial_menus.menus[0]?.layers[0]?.[0]).toMatchObject({ action: "reader.next-page" })
+    expect(result.report.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePath: "rawLocalStorage.neoview-keybindings[0].bindings[1]", targetPath: "bindings.items.1", disposition: "converted" }),
+      expect.objectContaining({ sourcePath: "rawLocalStorage.neoview-radial-menus", targetPath: "bindings.radial_menus", disposition: "converted" }),
     ]))
   })
 
