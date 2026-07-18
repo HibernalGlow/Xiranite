@@ -140,4 +140,25 @@ describe("ThumbnailMaintenanceCard", () => {
 
     expect(await screen.findByText("0 B")).toBeTruthy()
   })
+
+  it("[neoview.thumbnail-maintenance.cancel-ui] cancels the active operation without replacing the last snapshot", async () => {
+    let mutationSignal: AbortSignal | undefined
+    const thumbnailMaintenance = vi.fn(async () => SNAPSHOT)
+    const cleanupThumbnails = vi.fn((_command, signal?: AbortSignal) => {
+      mutationSignal = signal
+      return new Promise<never>(() => {})
+    })
+    const client = { thumbnailMaintenance, cleanupThumbnails } as unknown as ReaderHttpClient
+    render(<ThumbnailMaintenanceCard client={client} disabled={false} panelActive onGoTo={() => {}} />)
+    await screen.findByText("1,250")
+
+    fireEvent.click(screen.getByTestId("thumbnail-maintenance-invalid"))
+    await waitFor(() => expect(cleanupThumbnails).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId("thumbnail-maintenance-cancel"))
+
+    expect(mutationSignal?.aborted).toBe(true)
+    expect(screen.getByText("1,250")).toBeTruthy()
+    expect(screen.getByRole("status")).toBeTruthy()
+    expect(screen.queryByTestId("thumbnail-maintenance-cancel")).toBeNull()
+  })
 })
