@@ -10,6 +10,7 @@ import type {
   ReaderExplorerContextMenuScope,
   ReaderExplorerContextMenuStatus,
 } from "../../ports/ReaderExplorerContextMenuProvider.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_REGISTRATION: ReaderExplorerContextMenuRegistration = {
@@ -24,6 +25,8 @@ const DEFAULT_REGISTRATION: ReaderExplorerContextMenuRegistration = {
 export interface WindowsReaderExplorerContextMenuProviderOptions {
   platform?: NodeJS.Platform
   registration?: Partial<ReaderExplorerContextMenuRegistration>
+  resourceScheduler?: ResourceScheduler
+  ownerId?: string
   runReg?: (args: readonly string[], signal?: AbortSignal) => Promise<RegistryCommandResult>
 }
 
@@ -36,11 +39,15 @@ export interface RegistryCommandResult {
 export class WindowsReaderExplorerContextMenuProvider implements ReaderExplorerContextMenuProvider {
   readonly #platform: NodeJS.Platform
   readonly #registration: ReaderExplorerContextMenuRegistration
+  readonly #resourceScheduler?: ResourceScheduler
+  readonly #ownerId: string
   readonly #runReg: (args: readonly string[], signal?: AbortSignal) => Promise<RegistryCommandResult>
 
   constructor(options: WindowsReaderExplorerContextMenuProviderOptions = {}) {
     this.#platform = options.platform ?? process.platform
     this.#registration = normalizeRegistration({ ...DEFAULT_REGISTRATION, ...options.registration })
+    this.#resourceScheduler = options.resourceScheduler
+    this.#ownerId = options.ownerId ?? "neoview:explorer-context-menu"
     this.#runReg = options.runReg ?? runReg
   }
 
@@ -62,6 +69,12 @@ export class WindowsReaderExplorerContextMenuProvider implements ReaderExplorerC
     const plan = buildPlan(this.#registration)
     if (!plan.length) return { available: false, enabled: false, reason: "No Explorer context-menu registration entries are configured." }
 
+    const lease = await this.#resourceScheduler?.acquire({
+      resource: "io",
+      kind: "reader.explorer-context-menu.status",
+      priority: "interactive",
+      ownerId: this.#ownerId,
+    }, signal)
     try {
       for (const item of plan) {
         signal?.throwIfAborted()
@@ -72,6 +85,8 @@ export class WindowsReaderExplorerContextMenuProvider implements ReaderExplorerC
     } catch (error) {
       if (signal?.aborted) throw signal.reason
       return unavailableStatus(errorMessage(error))
+    } finally {
+      lease?.release()
     }
   }
 
@@ -82,19 +97,29 @@ export class WindowsReaderExplorerContextMenuProvider implements ReaderExplorerC
     const plan = buildPlan(this.#registration)
     if (!plan.length) return { available: false, enabled: false, reason: "No Explorer context-menu registration entries are configured." }
 
-    const errors: string[] = []
-    for (const item of plan) {
-      signal?.throwIfAborted()
-      try {
-        if (enabled) await registerItem(item, this.#runReg, signal)
-        else await unregisterItem(item, this.#runReg, signal)
-      } catch (error) {
-        if (signal?.aborted) throw signal.reason
-        errors.push(`${item.registryPath}: ${errorMessage(error)}`)
+    const lease = await this.#resourceScheduler?.acquire({
+      resource: "io",
+      kind: "reader.explorer-context-menu.set-enabled",
+      priority: "interactive",
+      ownerId: this.#ownerId,
+    }, signal)
+    try {
+      const errors: string[] = []
+      for (const item of plan) {
+        signal?.throwIfAborted()
+        try {
+          if (enabled) await registerItem(item, this.#runReg, signal)
+          else await unregisterItem(item, this.#runReg, signal)
+        } catch (error) {
+          if (signal?.aborted) throw signal.reason
+          errors.push(`${item.registryPath}: ${errorMessage(error)}`)
+        }
       }
+      if (errors.length) return { available: false, enabled: false, reason: errors.join("; ") }
+      return { available: true, enabled }
+    } finally {
+      lease?.release()
     }
-    if (errors.length) return { available: false, enabled: false, reason: errors.join("; ") }
-    return { available: true, enabled }
   }
 }
 

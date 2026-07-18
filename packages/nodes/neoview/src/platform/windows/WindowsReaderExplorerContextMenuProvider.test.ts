@@ -56,6 +56,26 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     await expect(provider.status()).resolves.toEqual({ available: true, enabled: false })
   })
 
+  it("[neoview.file.explorer-context-menu.scheduler] admits registry queries and releases the lease", async () => {
+    const release = vi.fn()
+    const scheduler = { acquire: vi.fn(async () => ({ release })) }
+    const provider = new WindowsReaderExplorerContextMenuProvider({
+      platform: "win32",
+      registration,
+      resourceScheduler: scheduler,
+      runReg: vi.fn(async () => ({ code: 0, stdout: "", stderr: "" })),
+    })
+
+    await provider.status(new AbortController().signal)
+    expect(scheduler.acquire).toHaveBeenCalledWith({
+      resource: "io",
+      kind: "reader.explorer-context-menu.status",
+      priority: "interactive",
+      ownerId: "neoview:explorer-context-menu",
+    }, expect.any(AbortSignal))
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.file.explorer-context-menu.set-enabled] applies add/delete through reg.exe semantics", async () => {
     const runReg = vi.fn(async () => ({ code: 0, stdout: "", stderr: "" }))
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })

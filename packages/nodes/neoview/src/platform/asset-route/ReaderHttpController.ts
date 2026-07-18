@@ -524,7 +524,7 @@ export class ReaderHttpController implements AsyncDisposable {
       const { WindowsReaderExplorerContextMenuProvider } = await import("../windows/WindowsReaderExplorerContextMenuProvider.js")
       return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({
         scheduler: options.resourceScheduler,
-        explorerContextMenu: options.explorerContextMenu ?? new WindowsReaderExplorerContextMenuProvider(),
+        explorerContextMenu: options.explorerContextMenu ?? new WindowsReaderExplorerContextMenuProvider({ resourceScheduler: options.resourceScheduler }),
       }))
     })
     this.#settingsMigration = options.loadSettingsMigrationService
