@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { NeoviewBookSettingsTuiPort } from "../interaction.js"
-import { createNeoviewBookSettingsTuiDefinition } from "../interaction.js"
+import { createNeoviewBookSettingsMigrationTuiDefinition, createNeoviewBookSettingsTuiDefinition } from "../interaction.js"
 
 describe("NeoView book-settings terminal interaction", () => {
   it("[neoview.book-settings.tui] projects one shared form into the current revisioned controller", async () => {
@@ -62,6 +62,32 @@ describe("NeoView book-settings terminal interaction", () => {
     expect(schema.validate({}, input)).toBeNull()
     expect(schema.validate({}, { action: "set", path: "book.cbz", patch: {} })).toContain("at least one")
     expect(schema.isDangerous(input)).toBe(false)
+  })
+
+  it("[neoview.book-settings.legacy-tui] reuses the file controller behind dangerous import confirmation", async () => {
+    const report = { totalEntries: 1, validEntries: 1, invalidEntries: 0, invalidFields: 0, unknownFields: 0 }
+    const inspect = vi.fn(async () => ({ report }))
+    const importSettings = vi.fn(async () => ({
+      report,
+      result: { applied: { inserted: 1, updated: 0, unchanged: 0 }, unresolvedSources: 0, duplicateIdentities: 0 },
+    }))
+    const definition = createNeoviewBookSettingsMigrationTuiDefinition("en", async () => ({ inspect, import: importSettings }))
+    const input = definition.schema.toInput({
+      action: "import",
+      inputPath: " D:/backup.json ",
+      databasePath: " D:/NeoView/thumbnails.db ",
+      strategy: "overwrite",
+    })
+    expect(definition.schema.isDangerous(input)).toBe(true)
+    expect(definition.schema.dangerPrompt?.(input)).toMatchObject({ confirmLabel: "Import" })
+    await expect(definition.run(input, () => undefined)).resolves.toMatchObject({
+      success: true,
+      imported: { result: { applied: { inserted: 1 } } },
+    })
+    expect(importSettings).toHaveBeenCalledWith(
+      "D:/backup.json", "D:/NeoView/thumbnails.db", "overwrite", true,
+    )
+    expect(definition.schema.isDangerous(definition.schema.toInput({ action: "inspect", inputPath: "D:/backup.json" }))).toBe(false)
   })
 })
 

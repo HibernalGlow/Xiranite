@@ -38,11 +38,12 @@ import {
   type ReaderThumbnailMaintenancePort,
 } from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 import { help } from "./help.js"
-import { createReaderBackupBundleService, createReaderBookSettingsMigrationService, createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService, createReaderSettingsPortableService } from "./platform.js"
+import { createReaderBackupBundleService, createReaderBookSettingsMigrationFileController, createReaderFileTreeController, createReaderHeadlessController, createReaderSettingsMigrationService, createReaderSettingsPortableService } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRestoreResult } from "./platform/backup/ReaderBackupBundleService.js"
+import type { ReaderBookSettingsMigrationFilePort } from "./platform/migration/ReaderBookSettingsMigrationFileController.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
 import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
 import type { ReaderInputBinding } from "./domain/input/ReaderInputBindings.js"
@@ -142,7 +143,7 @@ export interface NeoviewCliDependencies {
   openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
   createDataImporter?: (databasePath?: string) => Promise<LegacyReaderDataImporter>
   createSearchHistoryImporter?: (databasePath?: string) => Promise<LegacySearchHistoryImporter>
-  createBookSettingsMigrationService?: (databasePath?: string) => Promise<CliBookSettingsMigrationService>
+  createBookSettingsMigrationFileController?: () => Promise<ReaderBookSettingsMigrationFilePort>
   createLibraryController?: (databasePath?: string) => Promise<ReaderLibraryHeadlessController>
   createFileOperationService?: (databasePath?: string) => Promise<ReaderFileOperationService>
   createSystemIntegrationService?: () => Promise<ReaderSystemIntegrationService>
@@ -158,15 +159,6 @@ export interface NeoviewCliDependencies {
 }
 
 interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, AsyncDisposable {}
-
-interface CliBookSettingsMigrationService extends AsyncDisposable {
-  import(
-    content: string,
-    strategy: "merge" | "overwrite",
-    confirmed: boolean,
-    signal?: AbortSignal,
-  ): Promise<LegacyBookSettingsImportResult>
-}
 
 export interface CliReaderController extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
@@ -243,6 +235,10 @@ export async function runProgram(
   }
   if (command === "book-settings-ui") {
     await runBookSettingsUi(args.slice(1), host, dependencies)
+    return
+  }
+  if (command === "book-settings-migration-ui") {
+    await runBookSettingsMigrationUi(args.slice(1), host)
     return
   }
   if (command === "input-bindings-ui") {
@@ -1142,14 +1138,12 @@ async function runLegacyBookSettingsMigrationCommand(
   host: CliHost,
   dependencies: NeoviewCliDependencies,
 ): Promise<void> {
-  const inputStat = await stat(inputPath)
-  if (!inputStat.isFile()) throw usage(`Legacy book settings input is not a file: ${inputPath}`)
-  if (inputStat.size > MAX_SETTINGS_BYTES) throw usage(`Legacy book settings input exceeds ${MAX_SETTINGS_BYTES} bytes.`)
-  const content = await readFile(inputPath, "utf8")
-  const { LegacyBookSettingsCodec } = await import("./migration/LegacyBookSettingsCodec.js")
-  const report = new LegacyBookSettingsCodec().decode(content).report
+  const createController = dependencies.createBookSettingsMigrationFileController
+    ?? createReaderBookSettingsMigrationFileController
+  const controller = await createController()
   if (command === "book-settings-legacy-inspect") {
-    printLegacyBookSettingsMigration(report, undefined, parsed.booleans.has("--json"), host)
+    const inspection = await controller.inspect(inputPath)
+    printLegacyBookSettingsMigration(inspection.report, undefined, parsed.booleans.has("--json"), host)
     return
   }
   if (!parsed.booleans.has("--yes")) {
@@ -1160,14 +1154,8 @@ async function runLegacyBookSettingsMigrationCommand(
   const databasePath = oneValue(parsed, "--database")
     ? resolve(host.cwd, oneValue(parsed, "--database")!)
     : undefined
-  const createService = dependencies.createBookSettingsMigrationService ?? createReaderBookSettingsMigrationService
-  const service = await createService(databasePath)
-  try {
-    const result = await service.import(content, strategy, true)
-    printLegacyBookSettingsMigration(report, result, parsed.booleans.has("--json"), host)
-  } finally {
-    await service[Symbol.asyncDispose]()
-  }
+  const imported = await controller.import(inputPath, databasePath, strategy, true)
+  printLegacyBookSettingsMigration(imported.report, imported.result, parsed.booleans.has("--json"), host)
 }
 
 function printLegacyBookSettingsMigration(
@@ -2350,6 +2338,27 @@ async function runBookSettingsUi(
   }
 }
 
+async function runBookSettingsMigrationUi(args: readonly string[], host: CliHost): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView book-settings-migration-ui requires an interactive terminal.")
+  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
+  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+    throw usage(flags.error ?? `Unknown book-settings-migration-ui argument: ${flags.args[0]}`)
+  }
+  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+    throw usage(`Unknown terminal theme: ${flags.theme}.`)
+  }
+  const { createNeoviewBookSettingsMigrationTuiDefinition } = await import("./interaction.js")
+  await runTerminalUi(createNeoviewBookSettingsMigrationTuiDefinition(flags.language), {
+    host,
+    language: flags.language,
+    renderer: flags.renderer,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["book-settings-migration-ui", ...args] } : undefined,
+  })
+}
+
 async function runInputBindingsUi(args: readonly string[], host: CliHost): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView input-bindings-ui requires an interactive terminal.")
   const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
@@ -2461,6 +2470,7 @@ function formatCliHelp(): string {
     "  library-ui                       Open recent/bookmark terminal management",
     "  file-ui                          Open shared file-operation terminal controls",
     "  book-settings-ui                 Open shared per-book settings terminal controls",
+    "  book-settings-migration-ui       Inspect/import legacy per-book settings in OpenTUI",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",

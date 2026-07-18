@@ -504,7 +504,10 @@
         "neoview.book-settings.legacy-http",
         "neoview.book-settings.legacy-cli",
         "neoview.book-settings.legacy-cli-integration",
-        "neoview.book-settings.legacy-service-lifecycle"
+        "neoview.book-settings.legacy-service-lifecycle",
+        "neoview.book-settings.legacy-file-controller",
+        "neoview.book-settings.legacy-file-validation",
+        "neoview.book-settings.legacy-tui"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [
