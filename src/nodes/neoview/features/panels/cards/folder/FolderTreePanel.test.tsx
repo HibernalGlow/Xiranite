@@ -146,6 +146,27 @@ describe("FolderTreePanel", () => {
     expect(listDirectoryRoots).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.folder.tree-drive-root] never requests a bare drive-relative root", async () => {
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string): Promise<ReaderDirectoryTreePageDto> => treePage(path ?? "E:\\", []))
+    const view = renderTree({ treeDirectoryBrowser } as unknown as ReaderHttpClient, " E: ", vi.fn())
+
+    await waitFor(() => expect(treeDirectoryBrowser).toHaveBeenCalledWith("tree-1", "E:\\", false, expect.any(AbortSignal)))
+    expect(treeDirectoryBrowser.mock.calls.some(([, path]) => path === "E:")).toBe(false)
+    view.unmount()
+  })
+
+  it("[neoview.folder.tree-empty-root] keeps an empty root loaded without conflating it with an unavailable path", async () => {
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string): Promise<ReaderDirectoryTreePageDto> => treePage(path ?? "C:\\", []))
+    const view = renderTree({ treeDirectoryBrowser } as unknown as ReaderHttpClient, "C:\\", vi.fn())
+    const ui = within(view.container)
+
+    await waitFor(() => expect(ui.getByTitle("C:\\").parentElement?.dataset.treePath).toBe("C:\\"))
+    expect(ui.getByTitle("C:\\").parentElement?.textContent).not.toContain("不可用")
+    expect(ui.getByTitle("C:\\").parentElement?.textContent).toContain("空")
+    expect(treeDirectoryBrowser).toHaveBeenCalledOnce()
+    view.unmount()
+  })
+
   it("[neoview.folder.tree-watch-gui] refreshes only an invalidated expanded node and aborts its independent wait", async () => {
     let generation = 1
     const waits: Array<{ resolve(batch: ReaderDirectoryTreeChangesDto): void; signal: AbortSignal }> = []

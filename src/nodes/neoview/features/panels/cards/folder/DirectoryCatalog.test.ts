@@ -15,8 +15,18 @@ import {
 describe("DirectoryCatalog", () => {
   it("[neoview.folder.windows-root-path] makes drive roots explicit directories", () => {
     expect(normalizeFolderNavigationPath(" E: ")).toBe("E:\\")
+    expect(normalizeFolderNavigationPath("E:/")).toBe("E:\\")
+    expect(normalizeFolderNavigationPath("e:\\")).toBe("e:\\")
     expect(normalizeFolderNavigationPath("E:/Books")).toBe("E:/Books")
     expect(normalizeFolderNavigationPath("bookmark:recent")).toBe("bookmark:recent")
+  })
+
+  it("[neoview.folder.path-boundaries] trims user input but preserves virtual, UNC and POSIX paths", () => {
+    expect(normalizeFolderNavigationPath("  ")).toBe("")
+    expect(normalizeFolderNavigationPath("  bookmark:recent  ")).toBe("bookmark:recent")
+    expect(normalizeFolderNavigationPath("  history:downloads  ")).toBe("history:downloads")
+    expect(normalizeFolderNavigationPath("\\\\server\\share\\books")).toBe("\\\\server\\share\\books")
+    expect(normalizeFolderNavigationPath("/srv/books")).toBe("/srv/books")
   })
 
   it("[neoview.folder.sparse-pages] addresses remote pages without appending all preceding entries", () => {

@@ -229,7 +229,9 @@ export function formatFolderRating(value: number | undefined): string {
 export function normalizeFolderNavigationPath(path: string): string {
   const value = path.trim()
   if (!value || /^(?:bookmark|history):/iu.test(value)) return value
-  if (/^[A-Za-z]:$/u.test(value)) return `${value}\\`
+  // Node treats `E:` as a drive-relative path on Windows. Keep every drive
+  // root directory-shaped before it crosses the HTTP/filesystem boundary.
+  if (/^[A-Za-z]:[\\/]?$/u.test(value)) return `${value.slice(0, 2)}\\`
   return value
 }
 
