@@ -37,6 +37,9 @@ describe("ThumbnailMaintenanceCard", () => {
     view.rerender(<ThumbnailMaintenanceCard client={client} disabled={false} panelActive onGoTo={() => {}} />)
     expect(await screen.findByText("1,250")).toBeTruthy()
     expect(screen.getByText(/Blob 2\.00 MB/)).toBeTruthy()
+    expect(screen.getByText("Database 1.00 MB")).toBeTruthy()
+    expect(screen.getByText("WAL 1.0 KB")).toBeTruthy()
+    expect(screen.getByText("SHM 512 B")).toBeTruthy()
     expect(screen.getByRole("button", { name: "刷新缩略图数据库统计" }).getAttribute("title")).toBe("刷新统计")
     expect(thumbnailMaintenance).toHaveBeenCalledTimes(1)
   })
@@ -160,5 +163,28 @@ describe("ThumbnailMaintenanceCard", () => {
     expect(screen.getByText("1,250")).toBeTruthy()
     expect(screen.getByRole("status")).toBeTruthy()
     expect(screen.queryByTestId("thumbnail-maintenance-cancel")).toBeNull()
+  })
+
+  it("[neoview.thumbnail-maintenance.card-lifecycle] clears busy state when disabled aborts an operation", async () => {
+    let mutationSignal: AbortSignal | undefined
+    const thumbnailMaintenance = vi.fn(async () => SNAPSHOT)
+    const cleanupThumbnails = vi.fn((_command, signal?: AbortSignal) => {
+      mutationSignal = signal
+      return new Promise<never>(() => {})
+    })
+    const client = { thumbnailMaintenance, cleanupThumbnails } as unknown as ReaderHttpClient
+    const view = render(<ThumbnailMaintenanceCard client={client} disabled={false} panelActive onGoTo={() => {}} />)
+    await screen.findByText("1,250")
+
+    fireEvent.click(screen.getByTestId("thumbnail-maintenance-invalid"))
+    await waitFor(() => expect(cleanupThumbnails).toHaveBeenCalledTimes(1))
+    view.rerender(<ThumbnailMaintenanceCard client={client} disabled panelActive onGoTo={() => {}} />)
+
+    expect(mutationSignal?.aborted).toBe(true)
+    expect(screen.queryByTestId("thumbnail-maintenance-cancel")).toBeNull()
+
+    view.rerender(<ThumbnailMaintenanceCard client={client} disabled={false} panelActive onGoTo={() => {}} />)
+    await waitFor(() => expect(thumbnailMaintenance).toHaveBeenCalledTimes(2))
+    expect(screen.getByTestId("thumbnail-maintenance-invalid").hasAttribute("disabled")).toBe(false)
   })
 })
