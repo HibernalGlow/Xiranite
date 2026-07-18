@@ -75,6 +75,7 @@ export default function AnimatedVideoModeCard({ media, onMediaChange, disabled =
         </div>
         <Switch
           size="sm"
+          className="origin-right scale-75"
           checked={enabled}
           disabled={disabled}
           aria-label="启用动图视频模式"
