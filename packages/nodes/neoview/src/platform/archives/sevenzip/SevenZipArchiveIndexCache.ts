@@ -30,7 +30,7 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
     if (!Number.isSafeInteger(maxEntries) || maxEntries < 0) {
       throw new RangeError(`Invalid SevenZip archive index cache entry budget: ${maxEntries}`)
     }
-    this.#entries = new LRUCache({ max: maxEntries })
+    this.#entries = maxEntries > 0 ? new LRUCache({ max: maxEntries }) : new LRUCache({ max: 1 })
   }
 
   get size(): number {
