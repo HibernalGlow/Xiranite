@@ -152,9 +152,9 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
   })
 
-  it("[neoview.shell.resident-cards] renders stable sessionless Card shells and empty states", async () => {
+  it("[neoview.shell.resident-cards] renders stable sessionless Card shells and empty states", () => {
     render(<ReaderSidebar side="left" context={context(false)} shell={shell()} />)
-    expect(await screen.findByText("打开书本后显示页面导航")).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-cache="pageList"] [data-reader-card-empty="true"]')).toBeTruthy()
     expect(screen.queryByRole("button", { name: "折叠页面导航" })).toBeNull()
   })
 
