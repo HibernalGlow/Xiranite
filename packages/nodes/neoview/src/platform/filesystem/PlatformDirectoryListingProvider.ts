@@ -22,7 +22,7 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
 
   async canonicalize(path: string, signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted()
-    const canonicalPath = await resolveListingPath(path, this.shortcutResolver, signal)
+    const canonicalPath = await resolveListingPath(path, this.shortcutResolver, signal, true)
     const sourceStats = await stat(canonicalPath)
     signal?.throwIfAborted()
     if (!sourceStats.isDirectory()) throw new Error(`Reader browser path is not a directory: ${path}`)
@@ -31,7 +31,7 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
 
   async read(path: string, signal?: AbortSignal): Promise<ReaderDirectoryListing> {
     signal?.throwIfAborted()
-    const canonicalPath = await resolveListingPath(path, this.shortcutResolver, signal)
+    const canonicalPath = await resolveListingPath(path, this.shortcutResolver, signal, false)
     const sourceStats = await stat(canonicalPath)
     const directoryPath = sourceStats.isDirectory() ? canonicalPath : sourceStats.isFile() ? dirname(canonicalPath) : undefined
     if (!directoryPath) throw new Error(`Reader browser path is not a file or directory: ${path}`)
@@ -81,9 +81,19 @@ async function isReaderSupported(
   return Boolean(pageMediaType(candidatePath, mediaFormats)) || platformReaderBookFileKind(candidatePath, mediaFormats) !== undefined || pathExtension(candidatePath) === "pdf" || pathExtension(candidatePath) === "epub"
 }
 
-async function resolveListingPath(path: string, shortcutResolver: ReaderShortcutResolver | undefined, signal?: AbortSignal): Promise<string> {
+async function resolveListingPath(
+  path: string,
+  shortcutResolver: ReaderShortcutResolver | undefined,
+  signal: AbortSignal | undefined,
+  strict: boolean,
+): Promise<string> {
   const canonicalPath = await canonicalizePlatformDirectoryPath(path)
   if (pathExtension(canonicalPath) !== "lnk") return canonicalPath
   if (!shortcutResolver) return canonicalPath
-  return (await resolveReaderShortcutChain(canonicalPath, shortcutResolver, signal)).path
+  try {
+    return (await resolveReaderShortcutChain(canonicalPath, shortcutResolver, signal)).path
+  } catch (error) {
+    if (strict) throw error
+    return canonicalPath
+  }
 }

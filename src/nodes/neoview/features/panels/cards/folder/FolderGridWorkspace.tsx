@@ -206,7 +206,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
 
 function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
-  const showMetadata = showRating || showCollectTagCount
+  const showMetadata = showRating || showCollectTagCount || Boolean(entry.tags?.length)
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <button

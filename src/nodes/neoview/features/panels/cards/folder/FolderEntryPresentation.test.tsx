@@ -2,7 +2,7 @@ import { render } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { File, FileArchive, FileImage, FileText, Film, Folder, Music } from "lucide-react"
 
-import { FolderEntryFileMetadata, FolderEntryIcon, folderEntryExtension, formatFolderDate, formatFolderSize, getFolderEntryIcon } from "./FolderEntryPresentation"
+import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata, folderEntryExtension, formatFolderDate, formatFolderSize, formatFolderTagSummary, formatFolderTags, getFolderEntryIcon } from "./FolderEntryPresentation"
 
 describe("FolderEntryPresentation", () => {
   it("maps legacy file extension groups to semantic icons", () => {
@@ -33,5 +33,18 @@ describe("FolderEntryPresentation", () => {
   it("keeps the icon surface stable while applying semantic color", () => {
     const { container } = render(<FolderEntryIcon entry={{ kind: "file", name: "notes.md" }} />)
     expect(container.querySelector("svg")?.getAttribute("class")).toContain("text-cyan-600")
+  })
+
+  it("keeps ordinary EMM/manual tags and favorite count in one full-value summary", () => {
+    const entry = { tags: [" artist:alice ", "", "manual:favorite"], collectTagCount: 2 }
+    expect(formatFolderTags(entry.tags)).toBe("artist:alice / manual:favorite")
+    expect(formatFolderTagSummary(entry)).toBe("artist:alice / manual:favorite / 2 个收藏标签")
+
+    const { container } = render(
+      <FolderEntryMetadata entry={{ name: "book.cbz", path: "D:/book.cbz", kind: "file", readerSupported: true, ...entry }} showRating={false} showCollectTagCount />,
+    )
+    const tags = container.querySelector('[data-folder-entry-metadata="tags"]')
+    expect(tags?.textContent).toContain("artist:alice / manual:favorite")
+    expect(tags?.getAttribute("title")).toBe("标签 artist:alice / manual:favorite")
   })
 })
