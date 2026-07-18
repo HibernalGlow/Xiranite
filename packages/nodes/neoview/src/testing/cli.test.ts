@@ -81,13 +81,16 @@ describe("NeoView CLI", () => {
     expect(revealSystem).toHaveBeenCalledWith(resolve("source.jpg"))
   })
 
-  it("[neoview.library.cli] [neoview.folder.filter-library-cli] adapts shared library operations and confirms destructive commands", async () => {
+  it("[neoview.library.cli] [neoview.history.cleanup-cli] [neoview.folder.filter-library-cli] adapts shared library operations and confirms destructive commands", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {
       listRecent: vi.fn(async () => [{ bookId: "book-1", displayName: "Book" }]),
       listBookmarks: vi.fn(async () => [{ id: "bookmark-1", name: "Demo" }]),
       savePathBookmark: vi.fn(async () => ({ id: "bookmark-1", name: "Demo" })),
       removeBookmark: vi.fn(async () => true),
+      removeOldestRecents: vi.fn(async () => ({ selectedIds: ["book-1"], deleted: 1 })),
+      clearByFolder: vi.fn(async () => 2),
+      clearAll: vi.fn(async () => 3),
       cleanupInvalid: vi.fn(async () => ({ kind: "both", scanned: 2, missing: 1, unknown: 0, deleted: 1, truncated: false })),
       [Symbol.asyncDispose]: dispose,
     } as unknown as ReaderLibraryHeadlessController
@@ -109,7 +112,14 @@ describe("NeoView CLI", () => {
     await expect(runProgram(["library-invalid-cleanup"], host([]), dependencies)).rejects.toThrow("requires --yes")
     await runProgram(["library-invalid-cleanup", "--kind", "both", "--scan-limit", "20", "--limit", "10", "--concurrency", "2", "--yes"], host([]), dependencies)
     expect(controller.cleanupInvalid).toHaveBeenCalledWith({ kind: "both", scanLimit: 20, deleteLimit: 10, concurrency: 2 })
-    expect(dispose).toHaveBeenCalledTimes(5)
+    await expect(runProgram(["library-recent-cleanup-oldest", "--limit", "2"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["library-recent-cleanup-oldest", "--limit", "2", "--yes"], host([]), dependencies)
+    expect(controller.removeOldestRecents).toHaveBeenCalledWith(2)
+    await runProgram(["library-recent-cleanup-folder", "books", "--yes"], host([]), dependencies)
+    expect(controller.clearByFolder).toHaveBeenCalledWith("recents", resolve("books"))
+    await runProgram(["library-recent-clear", "--yes"], host([]), dependencies)
+    expect(controller.clearAll).toHaveBeenCalledWith("recents")
+    expect(dispose).toHaveBeenCalledTimes(8)
     await expect(runProgram(["library-recents", "--filter", "invalid"], host([]), dependencies)).rejects.toThrow("--filter must be")
   })
 

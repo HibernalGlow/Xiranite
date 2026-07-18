@@ -68,6 +68,7 @@ const COMMANDS = new Set([
   "reader-data-inspect", "reader-data-import",
   "search-history-inspect", "search-history-import",
   "library-recents", "library-recent-delete", "library-recent-cleanup",
+  "library-recent-cleanup-oldest", "library-recent-cleanup-folder", "library-recent-clear",
   "library-invalid-cleanup",
   "library-bookmarks", "library-bookmark-add", "library-bookmark-delete",
   "library-bookmark-lists", "library-bookmark-list-add", "library-bookmark-list-delete",
@@ -559,6 +560,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "library-recent-cleanup") {
     rejectOptions(parsed, new Set(["--json", "--database", "--before", "--limit", "--yes"]))
+    return
+  }
+  if (command === "library-recent-cleanup-oldest") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--limit", "--yes"]))
+    return
+  }
+  if (command === "library-recent-cleanup-folder" || command === "library-recent-clear") {
+    rejectOptions(parsed, new Set(["--json", "--database", "--yes"]))
     return
   }
   if (command === "library-invalid-cleanup") {
@@ -1180,12 +1189,15 @@ async function runLibraryCommand(
   host: CliHost,
   dependencies: NeoviewCliDependencies,
 ): Promise<void> {
-  const pathCommand = command === "library-bookmark-add"
+  const pathCommand = command === "library-bookmark-add" || command === "library-recent-cleanup-folder"
   if (pathCommand ? parsed.positionals.length !== 1 : parsed.positionals.length !== 0) {
-    throw usage(pathCommand ? `${command} requires exactly one reader path.` : `${command} does not accept a path.`)
+    throw usage(pathCommand ? `${command} requires exactly one path.` : `${command} does not accept a path.`)
   }
   const destructive = command === "library-recent-delete"
     || command === "library-recent-cleanup"
+    || command === "library-recent-cleanup-oldest"
+    || command === "library-recent-cleanup-folder"
+    || command === "library-recent-clear"
     || command === "library-invalid-cleanup"
     || command === "library-bookmark-delete"
     || command === "library-bookmark-list-delete"
@@ -1217,6 +1229,20 @@ async function runLibraryCommand(
       const before = integerOption(parsed, "--before", 0, Number.MAX_SAFE_INTEGER, 0)
       const deleted = await controller.clearRecentBefore(before, integerOption(parsed, "--limit", 1, 500, 500))
       return printLibraryMutation({ deleted, before }, json, host)
+    }
+    if (command === "library-recent-cleanup-oldest") {
+      const limit = integerOption(parsed, "--limit", 1, 500, 100)
+      const result = await controller.removeOldestRecents(limit)
+      return printLibraryMutation({ ...result, limit }, json, host)
+    }
+    if (command === "library-recent-cleanup-folder") {
+      const folderPath = resolve(host.cwd, parsed.positionals[0]!)
+      const deleted = await controller.clearByFolder("recents", folderPath)
+      return printLibraryMutation({ deleted, folderPath }, json, host)
+    }
+    if (command === "library-recent-clear") {
+      const deleted = await controller.clearAll("recents")
+      return printLibraryMutation({ deleted }, json, host)
     }
     if (command === "library-invalid-cleanup") {
       const kind = oneValue(parsed, "--kind") ?? "both"
@@ -2427,6 +2453,9 @@ function formatCliHelp(): string {
     "  library-recents                 List recent Reader entries",
     "  library-recent-delete           Delete one recent entry (--id, --yes)",
     "  library-recent-cleanup          Delete an old bounded batch (--before, --yes)",
+    "  library-recent-cleanup-oldest   Delete the oldest bounded batch (--limit, --yes)",
+    "  library-recent-cleanup-folder <path> Delete recents under one folder (--yes)",
+    "  library-recent-clear            Delete all recent entries (--yes)",
     "  library-invalid-cleanup         Remove missing recent/bookmark paths (--yes)",
     "  library-bookmarks               List bookmarks, optionally by --list",
     "  library-bookmark-add <path>     Add or merge a bookmark",

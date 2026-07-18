@@ -5,7 +5,7 @@ import { ReaderLibraryService } from "../library/ReaderLibraryService.js"
 import { ReaderLibraryHeadlessController } from "./ReaderLibraryHeadlessController.js"
 
 describe("ReaderLibraryHeadlessController", () => {
-  it("[neoview.library.headless] [neoview.folder.filter-library-headless] resolves paths once and delegates all state to ReaderLibraryService", async () => {
+  it("[neoview.library.headless] [neoview.history.cleanup-headless] [neoview.folder.filter-library-headless] resolves paths once and delegates all state to ReaderLibraryService", async () => {
     const store = fakeStore()
     vi.mocked(store.updateBookmark).mockResolvedValue({
       id: "bookmark-1",
@@ -38,10 +38,12 @@ describe("ReaderLibraryHeadlessController", () => {
     expect(store.listBookmarks).toHaveBeenCalledWith({ listId: "reading", limit: 10, offset: 2, filter: "archive" })
     await controller.clearByFolder("bookmarks", "D:\\Books")
     expect(store.clearByPathPrefix).toHaveBeenCalledWith("bookmarks", "d:/books")
+    await controller.removeOldestRecents(3)
     await controller.removeOldestBookmarks(2)
     await controller.clearBookmarksBefore(100, 20)
     await controller.clearAll("recents")
     expect(store.deleteOldestBookmark).toHaveBeenCalledWith(2)
+    expect(store.deleteOldestRecent).toHaveBeenCalledWith(3)
     expect(store.clearBookmarkBefore).toHaveBeenCalledWith(100, 20)
     expect(store.clearAll).toHaveBeenCalledWith("recents")
     await controller.close()

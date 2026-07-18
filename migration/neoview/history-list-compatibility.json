@@ -868,14 +868,19 @@
         "core": "complete",
         "transport": "complete",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
-        "evidence": "partial"
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.library.cleanup-invalid",
         "neoview.library.cleanup-cancel",
         "neoview.library.cli",
+        "neoview.library.tui",
+        "neoview.history.cleanup-headless",
+        "neoview.history.cleanup-cli",
+        "neoview.history.cleanup-tui",
+        "neoview.history.cleanup-tui-cancel",
         "neoview.history.cleanup-oldest",
         "neoview.history.cleanup-oldest-cancel",
         "neoview.history.cleanup-oldest-http",
@@ -893,7 +898,7 @@
         "neoview.history.cleanup-lazy-chunk"
       ],
       "plannedTestIds": [],
-      "notes": "Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. The independently lazy React dialog preserves the legacy count/day/folder/all controls, adds invalid-path cleanup, requires confirmation, exposes pending/cancel/result/error states, reuses the host directory picker and refreshes only after success. Desktop and 420x360 Chromium prove the real route and stable Reader image; explicit CLI/TUI cleanup controls remain pending."
+      "notes": "Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. The independently lazy React dialog preserves the legacy count/day/folder/all controls, adds invalid-path cleanup, requires confirmation, exposes pending/cancel/result/error states, reuses the host directory picker and refreshes only after success. Desktop and 420x360 Chromium prove the real route and stable Reader image. CLI and OpenTUI now expose confirmed timestamp, oldest-count, folder, clear-all and invalid-path cleanup through the same Headless controller; OpenTUI cancellation aborts oldest cleanup before its atomic transaction starts."
     },
     {
       "id": "history.sync-folder",
