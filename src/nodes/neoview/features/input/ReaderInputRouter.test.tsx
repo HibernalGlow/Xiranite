@@ -31,6 +31,10 @@ describe("ReaderInputRouter", () => {
     settings.append(settingsButton)
     root.append(settings)
     expect(readerInputContexts(settingsButton)).toEqual(["modal"])
+    const video = document.createElement("video")
+    video.dataset.inputContext = "video"
+    root.append(video)
+    expect(readerInputContexts(video)).toEqual(["video"])
     expect(readerInputContexts(root)).toEqual(["reader"])
   })
 

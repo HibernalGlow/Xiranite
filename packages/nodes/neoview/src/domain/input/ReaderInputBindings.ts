@@ -1,20 +1,28 @@
-export const READER_INPUT_CONTEXTS = ["global", "reader", "panel", "editor", "modal"] as const
-export const READER_INPUT_ACTIONS = [
-  "reader.previous-page",
-  "reader.next-page",
-  "reader.zoom-in",
-  "reader.zoom-out",
-  "reader.reset-view",
-  "reader.rotate-clockwise",
-  "reader.open-settings",
-  "radial.open-default",
-] as const
+import {
+  READER_INPUT_ACTIONS,
+  READER_INPUT_ACTION_LABELS,
+  READER_INPUT_ACTION_METADATA,
+  type ReaderInputAction,
+  type ReaderInputActionCategory,
+} from "./ReaderInputActions.js"
+
+export {
+  LEGACY_READER_INPUT_ACTION_MAP,
+  READER_INPUT_ACTION_CATEGORIES,
+  READER_INPUT_ACTION_DEFINITIONS,
+  READER_INPUT_ACTIONS,
+  READER_INPUT_ACTION_LABELS,
+  READER_INPUT_ACTION_METADATA,
+  readerInputActionFromLegacyId,
+  type ReaderInputAction,
+  type ReaderInputActionCategory,
+  type ReaderInputActionMetadata,
+  type ReaderInputActionDefinition,
+} from "./ReaderInputActions.js"
+
+export const READER_INPUT_CONTEXTS = ["global", "reader", "video", "panel", "editor", "modal"] as const
 
 export type ReaderInputContext = typeof READER_INPUT_CONTEXTS[number]
-export type ReaderInputAction = typeof READER_INPUT_ACTIONS[number]
-
-export const READER_INPUT_ACTION_CATEGORIES = ["navigation", "view", "session", "radial"] as const
-export type ReaderInputActionCategory = typeof READER_INPUT_ACTION_CATEGORIES[number]
 
 export const READER_VIEW_AREAS = [
   "top-left", "top-center", "top-right",
@@ -25,11 +33,6 @@ export type ReaderViewArea = typeof READER_VIEW_AREAS[number]
 
 export const READER_MOUSE_GESTURE_DIRECTIONS = ["left", "right", "up", "down"] as const
 export type ReaderMouseGestureDirection = typeof READER_MOUSE_GESTURE_DIRECTIONS[number]
-
-export interface ReaderInputActionMetadata {
-  label: string
-  category: ReaderInputActionCategory
-}
 
 export type ReaderInputDescriptor =
   | { device: "keyboard"; code: string; trigger?: "down" | "hold"; durationMs?: number; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
@@ -60,36 +63,29 @@ export interface ReaderInputConflict {
 export const READER_INPUT_CONTEXT_PRIORITY: Readonly<Record<ReaderInputContext, number>> = {
   global: 0,
   reader: 100,
+  video: 150,
   panel: 200,
   editor: 300,
   modal: 400,
 }
 
-export const READER_INPUT_ACTION_METADATA: Readonly<Record<ReaderInputAction, ReaderInputActionMetadata>> = {
-  "reader.previous-page": { label: "上一页", category: "navigation" },
-  "reader.next-page": { label: "下一页", category: "navigation" },
-  "reader.zoom-in": { label: "放大", category: "view" },
-  "reader.zoom-out": { label: "缩小", category: "view" },
-  "reader.reset-view": { label: "重置视图", category: "view" },
-  "reader.rotate-clockwise": { label: "顺时针旋转", category: "view" },
-  "reader.open-settings": { label: "打开设置", category: "session" },
-  "radial.open-default": { label: "打开默认轮盘", category: "radial" },
-}
-
-export const READER_INPUT_ACTION_LABELS: Readonly<Record<ReaderInputAction, string>> = Object.fromEntries(
-  READER_INPUT_ACTIONS.map((action) => [action, READER_INPUT_ACTION_METADATA[action].label]),
-) as Record<ReaderInputAction, string>
-
 export const READER_INPUT_ACTION_CATEGORY_LABELS: Readonly<Record<ReaderInputActionCategory, string>> = {
   navigation: "导航",
+  zoom: "缩放",
   view: "视图",
-  session: "会话",
   radial: "轮盘",
+  file: "文件",
+  video: "视频",
+  upscale: "超分",
+  slideshow: "幻灯片",
+  "viewer-toggle": "显示开关",
+  session: "会话",
 }
 
 export const READER_INPUT_CONTEXT_LABELS: Readonly<Record<ReaderInputContext, string>> = {
   global: "全局",
   reader: "阅读器",
+  video: "视频模式",
   panel: "面板",
   editor: "编辑器",
   modal: "对话框",
@@ -104,6 +100,8 @@ export const DEFAULT_READER_INPUT_BINDINGS: ReaderInputBindingsConfig = {
     binding("keyboard-reset", "reader.reset-view", "reader", { device: "keyboard", code: "Digit0" }),
     binding("keyboard-rotate", "reader.rotate-clockwise", "reader", { device: "keyboard", code: "KeyR" }),
     binding("keyboard-radial", "radial.open-default", "reader", { device: "keyboard", code: "Enter", trigger: "hold", durationMs: 450 }),
+    binding("keyboard-radial-confirm-space", "radial.confirm", "reader", { device: "keyboard", code: "Space" }),
+    binding("keyboard-radial-confirm-enter", "radial.confirm", "reader", { device: "keyboard", code: "Enter" }),
     binding("touch-previous", "reader.previous-page", "reader", { device: "touch", gesture: "swipe-right", fingers: 1 }),
     binding("touch-next", "reader.next-page", "reader", { device: "touch", gesture: "swipe-left", fingers: 1 }),
     binding("gamepad-previous", "reader.previous-page", "reader", { device: "gamepad", button: 4 }),
