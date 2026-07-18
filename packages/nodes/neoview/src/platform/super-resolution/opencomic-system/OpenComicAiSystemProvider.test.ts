@@ -137,6 +137,8 @@ function createProvider(options: {
 
 function fakeRuntime() {
   return {
+    modelsList: [request.model.id],
+    model: vi.fn(() => ({ name: "AnimeVideoV3", upscaler: "upscayl", scales: [2] })),
     setBinaryResolver: vi.fn(),
     setModelsPath: vi.fn(),
     setConcurrentDaemons: vi.fn(),

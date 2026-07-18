@@ -26,7 +26,18 @@ export interface OpenComicSystemStep {
   tta?: boolean
 }
 
+export interface OpenComicSystemModelInfo {
+  name?: string
+  upscaler: SuperResolutionEngine
+  scales: readonly number[]
+  folder?: string
+  files?: readonly string[]
+  scaleFiles?: Readonly<Record<number, string>>
+}
+
 export interface OpenComicSystemRuntime {
+  readonly modelsList: readonly string[]
+  model(modelId: string): OpenComicSystemModelInfo
   setBinaryResolver(resolver?: (request: OpenComicSystemBinaryRequest) => string): void
   setModelsPath(path: string): void
   setConcurrentDaemons(count: number): void
