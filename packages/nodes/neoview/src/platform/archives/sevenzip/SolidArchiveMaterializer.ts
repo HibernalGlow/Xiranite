@@ -44,6 +44,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   readonly #executable: SevenZipExecutable
   readonly #entries: readonly ArchiveEntry[]
   readonly #entriesById: ReadonlyMap<string, ArchiveEntry>
+  readonly #entryIndexes: ReadonlyMap<string, number>
   readonly #resourceScheduler: ResourceScheduler
   readonly #tempDirectory?: string
   readonly #rawPassword?: Uint8Array
@@ -70,6 +71,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     this.#executable = options.executable
     this.#entries = options.entries.filter((entry) => entry.kind === "file")
     this.#entriesById = new Map(this.#entries.map((entry) => [entry.id, entry]))
+    this.#entryIndexes = new Map(this.#entries.map((entry, index) => [entry.id, index]))
     this.#resourceScheduler = options.resourceScheduler
     this.#tempDirectory = options.tempDirectory
     this.#memoryKeyPrefix = options.memoryKeyPrefix ?? options.sourcePath
@@ -139,7 +141,8 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     signal?.throwIfAborted()
     const target = this.#paths.get(entryId)
     if (!target) throw new Error(`Solid archive entry was not indexed: ${entryId}`)
-    const entryIndex = this.#entries.findIndex((entry) => entry.id === entryId)
+    const entryIndex = this.#entryIndexes.get(entryId)
+    if (entryIndex === undefined) throw new Error(`Solid archive entry was not indexed: ${entryId}`)
     this.#requiredEntryIndex = Math.max(this.#requiredEntryIndex, entryIndex)
     this.#start()
     return waitWithSignal(target.promise, signal)
@@ -378,8 +381,8 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     let target = this.#requiredEntryIndex
     for (const demand of this.#preloadDemands.values()) {
       for (const entryId of demand.entryIds) {
-        const index = this.#entries.findIndex((entry) => entry.id === entryId)
-        target = Math.max(target, index)
+        const index = this.#entryIndexes.get(entryId)
+        if (index !== undefined) target = Math.max(target, index)
       }
     }
     return target < this.#entries.length - 1 && entryIndex >= target
