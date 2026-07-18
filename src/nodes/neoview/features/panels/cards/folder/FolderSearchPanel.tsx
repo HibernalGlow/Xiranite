@@ -19,6 +19,7 @@ import type {
   ReaderHttpClient,
   ReaderSearchHistoryDto,
 } from "../../../../adapters/reader-http-client"
+import { createFolderErrorState } from "./FolderErrorState"
 
 const SEARCH_RESULT_LIMIT = 512
 const SEARCH_HISTORY_LIMIT = 20
@@ -122,7 +123,7 @@ export default function FolderSearchPanel({
     } catch (cause) {
       if (controller.signal.aborted) return
       setStreamedEntries([])
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setError(createFolderErrorState(cause, "search").message)
     } finally {
       if (requestRef.current === controller) {
         requestRef.current = undefined
@@ -145,7 +146,7 @@ export default function FolderSearchPanel({
         }
       }
     } catch (cause) {
-      if (!controller.signal.aborted) setHistoryError(cause instanceof Error ? cause.message : String(cause))
+      if (!controller.signal.aborted) setHistoryError(createFolderErrorState(cause, "search").message)
     } finally {
       if (historyRequestRef.current === controller) {
         historyRequestRef.current = undefined
@@ -178,7 +179,7 @@ export default function FolderSearchPanel({
         setHistory((current) => current.filter((entry) => entry.query !== queryToRemove))
       }
     } catch (cause) {
-      if (!controller.signal.aborted) setHistoryError(cause instanceof Error ? cause.message : String(cause))
+      if (!controller.signal.aborted) setHistoryError(createFolderErrorState(cause, "search").message)
     } finally {
       if (historyRequestRef.current === controller) historyRequestRef.current = undefined
     }
@@ -195,7 +196,7 @@ export default function FolderSearchPanel({
         setShowHistory(false)
       }
     } catch (cause) {
-      if (!controller.signal.aborted) setHistoryError(cause instanceof Error ? cause.message : String(cause))
+      if (!controller.signal.aborted) setHistoryError(createFolderErrorState(cause, "search").message)
     } finally {
       if (historyRequestRef.current === controller) historyRequestRef.current = undefined
     }
