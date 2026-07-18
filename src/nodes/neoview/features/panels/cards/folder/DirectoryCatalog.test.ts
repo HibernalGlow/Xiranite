@@ -30,6 +30,20 @@ describe("DirectoryCatalog", () => {
     expect([...catalog.pageMetadataFields.keys()].toSorted((left, right) => left - right)).toEqual([256, 384, 512])
   })
 
+  it("[neoview.folder.catalog-100k-bound] keeps a 100K remote catalog sparse after jumping to its tail", () => {
+    let catalog = createDirectoryCatalog(page(0, 100_000))
+    for (const cursor of [128, 256, 384, 512, 640, 99_872]) catalog = mergeDirectoryPage(catalog, page(cursor, 100_000))
+
+    catalog = trimDirectoryPages(catalog, 99_900, 3)
+
+    const retainedEntries = [...catalog.pages.values()].reduce((total, entries) => total + entries.length, 0)
+    expect(catalog.total).toBe(100_000)
+    expect(catalog.pages.size).toBeLessThanOrEqual(3)
+    expect(retainedEntries).toBeLessThanOrEqual(384)
+    expect(directoryEntryAt(catalog, 99_999)?.path).toBe("D:/library/item-99999")
+    expect(directoryEntryAt(catalog, 0)).toBeUndefined()
+  })
+
   it("[neoview.folder.filter-catalog] normalizes older pages and preserves server-advertised filters", () => {
     expect(createDirectoryCatalog(page(0, 1))).toMatchObject({
       filter: "all",
