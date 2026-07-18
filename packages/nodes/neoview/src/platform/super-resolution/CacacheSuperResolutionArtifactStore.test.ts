@@ -63,6 +63,14 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.artifact-producer-failure] preserves provider failures for progress and retry handling", async () => {
+    const store = createStore()
+    const failure = new Error("GPU process exited")
+    await expect(store.publish(key("failed"), metadata, async () => { throw failure })).rejects.toBe(failure)
+    expect(await store.snapshot()).toMatchObject({ entries: 0, writes: 0, rejectedWrites: 1 })
+    await store.close()
+  })
+
   it("[neoview.super-resolution.artifact-maintenance] clears one book, expires old entries, and trims to budget", async () => {
     let now = 1
     const store = createStore({ maxBytes: 48, maxEntryBytes: 24, maxAgeMs: 10, minimumRetentionMs: 0, now: () => now })

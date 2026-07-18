@@ -214,6 +214,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   async #publishOne(key: string, metadata: SuperResolutionArtifactMetadata, producer: SuperResolutionArtifactProducer): Promise<boolean> {
     const api = await this.#api()
     this.#activeStaging += 1
+    let producerCompleted = false
     try {
       return await (api.tmp.withTmp as unknown as (
         root: string,
@@ -222,6 +223,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
       ) => Promise<boolean>)(this.#root, { tmpPrefix: "xr-upscale-" }, async (directory) => {
         const destinationPath = join(directory, `artifact.${metadata.extension}`)
         await producer(destinationPath, new AbortController().signal)
+        producerCompleted = true
         const file = await stat(destinationPath)
         if (!file.isFile() || file.size <= 0 || file.size > this.#maxEntryBytes) {
           this.#rejectedWrites += 1
@@ -238,8 +240,9 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
         this.#writes += 1
         return true
       })
-    } catch {
+    } catch (error) {
       this.#rejectedWrites += 1
+      if (!producerCompleted) throw error
       return false
     } finally {
       this.#activeStaging = Math.max(0, this.#activeStaging - 1)
