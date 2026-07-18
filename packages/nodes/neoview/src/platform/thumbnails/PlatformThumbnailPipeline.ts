@@ -27,6 +27,7 @@ import type {
 } from "../../ports/MosaicImageComposer.js"
 import { FolderRepresentativeIndex } from "./FolderRepresentativeIndex.js"
 import { transformPageSource } from "../images/transform-page-source.js"
+import { readThumbnailStoreBatch } from "./ThumbnailStoreBatchReader.js"
 
 export interface PlatformThumbnailPipelineOptions {
   loadImageTransformer?: ImageTransformerLoader
@@ -184,7 +185,12 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const primedKeys = new Set<string>()
     for (const [category, categoryPages] of byCategory) {
       options.signal?.throwIfAborted()
-      const records = await store.getMany(categoryPages.map((page) => page.thumbnailSource!.key), category)
+      const records = await readThumbnailStoreBatch(
+        store,
+        categoryPages.map((page) => page.thumbnailSource!.key),
+        category,
+        { resourceScheduler: this.#resourceScheduler, priority: "view", signal: options.signal },
+      )
       options.signal?.throwIfAborted()
       for (const page of categoryPages) {
         const record = records.get(page.thumbnailSource!.key)
@@ -228,7 +234,12 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const primedKeys = new Set<string>()
     for (const [category, categorySources] of byCategory) {
       options.signal?.throwIfAborted()
-      const records = await store.getMany([...new Set(categorySources.map((source) => source.path))], category)
+      const records = await readThumbnailStoreBatch(
+        store,
+        [...new Set(categorySources.map((source) => source.path))],
+        category,
+        { resourceScheduler: this.#resourceScheduler, priority: "view", signal: options.signal },
+      )
       options.signal?.throwIfAborted()
       for (const source of categorySources) {
         const record = records.get(source.path)
