@@ -19,8 +19,8 @@ const LazyPreloadActionControls = lazy(() => import("./PreloadActionControls").t
 const PAGES_BEHIND = 3
 const PAGES_AHEAD = 5
 
-export default function PreloadStatusCard({ session, client, disabled, onPreloadAction }: ReaderPanelContext) {
-  if (!session) return <PreloadStatusEmptyView />
+export default function PreloadStatusCard({ session, client, disabled, panelActive = true, onPreloadAction }: ReaderPanelContext) {
+  if (!session || !panelActive) return <PreloadStatusEmptyView />
   return (
     <PreloadStatusContent
       client={client}
