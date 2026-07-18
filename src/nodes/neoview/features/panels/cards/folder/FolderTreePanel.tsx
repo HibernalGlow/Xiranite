@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import type { ReaderDirectoryRootDto, ReaderDirectoryTreeChangesDto, ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import { normalizeFolderNavigationPath } from "./DirectoryCatalog"
+import { createFolderErrorState } from "./FolderErrorState"
 
 const TREE_ROW_HEIGHT = 30
 const MAXIMUM_TREE_PAGES = 512
@@ -103,7 +104,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
       ))
     } catch (error) {
       if (requestSignal.aborted) return
-      setErrors((current) => boundedMapWith(current, key, errorMessage(error), MAXIMUM_TREE_PAGES))
+      setErrors((current) => boundedMapWith(current, key, createFolderErrorState(error, "tree").message, MAXIMUM_TREE_PAGES))
     } finally {
       requestSignal.removeEventListener("abort", clearRequest)
       clearRequest()
@@ -148,7 +149,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
       }
     })().catch((error) => {
       if (controller.signal.aborted) return
-      setErrors((current) => boundedMapWith(current, directoryPathKey(currentPath), errorMessage(error), MAXIMUM_TREE_PAGES))
+      setErrors((current) => boundedMapWith(current, directoryPathKey(currentPath), createFolderErrorState(error, "tree").message, MAXIMUM_TREE_PAGES))
     })
     return () => controller.abort()
 
@@ -513,8 +514,4 @@ function mapWithout<T>(values: ReadonlyMap<string, T>, key: string): ReadonlyMap
   const next = new Map(values)
   next.delete(key)
   return next
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
