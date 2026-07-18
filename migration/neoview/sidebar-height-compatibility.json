@@ -277,7 +277,7 @@
     {
       "id": "sidebar-height.states", "category": "interaction-states", "title": "完整控件与持久化状态", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
       "targetContract": "Cover default, hover, focus-visible, selected, disabled-at-full, pending, error, rollback, collapsed, hidden and disposed states without ambiguous values.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.states"], "notes": "Legacy has no explicit error UI; XR must provide coherent rollback/error feedback."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.saving", "neoview.sidebar-height.save-retry"], "plannedTestIds": [], "notes": "Legacy has no explicit error UI; XR provides coherent rollback/error feedback."
     },
     {
       "id": "sidebar-height.accessibility", "category": "keyboard-accessibility", "title": "键盘、触摸与语义等价操作", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],

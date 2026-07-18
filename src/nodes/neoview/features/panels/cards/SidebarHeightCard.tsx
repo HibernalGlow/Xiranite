@@ -8,7 +8,7 @@
  * @migration-status adapted
  */
 import { Maximize2, MousePointer2, MoveHorizontal, MoveVertical, PanelLeft, PanelRight } from "lucide-react"
-import { useEffect, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -53,14 +53,41 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
   const [right, setRight] = useState(() => shell.sidebars.right)
   const [triggers, setTriggers] = useState(() => triggerSnapshot(shell))
   const [interaction, setInteraction] = useState(() => shell.sidebarInteraction ?? DEFAULT_INTERACTION)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string>()
+  const retryPatchRef = useRef<ReaderSidebarLayoutPatch>()
+  const mountedRef = useRef(true)
+
+  useEffect(() => () => { mountedRef.current = false }, [])
 
   useEffect(() => setLeft(shell.sidebars.left), [shell.sidebars.left])
   useEffect(() => setRight(shell.sidebars.right), [shell.sidebars.right])
   useEffect(() => setTriggers(triggerSnapshot(shell)), [shell.edges])
   useEffect(() => setInteraction(shell.sidebarInteraction ?? DEFAULT_INTERACTION), [shell.sidebarInteraction])
 
+  async function commitSidebarLayout(patch: ReaderSidebarLayoutPatch) {
+    retryPatchRef.current = patch
+    setSaveError(undefined)
+    setSaving(true)
+    try {
+      await onSidebarLayout(patch)
+      retryPatchRef.current = undefined
+    } catch (error) {
+      if (mountedRef.current) setSaveError(errorMessage(error))
+    } finally {
+      if (mountedRef.current) setSaving(false)
+    }
+  }
+
+  function retrySidebarLayout() {
+    const patch = retryPatchRef.current
+    if (patch) void commitSidebarLayout(patch)
+  }
+
+  const controlsDisabled = disabled || saving
+
   return (
-    <section className="@container space-y-5 text-xs text-muted-foreground" data-neoview-card="sidebar-height" data-sidebar-height-state="ready">
+    <section className="@container space-y-5 text-xs text-muted-foreground" data-neoview-card="sidebar-height" data-sidebar-height-state="ready" aria-busy={saving}>
       <div className="flex items-start justify-between gap-3 pb-1">
         <p className="max-w-[34rem] text-[10px] leading-relaxed text-muted-foreground/70">
           自由调整侧边栏的尺寸与位置。高度 100% 时位置控制禁用。
@@ -69,7 +96,7 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
           <span>显示拖拽手柄</span>
           <Switch
             checked={interaction.showDragHandle}
-            disabled={disabled}
+            disabled={controlsDisabled}
             aria-label="显示拖拽手柄"
             onCheckedChange={(checked) => {
               setInteraction((current) => ({ ...current, showDragHandle: checked }))
@@ -79,12 +106,19 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
         </label>
       </div>
 
+      {saveError ? (
+        <div className="flex items-center justify-between gap-2 rounded border border-destructive/40 bg-destructive/10 p-2 text-[10px] text-destructive" role="alert">
+          <span className="min-w-0 break-words">保存失败：{saveError}</span>
+          <Button type="button" size="sm" variant="outline" disabled={saving} onClick={retrySidebarLayout}>重试</Button>
+        </div>
+      ) : null}
+
       <div className="space-y-2 rounded-md border border-border/40 bg-accent/10 p-2.5">
         <label className="flex cursor-pointer items-center justify-between gap-2 text-[10px]">
           <span>空白区点击收回侧边栏</span>
           <Switch
             checked={interaction.enableBlankAreaCollapse}
-            disabled={disabled}
+            disabled={controlsDisabled}
             aria-label="空白区点击收回侧边栏"
             onCheckedChange={(checked) => {
               setInteraction((current) => ({ ...current, enableBlankAreaCollapse: checked }))
@@ -100,7 +134,7 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
               variant={interaction.blankAreaCollapseMode === mode ? "default" : "outline"}
               size="sm"
               className="h-6 px-2 text-[10px]"
-              disabled={disabled || !interaction.enableBlankAreaCollapse}
+              disabled={controlsDisabled || !interaction.enableBlankAreaCollapse}
               aria-pressed={interaction.blankAreaCollapseMode === mode}
               onClick={() => {
                 setInteraction((current) => ({ ...current, blankAreaCollapseMode: mode }))
@@ -118,16 +152,16 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
         <SidebarGeometry
           side="left"
           value={left}
-          disabled={disabled}
+          disabled={controlsDisabled}
           onPreview={setLeft}
-          onCommit={(patch) => onSidebarLayout({ side: "left", ...patch })}
+          onCommit={(patch) => void commitSidebarLayout({ side: "left", ...patch })}
         />
         <SidebarGeometry
           side="right"
           value={right}
-          disabled={disabled}
+          disabled={controlsDisabled}
           onPreview={setRight}
-          onCommit={(patch) => onSidebarLayout({ side: "right", ...patch })}
+          onCommit={(patch) => void commitSidebarLayout({ side: "right", ...patch })}
         />
       </div>
 
@@ -145,7 +179,7 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
                 value={triggers[field.edge]}
                 min={field.min}
                 max={field.max}
-                disabled={disabled}
+                disabled={controlsDisabled}
                 compact
                 onPreview={(value) => setTriggers((current) => ({ ...current, [field.edge]: value }))}
                 onCommit={() => onTriggerSize(field.edge, triggers[field.edge])}
@@ -288,4 +322,8 @@ function finishPointer(event: PointerEvent<HTMLInputElement>, commit: () => void
 
 function finishKey(event: KeyboardEvent<HTMLInputElement>, commit: () => void): void {
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) commit()
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
