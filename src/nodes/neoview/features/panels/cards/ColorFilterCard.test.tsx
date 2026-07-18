@@ -38,4 +38,18 @@ describe("ColorFilterCard", () => {
     expect(screen.getByRole("slider", { name: "亮度" }).hasAttribute("disabled")).toBe(false)
     expect(screen.getByRole("checkbox", { name: "上色" }).getAttribute("data-disabled")).toBeNull()
   })
+
+  it("[neoview.color-filter.inactive-zero-subscription] keeps an empty shell while hidden and subscribes after activation", async () => {
+    const store = createReaderColorFilterStore({ persist: async (settings) => settings })
+    const subscribe = vi.spyOn(store, "subscribe")
+    const context = { colorFilter: store, disabled: false, client: {} as never, onGoTo: () => undefined }
+    const view = render(<DockedColorFilterCard {...context} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(subscribe).not.toHaveBeenCalled()
+
+    view.rerender(<DockedColorFilterCard {...context} panelActive />)
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalled())
+    expect(view.container.querySelector('[data-neoview-card="color-filter"]')).toBeTruthy()
+  })
 })
