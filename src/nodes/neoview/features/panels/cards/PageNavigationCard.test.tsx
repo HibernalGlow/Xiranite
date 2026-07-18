@@ -8,6 +8,14 @@ import { buildPageListContextMenuItems, commitPageClipboardCopy } from "./page-l
 afterEach(cleanup)
 
 describe("PageNavigationCard", () => {
+  it("[neoview.page-list.inactive-zero-work] keeps an empty shell without loading page batches while hidden", async () => {
+    const listPageCatalog = vi.fn(async () => ({ pages: [page(0)], total: 1 }))
+    const view = render(<PageNavigationCard {...context(clientWith({ listPageCatalog }))} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(listPageCatalog).not.toHaveBeenCalled()
+  })
+
   it("[neoview.page-list.settings] restores and persists view/follow preferences without navigating", async () => {
     const listPageCatalog = vi.fn(async () => ({ pages: [page(0)], total: 100 }))
     const onGoTo = vi.fn()

@@ -1,3 +1,8 @@
+/**
+ * @migrated-from src/lib/cards/info/BookInfoCard.svelte
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/BookInfoCard.tsx
+ * @migration-status adapted
+ */
 import { RefreshCw } from "lucide-react"
 import { projectReaderBookInformation } from "@xiranite/node-neoview/ui-core"
 import type { ReactNode } from "react"
@@ -6,7 +11,8 @@ import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { useReaderMetadata } from "./useReaderMetadata"
 
-export default function BookInformationCard({ session, client }: ReaderPanelContext) {
+export default function BookInformationCard({ session, client, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
   if (!session) return <ReaderCardEmptyState>打开书本后显示书籍信息</ReaderCardEmptyState>
   return <BookInformationContent session={session} client={client} />
 }

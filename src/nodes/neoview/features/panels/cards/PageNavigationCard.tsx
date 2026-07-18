@@ -1,3 +1,8 @@
+/**
+ * @migrated-from src/lib/cards/pageList/PageListCard.svelte
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/pageList/PageListCard.tsx
+ * @migration-status adapted
+ */
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Navigation, Search } from "lucide-react"
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
@@ -31,6 +36,7 @@ const PageListContextActions = lazy(() => import("./page-list/PageListContextAct
 const catalogBatchModule = import("./page-list/requestPageCatalogBatch")
 
 export default function PageNavigationCard(context: ReaderPanelContext) {
+  if (context.panelActive === false) return <ReaderCardEmptyState />
   if (!context.session) return <ReaderCardEmptyState>打开书本后显示页面导航</ReaderCardEmptyState>
   return (
     <PageListCard
