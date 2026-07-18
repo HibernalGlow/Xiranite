@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderSessionDto, ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
 import { ReaderPreloadStatusStore } from "../../reader/ReaderPreloadStatusStore"
-import PreloadStatusCard, { formatPreloadBytes, PreloadStatusView } from "./PreloadStatusCard"
+import PreloadStatusCard, { formatPreloadBytes, PreloadStatusEmptyView, PreloadStatusView } from "./PreloadStatusCard"
 
 afterEach(() => {
   cleanup()
@@ -11,6 +11,18 @@ afterEach(() => {
 })
 
 describe("PreloadStatusCard", () => {
+  it("[neoview.preload-status.resident] keeps the legacy summary shell visible before a Reader session exists", () => {
+    const view = render(<PreloadStatusCard {...panelContext(vi.fn(async () => diagnosticsDto()), undefined)} />)
+
+    expect(view.container.querySelector('[data-neoview-preload-status="true"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-preload-empty="true"]')).toBeTruthy()
+    expect(screen.getByText("0 / 0")).toBeTruthy()
+    expect(screen.getByText("--")).toBeTruthy()
+    expect(screen.getByText("附近页缓存")).toBeTruthy()
+    expect(screen.getByText("等待书本")).toBeTruthy()
+    expect(screen.queryByText("打开书本后显示预加载状态")).toBeNull()
+    view.rerender(<PreloadStatusEmptyView />)
+  })
   it("[neoview.preload-status.nearby-window] [neoview.preload-status.ui] [neoview.preload-status.accessibility] renders the bounded legacy page window and actual browser events", () => {
     const store = new ReaderPreloadStatusStore(4)
     const view = render(
@@ -244,7 +256,7 @@ describe("PreloadStatusCard", () => {
 
 function panelContext(
   diagnostics: NonNullable<ReaderHttpClient["diagnostics"]>,
-  session: ReaderSessionDto,
+  session?: ReaderSessionDto,
 ) {
   return {
     session,

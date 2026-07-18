@@ -12,7 +12,6 @@ import {
   type ReaderPreloadStatusStore,
 } from "../../reader/ReaderPreloadStatusStore"
 import type { ReaderPanelContext } from "../registry"
-import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { useReaderPreloadDiagnostics } from "./useReaderPreloadDiagnostics"
 
 const LazyPreloadActionControls = lazy(() => import("./PreloadActionControls").then((module) => ({ default: module.PreloadActionControls })))
@@ -21,7 +20,7 @@ const PAGES_BEHIND = 3
 const PAGES_AHEAD = 5
 
 export default function PreloadStatusCard({ session, client, disabled, onPreloadAction }: ReaderPanelContext) {
-  if (!session) return <ReaderCardEmptyState>打开书本后显示预加载状态</ReaderCardEmptyState>
+  if (!session) return <PreloadStatusEmptyView />
   return (
     <PreloadStatusContent
       client={client}
@@ -248,6 +247,24 @@ function PageStatus({ pageIndex, current, status, serverOutcome, serverAvailable
     >
       <span className="block text-[10px]">P{pageIndex + 1}</span>
       <span className="block text-[9px]">{label}</span>
+    </div>
+  )
+}
+
+/** Keep the legacy summary shell mounted before a Reader session exists. */
+export function PreloadStatusEmptyView() {
+  return (
+    <div className="space-y-3 text-xs" data-neoview-preload-status="true" data-preload-empty="true">
+      <div className="grid grid-cols-2 gap-2" aria-label="预加载摘要">
+        <Metric metricId="current-page" label="当前页" value="0 / 0" />
+        <Metric metricId="memory-entries" label="内存池" value="--" />
+      </div>
+      <section className="space-y-1.5" aria-labelledby="nearby-preload-empty-heading">
+        <div className="flex items-center justify-between">
+          <h3 id="nearby-preload-empty-heading" className="text-[10px] font-normal text-muted-foreground">附近页缓存</h3>
+          <span className="text-[10px] text-muted-foreground" aria-live="polite">等待书本</span>
+        </div>
+      </section>
     </div>
   )
 }

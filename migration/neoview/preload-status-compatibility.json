@@ -308,12 +308,13 @@
       },
       "testIds": [
         "neoview.preload-status.current-page",
-        "neoview.preload-status.e2e"
+        "neoview.preload-status.e2e",
+        "neoview.preload-status.resident-1920x1080"
       ],
       "plannedTestIds": [
         "neoview.card.preload-status-live"
       ],
-      "notes": "The React Card derives this field from the active session frame and book snapshot; focused coverage freezes the zero-page 0 / 0 boundary without rendering nearby-page work, and Chromium covers an active book."
+      "notes": "The React Card derives this field from the active session frame and book snapshot; before a session it keeps the legacy 0 / 0 summary shell resident, while Chromium covers both the empty and active states."
     },
     {
       "id": "preload.memory-pool",
@@ -565,13 +566,14 @@
       },
       "testIds": [
         "neoview.preload-status.states",
-        "neoview.preload-status.session-switch"
+        "neoview.preload-status.session-switch",
+        "neoview.preload-status.resident-1920x1080"
       ],
       "plannedTestIds": [
         "neoview.preload-status.retry",
         "neoview.preload-status.partial-metrics"
       ],
-      "notes": "The Card covers loading, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish."
+      "notes": "The Card covers loading, resident pre-session, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish."
     },
     {
       "id": "preload.shell",
@@ -602,10 +604,11 @@
         "neoview.preload-status.chunk",
         "neoview.preload-status.action-chunk",
         "neoview.preload-status.e2e",
-        "neoview.card.header-icon"
+        "neoview.card.header-icon",
+        "neoview.preload-status.resident-1920x1080"
       ],
       "plannedTestIds": [],
-      "notes": "The shared shell, source-verified Loader header icon, lazy registry and collapse zero-DOM lifecycle are gated. The base Card is a 7,709-byte deferred chunk and its action controller is a separate 2,368-byte second-level chunk; independent CardWindow chrome remains owned by the shared window migration."
+      "notes": "The shared shell, source-verified Loader header icon, lazy registry, resident pre-session body and collapse zero-DOM lifecycle are gated. The base Card is a 7,709-byte deferred chunk and its action controller is a separate 2,368-byte second-level chunk; independent CardWindow chrome remains owned by the shared window migration."
     },
     {
       "id": "preload.data-contract",
@@ -764,10 +767,11 @@
       "testIds": [
         "neoview.preload-status.e2e",
         "neoview.preload-status.ui",
-        "neoview.card.preload-status-live"
+        "neoview.card.preload-status-live",
+        "neoview.preload-status.resident-1920x1080"
       ],
       "plannedTestIds": ["neoview.preload-status.visual-baseline"],
-      "notes": "Scripted Playwright characterization now compares the legacy CardWindow and the XR Reader at the same 1920x1080 viewport. It freezes the two-column summary, compact 10px labels and approximately 320px sidebar geometry; the earlier 420x360 capture is retained only as historical stress evidence, not as the visual baseline. React preserves that skeleton, restores legacy KB/MB precision and cached emerald hierarchy, then adds separately labelled browser/server states and safe actions. Active-state pixel baseline and shared independent-window parity remain pending."
+      "notes": "Scripted Playwright characterization compares the legacy CardWindow and XR Reader at 1920x1080. The resident harness now verifies the legacy two-column empty summary before opening, while the active target verifies compact labels, memory meter, nearby grid and server/browser state hierarchy; independent-window pixel parity remains pending."
     },
     {
       "id": "preload.image-stability",
