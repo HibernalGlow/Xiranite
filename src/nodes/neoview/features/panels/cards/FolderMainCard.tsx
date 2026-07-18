@@ -382,6 +382,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
 
   const refreshVisibleThumbnails = () => refreshThumbnails()
   const refreshSelectedThumbnails = () => refreshThumbnails(selectedPaths)
+  function cancelThumbnailRefresh() {
+    if (!thumbnailRefreshPending) return
+    thumbnailRequestRef.current?.abort(new DOMException("Thumbnail refresh cancelled", "AbortError"))
+    thumbnailRequestRef.current = undefined
+    thumbnailGenerationRef.current += 1
+    setThumbnailRefreshPending(false)
+  }
 
   const restoreIndex = catalog && restoreState
     ? Math.min(Math.max(restoreState.focusedIndex ?? restoreState.anchorIndex, 0), Math.max(0, catalog.total - 1))
@@ -994,6 +1001,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setActiveToolbar((current) => current === toolbar ? undefined : toolbar)
   }
   const actionHandleItems = [
+    { id: "thumbnail-refresh-cancel", label: "\u53d6\u6d88\u7f29\u7565\u56fe\u91cd\u8f7d", preview: "\u53d6\u6d88\u6b63\u5728\u8fdb\u884c\u7684\u7f29\u7565\u56fe\u91cd\u8f7d", icon: <RefreshCw className="size-4" />, disabled: !thumbnailRefreshPending, active: thumbnailRefreshPending, onSelect: cancelThumbnailRefresh },
     { id: "thumbnail-refresh-selected", label: "\u91cd\u8f7d\u9009\u4e2d\u7f29\u7565\u56fe", preview: "\u91cd\u8f7d\u5df2\u9009\u6587\u4ef6\u7684\u7f29\u7565\u56fe", icon: <RefreshCw className="size-4" />, disabled: thumbnailRefreshPending || !selectedPaths.size || !client.registerLibraryThumbnails || !viewUsesThumbnails(viewMode), active: thumbnailRefreshPending, onSelect: () => { void refreshSelectedThumbnails() } },
     { id: "thumbnail-refresh", label: "\u91cd\u8f7d\u7f29\u7565\u56fe", preview: "\u91cd\u8f7d\u5f53\u524d\u53ef\u89c1\u9879\u7684\u7f29\u7565\u56fe", icon: <RefreshCw className="size-4" />, disabled: thumbnailRefreshPending || !client.registerLibraryThumbnails || !viewUsesThumbnails(viewMode), active: thumbnailRefreshPending, onSelect: () => { void refreshVisibleThumbnails() } },
     { id: "view", label: "视图", preview: "显示六种文件视图切换栏", icon: <CurrentViewIcon className="size-4" />, active: activeToolbar === "view", onSelect: () => toggleToolbar("view") },

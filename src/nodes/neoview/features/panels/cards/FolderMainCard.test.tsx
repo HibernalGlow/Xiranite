@@ -883,6 +883,49 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.thumbnail-refresh-cancel] aborts an in-flight thumbnail refresh without clearing cached URLs", async () => {
+    const opened = page({
+      entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    let refreshSignal: AbortSignal | undefined
+    let invocation = 0
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string; path: string }[], signal: AbortSignal) => {
+      invocation += 1
+      if (invocation > 1) {
+        refreshSignal = signal
+        await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }))
+      }
+      return {
+        contextId,
+        generation,
+        items: items.map((item) => ({ id: item.id, thumbnailUrl: "http://thumb.test/book", contentVersion: "v1" })),
+      }
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      registerLibraryThumbnails,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoGridMockContext.Provider>
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    await ui.findByTitle("C:/books/book.cbz")
+    selectFolderViewMode(ui, "\u5c01\u9762\u7f51\u683c")
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledOnce())
+    selectFolderHandleAction(ui, "\u91cd\u8f7d\u7f29\u7565\u56fe")
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2))
+    selectFolderHandleAction(ui, "\u53d6\u6d88\u7f29\u7565\u56fe\u91cd\u8f7d")
+    await waitFor(() => expect(refreshSignal?.aborted).toBe(true))
+    expect(ui.getByTitle("C:/books/book.cbz").querySelector("img")?.getAttribute("src")).toBe("http://thumb.test/book")
+    view.unmount()
+  })
+
   it("[neoview.folder.selection-range-ui] [neoview.folder.selection-bulk-ui] [neoview.folder.selection-chain-ui] [neoview.folder.selection-click-behavior] shares selection controls across list and grid renderers", async () => {
     const opened = page({
       total: 4,
