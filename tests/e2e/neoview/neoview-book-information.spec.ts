@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite"
 import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { expect, test } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 
 import { startBackend } from "../../../packages/backend/src/index"
@@ -41,6 +41,9 @@ test.beforeAll(async () => {
     "[nodes.neoview.panels.edges.left]",
     "enabled = false",
     "initial_visible = false",
+    "[nodes.neoview.reader]",
+    "reading_direction = \"left-to-right\"",
+    "double_page_view = false",
     "",
   ].join("\n"), "utf8")
   backend = await startBackend({
@@ -56,7 +59,11 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.book-information.e2e] [neoview.book-settings.direction-e2e] renders translated metadata and current-book controls", async ({ page }, testInfo) => {
+test("[neoview.book-information.e2e] [neoview.book-settings.persistence-e2e] [neoview.book-settings.inheritance-e2e] renders translated metadata and persistent current-book controls", async ({ page }, testInfo) => {
+  const imageRequests: string[] = []
+  page.on("request", (request) => {
+    if (request.resourceType() === "image") imageRequests.push(request.url())
+  })
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.route(`${backend.url}/reader/files/reveal`, (route) => route.fulfill({ status: 204 }))
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
@@ -109,17 +116,118 @@ test("[neoview.book-information.e2e] [neoview.book-settings.direction-e2e] rende
   await sidebar.getByRole("button", { name: "属性", exact: true }).click()
   const settingsCard = sidebar.locator('[data-reader-card="本书设置"]')
   await expect(settingsCard).toBeVisible()
+  const initialSettingsResponse = await page.request.get(`${backend.url}/reader/s/${opened.sessionId}/book-settings`, { headers: { "x-xiranite-token": backend.token } })
+  expect(initialSettingsResponse.status()).toBe(200)
+  const initialSettings = (await initialSettingsResponse.json()).settings as {
+    effective: { horizontalBook: boolean }
+  }
+  const initialHorizontalBook = initialSettings.effective.horizontalBook
+  const overriddenHorizontalBook = !initialHorizontalBook
   await expect(settingsCard.getByRole("button", { name: "左→右" })).toHaveAttribute("aria-pressed", "true")
-  const doubleResponse = page.waitForResponse((response) => response.url().endsWith(`/reader/s/${opened.sessionId}/options`) && response.request().method() === "PATCH")
-  await settingsCard.getByRole("button", { name: "双页" }).click()
-  expect((await doubleResponse).request().postDataJSON()).toEqual({ layout: { pageMode: "double" } })
+  await expect(settingsCard.getByRole("button", { name: "收藏本书" })).toHaveText("未收藏")
+  const activeImage = page.locator('img[alt="002.png"]')
+  await expect(activeImage).toBeVisible()
+  await activeImage.evaluate((node) => node.setAttribute("data-book-settings-image-instance", "stable"))
+  const activeAssetUrl = await activeImage.getAttribute("src")
+  const activeRequestsBeforeMetadata = imageRequests.filter((url) => url === activeAssetUrl).length
+
+  await patchBookSettings(page, opened.sessionId, settingsCard.getByRole("button", { name: "收藏本书" }), 0, { favorite: true })
+  await expect(settingsCard.getByRole("button", { name: "取消收藏本书" })).toHaveText("已收藏")
+  expect(await activeImage.getAttribute("data-book-settings-image-instance")).toBe("stable")
+  expect(imageRequests.filter((url) => url === activeAssetUrl)).toHaveLength(activeRequestsBeforeMetadata)
+
+  await patchBookSettings(page, opened.sessionId, settingsCard.getByRole("button", { name: "评分 4 星" }), 1, { rating: 4 })
+  await expect(settingsCard.getByRole("button", { name: "评分 4 星" })).toHaveAttribute("aria-pressed", "true")
+  expect(await activeImage.getAttribute("data-book-settings-image-instance")).toBe("stable")
+  expect(imageRequests.filter((url) => url === activeAssetUrl)).toHaveLength(activeRequestsBeforeMetadata)
+
+  const doubleResponse = await patchBookSettings(page, opened.sessionId, settingsCard.getByRole("button", { name: "双页" }), 2, { pageMode: "double" })
+  expect((await doubleResponse.json()).frame.layout.pageMode).toBe("double")
   await expect.poll(() => page.locator('[data-reader-frame="true"] img').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("alt")))).toEqual(["002.png", "003.png"])
 
-  const directionResponse = page.waitForResponse((response) => response.url().endsWith(`/reader/s/${opened.sessionId}/options`) && response.request().method() === "PATCH")
-  await settingsCard.getByRole("button", { name: "右→左" }).click()
-  expect((await directionResponse).request().postDataJSON()).toEqual({ direction: "right-to-left" })
+  const secondImage = page.locator('img[alt="002.png"]')
+  await secondImage.evaluate((node) => node.setAttribute("data-book-settings-frame-instance", "stable"))
+  const directionResponse = await patchBookSettings(page, opened.sessionId, settingsCard.getByRole("button", { name: "右→左" }), 3, { direction: "right-to-left" })
+  expect((await directionResponse.json()).frame.direction).toBe("right-to-left")
   await expect(settingsCard.getByRole("button", { name: "右→左" })).toHaveAttribute("aria-pressed", "true")
   await expect.poll(() => page.locator('[data-reader-frame="true"] img').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("alt")))).toEqual(["003.png", "002.png"])
+  expect(await secondImage.getAttribute("data-book-settings-frame-instance")).toBe("stable")
+
+  const horizontalResponse = await patchBookSettings(page, opened.sessionId, settingsCard.getByRole("switch", { name: "横版本子" }), 4, { horizontalBook: overriddenHorizontalBook })
+  expect((await horizontalResponse.json()).frame.layout.treatWidePageAsSingle).toBe(overriddenHorizontalBook)
+  await expect(settingsCard.getByRole("switch", { name: "横版本子" })).toHaveAttribute("data-state", overriddenHorizontalBook ? "checked" : "unchecked")
   expect(await settingsCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await settingsCard.screenshot({ path: testInfo.outputPath(`neoview-book-settings-${testInfo.project.name}.png`) })
+
+  const reopened = await reopenBook(page, backend.url)
+  await revealRightSidebar(page)
+  const reopenedSidebar = page.locator('[data-reader-sidebar="right"]')
+  await reopenedSidebar.getByRole("button", { name: "属性", exact: true }).click()
+  const reopenedSettings = reopenedSidebar.locator('[data-reader-card="本书设置"]')
+  await expect(reopenedSettings.getByRole("button", { name: "取消收藏本书" })).toHaveText("已收藏")
+  await expect(reopenedSettings.getByRole("button", { name: "评分 4 星" })).toHaveAttribute("aria-pressed", "true")
+  await expect(reopenedSettings.getByRole("button", { name: "右→左" })).toHaveAttribute("aria-pressed", "true")
+  await expect(reopenedSettings.getByRole("button", { name: "双页" })).toHaveAttribute("aria-pressed", "true")
+  await expect(reopenedSettings.getByRole("switch", { name: "横版本子" })).toHaveAttribute("data-state", overriddenHorizontalBook ? "checked" : "unchecked")
+  await expect(reopenedSettings.locator('[data-book-setting]').getByText("本书", { exact: true })).toHaveCount(5)
+
+  const resetLabels = ["收藏", "评分", "阅读方向", "显示模式", "横版本子"] as const
+  const resetKeys = ["favorite", "rating", "direction", "pageMode", "horizontalBook"] as const
+  for (let index = 0; index < resetLabels.length; index += 1) {
+    const key = resetKeys[index]!
+    await patchBookSettings(page, reopened.sessionId, reopenedSettings.getByRole("button", { name: `恢复继承${resetLabels[index]}` }), 5 + index, { [key]: null })
+  }
+  await expect(reopenedSettings.locator('[data-book-setting]').getByText("继承", { exact: true })).toHaveCount(5)
+  await expect(reopenedSettings.getByRole("button", { name: "收藏本书" })).toHaveText("未收藏")
+  await expect(reopenedSettings.getByRole("button", { name: "评分 1 星" })).toHaveText("☆")
+  await expect(reopenedSettings.getByRole("button", { name: "左→右" })).toHaveAttribute("aria-pressed", "true")
+  await expect(reopenedSettings.getByRole("button", { name: "单页" })).toHaveAttribute("aria-pressed", "true")
+  await expect(reopenedSettings.getByRole("switch", { name: "横版本子" })).toHaveAttribute("data-state", initialHorizontalBook ? "checked" : "unchecked")
+
+  const inherited = await reopenBook(page, backend.url)
+  const inheritedResponse = await page.request.get(`${backend.url}/reader/s/${inherited.sessionId}/book-settings`, { headers: { "x-xiranite-token": backend.token } })
+  expect(inheritedResponse.status()).toBe(200)
+  expect((await inheritedResponse.json()).settings).toMatchObject({
+    revision: 10,
+    overrides: {},
+    inherited: ["favorite", "rating", "direction", "pageMode", "horizontalBook"],
+    effective: { favorite: false, rating: 0, direction: "left-to-right", pageMode: "single", horizontalBook: initialHorizontalBook },
+  })
 })
+
+async function patchBookSettings(
+  page: Page,
+  sessionId: string,
+  control: Locator,
+  expectedRevision: number,
+  patch: Record<string, unknown>,
+) {
+  const response = page.waitForResponse((candidate) => candidate.url().endsWith(`/reader/s/${sessionId}/book-settings`) && candidate.request().method() === "PATCH")
+  await control.click()
+  const result = await response
+  expect(result.request().postDataJSON()).toEqual({ expectedRevision, patch })
+  expect(result.status()).toBe(200)
+  return result
+}
+
+async function reopenBook(page: Page, baseUrl: string): Promise<{ sessionId: string }> {
+  const viewport = page.viewportSize()!
+  await page.mouse.move(1, viewport.height / 2)
+  await expect(page.locator('[data-reader-sidebar="right"]')).toBeHidden()
+  await page.mouse.move(viewport.width / 2, 1)
+  const closeButton = page.locator('button[aria-label="关闭书籍"]')
+  await expect(closeButton).toBeVisible()
+  await closeButton.click()
+  await expect(page.getByRole("button", { name: "打开书籍" })).toBeVisible()
+  const response = page.waitForResponse((candidate) => candidate.url() === `${baseUrl}/reader/sessions` && candidate.request().method() === "POST")
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  const opened = await (await response).json() as { sessionId: string }
+  await expect(page.locator('[data-reader-frame="true"] img').first()).toBeVisible()
+  return opened
+}
+
+async function revealRightSidebar(page: Page) {
+  const viewport = page.viewportSize()!
+  await page.mouse.move(viewport.width - 1, viewport.height / 2)
+  await expect(page.locator('[data-reader-sidebar="right"]')).toBeVisible()
+}

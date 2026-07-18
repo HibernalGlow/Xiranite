@@ -134,6 +134,7 @@ if (thumbnailSurfaceChunk.bytes > 4 * 1024) {
 if (entrySurfaceChunk.bytes > 4 * 1024) {
   throw new Error(`NeoView shared entry surface chunk ${entrySurfaceChunk.fileName} is ${entrySurfaceChunk.bytes} bytes, above 4 KiB.`)
 }
+// [neoview.book-settings.chunk]
 const bookSettingsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookSettingsCard\.tsx$/i.test(module)))
 if (!bookSettingsChunk || bookSettingsChunk === readerSidebarChunk) {
   throw new Error("NeoView BookSettingsCard did not produce an independent deferred production chunk.")

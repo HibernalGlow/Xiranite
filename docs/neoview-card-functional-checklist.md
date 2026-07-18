@@ -2666,7 +2666,7 @@
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
 | `emmTags` | EMM 标签 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
-| `bookSettings` | 本书设置 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/properties/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `book-settings` |
+| `bookSettings` | 本书设置 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/properties/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `book-settings` |
 | `folderRatings` | 文件夹平均评分 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `favoriteTags` | 收藏标签快选 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `emmSync` | EMM 同步 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
@@ -2797,80 +2797,80 @@
 ##### 专用源码级验收项
 
 - [ ] `book-settings.identity` 使用规范书籍身份定位覆盖
-  - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Per-book overrides use the canonical opened book identity and never an editable path field, transient page URL or display title.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.persistence-e2e`
   - 计划测试：`neoview.card.book-settings-page-mode`
   - 备注：Core, HTTP and SQLite use the opened ReaderBook.id; remote DTOs expose that opaque identity and never accept a path as the settings key.
 - [ ] `book-settings.favorite` 查看和切换本书收藏
-  - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Favorite is a shared per-book boolean with inherited, explicit true and explicit false semantics and immediate optimistic feedback with rollback.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：The canonical nullable override and local/remote CLI/OpenTUI projections are implemented; the React Card now exposes optimistic favorite feedback through the same revisioned HTTP contract with rollback.
 - [ ] `book-settings.rating` 编辑本书五星评分
-  - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Rating supports unset and integers 1..5 through one shared book metadata contract without diverging from Folder rating fields.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：The canonical unset/1..5 backend, CLI and OpenTUI contract is implemented without media rebuild; the React five-star control now uses the same revisioned route. Folder rating unification remains pending.
-- [ ] `book-settings.direction` 覆盖本书阅读方向
-  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
+- [x] `book-settings.direction` 覆盖本书阅读方向
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Left-to-right and right-to-left update the active frame immediately, persist as a per-book override and can be reset to inherit the global default.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.control.session`、`neoview.book-settings.direction-e2e`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
-  - 计划测试：`neoview.card.book-settings-direction`
+  - 测试：`neoview.control.session`、`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
+  - 计划测试：无
   - 备注：The persistent route and shared GUI/CLI/OpenTUI controls apply immediately, restore on reopen and support null reset-to-inherit through the canonical revisioned contract.
 - [ ] `book-settings.page-mode` 覆盖本书单双页模式
-  - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Single and double page mode update the active frame immediately, persist only for this book and can be reset to inherit the global default.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：`neoview.card.book-settings-page-mode`
   - 备注：The backend and shared GUI/CLI/OpenTUI controls apply, persist, reopen and reset page-mode overrides through the canonical route.
 - [ ] `book-settings.horizontal-book` 覆盖横版本子策略
-  - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Horizontal-book is mapped to one documented wide-page/frame policy, applies immediately and does not create a parallel pairing algorithm.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.horizontal-policy`、`neoview.book-settings.cli`、`neoview.book-settings.tui`
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.horizontal-policy`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：The legacy value was storage-only; XR maps it to ReaderLayout.treatWidePageAsSingle and exposes it through shared GUI/CLI/OpenTUI controls.
-- [ ] `book-settings.apply` 立即应用、串行提交与失败回滚
-  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `book-settings.apply` 立即应用、串行提交与失败回滚
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Each settled control change updates one active session, serializes persistence, ignores obsolete responses and restores the last confirmed value on failure.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.card.book-settings-persistence`、`neoview.card.book-settings-lifecycle`、`neoview.book-settings.direction-e2e`、`neoview.book-settings.revision`、`neoview.book-settings.cas-rollback`、`neoview.book-settings.rollback`、`neoview.book-settings.http`、`neoview.book-settings.http-rollback`
+  - 测试：`neoview.card.book-settings-persistence`、`neoview.card.book-settings-lifecycle`、`neoview.book-settings.revision`、`neoview.book-settings.cas-rollback`、`neoview.book-settings.rollback`、`neoview.book-settings.http`、`neoview.book-settings.http-rollback`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：Application updates serialize per canonical book; the React Card consumes the persistent DTO, publishes only same-session success, aborts obsolete work, rolls optimistic values back on failure and leaves frame rollback to the canonical service.
 - [ ] `book-settings.states` 空、加载、继承、显式、保存与错误状态
-  - 六维：`core=C transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：No-book, loading, inherited, explicit, saving, failure and retry states preserve the last confirmed override without stale cross-book publication.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
-  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-inheritance`、`neoview.card.book-settings-persistence`、`neoview.card.book-settings-lifecycle`、`neoview.book-settings.service`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.legacy-http`
+  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-inheritance`、`neoview.card.book-settings-persistence`、`neoview.card.book-settings-lifecycle`、`neoview.book-settings.service`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.legacy-http`、`neoview.card.book-settings-reset-optimistic`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
-  - 备注：The React Card presents loading, saving, failure, retry, inherited/explicit and rollback states over the revisioned DTO; responsive evidence remains pending.
+  - 备注：The React Card presents loading, saving, failure, retry, inherited/explicit and rollback states over the revisioned DTO; desktop and 420x360 Chromium prove explicit values survive reopen and nullable resets immediately return every row to inherited state.
 - [ ] `book-settings.data-contract` 共享有界本书覆盖 DTO
-  - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：GUI, CLI and TUI share one versioned bounded override DTO with optional fields, strict enums/ranges, revision conflict handling and no raw local paths in remote output.
   - 源码：`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.service`、`neoview.book-settings.defaults`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless`、`neoview.book-settings.headless-rollback`、`neoview.book-settings.cli`、`neoview.book-settings.cli-validation`、`neoview.book-settings.cli-connect`、`neoview.book-settings.wire-schema`、`neoview.book-settings.tui`、`neoview.book-settings.tui-schema`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-envelope`、`neoview.book-settings.legacy-http`
+  - 测试：`neoview.book-settings.service`、`neoview.book-settings.defaults`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless`、`neoview.book-settings.headless-rollback`、`neoview.book-settings.cli`、`neoview.book-settings.cli-validation`、`neoview.book-settings.cli-connect`、`neoview.book-settings.wire-schema`、`neoview.book-settings.tui`、`neoview.book-settings.tui-schema`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-envelope`、`neoview.book-settings.legacy-http`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：GUI HTTP, HeadlessController, local/loopback CLI and OpenTUI share the versioned Zod DTO, nullable inheritance, defaults, CAS queue and rollback without direct presentation-layer database access.
 - [ ] `book-settings.persistence` 迁移旧键并持久化规范覆盖
-  - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Legacy neoview-book-settings imports once into the compatible NeoView business database or canonical config ownership, saves atomically, supports reset-to-inherit and never creates Reader business tables in xiranite.db.
   - 源码：`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.sqlite`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless-composition`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-importer`、`neoview.book-settings.legacy-transaction`、`neoview.book-settings.legacy-http`
+  - 测试：`neoview.book-settings.sqlite`、`neoview.book-settings.revision`、`neoview.book-settings.http`、`neoview.book-settings.headless-composition`、`neoview.book-settings.cli`、`neoview.book-settings.tui`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-importer`、`neoview.book-settings.legacy-transaction`、`neoview.book-settings.legacy-http`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
-  - 备注：GUI HTTP, headless, CLI and OpenTUI use the same non-destructive xr_reader_book_settings table in the original thumbnails.db; direct/localStorage backup envelopes import in one merge/overwrite transaction. React Card persistence wiring remains pending.
+  - 备注：GUI HTTP, headless, CLI and OpenTUI use the same non-destructive xr_reader_book_settings table in the original thumbnails.db; direct/localStorage backup envelopes import in one merge/overwrite transaction, and Chromium proves all five GUI overrides survive close/reopen before nullable reset removes them.
 - [ ] `book-settings.lifecycle` 切书、折叠、取消与关闭释放
-  - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Hidden/unmounted Cards do no work; switching books cancels obsolete reads/writes; session close releases pending updates and stale responses cannot affect the next book.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
-  - 测试：`neoview.card.book-settings-lifecycle`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.http`、`neoview.book-settings.legacy-cancel`
+  - 测试：`neoview.card.book-settings-lifecycle`、`neoview.card.book-settings-persistence`、`neoview.book-settings.service`、`neoview.book-settings.http`、`neoview.book-settings.legacy-cancel`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：无
   - 备注：Reads and writes use AbortSignal; the independently lazy Card unmount cancels pending work, switch identity keys the hook by session, and ReaderApp ignores updates for a different current session.
 - [ ] `book-settings.shell` 复用通用 Card 外壳
@@ -2880,41 +2880,41 @@
   - 测试：`neoview.shell.registry-lazy`、`neoview.settings.card-layout`
   - 计划测试：无
   - 备注：The shared registry and Card shell own layout behavior; content remains independently lazy.
-- [ ] `book-settings.accessibility` 命名控件、分组与键盘等价操作
-  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+- [x] `book-settings.accessibility` 命名控件、分组与键盘等价操作
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Every toggle, star and segmented option has an accessible name, pressed/checked state, keyboard operation, pending semantics and focus preservation after save or rollback.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
-  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-inheritance`、`neoview.card.book-settings-persistence`
+  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-inheritance`、`neoview.card.book-settings-persistence`、`neoview.book-settings.persistence-e2e`
   - 计划测试：无
-  - 备注：All five controls use named native/Radix controls with pressed/checked, pending disabled semantics and per-field reset-to-inherit; dedicated focus-after-rollback evidence remains pending.
-- [ ] `book-settings.ui-parity` 保持旧版五行紧凑布局
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 备注：All five controls use named native/Radix controls with pressed/checked, pending disabled semantics and per-field reset-to-inherit; unit coverage proves focus remains on the failed rating control after rollback.
+- [x] `book-settings.ui-parity` 保持旧版五行紧凑布局
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Favorite, rating, direction, display mode and horizontal-book retain the legacy order, labels, compact density and responsive two-column geometry at desktop and 420x360 widths.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
-  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-inheritance`、`neoview.book-settings.direction-e2e`
+  - 测试：`neoview.card.book-settings-controls`、`neoview.card.book-settings-inheritance`、`neoview.book-settings.persistence-e2e`
   - 计划测试：无
-  - 备注：Favorite, rating, direction, display-mode and horizontal-book rows preserve the legacy order and compact two-column geometry; final 420x360 browser evidence remains pending.
-- [ ] `book-settings.image-stability` 设置更新不重挂活动媒体
-  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 备注：Favorite, rating, direction, display-mode and horizontal-book rows preserve the legacy order, text/star controls and compact two-column geometry in desktop and 420x360 Chromium without horizontal overflow.
+- [x] `book-settings.image-stability` 设置更新不重挂活动媒体
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Metadata-only changes issue no media request; frame-affecting direction/page-mode changes reuse stable asset URLs and replace media nodes only when the visible page set actually changes.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`
-  - 测试：`neoview.book-settings.direction-e2e`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.http`
+  - 测试：`neoview.book-settings.metadata-stability`、`neoview.book-settings.http`、`neoview.book-settings.persistence-e2e`
   - 计划测试：无
-  - 备注：The service skips frame updates for favorite/rating and the existing Chromium direction test preserves asset identity; final GUI favorite/rating request-count evidence remains pending.
+  - 备注：The service skips frame updates for favorite/rating; Chromium proves both metadata changes preserve the active image node and issue zero duplicate requests, while direction/page-mode only change the visible frame required by the selected policy.
 - [ ] `book-settings.performance` 常量 DOM、零隐藏工作与独立 chunk
-  - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=C`；阻塞：`cli`、`tui`
   - 目标：The Card uses O(1) DOM, no polling or media decode, zero hidden work and an independent deferred chunk under 8 KiB outside Reader entry and sidebar base chunks.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.shell.registry-lazy`、`neoview.card.book-settings-lifecycle`、`neoview.book-settings.direction-e2e`
-  - 计划测试：`neoview.book-settings.chunk`
-  - 备注：The Card remains independently lazy, performs no polling or decode, aborts hidden work, and builds with its hook as a 6,904-byte deferred production chunk under the enforced 8 KiB budget.
+  - 测试：`neoview.shell.registry-lazy`、`neoview.card.book-settings-lifecycle`、`neoview.book-settings.persistence-e2e`、`neoview.book-settings.chunk`
+  - 计划测试：无
+  - 备注：The Card remains independently lazy, performs no polling or decode, aborts hidden work, and builds with its hook as a 6,833-byte deferred production chunk under the enforced 8 KiB budget.
 - [ ] `book-settings.deviations` 记录覆盖继承与旧 localStorage 替代
-  - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document reset-to-inherit, canonical persistence, authenticated session updates and any horizontal-book mapping as XR extensions while preserving all five legacy controls.
   - 源码：`src/lib/cards/properties/BookSettingsCard.svelte`、`src/lib/stores/bookSettings.svelte.ts`
-  - 测试：`neoview.book-settings.horizontal-policy`、`neoview.book-settings.sqlite`
+  - 测试：`neoview.book-settings.horizontal-policy`、`neoview.book-settings.sqlite`、`neoview.card.book-settings-reset-optimistic`、`neoview.book-settings.inheritance-e2e`
   - 计划测试：`neoview.card.book-settings-contract`
-  - 备注：XR documents nullable inheritance, thumbnails.db ownership and maps the legacy storage-only horizontalBook flag to the existing wide-page-single policy; legacy import and final GUI copy remain pending.
+  - 备注：XR documents nullable inheritance, thumbnails.db ownership and maps the legacy storage-only horizontalBook flag to the existing wide-page-single policy; the GUI keeps the five legacy controls while exposing explicit inherited/current-book state and reset actions.
 
 #### `folderRatings` 文件夹平均评分
 
