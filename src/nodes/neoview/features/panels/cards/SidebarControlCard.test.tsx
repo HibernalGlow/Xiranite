@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { SidebarControlCard, type SidebarControlCardProps } from "./SidebarControlCard"
+import DockedSidebarControlCard, { SidebarControlCard, type SidebarControlCardProps } from "./SidebarControlCard"
 
 afterEach(cleanup)
 
@@ -60,7 +60,71 @@ describe("SidebarControlCard", () => {
     expect(onTriggerSizeChange).toHaveBeenCalledWith("right", 48)
     expect(onReset).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.card.sidebar-control.inactive-zero-subscription] keeps an empty shell while hidden and subscribes after activation", async () => {
+    const { context, subscribe } = createDockedContext()
+    const view = render(<DockedSidebarControlCard {...context} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-neoview-card="sidebar-control"]')).toBeNull()
+    expect(subscribe).not.toHaveBeenCalled()
+
+    view.rerender(<DockedSidebarControlCard {...context} panelActive />)
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalled())
+    expect(view.container.querySelector('[data-neoview-card="sidebar-control"]')).toBeTruthy()
+  })
 })
+
+function createDockedContext() {
+  const snapshot = {
+    edges: {
+      top: { pinned: true, open: true, lockMode: "auto" },
+      right: { pinned: false, open: false, lockMode: "auto" },
+      bottom: { pinned: false, open: false, lockMode: "auto" },
+      left: { pinned: false, open: true, lockMode: "auto" },
+    },
+    floating: { enabled: true, position: { x: 40, y: 60 } },
+  }
+  const subscribe = vi.fn(() => () => undefined)
+  const control = {
+    store: {
+      getSnapshot: vi.fn(() => snapshot),
+      getTouchedSnapshot: vi.fn(() => ({ edges: { top: false, right: false, bottom: false, left: false }, floating: false })),
+      subscribe,
+      hydrate: vi.fn(),
+      replace: vi.fn(),
+      requestOpen: vi.fn(),
+      setPinned: vi.fn(),
+      cycleLock: vi.fn(),
+      setLock: vi.fn(),
+      setFloating: vi.fn(),
+      setPosition: vi.fn(),
+    },
+    requestOpen: vi.fn(),
+    setPinned: vi.fn(),
+    cycleLock: vi.fn(),
+    setLock: vi.fn(),
+    setFloating: vi.fn(),
+    setTriggerSize: vi.fn(),
+    reset: vi.fn(),
+  }
+  const shell = {
+    edges: {
+      top: { enabled: true, triggerSize: 32 },
+      right: { enabled: true, triggerSize: 32 },
+      bottom: { enabled: true, triggerSize: 32 },
+      left: { enabled: true, triggerSize: 32 },
+    },
+  }
+  const context = {
+    client: {},
+    disabled: false,
+    onGoTo: () => undefined,
+    shell,
+    shellControl: control,
+  } as Parameters<typeof DockedSidebarControlCard>[0]
+  return { context, subscribe }
+}
 
 function renderCard(overrides: Partial<SidebarControlCardProps> = {}) {
   const edge = (pinned: boolean, open: boolean): SidebarControlCardProps["edges"]["left"] => ({

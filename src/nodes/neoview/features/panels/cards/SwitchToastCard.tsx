@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ReaderSwitchToastPort } from "../../switch-toast/ReaderSwitchToastStore"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 export type SwitchToastSettings = ReaderSwitchToastSettings
 export type SwitchToastPatch = ReaderSwitchToastPatch
@@ -48,7 +49,9 @@ const PAGE_VARIABLES = [
   ["{{page.name}}", "页面文件名"],
 ] as const
 
-export default function DockedSwitchToastCard({ switchToast }: ReaderPanelContext) {
+export default function DockedSwitchToastCard({ switchToast, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
+
   return (
     <SwitchToastCard
       port={switchToast}
