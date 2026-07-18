@@ -352,7 +352,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   )
 
   return (
-    <div className="relative min-h-0" data-folder-tab-count={tabs.length}>
+    <div className="relative flex min-h-0 flex-1" data-folder-tab-count={tabs.length}>
       {tabs.map((tab) => {
         const active = tab.id === activeTabId
         const browserActive = active && context.panelActive !== false

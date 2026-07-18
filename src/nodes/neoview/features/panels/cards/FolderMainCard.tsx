@@ -94,7 +94,6 @@ const MAX_CACHED_PAGES = 12
 const MAX_THUMBNAILS = 64
 const MAX_CACHED_THUMBNAIL_URLS = 256
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
-const LIST_HEIGHT = 288
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
   "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
 ]
@@ -1057,7 +1056,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
 
   return (
     <div
-      className="flex min-h-0 min-w-0 gap-2"
+      className="flex min-h-0 min-w-0 flex-1 gap-2"
       data-neoview-folder-card={active || null}
       data-neoview-folder-pane={true}
       data-folder-breadcrumb-position={tabLayout.breadcrumbPosition}
@@ -1380,11 +1379,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         </div>
       ) : null}
       <div
-        className="grid min-h-0 overflow-hidden"
+        className="grid min-h-0 flex-1 overflow-hidden"
         style={{
           "--folder-tree-size": `${treeSize}px`,
           gridTemplateColumns: !treeOpen ? "1fr" : treeLayout === "left" ? "min(var(--folder-tree-size), 50%) 1fr" : treeLayout === "right" ? "1fr min(var(--folder-tree-size), 50%)" : "1fr",
-          gridTemplateRows: !treeOpen ? undefined : treeLayout === "top" ? `var(--folder-tree-size) ${LIST_HEIGHT}px` : treeLayout === "bottom" ? `${LIST_HEIGHT}px var(--folder-tree-size)` : `${LIST_HEIGHT}px`,
+          gridTemplateRows: !treeOpen ? undefined : treeLayout === "top" ? "var(--folder-tree-size) minmax(0, 1fr)" : treeLayout === "bottom" ? "minmax(0, 1fr) var(--folder-tree-size)" : "minmax(0, 1fr)",
         } as CSSProperties}
         data-tree-layout={treeOpen ? treeLayout : undefined}
       >
@@ -1408,7 +1407,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         ) : null}
         <div
           ref={listHostRef}
-          className="min-h-32 min-w-0 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-0 min-w-0 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-neoview-folder-list="true"
           data-focused-index={focusedIndex}
           role={searchOpen ? undefined : "listbox"}
@@ -1436,7 +1435,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           <Virtuoso
             key={virtualKey}
             ref={listRef}
-            style={{ height: LIST_HEIGHT }}
+            style={{ height: "100%" }}
             totalCount={catalog.total}
             components={showReturnFooter ? FOLDER_LIST_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
             context={showReturnFooter ? returnFooterContext : undefined}
