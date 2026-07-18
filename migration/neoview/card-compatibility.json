@@ -1385,7 +1385,7 @@
       "disposition": "migrate",
       "capabilityStatus": {
         "core": "complete",
-        "transport": "not-applicable",
+        "transport": "complete",
         "gui": "partial",
         "cli": "partial",
         "tui": "partial",
