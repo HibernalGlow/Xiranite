@@ -25,6 +25,7 @@ export class SuperResolutionArtifactRoute {
   readonly #baseUrl: string
   readonly #token: string
   readonly #active = new Map<ReaderSessionId, Set<AbortController>>()
+  readonly #preloadSessions = new Set<ReaderSessionId>()
   #closed = false
 
   constructor(
@@ -56,6 +57,7 @@ export class SuperResolutionArtifactRoute {
   async releaseSession(sessionId: ReaderSessionId): Promise<void> {
     const active = this.#active.get(sessionId)
     this.#active.delete(sessionId)
+    this.#preloadSessions.delete(sessionId)
     for (const controller of active ?? []) {
       controller.abort(abortError(`Reader super-resolution session released: ${sessionId}`))
     }
@@ -65,7 +67,9 @@ export class SuperResolutionArtifactRoute {
   close(): void {
     if (this.#closed) return
     this.#closed = true
-    for (const sessionId of this.#active.keys()) void this.releaseSession(sessionId)
+    const sessionIds = new Set([...this.#active.keys(), ...this.#preloadSessions])
+    this.#preloadSessions.clear()
+    for (const sessionId of sessionIds) void this.releaseSession(sessionId)
   }
 
   async #control(
@@ -226,6 +230,7 @@ export class SuperResolutionArtifactRoute {
     const mode = url.searchParams.get("mode") ?? "nearby"
     if (mode !== "nearby" && mode !== "progressive") return jsonResponse({ error: "mode must be nearby or progressive" }, 400)
     const contextId = preloadContextId(session.id)
+    this.#preloadSessions.add(session.id)
     try {
       if (action === "pause") {
         return jsonResponse({ snapshots: await this.preload.pause(contextId, request.signal) })
