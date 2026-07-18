@@ -21,7 +21,15 @@ type SidebarLayout = ReaderShellConfigDto["sidebars"][SidebarSide]
 
 export default function SidebarHeightCard({ shell, shellControl, onSidebarLayout }: ReaderPanelContext) {
   if (!shell || !shellControl || !onSidebarLayout) {
-    return <p className="text-xs text-muted-foreground">侧边栏布局控制尚未就绪。</p>
+    return (
+      <section
+        className="grid min-h-20 place-items-center text-xs text-muted-foreground"
+        data-neoview-card="sidebar-height"
+        data-sidebar-height-state="loading"
+      >
+        侧边栏布局控制加载中...
+      </section>
+    )
   }
   return (
     <SidebarHeightEditor
@@ -51,7 +59,7 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
   useEffect(() => setInteraction(shell.sidebarInteraction ?? DEFAULT_INTERACTION), [shell.sidebarInteraction])
 
   return (
-    <section className="@container space-y-5 text-xs text-muted-foreground" data-neoview-card="sidebar-height">
+    <section className="@container space-y-5 text-xs text-muted-foreground" data-neoview-card="sidebar-height" data-sidebar-height-state="ready">
       <div className="flex items-start justify-between gap-3 pb-1">
         <p className="max-w-[34rem] text-[10px] leading-relaxed text-muted-foreground/70">
           自由调整侧边栏的尺寸与位置。高度 100% 时位置控制禁用。

@@ -1,8 +1,0 @@
-{
-  "compilerOptions": {
-    "lib": ["deno.desktop", "deno.ns", "dom", "dom.iterable", "esnext"],
-    "strict": true,
-    "noImplicitOverride": true,
-    "noUncheckedIndexedAccess": true
-  }
-}

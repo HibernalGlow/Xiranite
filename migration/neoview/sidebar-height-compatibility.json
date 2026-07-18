@@ -6,6 +6,7 @@
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "15f3501470781184d6eace6c8d488ba6b953df6a",
   "visualBaseline": "output/playwright/legacy-neoview-sidebar-height-1920x1080.png",
+  "visualTarget": "output/playwright/neoview-sidebar-height-1920x1080.png",
   "completionRule": "Complete only when every left/right geometry control, trigger-area control, blank-area mode, drag-handle state, legacy persistence field, runtime geometry rule, Card-shell lifecycle, accessibility equivalent, responsive layout and bounded-write/performance requirement has automated evidence against the canonical Reader Shell configuration.",
   "sourceUiInventory": [
     {
@@ -196,12 +197,12 @@
     {
       "id": "sidebar-height.left-y", "category": "capabilities", "title": "左侧 Y 轴 0..100%", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/MainLayout.svelte"],
       "targetContract": "Position the non-full left sidebar from top through center to bottom using the legacy bounded formula; disable the control at full height.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.left-y"], "notes": "Target uses semantic disabled, not pointer-events alone."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.left-y"], "notes": "The scripted harness proves full-height semantic disabled state and re-enables Y after a height change."
     },
     {
       "id": "sidebar-height.right-y", "category": "capabilities", "title": "右侧 Y 轴 0..100%", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/MainLayout.svelte"],
       "targetContract": "Position the non-full right sidebar from top through center to bottom using the legacy bounded formula; disable the control at full height.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.right-y"], "notes": "Target uses semantic disabled, not pointer-events alone."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.right-y"], "notes": "The scripted harness covers the right geometry column and full-height disabled state; runtime persistence remains pending."
     },
     {
       "id": "sidebar-height.left-x", "category": "capabilities", "title": "左侧 X 轴贴边到居中", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/MainLayout.svelte"],
@@ -216,37 +217,37 @@
     {
       "id": "sidebar-height.drag-handle", "category": "capabilities", "title": "显示并操作侧边栏拖拽手柄", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],
       "targetContract": "One shared switch controls non-full left/right drag handles; pointer movement is bounded and keyboard/touch equivalents persist once at completion.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.drag-handle"], "notes": "Default is false and full-height sidebars render no handle."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.drag-handle"], "notes": "The harness verifies the resident switch and records the full drag-handle behavior as a remaining shell integration item."
     },
     {
       "id": "sidebar-height.blank-collapse", "category": "capabilities", "title": "空白区点击收回侧边栏", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],
       "targetContract": "A default-on shared toggle collapses either sidebar only from genuine blank-area activation and never from interactive descendants.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.blank-collapse"], "notes": "Interactive-element exclusion needs dedicated coverage."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.blank-collapse"], "notes": "The harness verifies the default-on switch and disabled mode controls; genuine blank-area event routing remains a shell integration item."
     },
     {
       "id": "sidebar-height.blank-mode", "category": "capabilities", "title": "单击/双击收回模式", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
       "targetContract": "Expose mutually exclusive single and double modes, default single, and disable mode controls while blank-area collapse is off.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.blank-mode"], "notes": "The GUI needs selected-state semantics."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.blank-mode"], "notes": "The harness verifies single as the selected default and both modes become disabled when the parent switch is off."
     },
     {
       "id": "sidebar-height.trigger-left", "category": "settings", "title": "左边缘触发宽度 4..64px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
       "targetContract": "Persist and apply an integer 4..64 left trigger width with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-left"], "notes": "Partial updates preserve the other edges."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.trigger-left"], "notes": "The scripted harness verifies the canonical 32px left trigger value; persistence and partial merge coverage remain pending."
     },
     {
       "id": "sidebar-height.trigger-right", "category": "settings", "title": "右边缘触发宽度 4..64px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
       "targetContract": "Persist and apply an integer 4..64 right trigger width with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-right"], "notes": "Partial updates preserve the other edges."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.trigger-right"], "notes": "The scripted harness verifies the canonical 32px right trigger value; persistence and partial merge coverage remain pending."
     },
     {
       "id": "sidebar-height.trigger-top", "category": "settings", "title": "顶边缘触发高度 2..48px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
       "targetContract": "Persist and apply an integer 2..48 top trigger height with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-top"], "notes": "The Card-only fallback of 4 is not a second target default."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.trigger-top"], "notes": "The scripted harness verifies the canonical 32px top trigger value; persistence remains pending."
     },
     {
       "id": "sidebar-height.trigger-bottom", "category": "settings", "title": "底边缘触发高度 2..48px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
       "targetContract": "Persist and apply an integer 2..48 bottom trigger height with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-bottom"], "notes": "The Card-only fallback of 4 is not a second target default."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.geometry"], "plannedTestIds": ["neoview.sidebar-height.trigger-bottom"], "notes": "The scripted harness verifies the canonical 32px bottom trigger value; persistence remains pending."
     },
     {
       "id": "sidebar-height.bounds", "category": "data-contract", "title": "严格规范化几何边界", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
@@ -286,12 +287,12 @@
     {
       "id": "sidebar-height.ui-parity", "category": "ui-parity", "title": "旧版层级、控件、图标与密度", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
       "targetContract": "Preserve the compact top controls, colored left/right geometry groups, icon semantics, live monospaced values, trigger-area group and explanatory text at the 1920x1080 baseline.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.visual-1920"], "notes": "Baseline: output/playwright/legacy-neoview-sidebar-height-1920x1080.png."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.ui-1920x1080"], "plannedTestIds": ["neoview.sidebar-height.visual-1920"], "notes": "Legacy and target baselines are captured at output/playwright/legacy-neoview-sidebar-height-1920x1080.png and output/playwright/neoview-sidebar-height-1920x1080.png."
     },
     {
       "id": "sidebar-height.responsive", "category": "ui-parity", "title": "约束 Card 响应式几何", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
       "targetContract": "At constrained Card widths, reflow the two geometry columns without overlap, clipped labels, unusable ranges or horizontal page overflow while retaining all controls.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.visual-constrained"], "notes": "Intentional responsive adaptation may use one column below a stable container breakpoint."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.ui-1920x1080"], "plannedTestIds": ["neoview.sidebar-height.visual-constrained"], "notes": "The 1920px harness proves no horizontal overflow; a constrained Card viewport remains planned."
     },
     {
       "id": "sidebar-height.shell", "category": "ui-parity", "title": "共享 Card 外壳与独立窗口", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],

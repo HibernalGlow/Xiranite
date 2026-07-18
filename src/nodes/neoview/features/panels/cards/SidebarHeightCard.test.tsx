@@ -2,11 +2,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../../adapters/reader-http-client"
-import { SidebarHeightEditor } from "./SidebarHeightCard"
+import SidebarHeightCard, { SidebarHeightEditor } from "./SidebarHeightCard"
 
 afterEach(cleanup)
 
-describe("SidebarHeightEditor", () => {
+describe("SidebarHeightCard", () => {
+  it("keeps a resident loading shell while the Reader Shell config hydrates", () => {
+    const view = render(<SidebarHeightCard client={{} as never} disabled={false} onGoTo={() => undefined} />)
+    expect(view.container.querySelector('[data-neoview-card="sidebar-height"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-sidebar-height-state="loading"]')).toBeTruthy()
+    expect(screen.getByText("侧边栏布局控制加载中...")).toBeTruthy()
+  })
+
   it("[neoview.sidebar-height.ui] preserves the legacy hierarchy and responsive geometry controls", () => {
     render(<SidebarHeightEditor shell={shell()} onSidebarLayout={() => undefined} onTriggerSize={() => undefined} onInteraction={() => undefined} />)
     expect(screen.getByText("左侧边栏")).toBeTruthy()
@@ -33,6 +40,19 @@ describe("SidebarHeightEditor", () => {
     expect(onTriggerSize).not.toHaveBeenCalled()
     fireEvent.pointerUp(leftTrigger, { pointerId: 2 })
     expect(onTriggerSize).toHaveBeenCalledWith("left", 44)
+  })
+
+  it("marks the full geometry editor ready and keeps Y-axis semantics discoverable", () => {
+    const view = render(
+      <SidebarHeightEditor
+        shell={shell()}
+        onSidebarLayout={() => undefined}
+        onTriggerSize={() => undefined}
+        onInteraction={() => undefined}
+      />,
+    )
+    expect(view.container.querySelector('[data-sidebar-height-state="ready"]')).toBeTruthy()
+    expect((screen.getAllByRole("slider", { name: "Y轴" })[0] as HTMLInputElement).disabled).toBe(true)
   })
 })
 
