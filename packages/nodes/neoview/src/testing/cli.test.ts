@@ -519,6 +519,30 @@ describe("NeoView CLI", () => {
     expect(reader.open).toHaveBeenCalledWith(expect.objectContaining({ initialPage: 1 }))
   })
 
+  it("[neoview.super-resolution.capabilities-cli] probes without opening a book", async () => {
+    const output: unknown[] = []
+    const inspectSuperResolution = vi.fn(async () => ({
+      available: true as const,
+      models: [{ id: "model", displayName: "Model", engine: "upscayl" as const, scales: [2] }],
+      engines: [{ engine: "upscayl" as const, available: true, version: "1.2.3" }],
+      probedAt: 1,
+    }))
+    const reader = fakeReader({ inspectSuperResolution })
+    const createController = vi.fn(async () => reader)
+
+    await runProgram(["upscale-capabilities", "--refresh", "--json"], host(output), {
+      createController,
+    })
+
+    expect(createController).toHaveBeenCalledWith(expect.objectContaining({
+      progressStore: false,
+      legacyThumbnailDatabasePath: false,
+    }))
+    expect(inspectSuperResolution).toHaveBeenCalledWith({ refresh: true })
+    expect(reader.open).not.toHaveBeenCalled()
+    expect(JSON.parse(output.join(""))).toMatchObject({ available: true, models: [{ id: "model" }] })
+  })
+
   it("rejects plaintext password argv and malformed commands", async () => {
     const reader = fakeReader()
     await expect(runProgram(["inspect", "book.cbz", "--password", "secret"], host([]), {
@@ -1158,6 +1182,7 @@ function fakeReader(overrides: Partial<{
   getBookSettings: ReaderHeadlessController["getBookSettings"]
   updateBookSettings: ReaderHeadlessController["updateBookSettings"]
   upscalePage: ReaderHeadlessController["upscalePage"]
+  inspectSuperResolution: ReaderHeadlessController["inspectSuperResolution"]
 }> = {}): ReaderHeadlessController {
   let current = 0
   const dispose = vi.fn(async () => undefined)
@@ -1176,6 +1201,12 @@ function fakeReader(overrides: Partial<{
     getBookSettings: vi.fn(overrides.getBookSettings ?? (async () => bookSettingsSnapshot())),
     updateBookSettings: vi.fn(overrides.updateBookSettings ?? (async () => ({ settings: bookSettingsSnapshot(), reader: snapshot(current) }))),
     upscalePage: vi.fn(overrides.upscalePage ?? (async () => { throw new Error("not configured") })),
+    inspectSuperResolution: vi.fn(overrides.inspectSuperResolution ?? (async () => ({
+      available: false as const,
+      reason: "not-configured",
+      models: [],
+      engines: [],
+    }))),
     closeBook: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: dispose,
   } as unknown as ReaderHeadlessController

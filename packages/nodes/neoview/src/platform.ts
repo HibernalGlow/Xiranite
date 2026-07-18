@@ -367,6 +367,7 @@ export async function createReaderHttpController(
     fileTree: runtimeConfig.fileTree,
     slideshow: runtimeConfig.slideshow,
     media: runtimeConfig.media,
+    colorFilter: runtimeConfig.colorFilter,
     inputBindings: runtimeConfig.inputBindings,
     radialMenu: runtimeConfig.radialMenu,
     presentationDiskCache,
@@ -419,6 +420,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).media
+    },
+    updateColorFilter: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).colorFilter
     },
     updateInputBindings: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
@@ -751,6 +758,8 @@ export async function createReaderHeadlessController(
         })
         return capability && {
           pages: capability.pages,
+          listModels: () => capability.service.listModels(),
+          capabilities: (capabilityOptions?: { refresh?: boolean; signal?: AbortSignal }) => capability.service.capabilities(capabilityOptions),
           dispose: () => capability.service.dispose(),
         }
       },
