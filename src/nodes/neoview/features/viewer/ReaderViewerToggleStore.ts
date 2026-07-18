@@ -1,6 +1,7 @@
 export interface ReaderViewerToggleSnapshot {
   progressBarVisible: boolean
   progressBarGlow: boolean
+  pageInfoVisible: boolean
 }
 
 export interface ReaderViewerTogglePort {
@@ -8,11 +9,13 @@ export interface ReaderViewerTogglePort {
   getSnapshot(): ReaderViewerToggleSnapshot
   toggleProgressBar(): void
   toggleProgressBarGlow(): void
+  togglePageInfo(): void
 }
 
 const DEFAULT_SNAPSHOT: ReaderViewerToggleSnapshot = {
   progressBarVisible: true,
   progressBarGlow: true,
+  pageInfoVisible: true,
 }
 
 export class ReaderViewerToggleStore implements ReaderViewerTogglePort {
@@ -32,6 +35,10 @@ export class ReaderViewerToggleStore implements ReaderViewerTogglePort {
 
   toggleProgressBarGlow(): void {
     this.#replace({ ...this.#snapshot, progressBarGlow: !this.#snapshot.progressBarGlow })
+  }
+
+  togglePageInfo(): void {
+    this.#replace({ ...this.#snapshot, pageInfoVisible: !this.#snapshot.pageInfoVisible })
   }
 
   #replace(snapshot: ReaderViewerToggleSnapshot): void {
