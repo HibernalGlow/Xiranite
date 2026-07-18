@@ -18,7 +18,7 @@ describe("Reader metadata cards", () => {
     expect(screen.getByLabelText("正在加载书籍信息")).toBeTruthy()
     active.unmount()
     const inactive = render(<BookInformationCard {...panelContext(clientWith(metadata), undefined)} />)
-    expect(inactive.container.innerHTML).toBe("")
+    expect(inactive.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
   })
 
   it("[neoview.time-information.states] shows loading for an active session and zero DOM without one", () => {
@@ -28,7 +28,7 @@ describe("Reader metadata cards", () => {
     active.unmount()
 
     const inactive = render(<TimeInformationCard {...panelContext(clientWith(metadata), undefined)} />)
-    expect(inactive.container.innerHTML).toBe("")
+    expect(inactive.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
   })
 
   it("[neoview.storage-information.states] performs zero work without a session and exposes the active loading state", () => {
@@ -36,11 +36,28 @@ describe("Reader metadata cards", () => {
     const diagnostics = vi.fn(() => new Promise<ReaderStorageDiagnosticsDto>(() => undefined))
     const client = clientWith(metadata, diagnostics)
     const inactive = render(<StorageInformationCard {...panelContext(client, undefined)} />)
-    expect(inactive.container.innerHTML).toBe("")
+    expect(inactive.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
     expect(metadata).not.toHaveBeenCalled()
     expect(diagnostics).not.toHaveBeenCalled()
     inactive.rerender(<StorageInformationCard {...panelContext(client, session())} />)
     expect(screen.getByLabelText("正在加载存储信息")).toBeTruthy()
+  })
+
+  it("[neoview.storage-information.inactive-zero-work] keeps the empty shell without metadata or diagnostics while hidden", async () => {
+    const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
+    const diagnostics = vi.fn(() => new Promise<ReaderStorageDiagnosticsDto>(() => undefined))
+    const client = clientWith(metadata, diagnostics)
+    const currentSession = session()
+    const view = render(<StorageInformationCard {...panelContext(client, currentSession)} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(metadata).not.toHaveBeenCalled()
+    expect(diagnostics).not.toHaveBeenCalled()
+
+    view.rerender(<StorageInformationCard {...panelContext(client, currentSession)} panelActive />)
+    expect(await screen.findByLabelText("正在加载存储信息")).toBeTruthy()
+    expect(metadata).toHaveBeenCalledOnce()
+    expect(diagnostics).toHaveBeenCalledOnce()
   })
 
   it("[neoview.metadata.cards] shares one lazy metadata request across four independently dockable cards", async () => {
