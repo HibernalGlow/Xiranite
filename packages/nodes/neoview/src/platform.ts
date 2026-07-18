@@ -70,6 +70,11 @@ export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResul
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
 export type { FfprobePageMediaMetadataProviderOptions } from "./platform/video/FfprobePageMediaMetadataProvider.js"
 export type { SqliteLegacyThumbnailDatabaseMaintenanceOptions } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
+export {
+  SystemSuperResolutionCliResolver,
+  type SystemSuperResolutionCliProbeResult,
+  type SystemSuperResolutionCliResolverOptions,
+} from "./platform/super-resolution/SystemSuperResolutionCliResolver.js"
 export type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 export type {
   ReaderFileTreeChange,
