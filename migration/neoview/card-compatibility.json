@@ -855,12 +855,12 @@
       "featureId": "super-resolution",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
+        "core": "partial",
+        "transport": "pending",
         "gui": "pending",
-        "cli": "not-applicable",
-        "tui": "not-applicable",
-        "evidence": "pending"
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
       },
       "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
       "sourceDisposition": "component"
