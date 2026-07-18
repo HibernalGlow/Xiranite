@@ -49,6 +49,14 @@ describe("InputBindingsSettingsCard", () => {
     expect(screen.queryByText("请按下组合键；按 Escape 取消录制。")).toBeNull()
   })
 
+  it("[neoview.bindings.area-editor] edits the legacy nine-area click descriptor", () => {
+    render(<InputBindingsEditor value={{ bindings: [{ id: "area", action: "reader.next-page", context: "reader", enabled: true, input: { device: "area", area: "middle-center", button: 0, action: "click" } }] }} onSave={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "右下" }))
+    fireEvent.change(screen.getByRole("combobox", { name: "区域点击方式" }), { target: { value: "press" } })
+    expect(screen.getByRole("button", { name: "右下" }).getAttribute("aria-pressed")).toBe("true")
+    expect((screen.getByRole("combobox", { name: "区域点击方式" }) as HTMLSelectElement).value).toBe("press")
+  })
+
   it("[neoview.bindings.recording-ime] ignores IME composition without ending the recording", () => {
     render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))

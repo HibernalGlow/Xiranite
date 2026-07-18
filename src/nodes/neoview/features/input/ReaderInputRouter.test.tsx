@@ -58,6 +58,19 @@ describe("ReaderInputRouter", () => {
     fireEvent.pointerUp(screen.getByTestId("reader"), { pointerType: "mouse", button: 3, detail: 1 })
     expect(execute).toHaveBeenCalledWith("reader.next-page")
   })
+
+  it("[neoview.bindings.area-runtime] gives a matching nine-area binding precedence over a generic mouse binding", () => {
+    const execute = vi.fn()
+    render(<Harness config={{ bindings: [
+      { id: "area", action: "reader.next-page", context: "reader", enabled: true, input: { device: "area", area: "middle-center", button: 0, action: "click" } },
+      { id: "mouse", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 0, click: "single" } },
+    ] }} execute={execute} />)
+    const reader = screen.getByTestId("reader")
+    reader.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 900, bottom: 600, width: 900, height: 600, toJSON: () => ({}) })
+    fireEvent.pointerUp(reader, { pointerType: "mouse", pointerId: 1, button: 0, detail: 1, clientX: 450, clientY: 300 })
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith("reader.next-page")
+  })
 })
 
 function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execute: (action: ReaderInputAction) => void }) {
@@ -65,6 +78,7 @@ function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execu
   return (
     <div
       data-testid="reader"
+      onPointerDown={router.onPointerDown}
       onPointerUp={router.onPointerUp}
     >
       <input aria-label="editor" />

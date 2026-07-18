@@ -3,6 +3,7 @@ import {
   DEFAULT_READER_INPUT_BINDINGS,
   READER_INPUT_ACTIONS,
   READER_INPUT_CONTEXTS,
+  READER_VIEW_AREAS,
   readerInputConflicts,
   type ReaderInputAction,
   type ReaderInputBinding,
@@ -69,7 +70,7 @@ function parseBinding(value: unknown, label: string): ReaderInputBinding {
 
 function parseInput(value: unknown, label: string): ReaderInputDescriptor {
   const source = requireRecord(value, label)
-  const device = requiredEnum(source.device, ["keyboard", "mouse", "wheel", "touch", "gamepad"] as const, `${label}.device`)
+  const device = requiredEnum(source.device, ["keyboard", "mouse", "wheel", "touch", "gamepad", "area"] as const, `${label}.device`)
   if (device === "keyboard") {
     rejectUnknown(source, ["device", "code", "ctrl", "alt", "shift", "meta"], label)
     return { device, code: requiredString(source.code, `${label}.code`, 64), ...modifiers(source, label) }
@@ -90,8 +91,17 @@ function parseInput(value: unknown, label: string): ReaderInputDescriptor {
       fingers: requiredEnum(source.fingers, [1, 2, 3] as const, `${label}.fingers`),
     }
   }
-  rejectUnknown(source, ["device", "button"], label)
-  return { device, button: boundedInteger(source.button, 0, 31, `${label}.button`) }
+  if (device === "gamepad") {
+    rejectUnknown(source, ["device", "button"], label)
+    return { device, button: boundedInteger(source.button, 0, 31, `${label}.button`) }
+  }
+  rejectUnknown(source, ["device", "area", "button", "action"], label)
+  return {
+    device,
+    area: requiredEnum(source.area, READER_VIEW_AREAS, `${label}.area`),
+    button: requiredEnum(source.button, [0, 1, 2] as const, `${label}.button`),
+    action: requiredEnum(source.action, ["click", "double-click", "press"] as const, `${label}.action`),
+  }
 }
 
 function persistedBindings(bindings: readonly ReaderInputBinding[]): unknown[] {

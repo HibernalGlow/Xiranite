@@ -9,8 +9,9 @@ describe("ReaderInputBindingsConfig", () => {
       { id: "wheel", action: "reader.zoom-in", context: "reader", enabled: true, input: { device: "wheel", direction: "up" } },
       { id: "touch", action: "reader.next-page", context: "reader", enabled: true, input: { device: "touch", gesture: "swipe-left", fingers: 1 } },
       { id: "pad", action: "reader.next-page", context: "reader", enabled: true, input: { device: "gamepad", button: 5 } },
+      { id: "area", action: "reader.open-settings", context: "reader", enabled: true, input: { device: "area", area: "bottom-right", button: 2, action: "double-click" } },
     ]
-    expect(parseNeoviewInputBindingsConfig({ items: bindings }).bindings).toHaveLength(5)
+    expect(parseNeoviewInputBindingsConfig({ items: bindings }).bindings).toHaveLength(6)
     expect(parseNeoviewInputBindingsPatch({ inputBindings: { bindings } })).toEqual({
       patch: { inputBindings: { bindings } },
       tomlPatch: { bindings: { items: bindings } },
