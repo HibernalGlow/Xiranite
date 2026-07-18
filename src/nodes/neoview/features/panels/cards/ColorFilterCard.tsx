@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 
 import type { ReaderColorFilterPort } from "../../color-filter/ReaderColorFilterStore"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 const SLIDERS = [
   { key: "brightness", label: "亮度", min: 50, max: 150, suffix: "%" },
@@ -26,7 +27,8 @@ const SLIDERS = [
   { key: "hueRotate", label: "色相旋转", min: 0, max: 360, suffix: "°" },
 ] as const
 
-export default function DockedColorFilterCard({ colorFilter }: ReaderPanelContext) {
+export default function DockedColorFilterCard({ colorFilter, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
   if (!colorFilter) return <p className="text-xs text-muted-foreground">颜色滤镜尚未就绪。</p>
   return <ColorFilterCard store={colorFilter} />
 }

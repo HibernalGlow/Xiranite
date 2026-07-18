@@ -41,6 +41,7 @@ export interface ImageTrimPort {
 export interface ImageTrimCardProps {
   port?: ImageTrimPort
   imageTrim?: ImageTrimPort
+  panelActive?: boolean
 }
 
 const DEFAULTS: ImageTrimSettings = {
@@ -56,12 +57,14 @@ const DEFAULTS: ImageTrimSettings = {
 }
 
 /** The resident card keeps its shell mounted while the runtime port hydrates. */
-export default function ImageTrimCard({ port, imageTrim }: ImageTrimCardProps) {
+export default function ImageTrimCard({ port, imageTrim, panelActive = true }: ImageTrimCardProps) {
   const activePort = port ?? imageTrim
+  const subscribe = panelActive ? activePort?.subscribe ?? subscribeNoop : subscribeNoop
+  const getSnapshot = panelActive ? activePort?.getSnapshot ?? getUndefinedSnapshot : getUndefinedSnapshot
   const settings = useSyncExternalStore(
-    activePort?.subscribe ?? subscribeNoop,
-    activePort?.getSnapshot ?? getUndefinedSnapshot,
-    activePort?.getSnapshot ?? getUndefinedSnapshot,
+    subscribe,
+    getSnapshot,
+    getSnapshot,
   )
   const [busyAction, setBusyAction] = useState<string>()
 

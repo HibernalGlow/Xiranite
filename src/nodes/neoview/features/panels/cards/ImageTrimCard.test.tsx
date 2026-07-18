@@ -13,6 +13,22 @@ describe("ImageTrimCard", () => {
     expect(screen.getByText("图像裁剪配置加载中...")).toBeTruthy()
   })
 
+  it("[neoview.image-trim.panel-active] pauses the alias port while hidden and subscribes after activation", () => {
+    const port = memoryPort({ ...defaults(), enabled: true })
+    const subscribe = vi.spyOn(port, "subscribe")
+    const view = render(<ImageTrimCard imageTrim={port} panelActive={false} />)
+
+    expect(subscribe).not.toHaveBeenCalled()
+    expect(view.container.querySelector('[data-image-trim-state="loading"]')).toBeTruthy()
+    expect(screen.queryByRole("switch", { name: "启用图像裁剪" })).toBeNull()
+
+    view.rerender(<ImageTrimCard imageTrim={port} panelActive />)
+
+    expect(subscribe).toHaveBeenCalledOnce()
+    expect(view.container.querySelector('[data-image-trim-state="ready"]')).toBeTruthy()
+    expect(screen.getByRole("switch", { name: "启用图像裁剪" })).toBeTruthy()
+  })
+
   it("[neoview.image-trim.ui] preserves the legacy control hierarchy and icon actions", () => {
     render(<ImageTrimCard port={memoryPort({ ...defaults(), enabled: true, top: 5, linkVertical: true, linkHorizontal: true })} />)
     expect(screen.getByRole("switch", { name: "启用图像裁剪" })).toBeTruthy()
