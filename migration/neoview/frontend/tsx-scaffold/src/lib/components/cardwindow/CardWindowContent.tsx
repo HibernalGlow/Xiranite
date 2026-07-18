@@ -1,6 +1,6 @@
 /**
  * @migrated-from src/lib/components/cardwindow/CardWindowContent.svelte
- * @source-hash sha256:d254fcc5e0dbfb655b1188533fc56d92aa9c4bf3a36f0e35ffe1114fc4a53728
+ * @source-hash sha256:04a068c751374395f37fd00fc12b350ab756acabe674dab2aec8cc5bd58dc013
  * @features card-windows-tabs
  * @source-disposition manual
  * @migration-status review-scaffold
@@ -39,6 +39,10 @@ export function CardWindowContent(props: Props) {
       storage: () => import('$lib/cards/info/StorageCard.svelte'),
       time: () => import('$lib/cards/info/TimeCard.svelte'),
       sidebarControl: () => import('$lib/cards/info/SidebarControlCard.svelte'),
+      preloadStatus: () => import('$lib/cards/info/PreloadStatusCard.svelte'),
+      colorFilter: () => import('$lib/cards/info/ColorFilterCard.svelte'),
+      pageTransition: () => import('$lib/cards/info/PageTransitionCard.svelte'),
+      sidebarHeight: () => import('$lib/cards/info/SidebarHeightCard.svelte'),
       // Properties
       emmTags: () => import('$lib/cards/properties/EmmTagsCard.svelte'),
       aiTags: () => import('$lib/cards/properties/AiTagsCard.svelte'),
