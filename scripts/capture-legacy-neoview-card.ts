@@ -26,7 +26,11 @@ try {
     }, options.probeModule)
     console.log(`module probe: ${probe}`)
   }
-  if (options.checkLabel) {
+  if (options.waitLabel) {
+    const label = page.getByText(options.waitLabel, { exact: true }).first()
+    await label.waitFor({ state: "visible", timeout: 30_000 })
+    console.log(`found ${options.waitLabel}`)
+  } else if (options.checkLabel) {
     const label = page.getByText(options.checkLabel, { exact: true }).first()
     await label.waitFor({ state: "visible", timeout: 30_000 })
     await label.click()
@@ -55,12 +59,13 @@ function parseArgs(args: readonly string[]) {
   }))
   const url = values.get("--url")
   const output = values.get("--output")
-  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--check-label=<label> | --click-selector=<selector>] [--probe-module=<path>] [--viewport=1920x1080]")
+  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--wait-label=<label> | --check-label=<label> | --click-selector=<selector>] [--probe-module=<path>] [--viewport=1920x1080]")
   const [width, height] = (values.get("--viewport") ?? "1920x1080").split("x").map(Number)
   if (!Number.isInteger(width) || !Number.isInteger(height) || width! <= 0 || height! <= 0) throw new Error("Invalid viewport")
   return {
     url,
     output: resolve(output),
+    waitLabel: values.get("--wait-label"),
     checkLabel: values.get("--check-label"),
     clickSelector: values.get("--click-selector"),
     probeModule: values.get("--probe-module"),

@@ -269,6 +269,8 @@
         "neoview.bindings.video-actions-react",
         "neoview.bindings.video-controller",
         "neoview.bindings.video-surface",
+        "neoview.video.lifecycle-react",
+        "neoview.bindings.video-player-e2e",
         "neoview.bindings.adjacent-book-client",
         "neoview.control.adjacent-book",
         "neoview.control.adjacent-book-rollback",
@@ -281,7 +283,7 @@
         "neoview.bindings.config"
       ],
       "plannedTestIds": [],
-      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
+      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. The source control hierarchy now composes media-chrome with shadcn controls, restores hover/keyboard visibility, automatic WebVTT subtitles, subtitle styling, throttled progress restore/flush and desktop/420x360 streamed-video evidence. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Manual external subtitle selection, destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
     },
     {
       "id": "bindings.context-routing",
@@ -311,10 +313,11 @@
         "neoview.bindings.dom-context",
         "neoview.bindings.keyboard-runtime",
         "neoview.bindings.video-surface",
-        "neoview.bindings.video-actions-react"
+        "neoview.bindings.video-actions-react",
+        "neoview.bindings.video-player-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. The native video surface now advertises the video context and routes multiple bindings plus seek-mode remapping through the shared executor. CLI/TUI context-stack projection remains pending."
+      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. The native video surface advertises the video context, routes multiple bindings plus seek-mode remapping through the shared executor, and preserves interactive media controls in the DOM context at desktop and 420x360. CLI/TUI context-stack projection remains pending."
     },
     {
       "id": "bindings.keyboard",
@@ -806,10 +809,12 @@
         "neoview.bindings.dom-context",
         "neoview.bindings.keyboard-hold-runtime",
         "neoview.bindings.radial-runtime",
-        "neoview.bindings.video-lifecycle"
+        "neoview.bindings.video-lifecycle",
+        "neoview.video.lifecycle-react",
+        "neoview.bindings.video-player-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, gamepad is conditionally loaded, and the external video controller releases ended listeners while falling back across mounted double-page videos. Focused listener-count and visibility E2E remain pending."
+      "notes": "Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, and gamepad is conditionally loaded. The external video controller releases ended listeners while falling back across mounted double-page videos; page-scoped subtitle/progress requests abort on replacement, progress writes throttle to five seconds and flush durably on end/unmount, while real Chromium proves hover visibility at desktop and 420x360. A full-system listener-count E2E remains pending."
     },
     {
       "id": "bindings.shell",

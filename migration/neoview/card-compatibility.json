@@ -1,0 +1,1419 @@
+{
+  "schemaVersion": 2,
+  "source": {
+    "file": "src/lib/cards/registry.ts",
+    "hash": "sha256:ab8c2e45a48e4b9cfcea9ce68e2ce9ba0d63dbd0e4581e74d9a516ab92a3d3a3",
+    "cardCount": 77
+  },
+  "priorities": [
+    "core",
+    "integration",
+    "deferred"
+  ],
+  "cards": [
+    {
+      "legacyId": "visibility",
+      "title": "可见性监控",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/VisibilityCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "latency",
+      "title": "延迟分析",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/LatencyCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "renderer",
+      "title": "渲染模式测试",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/RendererCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "files",
+      "title": "文件选择",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/FilesCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "detailed",
+      "title": "详细结果",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/DetailedCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "loadmode",
+      "title": "加载模式",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/LoadModeCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "archives",
+      "title": "压缩包扫描",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/ArchivesCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "realworld",
+      "title": "实际场景",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/RealWorldCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "imageSource",
+      "title": "图像源对比",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/ImageSourceCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "protocolTest",
+      "title": "协议测试",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/ProtocolTestCard.svelte",
+      "sourceDisposition": "component",
+      "sourceNotes": "旧 CardRenderer 注册信息落后于源码；AST inventory 已确认 ProtocolTestCard.svelte 为实际组件。"
+    },
+    {
+      "legacyId": "results",
+      "title": "测试结果",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/ResultsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "summary",
+      "title": "总结",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/SummaryCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "pipelineLatency",
+      "title": "实时延迟监控",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/PipelineLatencyCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "transcodeBenchmark",
+      "title": "超分预处理转码",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/TranscodeBenchmarkCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "thumbnailLatency",
+      "title": "目录加载延迟",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/ThumbnailLatencyCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "pageFlipMonitor",
+      "title": "翻页性能监控",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/benchmark/PageFlipMonitorCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "preloadStatus",
+      "title": "预加载状态",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "preload-stream-scheduler",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "preload-status",
+      "sourceComponent": "src/lib/cards/info/PreloadStatusCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "systemMonitor",
+      "title": "系统资源监控",
+      "panelId": "insights",
+      "priority": "integration",
+      "featureId": "performance-benchmark-diagnostics",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/monitor/SystemMonitorCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "bookInfo",
+      "title": "书籍信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "book-information",
+      "sourceComponent": "src/lib/cards/info/BookInfoCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "infoOverlay",
+      "title": "信息悬浮窗",
+      "panelId": "info",
+      "priority": "deferred",
+      "featureId": "metadata-dimensions-properties",
+      "disposition": "migrate",
+      "currentCardId": "switch-toast",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "sourceComponent": "src/lib/cards/info/InfoOverlayCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "switchToast",
+      "title": "切换提示",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "metadata-dimensions-properties",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/info/SwitchToastCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "imageInfo",
+      "title": "图像信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "image-information",
+      "sourceComponent": "src/lib/cards/info/ImageInfoCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "storage",
+      "title": "存储信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "storage-information",
+      "sourceComponent": "src/lib/cards/info/StorageCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "time",
+      "title": "时间信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "time-information",
+      "sourceComponent": "src/lib/cards/info/TimeCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "sidebarControl",
+      "title": "边栏控制",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "panels-toolbar-shell",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "sidebar-control",
+      "sourceComponent": "src/lib/cards/info/SidebarControlCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "colorFilter",
+      "title": "颜色滤镜",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "image-effects-transitions",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "sourceComponent": "src/lib/cards/info/ColorFilterCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "imageTrim",
+      "title": "图像裁剪",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "image-effects-transitions",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/info/ImageTrimCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "pageTransition",
+      "title": "翻页动画",
+      "panelId": "control",
+      "priority": "deferred",
+      "featureId": "image-effects-transitions",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "sourceComponent": "src/lib/cards/info/PageTransitionCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "animatedVideoMode",
+      "title": "动图视频模式",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "animated-image-video",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/info/AnimatedVideoModeCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "ambientBackground",
+      "title": "动态背景",
+      "panelId": "control",
+      "priority": "deferred",
+      "featureId": "theme-background-empty-state",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/info/AmbientBackgroundCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "sidebarHeight",
+      "title": "侧边栏高度",
+      "panelId": "control",
+      "priority": "deferred",
+      "featureId": "panels-toolbar-shell",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/info/SidebarHeightCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "emmTags",
+      "title": "EMM 标签",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/EmmTagsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "bookSettings",
+      "title": "本书设置",
+      "panelId": "properties",
+      "priority": "core",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "book-settings",
+      "sourceComponent": "src/lib/cards/properties/BookSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "folderRatings",
+      "title": "文件夹平均评分",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/FolderRatingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "favoriteTags",
+      "title": "收藏标签快选",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/FavoriteTagsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "emmSync",
+      "title": "EMM 同步",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/EmmSyncCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "thumbnailMaintenance",
+      "title": "缩略图维护",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "thumbnail-system",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "currentCardId": "thumbnail-maintenance",
+      "sourceComponent": "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "thumbnailArchMetrics",
+      "title": "缩略图架构指标",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "thumbnail-system",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "emmRawData",
+      "title": "EMM 数据库记录",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/EmmRawDataCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "emmConfig",
+      "title": "EMM 配置",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/EmmConfigCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "fileListTagDisplay",
+      "title": "文件列表标签",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "upscaleControl",
+      "title": "超分控制",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/upscale/UpscaleControlCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "upscaleModel",
+      "title": "模型选择",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/upscale/UpscaleModelCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "upscaleStatus",
+      "title": "处理状态",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/upscale/UpscaleStatusCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "upscaleCache",
+      "title": "缓存管理",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "upscaleConditions",
+      "title": "条件超分",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/upscale/UpscaleConditionsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "progressiveUpscale",
+      "title": "预超分",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "partial",
+        "gui": "pending",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "historyList",
+      "title": "历史记录",
+      "panelId": "history",
+      "priority": "core",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "history-list",
+      "sourceComponent": "src/lib/cards/history/HistoryListCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "bookmarkList",
+      "title": "书签列表",
+      "panelId": "bookmark",
+      "priority": "core",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "bookmark-list",
+      "sourceComponent": "src/lib/cards/bookmark/BookmarkListCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "pageListMain",
+      "title": "页面列表",
+      "panelId": "pageList",
+      "priority": "core",
+      "featureId": "page-index-navigation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "page-navigation",
+      "sourceComponent": "src/lib/cards/pageList/PageListCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "dailyTrend",
+      "title": "最近 7 日阅读趋势",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/insights/DailyTrendCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "readingStreak",
+      "title": "连续阅读 Streak",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/insights/ReadingStreakCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "readingHeatmap",
+      "title": "阅读时段热力图",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/insights/ReadingHeatmapCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "bookmarkOverview",
+      "title": "书签概览",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/insights/BookmarkOverviewCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "sourceBreakdown",
+      "title": "来源拆分",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/insights/SourceBreakdownCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "emmTagsHot",
+      "title": "EMM 标签热度",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/insights/EmmTagsHotCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "folderMain",
+      "title": "文件夹",
+      "panelId": "folder",
+      "priority": "core",
+      "featureId": "file-browser-navigation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "folder-main",
+      "sourceComponent": "src/lib/cards/folder/FolderMainCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "aiTags",
+      "title": "AI 标签推断",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/AiTagsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "aiApiConfig",
+      "title": "AI API 配置",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/properties/AiApiConfigCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "aiTitleTranslation",
+      "title": "标题翻译",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/ai/AiTitleTranslationCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "aiServiceConfig",
+      "title": "翻译服务配置",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/ai/AiServiceConfigCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "aiTranslationCache",
+      "title": "翻译缓存",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/ai/AiTranslationCacheCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "aiTranslationTest",
+      "title": "翻译测试",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/ai/AiTranslationTestCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "translationOverlay",
+      "title": "翻译叠加层",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/ai/TranslationOverlayCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "voiceControl",
+      "title": "语音控制",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/ai/VoiceControlCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsGeneral",
+      "title": "通用设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/GeneralSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsSystem",
+      "title": "系统设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/SystemSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsView",
+      "title": "视图设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "currentCardId": "view-defaults-settings",
+      "sourceComponent": "src/lib/cards/settings/ViewSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsImage",
+      "title": "影像设置",
+      "panelId": "settings",
+      "priority": "integration",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/ImageSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsBook",
+      "title": "书籍设置",
+      "panelId": "settings",
+      "priority": "integration",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/BookSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsPerformance",
+      "title": "性能设置",
+      "panelId": "settings",
+      "priority": "integration",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/PerformanceSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsTheme",
+      "title": "外观设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/ThemeSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsNotification",
+      "title": "通知设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/NotificationSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsPanels",
+      "title": "边栏管理",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "currentCardId": "sidebar-management-settings",
+      "sourceComponent": "src/lib/cards/settings/PanelManagementCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsCards",
+      "title": "卡片管理",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "currentCardId": "panel-layout-settings",
+      "sourceComponent": "src/lib/cards/settings/CardManagementCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsBindings",
+      "title": "操作绑定",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "currentCardId": "input-bindings-settings",
+      "sourceComponent": "src/lib/cards/settings/BindingsSettingsCard.svelte",
+      "sourceDisposition": "component"
+    },
+    {
+      "legacyId": "settingsData",
+      "title": "数据设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "disposition": "migrate",
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "sourceComponent": "src/lib/cards/settings/DataSettingsCard.svelte",
+      "sourceDisposition": "component"
+    }
+  ]
+}
