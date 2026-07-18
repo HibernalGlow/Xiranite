@@ -45,4 +45,16 @@ describe("PlatformReaderDirectorySizeProvider", () => {
     await expect(provider.measure(root)).rejects.toThrow("1 file size-scan limit")
     expect(release).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.folder.size-drive-root] normalizes a Windows drive-only root before scanning", async () => {
+    const original = process.platform
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true })
+    try {
+      const provider = new PlatformReaderDirectorySizeProvider()
+      const error = await provider.measure("E:").catch((cause: unknown) => cause)
+      expect(String(error)).toContain("E:\\")
+    } finally {
+      Object.defineProperty(process, "platform", { value: original, configurable: true })
+    }
+  })
 })
