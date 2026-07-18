@@ -22,7 +22,7 @@ import {
   type ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckCircle2, FileUp, Keyboard, Plus, Radio, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react"
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -65,6 +65,7 @@ export function InputBindingsEditor({
   const [context, setContext] = useState("all")
   const [category, setCategory] = useState<"all" | ReaderInputActionCategory>("all")
   const [deviceRecording, setDeviceRecording] = useState<{ id: string; device: RecordableReaderDevice }>()
+  const recordingFocusRef = useRef<HTMLElement>()
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
   useEffect(() => setDraft(cloneReaderInputBindings(value)), [value])
@@ -73,6 +74,15 @@ export function InputBindingsEditor({
   }, [])
   const { recordingId, toggleRecording, cancelRecording } = useReaderKeyboardRecorder(recordKeyboard)
   const activeRecordingId = recordingId ?? deviceRecording?.id
+  const previousRecordingId = useRef<string>()
+  useEffect(() => {
+    const previous = previousRecordingId.current
+    previousRecordingId.current = activeRecordingId
+    if (previous && !activeRecordingId) {
+      recordingFocusRef.current?.focus()
+      recordingFocusRef.current = undefined
+    }
+  }, [activeRecordingId])
   const conflicts = useMemo(() => readerInputConflicts(draft.bindings), [draft.bindings])
   const conflictIds = useMemo(() => new Set(conflicts.flatMap((current) => current.bindingIds)), [conflicts])
   const visible = draft.bindings.filter((binding) => {
@@ -159,7 +169,8 @@ export function InputBindingsEditor({
             conflicted={conflictIds.has(binding.id)}
             disabled={saving || Boolean(activeRecordingId && activeRecordingId !== binding.id)}
             recording={activeRecordingId === binding.id}
-            onRecord={() => {
+            onRecord={(event) => {
+              recordingFocusRef.current = event.currentTarget
               if (binding.input.device === "keyboard") toggleRecording(binding.id)
               else if (binding.input.device !== "area") setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device })
             }}
@@ -240,7 +251,7 @@ function BindingRow({ binding, conflicted, disabled, recording, onRecord, onChan
   conflicted: boolean
   disabled: boolean
   recording: boolean
-  onRecord(): void
+  onRecord(event: MouseEvent<HTMLButtonElement>): void
   onChange(binding: ReaderInputBinding): void
   onRemove(): void
 }) {
@@ -267,7 +278,7 @@ function InputDescriptorEditor({ input, disabled, recording, onRecord, onChange 
   input: ReaderInputDescriptor
   disabled: boolean
   recording: boolean
-  onRecord(): void
+  onRecord(event: MouseEvent<HTMLButtonElement>): void
   onChange(input: ReaderInputDescriptor): void
 }) {
   return (
@@ -344,7 +355,7 @@ function KeyboardInputEditor({ input, disabled, recording, onRecord, onChange }:
   input: Extract<ReaderInputDescriptor, { device: "keyboard" }>
   disabled: boolean
   recording: boolean
-  onRecord(): void
+  onRecord(event: MouseEvent<HTMLButtonElement>): void
   onChange(input: ReaderInputDescriptor): void
 }) {
   return <div className="grid gap-1">
