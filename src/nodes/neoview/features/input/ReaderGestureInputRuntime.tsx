@@ -160,5 +160,5 @@ export function ReaderGestureInputRuntime({ config, disabled = false, target, cl
     wheel: { eventOptions: { passive: false } },
   })
 
-  return null
+  return <span hidden data-reader-input-runtime="ready" />
 }

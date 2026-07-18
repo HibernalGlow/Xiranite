@@ -380,10 +380,11 @@
         "neoview.bindings.editor",
         "neoview.bindings.device-recording",
         "neoview.bindings.mouse-press",
-        "neoview.bindings.mouse-hold-runtime"
+        "neoview.bindings.mouse-hold-runtime",
+        "neoview.bindings.devices-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Buttons 0..7 and click/double-click/press/hold descriptors are editable and routed outside interactive controls. @use-gesture owns pointer recording and configurable hold duration/movement cancellation; Browser pointer evidence remains pending."
+      "notes": "Buttons 0..7 and click/double-click/press/hold descriptors are editable and routed outside interactive controls. @use-gesture owns pointer recording and configurable hold duration/movement cancellation; desktop and 420x360 Chromium prove click and middle-button hold routing, while side-button and recorder evidence remain pending."
     },
     {
       "id": "bindings.wheel",
@@ -408,10 +409,11 @@
       "testIds": [
         "neoview.bindings.devices",
         "neoview.bindings.editor",
-        "neoview.bindings.device-recording"
+        "neoview.bindings.device-recording",
+        "neoview.bindings.devices-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "@use-gesture/react owns runtime and recording; direction and all four modifiers are editable, and interactive controls are excluded. Modifier recording and runtime still require Browser E2E."
+      "notes": "@use-gesture/react owns runtime and recording; direction and all four modifiers are editable, and interactive controls are excluded. Desktop and 420x360 Chromium prove Ctrl+wheel dispatch; modifier recording remains pending."
     },
     {
       "id": "bindings.area-click",
@@ -436,10 +438,11 @@
       "testIds": [
         "neoview.bindings.area-grid",
         "neoview.bindings.area-editor",
-        "neoview.bindings.area-runtime"
+        "neoview.bindings.area-runtime",
+        "neoview.bindings.devices-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium geometry remain pending."
+      "notes": "The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium prove top-left area press routing; per-area visual regression remains pending."
     },
     {
       "id": "bindings.touch",
@@ -557,10 +560,11 @@
         "neoview.bindings.radial-client",
         "neoview.bindings.radial-runtime",
         "neoview.radial-menu.editor",
-        "neoview.bindings.keyboard-hold-runtime"
+        "neoview.bindings.keyboard-hold-runtime",
+        "neoview.bindings.radial-pointer-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "All 13 ray-menu TypeScript files are copied byte-for-byte from source revision a4c4e074. React lazily adapts the original NeoViewRayMenu overlay and a complete settings editor covers enablement, menus, three layers, recursive slots, actions/cross-menu jumps, ordering, geometry, preview, reset and independent persistence. Right-button press, one-finger long-press and Enter hold open it; pointer/touch Chromium geometry and legacy toggle-mode evidence remain pending."
+      "notes": "All 13 ray-menu TypeScript files are copied byte-for-byte from source revision a4c4e074. React lazily adapts the original NeoViewRayMenu overlay and a complete settings editor covers enablement, menus, three layers, recursive slots, actions/cross-menu jumps, ordering, geometry, preview, reset and independent persistence. Right-button press, one-finger long-press and Enter hold open it; desktop and 420x360 Chromium prove right-button geometry including empty-menu state, while touch and legacy toggle-mode evidence remain pending."
     },
     {
       "id": "bindings.conflicts",

@@ -20,4 +20,13 @@ describe("ReaderRadialMenuOverlay", () => {
     expect(onSelect).toHaveBeenCalledWith("reader.next-page")
     open.mockRestore()
   })
+
+  it("[neoview.bindings.radial-empty] keeps an enabled empty menu visible with no executable action", async () => {
+    const open = vi.spyOn(NeoViewRayMenu.prototype, "open")
+    render(<ReaderRadialMenuOverlay config={DEFAULT_READER_RADIAL_MENU_CONFIG} request={{ id: 2, x: 40, y: 60 }} onClose={vi.fn()} onSelect={vi.fn()} />)
+    await waitFor(() => expect(open).toHaveBeenCalledWith(40, 60))
+    const element = document.querySelector("neoview-ray-menu") as NeoViewRayMenu
+    expect(element.layers[0]).toMatchObject([{ id: "empty", disabled: true, action: null }])
+    open.mockRestore()
+  })
 })
