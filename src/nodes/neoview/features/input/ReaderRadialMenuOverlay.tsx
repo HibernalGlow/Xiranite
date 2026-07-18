@@ -27,13 +27,22 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
   useEffect(() => {
     const element = elementRef.current
     if (!element) return
+    const syncMenuSemantics = () => labelMenu(element, configRef.current.radius)
+    const menuObserver = element.shadowRoot ? new MutationObserver(syncMenuSemantics) : undefined
+    menuObserver?.observe(element.shadowRoot!, { childList: true, subtree: true })
     let moving = false
     let activeMenuId = configRef.current.activeMenuId
     const applyMenu = () => {
       const current = configRef.current
       const menu = current.menus.find((candidate) => candidate.id === activeMenuId) ?? current.menus[0]
       if (!menu) return false
-      element.layers = menu.layers.map((layer) => layer.map(toRayItem))
+      element.layers = menu.layers.map((layer, index) => {
+        const items = layer.map(toRayItem)
+        if (index === 0 && items.length === 0) {
+          return [{ id: "empty", label: "暂无操作", action: null, slotIndex: 0, disabled: true, selectable: false }]
+        }
+        return items
+      })
       element.items = element.layers[0] ?? []
       element.setAttribute("radius", String(current.radius))
       element.setAttribute("inner-radius", String(current.innerRadius))
@@ -52,7 +61,10 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
       if (!configRef.current.menus.some((menu) => menu.id === menuId)) return
       moving = true
       activeMenuId = menuId
-      if (applyMenu()) requestAnimationFrame(() => element.open(request.x, request.y))
+      if (applyMenu()) requestAnimationFrame(() => {
+        element.open(request.x, request.y)
+        labelMenu(element, configRef.current.radius)
+      })
       queueMicrotask(() => { moving = false })
     }
     const handleClose = () => {
@@ -63,15 +75,26 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
     element.addEventListener("ray-close", handleClose)
     applyMenu()
     element.open(request.x, request.y)
+    labelMenu(element, configRef.current.radius)
     return () => {
       element.removeEventListener("ray-select", handleSelect)
       element.removeEventListener("ray-moveto", handleMoveTo)
       element.removeEventListener("ray-close", handleClose)
+      menuObserver?.disconnect()
       if (element.isOpen) element.close()
     }
   }, [request.id])
 
   return createElement("neoview-ray-menu", { ref: elementRef })
+}
+
+function labelMenu(element: NeoViewRayMenu, radius: number): void {
+  const menu = element.shadowRoot?.querySelector<HTMLElement>('[role="menu"]')
+  if (!menu) return
+  menu.setAttribute("aria-label", "Menu")
+  const size = `${(radius + 20) * 2}px`
+  menu.style.width = size
+  menu.style.height = size
 }
 
 function toRayItem(item: ReaderRadialMenuItem): NeoViewRayMenuItem {

@@ -149,6 +149,7 @@ test("[neoview.bindings.radial-pointer-e2e] opens the copied ray menu from the c
   const reader = page.locator('[data-reader-app="true"]')
   const box = await reader.boundingBox()
   expect(box).toBeTruthy()
+  await expect(page.locator('[data-reader-input-runtime="ready"]')).toHaveCount(1)
   const center = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
   await page.mouse.move(center.x, center.y)
   await page.mouse.down({ button: "right" })
