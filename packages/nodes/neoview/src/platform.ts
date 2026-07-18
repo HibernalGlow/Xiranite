@@ -368,6 +368,7 @@ export async function createReaderHttpController(
   }
   let superResolutionArtifactPages: SuperResolutionArtifactPagePort | undefined = injectedArtifactPages
   let superResolutionArtifactStore: SuperResolutionArtifactStore | undefined = injectedArtifactStore
+  let superResolutionPreload = options.superResolutionPreload
   let disposeSuperResolutionArtifacts = options.disposeSuperResolutionArtifacts
   if (!superResolutionArtifactPages || !superResolutionArtifactStore) {
     const { join } = await import("node:path")
@@ -392,6 +393,7 @@ export async function createReaderHttpController(
       return capability && {
         pages: capability.pages,
         artifactPages: capability.artifactPages,
+        preload: capability.preload,
         listModels: () => capability.service.listModels(),
         capabilities: (capabilityOptions?: { refresh?: boolean; signal?: AbortSignal }) => capability.service.capabilities(capabilityOptions),
         dispose: () => capability.dispose(),
@@ -399,6 +401,7 @@ export async function createReaderHttpController(
     })
     superResolutionArtifactPages = ownedPages
     superResolutionArtifactStore = ownedStore
+    superResolutionPreload = ownedPages
     disposeSuperResolutionArtifacts = async () => {
       const results = await Promise.allSettled([ownedPages[Symbol.asyncDispose](), ownedStore.close()])
       const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
@@ -525,6 +528,7 @@ export async function createReaderHttpController(
     disposeThumbnailStore,
     superResolutionArtifactPages,
     superResolutionArtifactStore,
+    superResolutionPreload,
     disposeSuperResolutionArtifacts,
   })
 }
@@ -828,6 +832,7 @@ export async function createReaderHeadlessController(
         })
         return capability && {
           pages: capability.pages,
+          preload: capability.preload,
           listModels: () => capability.service.listModels(),
           capabilities: (capabilityOptions?: { refresh?: boolean; signal?: AbortSignal }) => capability.service.capabilities(capabilityOptions),
           dispose: () => capability.dispose(),

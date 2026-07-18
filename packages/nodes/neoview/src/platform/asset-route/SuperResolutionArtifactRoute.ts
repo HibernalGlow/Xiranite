@@ -5,10 +5,13 @@ import type { ReaderService, ReaderSessionId } from "../../application/reader/co
 import type { SuperResolutionArtifactRunDecision } from "../../application/super-resolution/SuperResolutionArtifactPageService.js"
 import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
 import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionArtifactStore.js"
+import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
 import { buildSuperResolutionArtifactKey } from "../super-resolution/SuperResolutionArtifactKey.js"
 
 const CONTROL_PATH = /^\/reader\/s\/([^/]+)\/pages\/([^/]+)\/upscale-artifact$/
 const ASSET_PATH = /^\/reader\/s\/([^/]+)\/upscale-artifact\/([A-Za-z0-9_-]{43})$/
+const PRELOAD_PATH = /^\/reader\/s\/([^/]+)\/upscale-preload$/
+const PRELOAD_ACTION_PATH = /^\/reader\/s\/([^/]+)\/upscale-preload\/(start|pause|retry)$/
 const ARTIFACT_KEY_PREFIX = "neoview:super-resolution:v1:"
 export const SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION = "opencomic-system-artifact-v1"
 
@@ -28,6 +31,7 @@ export class SuperResolutionArtifactRoute {
     private readonly pages: SuperResolutionArtifactPagePort,
     private readonly artifacts: SuperResolutionArtifactStore,
     options: SuperResolutionArtifactRouteOptions,
+    private readonly preload?: SuperResolutionPreloadControlPort,
   ) {
     this.#baseUrl = options.baseUrl.replace(/\/$/u, "")
     this.#token = options.token
@@ -39,21 +43,26 @@ export class SuperResolutionArtifactRoute {
     if (control) return this.#control(request, url, control[1]!, control[2]!)
     const asset = ASSET_PATH.exec(url.pathname)
     if (asset) return this.#asset(request, url, asset[1]!, asset[2]!)
+    const preloadAction = PRELOAD_ACTION_PATH.exec(url.pathname)
+    if (preloadAction) return this.#preloadAction(request, url, preloadAction[1]!, preloadAction[2]! as "start" | "pause" | "retry")
+    const preload = PRELOAD_PATH.exec(url.pathname)
+    if (preload) return this.#preloadSnapshot(request, url, preload[1]!)
     return undefined
   }
 
-  releaseSession(sessionId: ReaderSessionId): void {
+  async releaseSession(sessionId: ReaderSessionId): Promise<void> {
     const active = this.#active.get(sessionId)
     this.#active.delete(sessionId)
     for (const controller of active ?? []) {
       controller.abort(abortError(`Reader super-resolution session released: ${sessionId}`))
     }
+    await this.preload?.releaseContext(preloadContextId(sessionId))
   }
 
   close(): void {
     if (this.#closed) return
     this.#closed = true
-    for (const sessionId of this.#active.keys()) this.releaseSession(sessionId)
+    for (const sessionId of this.#active.keys()) void this.releaseSession(sessionId)
   }
 
   async #control(
@@ -165,6 +174,75 @@ export class SuperResolutionArtifactRoute {
     }
   }
 
+  async #preloadSnapshot(request: Request, url: URL, encodedSessionId: string): Promise<Response> {
+    if (this.#closed) return jsonResponse({ error: "Reader super-resolution route is closed" }, 410)
+    if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
+    if (request.method !== "GET") return methodNotAllowed("GET")
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId || !this.reader.getSession(sessionId)) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (!this.preload) return jsonResponse({ error: "Reader super-resolution preload is unavailable" }, 503)
+    return jsonResponse({ snapshots: await this.preload.snapshots(preloadContextId(sessionId), request.signal) })
+  }
+
+  async #preloadAction(
+    request: Request,
+    url: URL,
+    encodedSessionId: string,
+    action: "start" | "pause" | "retry",
+  ): Promise<Response> {
+    if (this.#closed) return jsonResponse({ error: "Reader super-resolution route is closed" }, 410)
+    if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
+    if (request.method !== "POST") return methodNotAllowed("POST")
+    const sessionId = safeDecode(encodedSessionId)
+    const session = sessionId ? this.reader.getSession(sessionId) : undefined
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (!this.preload) return jsonResponse({ error: "Reader super-resolution preload is unavailable" }, 503)
+    const mode = url.searchParams.get("mode") ?? "nearby"
+    if (mode !== "nearby" && mode !== "progressive") return jsonResponse({ error: "mode must be nearby or progressive" }, 400)
+    const contextId = preloadContextId(session.id)
+    try {
+      if (action === "pause") {
+        return jsonResponse({ snapshots: await this.preload.pause(contextId, request.signal) })
+      }
+      if (action === "retry") {
+        return jsonResponse({ snapshots: await this.preload.retry(contextId, mode, request.signal) }, 202)
+      }
+      const artifactFor = (
+        page: typeof session.book.pages[number],
+        context: { decision: SuperResolutionArtifactRunDecision },
+      ) => ({
+        key: artifactKey(session.book.source.path, page.contentVersion, page.entryPath ?? page.sourcePath, context.decision),
+        metadata: { bookKey: session.book.id, contentType: "image/png" as const, extension: "png" as const },
+      })
+      const plan = session.preloadPlan()
+      const snapshots = mode === "nearby"
+        ? plan
+          ? await this.preload.startPlan({
+              contextId,
+              plan,
+              pages: session.book.pages,
+              bookPath: session.book.source.path,
+              artifactFor,
+            }, request.signal)
+          : undefined
+        : await this.preload.startProgressive({
+            contextId,
+            generation: plan?.generation ?? Number(session.generation),
+            currentPageIndex: session.snapshot().anchorPageIndex,
+            pages: session.book.pages,
+            bookPath: session.book.source.path,
+            artifactFor,
+          }, request.signal)
+      if (!snapshots) return jsonResponse({ error: "Reader preload plan is unavailable" }, 409)
+      return jsonResponse({ snapshots }, 202)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      const message = error instanceof Error ? error.message : String(error)
+      const unavailable = message.includes("runtime is unavailable") || message.includes("preload is unavailable")
+      return jsonResponse({ error: message }, unavailable ? 503 : 409)
+    }
+  }
+
   #assetUrl(sessionId: string, key: string, integrity: string): string {
     if (!key.startsWith(ARTIFACT_KEY_PREFIX)) throw new Error("Super-resolution artifact key has an unsupported schema.")
     const digest = key.slice(ARTIFACT_KEY_PREFIX.length)
@@ -255,4 +333,8 @@ function methodNotAllowed(allow: string): Response {
 
 function abortError(message: string): DOMException {
   return new DOMException(message, "AbortError")
+}
+
+function preloadContextId(sessionId: string): string {
+  return `reader:${sessionId}:super-resolution`
 }

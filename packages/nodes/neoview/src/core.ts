@@ -446,6 +446,7 @@ export type {
   SuperResolutionArtifactStoreSnapshot,
 } from "./ports/SuperResolutionArtifactStore.js"
 export type { SuperResolutionArtifactPagePort } from "./ports/SuperResolutionArtifactPagePort.js"
+export type { SuperResolutionPreloadControlPort } from "./ports/SuperResolutionPreloadControlPort.js"
 export {
   SuperResolutionPreferencesWireSchema,
   parseSuperResolutionPreferences,

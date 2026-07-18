@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ReaderService, ReaderSession } from "../../application/reader/contracts.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
+import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
 import { createReaderHttpController } from "../../platform.js"
 import { CacacheSuperResolutionArtifactStore } from "../super-resolution/CacacheSuperResolutionArtifactStore.js"
 import { SuperResolutionArtifactRoute } from "./SuperResolutionArtifactRoute.js"
@@ -114,7 +115,7 @@ describe("SuperResolutionArtifactRoute", () => {
     })
     const request = route.handle(authorized("/reader/s/session-1/pages/page-1/upscale-artifact", { method: "POST" }))
     await started.promise
-    route.releaseSession("session-1")
+    await route.releaseSession("session-1")
     await expect(request).rejects.toMatchObject({ name: "AbortError" })
     await stopped.promise
 
@@ -151,6 +152,64 @@ describe("SuperResolutionArtifactRoute", () => {
     })).toThrow("must be provided together")
   })
 
+  it("[neoview.super-resolution.preload-progress-http] starts, observes, pauses and retries the session plan", async () => {
+    const store = createStore()
+    const page = readerPage()
+    const service = readerService(page)
+    const snapshot = liveSnapshot()
+    const startPlan = vi.fn(async (input) => {
+      const artifact = await input.artifactFor(input.pages[0]!, {
+        contextId: input.contextId,
+        generation: input.plan.generation,
+        trigger: "preload",
+        signal: new AbortController().signal,
+        decision: { kind: "run", reason: "test", modelId: "model", scale: 2, useCache: true },
+      })
+      expect(artifact.key).toMatch(/^neoview:super-resolution:v1:/)
+      return [snapshot]
+    })
+    const startProgressive = vi.fn(async () => [{ ...snapshot, mode: "progressive" as const, state: "countdown" as const }])
+    const snapshots = vi.fn(async () => [snapshot])
+    const pause = vi.fn(async () => [{ ...snapshot, state: "paused" as const }])
+    const retry = vi.fn(async () => [{ ...snapshot, state: "queued" as const }])
+    const releaseContext = vi.fn(async () => undefined)
+    const preload: SuperResolutionPreloadControlPort = {
+      startPlan,
+      startProgressive,
+      snapshots,
+      pause,
+      retry,
+      releaseContext,
+    }
+    const route = new SuperResolutionArtifactRoute(service, port(vi.fn()), store, {
+      baseUrl: BASE_URL,
+      token: TOKEN,
+    }, preload)
+
+    const current = (await route.handle(authorized("/reader/s/session-1/upscale-preload")))!
+    expect(await current.json()).toEqual({ snapshots: [snapshot] })
+    expect(snapshots).toHaveBeenCalledWith("reader:session-1:super-resolution", expect.any(AbortSignal))
+
+    const started = (await route.handle(authorized("/reader/s/session-1/upscale-preload/start?mode=nearby", { method: "POST" })))!
+    expect(started.status).toBe(202)
+    expect(startPlan).toHaveBeenCalledWith(expect.objectContaining({
+      contextId: "reader:session-1:super-resolution",
+      pages: [page],
+      bookPath: "D:/private/book.cbz",
+    }), expect.any(AbortSignal))
+
+    expect((await route.handle(authorized("/reader/s/session-1/upscale-preload/start?mode=progressive", { method: "POST" })))?.status).toBe(202)
+    expect(startProgressive).toHaveBeenCalledWith(expect.objectContaining({ currentPageIndex: 0 }), expect.any(AbortSignal))
+    expect((await route.handle(authorized("/reader/s/session-1/upscale-preload/pause", { method: "POST" })))?.status).toBe(200)
+    expect(pause).toHaveBeenCalledWith("reader:session-1:super-resolution", expect.any(AbortSignal))
+    expect((await route.handle(authorized("/reader/s/session-1/upscale-preload/retry?mode=nearby", { method: "POST" })))?.status).toBe(202)
+    expect(retry).toHaveBeenCalledWith("reader:session-1:super-resolution", "nearby", expect.any(AbortSignal))
+
+    await route.releaseSession("session-1")
+    expect(releaseContext).toHaveBeenCalledWith("reader:session-1:super-resolution")
+    await store.close()
+  })
+
   function createStore() {
     return new CacacheSuperResolutionArtifactStore({
       root: join(root, "cache"),
@@ -183,12 +242,56 @@ function readerService(page: ReaderPage, active: () => boolean = () => true): Re
       pages: [page],
     },
     getPage: (pageId: string) => pageId === page.id ? page : undefined,
+    generation: 2,
+    preloadPlan: () => preloadPlan(),
+    snapshot: () => ({ anchorPageIndex: 0 }),
   } as unknown as ReaderSession
   return {
     openViewSource: vi.fn(),
     getSession: (sessionId) => active() && sessionId === session.id ? session : undefined,
     closeSession: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function preloadPlan() {
+  return {
+    generation: 2,
+    frameGeneration: 2,
+    direction: "forward" as const,
+    directionConfidence: 1,
+    mode: "paged" as const,
+    admission: "normal" as const,
+    velocityPagesPerSecond: 0,
+    stableForMs: 1_000,
+    focused: true,
+    queueWaitMs: 0,
+    memoryPressure: "normal" as const,
+    currentPageIndexes: [0],
+    candidates: [{
+      tier: "ahead" as const,
+      priority: "ahead" as const,
+      anchorPageIndex: 0,
+      pageIndexes: [0],
+      pageIds: ["page-1"],
+    }],
+  }
+}
+
+function liveSnapshot() {
+  return {
+    contextId: "reader:session-1:super-resolution",
+    generation: 2,
+    mode: "nearby" as const,
+    state: "running" as const,
+    planned: 1,
+    settled: 0,
+    failed: 0,
+    cancelled: 0,
+    pending: 1,
+    progress: 0,
+    startedAt: 1,
+    updatedAt: 1,
   }
 }
 

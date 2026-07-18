@@ -223,10 +223,10 @@
       ],
       "targetContract": "Expose planned, settled, failed and cancelled counts plus per-page settled/skipped/failed/cancelled outcomes; observer failures are isolated and recent state is bounded by the active Reader generation.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "partial", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.preload-observer", "neoview.super-resolution.preload-plan"],
-      "plannedTestIds": ["neoview.super-resolution.preload-progress-snapshot", "neoview.super-resolution.preload-progress-gui"],
-      "notes": "Batch result exists; a shared live snapshot with pause/retry controls is not yet exposed."
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
+      "testIds": ["neoview.super-resolution.preload-observer", "neoview.super-resolution.preload-plan", "neoview.super-resolution.preload-progress-snapshot", "neoview.super-resolution.preload-pause", "neoview.super-resolution.preload-running-pause", "neoview.super-resolution.preload-retry", "neoview.super-resolution.preload-progress-http"],
+      "plannedTestIds": ["neoview.super-resolution.preload-progress-gui"],
+      "notes": "The service retains at most 128 session/mode records in lru-cache and exposes queued/countdown/running/completed/paused/cancelled/failed snapshots plus pause/retry over authenticated HTTP; GUI rendering remains pending."
     },
     {
       "id": "progressive-upscale.data-contract",

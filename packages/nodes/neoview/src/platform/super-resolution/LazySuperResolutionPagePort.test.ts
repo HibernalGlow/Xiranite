@@ -66,6 +66,64 @@ describe("LazySuperResolutionPagePort", () => {
     expect(run).toHaveBeenCalledOnce()
     await port[Symbol.asyncDispose]()
   })
+
+  it("[neoview.super-resolution.preload-control-lazy] exposes live controls without loading on snapshot or release", async () => {
+    const snapshot = {
+      contextId: "reader:one",
+      generation: 2,
+      mode: "nearby" as const,
+      state: "running" as const,
+      planned: 1,
+      settled: 0,
+      failed: 0,
+      cancelled: 0,
+      pending: 1,
+      progress: 0,
+      startedAt: 1,
+      updatedAt: 1,
+    }
+    const schedulePlan = vi.fn(async () => batchResult())
+    const scheduleProgressive = vi.fn(async () => batchResult("progressive"))
+    const snapshots = vi.fn(() => [snapshot])
+    const pause = vi.fn(async () => [{ ...snapshot, state: "paused" as const }])
+    const retry = vi.fn(async () => batchResult())
+    const releaseContext = vi.fn()
+    const load = vi.fn(async () => ({
+      ...capability(vi.fn(), async () => undefined),
+      preload: { schedulePlan, scheduleProgressive, snapshots, pause, retry, releaseContext },
+    }))
+    const port = new LazySuperResolutionPagePort(load)
+    expect(await port.snapshots("reader:one")).toEqual([])
+    await port.releaseContext("reader:one")
+    expect(load).not.toHaveBeenCalled()
+
+    const input = preloadInput()
+    await expect(port.startPlan(input)).resolves.toEqual([snapshot])
+    expect(schedulePlan).toHaveBeenCalledWith(input)
+    expect(load).toHaveBeenCalledOnce()
+    await expect(port.pause("reader:one")).resolves.toEqual([expect.objectContaining({ state: "paused" })])
+    await expect(port.retry("reader:one", "nearby")).resolves.toEqual([snapshot])
+    await port.releaseContext("reader:one")
+    expect(releaseContext).toHaveBeenCalledWith("reader:one")
+    await port[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.super-resolution.preload-release-pending-load] does not block session release on optional runtime loading", async () => {
+    const releaseContext = vi.fn()
+    let resolveLoad!: (value: ReturnType<typeof capability> & { preload: object }) => void
+    const loading = new Promise<ReturnType<typeof capability> & { preload: object }>((resolve) => { resolveLoad = resolve })
+    const port = new LazySuperResolutionPagePort(() => loading as never)
+    const execution = port.run(pageInput()).catch(() => undefined)
+    await expect(port.snapshots("reader:closing")).resolves.toEqual([])
+    await expect(port.releaseContext("reader:closing")).resolves.toBeUndefined()
+    resolveLoad({
+      ...capability(vi.fn(async () => ({ decision: { kind: "skip" as const, reason: "test" } })), async () => undefined),
+      preload: { releaseContext },
+    })
+    await execution
+    await vi.waitFor(() => expect(releaseContext).toHaveBeenCalledWith("reader:closing"))
+    await port[Symbol.asyncDispose]()
+  })
 })
 
 function capability<T>(run: T, dispose: () => Promise<void>) {
@@ -94,5 +152,43 @@ function pageInput() {
     },
     destinationPath: "D:/output.png",
     trigger: "manual" as const,
+  }
+}
+
+function preloadInput() {
+  return {
+    contextId: "reader:one",
+    plan: {
+      generation: 2,
+      frameGeneration: 2,
+      direction: "forward" as const,
+      directionConfidence: 1,
+      mode: "paged" as const,
+      admission: "normal" as const,
+      velocityPagesPerSecond: 0,
+      stableForMs: 1_000,
+      focused: true,
+      queueWaitMs: 0,
+      memoryPressure: "normal" as const,
+      currentPageIndexes: [0],
+      candidates: [],
+    },
+    pages: [pageInput().page],
+    bookPath: "D:/book",
+    artifactFor: vi.fn(),
+  }
+}
+
+function batchResult(mode: "nearby" | "progressive" = "nearby") {
+  return {
+    contextId: "reader:one",
+    generation: 2,
+    mode,
+    reason: "empty" as const,
+    planned: 0,
+    settled: 0,
+    failed: 0,
+    cancelled: 0,
+    outcomes: [],
   }
 }
