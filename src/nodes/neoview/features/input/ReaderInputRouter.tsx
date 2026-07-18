@@ -170,6 +170,7 @@ export function readerInputContexts(target: EventTarget | null): ReaderInputCont
   if (!(target instanceof Element)) return ["reader"]
   if (isEditable(target)) return ["editor"]
   if (target.closest('[role="dialog"], [aria-modal="true"], [data-input-context="modal"]')) return ["modal"]
+  if (target.closest('[data-input-context="video"]')) return ["video"]
   if (target.closest("[data-reader-panel]")) return ["panel"]
   return ["reader"]
 }

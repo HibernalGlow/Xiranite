@@ -40,14 +40,21 @@ export {
   type ReaderRadialMenuVariant,
 } from "./application/config/ReaderRadialMenuConfig.js"
 export {
+  convertLegacyReaderInputBindings,
+  type ReaderLegacyInputBindingConversion,
+  type ReaderLegacyInputBindingReportEntry,
+} from "./application/config/ReaderLegacyInputBindings.js"
+export {
   cloneReaderInputBindings,
   DEFAULT_READER_INPUT_BINDINGS,
   matchingReaderInputBinding,
+  LEGACY_READER_INPUT_ACTION_MAP,
   READER_INPUT_ACTION_CATEGORIES,
   READER_INPUT_ACTION_CATEGORY_LABELS,
   READER_INPUT_ACTION_LABELS,
   READER_INPUT_ACTION_METADATA,
   READER_INPUT_ACTIONS,
+  readerInputActionFromLegacyId,
   READER_INPUT_CONTEXT_LABELS,
   READER_INPUT_CONTEXT_PRIORITY,
   READER_INPUT_CONTEXTS,
@@ -58,6 +65,7 @@ export {
   readerInputDescriptorKey,
   readerViewAreaAtPoint,
   type ReaderInputAction,
+  type ReaderInputActionDefinition,
   type ReaderInputActionCategory,
   type ReaderInputActionMetadata,
   type ReaderInputBinding,

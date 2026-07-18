@@ -247,7 +247,7 @@
         "src/lib/actions/actionRegistry.ts",
         "src/lib/stores/keybindings/keyMappings.svelte.ts"
       ],
-      "targetContract": "All devices target stable action IDs; the initial Reader set covers previous/next, zoom in/out/reset, clockwise rotation and opening settings without embedding callbacks in persisted data.",
+      "targetContract": "All legacy core and provider actions map to stable XR IDs; devices and radial slots reference the same catalog without embedding callbacks in persisted data.",
       "surfaces": [
         "GUI",
         "CLI",
@@ -262,11 +262,14 @@
         "evidence": "partial"
       },
       "testIds": [
+        "neoview.bindings.action-catalog",
+        "neoview.bindings.action-executor",
+        "neoview.bindings.action-capability",
         "neoview.bindings.context-routing",
         "neoview.bindings.config"
       ],
       "plannedTestIds": [],
-      "notes": "Seven Reader actions use stable IDs. The full legacy action registry and explicit CLI/TUI dispatch commands remain pending."
+      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The shared executor currently closes navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial and slideshow surfaces; video, next/previous book, destructive file, upscale, remaining viewer toggles, dynamic Card actions and CLI/TUI dispatch remain pending."
     },
     {
       "id": "bindings.context-routing",
@@ -277,7 +280,7 @@
         "src/lib/stores/keybindings/core.svelte.ts",
         "src/lib/stores/keybindings/keyHandlers.svelte.ts"
       ],
-      "targetContract": "Global, reader, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.",
+      "targetContract": "Global, reader, video, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.",
       "surfaces": [
         "GUI",
         "CLI",
@@ -297,7 +300,7 @@
         "neoview.bindings.keyboard-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "The browser route derives editor/modal/panel/reader mode, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. CLI/TUI context-stack projection remains pending."
+      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. CLI/TUI context-stack projection remains pending."
     },
     {
       "id": "bindings.keyboard",
@@ -624,7 +627,9 @@
         "neoview.bindings.validation",
         "neoview.bindings.devices",
         "neoview.bindings.multiple-inputs",
-        "neoview.bindings.keyboard-hold"
+        "neoview.bindings.keyboard-hold",
+        "neoview.bindings.action-catalog",
+        "neoview.bindings.legacy-action-conversion"
       ],
       "plannedTestIds": [],
       "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP. Multiple records may share one action, preserving the legacy one-operation-to-many-inputs contract across devices and contexts; key-down and bounded key-hold are distinct descriptors."
@@ -684,10 +689,12 @@
       },
       "testIds": [
         "neoview.settings.codec",
-        "neoview.bindings.reset"
+        "neoview.bindings.reset",
+        "neoview.bindings.legacy-action-conversion",
+        "neoview.bindings.legacy-action-report"
       ],
       "plannedTestIds": [],
-      "notes": "LegacySettingsCodec preserves the opaque source and canonical reads tolerate it; action-level conversion/reporting remains pending."
+      "notes": "A pure converter expands every legacy ActionBinding.bindings/contextBindings entry into independent XR records, maps global/viewer/videoPlayer contexts, converts supported keyboard/mouse/wheel/trajectory/touch/area descriptors, and reports unknown actions or inputs. Wiring the converter into the one-time settings import transaction and radial-menu conversion remains pending."
     },
     {
       "id": "bindings.states",
