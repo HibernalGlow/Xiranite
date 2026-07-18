@@ -90,25 +90,25 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     case "viewer.toggle-page-switch-toast": {
       const settings = controls.switchToast?.getSnapshot()
       if (!settings || !controls.switchToast) return false
-      void controls.switchToast.update({ enablePage: !settings.enablePage })
+      void controls.switchToast.update({ enablePage: !settings.enablePage }).catch(() => undefined)
       return true
     }
     case "viewer.toggle-book-switch-toast": {
       const settings = controls.switchToast?.getSnapshot()
       if (!settings || !controls.switchToast) return false
-      void controls.switchToast.update({ enableBook: !settings.enableBook })
+      void controls.switchToast.update({ enableBook: !settings.enableBook }).catch(() => undefined)
       return true
     }
     case "viewer.toggle-boundary-toast": {
       const settings = controls.switchToast?.getSnapshot()
       if (!settings || !controls.switchToast) return false
-      void controls.switchToast.update({ enableBoundaryToast: !settings.enableBoundaryToast })
+      void controls.switchToast.update({ enableBoundaryToast: !settings.enableBoundaryToast }).catch(() => undefined)
       return true
     }
     case "viewer.toggle-info-overlay": {
       const settings = controls.infoOverlay?.getSnapshot()
       if (!settings || !controls.infoOverlay) return false
-      void controls.infoOverlay.update({ enabled: !settings.enabled })
+      void controls.infoOverlay.update({ enabled: !settings.enabled }).catch(() => undefined)
       return true
     }
     case "file.open": void controls.openFile(); return true
