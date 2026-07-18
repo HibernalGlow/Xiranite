@@ -299,8 +299,8 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
         resourceScheduler: this.#resourceScheduler,
         tempDirectory: this.#tempDirectory,
         maxMaterializedBytes: this.#maxMaterializedBytes,
-        memoryCacheBytes: this.#solidArchiveCache?.maxMemoryBytes,
-        maxMemoryEntryBytes: this.#solidArchiveCache?.maxMemoryEntryBytes,
+        memoryCache: this.#solidArchiveCache?.memoryCache,
+        memoryKeyPrefix: this.#solidFingerprint?.fingerprint,
         rawPassword: password,
       })
       const encrypted = this.#entries.some((entry) => entry.encrypted)

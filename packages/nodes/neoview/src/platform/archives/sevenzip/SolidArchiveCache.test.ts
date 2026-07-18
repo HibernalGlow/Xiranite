@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { CacheableSolidArchiveMaterializer } from "./SolidArchiveCache.js"
-import { SolidArchiveCache } from "./SolidArchiveCache.js"
+import { SolidArchiveCache, SolidArchiveMemoryCache } from "./SolidArchiveCache.js"
 
 describe("SolidArchiveCache", () => {
   it("[neoview.sevenzip.solid-memory-budget] exposes bounded in-process memory settings", () => {
@@ -9,6 +9,17 @@ describe("SolidArchiveCache", () => {
     expect(cache.maxMemoryBytes).toBe(32)
     expect(cache.maxMemoryEntryBytes).toBe(8)
     expect(() => new SolidArchiveCache({ maxBytes: 100, maxMemoryBytes: 4, maxMemoryEntryBytes: 5 })).toThrow("must not exceed")
+  })
+
+  it("[neoview.sevenzip.solid-memory-lru] keeps the host memory budget across archive keys", () => {
+    const memory = new SolidArchiveMemoryCache(8, 6)
+    expect(memory.set("archive-a\0entry", new Uint8Array(6))).toBe(true)
+    expect(memory.set("archive-b\0entry", new Uint8Array(6))).toBe(true)
+    expect(memory.retainedBytes).toBe(6)
+    expect(memory.get("archive-a\0entry")).toBeUndefined()
+    expect(memory.get("archive-b\0entry")).toBeDefined()
+    memory.trimTo(0)
+    expect(memory.retainedBytes).toBe(0)
   })
 
   it("[neoview.sevenzip.solid-cache-singleflight] shares a complete materializer across sequential sessions", async () => {
