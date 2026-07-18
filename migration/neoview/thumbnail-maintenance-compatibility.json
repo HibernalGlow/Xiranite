@@ -195,8 +195,8 @@
       "targetContract": "The Card has one in-flight operation, disables duplicate commands, distinguishes initial loading, unavailable 501, temporary 503, success and sanitized failure states, aborts work on unmount and ignores stale completions.",
       "surfaces": ["GUI"],
       "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance-cancel-service", "neoview.thumbnail.maintenance-cancel-http", "neoview.thumbnail-maintenance.card", "neoview.thumbnail-maintenance.card-lifecycle", "neoview.thumbnail-maintenance.e2e"],
-      "plannedTestIds": ["neoview.thumbnail-maintenance.cancel-ui"],
+      "testIds": ["neoview.thumbnail.maintenance-cancel-service", "neoview.thumbnail.maintenance-cancel-http", "neoview.thumbnail-maintenance.card", "neoview.thumbnail-maintenance.card-lifecycle", "neoview.thumbnail-maintenance.cancel-ui", "neoview.thumbnail-maintenance.e2e"],
+      "plannedTestIds": [],
       "notes": "There is no interval polling; refresh is initial-load, explicit-command and explicit-refresh only."
     },
     {

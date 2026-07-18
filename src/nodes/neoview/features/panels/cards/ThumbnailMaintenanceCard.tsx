@@ -5,14 +5,13 @@
  * @source-hash sha256:44efe1d10d1d1cb7bd2b0d6a27d9929876041b842ae1222dac617c007bdd8677
  * @migration-status adapted
  */
-import { Clock, Database, FolderX, Loader2, RefreshCcw, ShieldX, Trash2 } from "lucide-react"
+import { Clock, Database, FolderX, Loader2, RefreshCcw, ShieldX, Trash2, X } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type {
-  ReaderHttpClient,
   ReaderThumbnailCleanupCommandDto,
   ReaderThumbnailCleanupResultDto,
   ReaderThumbnailMaintenanceSnapshotDto,
@@ -62,6 +61,15 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
   }, [client, disabled, panelActive])
 
   if (!panelActive) return null
+
+  function cancelOperation() {
+    if (!operation) return
+    generationRef.current += 1
+    controllerRef.current?.abort()
+    controllerRef.current = undefined
+    setOperation(undefined)
+    setFeedback({ tone: "warning", text: "缁存姢鎿嶄綔宸插彇娑堝師" })
+  }
 
   async function refresh() {
     if (!client.thumbnailMaintenance) return setFeedback(unavailableFeedback())
@@ -121,6 +129,22 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
           <Database className="size-4 shrink-0" aria-hidden="true" />
           <span>缩略图数据库维护</span>
         </div>
+        {operation ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            disabled={disabled}
+            data-testid="thumbnail-maintenance-cancel"
+            aria-label="鍙栨秷缁存姢鎿嶄綔"
+            title="鍙栨秷缁存姢鎿嶄綔"
+            onClick={cancelOperation}
+          >
+            <X className="size-3.5" aria-hidden="true" />
+            <span>鍙栨秷</span>
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -242,7 +266,7 @@ function ActionButton({ icon: Icon, destructive = false, ...props }: {
   onClick(): void
 }) {
   return (
-    <Button type="button" variant="outline" size="sm" className={destructive ? "w-full gap-1.5 text-destructive hover:text-destructive" : "w-full gap-1.5"} {...props}>
+    <Button type="button" variant="outline" size="sm" className={destructive ? "w-full gap-1.5 text-destructive hover:text-destructive" : "w-full gap-1.5"} data-testid={Icon === FolderX ? "thumbnail-maintenance-invalid" : undefined} {...props}>
       <Icon className="size-3.5" aria-hidden="true" />
       {props.children}
     </Button>
