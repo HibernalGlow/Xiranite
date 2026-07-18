@@ -7,6 +7,8 @@ import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { startBackend } from "../../../packages/backend/src/index"
 import { createZipFixture, type ZipFixture } from "../../../packages/nodes/neoview/test/fixture-builders/create-zip-fixture"
 
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 const ONE_PIXEL_PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==", "base64"))
 let fixture: ZipFixture
 let backend: Awaited<ReturnType<typeof startBackend>>
@@ -84,7 +86,7 @@ test("[neoview.book-information.e2e] [neoview.book-settings.persistence-e2e] [ne
   await expect(sidebar).toBeVisible()
   const card = sidebar.locator('[data-reader-card="书籍信息"]')
   await expect(card.getByText("一个足够长的迁移验证译名")).toBeVisible()
-  await expect(card.getByText("原名")).toBeVisible()
+  await expect(card.getByText("原名:")).toBeVisible()
   await expect(card.getByText("压缩包")).toBeVisible()
   await expect(card.getByText("1 / 3")).toBeVisible()
   await expect(card.getByText("33.3%")).toBeVisible()

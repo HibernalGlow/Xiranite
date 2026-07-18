@@ -44,7 +44,7 @@ function BookInformationContent({ session, client }: { session: NonNullable<Read
   const hasTranslatedTitle = Boolean(projection.originalTitle)
   return (
     <dl className="space-y-2 text-sm" data-book-information="true">
-      <MetadataRow label="名称">
+      <MetadataRow label="名称:">
         <span
           className={hasTranslatedTitle
             ? "max-w-[min(200px,70%)] break-words rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-right text-xs text-primary"
@@ -54,11 +54,11 @@ function BookInformationContent({ session, client }: { session: NonNullable<Read
           {projection.displayTitle}
         </span>
       </MetadataRow>
-      {projection.originalTitle ? <MetadataRow label="原名"><MetadataValue value={projection.originalTitle} mono /></MetadataRow> : null}
-      <MetadataRow label="路径"><MetadataValue value={book.sourcePath} mono /></MetadataRow>
-      <MetadataRow label="类型"><MetadataValue value={projection.typeLabel} /></MetadataRow>
-      <MetadataRow label="页码"><MetadataValue value={projection.pageText} numeric /></MetadataRow>
-      <MetadataRow label="进度"><MetadataValue value={projection.progressText} numeric /></MetadataRow>
+      {projection.originalTitle ? <MetadataRow label="原名:"><MetadataValue value={projection.originalTitle} mono /></MetadataRow> : null}
+      <MetadataRow label="路径:"><MetadataValue value={book.sourcePath} mono /></MetadataRow>
+      <MetadataRow label="类型:"><MetadataValue value={projection.typeLabel} /></MetadataRow>
+      <MetadataRow label="页码:"><MetadataValue value={projection.pageText} numeric /></MetadataRow>
+      <MetadataRow label="进度:"><MetadataValue value={projection.progressText} numeric /></MetadataRow>
     </dl>
   )
 }
