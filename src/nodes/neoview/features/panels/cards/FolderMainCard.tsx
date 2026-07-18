@@ -6,7 +6,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, ClipboardPaste, Filter, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckSquare, ClipboardPaste, Filter, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -166,6 +166,7 @@ export interface SavedDirectoryState {
   gridScrollTop?: number
   detailsScrollTop?: number
   thumbnailUrls?: ReadonlyMap<string, string>
+  thumbnailProfiles?: ReadonlyMap<string, string>
 }
 
 export interface FolderBrowserCloneSnapshot {
@@ -237,6 +238,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [focusedPath, setFocusedPath] = useState<string>()
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const [thumbnailUrls, setThumbnailUrls] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const thumbnailUrlsRef = useRef<ReadonlyMap<string, string>>(thumbnailUrls)
+  const thumbnailProfilesRef = useRef<ReadonlyMap<string, string>>(new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
   const selectedPaths = useMemo(
@@ -300,6 +303,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const range = visibleRangeRef.current
     const visible = directoryLoadedEntries(current, range.startIndex, range.endIndex, MAX_THUMBNAILS)
       .filter(({ entry }) => entry.kind === "directory" || entry.kind === "file")
+      .filter(({ entry }) => thumbnailProfilesRef.current.get(entry.path) !== thumbnailProfile(entry, viewMode, previewCount))
     if (!visible.length) return
     const signature = `${current.sessionId}:${current.generation}:${viewMode}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
     if (thumbnailSignatureRef.current === signature) return
@@ -311,6 +315,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const contextId = thumbnailContextRef.current ?? `folder:${current.sessionId}:${++thumbnailContextSequenceRef.current}`
     thumbnailContextRef.current = contextId
     const pathById = new Map(visible.map(({ index, entry }) => [String(index), entry.path]))
+    const profileById = new Map(visible.map(({ index, entry }) => [String(index), thumbnailProfile(entry, viewMode, previewCount)]))
     void client.registerLibraryThumbnails(
       contextId,
       generation,
@@ -327,7 +332,21 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         const path = pathById.get(item.id)
         return path ? [[path, item.thumbnailUrl] as const] : []
       })
-      setThumbnailUrls((currentUrls) => mergeThumbnailUrls(currentUrls, resolved, MAX_CACHED_THUMBNAIL_URLS))
+      setThumbnailUrls((currentUrls) => {
+        const next = mergeThumbnailUrls(currentUrls, resolved, MAX_CACHED_THUMBNAIL_URLS)
+        const nextProfiles = new Map(thumbnailProfilesRef.current)
+        for (const item of batch.items) {
+          const path = pathById.get(item.id)
+          const profile = profileById.get(item.id)
+          if (path && profile) nextProfiles.set(path, profile)
+        }
+        for (const path of nextProfiles.keys()) {
+          if (!next.has(path)) nextProfiles.delete(path)
+        }
+        thumbnailUrlsRef.current = next
+        thumbnailProfilesRef.current = nextProfiles
+        return next
+      })
     }).catch(() => {
       // Keep the bounded visit cache visible when background revalidation fails.
     })
@@ -403,6 +422,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       )
       if (generation === navigationGenerationRef.current) {
         let preferredState = navigation.action === "refresh" ? capturedState : undefined
+        if (preferredState) preferredState = { ...preferredState, thumbnailUrls: undefined, thumbnailProfiles: undefined }
         if (preferredState && options.clearSelection) {
           preferredState = { ...preferredState, selection: createDirectorySelection(result.generation) }
         }
@@ -432,7 +452,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     catalogRequestRef.current?.abort()
     catalogRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
-    releaseThumbnailContext()
+    resetThumbnailRegistration()
     const next = createDirectoryCatalog(page)
     chainAnchorIndexRef.current = undefined
     commitCatalog(next)
@@ -472,7 +492,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setPreviewCount(restored.previewCount)
     setMultiSelectMode(restored.multiSelectMode)
     setRestoreState(restored)
-    setThumbnailUrls(restored.thumbnailUrls ?? new Map())
+    const restoredThumbnailUrls = restored.thumbnailUrls ?? new Map()
+    thumbnailUrlsRef.current = restoredThumbnailUrls
+    thumbnailProfilesRef.current = restored.thumbnailProfiles ?? new Map()
+    setThumbnailUrls(restoredThumbnailUrls)
     setSelection(restored.selection)
     setFocusedPath(restored.focusedPath)
   }
@@ -502,6 +525,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         focusedIndex: suggested?.index,
         anchorIndex: suggested?.index ?? 0,
         thumbnailUrls,
+        thumbnailProfiles: thumbnailProfilesRef.current,
       })
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
@@ -586,6 +610,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       gridScrollTop: viewUsesGrid(viewMode) ? gridScrollTopRef.current : undefined,
       detailsScrollTop: viewMode === "details" ? detailsScrollTopRef.current : undefined,
       thumbnailUrls: viewUsesThumbnails(viewMode) ? thumbnailUrls : undefined,
+      thumbnailProfiles: viewUsesThumbnails(viewMode) ? thumbnailProfilesRef.current : undefined,
     }
     return { current, state }
   }
@@ -639,7 +664,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const preferredState = await captureRefreshState()
     const latest = catalogRef.current
     if (!latest || latest.sessionId !== page.sessionId || latest.generation >= page.generation) return
-    applyPage(page, preferredState)
+    applyPage(page, preferredState ? { ...preferredState, thumbnailUrls: undefined, thumbnailProfiles: undefined } : undefined)
   }
 
   function switchView(next: FolderViewMode) {
@@ -657,10 +682,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       focusedIndex: focusedIndexRef.current,
       anchorIndex,
       thumbnailUrls,
+      thumbnailProfiles: thumbnailProfilesRef.current,
     }
     if (current) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, nextState)
     if (!viewUsesThumbnails(next)) {
-      releaseThumbnailContext()
+      resetThumbnailRegistration()
     }
     setRestoreState(nextState)
     setViewMode(next)
@@ -670,8 +696,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   function switchPreviewCount(next: FolderPreviewCount) {
     if (next === previewCount) return
     captureCurrentState()
-    releaseThumbnailContext()
-    setThumbnailUrls(new Map())
+    resetThumbnailRegistration()
+    const emptyThumbnailUrls = new Map<string, string>()
+    thumbnailUrlsRef.current = emptyThumbnailUrls
+    thumbnailProfilesRef.current = new Map()
+    setThumbnailUrls(emptyThumbnailUrls)
     setPreviewCount(next)
     thumbnailSignatureRef.current = ""
     void onFolderView?.({ previewCount: next })
@@ -838,12 +867,16 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }
 
   function releaseThumbnailContext() {
-    thumbnailRequestRef.current?.abort()
-    thumbnailRequestRef.current = undefined
-    thumbnailSignatureRef.current = ""
+    resetThumbnailRegistration()
     const contextId = thumbnailContextRef.current
     thumbnailContextRef.current = undefined
     if (contextId) void client.releaseLibraryThumbnailContext?.(contextId).catch(() => undefined)
+  }
+
+  function resetThumbnailRegistration() {
+    thumbnailRequestRef.current?.abort()
+    thumbnailRequestRef.current = undefined
+    thumbnailSignatureRef.current = ""
   }
 
   function disposeBrowser() {
@@ -1110,7 +1143,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               disabled={loading || !client.sortDirectoryBrowser}
               onClick={() => void updateSort({ ...catalog.sort, order: catalog.sort.order === "asc" ? "desc" : "asc" })}
             >
-              {catalog.sort.order === "asc" ? <ArrowUpAZ /> : <ArrowDownAZ />}
+              {catalog.sort.order === "asc" ? <ArrowUp /> : <ArrowDown />}
             </BrowserButton>
             <BrowserButton
               label={catalog.sortTemporary ? "取消临时排序" : "锁定当前目录排序"}
@@ -1400,6 +1433,16 @@ export function mergeThumbnailUrls(
   }
   while (next.size > maximum) next.delete(next.keys().next().value as string)
   return next
+}
+
+function thumbnailProfile(
+  entry: Pick<ReaderDirectoryEntryDto, "kind">,
+  viewMode: FolderViewMode,
+  previewCount: FolderPreviewCount,
+): string {
+  return entry.kind === "directory" && viewUsesMosaic(viewMode)
+    ? `folder:${previewCount}`
+    : `${entry.kind}:1`
 }
 
 function sameFolderPath(left: string, right: string): boolean {

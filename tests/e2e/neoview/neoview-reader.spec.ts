@@ -1324,20 +1324,16 @@ test("[neoview.folder.nav-visual-state-e2e] restores grid position and cached th
     ...Array.from({ length: 80 }, (_, index) => writeFile(join(firstPath, `image-${String(index).padStart(3, "0")}.png`), ONE_PIXEL_PNG)),
     writeFile(join(secondPath, "other.png"), ONE_PIXEL_PNG),
   ])
-  let delayNextThumbnailBatch = false
+  const thumbnailRegistrations: string[][] = []
 
   try {
     await page.addInitScript(({ baseUrl, token }) => {
       window.__XIRANITE_BACKEND__ = { baseUrl, token }
     }, { baseUrl: backend.url, token: backend.token })
-    await page.route("**/reader/library/thumbnails", async (route) => {
-      const request = route.request()
-      const body = request.method() === "POST" ? request.postDataJSON() as { items?: Array<{ path?: string }> } : undefined
-      if (delayNextThumbnailBatch && body?.items?.some((item) => item.path?.startsWith(firstPath))) {
-        delayNextThumbnailBatch = false
-        await new Promise((resolve) => setTimeout(resolve, 8_000))
-      }
-      await route.continue()
+    page.on("request", (request) => {
+      if (request.method() !== "POST" || new URL(request.url()).pathname !== "/reader/library/thumbnails") return
+      const body = request.postDataJSON() as { items?: Array<{ path?: string }> }
+      thumbnailRegistrations.push(body.items?.flatMap((item) => item.path ? [item.path] : []) ?? [])
     })
     await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: "打开书籍" }).click()
@@ -1367,25 +1363,49 @@ test("[neoview.folder.nav-visual-state-e2e] restores grid position and cached th
     await expect.poll(async () => Number(await folderCard.getAttribute("data-thumbnail-cache-size"))).toBeGreaterThan(0)
     const savedScrollTop = await gridScroll.evaluate((element) => element.scrollTop)
     const savedNavigationEntryId = await gridScroll.getAttribute("data-folder-navigation-entry-id")
-    const savedThumbnailPaths = await folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries) => entries
-      .filter((entry) => entry.querySelector("img"))
-      .map((entry) => (entry as HTMLElement).dataset.folderPath)
-      .filter((path): path is string => Boolean(path)))
+    const savedThumbnails = await folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries) => Object.fromEntries(entries.flatMap((entry) => {
+      const path = (entry as HTMLElement).dataset.folderPath
+      const source = entry.querySelector<HTMLImageElement>("img")?.src
+      return path && source ? [[path, source]] : []
+    })))
+    const savedThumbnailPaths = Object.keys(savedThumbnails)
 
     await navigatePath(secondPath)
-    delayNextThumbnailBatch = true
+    await expect.poll(() => folderCard.locator('[data-folder-entry="true"] img').count()).toBeGreaterThan(0)
+    const secondThumbnails = await folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries) => Object.fromEntries(entries.flatMap((entry) => {
+      const path = (entry as HTMLElement).dataset.folderPath
+      const source = entry.querySelector<HTMLImageElement>("img")?.src
+      return path && source ? [[path, source]] : []
+    })))
+    const registrationsBeforeBack = thumbnailRegistrations.filter((batch) => batch.some((path) => savedThumbnailPaths.includes(path))).length
     await folderCard.getByRole("button", { name: "后退" }).click()
     await expect(currentBreadcrumb).toHaveAttribute("title", firstPath)
     await expect(gridScroll).toHaveAttribute("data-folder-navigation-entry-id", savedNavigationEntryId!)
     await expect(gridScroll).toHaveAttribute("data-folder-restore-scroll-top", String(savedScrollTop))
     await expect.poll(async () => Number(await folderCard.getAttribute("data-restored-thumbnail-cache-size"))).toBeGreaterThan(0)
     await expect.poll(async () => Math.abs(await gridScroll.evaluate((element) => element.scrollTop) - savedScrollTop)).toBeLessThanOrEqual(40)
-    await expect.poll(async () => {
-      const currentThumbnailPaths = await folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries) => entries
-        .filter((entry) => entry.querySelector("img"))
-        .map((entry) => (entry as HTMLElement).dataset.folderPath))
-      return savedThumbnailPaths.some((path) => currentThumbnailPaths.includes(path))
-    }).toBe(true)
+    await expect.poll(async () => folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries, expected) => entries.some((entry) => {
+      const path = (entry as HTMLElement).dataset.folderPath
+      const source = entry.querySelector<HTMLImageElement>("img")?.src
+      return Boolean(path && source && expected[path] === source)
+    }), savedThumbnails)).toBe(true)
+    const savedCapability = Object.values(savedThumbnails)[0]
+    expect(savedCapability).toBeTruthy()
+    expect((await page.request.get(savedCapability!)).status()).toBe(200)
+    await page.waitForTimeout(250)
+    expect(thumbnailRegistrations.filter((batch) => batch.some((path) => savedThumbnailPaths.includes(path)))).toHaveLength(registrationsBeforeBack)
+
+    await folderCard.getByRole("button", { name: "前进" }).click()
+    await expect(currentBreadcrumb).toHaveAttribute("title", secondPath)
+    await expect.poll(async () => folderCard.locator('[data-folder-entry="true"]').evaluateAll((entries, expected) => entries.some((entry) => {
+      const path = (entry as HTMLElement).dataset.folderPath
+      const source = entry.querySelector<HTMLImageElement>("img")?.src
+      return Boolean(path && source && expected[path] === source)
+    }), secondThumbnails)).toBe(true)
+
+    await folderCard.getByRole("button", { name: "后退" }).click()
+    await expect(currentBreadcrumb).toHaveAttribute("title", firstPath)
+    await expect.poll(async () => Math.abs(await gridScroll.evaluate((element) => element.scrollTop) - savedScrollTop)).toBeLessThanOrEqual(40)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

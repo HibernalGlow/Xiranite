@@ -31,7 +31,6 @@ export interface LibraryThumbnailRouteOptions {
 interface LibraryAssetRecord {
   assetId: string
   contextId: string
-  generation: number
   source: LibraryThumbnailSource
 }
 
@@ -118,14 +117,13 @@ export class LibraryThumbnailRoute {
     }
     const latest = this.#contexts.get(parsed.contextId)
     if (latest && parsed.generation < latest.generation) return jsonResponse({ error: "Thumbnail generation is stale" }, 409)
-    this.#pipeline.releaseContext(pipelineContextId(parsed.contextId))
     this.#pipeline.advanceContext(pipelineContextId(parsed.contextId), parsed.generation)
-    this.#dropContext(parsed.contextId)
-    const context: ContextRecord = { generation: parsed.generation, assetIds: new Set() }
+    const context: ContextRecord = latest ?? { generation: parsed.generation, assetIds: new Set() }
+    context.generation = parsed.generation
     this.#contexts.set(parsed.contextId, context)
     const items = described.map(({ item, source }) => {
       const assetId = randomBytes(18).toString("base64url")
-      const record: LibraryAssetRecord = { assetId, contextId: parsed.contextId, generation: parsed.generation, source }
+      const record: LibraryAssetRecord = { assetId, contextId: parsed.contextId, source }
       this.#assets.set(assetId, record)
       context.assetIds.add(assetId)
       this.#trimAssets()
@@ -220,9 +218,11 @@ export class LibraryThumbnailRoute {
     let lease: ThumbnailLease | undefined
     let thumbnail: ThumbnailAsset
     try {
+      const context = this.#contexts.get(record.contextId)
+      if (!context) return textResponse("Library thumbnail context was released", 404)
       lease = this.#pipeline.acquireLibrary(record.source, {
         contextId: pipelineContextId(record.contextId),
-        generation: record.generation,
+        generation: context.generation,
         signal: request.signal,
       })
       thumbnail = await lease.ready
