@@ -14,6 +14,7 @@ export interface RarFixtureEntry {
 export interface RarFixtureOptions {
   entries: readonly RarFixtureEntry[]
   password: string
+  format?: 4 | 5
   solid?: boolean
   encryptHeaders?: boolean
   name?: string
@@ -50,6 +51,7 @@ export async function createRarFixture(options: RarFixtureOptions): Promise<RarF
       "a",
       "-idq",
       "-m1",
+      `-ma${options.format ?? 5}`,
       options.solid ? "-s" : "-s-",
       `${options.encryptHeaders ? "-hp" : "-p"}${options.password}`,
       "--",

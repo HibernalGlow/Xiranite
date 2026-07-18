@@ -29,6 +29,8 @@ let encryptedPath = ""
 let encryptedSolidPath = ""
 let encryptedHeaderPath = ""
 let encryptedRarFixture: RarFixture | undefined
+let solidRarFixture: RarFixture | undefined
+let rar4Fixture: RarFixture | undefined
 
 beforeAll(async () => {
   if (!executable) return
@@ -60,12 +62,38 @@ beforeAll(async () => {
       encryptHeaders: true,
       entries: [{ path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) }],
     })
+    try {
+      solidRarFixture = await createRarFixture({
+        executablePath: rarExecutable,
+        password: "fixture-secret",
+        solid: true,
+        entries: [
+          { path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) },
+          { path: "pages/002.jpg", bytes: Uint8Array.of(6, 7, 8) },
+        ],
+      })
+    } catch {
+      solidRarFixture = undefined
+    }
+    try {
+      rar4Fixture = await createRarFixture({
+        executablePath: rarExecutable,
+        password: "fixture-secret",
+        format: 4,
+        entries: [{ path: "pages/001.jpg", bytes: Uint8Array.of(1, 2, 3, 4, 5) }],
+      })
+    } catch {
+      // Some installed RAR builds can only write RAR5. Keep RAR4 optional.
+      rar4Fixture = undefined
+    }
   }
 })
 
 afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true })
   await encryptedRarFixture?.cleanup()
+  await solidRarFixture?.cleanup()
+  await rar4Fixture?.cleanup()
 })
 
 describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () => {
@@ -412,6 +440,56 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
       const first = entries.find((entry) => entry.path === "pages/001.jpg")!
       expect(first).toMatchObject({ encrypted: true, uncompressedSize: 5 })
       expect(await collect(await provider.openEntry(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+    } finally {
+      await provider.close()
+      password.fill(0)
+    }
+  })
+
+  it.skipIf(!rarExecutable || !solidRarFixture)("[neoview.sevenzip.solid-rar] streams a real solid RAR5 through one sequential materializer", async () => {
+    const scheduler = new RecordingScheduler()
+    const password = new TextEncoder().encode("fixture-secret")
+    const provider = createProvider(solidRarFixture!.path, scheduler, { rawPassword: password })
+    try {
+      const entries = await provider.list()
+      expect(provider.capabilities).toMatchObject({ solid: true, randomAccess: false, materialization: "required" })
+      const first = entries.find((entry) => entry.path === "pages/001.jpg")!
+      const second = entries.find((entry) => entry.path === "pages/002.jpg")!
+      expect(await collect(await provider.openEntry(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      expect(await collect(await provider.openEntry(second.id))).toEqual(Uint8Array.of(6, 7, 8))
+      expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract")).toHaveLength(1)
+    } finally {
+      await provider.close()
+      password.fill(0)
+    }
+  })
+
+  it.skipIf(!rarExecutable || !rar4Fixture)("[neoview.sevenzip.rar4] reads a real RAR4 entry through the same provider", async () => {
+    const password = new TextEncoder().encode("fixture-secret")
+    const provider = createProvider(rar4Fixture!.path, undefined, { rawPassword: password })
+    try {
+      const entry = (await provider.list()).find((candidate) => candidate.kind === "file")!
+      expect(await collect(await provider.openEntry(entry.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+    } finally {
+      await provider.close()
+      password.fill(0)
+    }
+  })
+
+  it.skipIf(!rarExecutable || !solidRarFixture)("[neoview.sevenzip.rar-corrupt] rejects a damaged real RAR before publishing bytes", async () => {
+    const bytes = new Uint8Array(await readFile(solidRarFixture!.path))
+    bytes[Math.max(8, Math.floor(bytes.byteLength / 2))] ^= 0xff
+    const corrupted = join(directory, "corrupt-rar.cbr")
+    await writeFile(corrupted, bytes)
+    const password = new TextEncoder().encode("fixture-secret")
+    const provider = createProvider(corrupted, undefined, { rawPassword: password })
+    try {
+      const corruptedRead = provider.list().then(async (entries) => {
+        const first = entries.find((entry) => entry.kind === "file")
+        if (!first) throw new Error("Corrupted RAR unexpectedly has no file entry.")
+        return collect(await provider.openEntry(first.id))
+      })
+      await expect(corruptedRead).rejects.toThrow()
     } finally {
       await provider.close()
       password.fill(0)
