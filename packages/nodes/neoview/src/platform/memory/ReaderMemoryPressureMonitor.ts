@@ -55,7 +55,7 @@ export class ReaderMemoryPressureMonitor {
       this.#lastSampleAtMs = now
       this.#samples += 1
       this.#availableBytes = readAvailableMemory(this.#availableMemory)
-      this.#level = this.#availableBytes === undefined ? "normal" : nextLevel(
+      this.#level = nextLevel(
         this.#level,
         this.#availableBytes,
         this.#criticalBytes,
@@ -93,11 +93,12 @@ export class ReaderMemoryPressureMonitor {
 
 function nextLevel(
   current: ReaderMemoryPressureLevel,
-  available: number,
+  available: number | undefined,
   critical: number,
   elevated: number,
   recovery: number,
 ): ReaderMemoryPressureLevel {
+  if (available === undefined) return "normal"
   if (available >= recovery) return "normal"
   if (available <= critical) return "critical"
   if (current === "critical" && available <= elevated) return "critical"
