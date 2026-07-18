@@ -11,6 +11,10 @@ import { READER_CARD_MANIFEST, READER_PANEL_MANIFEST, readerCardCanMoveTo } from
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
+import {
+  parseSuperResolutionPreferences,
+  type SuperResolutionPreferences,
+} from "../../domain/super-resolution/super-resolution-preferences.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -144,6 +148,7 @@ export interface NeoviewSuperResolutionConfig {
   daemonIdleTimeoutMs: number
   taskTimeoutMs: number
   customModels: readonly SuperResolutionCustomModelManifest[]
+  preferences: SuperResolutionPreferences
 }
 
 export interface NeoviewHistoryListConfig {
@@ -421,6 +426,7 @@ export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConf
   daemonIdleTimeoutMs: 300_000,
   taskTimeoutMs: 10 * 60_000,
   customModels: Object.freeze([]),
+  preferences: parseSuperResolutionPreferences(undefined),
 }
 
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
@@ -579,6 +585,7 @@ function parseSuperResolutionConfig(value: Record<string, unknown> | undefined):
       "[nodes.neoview.super_resolution].task_timeout_ms",
     ),
     customModels: parseSuperResolutionCustomModels(value.custom_models),
+    preferences: parseSuperResolutionPreferences(value.preferences),
   }
 }
 

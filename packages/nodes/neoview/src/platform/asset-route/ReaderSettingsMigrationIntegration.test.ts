@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { createReaderHttpController } from "../../platform.js"
+import { loadNeoviewRuntimeConfig } from "../config/loadNeoviewRuntimeConfig.js"
 
 const roots: string[] = []
 
@@ -105,6 +106,79 @@ describe("Reader settings migration HTTP integration", () => {
       expect(written).toContain("[nodes.neoview.future]")
       expect(written).not.toContain("old = true")
       expect(written).not.toContain("hidden")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.super-resolution.legacy-settings-import] reports and round-trips legacy preferences without disabling capability", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-upscale-settings-http-"))
+    roots.push(root)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, "[nodes.neoview]\nschema_version = 1\n", "utf8")
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "secret",
+      configPath,
+      legacyThumbnailDatabasePath: false,
+    })
+    const content = JSON.stringify({
+      version: "2.0.0",
+      backupType: "manual",
+      nativeSettings: { image: { enableSuperResolution: false } },
+      rawLocalStorage: {
+        pyo3_upscale_settings: JSON.stringify({
+          autoUpscaleEnabled: true,
+          selectedModel: "MODEL_REALESRGAN_ANIMAVIDEOV3_UP2X",
+          conditionsList: [{
+            id: "small-page",
+            name: "Small page",
+            enabled: true,
+            priority: 0,
+            match: { maxWidth: 1_024 },
+            action: { model: "MODEL_REALCUGAN_SE_UP3X", scale: 3, useCache: true },
+          }, {
+            id: "unresolved-model",
+            name: "Unresolved model",
+            enabled: true,
+            priority: 1,
+            match: {},
+            action: { model: "MANGAJANAI_AUTO_X2", scale: 2 },
+          }],
+        }),
+      },
+    })
+    try {
+      const preview = (await controller.handle(jsonRequest("/reader/settings/migration/inspect", { content })))!
+      const inspection = await preview.json() as { report: { entries: Array<{ sourcePath: string; disposition: string }> } }
+      expect(inspection.report.entries).toContainEqual(expect.objectContaining({
+        sourcePath: "rawLocalStorage.pyo3_upscale_settings.conditionsList[1].action.model",
+        disposition: "unknown",
+      }))
+
+      const imported = (await controller.handle(jsonRequest("/reader/settings/migration/import", {
+        content,
+        modules: ["native-settings", "upscale"],
+        strategy: "merge",
+        confirmed: true,
+      })))!
+      expect(imported.status).toBe(200)
+      const loaded = await loadNeoviewRuntimeConfig({ configPath })
+      expect(loaded.superResolution).toMatchObject({
+        provider: "opencomic-system",
+        preferences: {
+          currentImageUpscaleEnabled: false,
+          autoUpscaleEnabled: true,
+          defaultModelId: "realesr-animevideov3",
+          defaultScale: 2,
+          conditions: [{
+            id: "small-page",
+            match: { maxWidth: 1_024 },
+            action: { modelId: "realcugan", scale: 3, useCache: true },
+          }],
+        },
+      })
+      expect(loaded.superResolution.preferences.conditions).toHaveLength(1)
     } finally {
       await controller[Symbol.asyncDispose]()
     }

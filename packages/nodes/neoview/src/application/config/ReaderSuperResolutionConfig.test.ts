@@ -33,6 +33,36 @@ describe("NeoView super-resolution runtime config", () => {
       daemonIdleTimeoutMs: 120_000,
       taskTimeoutMs: 900_000,
       customModels: [],
+      preferences: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.preferences,
+    })
+  })
+
+  it("[neoview.super-resolution.preferences-config] parses versioned preferences and conditions", () => {
+    expect(parseNeoviewRuntimeConfig({ super_resolution: { preferences: {
+      schema_version: 1,
+      auto_upscale_enabled: true,
+      default_model_id: "realcugan",
+      default_scale: 3,
+      conditional_enabled: true,
+      conditions: [{
+        id: "small-page",
+        name: "Small page",
+        enabled: true,
+        priority: 0,
+        match: { max_width: 1_024, dimension_mode: "and" },
+        action: { model_id: "realcugan", scale: 3, skip: false },
+      }],
+    } } }).superResolution.preferences).toMatchObject({
+      schemaVersion: 1,
+      autoUpscaleEnabled: true,
+      defaultModelId: "realcugan",
+      defaultScale: 3,
+      conditionalEnabled: true,
+      conditions: [{
+        id: "small-page",
+        match: { maxWidth: 1_024, dimensionMode: "and" },
+        action: { modelId: "realcugan", scale: 3, skip: false },
+      }],
     })
   })
 
@@ -82,5 +112,6 @@ describe("NeoView super-resolution runtime config", () => {
     expect(() => parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{ id: "bad", name: "bad", engine: "upscayl", scales: [2], directory: "bad", files: ["m.bin"], license: "MIT", checksums: { "m.bin": "0".repeat(64), "extra.bin": "1".repeat(64) }, input_blob: "in0", output_blob: "out0" }] } })).toThrow("unknown model file")
     expect(() => parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{ id: "bad", name: "bad", engine: "upscayl", scales: [2], scale_files: { 4: "bad-x4" }, directory: "bad", files: ["m.bin"], license: "MIT", checksums: { "m.bin": "0".repeat(64) }, input_blob: "in0", output_blob: "out0" }] } })).toThrow("not a declared scale")
     expect(() => parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{ id: "bad", name: "bad", engine: "upscayl", scales: [2], directory: "bad", files: ["m.bin"], license: "MIT", checksums: { "m.bin": "0".repeat(64) }, input_blob: "in0", output_blob: "out0", download_base_url: "http://example.test/models" }] } })).toThrow("HTTPS URL")
+    expect(() => parseNeoviewRuntimeConfig({ super_resolution: { preferences: { schema_version: 1, conditions: [{ id: "bad", name: "bad", enabled: true, priority: 0, match: { book_path_regex: "[" }, action: { skip: true } }] } } })).toThrow("regular expression")
   })
 })

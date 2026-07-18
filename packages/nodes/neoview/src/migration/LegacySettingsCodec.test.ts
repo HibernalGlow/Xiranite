@@ -172,6 +172,46 @@ describe("LegacySettingsCodec", () => {
     ]))
   })
 
+  it("delegates every legacy upscale source to the versioned preferences codec", () => {
+    const result = codec.decode({
+      version: "2.0.0",
+      backupType: "manual",
+      nativeSettings: {
+        image: {
+          enableSuperResolution: false,
+          superResolutionModel: "MODEL_REALESRGAN_ANIMAVIDEOV3_UP2X",
+        },
+      },
+      extendedData: {
+        upscalePanelSettings: {
+          autoUpscaleEnabled: true,
+          selectedModel: "MODEL_REALCUGAN_SE_UP3X",
+          scale: 3,
+        },
+      },
+      rawLocalStorage: {
+        pyo3_upscale_settings: JSON.stringify({ preUpscaleEnabled: false, preloadPages: 7 }),
+      },
+    })
+
+    expect(result.configPatch).toMatchObject({
+      super_resolution: {
+        preferences: {
+          schema_version: 1,
+          current_image_upscale_enabled: false,
+          auto_upscale_enabled: true,
+          pre_upscale_enabled: false,
+          preload_pages: 7,
+          default_model_id: "realcugan",
+          default_scale: 3,
+        },
+      },
+    })
+    expect(result.configPatch).not.toHaveProperty("upscale")
+    expect(result.configPatch).not.toHaveProperty("image.enable_super_resolution")
+    expect(result.configPatch).not.toHaveProperty("super_resolution.provider")
+  })
+
   it("reports unknown and malformed fields instead of silently dropping them", () => {
     const result = codec.decode({
       system: { language: "en", futureOption: true },
