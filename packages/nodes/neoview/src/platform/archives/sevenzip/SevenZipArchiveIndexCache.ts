@@ -19,6 +19,7 @@ export interface SevenZipArchiveIndexLoadOptions {
 }
 
 const DEFAULT_MAX_ENTRIES = 32
+const MAX_REVISION_RETRIES = 1
 
 /** Host-lifetime cache for verified 7-Zip index descriptors. */
 export class SevenZipArchiveIndexCache implements AsyncDisposable {
@@ -53,12 +54,7 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
     if (cached) return cloneIndex(cached)
     let loading = this.#loads.get(key)
     if (!loading) {
-      loading = options.load().then((index) => {
-        this.#assertOpen()
-        const normalized = cloneIndex(index)
-        if (this.#sourceRevisions.get(revision.sourceIdentity) === key) this.#entries.set(key, normalized)
-        return normalized
-      })
+      loading = this.#loadVerified(options, revision)
       this.#loads.set(key, loading)
       void loading.then(
         () => { if (this.#loads.get(key) === loading) this.#loads.delete(key) },
@@ -93,6 +89,32 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
     const previous = this.#sourceRevisions.get(sourceIdentity)
     if (previous && previous !== key) this.#entries.delete(previous)
     this.#sourceRevisions.set(sourceIdentity, key)
+  }
+
+  async #loadVerified(
+    options: SevenZipArchiveIndexLoadOptions,
+    initialRevision: ArchiveRevisionKey,
+  ): Promise<SevenZipArchiveIndex> {
+    let before = initialRevision
+    for (let attempt = 0; attempt <= MAX_REVISION_RETRIES; attempt += 1) {
+      const index = await options.load()
+      this.#assertOpen()
+      const after = await revisionKey(options)
+      if (after.sourceIdentity === before.sourceIdentity && after.key === before.key) {
+        const normalized = cloneIndex(index)
+        if (this.#sourceRevisions.get(after.sourceIdentity) === after.key) this.#entries.set(after.key, normalized)
+        return normalized
+      }
+      if (after.key !== initialRevision.key && after.sourceIdentity === initialRevision.sourceIdentity) {
+        const cached = this.#entries.get(after.key)
+        if (cached) return cloneIndex(cached)
+        const shared = this.#loads.get(after.key)
+        if (shared) return cloneIndex(await shared)
+      }
+      this.#replaceSourceRevision(after.sourceIdentity, after.key)
+      before = after
+    }
+    throw new Error("7-Zip archive changed while its index was being loaded.")
   }
 }
 
