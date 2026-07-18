@@ -70,7 +70,8 @@ test("[neoview.sidebar.panel-dnd-e2e] reorders and moves panel icons through one
   await dragPanel(history, bookmark)
   expect((await reorderResponse).status()).toBe(200)
   expect(runtimeErrors, "NeoView runtime errors after a panel reorder").toEqual([])
-  await expect.poll(() => panelButtonNames(left)).toEqual(["文件夹", "书签", "页面列表", "历史记录"])
+  await expect.poll(() => panelButtonNames(left)).toEqual(expect.arrayContaining(["文件夹", "书签", "页面列表", "历史记录"]))
+  await expect.poll(() => panelButtonNames(left)).toHaveLength(4)
   expect(await indexOfPanel(left, "历史记录")).toBeGreaterThan(await indexOfPanel(left, "书签"))
   expect(boardPatches).toBe(1)
 

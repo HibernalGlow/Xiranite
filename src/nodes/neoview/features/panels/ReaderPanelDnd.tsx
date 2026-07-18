@@ -107,6 +107,7 @@ function ActiveReaderPanelDndProvider({
   }
 
   function handleDragEnd(event: DragEndEvent): void {
+    applyDragPosition(event)
     const next = dragShellRef.current
     const movedId = String(event.active.id)
     if (next === baseRef.current) {
