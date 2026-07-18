@@ -342,6 +342,7 @@
       },
       "testIds": [
         "neoview.storage-information.states",
+        "neoview.storage-information.metadata-retry",
         "neoview.storage-information.diagnostics-retry",
         "neoview.storage-information.partial-metrics",
         "neoview.metadata.cancel"
@@ -442,6 +443,7 @@
         "neoview.metadata.cancel",
         "neoview.card.zero-mount",
         "neoview.storage-information.states",
+        "neoview.storage-information.inactive-cancel",
         "neoview.storage-information.diagnostics-cancel",
         "neoview.storage-information.e2e"
       ],
