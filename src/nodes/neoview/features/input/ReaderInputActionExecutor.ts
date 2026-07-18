@@ -8,6 +8,16 @@ import {
 import type { ReaderVideoActionPort } from "../video/ReaderVideoController"
 import type { ReaderViewerTogglePort } from "../viewer/ReaderViewerToggleStore"
 
+interface ReaderSwitchToastActionPort {
+  getSnapshot(): { enableBook: boolean; enablePage: boolean; enableBoundaryToast: boolean }
+  update(patch: { enableBook?: boolean; enablePage?: boolean; enableBoundaryToast?: boolean }): Promise<void>
+}
+
+interface ReaderInfoOverlayActionPort {
+  getSnapshot(): { enabled: boolean } | undefined
+  update(patch: { enabled?: boolean }): Promise<void>
+}
+
 export interface ReaderInputActionSession {
   pageCount: number
   pageIndex: number
@@ -36,6 +46,8 @@ export interface ReaderInputActionControls {
   openRadialMenu(): void
   video?: ReaderVideoActionPort
   viewerToggles?: ReaderViewerTogglePort
+  switchToast?: ReaderSwitchToastActionPort
+  infoOverlay?: ReaderInfoOverlayActionPort
   slideshow: {
     toggle(): void
     stop(): void
@@ -75,6 +87,30 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     case "viewer.toggle-sidebar-control": controls.toggleSidebarControl(); return true
     case "viewer.toggle-progress-bar": controls.viewerToggles?.toggleProgressBar(); return Boolean(controls.viewerToggles)
     case "viewer.toggle-progress-bar-glow": controls.viewerToggles?.toggleProgressBarGlow(); return Boolean(controls.viewerToggles)
+    case "viewer.toggle-page-switch-toast": {
+      const settings = controls.switchToast?.getSnapshot()
+      if (!settings || !controls.switchToast) return false
+      void controls.switchToast.update({ enablePage: !settings.enablePage })
+      return true
+    }
+    case "viewer.toggle-book-switch-toast": {
+      const settings = controls.switchToast?.getSnapshot()
+      if (!settings || !controls.switchToast) return false
+      void controls.switchToast.update({ enableBook: !settings.enableBook })
+      return true
+    }
+    case "viewer.toggle-boundary-toast": {
+      const settings = controls.switchToast?.getSnapshot()
+      if (!settings || !controls.switchToast) return false
+      void controls.switchToast.update({ enableBoundaryToast: !settings.enableBoundaryToast })
+      return true
+    }
+    case "viewer.toggle-info-overlay": {
+      const settings = controls.infoOverlay?.getSnapshot()
+      if (!settings || !controls.infoOverlay) return false
+      void controls.infoOverlay.update({ enabled: !settings.enabled })
+      return true
+    }
     case "file.open": void controls.openFile(); return true
     case "file.close": void controls.closeFile(); return true
     case "reader.open-settings": controls.openSettings(); return true
