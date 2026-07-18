@@ -28,6 +28,7 @@ import {
   type ReaderBookSettingsUpdateDto,
   type ReaderRuntimeConfigDto,
   type ReaderMediaConfigDto,
+  type ReaderMediaPatchDto,
   type ReaderSubtitleConfigDto,
   type ReaderPageListPreferencesDto,
   type ReaderSessionDto,
@@ -461,6 +462,25 @@ export function ReaderApp({
     setMedia(updated)
     videoController.configure(updated)
   }
+  async function persistAnimatedVideoMode(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto> {
+    if (!client.updateMedia) return media ?? {
+      supportedImageFormats: [],
+      videoFormats: [],
+      mediaMimeTypes: {},
+      autoPlayAnimatedImages: true,
+      animatedVideoEnabled: false,
+      animatedVideoKeywords: ["[#dyna]"],
+      videoMinPlaybackRate: 0.25,
+      videoMaxPlaybackRate: 16,
+      videoPlaybackRateStep: 0.25,
+      subtitle: { fontSize: 1, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 },
+    }
+    const updated = await client.updateMedia({ media: patch })
+    setMedia(updated)
+    videoController.configure(updated)
+    return updated
+  }
+
 
   async function runPreloadAction(action: "cancel-speculative" | "release-retained", signal?: AbortSignal) {
     const activeSession = session
@@ -1193,6 +1213,8 @@ export function ReaderApp({
     bookmarkListPreferences,
     onBookmarkListPreferences: persistBookmarkListPreferences,
     historyListPreferences,
+    media,
+    onMediaChange: persistAnimatedVideoMode,
     onHistoryListPreferences: persistHistoryListPreferences,
     pageListPreferences,
     onPageListPreferences: persistPageListPreferences,

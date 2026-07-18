@@ -10,7 +10,6 @@ import {
   READER_INPUT_ACTION_CATEGORY_LABELS,
   READER_INPUT_ACTION_LABELS,
   READER_INPUT_ACTION_METADATA,
-  READER_INPUT_ACTIONS,
   READER_INPUT_CONTEXT_LABELS,
   READER_INPUT_CONTEXTS,
   READER_VIEW_AREAS,
@@ -31,6 +30,7 @@ import type { ReaderSettingsMigrationImportResult, ReaderSettingsMigrationInspec
 import { Switch } from "@/components/ui/switch"
 import type { ReaderSettingsCardContext } from "../../panels/registry"
 import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder"
+import { GUI_READER_INPUT_ACTIONS } from "../../input/ReaderInputActionCapabilities"
 
 const LazyReaderDeviceInputRecorder = lazy(async () => ({
   default: (await import("../../input/ReaderDeviceInputRecorder")).ReaderDeviceInputRecorder,
@@ -261,7 +261,7 @@ function BindingRow({ binding, conflicted, disabled, recording, onRecord, onChan
       <select className="h-8 min-w-0 rounded border border-input bg-background px-2 text-xs" value={binding.action} disabled={disabled} onChange={(event) => onChange({ ...binding, action: event.currentTarget.value as ReaderInputBinding["action"] })} aria-label="动作">
         {READER_INPUT_ACTION_CATEGORIES.map((category) => (
           <optgroup key={category} label={READER_INPUT_ACTION_CATEGORY_LABELS[category]}>
-            {READER_INPUT_ACTIONS.filter((action) => READER_INPUT_ACTION_METADATA[action].category === category).map((action) => <option key={action} value={action}>{READER_INPUT_ACTION_LABELS[action]}</option>)}
+            {GUI_READER_INPUT_ACTIONS.filter((action) => READER_INPUT_ACTION_METADATA[action].category === category).map((action) => <option key={action} value={action}>{READER_INPUT_ACTION_LABELS[action]}</option>)}
           </optgroup>
         ))}
       </select>
