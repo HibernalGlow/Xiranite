@@ -1,50 +1,26 @@
-import type { ReaderPage } from "../../domain/page/page.js"
 import type { ReaderPageMaterializationLease, ReaderPageMaterializer } from "../../ports/ReaderPageMaterializer.js"
-import type { ResourcePriority } from "../../ports/ResourceScheduler.js"
 import type {
   SuperResolutionExecutionContext,
   SuperResolutionResult,
 } from "../../ports/SuperResolutionProvider.js"
-import type { RunSuperResolutionInput } from "./SuperResolutionService.js"
 import type {
-  SuperResolutionPolicyDecision,
-  SuperResolutionPolicyInput,
-  SuperResolutionPolicyTrigger,
-} from "./SuperResolutionPolicyService.js"
+  SuperResolutionPageInput,
+  SuperResolutionPagePlan,
+  SuperResolutionPageResult,
+  SuperResolutionPolicyResolver,
+} from "../../ports/SuperResolutionPage.js"
+import type { RunSuperResolutionInput } from "./SuperResolutionService.js"
 
-export interface SuperResolutionPolicyResolver {
-  decide(input: SuperResolutionPolicyInput): SuperResolutionPolicyDecision
-}
+export type {
+  SuperResolutionPageInput,
+  SuperResolutionPagePlan,
+  SuperResolutionPageResult,
+  SuperResolutionPolicyResolver,
+} from "../../ports/SuperResolutionPage.js"
 
 export interface SuperResolutionRunner {
   run(input: RunSuperResolutionInput, context?: SuperResolutionExecutionContext): Promise<SuperResolutionResult>
 }
-
-export interface SuperResolutionPageInput {
-  page: ReaderPage
-  destinationPath: string
-  trigger: SuperResolutionPolicyTrigger
-  bookPath?: string
-  width?: number
-  height?: number
-  metadata?: Readonly<Record<string, unknown>>
-  priority?: ResourcePriority
-  maxMaterializationBytes?: number
-}
-
-export interface SuperResolutionPagePlan {
-  decision: SuperResolutionPolicyDecision
-}
-
-export type SuperResolutionPageResult =
-  | {
-      decision: Exclude<SuperResolutionPolicyDecision, { kind: "run" }>
-      result?: never
-    }
-  | {
-      decision: Extract<SuperResolutionPolicyDecision, { kind: "run" }>
-      result: SuperResolutionResult
-    }
 
 export class SuperResolutionPageService {
   constructor(
