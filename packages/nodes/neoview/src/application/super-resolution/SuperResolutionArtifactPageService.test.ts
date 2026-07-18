@@ -1,11 +1,17 @@
-import { writeFile, mkdtemp, rm } from "node:fs/promises"
+import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
+import { Readable } from "node:stream"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderPage } from "../../domain/page/page.js"
-import { CacacheSuperResolutionArtifactStore } from "../../platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
-import { buildSuperResolutionArtifactKey } from "../../platform/super-resolution/SuperResolutionArtifactKey.js"
+import type {
+  SuperResolutionArtifactCleanupResult,
+  SuperResolutionArtifactLease,
+  SuperResolutionArtifactMetadata,
+  SuperResolutionArtifactStore,
+  SuperResolutionArtifactStoreSnapshot,
+} from "../../ports/SuperResolutionArtifactStore.js"
 import { SuperResolutionPageService } from "./SuperResolutionPageService.js"
 import { SuperResolutionArtifactPageService } from "./SuperResolutionArtifactPageService.js"
 import { SuperResolutionPreloadService } from "./SuperResolutionPreloadService.js"
@@ -173,17 +179,144 @@ describe("SuperResolutionArtifactPageService", () => {
     }
   })
 
-  function createStore(options: Partial<ConstructorParameters<typeof CacacheSuperResolutionArtifactStore>[0]> = {}) {
-    return new CacacheSuperResolutionArtifactStore({
-      root,
-      maxBytes: 1024,
-      maxEntryBytes: 512,
-      minFreeBytes: 0,
-      minimumRetentionMs: 0,
-      ...options,
-    })
+  function createStore(options: TestArtifactStoreOptions = {}) {
+    return new MemoryArtifactStore(root, options)
   }
 })
+
+interface TestArtifactStoreOptions {
+  minFreeBytes?: number
+  availableBytes?: () => Promise<number>
+}
+
+class MemoryArtifactStore implements SuperResolutionArtifactStore {
+  readonly #entries = new Map<string, { bytes: Buffer; metadata: SuperResolutionArtifactMetadata }>()
+  readonly #publishes = new Map<string, Promise<boolean>>()
+  readonly #root: string
+  readonly #options: TestArtifactStoreOptions
+  #activeLeases = 0
+  #hits = 0
+  #misses = 0
+  #writes = 0
+  #rejectedWrites = 0
+  #nextFile = 0
+
+  constructor(root: string, options: TestArtifactStoreOptions) {
+    this.#root = root
+    this.#options = options
+  }
+
+  async acquire(key: string, signal?: AbortSignal): Promise<SuperResolutionArtifactLease | undefined> {
+    signal?.throwIfAborted()
+    const entry = this.#entries.get(key)
+    if (!entry) {
+      this.#misses += 1
+      return undefined
+    }
+    this.#hits += 1
+    this.#activeLeases += 1
+    let released = false
+    const release = () => {
+      if (released) return
+      released = true
+      this.#activeLeases -= 1
+    }
+    return {
+      key,
+      size: entry.bytes.length,
+      integrity: "test-integrity",
+      metadata: { ...entry.metadata, createdAt: 1 },
+      openStream: () => Readable.from([entry.bytes]),
+      release,
+      [Symbol.dispose]: release,
+    }
+  }
+
+  publish(
+    key: string,
+    metadata: SuperResolutionArtifactMetadata,
+    producer: (destinationPath: string, signal: AbortSignal) => void | Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    const existing = this.#publishes.get(key)
+    if (existing) return existing
+    const operation = this.#publish(key, metadata, producer, signal)
+    this.#publishes.set(key, operation)
+    return operation.finally(() => this.#publishes.delete(key))
+  }
+
+  async #publish(
+    key: string,
+    metadata: SuperResolutionArtifactMetadata,
+    producer: (destinationPath: string, signal: AbortSignal) => void | Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    signal?.throwIfAborted()
+    const destinationPath = join(this.#root, `artifact-${this.#nextFile++}.tmp`)
+    try {
+      await producer(destinationPath, signal ?? new AbortController().signal)
+      const bytes = await readFile(destinationPath)
+      const availableBytes = await this.#options.availableBytes?.()
+      if (availableBytes !== undefined && availableBytes < (this.#options.minFreeBytes ?? 0)) {
+        this.#rejectedWrites += 1
+        return false
+      }
+      this.#entries.set(key, { bytes, metadata })
+      this.#writes += 1
+      return true
+    } finally {
+      await rm(destinationPath, { force: true })
+    }
+  }
+
+  async invalidate(key: string): Promise<void> {
+    this.#entries.delete(key)
+  }
+
+  async clearBook(bookKey: string): Promise<SuperResolutionArtifactCleanupResult> {
+    for (const [key, entry] of this.#entries) if (entry.metadata.bookKey === bookKey) this.#entries.delete(key)
+    return this.#cleanupResult("book")
+  }
+
+  async cleanup(reason: "age" | "budget" | "explicit" | "low-disk" = "explicit"): Promise<SuperResolutionArtifactCleanupResult> {
+    return this.#cleanupResult(reason)
+  }
+
+  async clear(): Promise<SuperResolutionArtifactCleanupResult> {
+    this.#entries.clear()
+    return this.#cleanupResult("explicit")
+  }
+
+  async snapshot(): Promise<SuperResolutionArtifactStoreSnapshot> {
+    return this.#snapshot()
+  }
+
+  async close(): Promise<void> {}
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close()
+  }
+
+  #snapshot(): SuperResolutionArtifactStoreSnapshot {
+    return {
+      entries: this.#entries.size,
+      bytes: [...this.#entries.values()].reduce((total, entry) => total + entry.bytes.length, 0),
+      maxBytes: 1024,
+      maxEntryBytes: 512,
+      activeLeases: this.#activeLeases,
+      hits: this.#hits,
+      misses: this.#misses,
+      writes: this.#writes,
+      rejectedWrites: this.#rejectedWrites,
+      evictions: 0,
+      integrityFailures: 0,
+    }
+  }
+
+  #cleanupResult(reason: SuperResolutionArtifactCleanupResult["reason"]): SuperResolutionArtifactCleanupResult {
+    return { ...this.#snapshot(), reason, removedEntries: 0, removedBytes: 0 }
+  }
+}
 
 function artifactInput(identity: string) {
   return {
@@ -197,14 +330,7 @@ function artifactInput(identity: string) {
 
 function descriptor(identity: string, decision: { modelId: string; scale: number } = { modelId: "model", scale: 2 }) {
   return {
-    key: buildSuperResolutionArtifactKey({
-      sourceIdentity: "D:/book",
-      sourceRevision: "v1",
-      pageIdentity: identity,
-      modelId: decision.modelId,
-      scale: decision.scale,
-      producerVersion: "test-1",
-    }),
+    key: `neoview:super-resolution:test:${identity}:${decision.modelId}:${decision.scale}`,
     metadata: { bookKey: "book:one", contentType: "image/png" as const, extension: "png" as const },
   }
 }
