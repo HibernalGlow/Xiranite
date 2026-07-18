@@ -6,6 +6,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import type { ReaderVideoActionPort } from "../video/ReaderVideoController"
+import type { ReaderViewerTogglePort } from "../viewer/ReaderViewerToggleStore"
 
 export interface ReaderInputActionSession {
   pageCount: number
@@ -34,6 +35,7 @@ export interface ReaderInputActionControls {
   openSettings(): void
   openRadialMenu(): void
   video?: ReaderVideoActionPort
+  viewerToggles?: ReaderViewerTogglePort
   slideshow: {
     toggle(): void
     stop(): void
@@ -71,6 +73,8 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     case "shell.toggle-top-toolbar-pin": controls.toggleShellPin("top"); return true
     case "shell.toggle-bottom-thumbnail-pin": controls.toggleShellPin("bottom"); return true
     case "viewer.toggle-sidebar-control": controls.toggleSidebarControl(); return true
+    case "viewer.toggle-progress-bar": controls.viewerToggles?.toggleProgressBar(); return Boolean(controls.viewerToggles)
+    case "viewer.toggle-progress-bar-glow": controls.viewerToggles?.toggleProgressBarGlow(); return Boolean(controls.viewerToggles)
     case "file.open": void controls.openFile(); return true
     case "file.close": void controls.closeFile(); return true
     case "reader.open-settings": controls.openSettings(); return true

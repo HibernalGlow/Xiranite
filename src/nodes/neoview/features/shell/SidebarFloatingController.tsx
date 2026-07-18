@@ -4,7 +4,7 @@
  * @migration-status adapted
  */
 import { GripVertical, Lock, PanelBottom, PanelLeft, PanelRight, PanelTop } from "lucide-react"
-import { useEffect, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +22,7 @@ export interface SidebarFloatingControllerProps {
   position: { x: number; y: number }
   edges: Record<ReaderShellEdge, { open: boolean; lockMode: ReaderShellLockMode }>
   disabled?: boolean
+  materialStyle?: CSSProperties
   onOpenChange(edge: ReaderShellEdge, open: boolean): void
   onLockCycle(edge: ReaderShellEdge): void
   onLockModeChange(edge: ReaderShellEdge, lockMode: ReaderShellLockMode): void
@@ -35,6 +36,7 @@ export function SidebarFloatingController({
   position,
   edges,
   disabled = false,
+  materialStyle,
   onOpenChange,
   onLockCycle,
   onLockModeChange,
@@ -121,7 +123,7 @@ export function SidebarFloatingController({
       data-layer="SidebarControlLayer"
       data-layer-id="sidebar-control"
       className="pointer-events-auto absolute z-[65] flex items-center gap-0.5 rounded border border-border/70 bg-background/85 p-1 shadow-lg backdrop-blur-md"
-      style={{ left: position.x, top: position.y }}
+      style={{ ...materialStyle, left: position.x, top: position.y }}
     >
       <Button
         type="button"
