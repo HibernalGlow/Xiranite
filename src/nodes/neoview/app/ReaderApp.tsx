@@ -665,6 +665,8 @@ export function ReaderApp({
       openRadialMenu,
       video: videoController,
       viewerToggles,
+      switchToast,
+      infoOverlay,
       slideshow: {
         toggle: () => slideshow.toggle(),
         stop: () => slideshow.stop(),
