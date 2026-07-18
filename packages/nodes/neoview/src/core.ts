@@ -379,6 +379,23 @@ export type {
   ResourceTaskRequest,
 } from "./ports/ResourceScheduler.js"
 export {
+  SuperResolutionOutputBusyError,
+  SuperResolutionService,
+  type RunSuperResolutionInput,
+  type SuperResolutionServiceOptions,
+} from "./application/super-resolution/SuperResolutionService.js"
+export type {
+  SuperResolutionCapabilitySnapshot,
+  SuperResolutionEngine,
+  SuperResolutionEngineCapability,
+  SuperResolutionExecutionContext,
+  SuperResolutionModelManifest,
+  SuperResolutionProgress,
+  SuperResolutionProvider,
+  SuperResolutionRequest,
+  SuperResolutionResult,
+} from "./ports/SuperResolutionProvider.js"
+export {
   appendImageTransform,
   imageTransformCacheKey,
   imageTransformContentType,
