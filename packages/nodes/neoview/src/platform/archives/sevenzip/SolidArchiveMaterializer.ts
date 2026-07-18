@@ -59,7 +59,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   readonly #roots = new Set<string>()
   #run?: Promise<void>
   #root?: string
-  #preloadDemand?: ArchivePreloadDemand
+  readonly #preloadDemands = new Map<string, ArchivePreloadDemand>()
   #requiredEntryIndex = -1
   #child?: SevenZipChild
   #closed = false
@@ -153,11 +153,17 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
    */
   updatePreloadDemand(demand: ArchivePreloadDemand): void {
     assertPreloadDemand(demand)
-    if (this.#preloadDemand && demand.generation < this.#preloadDemand.generation) return
     for (const entryId of demand.entryIds) {
       if (!this.#entriesById.has(entryId)) throw new Error(`Solid archive preload entry was not indexed: ${entryId}`)
     }
-    this.#preloadDemand = { ...demand, entryIds: [...demand.entryIds] }
+    const ownerId = demand.ownerId ?? "default"
+    const previous = this.#preloadDemands.get(ownerId)
+    if (previous && demand.generation < previous.generation) return
+    if (demand.entryIds.length) {
+      this.#preloadDemands.set(ownerId, { ...demand, ownerId, entryIds: [...demand.entryIds] })
+    } else {
+      this.#preloadDemands.delete(ownerId)
+    }
     if (demand.entryIds.length) this.#start()
   }
 
@@ -368,12 +374,13 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   }
 
   #shouldStopAfter(entryIndex: number): boolean {
-    const demand = this.#preloadDemand
-    if (!demand || this.#complete) return false
+    if (!this.#preloadDemands.size || this.#complete) return false
     let target = this.#requiredEntryIndex
-    for (const entryId of demand.entryIds) {
-      const index = this.#entries.findIndex((entry) => entry.id === entryId)
-      target = Math.max(target, index)
+    for (const demand of this.#preloadDemands.values()) {
+      for (const entryId of demand.entryIds) {
+        const index = this.#entries.findIndex((entry) => entry.id === entryId)
+        target = Math.max(target, index)
+      }
     }
     return target < this.#entries.length - 1 && entryIndex >= target
   }
@@ -382,6 +389,9 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
 function assertPreloadDemand(demand: ArchivePreloadDemand): void {
   if (!Number.isSafeInteger(demand.generation) || demand.generation < 0) {
     throw new RangeError("Solid archive preload generation must be a non-negative safe integer.")
+  }
+  if (demand.ownerId !== undefined && (typeof demand.ownerId !== "string" || !demand.ownerId)) {
+    throw new TypeError("Solid archive preload owner ID must be a non-empty string.")
   }
   if (demand.direction !== "forward" && demand.direction !== "backward") {
     throw new TypeError(`Invalid solid archive preload direction: ${demand.direction}`)
