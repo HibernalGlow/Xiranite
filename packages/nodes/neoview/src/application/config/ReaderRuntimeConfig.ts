@@ -1315,7 +1315,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     toml.hover_preview_enabled = patch.folderView.hoverPreviewEnabled
   }
   if (folder.hoverPreviewDelayMs !== undefined) {
-    patch.folderView.hoverPreviewDelayMs = optionalEnum(folder.hoverPreviewDelayMs, "reader folder view patch.hoverPreviewDelayMs", NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS)
+    patch.folderView.hoverPreviewDelayMs = parseFolderHoverPreviewDelay(folder.hoverPreviewDelayMs, "reader folder view patch.hoverPreviewDelayMs")
     toml.hover_preview_delay_ms = patch.folderView.hoverPreviewDelayMs
   }
   if (folder.emptyArea !== undefined) {
@@ -1493,7 +1493,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
       ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.hoverPreviewEnabled,
     hoverPreviewDelayMs: value.hover_preview_delay_ms === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.hoverPreviewDelayMs
-      : optionalEnum(value.hover_preview_delay_ms, "[nodes.neoview.folder].hover_preview_delay_ms", NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS),
+      : parseFolderHoverPreviewDelay(value.hover_preview_delay_ms, "[nodes.neoview.folder].hover_preview_delay_ms"),
     emptyArea: {
       singleClickAction: optionalEnum(emptyArea?.single_click_action, "[nodes.neoview.folder.empty_area].single_click_action", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
         ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea.singleClickAction,
@@ -2541,6 +2541,14 @@ function optionalEnum<const Values extends readonly string[]>(
     throw new Error(`${path} must be one of: ${values.join(", ")}.`)
   }
   return value as Values[number]
+}
+
+function parseFolderHoverPreviewDelay(value: unknown, path: string): NeoviewFolderHoverPreviewDelay {
+  const delay = boundedInteger(value, 0, 2_000, path)
+  if (!NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS.includes(delay as NeoviewFolderHoverPreviewDelay)) {
+    throw new Error(`${path} must be one of: ${NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS.join(", ")}.`)
+  }
+  return delay as NeoviewFolderHoverPreviewDelay
 }
 
 function optionalRecord(value: unknown, path: string): Record<string, unknown> | undefined {

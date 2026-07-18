@@ -6,7 +6,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckSquare, ClipboardPaste, Copy, Filter, GalleryHorizontalEnd, Grid2X2, History, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, Pin, PinOff, Plus, RefreshCw, Rows3, Search, TableProperties, Unlock, type LucideIcon } from "lucide-react"
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckSquare, ClipboardPaste, Copy, Eye, Filter, GalleryHorizontalEnd, Grid2X2, History, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, Pin, PinOff, Plus, RefreshCw, Rows3, Search, TableProperties, Unlock, type LucideIcon } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -78,6 +78,7 @@ import {
   type DirectorySelectionModel,
 } from "./folder/DirectorySelection"
 import { FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
+import { FolderHoverPreview } from "./folder/FolderHoverPreview"
 import { FolderClipboardProvider, useFolderClipboard } from "./folder/FolderClipboard"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import {
@@ -141,6 +142,8 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   previewCount: 4,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
+  hoverPreviewEnabled: true,
+  hoverPreviewDelayMs: 500,
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
@@ -201,6 +204,8 @@ export default function FolderMainCard(context: ReaderPanelContext) {
     ? {
         ...context.folderView,
         emptyArea: { ...DEFAULT_FOLDER_VIEW.emptyArea, ...context.folderView.emptyArea },
+        hoverPreviewEnabled: context.folderView.hoverPreviewEnabled ?? DEFAULT_FOLDER_VIEW.hoverPreviewEnabled,
+        hoverPreviewDelayMs: context.folderView.hoverPreviewDelayMs ?? DEFAULT_FOLDER_VIEW.hoverPreviewDelayMs,
         tabs: context.folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs,
       }
     : DEFAULT_FOLDER_VIEW
@@ -251,6 +256,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [thumbnailWidthPercent, setThumbnailWidthPercent] = useState(folderView.thumbnailWidthPercent)
   const [bannerWidthPercent, setBannerWidthPercent] = useState(folderView.bannerWidthPercent)
+  const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(folderView.hoverPreviewEnabled ?? true)
+  const [hoverPreviewDelayMs, setHoverPreviewDelayMs] = useState(folderView.hoverPreviewDelayMs ?? 500)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [chainSelectMode, setChainSelectMode] = useState(false)
   const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
@@ -295,6 +302,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   useEffect(() => setPreviewCount(folderView.previewCount), [folderView.previewCount])
   useEffect(() => setThumbnailWidthPercent(folderView.thumbnailWidthPercent), [folderView.thumbnailWidthPercent])
   useEffect(() => setBannerWidthPercent(folderView.bannerWidthPercent), [folderView.bannerWidthPercent])
+  useEffect(() => setHoverPreviewEnabled(folderView.hoverPreviewEnabled ?? true), [folderView.hoverPreviewEnabled])
+  useEffect(() => setHoverPreviewDelayMs(folderView.hoverPreviewDelayMs ?? 500), [folderView.hoverPreviewDelayMs])
   useEffect(() => setTreeOpen(folderView.tree.visible), [folderView.tree.visible])
   useEffect(() => setTreeLayout(folderView.tree.layout), [folderView.tree.layout])
   useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
@@ -802,6 +811,17 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (value !== folderView.bannerWidthPercent) void onFolderView?.({ bannerWidthPercent: value })
   }
 
+  function commitHoverPreviewEnabled(enabled: boolean) {
+    setHoverPreviewEnabled(enabled)
+    if (enabled !== folderView.hoverPreviewEnabled) void onFolderView?.({ hoverPreviewEnabled: enabled })
+  }
+
+  function commitHoverPreviewDelay(value: number) {
+    const delay = value as 200 | 500 | 800 | 1200
+    setHoverPreviewDelayMs(delay)
+    if (delay !== folderView.hoverPreviewDelayMs) void onFolderView?.({ hoverPreviewDelayMs: delay })
+  }
+
   function toggleTree() {
     const visible = !treeOpen
     setTreeOpen(visible)
@@ -1176,6 +1196,25 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                   </SelectContent>
                 </Select>
               ) : null}
+              <BrowserButton
+                label={hoverPreviewEnabled ? "\u60ac\u505c\u9884\u89c8\uff1a\u5f00" : "\u60ac\u505c\u9884\u89c8\uff1a\u5173"}
+                disabled={!catalog || loading}
+                active={hoverPreviewEnabled}
+                onClick={() => commitHoverPreviewEnabled(!hoverPreviewEnabled)}
+              >
+                <Eye />
+              </BrowserButton>
+              {hoverPreviewEnabled ? (
+                <Select value={String(hoverPreviewDelayMs)} onValueChange={(value) => commitHoverPreviewDelay(Number(value))}>
+                <SelectTrigger size="sm" className="h-7 w-[5rem] shrink-0 text-xs" aria-label="\u9884\u89c8\u5ef6\u8fdf"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="200">200 \u6beb\u79d2</SelectItem>
+                    <SelectItem value="500">500 \u6beb\u79d2</SelectItem>
+                    <SelectItem value="800">800 \u6beb\u79d2</SelectItem>
+                    <SelectItem value="1200">1200 \u6beb\u79d2</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : null}
             </div>
           ) : null}
           {activeToolbar === "sort" && catalog ? (
@@ -1423,6 +1462,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                   showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                   visualMode={viewMode}
                   thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
+                  hoverPreviewEnabled={active && hoverPreviewEnabled}
+                  hoverPreviewDelayMs={hoverPreviewDelayMs}
                   onSelect={selectEntry}
                 />
               )
@@ -1460,6 +1501,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               focusedIndex={focusedIndex}
               itemIdPrefix={itemIdPrefix}
               thumbnailUrls={thumbnailUrls}
+              hoverPreviewEnabled={active && hoverPreviewEnabled}
+              hoverPreviewDelayMs={hoverPreviewDelayMs}
               showReturnFooter={showReturnFooter}
               returnFooterContext={returnFooterContext}
               restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
@@ -1491,40 +1534,42 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   )
 }
 
-function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
+function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string; hoverPreviewEnabled: boolean; hoverPreviewDelayMs: number }) {
   const rich = visualMode !== "compact"
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
-    <button
-      id={itemId}
-      type="button"
-      className={`flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${rich ? "h-[76px]" : "h-[34px]"}`}
-      aria-selected={selected}
-      data-focused={focused || undefined}
-      disabled={disabled}
-      title={entry.path}
-      onClick={(event) => onSelect(entry, index, event)}
-      tabIndex={-1}
-      data-preview-mode={visualMode}
-      data-folder-entry="true"
-      data-context-menu="neoview-folder-entry"
-      data-folder-index={index}
-      data-folder-path={entry.path}
-      data-folder-name={entry.name}
-      data-folder-kind={entry.kind}
-      data-folder-reader-supported={entry.readerSupported}
-    >
-      {rich ? (
-        <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30">
-          {thumbnailUrl ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" /> : <FolderEntryIcon entry={entry} className="size-7" />}
+    <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled && rich} delayMs={hoverPreviewDelayMs} label={entry.name}>
+      <button
+        id={itemId}
+        type="button"
+        className={`flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${rich ? "h-[76px]" : "h-[34px]"}`}
+        aria-selected={selected}
+        data-focused={focused || undefined}
+        disabled={disabled}
+        title={entry.path}
+        onClick={(event) => onSelect(entry, index, event)}
+        tabIndex={-1}
+        data-preview-mode={visualMode}
+        data-folder-entry="true"
+        data-context-menu="neoview-folder-entry"
+        data-folder-index={index}
+        data-folder-path={entry.path}
+        data-folder-name={entry.name}
+        data-folder-kind={entry.kind}
+        data-folder-reader-supported={entry.readerSupported}
+      >
+        {rich ? (
+          <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30">
+            {thumbnailUrl ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" /> : <FolderEntryIcon entry={entry} className="size-7" />}
+          </span>
+        ) : <FolderEntryIcon entry={entry} />}
+        <span className="grid min-w-0 flex-1 gap-1">
+          <span className="truncate">{entry.name}</span>
+          {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
         </span>
-      ) : <FolderEntryIcon entry={entry} />}
-      <span className="grid min-w-0 flex-1 gap-1">
-        <span className="truncate">{entry.name}</span>
-        {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
-      </span>
-      <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
-    </button>
+        <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
+      </button>
+    </FolderHoverPreview>
   )
 }
 
