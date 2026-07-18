@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
+import { ReaderViewerToggleStore } from "../viewer/ReaderViewerToggleStore"
 import { ThumbnailStrip } from "./ThumbnailStrip"
 
 describe("ThumbnailStrip", () => {
@@ -66,6 +67,30 @@ describe("ThumbnailStrip", () => {
     fireEvent.error(image)
     expect(view.container.querySelector("img")).toBeNull()
     expect(document.querySelector("canvas")).toBeNull()
+  })
+
+  it("[neoview.bindings.viewer-toggle-react] follows the shared page-info provider", async () => {
+    const first = page(0)
+    const viewerToggles = new ReaderViewerToggleStore()
+    const view = render(
+      <ThumbnailStrip
+        sessionId="reader-1"
+        totalPages={1}
+        activePageIndex={0}
+        currentPages={[first]}
+        client={clientWith({ listPages: vi.fn(async () => ({ pages: [first], total: 1 })) })}
+        compact
+        viewerToggles={viewerToggles}
+        onSelect={() => undefined}
+      />,
+    )
+
+    await waitFor(() => expect(view.container.querySelector("button[aria-label='转到第 1 页：001.jpg']")).not.toBeNull())
+    expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(1)
+    viewerToggles.togglePageInfo()
+    await waitFor(() => expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(0))
+    viewerToggles.togglePageInfo()
+    await waitFor(() => expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(1))
   })
 })
 

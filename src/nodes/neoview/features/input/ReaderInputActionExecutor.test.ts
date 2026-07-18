@@ -20,8 +20,10 @@ describe("ReaderInputActionExecutor", () => {
     expect(controls.slideshow.skip).toHaveBeenCalledOnce()
     expect(executeReaderInputAction("viewer.toggle-progress-bar", controls)).toBe(true)
     expect(executeReaderInputAction("viewer.toggle-progress-bar-glow", controls)).toBe(true)
+    expect(executeReaderInputAction("viewer.toggle-page-info", controls)).toBe(true)
     expect(controls.viewerToggles?.toggleProgressBar).toHaveBeenCalledOnce()
     expect(controls.viewerToggles?.toggleProgressBarGlow).toHaveBeenCalledOnce()
+    expect(controls.viewerToggles?.togglePageInfo).toHaveBeenCalledOnce()
   })
 
   it("[neoview.bindings.video-actions] routes all video actions and remaps page actions in seek mode", () => {
@@ -110,9 +112,10 @@ function fixture(overrides: Partial<Pick<ReaderInputActionControls, "switchToast
     },
     viewerToggles: {
       subscribe: vi.fn(() => () => undefined),
-      getSnapshot: vi.fn(() => ({ progressBarVisible: true, progressBarGlow: true })),
+      getSnapshot: vi.fn(() => ({ progressBarVisible: true, progressBarGlow: true, pageInfoVisible: true })),
       toggleProgressBar: vi.fn(),
       toggleProgressBarGlow: vi.fn(),
+      togglePageInfo: vi.fn(),
     },
     slideshow: { toggle: vi.fn(), stop: vi.fn(), skip: vi.fn() },
     ...overrides,

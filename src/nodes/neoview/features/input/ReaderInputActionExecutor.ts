@@ -87,6 +87,7 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     case "viewer.toggle-sidebar-control": controls.toggleSidebarControl(); return true
     case "viewer.toggle-progress-bar": controls.viewerToggles?.toggleProgressBar(); return Boolean(controls.viewerToggles)
     case "viewer.toggle-progress-bar-glow": controls.viewerToggles?.toggleProgressBarGlow(); return Boolean(controls.viewerToggles)
+    case "viewer.toggle-page-info": controls.viewerToggles?.togglePageInfo(); return Boolean(controls.viewerToggles)
     case "viewer.toggle-page-switch-toast": {
       const settings = controls.switchToast?.getSnapshot()
       if (!settings || !controls.switchToast) return false

@@ -49,12 +49,11 @@ export function ThumbnailStrip({
   const pagesRef = useRef(new Map<number, ReaderPageDto>())
   const requestsRef = useRef(new Map<number, AbortController>())
   const [pages, setPages] = useState(() => new Map<number, ReaderPageDto>())
-  const [showPageNumbers, setShowPageNumbers] = useState(true)
   const [showAreaGuide, setShowAreaGuide] = useState(false)
   const [showEdgeGuide, setShowEdgeGuide] = useState(false)
   const [fallbackViewerToggles] = useState(() => new ReaderViewerToggleStore())
   const toggleStore = viewerToggles ?? fallbackViewerToggles
-  const { progressBarVisible, progressBarGlow } = useSyncExternalStore(
+  const { progressBarVisible, progressBarGlow, pageInfoVisible } = useSyncExternalStore(
     toggleStore.subscribe,
     toggleStore.getSnapshot,
     toggleStore.getSnapshot,
@@ -148,7 +147,7 @@ export function ThumbnailStrip({
         index={index}
         page={pages.get(index)}
         active={index === activePageIndex}
-        showPageNumber={showPageNumbers}
+        showPageNumber={pageInfoVisible}
         disabled={disabled}
         onSelect={onSelect}
       />,
@@ -161,7 +160,7 @@ export function ThumbnailStrip({
         <Button type="button" size="sm" variant={pinned ? "default" : "ghost"} aria-label={pinned ? "取消钉住底栏" : "钉住底栏"} aria-pressed={pinned} disabled={!onPinnedChange} onClick={() => onPinnedChange?.(!pinned)}>
           {pinned ? <Pin /> : <PinOff />}<span className="text-xs">{pinned ? "已钉住" : "钉住"}</span>
         </Button>
-        <Button type="button" size="sm" variant={showPageNumbers ? "default" : "ghost"} aria-label="显示页码" aria-pressed={showPageNumbers} onClick={() => setShowPageNumbers((value) => !value)}><Hash /><span className="text-xs">页码</span></Button>
+        <Button type="button" size="sm" variant={pageInfoVisible ? "default" : "ghost"} aria-label="显示页码" aria-pressed={pageInfoVisible} onClick={() => toggleStore.togglePageInfo()}><Hash /><span className="text-xs">页码</span></Button>
         <Button type="button" size="sm" variant={showAreaGuide ? "default" : "ghost"} aria-label="显示区域参考线" aria-pressed={showAreaGuide} onClick={() => setShowAreaGuide((value) => !value)}><Grid3X3 /><span className="text-xs">区域</span></Button>
         <Button type="button" size="sm" variant={showEdgeGuide ? "default" : "ghost"} aria-label="显示边栏触发区" aria-pressed={showEdgeGuide} onClick={() => setShowEdgeGuide((value) => !value)}><Target /><span className="text-xs">边栏</span></Button>
         <Button type="button" size="sm" variant={progressBarGlow ? "default" : "ghost"} aria-label="进度条荧光" aria-pressed={progressBarGlow} onClick={() => toggleStore.toggleProgressBarGlow()}><Sparkles /><span className="text-xs">荧光</span></Button>
