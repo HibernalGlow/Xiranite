@@ -1387,7 +1387,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             />
           </Suspense>
         ) : null}
-        {!searchOpen && catalog && viewUsesVirtuosoList(viewMode) ? (
+        {!searchOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
           <Virtuoso
             key={virtualKey}
             ref={listRef}
@@ -1442,7 +1442,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             />
           </Suspense>
         ) : null}
-        {!searchOpen && catalog && viewUsesGrid(viewMode) ? (
+        {!searchOpen && catalog && catalog.total > 0 && viewUsesGrid(viewMode) ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
             <FolderGridWorkspace
               virtualKey={virtualKey}
@@ -1465,6 +1465,15 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               onSelect={selectEntry}
             />
           </Suspense>
+        ) : null}
+        {!searchOpen && catalog && catalog.total === 0 ? (
+          <div
+            className="grid h-72 place-items-center px-4 text-center text-xs text-muted-foreground"
+            data-folder-empty-state="true"
+            role="status"
+          >
+            {catalog.filter === "all" ? "此文件夹为空" : "没有符合当前筛选条件的项目"}
+          </div>
         ) : null}
         {!catalog ? <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div> : null}
         </div>

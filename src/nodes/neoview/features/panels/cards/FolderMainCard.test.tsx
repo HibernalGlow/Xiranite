@@ -1769,6 +1769,29 @@ describe("FolderMainCard", () => {
     expect(openDirectoryBrowser).toHaveBeenCalledTimes(1)
   })
 
+  it("[neoview.folder.empty-state] renders an explicit empty directory state without mounting a zero-item virtual renderer", async () => {
+    const opened = page({
+      total: 0,
+      entries: [],
+      filter: "all",
+      filterOptions: ["all", "archive", "directory", "video"],
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/empty" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    expect((await ui.findByRole("status")).textContent).toContain("此文件夹为空")
+    expect(view.container.querySelector('[data-folder-empty-state="true"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-virtuoso-scroller="true"]')).toBeNull()
+  })
+
   it("[neoview.folder.blank-action-ui] gives a double-click precedence over the pending single-click action", async () => {
     const opened = page({
       path: "C:/books/child",
