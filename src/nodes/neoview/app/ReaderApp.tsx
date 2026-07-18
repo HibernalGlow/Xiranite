@@ -66,6 +66,7 @@ import { migrateLegacySidebarHeight } from "../features/panels/cards/LegacySideb
 import { ReaderPanelDndProvider } from "../features/panels/ReaderPanelDnd"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/material/ReaderShellMaterial"
 import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
+import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInfoOverlayStore"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -150,6 +151,9 @@ const LazyReaderViewToolbar = lazy(async () => ({ default: (await loadReaderView
 const LazySidebarFloatingController = lazy(() => import("../features/shell/SidebarFloatingController"))
 const LazyReaderSwitchToastRuntime = lazy(async () => ({
   default: (await import("../features/switch-toast/ReaderSwitchToastRuntime")).ReaderSwitchToastRuntime,
+}))
+const LazyReaderInfoOverlayRuntime = lazy(async () => ({
+  default: (await import("../features/info-overlay/ReaderInfoOverlayRuntime")).ReaderInfoOverlayRuntime,
 }))
 
 function loadReaderPresentation(): Promise<unknown> {
@@ -246,6 +250,13 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
+  const [infoOverlay] = useState(() => createReaderInfoOverlayStore({
+    async persist(settings, reset, signal) {
+      if (!clientRef.current.updateInfoOverlay) return settings
+      return await clientRef.current.updateInfoOverlay({ infoOverlay: reset ? { reset: "defaults" } : settings }, signal)
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  }))
   const [videoController] = useState(() => new ReaderVideoController())
   const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
@@ -288,6 +299,7 @@ export function ReaderApp({
     colorFilter.dispose()
     pageTransition.dispose()
     switchToast.dispose()
+    infoOverlay.dispose()
     videoController.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
@@ -331,6 +343,7 @@ export function ReaderApp({
         }
       }
       if (config.switchToast) switchToast.hydrate(config.switchToast)
+      if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
@@ -1168,6 +1181,7 @@ export function ReaderApp({
     colorFilter,
     pageTransition,
     switchToast,
+    infoOverlay,
     onSidebarLayout: commitSidebarLayout,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
@@ -1218,6 +1232,9 @@ export function ReaderApp({
       </Suspense>
       <Suspense fallback={null}>
         <LazyReaderSwitchToastRuntime port={switchToast} session={session} sourcePath={path} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <LazyReaderInfoOverlayRuntime port={infoOverlay} session={session} sourcePath={path} />
       </Suspense>
       {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       <FloatingWindowTitlebarReservation />

@@ -670,7 +670,7 @@ describe("parseNeoviewRuntimeConfig", () => {
 
   it("[neoview.color-filter.layout] keeps the legacy filter visible in the control panel without a session", () => {
     expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["color-filter"]).toEqual({
-      panelId: "control", visible: true, expanded: true, order: 1,
+      panelId: "control", visible: true, expanded: true, order: 2,
     })
   })
 
