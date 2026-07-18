@@ -44,7 +44,7 @@ export interface NeoviewBookSettingsTuiPort extends AsyncDisposable {
 
 export type NeoviewFileTreeTuiAction =
   | "tree" | "search" | "exclude" | "include" | "clear-cache"
-  | "history" | "delete-history" | "clear-history"
+  | "history" | "delete-history" | "clear-history" | "emm-tags"
 
 export interface NeoviewFileTreeTuiInput {
   action: NeoviewFileTreeTuiAction
@@ -56,6 +56,9 @@ export interface NeoviewFileTreeTuiInput {
   caseSensitive?: boolean
   searchInPath?: boolean
   filter?: ReaderDirectoryFilter
+  includeTags?: readonly string[]
+  excludeTags?: readonly string[]
+  tagMode?: "all" | "any"
   scope?: "folder" | "file" | "bookmark" | "history"
 }
 
@@ -168,7 +171,7 @@ export function createNeoviewFileTreeTuiDefinition(
       const controller = await createController()
       active = controller
       try {
-        const needsTreeSession = input.action !== "history" && input.action !== "delete-history" && input.action !== "clear-history"
+        const needsTreeSession = input.action !== "history" && input.action !== "delete-history" && input.action !== "clear-history" && input.action !== "emm-tags"
         if (needsTreeSession) {
           await controller.open({ path: input.action === "exclude" || input.action === "include" ? dirname(input.path) : input.path })
         }
@@ -185,6 +188,9 @@ export function createNeoviewFileTreeTuiDefinition(
             searchInPath: input.searchInPath,
             maximumDepth: input.maximumDepth,
             maximumResults: input.maximumResults,
+            includeTags: input.includeTags,
+            excludeTags: input.excludeTags,
+            tagMode: input.tagMode,
           })
           const paths: string[] = []
           try {
@@ -199,6 +205,11 @@ export function createNeoviewFileTreeTuiDefinition(
           }
           await controller.recordSearchHistory("folder", input.query ?? "")
           return { success: true, message: `${paths.length} matches.`, paths }
+        }
+        if (input.action === "emm-tags") {
+          const suggestions = await controller.suggestEmmTags(Math.min(input.maximumResults ?? 8, 32))
+          const paths = suggestions.map((item) => `${item.category}:${item.tag}${item.translatedTag ? `\t${item.translatedTag}` : ""}`)
+          return { success: true, message: `${paths.length} EMM tag suggestions.`, paths }
         }
         if (input.action === "history") {
           const entries = await controller.listSearchHistory(input.scope ?? "folder", input.maximumResults ?? 20)
@@ -460,17 +471,23 @@ function readerDirectoryFilterValue(value: unknown): ReaderDirectoryFilter {
   return value === "archive" || value === "directory" || value === "video" ? value : "all"
 }
 
+function interactionTagList(value: unknown): string[] | undefined {
+  const tags = String(value ?? "").split(/[\r\n,]+/).map((tag) => tag.trim()).filter(Boolean)
+  return tags.length ? [...new Set(tags)] : undefined
+}
+
 function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewFileTreeTuiInput, NeoviewFileTreeTuiResult> {
   const zh = language === "zh"
   const search = (values: Readonly<InteractionValues>) => values.action === "search"
+  const searchOrSuggestions = (values: Readonly<InteractionValues>) => values.action === "search" || values.action === "emm-tags"
   const query = (values: Readonly<InteractionValues>) => values.action === "search" || values.action === "delete-history"
   const history = (values: Readonly<InteractionValues>) => values.action === "history" || values.action === "delete-history" || values.action === "clear-history"
-  const needsPath = (action: NeoviewFileTreeTuiAction) => action !== "history" && action !== "delete-history" && action !== "clear-history"
+  const needsPath = (action: NeoviewFileTreeTuiAction) => action !== "history" && action !== "delete-history" && action !== "clear-history" && action !== "emm-tags"
   return {
     id: "neoview-file-tree",
     title: "NeoView File Tree",
     description: zh ? "目录树、递归搜索与排除规则" : "Directory tree, recursive search and exclusions",
-    initialValues: { action: "tree", path: "", query: "", mode: "text", filter: "all", maximumDepth: 10, maximumResults: 512, caseSensitive: false, searchInPath: false },
+    initialValues: { action: "tree", path: "", query: "", mode: "text", filter: "all", includeTags: "", excludeTags: "", tagMode: "all", maximumDepth: 10, maximumResults: 512, caseSensitive: false, searchInPath: false },
     fields: [
       { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
         { value: "tree", label: zh ? "展开树节点" : "Expand tree node" },
@@ -481,6 +498,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
         { value: "history", label: zh ? "搜索历史" : "Search history" },
         { value: "delete-history", label: zh ? "删除搜索记录" : "Delete search entry" },
         { value: "clear-history", label: zh ? "清空搜索历史" : "Clear search history" },
+        { value: "emm-tags", label: zh ? "EMM 标签建议" : "EMM tag suggestions" },
       ] },
       { id: "path", label: zh ? "目录路径" : "Directory path", kind: "text" },
       { id: "query", label: zh ? "搜索内容" : "Query", kind: "text", visibleWhen: query },
@@ -492,8 +510,11 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       ], visibleWhen: history },
       { id: "mode", label: zh ? "匹配方式" : "Match mode", kind: "select", options: [{ value: "text", label: zh ? "文本" : "Text" }, { value: "glob", label: "Glob" }], visibleWhen: search },
       { id: "filter", label: zh ? "类型筛选" : "Type filter", kind: "select", options: READER_DIRECTORY_FILTER_OPTIONS, visibleWhen: search },
+      { id: "includeTags", label: zh ? "包含 EMM 标签" : "Required EMM tags", kind: "text", visibleWhen: search },
+      { id: "excludeTags", label: zh ? "排除 EMM 标签" : "Excluded EMM tags", kind: "text", visibleWhen: search },
+      { id: "tagMode", label: zh ? "标签组合" : "Tag mode", kind: "select", options: [{ value: "all", label: zh ? "全部匹配" : "Match all" }, { value: "any", label: zh ? "任一匹配" : "Match any" }], visibleWhen: search },
       { id: "maximumDepth", label: zh ? "最大深度" : "Maximum depth", kind: "number", min: 0, max: 4096, step: 1, visibleWhen: search },
-      { id: "maximumResults", label: zh ? "结果上限" : "Result limit", kind: "number", min: 1, max: 10000, step: 1, visibleWhen: search },
+      { id: "maximumResults", label: zh ? "结果上限" : "Result limit", kind: "number", min: 1, max: 10000, step: 1, visibleWhen: searchOrSuggestions },
       { id: "caseSensitive", label: zh ? "区分大小写" : "Case sensitive", kind: "boolean", visibleWhen: search },
       { id: "searchInPath", label: zh ? "匹配相对路径" : "Match relative paths", kind: "boolean", visibleWhen: search },
     ],
@@ -503,6 +524,9 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
       query: String(values.query ?? "").trim(),
       mode: values.mode === "glob" ? "glob" : "text",
       filter: readerDirectoryFilterValue(values.filter),
+      includeTags: interactionTagList(values.includeTags),
+      excludeTags: interactionTagList(values.excludeTags),
+      tagMode: values.tagMode === "any" ? "any" : "all",
       maximumDepth: Number(values.maximumDepth ?? 10),
       maximumResults: Number(values.maximumResults ?? 512),
       caseSensitive: values.caseSensitive === true,
@@ -511,7 +535,9 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
     }),
     validate: (_values, input) => needsPath(input.action) && !input.path
       ? (zh ? "请输入目录路径。" : "Enter a directory path.")
-      : (input.action === "search" || input.action === "delete-history") && !input.query
+      : input.action === "search" && !input.query && !input.includeTags?.length && !input.excludeTags?.length
+        ? (zh ? "请输入搜索内容或 EMM 标签。" : "Enter a search query or EMM tags.")
+        : input.action === "delete-history" && !input.query
         ? (zh ? "请输入搜索内容。" : "Enter a search query.")
         : null,
     preview: (input) => [input.path, input.action === "search" ? `${input.mode}: ${input.query}` : input.action],
@@ -671,7 +697,7 @@ function mutationResult(changed: boolean, name: string): NeoviewLibraryTuiResult
 
 function isFileTreeAction(value: unknown): value is NeoviewFileTreeTuiAction {
   return value === "tree" || value === "search" || value === "exclude" || value === "include" || value === "clear-cache"
-    || value === "history" || value === "delete-history" || value === "clear-history"
+    || value === "history" || value === "delete-history" || value === "clear-history" || value === "emm-tags"
 }
 
 function isSearchHistoryScope(value: unknown): value is "folder" | "file" | "bookmark" | "history" {

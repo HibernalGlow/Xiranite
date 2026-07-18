@@ -78,6 +78,9 @@ const VALUE_FLAGS = new Set([
   "--query",
   "--mode",
   "--filter",
+  "--tag",
+  "--exclude-tag",
+  "--tag-mode",
   "--depth",
   "--exclude",
   "--node",
@@ -493,7 +496,7 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "folder-search") {
-    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--filter", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
+    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--filter", "--tag", "--exclude-tag", "--tag-mode", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
     return
   }
   if (command === "folder-emm-tags") {
@@ -578,12 +581,18 @@ async function runFolderSearch(
   parsed: ParsedArguments,
   host: CliHost,
 ): Promise<void> {
-  const query = oneValue(parsed, "--query")
-  if (!query) throw usage("folder-search requires --query <text|glob>.")
+  const query = oneValue(parsed, "--query") ?? ""
+  const includeTags = parsed.values.get("--tag")
+  const excludeTags = parsed.values.get("--exclude-tag")
+  if (!query && !includeTags?.length && !excludeTags?.length) {
+    throw usage("folder-search requires --query <text|glob> or at least one --tag/--exclude-tag.")
+  }
   const mode = oneValue(parsed, "--mode") ?? "text"
   if (mode !== "text" && mode !== "glob") throw usage("--mode must be text or glob.")
   const kind = oneValue(parsed, "--kind") ?? "all"
   if (kind !== "all" && kind !== "file" && kind !== "directory") throw usage("--kind must be all, file or directory.")
+  const tagMode = oneValue(parsed, "--tag-mode") ?? "all"
+  if (tagMode !== "all" && tagMode !== "any") throw usage("--tag-mode must be all or any.")
   const depthValue = oneValue(parsed, "--depth")
   const maximumDepth = depthValue === undefined ? undefined : integerOption(parsed, "--depth", 0, 4_096, 0)
   const maximumResults = integerOption(parsed, "--limit", 1, 10_000, 512)
@@ -596,6 +605,9 @@ async function runFolderSearch(
     maximumDepth,
     maximumResults,
     excludePatterns: parsed.values.get("--exclude"),
+    includeTags,
+    excludeTags,
+    tagMode,
   })
   const json = parsed.booleans.has("--json")
   const output: Record<string, unknown> = { entries: [] }
@@ -2032,6 +2044,9 @@ function formatCliHelp(): string {
     "  --query QUERY        Folder search text or glob",
     "  --mode MODE          Folder search mode: text or glob",
     "  --filter TYPE        Source type: all, archive, directory or video",
+    "  --tag TAG            Repeatable required EMM tag; search text may be omitted",
+    "  --exclude-tag TAG    Repeatable excluded EMM tag",
+    "  --tag-mode MODE      Required-tag mode: all or any",
     "  --node PATH          Explicit tree node for tree/cache commands",
     "  --depth N            Recursive search depth (0..4096)",
     "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",

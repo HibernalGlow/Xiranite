@@ -2011,11 +2011,11 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
+        "core": "complete",
+        "transport": "complete",
         "gui": "pending",
-        "cli": "partial",
-        "tui": "pending",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
@@ -2027,10 +2027,14 @@
         "neoview.folder.emm-tag-suggestions-http",
         "neoview.folder.emm-translation-source",
         "neoview.folder.emm-tag-translation",
-        "neoview.folder.emm-tags-cli"
+        "neoview.folder.emm-tags-cli",
+        "neoview.folder.emm-search-cli",
+        "neoview.folder.emm-search-tui",
+        "neoview.folder.emm-tags-tui",
+        "neoview.folder.tui"
       ],
       "plannedTestIds": [],
-      "notes": "结构化 include/exclude tag 与 all/any 组合已通过唯一 ReaderFileTreeSearch 契约；ReaderMetadataHydratingScanner 对当前 listing 和递归 scanner 都按 128 项调用现有 EMM metadata provider，继续使用旧库批量查询、NDJSON 背压和同一取消链，不扫描 UI store。随机普通标签由 SQLite JSON1 在最多 50 个旧 emm_json 行内展开去重，并与唯一 collect-tag source 的最多 3 个收藏标签合并。翻译由 8 MiB 有界、mtime 缓存且可释放的 platform source 惰性补充。完整 GUI、手动翻译路径、组合修饰键和显式 CLI/TUI surface 仍待完成。"
+      "notes": "结构化 include/exclude tag 与 all/any 组合已通过唯一 ReaderFileTreeSearch 契约；ReaderMetadataHydratingScanner 对当前 listing 和递归 scanner 都按 128 项调用现有 EMM metadata provider，继续使用旧库批量查询、NDJSON 背压和同一取消链，不扫描 UI store。随机普通标签由 SQLite JSON1 在最多 50 个旧 emm_json 行内展开去重，并与唯一 collect-tag source 的最多 3 个收藏标签合并；翻译由 8 MiB 有界、mtime 缓存且可释放的 platform source 惰性补充。CLI folder-search 支持 tag-only、重复 include/exclude tag 与 all/any，folder-emm-tags 继续提供建议；OpenTUI 复用同一 search/suggestion service，不复制标签解析、SQLite 查询或翻译逻辑。完整 GUI、收藏标签快捷应用和原版组合修饰键交互仍待完成。"
     },
     {
       "id": "folder.filter.type",
