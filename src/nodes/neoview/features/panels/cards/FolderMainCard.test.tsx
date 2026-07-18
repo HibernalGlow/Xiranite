@@ -80,6 +80,61 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
   })
 
+  it("[neoview.folder.trash-refresh] confirms trash and refreshes the existing browser session", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [
+        { name: "old.cbz", path: "C:/books/old.cbz", kind: "file", readerSupported: true },
+        { name: "next.cbz", path: "C:/books/next.cbz", kind: "file", readerSupported: true },
+      ],
+      total: 2,
+    })
+    const refreshed = page({
+      path: "C:/books",
+      generation: 2,
+      entries: [{ name: "next.cbz", path: "C:/books/next.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+      suggestedSelection: { path: "C:/books/next.cbz", index: 0 },
+    })
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "C:/books/old.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 0,
+    }))
+    const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      executeFileOperations,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const user = userEvent.setup()
+    const view = render(
+      <ContextMenuProvider>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoMockContext.Provider>
+      </ContextMenuProvider>,
+    )
+    const ui = within(view.container)
+    fireEvent.contextMenu(await ui.findByTitle("C:/books/old.cbz"), { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "移到回收站" }))
+    await user.click(screen.getByRole("button", { name: "移到回收站" }))
+
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith(
+      [{ kind: "trash", sourcePath: "C:/books/old.cbz" }],
+      true,
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "refresh" },
+      expect.any(AbortSignal),
+      "C:/books/old.cbz",
+    ))
+    expect(ui.queryByTitle("C:/books/old.cbz")).toBeNull()
+    expect(await ui.findByTitle("C:/books/next.cbz")).toBeTruthy()
+  })
+
   it("[neoview.folder.tabs-lifecycle] [neoview.folder.tabs-navigation-history] creates, switches and closes isolated Explorer-style folder tabs", async () => {
     const pages = new Map([
       ["C:/A", page({ sessionId: "browser-a", path: "C:/A", entries: [{ name: "a.cbz", path: "C:/A/a.cbz", kind: "file", readerSupported: true }], total: 1 })],
@@ -689,6 +744,61 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.keyboard-trash] confirms Delete for the focused loaded item only", async () => {
+    const opened = page({
+      total: 2,
+      entries: [
+        { name: "first.cbz", path: "C:/books/first.cbz", kind: "file", readerSupported: true },
+        { name: "second.cbz", path: "C:/books/second.cbz", kind: "file", readerSupported: true },
+      ],
+    })
+    const refreshed = page({
+      generation: 2,
+      total: 1,
+      entries: [{ name: "first.cbz", path: "C:/books/first.cbz", kind: "file", readerSupported: true }],
+    })
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "C:/books/second.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 0,
+    }))
+    const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      executeFileOperations,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const user = userEvent.setup()
+    const view = render(
+      <ContextMenuProvider>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoMockContext.Provider>
+      </ContextMenuProvider>,
+    )
+    const ui = within(view.container)
+    const host = await ui.findByRole("listbox", { name: "文件项目" })
+    fireEvent.keyDown(host, { key: "ArrowDown" })
+    expect(host.getAttribute("data-focused-index")).toBe("1")
+    fireEvent.keyDown(host, { key: "Delete" })
+
+    const confirmation = await screen.findByRole("alertdialog")
+    expect(confirmation.textContent).toContain("second.cbz")
+    expect(executeFileOperations).not.toHaveBeenCalled()
+    await user.click(within(confirmation).getByRole("button", { name: "移到回收站" }))
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith(
+      [{ kind: "trash", sourcePath: "C:/books/second.cbz" }],
+      true,
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "refresh" },
+      expect.any(AbortSignal),
+      "C:/books/second.cbz",
+    ))
+  })
+
   it("[neoview.folder.keyboard-navigation] moves a sparse global focus without depending on mounted rows", async () => {
     const opened = page({
       total: 4,
@@ -777,6 +887,8 @@ describe("FolderMainCard", () => {
     fireEvent.keyDown(host, { key: "End", ctrlKey: true })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
     expect(host.getAttribute("data-focused-index")).toBe("99999")
+    fireEvent.keyDown(host, { key: "Delete" })
+    expect(screen.queryByRole("alertdialog")).toBeNull()
 
     await waitFor(() => expect(listDirectoryBrowser.mock.calls.some((call) => call[1] > 99_000)).toBe(true))
 
@@ -832,8 +944,10 @@ describe("FolderMainCard", () => {
     const searchInput = await currentView.findByRole("textbox", { name: "搜索文件" })
     await waitFor(() => expect(document.activeElement).toBe(searchInput))
     fireEvent.keyDown(searchInput, { key: "Backspace" })
+    fireEvent.keyDown(searchInput, { key: "Delete" })
     fireEvent.keyDown(searchInput, { key: "F5" })
     expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alertdialog")).toBeNull()
 
     fireEvent.change(searchInput, { target: { value: "book" } })
     fireEvent.submit(searchInput.closest("form")!)

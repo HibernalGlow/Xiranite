@@ -3,6 +3,9 @@ import { resolve } from "node:path"
 import { LegacyNeoViewDataLocator } from "../packages/nodes/neoview/src/application/data/LegacyNeoViewDataLocator.js"
 import { openReadonlySqlite } from "../packages/nodes/neoview/src/platform/sqlite/openReadonlySqlite.js"
 import { ReadonlyLegacyThumbnailStore } from "../packages/nodes/neoview/src/platform/thumbnails/ReadonlyLegacyThumbnailStore.js"
+import { readThumbnailStoreBatch } from "../packages/nodes/neoview/src/platform/thumbnails/ThumbnailStoreBatchReader.js"
+import { ResourceSchedulerService } from "../packages/services/src/resourceScheduler.js"
+import { readLegacyThumbnailStatistics } from "../packages/nodes/neoview/src/platform/thumbnails/LegacyThumbnailStatistics.js"
 
 const parsed = parseArgs({
   options: {
@@ -21,7 +24,18 @@ const database = await openReadonlySqlite(databasePath)
 let keys: string[]
 let compressedSamples = 0
 let compressedKeys: string[] = []
+let aggregate: Record<string, unknown> = {}
 try {
+  aggregate = database.get(
+    `SELECT COUNT(*) AS total_records,
+            SUM(category = 'file') AS file_records,
+            SUM(category = 'folder') AS folder_records,
+            SUM(value IS NULL OR length(value) = 0) AS empty_records,
+            SUM(hex(substr(value, 1, 4)) = '4C5A3400') AS compressed_records,
+            ROUND(AVG(length(value)), 1) AS average_blob_bytes,
+            MAX(length(value)) AS maximum_blob_bytes
+       FROM thumbs`,
+  ) ?? {}
   const rows = database.all(
     `SELECT key, hex(substr(value, 1, 4)) AS prefix FROM thumbs WHERE category = 'file' AND value IS NOT NULL LIMIT ${batchSize}`,
   )
@@ -37,6 +51,10 @@ if (!keys.length) throw new Error("Thumbnail benchmark requires at least one fil
 
 const store = await ReadonlyLegacyThumbnailStore.open(databasePath)
 try {
+  const statisticsScheduler = new ResourceSchedulerService()
+  const statisticsStarted = performance.now()
+  const statistics = await readLegacyThumbnailStatistics(databasePath, { resourceScheduler: statisticsScheduler })
+  const statisticsTotalMs = performance.now() - statisticsStarted
   await store.get(keys[0]!, "file")
   await store.getMany(keys, "file")
   let started = performance.now()
@@ -49,6 +67,12 @@ try {
   started = performance.now()
   for (let index = 0; index < batchIterations; index += 1) await store.getMany(keys, "file")
   const batchTotalMs = performance.now() - started
+  const scheduler = new ResourceSchedulerService()
+  started = performance.now()
+  for (let index = 0; index < batchIterations; index += 1) {
+    await readThumbnailStoreBatch(store, keys, "file", { resourceScheduler: scheduler, priority: "background" })
+  }
+  const cooperativeBatchTotalMs = performance.now() - started
   let compressed: Record<string, number> | undefined
   if (compressedKeys.length) {
     await store.get(compressedKeys[0]!, "file")
@@ -73,6 +97,20 @@ try {
     databaseBytes: store.report.bytes,
     metadataVersion: store.report.metadataVersion,
     compatibility: store.report.compatibility,
+    records: {
+      total: integer(aggregate.total_records),
+      file: integer(aggregate.file_records),
+      folder: integer(aggregate.folder_records),
+      empty: integer(aggregate.empty_records),
+      compressed: integer(aggregate.compressed_records),
+      averageBlobBytes: numberValue(aggregate.average_blob_bytes),
+      maximumBlobBytes: integer(aggregate.maximum_blob_bytes),
+    },
+    maintenanceStatistics: {
+      totalMs: statisticsTotalMs,
+      ...statistics,
+      scheduler: statisticsScheduler.snapshot().io,
+    },
     sampledRecords: keys.length,
     compressedSamples,
     compressed,
@@ -88,6 +126,15 @@ try {
       averageBatchMs: batchTotalMs / batchIterations,
       averageRecordMs: batchTotalMs / (batchIterations * keys.length),
     },
+    cooperativeBatch: {
+      chunkSize: 64,
+      iterations: batchIterations,
+      recordsPerBatch: keys.length,
+      totalMs: cooperativeBatchTotalMs,
+      averageBatchMs: cooperativeBatchTotalMs / batchIterations,
+      averageRecordMs: cooperativeBatchTotalMs / (batchIterations * keys.length),
+      scheduler: scheduler.snapshot().io,
+    },
   }, null, 2)}\n`)
 } finally {
   store.close()
@@ -99,4 +146,14 @@ function positiveInteger(value: string | undefined, label: string, maximum: numb
     throw new Error(`--${label} must be an integer from 1 to ${maximum}.`)
   }
   return parsed
+}
+
+function integer(value: unknown): number {
+  if (typeof value === "bigint") return Number(value)
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : 0
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value === "bigint") return Number(value)
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
 }

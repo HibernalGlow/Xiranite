@@ -1,74 +1,54 @@
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 
-type ChecklistStatus = "pending" | "partial" | "complete"
-
-interface ChecklistItem {
-  id: string
-  category: string
-  title: string
-  sourceEvidence: string[]
-  targetContract: string
-  surfaces: Array<"GUI" | "CLI" | "TUI">
-  status: ChecklistStatus
-  testIds: string[]
-  notes: string
-}
-
-interface SourceUiInventoryGroup {
-  id: string
-  title: string
-  sourceEvidence: string[]
-  acceptanceItems: string[]
-  mappedChecklistIds: string[]
-}
-
-interface CardChecklist {
-  schemaVersion: 1
-  featureId: string
-  legacyCardId: string
-  sourceRoot: string
-  statusValues: ChecklistStatus[]
-  completionRule: string
-  sourceUiInventory: SourceUiInventoryGroup[]
-  items: ChecklistItem[]
-}
+import {
+  CAPABILITY_DIMENSIONS,
+  aggregateCapabilityStatuses,
+  blockedDimensions,
+  buildTestEvidenceIndex,
+  deriveOverallStatus,
+  overallCounts,
+  parseCardMatrix,
+  parseDetailedChecklist,
+  statusCounts,
+  type CapabilityDimension,
+  type CapabilityStatus,
+  type DetailedChecklist,
+  type TestEvidenceIndex,
+} from "./lib/neoview-capability-status"
 
 interface AcceptanceContract {
-  schemaVersion: 1
+  schemaVersion: 2
   scope: { cardCount: number; inventory: string }
-  requiredItemFields: Array<keyof ChecklistItem>
+  capabilityStatus: { dimensions: string[]; values: string[]; overall: string; applicability: string }
+  requiredItemFields: string[]
   requiredDimensions: Array<{ id: string; requirement: string }>
   completionGate: string[]
 }
 
-const root = resolve(import.meta.dir, "..")
-const checklist = await readJson<CardChecklist>(resolve(root, "migration/neoview/folder-main-compatibility.json"))
-const contract = await readJson<AcceptanceContract>(resolve(root, "migration/neoview/card-acceptance-contract.json"))
-const cardMatrix = await readJson<{ cards: Array<{
-  legacyId: string
-  status: string
-  sourceComponent?: string
-  sourceDisposition?: "component" | "registry-only"
-  sourceNotes?: string
-}> }>(resolve(root, contract.scope.inventory))
-const functionalScopes = await readJson<{ cards: Array<{
+interface FunctionalScope {
   legacyId: string
   capabilities: string[]
   checklistRef?: string
-}> }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
-const checklistByRef = new Map<string, CardChecklist>([["migration/neoview/folder-main-compatibility.json", checklist]])
+}
+
+const root = resolve(import.meta.dir, "..")
+const contract = await readJson<AcceptanceContract>(resolve(root, "migration/neoview/card-acceptance-contract.json"))
+const cardMatrix = await parseCardMatrix(resolve(root, contract.scope.inventory))
+const functionalScopes = await readJson<{ cards: FunctionalScope[] }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
+const checklistByRef = new Map<string, DetailedChecklist>()
 for (const scope of functionalScopes.cards) {
   if (!scope.checklistRef || checklistByRef.has(scope.checklistRef)) continue
-  checklistByRef.set(scope.checklistRef, await readJson<CardChecklist>(resolve(root, scope.checklistRef)))
+  checklistByRef.set(scope.checklistRef, await parseDetailedChecklist(resolve(root, scope.checklistRef)))
 }
 const inventory = await readJson<{ modules: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/module-inventory.json"))
 const componentInventory = await readJson<{ components: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/component-inventory.json"))
+const evidence = await buildTestEvidenceIndex(root)
 const errors: string[] = []
 
-if (checklist.schemaVersion !== 1) errors.push(`unsupported checklist schema ${String(checklist.schemaVersion)}`)
-if (contract.schemaVersion !== 1) errors.push(`unsupported acceptance contract schema ${String(contract.schemaVersion)}`)
+if (contract.schemaVersion !== 2) errors.push(`unsupported acceptance contract schema ${String(contract.schemaVersion)}`)
 if (contract.scope.cardCount !== cardMatrix.cards.length) errors.push(`acceptance scope card count ${contract.scope.cardCount} != ${cardMatrix.cards.length}`)
+if (contract.capabilityStatus.dimensions.join(",") !== CAPABILITY_DIMENSIONS.join(",")) errors.push("acceptance contract capability dimensions differ from the shared schema")
 if (!contract.requiredDimensions.length) errors.push("acceptance contract has no required dimensions")
 if (!contract.completionGate.length) errors.push("acceptance contract has no completion gate")
 
@@ -78,37 +58,21 @@ for (const scope of functionalScopes.cards) {
   if (scopeIds.has(scope.legacyId)) errors.push(`duplicate functional scope ${scope.legacyId}`)
   scopeIds.add(scope.legacyId)
   if (!matrixIds.has(scope.legacyId)) errors.push(`functional scope references unknown Card ${scope.legacyId}`)
-  if (!scope.capabilities.length || scope.capabilities.some((capability) => !capability.trim())) {
-    errors.push(`${scope.legacyId} has an empty functional capability scope`)
+  if (!scope.capabilities.length || scope.capabilities.some((capability) => !capability.trim())) errors.push(`${scope.legacyId} has an empty functional capability scope`)
+  if (scope.checklistRef) {
+    const detailed = checklistByRef.get(scope.checklistRef)
+    if (!detailed) errors.push(`${scope.legacyId} detailed checklist could not be loaded: ${scope.checklistRef}`)
+    else if (detailed.legacyCardId !== scope.legacyId) errors.push(`${scope.checklistRef} belongs to ${detailed.legacyCardId}, not ${scope.legacyId}`)
   }
 }
 for (const card of cardMatrix.cards) {
   if (!scopeIds.has(card.legacyId)) errors.push(`${card.legacyId} has no frozen functional scope`)
 }
-const folderScope = functionalScopes.cards.find((scope) => scope.legacyId === checklist.legacyCardId)
-if (folderScope?.checklistRef !== "migration/neoview/folder-main-compatibility.json") {
-  errors.push(`${checklist.legacyCardId} does not reference its detailed checklist`)
-}
-const referencedChecklistPaths = new Set<string>()
-for (const scope of functionalScopes.cards) {
-  if (!scope.checklistRef) continue
-  if (referencedChecklistPaths.has(scope.checklistRef)) errors.push(`duplicate detailed checklist reference ${scope.checklistRef}`)
-  referencedChecklistPaths.add(scope.checklistRef)
-  const detailed = checklistByRef.get(scope.checklistRef)
-  if (!detailed) errors.push(`${scope.legacyId} detailed checklist could not be loaded: ${scope.checklistRef}`)
-  else if (detailed.legacyCardId !== scope.legacyId) errors.push(`${scope.checklistRef} belongs to ${detailed.legacyCardId}, not ${scope.legacyId}`)
-}
 
-const sourcePrefix = "src/lib/components/panels/folderPanel/"
 const sourceFiles = new Set([
   ...inventory.modules.map((entry) => entry.file),
   ...componentInventory.components.map((entry) => entry.file),
 ])
-const ids = new Set<string>()
-const inventoryGroupIds = new Set<string>()
-const allowedStatuses = new Set(checklist.statusValues)
-const allowedSurfaces = new Set(["GUI", "CLI", "TUI"])
-
 for (const card of cardMatrix.cards) {
   if (card.sourceDisposition === "component") {
     if (!card.sourceComponent) errors.push(`${card.legacyId} has component disposition without sourceComponent`)
@@ -121,49 +85,30 @@ for (const card of cardMatrix.cards) {
   }
 }
 
-for (const item of checklist.items) {
-  if (ids.has(item.id)) errors.push(`duplicate checklist item ${item.id}`)
-  ids.add(item.id)
-  for (const field of contract.requiredItemFields) {
-    if (!(field in item)) errors.push(`${item.id} is missing ${field}`)
-  }
-  if (!item.id.trim() || !item.category.trim() || !item.title.trim()) errors.push(`${item.id || "<missing id>"} has blank identity fields`)
-  if (!item.targetContract.trim()) errors.push(`${item.id} has no target contract`)
-  if (!allowedStatuses.has(item.status)) errors.push(`${item.id} has invalid status ${item.status}`)
-  if (!item.sourceEvidence.length) errors.push(`${item.id} has no source evidence`)
-  if (!item.surfaces.length || item.surfaces.some((surface) => !allowedSurfaces.has(surface))) errors.push(`${item.id} has invalid surfaces`)
-  if (item.status === "complete" && !item.testIds.length) errors.push(`${item.id} is complete without automated test IDs`)
-  for (const evidence of item.sourceEvidence) {
-    if (!sourceFiles.has(`${sourcePrefix}${evidence}`)) errors.push(`${item.id} references source missing from frozen inventory: ${evidence}`)
-  }
-}
-
-for (const group of checklist.sourceUiInventory) {
-  if (inventoryGroupIds.has(group.id)) errors.push(`duplicate source UI inventory group ${group.id}`)
-  inventoryGroupIds.add(group.id)
-  if (!group.id.trim() || !group.title.trim()) errors.push(`${group.id || "<missing id>"} has blank source UI inventory identity`)
-  if (!group.sourceEvidence.length) errors.push(`${group.id} has no source UI evidence`)
-  if (!group.acceptanceItems.length || group.acceptanceItems.some((item) => !item.trim())) errors.push(`${group.id} has blank source UI acceptance items`)
-  if (!group.mappedChecklistIds.length) errors.push(`${group.id} has no checklist mapping`)
-  for (const evidence of group.sourceEvidence) {
-    if (!sourceFiles.has(`${sourcePrefix}${evidence}`)) errors.push(`${group.id} references source missing from frozen inventory: ${evidence}`)
-  }
-  for (const itemId of group.mappedChecklistIds) {
-    if (!ids.has(itemId)) errors.push(`${group.id} maps to unknown checklist item ${itemId}`)
-  }
-}
-
+const allItems = [] as DetailedChecklist["items"]
+const allGroups = [] as DetailedChecklist["sourceUiInventory"]
 for (const [checklistRef, detailed] of checklistByRef) {
-  if (detailed === checklist) continue
-  validateDetailedChecklist(detailed, checklistRef)
+  validateDetailedChecklist(detailed, checklistRef, evidence)
+  allItems.push(...detailed.items)
+  allGroups.push(...detailed.sourceUiInventory)
+  const card = cardMatrix.cards.find((entry) => entry.legacyId === detailed.legacyCardId)
+  if (!card) {
+    errors.push(`${checklistRef} references missing Card ${detailed.legacyCardId}`)
+    continue
+  }
+  const aggregate = aggregateCapabilityStatuses(detailed.items.map((item) => item.capabilityStatus))
+  if (!sameStatus(card.capabilityStatus, aggregate)) {
+    errors.push(`${detailed.legacyCardId} Card capabilityStatus differs from detailed checklist aggregation`)
+  }
 }
 
-const legacyCard = cardMatrix.cards.find((card) => card.legacyId === checklist.legacyCardId)
-if (!legacyCard) errors.push(`legacy card ${checklist.legacyCardId} is missing from card matrix`)
-const incomplete = checklist.items.filter((item) => item.status !== "complete")
-if (legacyCard?.status === "migrated" && incomplete.length) errors.push(`${checklist.legacyCardId} is migrated while ${incomplete.length} checklist items remain incomplete`)
 if (process.argv.includes("--require-complete")) {
-  for (const item of incomplete) errors.push(`${item.id} remains ${item.status}`)
+  for (const [checklistRef, detailed] of checklistByRef) {
+    for (const item of detailed.items) {
+      const overall = deriveOverallStatus(item.capabilityStatus)
+      if (overall !== "complete") errors.push(`${checklistRef}:${item.id} remains ${overall} (${blockedDimensions(item.capabilityStatus).join(", ")})`)
+    }
+  }
 }
 
 if (errors.length) {
@@ -171,72 +116,91 @@ if (errors.length) {
   process.exit(1)
 }
 
+const folder = [...checklistByRef.values()].find((value) => value.legacyCardId === "folderMain")
 console.log(JSON.stringify({
-  legacyCardId: checklist.legacyCardId,
-  total: checklist.items.length,
-  byStatus: counts(checklist.items.map((item) => item.status)),
-  byCategory: counts(checklist.items.map((item) => item.category)),
-  acceptanceDimensions: contract.requiredDimensions.length,
-  sourceUiInventoryGroups: checklist.sourceUiInventory.length,
-  sourceUiInventoryItems: checklist.sourceUiInventory.reduce((total, group) => total + group.acceptanceItems.length, 0),
   detailedChecklists: [...checklistByRef.keys()],
+  checklistItems: allItems.length,
+  byOverall: overallCounts(allItems.map((item) => item.capabilityStatus)),
+  byDimension: statusCounts(allItems.map((item) => item.capabilityStatus)),
+  acceptanceDimensions: contract.requiredDimensions.length,
+  sourceUiInventoryGroups: allGroups.length,
+  sourceUiInventoryItems: allGroups.reduce((total, group) => total + group.acceptanceItems.length, 0),
+  folderMain: folder ? {
+    total: folder.items.length,
+    byOverall: overallCounts(folder.items.map((item) => item.capabilityStatus)),
+    byCategory: counts(folder.items.map((item) => item.category)),
+  } : null,
   functionalScopes: functionalScopes.cards.length,
   cardSourceComponents: cardMatrix.cards.filter((card) => card.sourceDisposition === "component").length,
   registryOnlyCards: cardMatrix.cards.filter((card) => card.sourceDisposition === "registry-only").map((card) => card.legacyId),
 }, null, 2))
 
-function validateDetailedChecklist(detailed: CardChecklist, checklistRef: string): void {
-  if (detailed.schemaVersion !== 1) errors.push(`${checklistRef} has unsupported schema ${String(detailed.schemaVersion)}`)
-  if (!detailed.completionRule.trim()) errors.push(`${checklistRef} has no completion rule`)
-  const allowedDetailedStatuses = new Set(detailed.statusValues)
-  const detailedIds = new Set<string>()
+function validateDetailedChecklist(detailed: DetailedChecklist, checklistRef: string, index: TestEvidenceIndex): void {
+  const itemIds = new Set<string>()
   const groupIds = new Set<string>()
   for (const item of detailed.items) {
-    if (detailedIds.has(item.id)) errors.push(`${checklistRef} has duplicate item ${item.id}`)
-    detailedIds.add(item.id)
+    if (itemIds.has(item.id)) errors.push(`${checklistRef} has duplicate item ${item.id}`)
+    itemIds.add(item.id)
     for (const field of contract.requiredItemFields) {
       if (!(field in item)) errors.push(`${checklistRef}:${item.id} is missing ${field}`)
     }
-    if (!item.id.trim() || !item.category.trim() || !item.title.trim()) errors.push(`${checklistRef}:${item.id || "<missing id>"} has blank identity fields`)
-    if (!item.targetContract.trim()) errors.push(`${checklistRef}:${item.id} has no target contract`)
-    if (!allowedDetailedStatuses.has(item.status)) errors.push(`${checklistRef}:${item.id} has invalid status ${item.status}`)
-    if (!item.sourceEvidence.length) errors.push(`${checklistRef}:${item.id} has no source evidence`)
-    if (!item.surfaces.length || item.surfaces.some((surface) => !allowedSurfaces.has(surface))) errors.push(`${checklistRef}:${item.id} has invalid surfaces`)
-    if (item.status === "complete" && !item.testIds.length) errors.push(`${checklistRef}:${item.id} is complete without automated test IDs`)
-    for (const evidence of item.sourceEvidence) validateDetailedEvidence(detailed, checklistRef, item.id, evidence)
+    for (const surface of item.surfaces) {
+      const dimension = surface.toLocaleLowerCase() as "gui" | "cli" | "tui"
+      if (item.capabilityStatus[dimension] === "not-applicable") errors.push(`${checklistRef}:${item.id} requires ${surface} but marks it not-applicable`)
+    }
+    if (item.capabilityStatus.evidence === "not-applicable") errors.push(`${checklistRef}:${item.id} cannot mark evidence not-applicable`)
+    for (const testId of item.testIds) {
+      if (!index.has(testId)) errors.push(`${checklistRef}:${item.id} references missing tracked test [${testId}]`)
+    }
+    if (item.plannedTestIds.length && item.capabilityStatus.evidence === "complete") {
+      errors.push(`${checklistRef}:${item.id} evidence is complete while planned tests remain: ${item.plannedTestIds.join(", ")}`)
+    }
+    validateCompletedEvidence(checklistRef, item.id, item.capabilityStatus, item.testIds, index)
+    for (const source of item.sourceEvidence) validateDetailedEvidence(detailed, checklistRef, item.id, source)
   }
   for (const group of detailed.sourceUiInventory) {
     if (groupIds.has(group.id)) errors.push(`${checklistRef} has duplicate source UI group ${group.id}`)
     groupIds.add(group.id)
-    if (!group.id.trim() || !group.title.trim()) errors.push(`${checklistRef}:${group.id || "<missing id>"} has blank inventory identity`)
-    if (!group.sourceEvidence.length) errors.push(`${checklistRef}:${group.id} has no source UI evidence`)
-    if (!group.acceptanceItems.length || group.acceptanceItems.some((item) => !item.trim())) errors.push(`${checklistRef}:${group.id} has blank acceptance items`)
-    if (!group.mappedChecklistIds.length) errors.push(`${checklistRef}:${group.id} has no checklist mapping`)
-    for (const evidence of group.sourceEvidence) validateDetailedEvidence(detailed, checklistRef, group.id, evidence)
+    for (const source of group.sourceEvidence) validateDetailedEvidence(detailed, checklistRef, group.id, source)
     for (const itemId of group.mappedChecklistIds) {
-      if (!detailedIds.has(itemId)) errors.push(`${checklistRef}:${group.id} maps to unknown item ${itemId}`)
+      if (!itemIds.has(itemId)) errors.push(`${checklistRef}:${group.id} maps to unknown item ${itemId}`)
     }
-  }
-  const legacy = cardMatrix.cards.find((card) => card.legacyId === detailed.legacyCardId)
-  if (!legacy) errors.push(`${checklistRef} references missing Card ${detailed.legacyCardId}`)
-  const incomplete = detailed.items.filter((item) => item.status !== "complete")
-  if (legacy?.status === "migrated" && incomplete.length) errors.push(`${detailed.legacyCardId} is migrated while ${incomplete.length} checklist items remain incomplete`)
-  if (process.argv.includes("--require-complete")) {
-    for (const item of incomplete) errors.push(`${checklistRef}:${item.id} remains ${item.status}`)
   }
 }
 
-function validateDetailedEvidence(detailed: CardChecklist, checklistRef: string, id: string, evidence: string): void {
-  const sourcePath = detailedSourcePath(detailed.sourceRoot, evidence)
+function validateCompletedEvidence(
+  checklistRef: string,
+  itemId: string,
+  status: CapabilityStatus,
+  testIds: readonly string[],
+  index: TestEvidenceIndex,
+): void {
+  const covered = index.dimensions(testIds)
+  for (const dimension of CAPABILITY_DIMENSIONS) {
+    if (status[dimension] !== "complete") continue
+    if (dimension === "evidence") {
+      if (!testIds.length) errors.push(`${checklistRef}:${itemId} evidence is complete without test IDs`)
+      continue
+    }
+    if (!covered.has(dimension)) errors.push(`${checklistRef}:${itemId} marks ${dimension} complete without dimension-specific tracked evidence`)
+  }
+}
+
+function validateDetailedEvidence(detailed: DetailedChecklist, checklistRef: string, id: string, source: string): void {
+  const sourcePath = detailedSourcePath(detailed.sourceRoot, source)
   if (!sourceFiles.has(sourcePath)) errors.push(`${checklistRef}:${id} references source missing from frozen inventory: ${sourcePath}`)
 }
 
-function detailedSourcePath(sourceRoot: string, evidence: string): string {
+function detailedSourcePath(sourceRoot: string, source: string): string {
   const normalizedRoot = sourceRoot.replaceAll("\\", "/").replace(/\/$/, "")
   const marker = "/neoview-tauri"
   const markerIndex = normalizedRoot.toLocaleLowerCase().lastIndexOf(marker)
   const prefix = markerIndex === -1 ? "" : normalizedRoot.slice(markerIndex + marker.length).replace(/^\//, "")
-  return [prefix, evidence.replaceAll("\\", "/")].filter(Boolean).join("/")
+  return [prefix, source.replaceAll("\\", "/")].filter(Boolean).join("/")
+}
+
+function sameStatus(left: CapabilityStatus, right: CapabilityStatus): boolean {
+  return CAPABILITY_DIMENSIONS.every((dimension) => left[dimension] === right[dimension])
 }
 
 async function readJson<T>(path: string): Promise<T> {

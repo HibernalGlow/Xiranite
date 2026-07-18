@@ -49,6 +49,29 @@ describe("FolderRepresentativeIndex", () => {
     index.clear()
   })
 
+  it("[neoview.thumbnail.folder-index-scheduler] schedules one representative scan per shared flight", async () => {
+    const listing = deferred<ReturnType<typeof file>[]>()
+    const release = vi.fn()
+    const acquire = vi.fn(async () => ({ release }))
+    const index = new FolderRepresentativeIndex({
+      readDirectory: () => listing.promise,
+      statPath: async () => stats(8, 9),
+      resourceScheduler: { acquire },
+    })
+    const first = index.describe("D:/shared", 100, undefined, 4, "background")
+    const second = index.describe("D:/shared", 100, undefined, 4, "background")
+    await vi.waitFor(() => expect(acquire).toHaveBeenCalledOnce())
+    expect(acquire).toHaveBeenCalledWith({
+      resource: "io",
+      kind: "neoview.thumbnail.folder-representative",
+      priority: "background",
+    }, expect.any(AbortSignal))
+    listing.resolve([file("cover.webp")])
+    await expect(Promise.all([first, second])).resolves.toEqual(["cover.webp:8:9", "cover.webp:8:9"])
+    expect(release).toHaveBeenCalledOnce()
+    index.clear()
+  })
+
   it("[neoview.thumbnail.folder-index-race] retries once when the selected file disappears during enumeration", async () => {
     const readDirectory = vi.fn()
       .mockResolvedValueOnce([file("001.png"), file("002.png")])

@@ -8,6 +8,7 @@ import { createZipFixture } from "../../../test/fixture-builders/create-zip-fixt
 import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import type { ResourceTaskRequest } from "../../ports/ResourceScheduler.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import { FfmpegVideoThumbnailProvider } from "../video/FfmpegVideoThumbnailProvider.js"
@@ -40,6 +41,42 @@ describe("PlatformThumbnailPipeline", () => {
     await writeFile(file, Uint8Array.of(1, 2, 3, 4, 5))
     const changedFolder = await pipeline.describeLibrarySource(folder, "folder")
     expect(changedFolder.contentVersion).not.toBe(folderSource.contentVersion)
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.library.describe-scheduler] routes source stat and folder scans through host I/O priorities", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-thumbnail-library-scheduler-"))
+    roots.push(root)
+    const folder = join(root, "folder")
+    const file = join(folder, "cover.png")
+    await mkdir(folder)
+    await writeFile(file, Uint8Array.of(1, 2, 3))
+    const requests: ResourceTaskRequest[] = []
+    let activeLeases = 0
+    const pipeline = new PlatformThumbnailPipeline({
+      resourceScheduler: {
+        acquire: async (request) => {
+          requests.push({ ...request })
+          activeLeases += 1
+          let released = false
+          return {
+            release() {
+              if (released) return
+              released = true
+              activeLeases -= 1
+            },
+          }
+        },
+      },
+    })
+    await pipeline.describeLibrarySource(file, "file")
+    await pipeline.describeLibrarySource(folder, "folder", undefined, 4, "background")
+    expect(requests).toEqual([
+      { resource: "io", kind: "neoview.thumbnail.source-describe", priority: "view" },
+      { resource: "io", kind: "neoview.thumbnail.source-describe", priority: "background" },
+      { resource: "io", kind: "neoview.thumbnail.folder-representative", priority: "background" },
+    ])
+    expect(activeLeases).toBe(0)
     await pipeline.dispose()
   })
 
@@ -224,6 +261,38 @@ describe("PlatformThumbnailPipeline", () => {
     expect(get).not.toHaveBeenCalled()
     fileLease.release()
     folderLease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.database-read-pipeline] cooperatively chunks a maximum-size visible prewarm", async () => {
+    const sources = Array.from({ length: 130 }, (_, index) => librarySource("file", `D:/library/book-${index}.cbz`, 100))
+    const getMany = vi.fn(async (keys: readonly string[]) => new Map(keys.map((key) => [key, {
+      bytes: fixtureWebp(Number(key.match(/(\d+)\.cbz$/)?.[1]) & 0xff),
+      contentType: "image/webp",
+      sourceSize: 100,
+      date: "2026-07-18 00:00:00",
+    }])))
+    const schedulerRequests: ResourceTaskRequest[] = []
+    const pipeline = new PlatformThumbnailPipeline({
+      thumbnailStore: { get: async () => undefined, getMany },
+      resourceScheduler: {
+        acquire: async (request) => {
+          schedulerRequests.push({ ...request })
+          return { release() {} }
+        },
+      },
+    })
+    await expect(pipeline.prewarmLibrary(sources)).resolves.toEqual({
+      requested: 130,
+      databaseHits: 130,
+      primed: 130,
+    })
+    expect(getMany.mock.calls.map(([keys]) => keys.length)).toEqual([64, 64, 2])
+    expect(schedulerRequests).toEqual(Array.from({ length: 3 }, () => ({
+      resource: "io",
+      kind: "neoview.thumbnail.database-read",
+      priority: "view",
+    })))
     await pipeline.dispose()
   })
 

@@ -133,7 +133,7 @@ describe("Reader data store composition", () => {
     database.close()
   })
 
-  it("[neoview.folder.emm-headless-composition] lazily shares one legacy database for tag search, suggestions and history", async () => {
+  it("[neoview.folder.emm-headless-composition] [neoview.folder.emm-edit-headless-composition] lazily shares one legacy database for tag search, editing, suggestions and history", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-reader-folder-emm-headless-"))
     roots.push(root)
     const databasePath = join(root, "thumbnails.db")
@@ -162,6 +162,20 @@ describe("Reader data store composition", () => {
       await expect(controller.suggestEmmTags(4)).resolves.toEqual(expect.arrayContaining([
         expect.objectContaining({ category: "artist", tag: "Alice", favorite: false }),
       ]))
+      await expect(controller.editEmm({
+        generation: opened.generation,
+        updates: [{
+          path: bookPath,
+          expectedRevision: 0,
+          patch: { rating: 5, translatedTitle: "Alice translated" },
+        }],
+      })).resolves.toMatchObject({
+        generation: opened.generation + 1,
+        refreshRequired: false,
+        succeeded: 1,
+        conflicts: 0,
+        failed: 0,
+      })
       await expect(controller.recordSearchHistory("folder", "alice")).resolves.toMatchObject({ query: "alice" })
     } finally {
       await controller[Symbol.asyncDispose]()
@@ -170,7 +184,46 @@ describe("Reader data store composition", () => {
     const verified = await openDatabase(databasePath)
     expect(verified.get("SELECT query, use_count FROM xr_reader_search_history WHERE scope_id = 'folder'"))
       .toEqual({ query: "alice", use_count: 1 })
+    const override = verified.get("SELECT overrides_json, revision FROM xr_reader_emm_overrides") as { overrides_json: string; revision: number }
+    expect({ ...override, overrides_json: JSON.parse(override.overrides_json) }).toEqual({
+      overrides_json: { rating: 5, translatedTitle: "Alice translated" },
+      revision: 1,
+    })
     verified.close()
+  })
+
+  it("[neoview.history.cleanup-oldest-composition] deletes the oldest SQLite recents through authenticated HTTP", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-reader-history-cleanup-"))
+    roots.push(root)
+    const databasePath = join(root, "thumbnails.db")
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:43127",
+      token: "runtime-token",
+      configPath: join(root, "missing.toml"),
+      legacyThumbnailDatabasePath: databasePath,
+    })
+    try {
+      const database = await openDatabase(databasePath)
+      database.exec(`
+        INSERT INTO xr_reader_progress (book_id, source_json, display_name, page_index, page_count, updated_at) VALUES
+          ('latest', '{"kind":"archive","path":"D:/latest.cbz"}', 'Latest', 0, 1, 300),
+          ('old-b', '{"kind":"archive","path":"D:/old-b.cbz"}', 'Old B', 0, 1, 100),
+          ('old-a', '{"kind":"archive","path":"D:/old-a.cbz"}', 'Old A', 0, 1, 100);
+      `)
+      database.close()
+
+      const cleanup = await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "oldest", limit: 2 }))
+      expect(cleanup?.status).toBe(200)
+      await expect(cleanup!.json()).resolves.toEqual({
+        selectedIds: ["old-a", "old-b"],
+        deleted: 2,
+        missingIds: [],
+      })
+      const remaining = await controller.handle(authorized("/reader/library/recents?limit=10"))
+      await expect(remaining!.json()).resolves.toEqual({ items: [expect.objectContaining({ bookId: "latest", updatedAt: 300 })] })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
   })
 
   it("[neoview.folder.emm-headless-disabled] keeps ordinary browsing available without opening Reader SQLite", async () => {
@@ -188,6 +241,10 @@ describe("Reader data store composition", () => {
       expect(opened.metadataCapabilities).not.toContain("tags")
       expect(() => controller.search("", { maximumDepth: 0, includeTags: ["artist:alice"] })).toThrow("unavailable")
       await expect(controller.suggestEmmTags()).rejects.toThrow("unavailable")
+      await expect(controller.editEmm({
+        generation: opened.generation,
+        updates: [{ path: join(root, "book.cbz"), expectedRevision: 0, patch: { rating: 5 } }],
+      })).rejects.toThrow("unavailable")
     } finally {
       await controller[Symbol.asyncDispose]()
     }

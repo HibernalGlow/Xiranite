@@ -146,6 +146,16 @@ describe("ReaderHttpController", () => {
       fitMode: patch.viewDefaults.fitMode ?? "fit-height" as const,
       pageMode: patch.viewDefaults.pageMode ?? "single" as const,
     }))
+    const updateHistoryList = vi.fn(async (patch) => ({
+      viewMode: patch.historyList.viewMode ?? "compact" as const,
+    }))
+    const updateBookmarkList = vi.fn(async (patch) => ({
+      activeListId: patch.bookmarkList.activeListId ?? "all",
+    }))
+    const updatePageList = vi.fn(async (patch) => ({
+      viewMode: patch.pageList.viewMode ?? "list" as const,
+      followProgress: patch.pageList.followProgress ?? true,
+    }))
     const updateSlideshow = vi.fn(async (patch) => ({
       intervalSeconds: patch.slideshow.intervalSeconds ?? 5,
       loop: patch.slideshow.loop ?? false,
@@ -218,6 +228,12 @@ describe("ReaderHttpController", () => {
       updateShellOptions,
       viewDefaults: { fitMode: "fit-height", pageMode: "single" },
       updateViewDefaults,
+      pageList: { viewMode: "list", followProgress: true },
+      updatePageList,
+      bookmarkList: { activeListId: "all" },
+      updateBookmarkList,
+      historyList: { viewMode: "compact" },
+      updateHistoryList,
       folderView: {
         viewMode: "compact",
         previewCount: 4,
@@ -238,6 +254,9 @@ describe("ReaderHttpController", () => {
         schemaVersion: 1,
         shell: { revision: 0, showDelayMs: 50, sidebars: { left: { width: 333 } } },
         viewDefaults: { fitMode: "fit-height", pageMode: "single" },
+        pageList: { viewMode: "list", followProgress: true },
+        bookmarkList: { activeListId: "all" },
+        historyList: { viewMode: "compact" },
         folderView: { viewMode: "compact", previewCount: 4, details: { pinnedLeft: ["name"] } },
         slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
       })
@@ -301,6 +320,33 @@ describe("ReaderHttpController", () => {
         { viewDefaults: { fitMode: "original", pageMode: "double" } },
         { reader: { default_zoom_mode: "original", double_page_view: true } },
       )
+      const historyListPatched = (await controller.handle(jsonRequest("/reader/config", {
+        historyList: { viewMode: "thumbnail" },
+      }, true, "PATCH")))!
+      expect(await historyListPatched.json()).toMatchObject({ historyList: { viewMode: "thumbnail" } })
+      expect(updateHistoryList).toHaveBeenCalledWith(
+        { historyList: { viewMode: "thumbnail" } },
+        { history_list: { view_mode: "thumbnail" } },
+      )
+      expect((await controller.handle(jsonRequest("/reader/config", { historyList: { viewMode: "grid" } }, true, "PATCH")))?.status).toBe(400)
+      const bookmarkListPatched = (await controller.handle(jsonRequest("/reader/config", {
+        bookmarkList: { activeListId: "reading" },
+      }, true, "PATCH")))!
+      expect(await bookmarkListPatched.json()).toMatchObject({ bookmarkList: { activeListId: "reading" } })
+      expect(updateBookmarkList).toHaveBeenCalledWith(
+        { bookmarkList: { activeListId: "reading" } },
+        { bookmark_list: { active_list_id: "reading" } },
+      )
+      expect((await controller.handle(jsonRequest("/reader/config", { bookmarkList: { activeListId: "" } }, true, "PATCH")))?.status).toBe(400)
+      const pageListPatched = (await controller.handle(jsonRequest("/reader/config", {
+        pageList: { viewMode: "thumbnails", followProgress: false },
+      }, true, "PATCH")))!
+      expect(await pageListPatched.json()).toMatchObject({ pageList: { viewMode: "thumbnails", followProgress: false } })
+      expect(updatePageList).toHaveBeenCalledWith(
+        { pageList: { viewMode: "thumbnails", followProgress: false } },
+        { page_list: { view_mode: "thumbnails", follow_progress: false } },
+      )
+      expect((await controller.handle(jsonRequest("/reader/config", { pageList: { viewMode: "tiles" } }, true, "PATCH")))?.status).toBe(400)
       const folderPatched = (await controller.handle(jsonRequest("/reader/config", {
         folderView: {
           viewMode: "details",

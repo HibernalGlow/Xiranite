@@ -1,5 +1,11 @@
 export type { ReaderBook, ViewSource } from "./domain/book/book.js"
 export {
+  projectReaderBookInformation,
+  type ReaderBookInformationInput,
+  type ReaderBookInformationLanguage,
+  type ReaderBookInformationProjection,
+} from "./domain/book/BookInformationProjection.js"
+export {
   DEFAULT_READER_LAYOUT,
   type FramePage,
   type FrameSnapshot,
@@ -26,7 +32,10 @@ export {
   cloneReaderInputBindings,
   DEFAULT_READER_INPUT_BINDINGS,
   matchingReaderInputBinding,
+  READER_INPUT_ACTION_CATEGORIES,
+  READER_INPUT_ACTION_CATEGORY_LABELS,
   READER_INPUT_ACTION_LABELS,
+  READER_INPUT_ACTION_METADATA,
   READER_INPUT_ACTIONS,
   READER_INPUT_CONTEXT_LABELS,
   READER_INPUT_CONTEXT_PRIORITY,
@@ -35,6 +44,8 @@ export {
   readerInputConflicts,
   readerInputDescriptorKey,
   type ReaderInputAction,
+  type ReaderInputActionCategory,
+  type ReaderInputActionMetadata,
   type ReaderInputBinding,
   type ReaderInputBindingsConfig,
   type ReaderInputConflict,
@@ -49,6 +60,13 @@ export type {
   ReaderPageTimestamps,
   ReaderPageTimeSource,
 } from "./domain/page/page.js"
+export {
+  formatReaderTimestamp,
+  projectReaderTimeInformation,
+  type ReaderTimeInformationLanguage,
+  type ReaderTimeInformationInput,
+  type ReaderTimeInformationProjection,
+} from "./domain/page/TimeInformationProjection.js"
 export {
   ReaderSlideshow,
   type ReaderSlideshowConfig,

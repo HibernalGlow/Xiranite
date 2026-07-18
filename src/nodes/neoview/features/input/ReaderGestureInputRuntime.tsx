@@ -1,6 +1,7 @@
 import { useGesture } from "@use-gesture/react"
 import { useRef, type RefObject } from "react"
 import type { ReaderInputDescriptor } from "@xiranite/node-neoview/ui-core"
+import { isReaderInputInteractive } from "./ReaderInputRouter"
 
 export interface ReaderGestureInputRuntimeProps {
   disabled?: boolean
@@ -16,6 +17,7 @@ export function ReaderGestureInputRuntime({ disabled = false, target, dispatch }
     onWheel: ({ first, event, direction: [, y] }) => {
       if (disabled || !first || y === 0) return
       const wheel = event as WheelEvent
+      if (isReaderInputInteractive(wheel.target)) return
       if (dispatchRef.current({
         device: "wheel",
         direction: y > 0 ? "down" : "up",
@@ -27,6 +29,7 @@ export function ReaderGestureInputRuntime({ disabled = false, target, dispatch }
     },
     onDrag: ({ last, event, swipe: [x, y], touches, memo = 1 }) => {
       const pointer = event as PointerEvent
+      if (isReaderInputInteractive(pointer.target)) return memo
       const fingers = Math.max(Number(memo), touches || 1)
       if (last && !disabled && pointer.pointerType === "touch" && (x || y)) {
         const gesture = Math.abs(x) >= Math.abs(y)

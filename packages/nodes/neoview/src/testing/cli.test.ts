@@ -80,10 +80,11 @@ describe("NeoView CLI", () => {
     expect(revealSystem).toHaveBeenCalledWith(resolve("source.jpg"))
   })
 
-  it("[neoview.library.cli] adapts shared library operations and confirms destructive commands", async () => {
+  it("[neoview.library.cli] [neoview.folder.filter-library-cli] adapts shared library operations and confirms destructive commands", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {
       listRecent: vi.fn(async () => [{ bookId: "book-1", displayName: "Book" }]),
+      listBookmarks: vi.fn(async () => [{ id: "bookmark-1", name: "Demo" }]),
       savePathBookmark: vi.fn(async () => ({ id: "bookmark-1", name: "Demo" })),
       removeBookmark: vi.fn(async () => true),
       cleanupInvalid: vi.fn(async () => ({ kind: "both", scanned: 2, missing: 1, unknown: 0, deleted: 1, truncated: false })),
@@ -92,9 +93,12 @@ describe("NeoView CLI", () => {
     const dependencies = { createController: async () => fakeReader(), createLibraryController: async () => controller }
 
     const recents: unknown[] = []
-    await runProgram(["library-recents", "--limit", "20", "--json"], host(recents), dependencies)
+    await runProgram(["library-recents", "--limit", "20", "--filter", "video", "--json"], host(recents), dependencies)
     expect(JSON.parse(recents.join(""))).toEqual({ items: [{ bookId: "book-1", displayName: "Book" }] })
-    expect(controller.listRecent).toHaveBeenCalledWith(20, 0)
+    expect(controller.listRecent).toHaveBeenCalledWith(20, 0, "video")
+    const bookmarks: unknown[] = []
+    await runProgram(["library-bookmarks", "--list", "reading", "--filter", "archive", "--json"], host(bookmarks), dependencies)
+    expect(controller.listBookmarks).toHaveBeenCalledWith("reading", 100, 0, "archive")
     const bookmark: unknown[] = []
     await runProgram(["library-bookmark-add", "demo.cbz", "--list", "reading", "--starred", "--json"], host(bookmark), dependencies)
     expect(controller.savePathBookmark).toHaveBeenCalledWith(expect.objectContaining({ starred: true, listIds: ["reading"] }))
@@ -104,7 +108,8 @@ describe("NeoView CLI", () => {
     await expect(runProgram(["library-invalid-cleanup"], host([]), dependencies)).rejects.toThrow("requires --yes")
     await runProgram(["library-invalid-cleanup", "--kind", "both", "--scan-limit", "20", "--limit", "10", "--concurrency", "2", "--yes"], host([]), dependencies)
     expect(controller.cleanupInvalid).toHaveBeenCalledWith({ kind: "both", scanLimit: 20, deleteLimit: 10, concurrency: 2 })
-    expect(dispose).toHaveBeenCalledTimes(4)
+    expect(dispose).toHaveBeenCalledTimes(5)
+    await expect(runProgram(["library-recents", "--filter", "invalid"], host([]), dependencies)).rejects.toThrow("--filter must be")
   })
 
   it("[neoview.folder.search-history-cli] shares headless history operations and confirms destructive commands", async () => {
@@ -129,6 +134,119 @@ describe("NeoView CLI", () => {
     await runProgram(["folder-search-history-delete", "--query", "cover", "--yes"], host([]), dependencies)
     expect(controller.removeSearchHistory).toHaveBeenCalledWith("folder", "cover")
     expect(dispose).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.folder.emm-tags-cli] reuses shared EMM suggestions with bounded output and disposal", async () => {
+    const dispose = vi.fn(async () => undefined)
+    const suggestEmmTags = vi.fn(async () => [
+      { category: "artist", tag: "Alice", favorite: true, translatedTag: "爱丽丝" },
+      { category: "genre", tag: "Comedy", favorite: false },
+    ])
+    const controller = {
+      suggestEmmTags,
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderFileTreeHeadlessController
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createFileTreeController: async () => controller,
+    }
+
+    const jsonOutput: unknown[] = []
+    await runProgram(["folder-emm-tags", "--limit", "2", "--database", "private/thumbnails.db", "--json"], host(jsonOutput), dependencies)
+    expect(JSON.parse(jsonOutput.join(""))).toEqual({ suggestions: [
+      { category: "artist", tag: "Alice", favorite: true, translatedTag: "爱丽丝" },
+      { category: "genre", tag: "Comedy", favorite: false },
+    ] })
+    expect(suggestEmmTags).toHaveBeenLastCalledWith(2)
+
+    const textOutput: unknown[] = []
+    await runProgram(["folder-emm-tags"], host(textOutput), dependencies)
+    expect(textOutput.join("")).toContain("artist:Alice\tfavorite\t爱丽丝")
+    expect(textOutput.join("")).toContain("genre:Comedy\tcatalog")
+    expect(suggestEmmTags).toHaveBeenLastCalledWith(8)
+
+    await expect(runProgram(["folder-emm-tags", "--limit", "33"], host([]), dependencies)).rejects.toThrow("1 to 32")
+    expect(dispose).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.folder.emm-search-cli] forwards structured EMM tag filters through the shared search controller", async () => {
+    const closeSearch = vi.fn(async () => undefined)
+    const dispose = vi.fn(async () => undefined)
+    const search = vi.fn(() => ({
+      events: {
+        async *[Symbol.asyncIterator]() {
+          yield { type: "meta", sessionId: "browser-1", rootPath: "D:/library", generation: 1, query: "", mode: "text" }
+          yield { type: "complete", scanned: 0, matched: 0, truncated: false }
+        },
+      },
+      close: closeSearch,
+      [Symbol.asyncDispose]: closeSearch,
+    }))
+    const controller = {
+      open: vi.fn(async () => ({ sessionId: "browser-1" })),
+      setFilter: vi.fn(async () => undefined),
+      search,
+      recordSearchHistory: vi.fn(async () => undefined),
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderFileTreeHeadlessController
+    const dependencies = { createController: async () => fakeReader(), createFileTreeController: async () => controller }
+
+    await runProgram([
+      "folder-search", "D:/library",
+      "--tag", "artist:Alice", "--tag", "genre:Comedy",
+      "--exclude-tag", "genre:Horror", "--tag-mode", "any", "--json",
+    ], host([]), dependencies)
+    expect(search).toHaveBeenCalledWith("", expect.objectContaining({
+      includeTags: ["artist:Alice", "genre:Comedy"],
+      excludeTags: ["genre:Horror"],
+      tagMode: "any",
+    }))
+    expect(closeSearch).toHaveBeenCalledOnce()
+    expect(dispose).toHaveBeenCalledOnce()
+    await expect(runProgram(["folder-search", "D:/library", "--tag", "artist:Alice", "--tag-mode", "invalid"], host([]), dependencies))
+      .rejects.toThrow("--tag-mode must be all or any")
+    expect(dispose).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.folder.emm-edit-cli] applies a JSON batch through the shared generation-bound editor", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-emm-edit-cli-"))
+    const inputPath = join(root, "updates.json")
+    const invalidPath = join(root, "invalid.json")
+    const databasePath = join(root, "thumbnails.db")
+    const targetPath = join(root, "A.cbz")
+    await writeFile(inputPath, JSON.stringify({
+      updates: [{ path: targetPath, expectedRevision: 0, patch: { rating: 5, translatedTitle: "Translated" } }],
+      concurrency: 1,
+    }))
+    await writeFile(invalidPath, "{")
+    const dispose = vi.fn(async () => undefined)
+    const editEmm = vi.fn(async () => ({ generation: 8, refreshRequired: false, results: [], succeeded: 1, conflicts: 0, failed: 0 }))
+    const controller = {
+      open: vi.fn(async () => ({ sessionId: "browser-1", generation: 7 })),
+      editEmm,
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderFileTreeHeadlessController
+    const createFileTreeController = vi.fn(async () => controller)
+    const dependencies = { createController: async () => fakeReader(), createFileTreeController }
+    try {
+      const output: unknown[] = []
+      await runProgram([
+        "folder-emm-edit", root, "--input", inputPath, "--database", databasePath,
+        "--concurrency", "2", "--json",
+      ], host(output), dependencies)
+      expect(editEmm).toHaveBeenCalledWith({
+        generation: 7,
+        updates: [{ path: targetPath, expectedRevision: 0, patch: { rating: 5, translatedTitle: "Translated" } }],
+        concurrency: 2,
+      })
+      expect(JSON.parse(output.join(""))).toMatchObject({ succeeded: 1, conflicts: 0, failed: 0 })
+      expect(createFileTreeController).toHaveBeenCalledWith(expect.objectContaining({ legacyThumbnailDatabasePath: databasePath }))
+      await expect(runProgram(["folder-emm-edit", root, "--input", invalidPath], host([]), dependencies))
+        .rejects.toThrow("must be valid JSON")
+      expect(dispose).toHaveBeenCalledTimes(2)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it("[neoview.folder.search-history-import-cli] inspects and imports legacy history through the dedicated importer", async () => {
@@ -161,7 +279,7 @@ describe("NeoView CLI", () => {
     }
   })
 
-  it("[neoview.folder.cli] [neoview.folder.search-path-cli] reuses shared search options and persists exclusions only after confirmation", async () => {
+  it("[neoview.folder.cli] [neoview.folder.filter-cli] [neoview.folder.search-path-cli] reuses shared search options and persists exclusions only after confirmation", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-folder-cli-"))
     const privatePath = join(directory, "private")
     const visiblePath = join(directory, "visible")
@@ -170,6 +288,7 @@ describe("NeoView CLI", () => {
     await mkdir(visiblePath)
     await writeFile(join(privatePath, "hidden.cbz"), "hidden")
     await writeFile(join(visiblePath, "shown.cbz"), "shown")
+    await writeFile(join(visiblePath, "movie.mp4"), "movie")
     try {
       const treeOutput: unknown[] = []
       await runProgram(["folder-tree", directory, "--json"], host(treeOutput), testPlatformDependencies)
@@ -183,6 +302,14 @@ describe("NeoView CLI", () => {
       const searched = JSON.parse(searchOutput.join("")) as { entries: Array<{ name: string }>; complete: { matched: number; truncated: boolean } }
       expect(searched.entries.map((entry) => entry.name).toSorted()).toEqual(["hidden.cbz", "shown.cbz"])
       expect(searched.complete).toMatchObject({ matched: 2, truncated: false })
+
+      const archiveOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "o", "--filter", "archive", "--json"], host(archiveOutput), testPlatformDependencies)
+      expect((JSON.parse(archiveOutput.join("")) as { entries: Array<{ name: string }> }).entries.map((entry) => entry.name)).toEqual(["shown.cbz"])
+      const videoOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "o", "--filter", "video", "--json"], host(videoOutput), testPlatformDependencies)
+      expect((JSON.parse(videoOutput.join("")) as { entries: Array<{ name: string }> }).entries.map((entry) => entry.name)).toEqual(["movie.mp4"])
+      await expect(runProgram(["folder-search", directory, "--query", "*", "--filter", "invalid"], host([]), testPlatformDependencies)).rejects.toThrow("--filter must be")
 
       const nameOnlyOutput: unknown[] = []
       await runProgram(["folder-search", directory, "--query", "visible/shown", "--json"], host(nameOnlyOutput), testPlatformDependencies)
@@ -234,6 +361,38 @@ describe("NeoView CLI", () => {
     expect(opened[0]?.path.replace(/\\/g, "/")).toMatch(/private\/book\.cbz$/)
     expect([...passwordReference ?? []]).toEqual(new Array(17).fill(0))
     expect(reader[Symbol.asyncDispose]).toHaveBeenCalledTimes(1)
+  })
+
+  it("[neoview.book-information.cli-projection] prints the shared title, type, page and progress semantics", async () => {
+    const output: unknown[] = []
+    const reader = fakeReader({ open: async () => ({
+      ...snapshot(1),
+      book: { displayName: "Original.cbz", translatedTitle: "Translated", sourceKind: "archive", pageCount: 3 },
+    }) })
+    await runProgram(["inspect", "book.cbz"], host(output), { createController: async () => reader })
+
+    expect(output.join("\n")).toContain("Title: Translated")
+    expect(output.join("\n")).toContain("Original title: Original.cbz")
+    expect(output.join("\n")).toContain("Type: Archive")
+    expect(output.join("\n")).toContain("Page: 2 / 3")
+    expect(output.join("\n")).toContain("Progress: 66.7%")
+  })
+
+  it("[neoview.time-information.cli-projection] prints captured page timestamps without additional filesystem work", async () => {
+    const output: unknown[] = []
+    const base = snapshot(0)
+    const reader = fakeReader({ open: async () => ({
+      ...base,
+      visiblePages: [{ ...base.visiblePages[0]!, timestamps: { source: "archive-entry", createdAtMs: 1_700_000_000_000, modifiedAtMs: 1_700_000_100_000, accessedAtMs: 1_700_000_200_000 } }],
+    }) })
+    await runProgram(["inspect", "book.cbz"], host(output), { createController: async () => reader })
+
+    const text = output.join("\n")
+    expect(text).toContain("Created:")
+    expect(text).toContain("Modified:")
+    expect(text).toContain("Accessed:")
+    expect(text).toContain("Time source: Archive entry")
+    expect(text).not.toContain("Invalid Date")
   })
 
   it("[neoview.cli.pages] lists a bounded page window", async () => {

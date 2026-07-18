@@ -1,5 +1,5 @@
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
-import type { ReaderDirectoryEntryType } from "../../application/browser/ReaderDirectoryFilter.js"
+import type { ReaderDirectoryEntryType } from "../../domain/browser/ReaderDirectoryFilter.js"
 import type { ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import { platformReaderBookFileKind } from "./PlatformReaderBookCandidate.js"
 

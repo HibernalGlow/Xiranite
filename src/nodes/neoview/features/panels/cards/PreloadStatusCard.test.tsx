@@ -62,6 +62,25 @@ describe("PreloadStatusCard", () => {
     expect(screen.getByLabelText("服务端预加载队列").textContent).toContain("邻近3")
   })
 
+  it("[neoview.preload.cache-state] renders session-scoped cached and cold server pages separately from browser predecode", () => {
+    const diagnostics = diagnosticsDto()
+    diagnostics.reader!.sessionPreload = {
+      generation: 7,
+      pages: [
+        { pageIndex: 4, outcome: "ready" },
+        { pageIndex: 5, outcome: "started" },
+        { pageIndex: 6, outcome: "failed" },
+      ],
+    }
+    const view = render(<PreloadStatusView sessionId="reader-1" currentPageIndex={4} totalPages={20} diagnostics={diagnostics} />)
+
+    expect(view.container.querySelector('[data-preload-nearby-page="4"]')?.getAttribute("data-server-cache-state")).toBe("cached")
+    expect(view.container.querySelector('[data-preload-nearby-page="5"]')?.getAttribute("data-server-cache-state")).toBe("loading")
+    expect(view.container.querySelector('[data-preload-nearby-page="6"]')?.getAttribute("data-server-cache-state")).toBe("failed")
+    expect(view.container.querySelector('[data-preload-nearby-page="7"]')?.getAttribute("data-server-cache-state")).toBe("cold")
+    expect(screen.getByLabelText("第 5 页，当前，已缓存")).toBeTruthy()
+  })
+
   it("[neoview.preload-status.memory] distinguishes zero and unavailable server presentation leases", () => {
     const zero = diagnosticsDto()
     zero.assets.presentation = { ...zero.assets.presentation!, activeLeases: 0 }

@@ -11,8 +11,24 @@ export interface DirectorySelectionModel {
   explicit: ReadonlyMap<string, number | undefined>
 }
 
+export interface DirectorySelectionDescriptorDto {
+  generation: number
+  allSelected: boolean
+  ranges: readonly DirectorySelectionRange[]
+  explicit: readonly { path: string; index?: number }[]
+}
+
 export function createDirectorySelection(generation: number): DirectorySelectionModel {
   return { generation, allSelected: false, ranges: [], explicit: new Map() }
+}
+
+export function directorySelectionDescriptor(selection: DirectorySelectionModel): DirectorySelectionDescriptorDto {
+  return {
+    generation: selection.generation,
+    allSelected: selection.allSelected,
+    ranges: selection.ranges.map((range) => ({ ...range })),
+    explicit: [...selection.explicit].map(([path, index]) => index === undefined ? { path } : { path, index }),
+  }
 }
 
 export function selectAllDirectoryEntries(generation: number): DirectorySelectionModel {

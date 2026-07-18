@@ -45,6 +45,11 @@ describe("Reader preload telemetry HTTP", () => {
       expect(accepted.status).toBe(202)
       await expect(accepted.json()).resolves.toEqual({ generation, accepted: 2, rejected: 0, stale: 0 })
 
+      const sessionDiagnostics = (await controller.handle(authorizedRequest(`/reader/diagnostics?sessionId=${opened.sessionId}`)))!
+      await expect(sessionDiagnostics.json()).resolves.toMatchObject({
+        reader: { sessionPreload: { generation, pages: [{ pageIndex: 1, outcome: "ready" }] } },
+      })
+
       const duplicate = (await controller.handle(jsonRequest(endpoint, {
         generation,
         events: [{ pageId, outcome: "ready" }],

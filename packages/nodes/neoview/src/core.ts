@@ -64,7 +64,7 @@ export {
   READER_DIRECTORY_FILTERS,
   type ReaderDirectoryEntryType,
   type ReaderDirectoryFilter,
-} from "./application/browser/ReaderDirectoryFilter.js"
+} from "./domain/browser/ReaderDirectoryFilter.js"
 export { ReaderDirectoryListingScanner } from "./application/browser/ReaderDirectoryListingScanner.js"
 export { ReaderMetadataHydratingScanner } from "./application/browser/ReaderMetadataHydratingScanner.js"
 export { ReaderEmmTagSuggestionService } from "./application/metadata/ReaderEmmTagSuggestionService.js"
@@ -225,13 +225,21 @@ export {
   type SaveReaderBookmarkInput,
   type SaveReaderBookmarkListInput,
   type UpdateReaderBookmarkInput,
+  type ReaderOldestRecentCleanupResult,
+  type ReaderOldestBookmarkCleanupResult,
 } from "./application/library/ReaderLibraryService.js"
 export type {
   ReaderBookmarkListRecord,
+  ReaderBookmarkBatchStoreResult,
+  ReaderBookmarkBatchStoreUpdate,
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
   ReaderBookmarkUpdate,
   ReaderLibraryStore,
+  ReaderLibraryBatchDeleteResult,
+  ReaderLibraryCollection,
+  ReaderOldestRecentDeleteResult,
+  ReaderOldestBookmarkDeleteResult,
   ReaderRecentQuery,
 } from "./ports/ReaderLibraryStore.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
@@ -370,6 +378,23 @@ export type {
   ResourceScheduler,
   ResourceTaskRequest,
 } from "./ports/ResourceScheduler.js"
+export {
+  SuperResolutionOutputBusyError,
+  SuperResolutionService,
+  type RunSuperResolutionInput,
+  type SuperResolutionServiceOptions,
+} from "./application/super-resolution/SuperResolutionService.js"
+export type {
+  SuperResolutionCapabilitySnapshot,
+  SuperResolutionEngine,
+  SuperResolutionEngineCapability,
+  SuperResolutionExecutionContext,
+  SuperResolutionModelManifest,
+  SuperResolutionProgress,
+  SuperResolutionProvider,
+  SuperResolutionRequest,
+  SuperResolutionResult,
+} from "./ports/SuperResolutionProvider.js"
 export {
   appendImageTransform,
   imageTransformCacheKey,

@@ -62,7 +62,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.bookmark.thumbnail-e2e] [neoview.bookmark.thumbnail-lease-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
+test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.history.cleanup-e2e] [neoview.bookmark.thumbnail-e2e] [neoview.bookmark.thumbnail-lease-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
   const pageCatalogRequests: string[] = []
@@ -70,7 +70,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const imageRequests: string[] = []
   page.on("request", (request) => {
     if (request.url().includes("/page-media-information")) pageMediaInformationRequests += 1
-    if (request.url().endsWith("/reader/diagnostics")) diagnosticsRequests += 1
+    if (new URL(request.url()).pathname === "/reader/diagnostics") diagnosticsRequests += 1
     if (/\/reader\/s\/[^/]+\/pages\?/.test(request.url())) pageCatalogRequests.push(request.url())
     if (/\/reader\/s\/[^/]+\/pages\/[^/]+\/actions$/.test(request.url())) pageActionRequests.push(request.url())
     if (request.resourceType() === "image") imageRequests.push(request.url())
@@ -79,7 +79,9 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
   const openButton = page.getByRole("button", { name: "打开书籍" })
   await expect(openButton).toBeVisible()
+  const openResponse = page.waitForResponse((response) => response.url().endsWith("/reader/sessions") && response.request().method() === "POST")
   await openButton.click()
+  const opened = await (await openResponse).json() as { sessionId: string }
   const readerImage = page.locator('img[alt="001.png"]')
   await expect(readerImage).toBeVisible()
   await readerImage.evaluate((node) => node.setAttribute("data-library-page-card-image", "stable"))
@@ -89,30 +91,46 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await page.mouse.move(1, viewport.height / 2)
   const sidebar = page.locator('[data-reader-sidebar="left"]')
   await expect(sidebar).toBeVisible()
-  await sidebar.getByRole("button", { name: "历史记录", exact: true }).click()
+  await activateControl(sidebar.getByRole("button", { name: "历史记录", exact: true }))
   const historyCard = sidebar.locator('[data-reader-card="历史记录"]')
   const historyContent = historyCard.locator('[data-neoview-history-card="true"]')
   const historyRow = historyCard.locator("[data-history-id]").filter({ hasText: "fixture.cbz" }).first()
   await expect(historyRow).toBeVisible()
   await expect(historyContent).toHaveAttribute("data-history-view-mode", "compact")
-  await historyCard.getByRole("button", { name: "内容" }).click()
+  await activateControl(historyCard.getByRole("button", { name: "内容" }))
   await expect(historyContent).toHaveAttribute("data-history-view-mode", "content")
   await expect(historyRow).toContainText(fixture.path)
   await expect(historyRow).toContainText("第 1 / 12 页")
   const historyThumbnail = historyRow.locator('[data-reader-thumbnail-surface="true"]')
   await expect(historyThumbnail).toHaveAttribute("data-thumbnail-fit", "cover")
   await expect(historyThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
-  await historyCard.getByRole("button", { name: "横幅" }).click()
+  await activateControl(historyCard.getByRole("button", { name: "横幅" }))
   await expect(historyContent).toHaveAttribute("data-history-view-mode", "banner")
   await expect(historyCard.locator('[data-history-id]').first()).toHaveAttribute("data-entry-variant", "banner")
   await expect(historyCard.locator("[data-library-grid-columns]")).toHaveAttribute("data-library-grid-columns", "2")
-  await historyCard.getByRole("button", { name: "缩略图" }).click()
+  await activateControl(historyCard.getByRole("button", { name: "缩略图" }))
   await expect(historyContent).toHaveAttribute("data-history-view-mode", "thumbnail")
   await expect(historyCard.locator('[data-history-id]').first()).toHaveAttribute("data-entry-variant", "thumbnail")
   await expect(historyCard.locator("[data-library-grid-columns]")).toHaveAttribute("data-library-grid-columns", "3")
   expect(await historyCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
-  await historyCard.getByRole("button", { name: "内容" }).click()
+  await activateControl(historyCard.getByRole("button", { name: "内容" }))
+
+  await activateControl(historyCard.getByRole("button", { name: "高级清理历史记录" }))
+  const cleanupDialog = page.getByRole("dialog", { name: "高级清理历史记录" })
+  await expect(cleanupDialog).toBeVisible()
+  const invalidCleanupRow = cleanupDialog.locator("div.rounded").filter({ hasText: "清理失效路径" }).first()
+  await invalidCleanupRow.getByRole("button", { name: "执行" }).click()
+  const invalidCleanupResponse = page.waitForResponse((response) => (
+    response.request().method() === "POST" && response.url().endsWith("/reader/library/cleanup-invalid")
+  ))
+  await page.getByRole("button", { name: "确认清理" }).click()
+  expect((await invalidCleanupResponse).status()).toBe(200)
+  await expect(cleanupDialog).toBeHidden()
+  await expect(historyCard.getByRole("status")).toContainText("已扫描 1 条，删除 0 条失效记录")
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  await historyCard.screenshot({ path: testInfo.outputPath(`neoview-history-cleanup-${testInfo.project.name}.png`) })
+
   const historyRowButton = historyRow.locator("[data-history-row-button]")
   await historyRowButton.focus()
   await historyRowButton.press("Control+a")
@@ -132,19 +150,26 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(historyRow).toHaveCount(0)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 
-  await sidebar.getByRole("button", { name: "书签", exact: true }).click()
+  await activateControl(sidebar.getByRole("button", { name: "书签", exact: true }))
   const bookmarkCard = sidebar.locator('[data-reader-card="书签列表"]')
   const bookmarkContent = bookmarkCard.locator('[data-neoview-bookmark-card="true"]')
   await expect(bookmarkCard).toBeVisible()
   await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "compact")
-  await bookmarkCard.getByRole("button", { name: "内容" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "内容" }))
   await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "content")
-  await bookmarkCard.getByRole("button", { name: "收藏当前书籍" }).click()
+  const bookmarkThumbnailRegistration = page.waitForResponse((response) => (
+    response.request().method() === "POST" && response.url().endsWith("/reader/library/thumbnails")
+  ), { timeout: 30_000 })
+  await activateControl(bookmarkCard.getByRole("button", { name: "收藏当前书籍" }))
   const bookmarkRow = bookmarkCard.locator('[data-bookmark-id]').filter({ hasText: "fixture.cbz" }).first()
   await expect(bookmarkRow).toBeVisible()
+  await expect(bookmarkContent).toHaveAttribute("data-visible-bookmarks", "1")
+  await expect(bookmarkContent).toHaveAttribute("data-thumbnail-items", "1")
   await expect(bookmarkRow).toHaveAttribute("data-entry-variant", "content")
   const bookmarkThumbnail = bookmarkRow.locator('[data-reader-thumbnail-surface="true"]')
   await expect(bookmarkThumbnail).toHaveAttribute("data-thumbnail-fit", "cover")
+  expect((await bookmarkThumbnailRegistration).status()).toBe(201)
+  await expect(bookmarkThumbnail).toHaveAttribute("data-thumbnail-state", "ready", { timeout: 30_000 })
   await expect(bookmarkThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
   await expect(bookmarkRow).toContainText(fixture.path)
 
@@ -152,11 +177,11 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
     response.request().method() === "DELETE"
     && /\/reader\/library\/contexts\/bookmark%3Aall%3A\d+$/.test(response.url())
   ))
-  await bookmarkCard.getByRole("button", { name: "列表", exact: true }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "列表", exact: true }))
   expect((await compactRelease).status()).toBe(204)
   await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "compact")
   await expect(bookmarkRow.locator("img")).toHaveCount(0)
-  await bookmarkCard.getByRole("button", { name: "内容" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "内容" }))
   await expect(bookmarkThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
 
   const starResponse = page.waitForResponse((response) => response.url().includes("/reader/library/bookmarks/") && response.request().method() === "PATCH")
@@ -167,31 +192,31 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   expect(await bookmarkCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   await bookmarkCard.screenshot({ path: testInfo.outputPath(`neoview-bookmark-thumbnails-${testInfo.project.name}.png`) })
 
-  await bookmarkCard.getByRole("button", { name: "横幅" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "横幅" }))
   await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "banner")
   await expect(bookmarkCard.locator('[data-bookmark-id]').first()).toHaveAttribute("data-entry-variant", "banner")
   await expect(bookmarkCard.locator("[data-library-grid-columns]")).toHaveAttribute("data-library-grid-columns", "2")
-  await bookmarkCard.getByRole("button", { name: "缩略图" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "缩略图" }))
   await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "thumbnail")
   await expect(bookmarkCard.locator('[data-bookmark-id]').first()).toHaveAttribute("data-entry-variant", "thumbnail")
   await expect(bookmarkCard.locator("[data-library-grid-columns]")).toHaveAttribute("data-library-grid-columns", "3")
   expect(await bookmarkCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
-  await bookmarkCard.getByRole("button", { name: "内容" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "内容" }))
 
   const seededBookmarks = await Promise.all([
     seedBookmark(page, "alpha.cbz", "D:/library/alpha.cbz"),
     seedBookmark(page, "beta.cbz", "D:/library/beta.cbz"),
   ])
-  await bookmarkCard.getByRole("button", { name: "刷新书签" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "刷新书签" }))
 
-  await bookmarkCard.getByRole("button", { name: "新建书签列表" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "新建书签列表" }))
   await page.getByRole("textbox", { name: "列表名称" }).fill("待读")
   await page.getByText("收藏夹列表", { exact: true }).click()
   const createListResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmark-lists") && response.request().method() === "POST")
   await page.getByRole("button", { name: "保存", exact: true }).click()
   expect((await createListResponse).status()).toBe(201)
-  await bookmarkCard.getByRole("button", { name: "全部", exact: true }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "全部", exact: true }))
 
   const firstSeededRow = bookmarkCard.locator(`[data-bookmark-id="${seededBookmarks[0].id}"]`)
   const secondSeededRow = bookmarkCard.locator(`[data-bookmark-id="${seededBookmarks[1].id}"]`)
@@ -205,7 +230,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const batchUpdateResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmarks/batch") && response.request().method() === "PATCH")
   await page.getByRole("button", { name: "添加", exact: true }).click()
   expect((await batchUpdateResponse).status()).toBe(200)
-  await bookmarkCard.getByRole("button", { name: /^待读/ }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: /^待读/ }))
   await expect(firstSeededRow).toBeVisible()
   await expect(secondSeededRow).toBeVisible()
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
@@ -219,20 +244,20 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(firstSeededRow).toHaveCount(0)
   await expect(secondSeededRow).toHaveCount(0)
 
-  await bookmarkCard.getByRole("button", { name: "编辑当前书签列表" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "编辑当前书签列表" }))
   await page.getByRole("textbox", { name: "列表名称" }).fill("稍后阅读")
   const updateListResponse = page.waitForResponse((response) => response.url().endsWith("/reader/library/bookmark-lists") && response.request().method() === "POST")
   await page.getByRole("button", { name: "保存", exact: true }).click()
   expect((await updateListResponse).status()).toBe(201)
   await expect(bookmarkCard.getByRole("button", { name: /稍后阅读/ })).toBeVisible()
-  await bookmarkCard.getByRole("button", { name: "编辑当前书签列表" }).click()
+  await activateControl(bookmarkCard.getByRole("button", { name: "编辑当前书签列表" }))
   await page.getByRole("button", { name: "删除", exact: true }).click()
   const deleteListResponse = page.waitForResponse((response) => response.url().includes("/reader/library/bookmark-lists/") && response.request().method() === "DELETE")
   await page.getByRole("button", { name: "删除列表", exact: true }).click()
   expect((await deleteListResponse).status()).toBe(204)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
 
-  await sidebar.getByRole("button", { name: "页面列表", exact: true }).click()
+  await activateControl(sidebar.getByRole("button", { name: "页面列表", exact: true }))
   const pageListCard = sidebar.locator('[data-reader-card="页面导航"]')
   const pageListContent = pageListCard.locator('[data-neoview-page-list="true"]')
   await expect(pageListCard).toBeVisible()
@@ -242,7 +267,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   })).toBe(true)
 
   const followButton = pageListCard.getByRole("button", { name: "跟随阅读进度" })
-  await followButton.click()
+  await activateControl(followButton)
   await expect(followButton).toHaveAttribute("aria-pressed", "false")
   const pageSlider = pageListCard.getByRole("slider", { name: "页面位置" })
   await pageSlider.press("ArrowRight")
@@ -272,7 +297,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect.poll(() => page.evaluate(() => window.__NEOVIEW_COPIED_FILES__?.[0])).toMatch(/002\.png$/)
   expect(pageActionRequests).toHaveLength(1)
 
-  await followButton.click()
+  await activateControl(followButton)
   await expect(followButton).toHaveAttribute("aria-pressed", "true")
   const sliderRoot = pageSlider.locator("..")
   const sliderBox = await sliderRoot.boundingBox()
@@ -297,7 +322,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await pageListCard.getByRole("listbox", { name: "页面" }).press("Control+f")
   await expect(pageListCard.getByRole("textbox", { name: "搜索页面" })).toBeFocused()
   const catalogRequestsBeforeImageModes = pageCatalogRequests.length
-  await pageListCard.getByRole("button", { name: "带图列表" }).click()
+  await activateControl(pageListCard.getByRole("button", { name: "带图列表" }))
   await expect(pageListCard.locator('[data-neoview-page-list="true"]')).toHaveAttribute("data-page-list-mode", "details")
   await expect(pageListCard.locator('[data-reader-entry-surface="true"]').first()).toHaveAttribute("data-entry-variant", "content")
   const pageThumbnail = pageListCard.locator('[data-reader-thumbnail-surface="true"]').first()
@@ -314,7 +339,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await page.keyboard.press("Escape")
   await expect(page.getByRole("menu")).toHaveCount(0)
 
-  await pageListCard.getByRole("button", { name: "缩略图网格" }).click()
+  await activateControl(pageListCard.getByRole("button", { name: "缩略图网格" }))
   await expect(pageListCard.locator('[data-neoview-page-list="true"]')).toHaveAttribute("data-page-list-mode", "thumbnails")
   await expect(pageListCard.locator('[data-page-thumbnail-grid-row]').first()).toBeVisible()
   await expect(pageListCard.locator('[data-page-thumbnail-tile]').first()).toHaveAttribute("data-entry-variant", "thumbnail")
@@ -348,7 +373,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await page.mouse.move(viewport.width - 1, viewport.height / 2)
   const rightSidebar = page.locator('[data-reader-sidebar="right"]')
   await expect(rightSidebar).toBeVisible()
-  await rightSidebar.getByRole("button", { name: "信息", exact: true }).click()
+  await activateControl(rightSidebar.getByRole("button", { name: "信息", exact: true }))
   const imageInformationCard = rightSidebar.locator('[data-reader-card="图像信息"]')
   await expect(imageInformationCard).toBeVisible()
   await expect(imageInformationCard.getByText("001.png", { exact: true })).toBeVisible()
@@ -366,6 +391,17 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(preloadCard.getByRole("progressbar", { name: "服务端呈现缓存使用率" })).toBeVisible()
   await expect(preloadCard.getByText("已同步", { exact: true })).toBeVisible()
   await expect(preloadCard.getByLabel(/第 \d+ 页/)).toHaveCount(6)
+  const currentSession = await page.request.get(`${backend.url}/reader/s/${encodeURIComponent(opened.sessionId)}`, { headers: { "x-xiranite-token": backend.token } })
+  const currentSnapshot = await currentSession.json() as { preload?: { generation: number; candidates: Array<{ pageIds: string[] }> } }
+  const cachedPageId = currentSnapshot.preload?.candidates.flatMap((candidate) => candidate.pageIds)[0]
+  expect(cachedPageId).toBeTruthy()
+  const preloadEvent = await page.request.post(`${backend.url}/reader/s/${encodeURIComponent(opened.sessionId)}/preload-events`, {
+    headers: { "x-xiranite-token": backend.token },
+    data: { generation: currentSnapshot.preload!.generation, events: [{ pageId: cachedPageId, outcome: "ready" }] },
+  })
+  expect(preloadEvent.status()).toBe(202)
+  await expect(preloadCard.locator('[data-server-cache-state="cached"]').first()).toBeVisible()
+  await expect(preloadCard.locator('[data-server-cache-state="cold"]').first()).toBeVisible()
   const activeAssetUrl = new URL((await readerImage.getAttribute("src"))!, page.url()).href
   const activeAssetRequestsBeforePreloadActions = imageRequests.filter((url) => url === activeAssetUrl).length
   expect(await preloadCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
@@ -391,6 +427,12 @@ async function seedBookmark(page: import("@playwright/test").Page, name: string,
   })
   expect(response.status()).toBe(201)
   return response.json() as Promise<{ id: string }>
+}
+
+async function activateControl(button: import("@playwright/test").Locator): Promise<void> {
+  await button.focus()
+  await expect(button).toBeFocused()
+  await button.press("Enter")
 }
 
 const CURRENT_THUMBNAIL_SCHEMA = `

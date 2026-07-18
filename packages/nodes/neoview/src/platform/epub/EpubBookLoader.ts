@@ -7,6 +7,7 @@ import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
 import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ArchiveEntry, ArchiveProvider } from "../../ports/ArchiveProvider.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { ArchivePageContent } from "../content/ArchivePageContent.js"
 import { createReaderBook, stableOpaqueId, versionFromFile } from "../books/book-utils.js"
 
@@ -26,13 +27,14 @@ export async function loadEpubBook(
   source: EpubViewSource,
   signal?: AbortSignal,
   mediaFormats?: ReaderMediaTypeResolver,
+  resourceScheduler?: ResourceScheduler,
 ): Promise<ReaderBook> {
   signal?.throwIfAborted()
   const path = await realpath(source.path)
   const stats = await stat(path)
   if (!stats.isFile()) throw new Error(`EPUB source is not a file: ${source.path}`)
   const { ZipArchiveProvider } = await import("../archives/zip/ZipArchiveProvider.js")
-  const provider = new ZipArchiveProvider(path)
+  const provider = new ZipArchiveProvider(path, { resourceScheduler })
   try {
     const entries = await provider.list(signal)
     const images = await manifestImages(provider, entries, signal)

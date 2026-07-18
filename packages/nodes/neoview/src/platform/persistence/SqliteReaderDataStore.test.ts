@@ -113,6 +113,137 @@ describe("SqliteReaderDataStore", () => {
     verified.close()
   })
 
+  it("[neoview.folder.filter.type] [neoview.folder.filter-library-sqlite] filters virtual library sources before pagination and composes bookmark memberships", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    const recentSources = [
+      ["image", { kind: "image", path: "D:/cover.jpg" }, 600],
+      ["video", { kind: "media", path: "D:/clip.mp4" }, 500],
+      ["directory", { kind: "directory", path: "D:/books" }, 400],
+      ["epub", { kind: "document", path: "D:/book.epub", format: "epub" }, 300],
+      ["archive", { kind: "archive", path: "D:/book.cbz" }, 200],
+      ["pdf", { kind: "document", path: "D:/book.pdf", format: "pdf" }, 100],
+    ] as const
+    for (const [bookId, source, updatedAt] of recentSources) {
+      await store.save({ bookId, source, displayName: bookId, pageIndex: 0, pageCount: 1, updatedAt })
+    }
+
+    await expect(store.listRecent({ filter: "archive", limit: 1, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "epub" }),
+    ])
+    await expect(store.listRecent({ filter: "archive", limit: 1, offset: 1 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "archive" }),
+    ])
+    await expect(store.listRecent({ filter: "video", limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "video" }),
+    ])
+    await expect(store.listRecent({ filter: "directory", limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "directory" }),
+    ])
+
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    for (const [id, source, updatedAt] of [
+      ["bookmark-image", { kind: "image", path: "D:/bookmark.jpg" }, 500],
+      ["bookmark-video", { kind: "media", path: "D:/bookmark.mp4" }, 400],
+      ["bookmark-directory", { kind: "directory", path: "D:/bookmark" }, 300],
+      ["bookmark-epub", { kind: "document", path: "D:/bookmark.epub", format: "epub" }, 200],
+      ["bookmark-archive", { kind: "archive", path: "D:/bookmark.cbz" }, 100],
+    ] as const) {
+      await store.upsertBookmark({
+        id,
+        source,
+        name: id,
+        kind: source.kind === "directory" ? "folder" : "file",
+        starred: false,
+        createdAt: updatedAt,
+        updatedAt,
+        listIds: ["reading"],
+      })
+    }
+    await expect(store.listBookmarks({ listId: "reading", filter: "archive", limit: 1, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "bookmark-epub" }),
+    ])
+    await expect(store.listBookmarks({ listId: "reading", filter: "archive", limit: 1, offset: 1 })).resolves.toEqual([
+      expect.objectContaining({ id: "bookmark-archive" }),
+    ])
+    await expect(store.listBookmarks({ listId: "reading", filter: "video", limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "bookmark-video" }),
+    ])
+    await store.close()
+  })
+
+  it("[neoview.history.cleanup-oldest-sqlite] atomically deletes a bounded oldest set with stable ties", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    for (const [bookId, updatedAt] of [["newest", 300], ["z-old", 100], ["a-old", 100], ["middle", 200]] as const) {
+      await store.save({
+        bookId,
+        source: { kind: "archive", path: `D:/books/${bookId}.cbz` },
+        displayName: bookId,
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt,
+      })
+    }
+
+    await expect(store.deleteOldestRecent(2)).resolves.toEqual({
+      selectedIds: ["a-old", "z-old"],
+      deleted: 2,
+    })
+    await expect(store.listRecent({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "newest" }),
+      expect.objectContaining({ bookId: "middle" }),
+    ])
+    await expect(store.deleteOldestRecent(500)).resolves.toEqual({
+      selectedIds: ["middle", "newest"],
+      deleted: 2,
+    })
+    await expect(store.deleteOldestRecent(1)).resolves.toEqual({ selectedIds: [], deleted: 0 })
+    await expect(store.deleteOldestRecent(0)).rejects.toThrow("limit is invalid")
+    await store.close()
+
+    await expect(inspectLegacyThumbnailDatabase(path)).resolves.toMatchObject({
+      metadataVersion: "2.4",
+      userVersion: 7,
+      journalMode: "wal",
+    })
+  })
+
+  it("[neoview.library.batch-delete-sqlite] deletes recent and bookmark identity sets in one store operation", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    for (const bookId of ["recent-one", "recent-two"]) {
+      await store.save({
+        bookId,
+        source: { kind: "archive", path: `D:/books/${bookId}.cbz` },
+        displayName: bookId,
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt: 1,
+      })
+    }
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.upsertBookmark(bookmark("bookmark-one", false, ["reading"]))
+    await store.upsertBookmark(bookmark("bookmark-two", false, ["default"]))
+
+    await expect(store.deleteRecentBatch(["recent-two", "missing", "recent-one"])).resolves.toEqual({
+      deleted: 2,
+      missingIds: ["missing"],
+    })
+    await expect(store.deleteBookmarkBatch(["missing-a", "bookmark-one", "missing-b"])).resolves.toEqual({
+      deleted: 1,
+      missingIds: ["missing-a", "missing-b"],
+    })
+    await expect(store.listRecent({ limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "bookmark-two" }),
+    ])
+    await expect(store.deleteRecentBatch([])).rejects.toThrow("batch delete is invalid")
+    await expect(store.deleteBookmarkBatch(["same", "same"])).rejects.toThrow("duplicate")
+    await store.close()
+  })
+
   it("[neoview.library.bookmarks] stores normalized lists and filters synthetic views", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)
@@ -154,6 +285,134 @@ describe("SqliteReaderDataStore", () => {
     await expect(store.updateBookmark("missing", { starred: false, updatedAt: 30 })).resolves.toBeUndefined()
     await expect(store.updateBookmark("one", { listIds: ["unknown"], updatedAt: 30 })).rejects.toThrow("unknown list")
     await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toHaveLength(1)
+    await store.close()
+  })
+
+  it("[neoview.library.bookmark-batch-update-sqlite] applies heterogeneous updates in one transaction and preserves request order", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.upsertBookmark({ ...bookmark("one", false, ["default"]), updatedAt: 10 })
+    await store.upsertBookmark({ ...bookmark("two", true, ["reading"]), updatedAt: 10 })
+
+    await expect(store.updateBookmarkBatch([
+      { id: "two", starred: false },
+      { id: "missing", starred: true },
+      { id: "one", listIds: ["reading"], starred: true },
+    ], 20)).resolves.toEqual({
+      items: [
+        expect.objectContaining({ id: "two", starred: false, listIds: ["reading"], updatedAt: 20 }),
+        expect.objectContaining({ id: "one", starred: true, listIds: ["reading"], updatedAt: 20 }),
+      ],
+      missingIds: ["missing"],
+    })
+    await expect(store.listBookmarks({ listId: "default", limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.updateBookmarkBatch([
+      { id: "one", listIds: ["unknown"] },
+      { id: "two", starred: true },
+    ], 30)).rejects.toThrow("unknown lists")
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "one", starred: true, updatedAt: 20 }),
+      expect.objectContaining({ id: "two", starred: false, updatedAt: 20 }),
+    ])
+    await store.close()
+  })
+
+  it("[neoview.library.cleanup-folder-sqlite] preserves legacy case-insensitive raw prefix semantics for both collections", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    for (const [bookId, sourcePath] of [["book", "D:\\Books\\one.cbz"], ["bookshelf", "D:/Bookshelf/two.cbz"], ["other", "D:/Other/three.cbz"]] as const) {
+      await store.save({
+        bookId,
+        source: { kind: "archive", path: sourcePath },
+        displayName: bookId,
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt: 1,
+      })
+    }
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.upsertBookmark({ ...bookmark("book-mark", false, ["reading"]), source: { kind: "archive", path: "D:/BOOKS/four.cbz" } })
+    await store.upsertBookmark({ ...bookmark("other-mark", false, ["default"]), source: { kind: "archive", path: "D:/Other/five.cbz" } })
+
+    await expect(store.clearByPathPrefix("recents", "d:/books")).resolves.toBe(2)
+    await expect(store.clearByPathPrefix("bookmarks", "d:/books")).resolves.toBe(1)
+    await expect(store.listRecent({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "other" }),
+    ])
+    await expect(store.listBookmarks({ listId: "reading", limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "other-mark" }),
+    ])
+    await expect(store.clearByPathPrefix("recents", "")).rejects.toThrow("path-prefix cleanup is invalid")
+    await store.close()
+  })
+
+  it("[neoview.history.cleanup-state-sqlite] removes media and path-stack state through every history deletion path", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    const entries = [
+      ["single", "D:/Single/one.cbz", 10],
+      ["batch", "D:/Batch/two.cbz", 20],
+      ["oldest", "D:/Oldest/three.cbz", 30],
+      ["folder", "D:/Books/four.cbz", 40],
+      ["dated", "D:/Dated/five.cbz", 50],
+      ["remaining", "D:/Remaining/six.cbz", 60],
+    ] as const
+    for (const [bookId, sourcePath, updatedAt] of entries) {
+      await store.save({
+        bookId,
+        source: { kind: "archive", path: sourcePath },
+        displayName: bookId,
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt,
+      })
+    }
+    await store.importData({
+      progress: [],
+      bookmarks: [],
+      bookmarkLists: [],
+      pathStacks: entries.map(([bookId, sourcePath, updatedAt]) => ({ bookId, pathStack: [{ path: sourcePath }], updatedAt })),
+      mediaProgress: entries.map(([bookId, , updatedAt]) => ({ bookId, position: 1, duration: 10, completed: false, updatedAt })),
+    }, "merge")
+
+    await expect(store.deleteRecent("single")).resolves.toBe(true)
+    await expect(store.deleteRecentBatch(["batch"])).resolves.toEqual({ deleted: 1, missingIds: [] })
+    await expect(store.deleteOldestRecent(1)).resolves.toEqual({ selectedIds: ["oldest"], deleted: 1 })
+    await expect(store.clearByPathPrefix("recents", "d:/books")).resolves.toBe(1)
+    await expect(store.clearRecentBefore(55, 10)).resolves.toBe(1)
+    await expect(store.clearAll("recents")).resolves.toBe(1)
+    for (const [bookId] of entries) await expect(store.getMediaProgress(bookId)).resolves.toBeUndefined()
+    await expect(store.listRecent({ limit: 10, offset: 0 })).resolves.toEqual([])
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("SELECT COUNT(*) AS count FROM xr_reader_path_stacks")).toEqual({ count: 0 })
+    expect(verified.get("SELECT COUNT(*) AS count FROM xr_reader_media_progress")).toEqual({ count: 0 })
+    verified.close()
+  })
+
+  it("[neoview.bookmark.advanced-cleanup-sqlite] clears oldest, dated and all rows while preserving custom lists", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    for (const [id, createdAt] of [["old-a", 10], ["old-b", 20], ["dated", 30], ["remaining", 40]] as const) {
+      await store.upsertBookmark({ ...bookmark(id, false, ["reading"]), createdAt, updatedAt: createdAt })
+    }
+
+    await expect(store.deleteOldestBookmark(1)).resolves.toEqual({ selectedIds: ["old-a"], deleted: 1 })
+    await expect(store.clearBookmarkBefore(35, 10)).resolves.toBe(2)
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "remaining" }),
+    ])
+    await expect(store.clearAll("bookmarks")).resolves.toBe(1)
+    await expect(store.listBookmarks({ limit: 10, offset: 0 })).resolves.toEqual([])
+    await expect(store.listBookmarkLists()).resolves.toEqual([
+      expect.objectContaining({ id: "reading" }),
+    ])
+    await expect(store.deleteOldestBookmark(0)).rejects.toThrow("limit is invalid")
+    await expect(store.clearBookmarkBefore(-1, 10)).rejects.toThrow("date cleanup is invalid")
     await store.close()
   })
 

@@ -64,18 +64,43 @@ for (const chunk of deferredPanelChunks) {
 }
 // [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk] [neoview.shared-entry.chunk]
 const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
+// [neoview.bookmark.context-actions-chunk]
+const bookmarkContextActionsChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]bookmark[/\\]BookmarkContextActions\.tsx$/i.test(module)))
 const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
+// [neoview.history.context-actions-chunk]
+const historyContextActionsChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]history[/\\]HistoryContextActions\.tsx$/i.test(module)))
+// [neoview.history.cleanup-lazy-chunk]
+const historyCleanupChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]history[/\\]HistoryCleanupDialog\.tsx$/i.test(module)))
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
 const pageListToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]PageListToolbar\.tsx$/i.test(module)))
 const pagePrewarmChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]prewarmPageThumbnails\.ts$/i.test(module)))
 const pageContextActionsChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]PageListContextActions\.tsx$/i.test(module)))
+const pageCatalogRequestChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]requestPageCatalogBatch\.ts$/i.test(module)))
 const thumbnailSurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]thumbnails[/\\]ReaderThumbnailSurface\.tsx$/i.test(module)))
 const entrySurfaceChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]shared[/\\]ReaderEntrySurface\.tsx$/i.test(module)))
 if (!bookmarkListChunk || bookmarkListChunk === readerSidebarChunk) {
   throw new Error("NeoView BookmarkListCard did not produce an independent deferred production chunk.")
 }
+if (!bookmarkContextActionsChunk || bookmarkContextActionsChunk === bookmarkListChunk || bookmarkContextActionsChunk === readerSidebarChunk || bookmarkContextActionsChunk === neoViewChunk || bookmarkContextActionsChunk === initialChunk) {
+  throw new Error("NeoView Bookmark context actions did not produce a second-level deferred production chunk.")
+}
+if (bookmarkContextActionsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Bookmark context actions chunk ${bookmarkContextActionsChunk.fileName} is ${bookmarkContextActionsChunk.bytes} bytes, above 8 KiB.`)
+}
 if (!historyListChunk || historyListChunk === readerSidebarChunk) {
   throw new Error("NeoView HistoryListCard did not produce an independent deferred production chunk.")
+}
+if (!historyContextActionsChunk || historyContextActionsChunk === historyListChunk || historyContextActionsChunk === readerSidebarChunk || historyContextActionsChunk === neoViewChunk || historyContextActionsChunk === initialChunk) {
+  throw new Error("NeoView History context actions did not produce a second-level deferred production chunk.")
+}
+if (historyContextActionsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView History context actions chunk ${historyContextActionsChunk.fileName} is ${historyContextActionsChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!historyCleanupChunk || historyCleanupChunk === historyListChunk || historyCleanupChunk === readerSidebarChunk) {
+  throw new Error("NeoView HistoryCleanupDialog did not produce a second-level deferred production chunk.")
+}
+if (historyCleanupChunk.bytes > 12 * 1024) {
+  throw new Error(`NeoView HistoryCleanupDialog chunk ${historyCleanupChunk.fileName} is ${historyCleanupChunk.bytes} bytes, above 12 KiB.`)
 }
 if (!pageNavigationChunk || pageNavigationChunk === readerSidebarChunk) {
   throw new Error("NeoView PageNavigationCard did not produce an independent deferred production chunk.")
@@ -88,6 +113,9 @@ if (!pagePrewarmChunk || pagePrewarmChunk === pageListToolbarChunk || pagePrewar
 }
 if (!pageContextActionsChunk || pageContextActionsChunk === pageNavigationChunk || pageContextActionsChunk === readerSidebarChunk || pageContextActionsChunk === neoViewChunk || pageContextActionsChunk === initialChunk) {
   throw new Error("NeoView Page List context actions did not produce a second-level deferred production chunk.")
+}
+if (!pageCatalogRequestChunk || pageCatalogRequestChunk === pageNavigationChunk || pageCatalogRequestChunk === readerSidebarChunk || pageCatalogRequestChunk === neoViewChunk || pageCatalogRequestChunk === initialChunk) {
+  throw new Error("NeoView Page List catalog request executor did not produce a second-level deferred production chunk.")
 }
 if (!thumbnailSurfaceChunk || thumbnailSurfaceChunk === neoViewChunk || thumbnailSurfaceChunk === readerSidebarChunk || thumbnailSurfaceChunk === initialChunk) {
   throw new Error("NeoView shared thumbnail surface leaked into an eager reader/sidebar/initial chunk.")
@@ -107,6 +135,9 @@ if (pageNavigationChunk.bytes > 16 * 1024) {
 if (pageContextActionsChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView Page List context actions chunk ${pageContextActionsChunk.fileName} is ${pageContextActionsChunk.bytes} bytes, above 8 KiB.`)
 }
+if (pageCatalogRequestChunk.bytes > 4 * 1024) {
+  throw new Error(`NeoView Page List catalog request chunk ${pageCatalogRequestChunk.fileName} is ${pageCatalogRequestChunk.bytes} bytes, above 4 KiB.`)
+}
 if (pagePrewarmChunk.bytes > 4 * 1024) {
   throw new Error(`NeoView page thumbnail prewarm chunk ${pagePrewarmChunk.fileName} is ${pagePrewarmChunk.bytes} bytes, above 4 KiB.`)
 }
@@ -119,19 +150,43 @@ if (thumbnailSurfaceChunk.bytes > 4 * 1024) {
 if (entrySurfaceChunk.bytes > 4 * 1024) {
   throw new Error(`NeoView shared entry surface chunk ${entrySurfaceChunk.fileName} is ${entrySurfaceChunk.bytes} bytes, above 4 KiB.`)
 }
+// [neoview.book-settings.chunk]
+const bookSettingsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookSettingsCard\.tsx$/i.test(module)))
+if (!bookSettingsChunk || bookSettingsChunk === readerSidebarChunk) {
+  throw new Error("NeoView BookSettingsCard did not produce an independent deferred production chunk.")
+}
+if (bookSettingsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView BookSettingsCard chunk ${bookSettingsChunk.fileName} is ${bookSettingsChunk.bytes} bytes, above 8 KiB.`)
+}
 const timeInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]TimeInformationCard\.tsx$/i.test(module)))
+// [neoview.time-information.projection-chunk]
+const timeInformationProjectionChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]domain[/\\]page[/\\]TimeInformationProjection\.ts$/i.test(module)))
 if (!timeInformationChunk || timeInformationChunk === readerSidebarChunk) {
   throw new Error("NeoView TimeInformationCard did not produce an independent deferred production chunk.")
 }
 if (timeInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView TimeInformationCard chunk ${timeInformationChunk.fileName} is ${timeInformationChunk.bytes} bytes, above 8 KiB.`)
 }
+if (!timeInformationProjectionChunk || timeInformationProjectionChunk === initialChunk || timeInformationProjectionChunk === neoViewChunk || timeInformationProjectionChunk === readerSidebarChunk) {
+  throw new Error("NeoView TimeInformation projection leaked into an eager initial/reader/sidebar chunk.")
+}
+if (timeInformationProjectionChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView TimeInformation projection host chunk ${timeInformationProjectionChunk.fileName} is ${timeInformationProjectionChunk.bytes} bytes, above 16 KiB.`)
+}
 const bookInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookInformationCard\.tsx$/i.test(module)))
+// [neoview.book-information.projection-chunk]
+const bookInformationProjectionChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]domain[/\\]book[/\\]BookInformationProjection\.ts$/i.test(module)))
 if (!bookInformationChunk || bookInformationChunk === readerSidebarChunk) {
   throw new Error("NeoView BookInformationCard did not produce an independent deferred production chunk.")
 }
 if (bookInformationChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView BookInformationCard chunk ${bookInformationChunk.fileName} is ${bookInformationChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!bookInformationProjectionChunk || bookInformationProjectionChunk === initialChunk || bookInformationProjectionChunk === neoViewChunk || bookInformationProjectionChunk === readerSidebarChunk) {
+  throw new Error("NeoView BookInformation projection leaked into an eager initial/reader/sidebar chunk.")
+}
+if (bookInformationProjectionChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView BookInformation projection host chunk ${bookInformationProjectionChunk.fileName} is ${bookInformationProjectionChunk.bytes} bytes, above 16 KiB.`)
 }
 const storageInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]StorageInformationCard\.tsx$/i.test(module)))
 if (!storageInformationChunk || storageInformationChunk === readerSidebarChunk) {
@@ -171,6 +226,7 @@ for (const chunk of [sidebarControlCardChunk, sidebarFloatingControllerChunk]) {
   if (chunk.bytes > 16 * 1024) throw new Error(`NeoView deferred Sidebar Control chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 16 KiB.`)
 }
 const folderMainChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]FolderMainCard\.tsx$/i.test(module)))
+const folderGridWorkspaceChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderGridWorkspace\.tsx$/i.test(module)))
 const folderChromeLayoutChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderChromeLayout\.tsx$/i.test(module)))
 const folderSelectionBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSelectionBar\.tsx$/i.test(module)))
 const folderContextActionsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderContextActions\.tsx$/i.test(module)))
@@ -179,6 +235,12 @@ const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
 const directoryWatchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]DirectoryWatch\.tsx$/i.test(module)))
 if (!folderMainChunk) throw new Error("NeoView FolderMainCard deferred chunk is missing.")
+if (!folderGridWorkspaceChunk || folderGridWorkspaceChunk === folderMainChunk) {
+  throw new Error("NeoView FolderGridWorkspace did not produce a second-level deferred production chunk.")
+}
+if (folderGridWorkspaceChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView FolderGridWorkspace chunk ${folderGridWorkspaceChunk.fileName} is ${folderGridWorkspaceChunk.bytes} bytes, above 8 KiB.`)
+}
 if (!folderChromeLayoutChunk || folderChromeLayoutChunk === folderMainChunk) {
   throw new Error("NeoView FolderChromeLayout did not produce a second-level deferred production chunk.")
 }
@@ -270,17 +332,23 @@ console.log(JSON.stringify({
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   historyListChunk: { fileName: historyListChunk.fileName, bytes: historyListChunk.bytes },
+  historyContextActionsChunk: { fileName: historyContextActionsChunk.fileName, bytes: historyContextActionsChunk.bytes },
+  historyCleanupChunk: { fileName: historyCleanupChunk.fileName, bytes: historyCleanupChunk.bytes },
   bookmarkListChunk: { fileName: bookmarkListChunk.fileName, bytes: bookmarkListChunk.bytes },
+  bookmarkContextActionsChunk: { fileName: bookmarkContextActionsChunk.fileName, bytes: bookmarkContextActionsChunk.bytes },
   pageNavigationChunk: { fileName: pageNavigationChunk.fileName, bytes: pageNavigationChunk.bytes },
   thumbnailSurfaceChunk: { fileName: thumbnailSurfaceChunk.fileName, bytes: thumbnailSurfaceChunk.bytes },
   entrySurfaceChunk: { fileName: entrySurfaceChunk.fileName, bytes: entrySurfaceChunk.bytes },
   timeInformationChunk: { fileName: timeInformationChunk.fileName, bytes: timeInformationChunk.bytes },
+  timeInformationProjectionChunk: { fileName: timeInformationProjectionChunk.fileName, bytes: timeInformationProjectionChunk.bytes },
   bookInformationChunk: { fileName: bookInformationChunk.fileName, bytes: bookInformationChunk.bytes },
+  bookInformationProjectionChunk: { fileName: bookInformationProjectionChunk.fileName, bytes: bookInformationProjectionChunk.bytes },
   storageInformationChunk: { fileName: storageInformationChunk.fileName, bytes: storageInformationChunk.bytes },
   imageInformationChunk: { fileName: imageInformationChunk.fileName, bytes: imageInformationChunk.bytes },
   preloadStatusChunk: { fileName: preloadStatusChunk.fileName, bytes: preloadStatusChunk.bytes },
   sidebarControlCardChunk: { fileName: sidebarControlCardChunk.fileName, bytes: sidebarControlCardChunk.bytes },
   sidebarFloatingControllerChunk: { fileName: sidebarFloatingControllerChunk.fileName, bytes: sidebarFloatingControllerChunk.bytes },
+  folderGridWorkspaceChunk: { fileName: folderGridWorkspaceChunk.fileName, bytes: folderGridWorkspaceChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },

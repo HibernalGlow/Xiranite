@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react"
+import { projectReaderBookInformation } from "@xiranite/node-neoview/ui-core"
 import type { ReactNode } from "react"
 
-import type { ReaderMetadataDto } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
 import { useReaderMetadata } from "./useReaderMetadata"
 
@@ -26,8 +26,15 @@ function BookInformationContent({ session, client }: { session: NonNullable<Read
   }
   const book = state.value?.book
   if (!book) return <div className="py-2 text-center text-sm text-muted-foreground">暂无书籍信息</div>
-  const translatedTitle = book.emm?.translatedTitle?.trim()
-  const hasTranslatedTitle = Boolean(translatedTitle && translatedTitle !== book.displayName)
+  const projection = projectReaderBookInformation({
+    displayName: book.displayName,
+    translatedTitle: book.emm?.translatedTitle,
+    sourceKind: book.sourceKind,
+    sourceFormat: book.sourceFormat,
+    currentPage: book.currentPage,
+    pageCount: book.pageCount,
+  }, "zh")
+  const hasTranslatedTitle = Boolean(projection.originalTitle)
   return (
     <dl className="space-y-2 text-sm" data-book-information="true">
       <MetadataRow label="名称">
@@ -35,16 +42,16 @@ function BookInformationContent({ session, client }: { session: NonNullable<Read
           className={hasTranslatedTitle
             ? "max-w-[min(200px,70%)] break-words rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-right text-xs text-primary"
             : "min-w-0 max-w-[min(200px,70%)] break-words text-right font-medium"}
-          title={translatedTitle || book.displayName}
+          title={projection.displayTitle}
         >
-          {translatedTitle || book.displayName}
+          {projection.displayTitle}
         </span>
       </MetadataRow>
-      {hasTranslatedTitle ? <MetadataRow label="原名"><MetadataValue value={book.displayName} mono /></MetadataRow> : null}
+      {projection.originalTitle ? <MetadataRow label="原名"><MetadataValue value={projection.originalTitle} mono /></MetadataRow> : null}
       <MetadataRow label="路径"><MetadataValue value={book.sourcePath} mono /></MetadataRow>
-      <MetadataRow label="类型"><MetadataValue value={formatBookType(book)} /></MetadataRow>
-      <MetadataRow label="页码"><MetadataValue value={`${book.currentPage} / ${book.pageCount}`} numeric /></MetadataRow>
-      <MetadataRow label="进度"><MetadataValue value={book.progressPercent === undefined ? "—" : `${book.progressPercent.toFixed(1)}%`} numeric /></MetadataRow>
+      <MetadataRow label="类型"><MetadataValue value={projection.typeLabel} /></MetadataRow>
+      <MetadataRow label="页码"><MetadataValue value={projection.pageText} numeric /></MetadataRow>
+      <MetadataRow label="进度"><MetadataValue value={projection.progressText} numeric /></MetadataRow>
     </dl>
   )
 }
@@ -64,15 +71,4 @@ function MetadataValue({ value, mono = false, numeric = false }: { value: string
       {value}
     </span>
   )
-}
-
-function formatBookType(book: ReaderMetadataDto["book"]): string {
-  if (book.sourceKind === "directory") return "文件夹"
-  if (book.sourceKind === "archive") return "压缩包"
-  if (book.sourceKind === "document" && book.sourceFormat === "pdf") return "PDF"
-  if (book.sourceKind === "document" && book.sourceFormat === "epub") return "EPUB"
-  if (book.sourceKind === "media") return "媒体"
-  if (book.sourceKind === "image") return "图片"
-  if (book.sourceKind === "document") return "文档"
-  return "未知"
 }

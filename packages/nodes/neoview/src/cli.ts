@@ -20,6 +20,8 @@ import type {
   HeadlessReaderBookSettingsUpdate,
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
+  ReaderDirectoryFilter,
+  ReaderDirectoryEmmEditCommand,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -35,6 +37,8 @@ import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImpor
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRestoreResult } from "./platform/backup/ReaderBackupBundleService.js"
+import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
+import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
@@ -53,7 +57,7 @@ const COMMANDS = new Set([
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "diagnostics",
-  "folder-tree", "folder-search", "folder-exclude", "folder-include", "folder-tree-cache-clear",
+  "folder-tree", "folder-search", "folder-emm-tags", "folder-emm-edit", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
   "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-open", "file-reveal", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
 ])
@@ -76,6 +80,10 @@ const VALUE_FLAGS = new Set([
   "--database",
   "--query",
   "--mode",
+  "--filter",
+  "--tag",
+  "--exclude-tag",
+  "--tag-mode",
   "--depth",
   "--exclude",
   "--node",
@@ -95,10 +103,12 @@ const VALUE_FLAGS = new Set([
   "--direction",
   "--page-mode",
   "--horizontal-book",
+  "--input",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
+const MAX_EMM_EDIT_INPUT_BYTES = 1024 * 1024
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -238,6 +248,11 @@ export async function runProgram(
   if (command.startsWith("folder-search-history")) {
     if (parsed.positionals.length) throw usage(`${command} does not accept a directory path.`)
     await runFolderSearchHistoryCommand(command, parsed, host, dependencies)
+    return
+  }
+  if (command === "folder-emm-tags") {
+    if (parsed.positionals.length) throw usage("folder-emm-tags does not accept a directory path.")
+    await runFolderEmmTags(parsed, host, dependencies)
     return
   }
   if (command.startsWith("folder-")) {
@@ -382,7 +397,7 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "library-recents" || command === "library-bookmarks") {
-    rejectOptions(parsed, new Set(["--json", "--database", "--limit", "--offset", "--list"]))
+    rejectOptions(parsed, new Set(["--json", "--database", "--limit", "--offset", "--list", "--filter"]))
     return
   }
   if (command === "library-bookmark-lists") {
@@ -486,7 +501,15 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "folder-search") {
-    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
+    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--filter", "--tag", "--exclude-tag", "--tag-mode", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
+    return
+  }
+  if (command === "folder-emm-tags") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--database", "--limit"]))
+    return
+  }
+  if (command === "folder-emm-edit") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--database", "--input", "--concurrency"]))
     return
   }
   if (command === "folder-search-history") {
@@ -525,10 +548,20 @@ async function runFolderCommand(
     throw usage(`${command} requires --yes because it changes persistent settings or cache state.`)
   }
   const createController = dependencies.createFileTreeController ?? createReaderFileTreeController
-  const controller = await createController({ configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env })
+  const databasePath = oneValue(parsed, "--database")
+  const controller = await createController({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+    ...(databasePath ? { legacyThumbnailDatabasePath: resolve(host.cwd, databasePath) } : {}),
+  })
   try {
     const openPath = command === "folder-exclude" || command === "folder-include" ? dirname(path) : path
-    await controller.open({ path: openPath })
+    const opened = await controller.open({ path: openPath })
+    if (command === "folder-emm-edit") {
+      await runFolderEmmEdit(controller, opened.generation, parsed, host)
+      return
+    }
     if (command === "folder-tree") {
       const node = oneValue(parsed, "--node")
       const result = await controller.tree(node ? resolve(host.cwd, node) : undefined, parsed.booleans.has("--refresh"))
@@ -567,15 +600,22 @@ async function runFolderSearch(
   parsed: ParsedArguments,
   host: CliHost,
 ): Promise<void> {
-  const query = oneValue(parsed, "--query")
-  if (!query) throw usage("folder-search requires --query <text|glob>.")
+  const query = oneValue(parsed, "--query") ?? ""
+  const includeTags = parsed.values.get("--tag")
+  const excludeTags = parsed.values.get("--exclude-tag")
+  if (!query && !includeTags?.length && !excludeTags?.length) {
+    throw usage("folder-search requires --query <text|glob> or at least one --tag/--exclude-tag.")
+  }
   const mode = oneValue(parsed, "--mode") ?? "text"
   if (mode !== "text" && mode !== "glob") throw usage("--mode must be text or glob.")
   const kind = oneValue(parsed, "--kind") ?? "all"
   if (kind !== "all" && kind !== "file" && kind !== "directory") throw usage("--kind must be all, file or directory.")
+  const tagMode = oneValue(parsed, "--tag-mode") ?? "all"
+  if (tagMode !== "all" && tagMode !== "any") throw usage("--tag-mode must be all or any.")
   const depthValue = oneValue(parsed, "--depth")
   const maximumDepth = depthValue === undefined ? undefined : integerOption(parsed, "--depth", 0, 4_096, 0)
   const maximumResults = integerOption(parsed, "--limit", 1, 10_000, 512)
+  await controller.setFilter(readerDirectoryFilterOption(parsed))
   const handle = controller.search(query, {
     mode,
     kind,
@@ -584,6 +624,9 @@ async function runFolderSearch(
     maximumDepth,
     maximumResults,
     excludePatterns: parsed.values.get("--exclude"),
+    includeTags,
+    excludeTags,
+    tagMode,
   })
   const json = parsed.booleans.has("--json")
   const output: Record<string, unknown> = { entries: [] }
@@ -600,6 +643,66 @@ async function runFolderSearch(
   }
   if (json) writeJson(host, output)
   await controller.recordSearchHistory("folder", query).catch(() => undefined)
+}
+
+async function runFolderEmmEdit(
+  controller: ReaderFileTreeHeadlessController,
+  generation: number,
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const inputPath = resolve(host.cwd, requiredValue(parsed, "--input", "folder-emm-edit"))
+  const inputStat = await stat(inputPath)
+  if (!inputStat.isFile()) throw usage(`folder-emm-edit input is not a file: ${inputPath}`)
+  if (inputStat.size > MAX_EMM_EDIT_INPUT_BYTES) throw usage(`folder-emm-edit input exceeds ${MAX_EMM_EDIT_INPUT_BYTES} bytes.`)
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(await readFile(inputPath, "utf8"))
+  } catch {
+    throw usage("folder-emm-edit input must be valid JSON.")
+  }
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+    throw usage("folder-emm-edit input must be an object containing updates.")
+  }
+  const record = decoded as Record<string, unknown>
+  const concurrency = parsed.values.has("--concurrency")
+    ? integerOption(parsed, "--concurrency", 1, 8, 4)
+    : record.concurrency
+  const command = {
+    generation,
+    updates: record.updates,
+    ...(concurrency === undefined ? {} : { concurrency }),
+  } as ReaderDirectoryEmmEditCommand
+  const result = await controller.editEmm(command)
+  if (parsed.booleans.has("--json")) writeJson(host, result)
+  else writeLine(host, `EMM metadata: succeeded=${result.succeeded} conflicts=${result.conflicts} failed=${result.failed} generation=${result.generation ?? "refresh"}`)
+}
+
+async function runFolderEmmTags(
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const limit = integerOption(parsed, "--limit", 1, 32, 8)
+  const createController = dependencies.createFileTreeController ?? createReaderFileTreeController
+  const controller = await createController({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+    legacyThumbnailDatabasePath: oneValue(parsed, "--database"),
+  })
+  try {
+    const suggestions = await controller.suggestEmmTags(limit)
+    if (parsed.booleans.has("--json")) writeJson(host, { suggestions })
+    else {
+      for (const suggestion of suggestions) {
+        const translation = suggestion.translatedTag ? `\t${suggestion.translatedTag}` : ""
+        writeLine(host, `${suggestion.category}:${suggestion.tag}\t${suggestion.favorite ? "favorite" : "catalog"}${translation}`)
+      }
+    }
+  } finally {
+    await controller[Symbol.asyncDispose]()
+  }
 }
 
 async function runFolderSearchHistoryCommand(
@@ -917,6 +1020,7 @@ async function runLibraryCommand(
       const items = await controller.listRecent(
         integerOption(parsed, "--limit", 1, 500, 100),
         integerOption(parsed, "--offset", 0, Number.MAX_SAFE_INTEGER, 0),
+        readerDirectoryFilterOption(parsed),
       )
       return printLibraryItems("recents", items, json, host)
     }
@@ -946,6 +1050,7 @@ async function runLibraryCommand(
         oneValue(parsed, "--list"),
         integerOption(parsed, "--limit", 1, 500, 100),
         integerOption(parsed, "--offset", 0, Number.MAX_SAFE_INTEGER, 0),
+        readerDirectoryFilterOption(parsed),
       )
       return printLibraryItems("bookmarks", items, json, host)
     }
@@ -1350,15 +1455,29 @@ function connectionToken(variable: string | undefined, host: CliHost): string {
 
 function printInspect(snapshot: HeadlessReaderSnapshot, json: boolean, host: CliHost): void {
   if (json) return writeJson(host, snapshot)
-  writeLine(host, `${snapshot.book.displayName}: ${snapshot.book.pageCount} page(s)`)
+  const book = projectReaderBookInformation({
+    ...snapshot.book,
+    currentPage: snapshot.book.pageCount > 0 ? snapshot.frame.anchorPageIndex + 1 : 0,
+  }, "en")
+  writeLine(host, `Title: ${book.displayTitle}`)
+  if (book.originalTitle) writeLine(host, `Original title: ${book.originalTitle}`)
+  writeLine(host, `Type: ${book.typeLabel}`)
+  writeLine(host, `Page: ${book.pageText}`)
+  writeLine(host, `Progress: ${book.progressText}`)
   writeLine(host, frameLine(snapshot))
-  for (const page of snapshot.visiblePages) writeLine(host, pageLine(page))
+  for (const page of snapshot.visiblePages) {
+    writeLine(host, pageLine(page))
+    printPageTime(page, host)
+  }
 }
 
 function printFrame(snapshot: HeadlessReaderSnapshot, json: boolean, host: CliHost): void {
   if (json) return writeJson(host, { frame: snapshot.frame, visiblePages: snapshot.visiblePages })
   writeLine(host, frameLine(snapshot))
-  for (const page of snapshot.visiblePages) writeLine(host, pageLine(page))
+  for (const page of snapshot.visiblePages) {
+    writeLine(host, pageLine(page))
+    printPageTime(page, host)
+  }
 }
 
 function printPages(pages: readonly HeadlessReaderPageSnapshot[], cursor: number, total: number, json: boolean, host: CliHost): void {
@@ -1439,6 +1558,14 @@ function pageLine(page: HeadlessReaderPageSnapshot): string {
   const size = page.dimensions ? ` ${page.dimensions.width}x${page.dimensions.height}` : ""
   const bytes = page.byteLength === undefined ? "" : ` ${page.byteLength} bytes`
   return `${String(page.index + 1).padStart(5)}  ${page.name}  ${page.mediaKind}${size}${bytes}`
+}
+
+function printPageTime(page: HeadlessReaderPageSnapshot, host: CliHost): void {
+  const time = projectReaderTimeInformation(page.timestamps, "en")
+  writeLine(host, `  Created: ${time.createdText}`)
+  writeLine(host, `  Modified: ${time.modifiedText}`)
+  writeLine(host, `  Accessed: ${time.accessedText}`)
+  writeLine(host, `  Time source: ${time.sourceLabel}`)
 }
 
 async function extractPage(
@@ -1715,6 +1842,14 @@ function oneValue(parsed: ParsedArguments, flag: string): string | undefined {
   return values[0]
 }
 
+function readerDirectoryFilterOption(parsed: ParsedArguments): ReaderDirectoryFilter {
+  const filter = oneValue(parsed, "--filter") ?? "all"
+  if (filter !== "all" && filter !== "archive" && filter !== "directory" && filter !== "video") {
+    throw usage("--filter must be all, archive, directory or video.")
+  }
+  return filter
+}
+
 async function runReaderUi(args: readonly string[], host: CliHost, dependencies: NeoviewCliDependencies): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView ui requires an interactive terminal.")
   const connection = parseReaderUiConnectionArgs(args)
@@ -1949,6 +2084,8 @@ function formatCliHelp(): string {
     "  diagnostics                    Show process, scheduler, cache and queue diagnostics",
     "  folder-tree <path>              List one lazily loaded directory-tree node",
     "  folder-search <path>            Stream a bounded recursive directory search",
+    "  folder-emm-tags                 Suggest EMM catalog and favorite tags",
+    "  folder-emm-edit <path>          Apply a bounded EMM edit JSON batch to the current directory",
     "  folder-search-history            List persisted scoped search history",
     "  folder-search-history-delete     Delete one persisted search query (--yes)",
     "  folder-search-history-clear      Clear one persisted search scope (--yes)",
@@ -1964,7 +2101,7 @@ function formatCliHelp(): string {
     "Options:",
     "  --index N            Zero-based page index",
     "  --cursor N           Page-list cursor",
-    "  --limit N            Page-list limit (1..500)",
+    "  --limit N            Page-list, history, or EMM suggestion limit",
     "  --entry PATH         Repeat for each nested archive entry",
     "  --password-env VAR   Read the root archive password from VAR",
     "  --archive-password-env SCOPE=VAR  Scoped nested password; join scope with ::",
@@ -1981,6 +2118,11 @@ function formatCliHelp(): string {
     "  --config PATH        Xiranite TOML path for settings/cache commands",
     "  --query QUERY        Folder search text or glob",
     "  --mode MODE          Folder search mode: text or glob",
+    "  --filter TYPE        Source type: all, archive, directory or video",
+    "  --tag TAG            Repeatable required EMM tag; search text may be omitted",
+    "  --exclude-tag TAG    Repeatable excluded EMM tag",
+    "  --tag-mode MODE      Required-tag mode: all or any",
+    "  --input PATH         JSON input for folder-emm-edit: { updates, concurrency? }",
     "  --node PATH          Explicit tree node for tree/cache commands",
     "  --depth N            Recursive search depth (0..4096)",
     "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",

@@ -68,6 +68,8 @@ async function verifyPersistentReaderLifecycle() {
     await click("open")
     await screen.waitFor(() => opens === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("001.png"))
+    expect(screen.captureCharFrame()).toContain("译名 · 压缩包 · 1 / 3 · 33.3%")
+    expect(screen.captureCharFrame()).toContain("文件系统")
     await act(async () => waitUntil(
       () => pageStreamOpens >= 1 && pageStreamCloses === pageStreamOpens,
       () => `opens=${pageStreamOpens} closes=${pageStreamCloses}`,
@@ -136,11 +138,12 @@ const pageList = [0, 1, 2].map((index) => ({
   mimeType: "image/png",
   byteLength: 4,
   contentVersion: `v${index}`,
+  timestamps: { source: "filesystem" as const, createdAtMs: 1_700_000_000_000, modifiedAtMs: 1_700_000_100_000, accessedAtMs: 1_700_000_200_000 },
 }))
 
 function snapshot(index: number): HeadlessReaderSnapshot {
   return {
-    book: { displayName: "book.cbz", pageCount: 3 },
+    book: { displayName: "book.cbz", translatedTitle: "译名", sourceKind: "archive", pageCount: 3 },
     frame: {
       generation: index,
       anchorPageIndex: index,

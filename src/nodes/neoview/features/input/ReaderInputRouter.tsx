@@ -46,7 +46,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   }, [disabled, keyboardKeys])
 
   const onPointerUp: PointerEventHandler<HTMLElement> = (event) => {
-    if (disabled || event.pointerType !== "mouse") return
+    if (disabled || event.pointerType !== "mouse" || isInteractive(event.target)) return
     if (dispatch({ device: "mouse", button: event.button, click: event.detail > 1 ? "double" : "single" }, event.target)) event.preventDefault()
   }
 
@@ -85,9 +85,17 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
 export function readerInputContexts(target: EventTarget | null): ReaderInputContext[] {
   if (!(target instanceof Element)) return ["reader"]
   if (isEditable(target)) return ["editor"]
-  if (target.closest('[role="dialog"], [aria-modal="true"]')) return ["modal"]
+  if (target.closest('[role="dialog"], [aria-modal="true"], [data-input-context="modal"]')) return ["modal"]
   if (target.closest("[data-reader-panel]")) return ["panel"]
   return ["reader"]
+}
+
+export function isReaderInputInteractive(target: EventTarget | null): boolean {
+  return target instanceof Element && isInteractive(target)
+}
+
+function isInteractive(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('button, a[href], input, textarea, select, option, [contenteditable="true"], [role="button"], [role="link"], [role="menuitem"], [role="option"], [data-input-interactive="true"]') !== null
 }
 
 function isEditable(target: Element): boolean {

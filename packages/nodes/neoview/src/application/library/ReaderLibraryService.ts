@@ -7,6 +7,7 @@ import type {
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
+import { assertReaderDirectoryFilter } from "../../domain/browser/ReaderDirectoryFilter.js"
 
 export const READER_SYSTEM_BOOKMARK_LIST_IDS = ["all", "default", "favorites"] as const
 
@@ -53,6 +54,14 @@ export interface ReaderRecentBatchRemoveResult {
   missingIds: readonly string[]
 }
 
+export interface ReaderOldestRecentCleanupResult extends ReaderRecentBatchRemoveResult {
+  selectedIds: readonly string[]
+}
+
+export interface ReaderOldestBookmarkCleanupResult extends ReaderBookmarkBatchRemoveResult {
+  selectedIds: readonly string[]
+}
+
 export class ReaderLibraryService implements AsyncDisposable {
   #closed = false
 
@@ -64,7 +73,7 @@ export class ReaderLibraryService implements AsyncDisposable {
 
   listRecent(query: Partial<ReaderRecentQuery> = {}): Promise<readonly ReaderProgressRecord[]> {
     this.#assertOpen()
-    return this.store.listRecent(normalizePage(query))
+    return this.store.listRecent(normalizeLibraryQuery(query))
   }
 
   removeRecent(bookId: string): Promise<boolean> {
@@ -76,15 +85,16 @@ export class ReaderLibraryService implements AsyncDisposable {
   async removeRecents(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResult> {
     this.#assertOpen()
     const normalized = normalizeBatchIds(ids, "recent")
-    let deleted = 0
-    const missingIds: string[] = []
-    for (const id of normalized) {
-      signal?.throwIfAborted()
-      if (await this.store.deleteRecent(id)) deleted += 1
-      else missingIds.push(id)
-    }
     signal?.throwIfAborted()
-    return { deleted, missingIds }
+    return this.store.deleteRecentBatch(normalized)
+  }
+
+  async removeOldestRecents(limit: number, signal?: AbortSignal): Promise<ReaderOldestRecentCleanupResult> {
+    this.#assertOpen()
+    const normalizedLimit = normalizeCleanupLimit(limit)
+    signal?.throwIfAborted()
+    const result = await this.store.deleteOldestRecent(normalizedLimit)
+    return { ...result, missingIds: [] }
   }
 
   clearRecentBefore(timestamp: number, limit = 500): Promise<number> {
@@ -93,10 +103,33 @@ export class ReaderLibraryService implements AsyncDisposable {
     return this.store.clearRecentBefore(timestamp, normalizeLimit(limit, 500))
   }
 
+  clearByFolder(collection: "recents" | "bookmarks", folderPath: string): Promise<number> {
+    this.#assertOpen()
+    if (collection !== "recents" && collection !== "bookmarks") {
+      throw new Error("Reader library collection is invalid.")
+    }
+    return this.store.clearByPathPrefix(collection, normalizeFolderCleanupPath(folderPath))
+  }
+
+  clearAll(collection: "recents" | "bookmarks"): Promise<number> {
+    this.#assertOpen()
+    if (collection !== "recents" && collection !== "bookmarks") {
+      throw new Error("Reader library collection is invalid.")
+    }
+    return this.store.clearAll(collection)
+  }
+
   listBookmarks(query: Partial<ReaderBookmarkQuery> = {}): Promise<readonly ReaderBookmarkRecord[]> {
     this.#assertOpen()
     const listId = query.listId?.trim()
-    return this.store.listBookmarks({ ...normalizePage(query), ...(listId ? { listId } : {}) })
+    return this.store.listBookmarks({ ...normalizeLibraryQuery(query), ...(listId ? { listId } : {}) })
+  }
+
+  findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined> {
+    this.#assertOpen()
+    const normalized = path.trim()
+    if (!normalized || normalized.includes("\0")) throw new Error("Reader bookmark path must not be empty.")
+    return this.store.findBookmarkByPath(normalized)
   }
 
   async saveBookmark(input: SaveReaderBookmarkInput): Promise<ReaderBookmarkRecord> {
@@ -184,21 +217,15 @@ export class ReaderLibraryService implements AsyncDisposable {
     }
     const updatedAt = this.clock()
     assertTimestamp(updatedAt, "clock")
-    const items: ReaderBookmarkRecord[] = []
-    const missingIds: string[] = []
-    for (const update of updates) {
-      signal?.throwIfAborted()
+    signal?.throwIfAborted()
+    return this.store.updateBookmarkBatch(updates.map((update) => {
       const id = update.id.trim()
-      const item = await this.store.updateBookmark(id, {
+      return {
+        id,
         ...(update.starred !== undefined ? { starred: update.starred } : {}),
         ...(requestedLists.has(id) ? { listIds: requestedLists.get(id)! } : {}),
-        updatedAt,
-      })
-      if (item) items.push(item)
-      else missingIds.push(id)
-    }
-    signal?.throwIfAborted()
-    return { items, missingIds }
+      }
+    }), updatedAt)
   }
 
   removeBookmark(id: string): Promise<boolean> {
@@ -210,15 +237,22 @@ export class ReaderLibraryService implements AsyncDisposable {
   async removeBookmarks(ids: readonly string[], signal?: AbortSignal): Promise<ReaderBookmarkBatchRemoveResult> {
     this.#assertOpen()
     const normalized = normalizeBatchIds(ids, "bookmark")
-    let deleted = 0
-    const missingIds: string[] = []
-    for (const id of normalized) {
-      signal?.throwIfAborted()
-      if (await this.store.deleteBookmark(id)) deleted += 1
-      else missingIds.push(id)
-    }
     signal?.throwIfAborted()
-    return { deleted, missingIds }
+    return this.store.deleteBookmarkBatch(normalized)
+  }
+
+  async removeOldestBookmarks(limit: number, signal?: AbortSignal): Promise<ReaderOldestBookmarkCleanupResult> {
+    this.#assertOpen()
+    const normalizedLimit = normalizeCleanupLimit(limit)
+    signal?.throwIfAborted()
+    const result = await this.store.deleteOldestBookmark(normalizedLimit)
+    return { ...result, missingIds: [] }
+  }
+
+  clearBookmarksBefore(timestamp: number, limit = 500): Promise<number> {
+    this.#assertOpen()
+    assertTimestamp(timestamp, "timestamp")
+    return this.store.clearBookmarkBefore(timestamp, normalizeLimit(limit, 500))
   }
 
   async listBookmarkLists(): Promise<readonly (ReaderBookmarkListRecord & { system?: boolean })[]> {
@@ -328,10 +362,31 @@ const SYSTEM_BOOKMARK_LISTS = [
   { id: "favorites", name: "收藏", isFavorite: true, createdAt: 0, updatedAt: 0, system: true },
 ] as const
 
-function normalizePage(query: Partial<ReaderRecentQuery>): ReaderRecentQuery {
+function normalizeLibraryQuery(query: Partial<ReaderRecentQuery>): ReaderRecentQuery {
   const offset = query.offset ?? 0
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Reader library offset is invalid.")
-  return { limit: normalizeLimit(query.limit ?? 100, 100), offset }
+  if (query.filter !== undefined) assertReaderDirectoryFilter(query.filter)
+  return {
+    limit: normalizeLimit(query.limit ?? 100, 100),
+    offset,
+    ...(query.filter !== undefined ? { filter: query.filter } : {}),
+  }
+}
+
+function normalizeCleanupLimit(limit: number): number {
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 500) {
+    throw new Error("Reader recent cleanup limit must be an integer from 1 to 500.")
+  }
+  return limit
+}
+
+function normalizeFolderCleanupPath(path: string): string {
+  if (typeof path !== "string") throw new Error("Reader library cleanup folder path is invalid.")
+  const normalized = path.trim().replaceAll("\\", "/").toLocaleLowerCase("en-US")
+  if (!normalized || normalized.length > 32_768 || normalized.includes("\0")) {
+    throw new Error("Reader library cleanup folder path is invalid.")
+  }
+  return normalized
 }
 
 function normalizeLimit(limit: number, fallback: number): number {

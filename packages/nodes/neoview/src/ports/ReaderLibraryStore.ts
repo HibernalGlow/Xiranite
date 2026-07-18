@@ -1,9 +1,11 @@
 import type { ViewSource } from "../domain/book/book.js"
 import type { ReaderProgressRecord } from "./ReaderProgressStore.js"
+import type { ReaderDirectoryFilter } from "../domain/browser/ReaderDirectoryFilter.js"
 
 export interface ReaderRecentQuery {
   limit: number
   offset: number
+  filter?: ReaderDirectoryFilter
 }
 
 export interface ReaderBookmarkQuery extends ReaderRecentQuery {
@@ -35,15 +37,51 @@ export interface ReaderBookmarkUpdate {
   updatedAt: number
 }
 
+export interface ReaderOldestRecentDeleteResult {
+  selectedIds: readonly string[]
+  deleted: number
+}
+
+export interface ReaderOldestBookmarkDeleteResult {
+  selectedIds: readonly string[]
+  deleted: number
+}
+
+export interface ReaderLibraryBatchDeleteResult {
+  deleted: number
+  missingIds: readonly string[]
+}
+
+export interface ReaderBookmarkBatchStoreUpdate {
+  id: string
+  starred?: boolean
+  listIds?: readonly string[]
+}
+
+export interface ReaderBookmarkBatchStoreResult {
+  items: readonly ReaderBookmarkRecord[]
+  missingIds: readonly string[]
+}
+
+export type ReaderLibraryCollection = "recents" | "bookmarks"
+
 export interface ReaderLibraryStore extends AsyncDisposable {
   listRecent(query: ReaderRecentQuery): Promise<readonly ReaderProgressRecord[]>
   deleteRecent(bookId: string): Promise<boolean>
+  deleteRecentBatch(bookIds: readonly string[]): Promise<ReaderLibraryBatchDeleteResult>
+  deleteOldestRecent(limit: number): Promise<ReaderOldestRecentDeleteResult>
   clearRecentBefore(timestamp: number, limit: number): Promise<number>
+  clearByPathPrefix(collection: ReaderLibraryCollection, normalizedPrefix: string): Promise<number>
+  clearAll(collection: ReaderLibraryCollection): Promise<number>
   listBookmarks(query: ReaderBookmarkQuery): Promise<readonly ReaderBookmarkRecord[]>
   findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined>
   upsertBookmark(bookmark: ReaderBookmarkRecord): Promise<void>
   updateBookmark(id: string, update: ReaderBookmarkUpdate): Promise<ReaderBookmarkRecord | undefined>
+  updateBookmarkBatch(updates: readonly ReaderBookmarkBatchStoreUpdate[], updatedAt: number): Promise<ReaderBookmarkBatchStoreResult>
   deleteBookmark(id: string): Promise<boolean>
+  deleteBookmarkBatch(ids: readonly string[]): Promise<ReaderLibraryBatchDeleteResult>
+  deleteOldestBookmark(limit: number): Promise<ReaderOldestBookmarkDeleteResult>
+  clearBookmarkBefore(timestamp: number, limit: number): Promise<number>
   listBookmarkLists(): Promise<readonly ReaderBookmarkListRecord[]>
   upsertBookmarkList(list: ReaderBookmarkListRecord): Promise<void>
   deleteBookmarkList(id: string): Promise<boolean>

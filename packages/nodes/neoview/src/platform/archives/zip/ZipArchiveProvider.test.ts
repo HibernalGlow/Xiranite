@@ -1,6 +1,6 @@
 import { stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { defineArchiveProviderConformance } from "../../../testing/conformance/archive-provider.conformance.js"
 import { createZipFixture, deterministicBytes, type ZipFixture } from "../../../../test/fixture-builders/create-zip-fixture.js"
@@ -19,6 +19,34 @@ afterAll(async () => {
 defineArchiveProviderConformance("ZIP", () => new ZipArchiveProvider(fixture.path))
 
 describe("ZipArchiveProvider", () => {
+  it("[neoview.archive.zip-scheduler] holds a host CPU lease for each decompression stream", async () => {
+    const releases: Array<ReturnType<typeof vi.fn>> = []
+    const acquire = vi.fn(async () => {
+      const release = vi.fn()
+      releases.push(release)
+      return { release }
+    })
+    const provider = new ZipArchiveProvider(fixture.path, { resourceScheduler: { acquire } })
+    try {
+      const [entry] = await provider.list()
+      expect(provider.entryStreamResource).toBe("cpu")
+      expect([...await collect(await provider.openEntry(entry!.id))]).toEqual([1, 2, 3, 4, 5])
+      expect(acquire).toHaveBeenCalledWith({
+        resource: "cpu",
+        kind: "neoview.archive-extract",
+        priority: "interactive",
+      }, undefined)
+      expect(releases[0]).toHaveBeenCalledOnce()
+
+      const reader = (await provider.openEntry(entry!.id)).getReader()
+      expect((await reader.read()).done).toBe(false)
+      await reader.cancel("scheduler cancellation")
+      await expect.poll(() => releases[1]?.mock.calls.length ?? 0).toBe(1)
+    } finally {
+      await provider.close()
+    }
+  })
+
   it("[neoview.archive.zip-index-snapshot] reports index payload and releases it on close", async () => {
     const provider = new ZipArchiveProvider(fixture.path)
     expect(provider.snapshot()).toEqual({ initialized: false, indexEntries: 0, indexPayloadBytes: 0, activeExtractions: 0 })

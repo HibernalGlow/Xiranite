@@ -70,6 +70,32 @@ export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResul
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
 export type { FfprobePageMediaMetadataProviderOptions } from "./platform/video/FfprobePageMediaMetadataProvider.js"
 export type { SqliteLegacyThumbnailDatabaseMaintenanceOptions } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
+export {
+  SystemSuperResolutionCliResolver,
+  type SystemSuperResolutionCliProbeResult,
+  type SystemSuperResolutionCliResolverOptions,
+} from "./platform/super-resolution/SystemSuperResolutionCliResolver.js"
+export {
+  OpenComicAiSystemProvider,
+  type OpenComicAiSystemProviderOptions,
+  type OpenComicSystemBinaryRequest,
+  type OpenComicSystemCapabilityResolver,
+  type OpenComicSystemRuntime,
+  type OpenComicSystemModelInfo,
+  type OpenComicSystemStep,
+  type SuperResolutionImageInspection,
+} from "./platform/super-resolution/opencomic-system/OpenComicAiSystemProvider.js"
+export {
+  createOpenComicAiSystemService,
+  runtimeModels as openComicSystemRuntimeModels,
+  type OpenComicAiSystemCompositionOptions,
+} from "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
+export {
+  loadOpenComicSystemRuntime,
+  OPENCOMIC_SYSTEM_PACKAGE,
+  OpenComicSystemRuntimeUnavailableError,
+  type OpenComicSystemRuntimeLoaderOptions,
+} from "./platform/super-resolution/opencomic-system/OpenComicSystemRuntimeLoader.js"
 export type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 export type {
   ReaderFileTreeChange,
@@ -222,9 +248,19 @@ export async function createReaderFileTreeController(
         })
       }
     : undefined
+  const loadEmmEditor = loadSharedStore
+    ? async () => {
+        const store = await loadSharedStore()
+        if (!isReaderEmmOverrideStore(store)) throw new Error("Reader EMM metadata editing is unavailable.")
+        const { ReaderDirectoryEmmEditService } = await import("./application/metadata/ReaderDirectoryEmmEditService.js")
+        const { ReaderEmmMetadataService } = await import("./application/metadata/ReaderEmmMetadataService.js")
+        return new ReaderDirectoryEmmEditService(new ReaderEmmMetadataService(store), service)
+      }
+    : undefined
   return new ReaderFileTreeHeadlessController(service, {
     loadSearchHistory,
     loadEmmTagSuggestions,
+    loadEmmEditor,
     closeResources: async () => {
       emmTranslations.clear()
       await ownedDataStore?.close()
@@ -240,6 +276,7 @@ export async function createReaderAssetRoute(
   const { WeightedLruPresentationCache } = await import("./platform/cache/WeightedLruPresentationCache.js")
   return new ReaderAssetRoute(readerService, options, {
     presentationCache: new WeightedLruPresentationCache(),
+    resourceScheduler: options.resourceScheduler,
     loadImageTransformer: async () => {
       const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
       return new SharpImageTransformer(options.resourceScheduler)
@@ -291,7 +328,10 @@ export async function createReaderHttpController(
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
     const { LazyReaderThumbnailStore } = await import("./platform/thumbnails/LazyReaderThumbnailStore.js")
-    const loadThumbnailStore = options.loadLegacyThumbnailStore ?? createWritableLegacyThumbnailStore
+    const loadThumbnailStore = options.loadLegacyThumbnailStore ?? ((databasePath?: string) => createWritableLegacyThumbnailStore(
+      databasePath,
+      { resourceScheduler: options.resourceScheduler },
+    ))
     const ownedThumbnailStore = new LazyReaderThumbnailStore({
       load: () => loadThumbnailStore(options.legacyThumbnailDatabasePath || undefined),
       dispose: disposeLoadedThumbnailStore,
@@ -314,6 +354,9 @@ export async function createReaderHttpController(
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
     viewDefaults: runtimeConfig.viewDefaults,
+    pageList: runtimeConfig.pageList,
+    bookmarkList: runtimeConfig.bookmarkList,
+    historyList: runtimeConfig.historyList,
     folderView: runtimeConfig.folderView,
     fileTree: runtimeConfig.fileTree,
     slideshow: runtimeConfig.slideshow,
@@ -326,6 +369,24 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).shellOptions
+    },
+    updateHistoryList: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).historyList
+    },
+    updateBookmarkList: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).bookmarkList
+    },
+    updatePageList: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).pageList
     },
     updateViewDefaults: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
@@ -696,7 +757,7 @@ function isReaderBookSettingsStore(store: ReaderProgressStore | undefined): stor
     && typeof (store as Partial<ReaderBookSettingsStore>).importBookSettings === "function")
 }
 
-function isReaderEmmOverrideStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderEmmOverrideStore {
+function isReaderEmmOverrideStore(store: unknown): store is ReaderEmmOverrideStore {
   return Boolean(store
     && typeof (store as Partial<ReaderEmmOverrideStore>).getEmmOverride === "function"
     && typeof (store as Partial<ReaderEmmOverrideStore>).saveEmmOverride === "function")
