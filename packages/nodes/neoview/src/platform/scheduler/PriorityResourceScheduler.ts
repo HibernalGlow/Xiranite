@@ -18,7 +18,7 @@ export interface PriorityResourceSchedulerOptions {
   reservedInteractive?: number
 }
 
-export class PriorityResourceScheduler implements ResourceScheduler {
+export class PriorityResourceScheduler implements ResourceScheduler, AsyncDisposable {
   readonly #maxConcurrent: number
   readonly #reservedInteractive: number
   readonly #queues: Record<ResourcePriority, WaitingTask[]> = {
@@ -28,6 +28,7 @@ export class PriorityResourceScheduler implements ResourceScheduler {
     background: [],
   }
   #active = 0
+  #closed = false
 
   constructor(options: PriorityResourceSchedulerOptions = {}) {
     this.#maxConcurrent = boundedInteger(options.maxConcurrent ?? 2, "maxConcurrent", 1, 64)
@@ -49,6 +50,7 @@ export class PriorityResourceScheduler implements ResourceScheduler {
   }
 
   acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease> {
+    if (this.#closed) return Promise.reject(resourceSchedulerClosedError())
     signal?.throwIfAborted()
     return new Promise<ResourceLease>((resolve, reject) => {
       const waiting: WaitingTask = { request, resolve, reject, signal }
@@ -66,7 +68,25 @@ export class PriorityResourceScheduler implements ResourceScheduler {
     })
   }
 
+  close(): void {
+    if (this.#closed) return
+    this.#closed = true
+    const error = resourceSchedulerClosedError()
+    for (const queue of Object.values(this.#queues)) {
+      for (const waiting of queue.splice(0)) {
+        waiting.signal?.removeEventListener("abort", waiting.abort!)
+        waiting.reject(error)
+      }
+    }
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    this.close()
+    return Promise.resolve()
+  }
+
   #drain(): void {
+    if (this.#closed) return
     while (this.#active < this.#maxConcurrent) {
       const interactive = this.#queues.interactive.shift()
       if (interactive) {
@@ -97,6 +117,10 @@ export class PriorityResourceScheduler implements ResourceScheduler {
       },
     })
   }
+}
+
+function resourceSchedulerClosedError(): DOMException {
+  return new DOMException("Resource scheduler is closed.", "AbortError")
 }
 
 export const defaultImageTransformScheduler = new PriorityResourceScheduler({
