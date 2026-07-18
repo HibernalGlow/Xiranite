@@ -11,6 +11,18 @@ afterEach(() => {
 })
 
 describe("PreloadStatusCard", () => {
+  it("[neoview.preload-status.inactive-zero-work] keeps the summary shell without polling while hidden", async () => {
+    const diagnostics = vi.fn(async () => diagnosticsDto())
+    const session = sessionDto()
+    const view = render(<PreloadStatusCard {...panelContext(diagnostics, session, false)} />)
+
+    expect(view.container.querySelector('[data-preload-empty="true"]')).toBeTruthy()
+    expect(diagnostics).not.toHaveBeenCalled()
+
+    view.rerender(<PreloadStatusCard {...panelContext(diagnostics, session, true)} />)
+    await waitFor(() => expect(diagnostics).toHaveBeenCalledOnce())
+  })
+
   it("[neoview.preload-status.resident] keeps the legacy summary shell visible before a Reader session exists", () => {
     const view = render(<PreloadStatusCard {...panelContext(vi.fn(async () => diagnosticsDto()), undefined)} />)
 
@@ -257,6 +269,7 @@ describe("PreloadStatusCard", () => {
 function panelContext(
   diagnostics: NonNullable<ReaderHttpClient["diagnostics"]>,
   session?: ReaderSessionDto,
+  panelActive = true,
 ) {
   return {
     session,
@@ -265,6 +278,7 @@ function panelContext(
       updateSlideshow: vi.fn(), open: vi.fn(), listPages: vi.fn(), navigate: vi.fn(), goTo: vi.fn(), updateSessionOptions: vi.fn(), close: vi.fn(), diagnostics,
     } satisfies ReaderHttpClient,
     disabled: false,
+    panelActive,
     onGoTo: vi.fn(),
   }
 }
