@@ -57,6 +57,7 @@ import { executeReaderInputAction } from "../features/input/ReaderInputActionExe
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
 import { createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
+import { ReaderVideoController, type ReaderVideoRuntimeConfig } from "../features/video/ReaderVideoController"
 import { migrateLegacyReaderPageTransition } from "../features/page-transition/LegacyReaderPageTransitionMigration"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
@@ -228,6 +229,7 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
+  const [videoController] = useState(() => new ReaderVideoController())
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const [shellControlStore] = useState(() => createReaderShellControlStore({
     edges: {
@@ -266,6 +268,7 @@ export function ReaderApp({
     slideshow.dispose()
     colorFilter.dispose()
     pageTransition.dispose()
+    videoController.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
   }, [])
@@ -273,6 +276,8 @@ export function ReaderApp({
   useEffect(() => {
     const controller = new AbortController()
     void clientRef.current.config(controller.signal).then((config) => {
+      const media = (config as typeof config & { media?: ReaderVideoRuntimeConfig }).media
+      if (media) videoController.configure(media)
       if (viewDefaultsGenerationRef.current === 0) {
         viewDefaultsRef.current = config.viewDefaults
         confirmedViewDefaultsRef.current = config.viewDefaults
@@ -590,6 +595,7 @@ export function ReaderApp({
       closeFile: closeSession,
       openSettings: () => setSettingsOpen(true),
       openRadialMenu,
+      video: videoController,
       slideshow: {
         toggle: () => slideshow.toggle(),
         stop: () => slideshow.stop(),
@@ -1099,7 +1105,14 @@ export function ReaderApp({
             </div>
           ) : (
             <Suspense fallback={null}>
-              <LazyReaderFrame pages={session.visiblePages} presentation={presentation} colorFilter={colorFilter} pageTransition={pageTransition} />
+              <LazyReaderFrame
+                pages={session.visiblePages}
+                presentation={presentation}
+                colorFilter={colorFilter}
+                pageTransition={pageTransition}
+                videoController={videoController}
+                onVideoListEnded={() => void navigate("next")}
+              />
             </Suspense>
           )}
           {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}

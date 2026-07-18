@@ -20,8 +20,31 @@ describe("ReaderInputActionExecutor", () => {
     expect(controls.slideshow.skip).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.bindings.action-capability] reports unsupported migrated actions for a later provider", () => {
+  it("[neoview.bindings.video-actions] routes all video actions and remaps page actions in seek mode", () => {
     const controls = fixture()
+    vi.mocked(controls.video!.isSeekMode).mockReturnValue(true)
+    expect(executeReaderInputAction("video.play-pause", controls)).toBe(true)
+    executeReaderInputAction("video.seek-forward", controls)
+    executeReaderInputAction("video.seek-backward", controls)
+    executeReaderInputAction("video.toggle-mute", controls)
+    executeReaderInputAction("video.cycle-loop-mode", controls)
+    executeReaderInputAction("video.volume-up", controls)
+    executeReaderInputAction("video.volume-down", controls)
+    executeReaderInputAction("video.speed-up", controls)
+    executeReaderInputAction("video.speed-down", controls)
+    executeReaderInputAction("video.toggle-speed", controls)
+    executeReaderInputAction("video.toggle-seek-mode", controls)
+    expect(controls.video?.seek).toHaveBeenNthCalledWith(1, 1)
+    expect(controls.video?.seek).toHaveBeenNthCalledWith(2, -1)
+    executeReaderInputAction("reader.next-page", controls)
+    executeReaderInputAction("reader.page-left", controls)
+    expect(controls.video?.seek).toHaveBeenNthCalledWith(3, 1)
+    expect(controls.video?.seek).toHaveBeenNthCalledWith(4, -1)
+  })
+
+  it("[neoview.bindings.action-capability] reports unsupported actions without their provider", () => {
+    const controls = fixture()
+    controls.video = undefined
     expect(executeReaderInputAction("video.play-pause", controls)).toBe(false)
     expect(executeReaderInputAction("upscale.toggle-auto", controls)).toBe(false)
   })
@@ -48,6 +71,18 @@ function fixture(): ReaderInputActionControls & Record<"navigate" | "goTo" | "sw
     closeFile: vi.fn(),
     openSettings: vi.fn(),
     openRadialMenu: vi.fn(),
+    video: {
+      hasActiveVideo: vi.fn(() => true),
+      isSeekMode: vi.fn(() => false),
+      playPause: vi.fn(() => true),
+      seek: vi.fn(() => true),
+      toggleMute: vi.fn(() => true),
+      cycleLoopMode: vi.fn(() => true),
+      adjustVolume: vi.fn(() => true),
+      adjustSpeed: vi.fn(() => true),
+      toggleSpeed: vi.fn(() => true),
+      toggleSeekMode: vi.fn(() => true),
+    },
     slideshow: { toggle: vi.fn(), stop: vi.fn(), skip: vi.fn() },
   }
 }
