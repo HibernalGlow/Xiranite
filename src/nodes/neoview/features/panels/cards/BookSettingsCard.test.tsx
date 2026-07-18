@@ -140,6 +140,19 @@ describe("BookSettingsCard", () => {
     view.unmount()
     expect(signal?.aborted).toBe(true)
   })
+  it("[neoview.card.book-settings.inactive-zero-work] skips settings reads while hidden and resumes after activation", async () => {
+    const bookSettings = vi.fn(() => new Promise<ReaderBookSettingsSnapshotDto>(() => undefined))
+    const client = clientWith({ bookSettings })
+    const current = context(client, vi.fn())
+    const view = render(<BookSettingsPanelCard {...current} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(bookSettings).not.toHaveBeenCalled()
+
+    view.rerender(<BookSettingsPanelCard {...current} panelActive />)
+    expect(await screen.findByLabelText("正在加载本书设置")).toBeTruthy()
+    expect(bookSettings).toHaveBeenCalledOnce()
+  })
 })
 
 function context(client: ReaderHttpClient, onBookSettingsUpdated: ReturnType<typeof vi.fn>) {

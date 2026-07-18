@@ -36,6 +36,7 @@ export const BOOK_SETTINGS_CAPABILITY_AUDIT = [
 ] as const
 
 export default function BookSettingsPanelCard(context: ReaderPanelContext) {
+  if (context.panelActive === false) return <ReaderCardEmptyState />
   if (!context.session) return <ReaderCardEmptyState>打开书本后编辑本书设置</ReaderCardEmptyState>
   return <ConnectedBookSettingsCard key={context.session.sessionId} context={context} sessionId={context.session.sessionId} />
 }
