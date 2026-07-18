@@ -20,7 +20,10 @@ type VisibleBookmarks = { listId: string; items: readonly ReaderBookmarkDto[] }
 
 const LazyBookmarkContextActions = lazy(() => import("./bookmark/BookmarkContextActions"))
 
-export default function BookmarkListCard({ client, disabled, onOpen, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
+/**
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/bookmark/BookmarkListCard.tsx
+ */
+export default function BookmarkListCard({ client, disabled, panelActive = true, onOpen, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
   const [lists, setLists] = useState<readonly ReaderBookmarkListDto[]>([])
   const [listsReady, setListsReady] = useState(false)
   const [activeListId, setActiveListId] = useState(() => bookmarkListPreferences?.activeListId ?? "all")
@@ -46,21 +49,30 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
   )
   const activeList = lists.find((list) => list.id === activeListId)
   const editableLists = lists.filter((list) => list.id !== "all" && list.id !== "favorites")
-  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" || visibleBookmarks.listId !== activeListId ? [] : visibleBookmarks.items.map((item) => ({
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" || !panelActive || visibleBookmarks.listId !== activeListId ? [] : visibleBookmarks.items.map((item) => ({
     id: item.id,
     path: item.source.path,
     kind: item.kind,
     previewCount: item.kind === "folder" ? 4 : 1,
-  })), [activeListId, viewMode, visibleBookmarks])
+  })), [activeListId, panelActive, viewMode, visibleBookmarks])
   const thumbnails = useReaderLibraryThumbnails(client, `bookmark:${activeListId}`, thumbnailItems)
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
+    if (!panelActive) return Promise.resolve<readonly ReaderBookmarkDto[]>([])
     if (!client.listBookmarks) return Promise.reject(new Error("当前后端不支持书签"))
     return client.listBookmarks(offset, limit, activeListId, signal)
-  }, [activeListId, client])
-
-  useEffect(() => subscribeReaderLibraryMutations(() => setRevision((value) => value + 1)), [])
+  }, [activeListId, client, panelActive])
 
   useEffect(() => {
+    if (!panelActive) return
+    return subscribeReaderLibraryMutations(() => setRevision((value) => value + 1))
+  }, [panelActive])
+
+  useEffect(() => {
+    if (!panelActive) {
+      setLists([])
+      setListsReady(false)
+      return
+    }
     if (!client.listBookmarkLists) return
     const controller = new AbortController()
     void client.listBookmarkLists(controller.signal).then((value) => {
@@ -79,10 +91,10 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
       if (!controller.signal.aborted) setActionError(errorMessage(error))
     })
     return () => controller.abort()
-  }, [client, revision])
+  }, [client, panelActive, revision])
 
   useEffect(() => {
-    if (!listsReady || !onBookmarkListPreferences) return
+    if (!panelActive || !listsReady || !onBookmarkListPreferences) return
     const configured = bookmarkListPreferences?.activeListId ?? "all"
     const next = lists.some((list) => list.id === configured) ? configured : "all"
     setActiveListId(next)
@@ -91,7 +103,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     if (next !== configured) {
       void onBookmarkListPreferences({ activeListId: next }).catch((error) => setActionError(errorMessage(error)))
     }
-  }, [bookmarkListPreferences?.activeListId, lists, listsReady, onBookmarkListPreferences])
+  }, [bookmarkListPreferences?.activeListId, lists, listsReady, onBookmarkListPreferences, panelActive])
 
   const handleLoadedItems = useCallback((items: readonly ReaderBookmarkDto[]) => {
     setLoadedBookmarks(items)
@@ -253,8 +265,18 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
     }
   }
 
+  if (!panelActive) {
+    return (
+      <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true" data-bookmark-state="inactive" data-testid="bookmark-card">
+        <div className="grid min-h-24 place-items-center rounded border bg-background/60 px-3 py-4 text-center text-xs text-muted-foreground" data-bookmark-empty-shell="true">
+          暂无书签
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true" data-selection-count={selectedIds.size} data-bookmark-view-mode={viewMode} data-visible-bookmarks={visibleBookmarks.items.length} data-thumbnail-items={thumbnailItems.length}>
+    <div className="grid min-h-0 gap-2" data-neoview-bookmark-card="true" data-testid="bookmark-card" data-bookmark-state="ready" data-selection-count={selectedIds.size} data-bookmark-view-mode={viewMode} data-visible-bookmarks={visibleBookmarks.items.length} data-thumbnail-items={thumbnailItems.length}>
       <Suspense fallback={null}>
         <LazyBookmarkContextActions
           client={client}
