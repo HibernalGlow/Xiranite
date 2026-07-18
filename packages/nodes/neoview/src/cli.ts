@@ -87,6 +87,7 @@ const COMMANDS = new Set([
   "folder-tree", "folder-search", "folder-emm-tags", "folder-emm-edit", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
   "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-open", "file-reveal", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
+  "explorer-context-menu-preview", "explorer-context-menu-status", "explorer-context-menu-enable", "explorer-context-menu-disable",
 ])
 const VALUE_FLAGS = new Set([
   "--entry",
@@ -359,6 +360,10 @@ export async function runProgram(
   if (command === "settings-backup-inspect" || command === "settings-backup-restore") {
     if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one backup bundle directory.`)
     await runSettingsBackupRead(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
+    return
+  }
+  if (command.startsWith("explorer-context-menu-")) {
+    await runExplorerContextMenuCommand(command, parsed, host, dependencies)
     return
   }
   const path = parsed.positionals[0]
@@ -1377,6 +1382,29 @@ async function runLibraryCommand(
   } finally {
     await controller[Symbol.asyncDispose]()
   }
+}
+
+async function runExplorerContextMenuCommand(
+  command: string,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (parsed.positionals.length) throw usage(`${command} does not accept paths.`)
+  const mutating = command === "explorer-context-menu-enable" || command === "explorer-context-menu-disable"
+  if (mutating && !parsed.booleans.has("--yes")) throw usage(`${command} requires --yes.`)
+  const createService = dependencies.createSystemIntegrationService ?? (async () => {
+    const { createReaderSystemIntegrationService } = await import("./platform.js")
+    return createReaderSystemIntegrationService()
+  })
+  const service = await createService()
+  const result = command === "explorer-context-menu-preview"
+    ? await service.explorerContextMenuPreview()
+    : command === "explorer-context-menu-status"
+      ? await service.explorerContextMenuStatus()
+      : await service.explorerContextMenuSetEnabled(command === "explorer-context-menu-enable")
+  if (parsed.booleans.has("--json")) writeJson(host, result)
+  else writeLine(host, JSON.stringify(result))
 }
 
 async function runFileOperationCommand(
@@ -2688,6 +2716,10 @@ function formatCliHelp(): string {
     "  file-undo-discard                Discard a stale latest undo transaction (--yes)",
     "  file-undo-state                  Show persistent undo capability and state",
     "  directory-create <path...>       Create directories",
+    "  explorer-context-menu-preview    Preview the Windows Explorer registration",
+    "  explorer-context-menu-status     Show Explorer registration status",
+    "  explorer-context-menu-enable     Enable Explorer registration (--yes)",
+    "  explorer-context-menu-disable    Disable Explorer registration (--yes)",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
     "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",

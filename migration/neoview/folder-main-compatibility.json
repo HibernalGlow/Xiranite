@@ -1228,7 +1228,9 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.folder.banner-density"
+      ],
       "plannedTestIds": [
         "neoview.folder.view-compact",
         "neoview.folder.view-cover-list",

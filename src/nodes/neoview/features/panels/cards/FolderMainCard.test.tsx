@@ -1077,6 +1077,43 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.nav-visit-renderer] keeps the renderer mounted when the same visit receives a new generation", async () => {
+    const entries = [
+      { name: "folder", path: "C:/A/folder", kind: "directory" as const, readerSupported: true },
+      { name: "book.cbz", path: "C:/A/book.cbz", kind: "file" as const, readerSupported: true },
+    ]
+    const opened = page({ path: "C:/A", entries, total: entries.length, navigationEntryId: 1 })
+    const refreshed = page({ ...opened, generation: 2 })
+    const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 144 }}>
+        <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/A" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoGridMockContext.Provider>
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    await ui.findByTitle("C:/A/folder")
+    selectFolderViewMode(ui, "\u5c01\u9762\u7f51\u683c")
+    await waitFor(() => expect(view.container.querySelector('[data-folder-navigation-entry-id="1"]')).toBeTruthy())
+    const renderer = view.container.querySelector('[data-folder-navigation-entry-id="1"]')
+
+    fireEvent.click(ui.getByRole("button", { name: "\u5237\u65b0" }))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "refresh" },
+      expect.any(AbortSignal),
+      undefined,
+    ))
+    await waitFor(() => expect(ui.getByTitle("C:/A/book.cbz")).toBeTruthy())
+    expect(view.container.querySelector('[data-folder-navigation-entry-id="1"]')).toBe(renderer)
+  })
+
   it("[neoview.folder.thumbnail-refresh-ui] refreshes only visible thumbnails through the action handle", async () => {
     const opened = page({
       entries: [

@@ -164,7 +164,7 @@ interface DirectoryGridItemProps {
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }
 
-function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
+export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
@@ -192,11 +192,12 @@ function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused
           ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
           : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
-      <span className="grid min-w-0 content-center gap-1 px-2 py-1.5">
-        <span className="truncate font-medium">{entry.name}</span>
-        <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span>
-        <FolderEntryFileMetadata entry={entry} />
-        <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
+      <span className="grid min-w-0 content-center gap-0.5 px-2 py-1.5" data-folder-entry-info="two-line">
+        <span className="truncate font-medium" data-folder-entry-line="name">{entry.name}</span>
+        <span className="flex min-w-0 items-center gap-1" data-folder-entry-line="metadata">
+          <FolderEntryFileMetadata entry={entry} className="min-w-0" />
+          <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="min-w-0" />
+        </span>
       </span>
     </button>
     </FolderHoverPreview>
