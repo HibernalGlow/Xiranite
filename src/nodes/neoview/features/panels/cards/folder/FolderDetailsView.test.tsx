@@ -34,6 +34,8 @@ describe("FolderDetailsView", () => {
     )
 
     const tableHost = screen.getByTestId("folder-details-host")
+    expect(tableHost.className).toContain("h-full")
+    expect(tableHost.className).toContain("min-h-0")
     expect(tableHost.getAttribute("data-table-engine")).toBe("niko-sparse")
     for (const heading of ["名称", "路径", "类型", "扩展名", "大小", "修改时间", "尺寸", "页数", "评分", "标签"]) {
       expect(within(tableHost).getByText(heading)).toBeTruthy()
