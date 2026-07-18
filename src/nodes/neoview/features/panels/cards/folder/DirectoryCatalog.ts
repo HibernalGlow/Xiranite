@@ -1,5 +1,6 @@
 import type {
   ReaderDirectoryEntryDto,
+  ReaderDirectoryFilterDto,
   ReaderDirectoryMetadataFieldDto,
   ReaderDirectoryPageDto,
   ReaderDirectorySortDto,
@@ -21,6 +22,8 @@ export interface DirectoryCatalog {
   generation: number
   canGoBack: boolean
   canGoForward: boolean
+  filter: ReaderDirectoryFilterDto
+  filterOptions: readonly ReaderDirectoryFilterDto[]
   sort: ReaderDirectorySortDto
   sortFields: readonly ReaderDirectorySortFieldDto[]
   metadataFields: readonly ReaderDirectoryMetadataFieldDto[]
@@ -86,6 +89,8 @@ export function createDirectoryCatalog(page: ReaderDirectoryPageDto): DirectoryC
     generation: page.generation,
     canGoBack: page.canGoBack,
     canGoForward: page.canGoForward,
+    filter: page.filter ?? "all",
+    filterOptions: page.filterOptions ?? ["all", "archive", "directory", "video"],
     sort: page.sort,
     sortFields: page.sortFields,
     metadataFields: page.metadataFields,

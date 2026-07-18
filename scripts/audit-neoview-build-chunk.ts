@@ -248,6 +248,8 @@ const folderGridWorkspaceChunk = deferredPanelChunks.find((chunk) => chunk.modul
 const folderChromeLayoutChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderChromeLayout\.tsx$/i.test(module)))
 const folderSelectionBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSelectionBar\.tsx$/i.test(module)))
 const folderClipboardChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderClipboard\.tsx$/i.test(module)))
+// [neoview.folder.filter-chunk]
+const folderTypeFilterBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTypeFilterBar\.tsx$/i.test(module)))
 const folderContextActionsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderContextActions\.tsx$/i.test(module)))
 const folderRenameDialogChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderRenameDialog\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
@@ -277,6 +279,12 @@ if (!folderClipboardChunk || folderClipboardChunk === folderMainChunk || folderC
 }
 if (folderClipboardChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView Folder clipboard chunk ${folderClipboardChunk.fileName} is ${folderClipboardChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!folderTypeFilterBarChunk || folderTypeFilterBarChunk === folderMainChunk || folderTypeFilterBarChunk === readerSidebarChunk || folderTypeFilterBarChunk === neoViewChunk || folderTypeFilterBarChunk === initialChunk) {
+  throw new Error("NeoView Folder type filter bar did not produce a second-level deferred production chunk.")
+}
+if (folderTypeFilterBarChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView Folder type filter bar chunk ${folderTypeFilterBarChunk.fileName} is ${folderTypeFilterBarChunk.bytes} bytes, above 8 KiB.`)
 }
 if (!folderContextActionsChunk || folderContextActionsChunk === folderMainChunk || folderContextActionsChunk === readerSidebarChunk || folderContextActionsChunk === neoViewChunk || folderContextActionsChunk === initialChunk) {
   throw new Error("NeoView Folder context actions did not produce a second-level deferred production chunk.")
@@ -382,6 +390,7 @@ console.log(JSON.stringify({
   sidebarFloatingControllerChunk: { fileName: sidebarFloatingControllerChunk.fileName, bytes: sidebarFloatingControllerChunk.bytes },
   folderGridWorkspaceChunk: { fileName: folderGridWorkspaceChunk.fileName, bytes: folderGridWorkspaceChunk.bytes },
   folderClipboardChunk: { fileName: folderClipboardChunk.fileName, bytes: folderClipboardChunk.bytes },
+  folderTypeFilterBarChunk: { fileName: folderTypeFilterBarChunk.fileName, bytes: folderTypeFilterBarChunk.bytes },
   folderSearchChunk: { fileName: folderSearchChunk.fileName, bytes: folderSearchChunk.bytes },
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },

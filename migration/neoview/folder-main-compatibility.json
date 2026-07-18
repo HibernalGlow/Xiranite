@@ -2054,7 +2054,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
         "evidence": "partial"
@@ -2074,10 +2074,15 @@
         "neoview.folder.filter-tui",
         "neoview.folder.filter-library-tui",
         "neoview.folder.tui",
-        "neoview.library.tui"
+        "neoview.library.tui",
+        "neoview.folder.filter-client",
+        "neoview.folder.filter-catalog",
+        "neoview.folder.filter-ui",
+        "neoview.folder.filter-e2e",
+        "neoview.folder.filter-chunk"
       ],
       "plannedTestIds": [],
-      "notes": "后端已在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，递归搜索继承同一 filter 并保留原 AsyncIterable 背压/取消链，archive helper 与 TOML media registry 是唯一分类源。History/Bookmark 虚拟源通过同一领域 filter 在 SQLite LIMIT/OFFSET 前筛选，EPUB 归入 archive，bookmark list membership 与 filter 使用括号化 predicate 安全组合；HTTP、Headless、CLI 和 OpenTUI 均复用同一契约。TypeFilterBar GUI 与虚拟源前端接线仍待另一 GUI 纵切完成。"
+      "notes": "后端在稳定 listing 分页前应用 all/archive/directory/video session filter；切换不重扫磁盘，状态随 clone/reopen/导航保留，递归搜索继承同一 filter 并保留原 AsyncIterable 背压/取消链，archive helper 与 TOML media registry 是唯一分类源。History/Bookmark 虚拟源通过同一领域 filter 在 SQLite LIMIT/OFFSET 前筛选，EPUB 归入 archive，bookmark list membership 与 filter 使用括号化 predicate 安全组合；HTTP、Headless、CLI 和 OpenTUI 均复用同一契约。GUI 复刻旧 TypeFilterBar 的工具栏下方内联层级、全部/压缩包/文件夹/视频顺序、图标与 active 状态，旧 UI 的 folder 值只在呈现层映射为规范 directory；作为明确改良，普通当前目录也使用相同筛选而不再仅限虚拟源。切换只 PATCH 当前 browser session，清除 generation-bound 稀疏选择并复用 Card/阅读图片实例。desktop/420x360 Chromium 真实目录验证四种类型和严格四次 PATCH；独立二级 lazy chunk 由 8 KiB 门禁约束。原版截图像素 characterization 仍使 evidence 保持 partial。"
     },
     {
       "id": "folder.tree.panel",

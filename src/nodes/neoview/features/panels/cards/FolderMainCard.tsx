@@ -6,7 +6,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, ClipboardPaste, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CheckSquare, ClipboardPaste, Filter, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,7 @@ import { Slider } from "@/components/ui/slider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type {
   ReaderDirectoryEntryDto,
+  ReaderDirectoryFilterDto,
   ReaderDirectoryMetadataFieldDto,
   ReaderDirectoryNavigationDto,
   ReaderDirectoryPageDto,
@@ -149,6 +150,7 @@ const FolderTabsHost = lazy(() => import("./folder/FolderTabsHost"))
 const FolderChromeLayout = lazy(() => import("./folder/FolderChromeLayout"))
 const FolderSelectionBar = lazy(() => import("./folder/FolderSelectionBar"))
 const FolderContextActions = lazy(() => import("./folder/FolderContextActions"))
+const FolderTypeFilterBar = lazy(() => import("./folder/FolderTypeFilterBar"))
 
 export interface SavedDirectoryState {
   total?: number
@@ -219,6 +221,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const navigationStatesRef = useRef(new Map<number, SavedDirectoryState>())
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [searchOpen, setSearchOpen] = useState(false)
+  const [filterBarOpen, setFilterBarOpen] = useState(false)
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
   const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
   const [treeSize, setTreeSize] = useState(folderView.tree.size)
@@ -474,27 +477,31 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setFocusedPath(restored.focusedPath)
   }
 
-  async function updateSort(sort: ReaderDirectorySortDto) {
+  async function updateCatalogProjection(
+    request: (sessionId: string, focusPath: string | undefined, signal: AbortSignal | undefined) => Promise<ReaderDirectoryPageDto>,
+    resetSelection = false,
+  ) {
     const sessionId = sessionIdRef.current
     const current = catalogRef.current
-    if (!sessionId || !current || !client.sortDirectoryBrowser) return
+    if (!sessionId || !current) return
     captureCurrentState()
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
     try {
-      const result = await client.sortDirectoryBrowser(sessionId, sort, focusedPath, navigationRequestRef.current?.signal)
+      const result = await request(sessionId, focusedPath, navigationRequestRef.current?.signal)
       if (generation !== navigationGenerationRef.current) return
-      const focusIndex = result.suggestedSelection?.index
+      const suggested = result.suggestedSelection
       applyPage(result, {
         total: result.total,
         viewMode,
         previewCount,
         multiSelectMode,
-        selection: rebaseDirectorySelection(selection, result.generation),
-        focusedPath,
-        focusedIndex: focusIndex,
-        anchorIndex: focusIndex ?? 0,
+        selection: resetSelection ? createDirectorySelection(result.generation) : rebaseDirectorySelection(selection, result.generation),
+        focusedPath: resetSelection ? suggested?.path : focusedPath,
+        focusedIndex: suggested?.index,
+        anchorIndex: suggested?.index ?? 0,
+        thumbnailUrls,
       })
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
@@ -503,38 +510,23 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     }
   }
 
-  async function updateSortPreference(command: ReaderDirectorySortPreferenceCommandDto) {
-    const sessionId = sessionIdRef.current
+  async function updateSort(sort: ReaderDirectorySortDto) {
+    const applySort = client.sortDirectoryBrowser
+    if (!applySort) return
+    await updateCatalogProjection((sessionId, focusPath, signal) => applySort(sessionId, sort, focusPath, signal))
+  }
+
+  async function updateFilter(filter: ReaderDirectoryFilterDto) {
+    const applyFilter = client.filterDirectoryBrowser
     const current = catalogRef.current
-    if (!sessionId || !current || !client.updateDirectorySortPreference) return
-    captureCurrentState()
-    const generation = beginNavigation()
-    setLoading(true)
-    setError(undefined)
-    try {
-      const result = await client.updateDirectorySortPreference(
-        sessionId,
-        command,
-        focusedPath,
-        navigationRequestRef.current?.signal,
-      )
-      if (generation !== navigationGenerationRef.current) return
-      const focusIndex = result.suggestedSelection?.index
-      applyPage(result, {
-        total: result.total,
-        viewMode,
-        previewCount,
-        multiSelectMode,
-        selection: rebaseDirectorySelection(selection, result.generation),
-        focusedPath,
-        focusedIndex: focusIndex,
-        anchorIndex: focusIndex ?? 0,
-      })
-    } catch (cause) {
-      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
-    } finally {
-      if (generation === navigationGenerationRef.current) setLoading(false)
-    }
+    if (!applyFilter || !current || filter === current.filter) return
+    await updateCatalogProjection((sessionId, focusPath, signal) => applyFilter(sessionId, filter, focusPath, signal), true)
+  }
+
+  async function updateSortPreference(command: ReaderDirectorySortPreferenceCommandDto) {
+    const applyPreference = client.updateDirectorySortPreference
+    if (!applyPreference) return
+    await updateCatalogProjection((sessionId, focusPath, signal) => applyPreference(sessionId, command, focusPath, signal))
   }
 
   function requestRange(range: ListRange) {
@@ -1023,6 +1015,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           </BrowserButton>
           <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={toggleTree}><ListTree /></BrowserButton>
           <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search /></BrowserButton>
+          <BrowserButton label="类型筛选" disabled={!catalog || loading || !client.filterDirectoryBrowser} active={filterBarOpen} onClick={() => setFilterBarOpen((current) => !current)}><Filter /></BrowserButton>
           <FolderNavigationSettingsControl
             value={folderView.emptyArea}
             disabled={!catalog || loading}
@@ -1030,6 +1023,16 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           />
           <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
         </div>
+        {catalog && filterBarOpen ? (
+          <Suspense fallback={<div className="h-8 border-t border-border/50" aria-label="正在加载类型筛选" />}>
+            <FolderTypeFilterBar
+              value={catalog.filter}
+              options={catalog.filterOptions}
+              disabled={disabled || loading}
+              onChange={(filter) => { void updateFilter(filter) }}
+            />
+          </Suspense>
+        ) : null}
         <div className="flex min-w-0 items-center gap-1">
           <ToggleGroup
             type="single"

@@ -1394,6 +1394,55 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-preview-mode="mosaic-list"]')).toBeTruthy()
   })
 
+  it("[neoview.folder.filter-ui] filters the current directory through the existing browser session", async () => {
+    const opened = page({
+      total: 3,
+      filter: "all",
+      filterOptions: ["all", "archive", "directory", "video"],
+      entries: [
+        { name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true },
+        { name: "folder", path: "C:/books/folder", kind: "directory", readerSupported: true },
+        { name: "clip.mp4", path: "C:/books/clip.mp4", kind: "file", readerSupported: true },
+      ],
+    })
+    const filtered = page({
+      generation: 2,
+      total: 1,
+      filter: "archive",
+      filterOptions: ["all", "archive", "directory", "video"],
+      entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }],
+    })
+    const openDirectoryBrowser = vi.fn(async () => opened)
+    const filterDirectoryBrowser = vi.fn(async () => filtered)
+    const client = {
+      openDirectoryBrowser,
+      filterDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    await ui.findByTitle("C:/books/clip.mp4")
+    fireEvent.click(ui.getByRole("button", { name: "类型筛选" }))
+    fireEvent.click(await ui.findByRole("button", { name: "压缩包" }))
+
+    await waitFor(() => expect(filterDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      "archive",
+      undefined,
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-total")).toBe("1"))
+    expect(ui.getByRole("button", { name: "压缩包" }).getAttribute("aria-pressed")).toBe("true")
+    expect(ui.getByTitle("C:/books/book.cbz")).toBeTruthy()
+    expect(ui.queryByTitle("C:/books/clip.mp4")).toBeNull()
+    expect(openDirectoryBrowser).toHaveBeenCalledTimes(1)
+  })
+
   it("[neoview.folder.blank-action-ui] gives a double-click precedence over the pending single-click action", async () => {
     const opened = page({
       path: "C:/books/child",
