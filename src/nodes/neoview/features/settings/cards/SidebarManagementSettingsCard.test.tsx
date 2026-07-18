@@ -54,6 +54,22 @@ describe("SidebarManagementSettingsCard", () => {
     view.rerender(<SidebarManagementSettingsCard shell={updated} onSave={vi.fn()} />)
     await waitFor(() => expect((screen.getByRole("combobox", { name: "历史记录位置" }) as HTMLSelectElement).value).toBe("right"))
   })
+  it("surfaces save failures and retries with the preserved panel draft", async () => {
+    const save = vi.fn()
+      .mockRejectedValueOnce(new Error("sidebar write failed"))
+      .mockResolvedValueOnce(undefined)
+    render(<SidebarManagementSettingsCard shell={shell()} onSave={save} />)
+
+    const saveButton = screen.getAllByRole("button").find((button) => button.querySelector("svg.lucide-save")) as HTMLButtonElement
+    expect(saveButton).toBeTruthy()
+    fireEvent.click(saveButton)
+    expect((await screen.findByRole("alert")).textContent).toContain("sidebar write failed")
+    await waitFor(() => expect(saveButton.disabled).toBe(false))
+
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
 })
 
 function shell(): ReaderShellConfigDto {
