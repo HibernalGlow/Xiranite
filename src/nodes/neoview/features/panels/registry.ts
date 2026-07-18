@@ -136,6 +136,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "preload-status": () => import("./cards/PreloadStatusCard"),
   "book-settings": () => import("./cards/BookSettingsCard"),
   "sidebar-control": () => import("./cards/SidebarControlCard"),
+  "thumbnail-maintenance": () => import("./cards/ThumbnailMaintenanceCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),

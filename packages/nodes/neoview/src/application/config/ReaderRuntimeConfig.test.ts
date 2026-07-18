@@ -486,6 +486,12 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
   })
 
+  it("[neoview.thumbnail-maintenance.layout] keeps maintenance hidden until explicitly docked", () => {
+    expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["thumbnail-maintenance"]).toEqual({
+      panelId: "control", visible: false, expanded: true, order: 1,
+    })
+  })
+
   it("[neoview.settings.card-patch] validates card state and writes canonical TOML", () => {
     expect(parseNeoviewCardLayoutPatch({ cardId: "page-navigation", expanded: false, height: 320 })).toEqual({
       patch: { cardId: "page-navigation", expanded: false, height: 320 },

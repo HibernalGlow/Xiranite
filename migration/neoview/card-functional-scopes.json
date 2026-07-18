@@ -42,7 +42,7 @@
     { "legacyId": "folderRatings", "capabilities": ["统计当前文件夹条目的评分分布与平均值", "区分默认评分和显式评分", "刷新、跳转或筛选相关条目"] },
     { "legacyId": "favoriteTags", "capabilities": ["显示收藏标签快捷项与计数", "搜索、选择和批量应用/移除标签", "管理收藏标签顺序和可见性"] },
     { "legacyId": "emmSync", "capabilities": ["配置并执行当前书籍/目录 EMM 同步", "显示扫描、匹配、写入、跳过和错误进度", "支持取消、重试和冲突策略"] },
-    { "legacyId": "thumbnailMaintenance", "capabilities": ["查看缩略图数据库状态", "扫描缺失/失效项并重建、清理或迁移", "显示可取消任务进度、空间回收和错误"] },
+    { "legacyId": "thumbnailMaintenance", "checklistRef": "migration/neoview/thumbnail-maintenance-compatibility.json", "capabilities": ["查看缩略图数据库状态", "扫描缺失/失效项并重建、清理或迁移", "显示可取消任务进度、空间回收和错误"] },
     { "legacyId": "thumbnailArchMetrics", "capabilities": ["展示缩略图请求、命中、生成、队列和缓存指标", "区分格式/来源/尺寸与冷热路径", "重置采样并保持监控有界"] },
     { "legacyId": "emmRawData", "capabilities": ["查看当前条目的原始 EMM 数据库字段和 JSON", "切换格式化/原始视图并复制数据", "刷新并清楚区分只读字段和可编辑入口"] },
     { "legacyId": "emmConfig", "capabilities": ["配置 EMM 数据库/setting 路径和启用状态", "配置评分、收藏与标签解析规则", "测试连接、显示兼容性并保存/重置"] },

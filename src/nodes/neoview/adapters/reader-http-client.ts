@@ -188,6 +188,40 @@ export interface ReaderStorageDiagnosticsDto {
   solidArchiveCache: { retainedBytes: number }
 }
 
+export interface ReaderThumbnailWriterSnapshotDto {
+  pendingWrites: number
+  flushing: boolean
+  committedBatches: number
+  committedWrites: number
+  busyRetries: number
+  failedBatches: number
+  lastError?: string
+}
+
+export interface ReaderThumbnailMaintenanceSnapshotDto {
+  totalRows: number
+  fileRows: number
+  folderRows: number
+  blobBytes: number
+  emptyBlobs: number
+  failedRows: number
+  failuresByReason: Readonly<Record<string, number>>
+  databaseBytes?: number
+  walBytes?: number
+  shmBytes?: number
+  writer: ReaderThumbnailWriterSnapshotDto
+}
+
+export type ReaderThumbnailCleanupCommandDto =
+  | { kind: "empty"; limit?: number }
+  | { kind: "expired"; days: number; limit?: number; preserveFolders: true }
+  | { kind: "invalid"; scanLimit?: number; limit?: number }
+
+export type ReaderThumbnailCleanupResultDto =
+  | { kind: "empty"; deleted: number }
+  | { kind: "expired"; deleted: number; cutoff: string }
+  | { kind: "invalid"; scanned: number; deleted: number; unavailableVolumeRowsPreserved: number; wrapped: boolean }
+
 export interface ReaderRecentDto {
   bookId: string
   source: ViewSource
@@ -702,6 +736,9 @@ export interface ReaderHttpClient {
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   preloadDiagnostics?(sessionId: string, signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
+  thumbnailMaintenance?(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshotDto>
+  cleanupThumbnails?(command: ReaderThumbnailCleanupCommandDto, signal?: AbortSignal): Promise<ReaderThumbnailCleanupResultDto>
+  clearThumbnailFailures?(limit?: number, signal?: AbortSignal): Promise<number>
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   executeFileOperations?(operations: readonly ReaderFileMutationDto[], confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileOperationBatchResultDto>
@@ -995,6 +1032,34 @@ export function createReaderHttpClient(
     pageMediaInformation: (sessionId, signal) => request<ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
     preloadDiagnostics: (sessionId, signal) => request<ReaderStorageDiagnosticsDto>(`/reader/diagnostics?sessionId=${encodeURIComponent(sessionId)}`, { signal }),
+    thumbnailMaintenance: (signal) => request<{ snapshot: ReaderThumbnailMaintenanceSnapshotDto }>(
+      "/reader/thumbnails/maintenance",
+      { signal },
+    ).then((value) => value.snapshot),
+    cleanupThumbnails: async (command, signal) => {
+      const response = await request<{
+        deleted?: number
+        cutoff?: string
+        result?: Omit<Extract<ReaderThumbnailCleanupResultDto, { kind: "invalid" }>, "kind">
+      }>("/reader/thumbnails/maintenance/cleanup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(command),
+        signal,
+      })
+      if (command.kind === "invalid") return { kind: command.kind, ...response.result! }
+      if (command.kind === "expired") return { kind: command.kind, deleted: response.deleted!, cutoff: response.cutoff! }
+      return { kind: command.kind, deleted: response.deleted! }
+    },
+    clearThumbnailFailures: (limit = 500, signal) => request<{ deleted: number }>(
+      "/reader/thumbnails/maintenance/failures/clear",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ limit }),
+        signal,
+      },
+    ).then((value) => value.deleted),
     openSystemPath: (path, signal) => request<void>("/reader/files/open", {
       method: "POST",
       headers: { "content-type": "application/json" },
