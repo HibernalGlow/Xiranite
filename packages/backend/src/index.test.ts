@@ -381,6 +381,61 @@ describe("backend", () => {
     }
   })
 
+  test("reads and clears the native file clipboard through authenticated routes", async () => {
+    const readClipboardFiles = vi.fn(async () => ["D:/Media/a.jpg", "D:/Media/b.jpg"])
+    const clearClipboardFiles = vi.fn(async () => undefined)
+    const backend = await startBackend({
+      token: "test-token",
+      repository: createMemoryWorkspaceRepository(),
+      readClipboardFiles,
+      clearClipboardFiles,
+    })
+    try {
+      const blocked = await fetch(`${backend.url}/local-files/clipboard`)
+      expect(blocked.status).toBe(401)
+
+      const listed = await fetch(`${backend.url}/local-files/clipboard?token=test-token`)
+      expect(listed.status).toBe(200)
+      expect(await listed.json()).toEqual({ available: true, paths: ["D:/Media/a.jpg", "D:/Media/b.jpg"] })
+      expect(readClipboardFiles).toHaveBeenCalledOnce()
+
+      const cleared = await fetch(`${backend.url}/local-files/clipboard?token=test-token`, { method: "DELETE" })
+      expect(cleared.status).toBe(200)
+      expect(await cleared.json()).toEqual({ available: true, cleared: true })
+      expect(clearClipboardFiles).toHaveBeenCalledOnce()
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("reports native clipboard unavailable without failing on non-Windows hosts", async () => {
+    const readClipboardFiles = vi.fn(async () => {
+      const { NativeFileClipboardUnavailableError } = await import("./fileClipboard.js")
+      throw new NativeFileClipboardUnavailableError()
+    })
+    const clearClipboardFiles = vi.fn(async () => {
+      const { NativeFileClipboardUnavailableError } = await import("./fileClipboard.js")
+      throw new NativeFileClipboardUnavailableError()
+    })
+    const backend = await startBackend({
+      token: "test-token",
+      repository: createMemoryWorkspaceRepository(),
+      readClipboardFiles,
+      clearClipboardFiles,
+    })
+    try {
+      const listed = await fetch(`${backend.url}/local-files/clipboard?token=test-token`)
+      expect(listed.status).toBe(200)
+      expect(await listed.json()).toEqual({ available: false, paths: [] })
+
+      const cleared = await fetch(`${backend.url}/local-files/clipboard?token=test-token`, { method: "DELETE" })
+      expect(cleared.status).toBe(200)
+      expect(await cleared.json()).toEqual({ available: false, cleared: false })
+    } finally {
+      backend.close()
+    }
+  })
+
   test("serves local audio files with range support and lists music entries", async () => {
     const dataDir = await createTempDataDir()
     const musicDir = join(dataDir, "music")

@@ -103,6 +103,43 @@ export async function copyLocalFilesToClipboard(paths: string[]): Promise<void> 
   if (!response.ok) throw new Error(await response.text().catch(() => `Native file clipboard returned ${response.status}.`))
 }
 
+export interface LocalFileClipboardState {
+  available: boolean
+  paths: string[]
+}
+
+export async function readLocalFilesFromClipboard(): Promise<LocalFileClipboardState> {
+  const config = resolveLocalBackendConfig()
+  const url = new URL("/local-files/clipboard", config.baseUrl)
+  if (config.token) url.searchParams.set("token", config.token)
+  const response = await fetch(url.href, {
+    cache: "no-store",
+    headers: config.token ? { "x-xiranite-token": config.token } : undefined,
+  })
+  if (!response.ok) throw new Error(await response.text().catch(() => `Native file clipboard returned ${response.status}.`))
+  const body = await response.json() as { available?: unknown; paths?: unknown }
+  return {
+    available: body.available === true,
+    paths: Array.isArray(body.paths)
+      ? body.paths.filter((path): path is string => typeof path === "string" && Boolean(path.trim()))
+      : [],
+  }
+}
+
+export async function clearLocalFilesClipboard(): Promise<boolean> {
+  const config = resolveLocalBackendConfig()
+  const url = new URL("/local-files/clipboard", config.baseUrl)
+  if (config.token) url.searchParams.set("token", config.token)
+  const response = await fetch(url.href, {
+    method: "DELETE",
+    cache: "no-store",
+    headers: config.token ? { "x-xiranite-token": config.token } : undefined,
+  })
+  if (!response.ok) throw new Error(await response.text().catch(() => `Native file clipboard returned ${response.status}.`))
+  const body = await response.json() as { available?: unknown; cleared?: unknown }
+  return body.available === true && body.cleared === true
+}
+
 export function isSupportedAudioPath(filePath: string): boolean {
   return AUDIO_EXTENSIONS.some((extension) => filePath.toLowerCase().endsWith(extension))
 }
