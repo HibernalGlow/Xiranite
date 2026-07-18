@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch"
 import type { ReaderMediaPatchDto } from "../../../adapters/reader-http-client"
 import { DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS, normalizeReaderAnimatedVideoKeywords } from "@xiranite/node-neoview/animated-video"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 interface FfmpegState {
   available: boolean
@@ -21,7 +22,7 @@ interface FfmpegState {
 
 const DEFAULT_FFMPEG_STATE: FfmpegState = { available: false, checked: false, checking: false }
 
-export default function AnimatedVideoModeCard({ media, onMediaChange }: ReaderPanelContext) {
+export default function AnimatedVideoModeCard({ media, onMediaChange, disabled = false, panelActive = true }: ReaderPanelContext) {
   const [enabledOverride, setEnabledOverride] = useState<boolean>()
   const [keywordsOverride, setKeywordsOverride] = useState<readonly string[]>()
   const [keywordText, setKeywordText] = useState(() => DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS.join(", "))
@@ -63,6 +64,8 @@ export default function AnimatedVideoModeCard({ media, onMediaChange }: ReaderPa
     setFfmpeg({ available: false, checked: true, checking: false, error: "当前运行时未提供 FFmpeg 探测" })
   }
 
+  if (!panelActive) return <ReaderCardEmptyState />
+
   return (
     <div className="space-y-3 text-xs" data-neoview-card="animated-video-mode" data-animated-video-state="ready">
       <div className="flex items-center justify-between gap-2">
@@ -73,6 +76,7 @@ export default function AnimatedVideoModeCard({ media, onMediaChange }: ReaderPa
         <Switch
           size="sm"
           checked={enabled}
+          disabled={disabled}
           aria-label="启用动图视频模式"
           onCheckedChange={(checked) => {
             setEnabledOverride(checked)
@@ -86,6 +90,7 @@ export default function AnimatedVideoModeCard({ media, onMediaChange }: ReaderPa
         <textarea
           className="min-h-16 w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
           value={keywordText}
+          disabled={disabled}
           aria-label="动图关键词"
           onChange={(event) => updateKeywords(event.currentTarget.value)}
           placeholder="例如: [#dyna], [#anim], __gif"
@@ -102,7 +107,7 @@ export default function AnimatedVideoModeCard({ media, onMediaChange }: ReaderPa
         </div>
         {!ffmpeg.available && ffmpeg.checked ? <p className="mt-1 text-[10px] text-muted-foreground">{ffmpeg.error ?? "未检测到 FFmpeg，将使用前端解码播放动图。"}</p> : null}
         {saveError ? <p className="text-[10px] text-destructive" role="alert">设置保存失败：{saveError}</p> : null}
-        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px]" disabled={ffmpeg.checking} onClick={() => void refreshFfmpeg()}>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px]" disabled={disabled || ffmpeg.checking} onClick={() => void refreshFfmpeg()}>
           {ffmpeg.checking ? "检测中…" : "重新检测 FFmpeg"}
         </Button>
       </div>
