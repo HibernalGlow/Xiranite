@@ -15,7 +15,7 @@ describe("LibraryThumbnailRoute", () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
   })
 
-  it("[neoview.thumbnail.library.http] returns opaque capability URLs and invalidates an old context generation", async () => {
+  it("[neoview.thumbnail.library.http] returns opaque capability URLs and preserves visited assets across context generations", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-route-"))
     roots.push(root)
     const sourcePath = join(root, "private-cover.png")
@@ -52,7 +52,7 @@ describe("LibraryThumbnailRoute", () => {
 
     const replaced = (await route.handle(registerRequest(sourcePath, 2, true)))!
     expect(replaced.status).toBe(201)
-    expect((await route.handle(new Request(body.items[0]!.thumbnailUrl)))?.status).toBe(404)
+    expect((await route.handle(new Request(body.items[0]!.thumbnailUrl)))?.status).toBe(200)
     expect((await route.handle(registerRequest(sourcePath, 1, true)))?.status).toBe(409)
 
     route.close()

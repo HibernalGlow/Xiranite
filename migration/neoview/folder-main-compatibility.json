@@ -808,7 +808,7 @@
         "components/FolderStack.svelte",
         "utils/directoryTreeCache.ts"
       ],
-      "targetContract": "切换 Panel 或 Edge 自动隐藏时保留 File Card DOM、目录会话和交互状态，仅暂停 watcher 与缩略图需求；切目录、关闭标签和真正卸载 Card 时取消过期分页/扫描/缩略图并释放 watcher、thumbnail context、browser session 和 Worker。",
+      "targetContract": "切换 Panel 或 Edge 自动隐藏时保留 File Card DOM、目录会话和交互状态，仅暂停 watcher 与缩略图需求；切目录只取消过期分页、扫描和在途缩略图需求，browser-session 级 thumbnail context 保留有界历史 capability；关闭标签和真正卸载 Card 时才释放 watcher、thumbnail context、browser session 和 Worker。",
       "surfaces": [
         "GUI",
         "CLI",
@@ -830,10 +830,11 @@
         "neoview.folder.watch-gui",
         "neoview.folder.watch-live-e2e",
         "neoview.folder.panel-keepalive",
-        "neoview.folder.panel-keepalive-e2e"
+        "neoview.folder.panel-keepalive-e2e",
+        "neoview.folder.nav-visual-state-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "File Card 首次访问后在 Panel 切换和 Edge 自动隐藏期间保持 mounted，browser session、catalog、选择、标签与 DOM identity 均保留；隐藏态停止当前目录和独立 Folder Tree 的 watch，并停止注册新缩略图需求，恢复可见后继续同一会话。ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和真正 dispose 时释放 watcher；Card 分页、缩略图 context 和 generation 长轮询均在导航/卸载时 Abort，最后消费者关闭即 unsubscribe。搜索/Worker 休眠仍待完成。"
+      "notes": "File Card 首次访问后在 Panel 切换和 Edge 自动隐藏期间保持 mounted，browser session、catalog、选择、标签与 DOM identity 均保留；隐藏态停止当前目录和独立 Folder Tree 的 watch，并停止注册新缩略图需求，恢复可见后继续同一会话。ReaderFileTreeService 已在 DELETE、导航换根、session 淘汰和真正 dispose 时释放 watcher；Card 分页和在途缩略图 generation 在导航时 Abort，但 browser-session thumbnail context 保留到标签关闭或真正卸载，最后消费者关闭即 unsubscribe。搜索/Worker 休眠仍待完成。"
     },
     {
       "id": "folder.nav.path",
@@ -892,7 +893,7 @@
         "neoview.folder.nav-visual-state-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot；grid 额外保存真实 scroller scrollTop，details 保存原始 scrollTop，并在虚拟行测量后恢复。每个访问项最多缓存 256 个缩略图 URL，返回或切换 renderer 时先呈现旧图再后台重校验，失败不会清空整批缓存。真实 Chromium desktop/420x360 验证根→A→B→A 的两次 A 状态互不覆盖；在 A 缩略图 POST 人为延迟 8 秒时，返回后相同可见文件仍立即有图且滚动误差不超过 40px。普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。"
+      "notes": "ReaderFileTreeService 以最多 50 条的访问记录而非路径字符串维护分支历史，并为重复路径分配独立 navigationEntryId；失败导航不推进历史，分支导航清空 forward，临时排序跟随具体访问。FolderMainCard 按访问 ID 有界保存 renderer、多选模式、选择、焦点和 Virtuoso list/grid snapshot；grid 额外保存真实 scroller scrollTop，details 保存原始 scrollTop，并在虚拟行测量后恢复。每个访问项最多缓存 256 个 path+profile 缩略图 URL，同 profile 返回或切换 renderer 时直接复用旧 URL，不重复注册或替换 img.src；显式刷新、watch generation 和 profile 变化才重新验证。真实 Chromium desktop/420x360 验证 A→B→后退 A→前进 B→再后退 A：两次访问状态互不覆盖、滚动误差不超过 40px、相同路径 URL 保持一致、旧 capability 返回 200。普通 list/details 只显示当前目录 direct children，Folder Tree 保持独立且不参与历史投影。"
     },
     {
       "id": "folder.nav.parent",
@@ -1391,7 +1392,7 @@
         "components/FolderList.svelte",
         "components/FolderListItem.svelte"
       ],
-      "targetContract": "仅对可见+overscan 项按 32-64 对齐窗口注册，opaque URL 输出，按字节预算缓存并在 context 释放后取消低优先级任务。",
+      "targetContract": "仅对可见+overscan 且当前 profile 缓存缺失的项按 32-64 对齐窗口注册，opaque URL 输出，按字节预算缓存；同一 browser session 的历史 capability 跨 generation 保留，context 释放后取消低优先级任务并撤销全部 capability。",
       "surfaces": [
         "GUI"
       ],
@@ -1403,13 +1404,17 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.thumbnail.library.http",
+        "neoview.browser.visible-thumbnails",
+        "neoview.folder.nav-visual-state-e2e"
+      ],
       "plannedTestIds": [
         "neoview.folder.thumbnail-visible-batch",
         "neoview.folder.thumbnail-release",
         "neoview.folder.thumbnail-opaque-mosaic"
       ],
-      "notes": "当前最多 64 项 demand 已接入；单封面与 4/9/16 mosaic 都使用 opaque URL 和单请求/单 img，mosaic profile 只进入有界内存 coordinator，避免覆盖旧单封面持久缓存键。"
+      "notes": "当前最多 64 项 demand 已接入；单封面与 4/9/16 mosaic 都使用 opaque URL 和单请求/单 img，mosaic profile 只进入有界内存 coordinator，避免覆盖旧单封面持久缓存键。File Card 按 path+profile 保存最多 256 个 URL，同一视图前进/后退不重复注册也不替换 img.src；显式刷新、watch generation 或 folder mosaic profile 变化才重新注册。asset route 在 browser-session context 内保留旧 capability，新 generation 只取消在途旧需求；显式 DELETE context 后统一撤销。"
     },
     {
       "id": "folder.view.virtualization",
