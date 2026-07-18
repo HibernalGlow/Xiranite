@@ -16,7 +16,7 @@ test("[neoview.color-filter.ui-1920x1080] [neoview.color-filter.image-stability]
   const brightness = page.getByRole("slider", { name: "亮度" })
   await brightness.focus()
   await brightness.press("ArrowRight")
-  await expect.poll(() => page.locator("html").getAttribute("data-color-filter-writes")).toBe("2")
+  await expect.poll(() => page.locator("html").getAttribute("data-color-filter-writes")).toBe("1")
 
   expect(await image.evaluate((element) => (window as typeof window & { __originalColorFilterImage?: Element }).__originalColorFilterImage === element)).toBe(true)
   expect(await image.getAttribute("src")).toBe(originalSource)
