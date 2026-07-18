@@ -278,6 +278,40 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.cross-directory-open] reopens the browser session when the active book moves to another directory", async () => {
+    const opened = page({
+      sessionId: "browser-1",
+      path: "C:/books",
+      entries: [{ name: "one.cbz", path: "C:/books/one.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const moved = page({
+      sessionId: "browser-2",
+      path: "D:/archive",
+      entries: [{ name: "two.cbz", path: "D:/archive/two.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const openDirectoryBrowser = vi.fn(async (path: string) => path.toLocaleLowerCase().startsWith("d:/") ? moved : opened)
+    const closeDirectoryBrowser = vi.fn(async () => undefined)
+    const client = { openDirectoryBrowser, closeDirectoryBrowser } as unknown as ReaderHttpClient
+    const renderCard = (sourcePath: string) => (
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath={sourcePath} onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>
+    )
+    const view = render(renderCard("C:/books/one.cbz"))
+    await within(view.container).findByTitle("C:/books/one.cbz")
+
+    view.rerender(renderCard("D:/archive/two.cbz"))
+    await within(view.container).findByTitle("D:/archive/two.cbz")
+    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledTimes(2))
+    expect(openDirectoryBrowser).toHaveBeenNthCalledWith(1, "C:/books/one.cbz", expect.any(AbortSignal), undefined, true)
+    expect(openDirectoryBrowser).toHaveBeenNthCalledWith(2, "D:/archive/two.cbz", expect.any(AbortSignal), undefined, true)
+    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1"))
+    expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("D:\\archive")
+    view.unmount()
+  })
+
   it("[neoview.folder.rename-focus] refreshes the same browser session and selects the renamed path", async () => {
     const opened = page({
       path: "C:/books",
