@@ -68,10 +68,23 @@ describe("NeoView panel and card registries", () => {
       requiresSession: false,
       canHide: true,
     })
-    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition", "sidebar-height"])
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height"])
     expect(cardsForPanel("control", {
       cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
-    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "page-transition", "sidebar-height", "thumbnail-maintenance"])
+    } as never, false).map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "thumbnail-maintenance"])
+  })
+
+  it("[neoview.switch-toast.registry] exposes the legacy Card first, resident and lazy", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "switch-toast")
+    expect(definition).toMatchObject({
+      title: "切换提示",
+      defaultPanel: "control",
+      defaultSidebarVisible: true,
+      requiresSession: false,
+      canHide: true,
+    })
+    expect(definition?.icon).toBeTruthy()
+    expect(cardsForPanel("control", undefined, false)[0]?.id).toBe("switch-toast")
   })
 
   it("[neoview.color-filter.registry] exposes the session-independent legacy control Card lazily", () => {

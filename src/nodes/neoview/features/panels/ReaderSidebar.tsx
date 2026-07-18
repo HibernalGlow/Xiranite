@@ -19,12 +19,14 @@ import { cn } from "@/lib/utils"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../material/ReaderShellMaterial"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 import { InfoPanelActions } from "./InfoPanelActions"
+import { useReaderPanelRail, useReaderPanelTab } from "./ReaderPanelDnd"
 import {
   availablePanels,
   cardsForPanel,
   lazyReaderCard,
   type LegacyPanelId,
   type ReaderPanelContext,
+  type ReaderPanelDefinition,
   type ReaderPanelSide,
 } from "./registry"
 
@@ -76,56 +78,37 @@ export function ReaderSidebar({
         onPointerUp={endGesture}
         onPointerCancel={cancelGesture}
       />
-      <nav className={cn("flex w-12 shrink-0 flex-col items-center gap-1 bg-muted/20 py-2", side === "left" ? "border-r border-border/50" : "border-l border-border/50")} aria-label={`${side === "left" ? "左" : "右"}侧面板`}>
-        <button
-          type="button"
-          title={shell?.edges[side].pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
-          aria-label={shell?.edges[side].pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
-          aria-pressed={shell?.edges[side].pinned ?? false}
-          disabled={context.disabled || !onLayoutCommit}
-          className={cn(
-            "grid size-9 place-items-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-            shell?.edges[side].pinned ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-          )}
-          onClick={() => onLayoutCommit?.({ side, pinned: !(shell?.edges[side].pinned ?? false) })}
-        >
-          {shell?.edges[side].pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-        </button>
-        <span className="my-0.5 h-px w-6 shrink-0 bg-border" aria-hidden="true" />
-        {panels.map((panel) => (
-          <button
-            key={panel.id}
-            type="button"
-            title={panel.title}
-            aria-label={panel.title}
-            aria-current={panel.id === active?.id ? "page" : undefined}
-            className={cn(
-              "grid size-9 place-items-center rounded-md text-sm transition-colors",
-              panel.id === active?.id ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-            )}
-            onClick={() => {
-              setMountedPanels((current) => current.has(panel.id) ? current : new Set(current).add(panel.id))
-              setActivePanel(panel.id)
-            }}
-          >
-            <span aria-hidden="true">{panel.emoji}</span>
-          </button>
-        ))}
-      </nav>
+      <ReaderPanelIconRail
+        side={side}
+        panels={panels}
+        activePanelId={active?.id}
+        pinned={shell?.edges[side].pinned ?? false}
+        pinDisabled={context.disabled || !onLayoutCommit}
+        onPinnedChange={(pinned) => onLayoutCommit?.({ side, pinned })}
+        onActivate={(panelId) => {
+          setMountedPanels((current) => current.has(panelId) ? current : new Set(current).add(panelId))
+          setActivePanel(panelId)
+        }}
+      />
       {panels.map((panel) => {
         const panelActive = edgeActive && panel.id === active?.id
+        const cards = cardsForPanel(panel.id, shell, hasSession)
+        const exclusive = cards.length === 1
         if (!panelActive && !mountedPanels.has(panel.id)) return null
         return (
           <div
             key={panel.id}
-            className="min-w-0 flex-1 overflow-y-auto overscroll-contain"
+            className={cn(
+              "min-w-0 flex-1 overscroll-contain",
+              exclusive ? "relative flex min-h-0 flex-col overflow-hidden" : "overflow-y-auto",
+            )}
             hidden={!panelActive}
             aria-hidden={!panelActive || undefined}
             data-reader-panel={panelActive ? panel.id : undefined}
             data-reader-panel-cache={panel.id}
             data-context-menu={panelActive && panel.id === "info" ? "neoview-info" : undefined}
           >
-            <div className="sticky top-0 z-10 flex min-h-11 items-center gap-2 border-b border-border/50 bg-background/88 px-3 py-2 backdrop-blur-xl">
+            {exclusive ? null : <div className="sticky top-0 z-10 flex min-h-11 items-center gap-2 border-b border-border/50 bg-transparent px-3 py-2">
               <span aria-hidden="true">{panel.emoji}</span>
               <h2 className="truncate text-sm font-semibold">{panel.title}</h2>
               {panel.id === "info" ? <InfoPanelActions context={context} /> : null}
@@ -140,9 +123,20 @@ export function ReaderSidebar({
                   onPointerCancel={cancelGesture}
                 >↕</button>
               ) : null}
-            </div>
-            <div className="grid px-3 pb-3">
-              {cardsForPanel(panel.id, shell, hasSession).map((card) => {
+            </div>}
+            {exclusive && layout?.height !== "full" && shell?.sidebarInteraction?.showDragHandle ? (
+              <button
+                type="button"
+                aria-label={`移动${side === "left" ? "左" : "右"}侧栏`}
+                className="absolute right-1 top-1 z-20 cursor-move touch-none rounded-md px-1.5 py-0.5 text-xs text-muted-foreground/60 hover:bg-muted/70 hover:text-muted-foreground"
+                onPointerDown={(event) => startGesture(event, "move")}
+                onPointerMove={moveGesture}
+                onPointerUp={endGesture}
+                onPointerCancel={cancelGesture}
+              >↕</button>
+            ) : null}
+            <div className={cn(exclusive ? "flex min-h-0 flex-1" : "grid px-3 pb-3")}>
+              {cards.map((card) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
                 return Card ? (
@@ -150,6 +144,7 @@ export function ReaderSidebar({
                     key={card.id}
                     title={card.title}
                     icon={card.icon ? <card.icon className="size-3.5" /> : undefined}
+                    frameless={exclusive}
                     collapsed={cardLayout ? !cardLayout.expanded : false}
                     height={cardLayout?.height}
                     onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
@@ -262,6 +257,98 @@ export function ReaderSidebar({
     gestureRef.current = undefined
     if (asideRef.current && layout && shell) applySidebarStyle(asideRef.current, sidebarStyle(layout, shell, side))
   }
+}
+
+function ReaderPanelIconRail({
+  side,
+  panels,
+  activePanelId,
+  pinned,
+  pinDisabled,
+  onPinnedChange,
+  onActivate,
+}: {
+  side: ReaderPanelSide
+  panels: readonly ReaderPanelDefinition[]
+  activePanelId: LegacyPanelId | undefined
+  pinned: boolean
+  pinDisabled: boolean
+  onPinnedChange(pinned: boolean): void
+  onActivate(panelId: LegacyPanelId): void
+}) {
+  const rail = useReaderPanelRail(side, panels)
+  return (
+    <nav
+      ref={rail.setNodeRef}
+      className={cn(
+        "flex w-12 shrink-0 flex-col items-center gap-1 bg-muted/20 py-2 transition-colors",
+        side === "left" ? "border-r border-border/50" : "border-l border-border/50",
+        rail.isOver && "bg-primary/10",
+      )}
+      aria-label={`${side === "left" ? "左" : "右"}侧面板`}
+      data-reader-panel-rail={side}
+    >
+      <button
+        type="button"
+        title={pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
+        aria-label={pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
+        aria-pressed={pinned}
+        disabled={pinDisabled}
+        className={cn(
+          "grid size-9 place-items-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+          pinned ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+        )}
+        onClick={() => onPinnedChange(!pinned)}
+      >
+        {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+      </button>
+      <span className="my-0.5 h-px w-6 shrink-0 bg-border" aria-hidden="true" />
+      {rail.sortable(rail.panels.map((panel) => (
+        <ReaderPanelIconButton
+          key={panel.id}
+          panel={panel}
+          side={side}
+          active={panel.id === activePanelId}
+          onActivate={() => onActivate(panel.id)}
+        />
+      )))}
+    </nav>
+  )
+}
+
+function ReaderPanelIconButton({
+  panel,
+  side,
+  active,
+  onActivate,
+}: {
+  panel: ReaderPanelDefinition
+  side: ReaderPanelSide
+  active: boolean
+  onActivate(): void
+}) {
+  const sortable = useReaderPanelTab(panel, side)
+  return (
+    <button
+      ref={sortable.setNodeRef}
+      type="button"
+      title={panel.canMove ? `${panel.title}（可拖动）` : panel.title}
+      aria-label={panel.title}
+      aria-current={active ? "page" : undefined}
+      aria-roledescription={panel.canMove ? "可拖动面板" : undefined}
+      className={cn(
+        "grid size-9 shrink-0 place-items-center rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+        sortable.dragging && "cursor-grabbing",
+      )}
+      style={sortable.style}
+      onClick={onActivate}
+      {...sortable.attributes}
+      {...sortable.listeners}
+    >
+      <span aria-hidden="true">{panel.emoji}</span>
+    </button>
+  )
 }
 
 const BLANK_AREA_INTERACTIVE_SELECTOR = "button,a,input,textarea,select,label,[role='button'],[role='switch'],[data-menu-button]"

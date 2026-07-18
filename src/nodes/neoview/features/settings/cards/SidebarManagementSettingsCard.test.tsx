@@ -44,6 +44,16 @@ describe("SidebarManagementSettingsCard", () => {
     expect(reset.find((panel) => panel.id === "history")).toMatchObject({ visible: true, position: "left", order: 1 })
     expect(createSidebarBoardPatch(current, reset).board.panels).toContainEqual({ id: "future-panel", visible: true, position: "right", order: 40 })
   })
+
+  it("[neoview.sidebar.panel-dnd-settings] refreshes its draft from an optimistic shell move", async () => {
+    const current = shell()
+    const view = render(<SidebarManagementSettingsCard shell={current} onSave={vi.fn()} />)
+    expect((screen.getByRole("combobox", { name: "历史记录位置" }) as HTMLSelectElement).value).toBe("left")
+
+    const updated = { ...current, panelLayout: { ...current.panelLayout, history: { ...current.panelLayout.history!, position: "right" as const, order: 0 } } }
+    view.rerender(<SidebarManagementSettingsCard shell={updated} onSave={vi.fn()} />)
+    await waitFor(() => expect((screen.getByRole("combobox", { name: "历史记录位置" }) as HTMLSelectElement).value).toBe("right"))
+  })
 })
 
 function shell(): ReaderShellConfigDto {

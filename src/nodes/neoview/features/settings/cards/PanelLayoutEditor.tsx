@@ -38,7 +38,10 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
           {Object.entries(columns).map(([panelId, cards]) => (
             <KanbanColumn key={panelId} value={panelId} className="h-full w-60 shrink-0 bg-muted/35" data-panel-layout-column={panelId}>
               <div className="flex h-8 items-center justify-between px-1 text-xs font-semibold">
-                <span>{panelTitle(panelId)}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate">{panelTitle(panelId)}</span>
+                  {panelPositionLabel(shell, panelId) ? <span className="rounded border px-1 py-0.5 text-[9px] font-normal text-muted-foreground">{panelPositionLabel(shell, panelId)}</span> : null}
+                </span>
                 <span className="tabular-nums text-muted-foreground">{cards.length}</span>
               </div>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
@@ -156,6 +159,17 @@ function isCardHostPanel(panel: (typeof PANEL_DEFINITIONS)[number]): boolean {
 function panelTitle(panelId: string): string {
   if (panelId === HIDDEN_COLUMN) return "隐藏 / 未停靠"
   return PANEL_DEFINITIONS.find((panel) => panel.id === panelId)?.title ?? panelId
+}
+
+function panelPositionLabel(shell: ReaderShellConfigDto, panelId: string): string | undefined {
+  if (panelId === HIDDEN_COLUMN) return undefined
+  const definition = PANEL_DEFINITIONS.find((panel) => panel.id === panelId)
+  const position = shell.panelLayout[panelId]?.position ?? definition?.defaultSide
+  if (position === "left") return "左侧栏"
+  if (position === "right") return "右侧栏"
+  if (position === "floating") return "浮动"
+  if (position === "bottom") return "底栏"
+  return undefined
 }
 
 function cardTitle(cardId: string): string {

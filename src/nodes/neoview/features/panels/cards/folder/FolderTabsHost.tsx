@@ -38,6 +38,14 @@ interface RecentlyClosedFolderTab {
 export type FolderBrowserPaneProps = ReaderPanelContext & {
   active: boolean
   tabBar?: ReactNode
+  folderTabCount: number
+  maxFolderTabs: number
+  onCreateTab(): void
+  currentFolderTabPinned: boolean
+  canReopenFolderTab: boolean
+  onDuplicateCurrentTab(): void
+  onToggleCurrentTabPinned(): void
+  onReopenFolderTab(): void
   initialClone?: FolderBrowserCloneSnapshot
   onCurrentPathChange(path: string): void
   onOpenInNewTab(path: string): void
@@ -356,7 +364,18 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
               folderView={{ ...folderView, viewMode: tab.viewMode, previewCount: tab.previewCount }}
               onFolderView={(patch) => updateTabFolderView(tab.id, patch)}
               active={browserActive}
-              tabBar={browserActive ? tabBar : undefined}
+              tabBar={browserActive && tabs.length > 1 ? tabBar : undefined}
+              folderTabCount={tabs.length}
+              maxFolderTabs={MAX_FOLDER_TABS}
+              onCreateTab={createTab}
+              currentFolderTabPinned={tab.pinned}
+              canReopenFolderTab={recentlyClosed.length > 0}
+              onDuplicateCurrentTab={() => { void duplicateTab(tab.id) }}
+              onToggleCurrentTabPinned={() => togglePinned(tab.id)}
+              onReopenFolderTab={() => {
+                const latest = recentlyClosedRef.current.at(-1)
+                if (latest) void reopenTab(latest.id)
+              }}
               initialClone={tab.initialClone}
               onCurrentPathChange={(path) => updateTabPath(tab.id, path)}
               onOpenInNewTab={openPathInNewTab}
