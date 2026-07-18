@@ -60,6 +60,15 @@ describe("OpenComicAiSystemProvider", () => {
     expect(progress).toHaveBeenCalledWith({ completed: 1 })
   })
 
+  it("[neoview.super-resolution.provider-daemon-fallback] keeps unsupported UpScayl builds on short processes", async () => {
+    const runtime = fakeRuntime()
+    const provider = createProvider({ runtime, daemonSupported: false })
+    await provider.upscale(request)
+    expect(runtime.setConcurrentDaemons).toHaveBeenCalledOnce()
+    expect(runtime.setConcurrentDaemons).toHaveBeenCalledWith(0)
+    expect(runtime.pipeline).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.super-resolution.provider-capability] fails before runtime load when the CLI is unavailable", async () => {
     const runtime = fakeRuntime()
     const loadRuntime = vi.fn(async () => runtime)
@@ -110,6 +119,7 @@ function createProvider(options: {
   loadRuntime?: () => Promise<OpenComicSystemRuntime>
   available?: boolean
   inspectImage?: (path: string) => Promise<{ bytes: number; width: number; height: number }>
+  daemonSupported?: boolean
 }) {
   let now = 100
   return new OpenComicAiSystemProvider({
@@ -117,7 +127,12 @@ function createProvider(options: {
     cliResolver: {
       resolve: vi.fn(async () => options.available === false
         ? { engine: "upscayl", available: false, reason: "Vulkan CLI missing" }
-        : { engine: "upscayl", available: true, executablePath: "D:/Tools/upscayl-bin.exe" }),
+        : {
+            engine: "upscayl",
+            available: true,
+            executablePath: "D:/Tools/upscayl-bin.exe",
+            daemonSupported: options.daemonSupported ?? true,
+          }),
       capabilities: vi.fn(async () => ({
         engines: [{ engine: "upscayl", available: true, executablePath: "D:/Tools/upscayl-bin.exe" }],
         probedAt: 1,

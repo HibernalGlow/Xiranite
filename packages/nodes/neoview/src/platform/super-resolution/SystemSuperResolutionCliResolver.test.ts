@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { SystemSuperResolutionCliResolver } from "./SystemSuperResolutionCliResolver.js"
+import {
+  detectSuperResolutionDaemonSupport,
+  SystemSuperResolutionCliResolver,
+} from "./SystemSuperResolutionCliResolver.js"
 
 describe("SystemSuperResolutionCliResolver", () => {
   it("[neoview.super-resolution.explicit-path] does not silently fall back when an explicit path is invalid", async () => {
@@ -22,7 +25,7 @@ describe("SystemSuperResolutionCliResolver", () => {
     const resolver = new SystemSuperResolutionCliResolver({
       which: vi.fn(async () => "UPSCAYL-BIN.EXE"),
       canonicalize: vi.fn(async () => "D:/Tools/upscayl-bin.exe"),
-      probe: vi.fn(async () => ({ version: "2.15.0" })),
+      probe: vi.fn(async () => ({ version: "2.15.0", daemonSupported: true })),
     })
     await expect(resolver.resolve("upscayl")).resolves.toEqual({
       engine: "upscayl",
@@ -30,7 +33,16 @@ describe("SystemSuperResolutionCliResolver", () => {
       executablePath: "D:/Tools/upscayl-bin.exe",
       version: "2.15.0",
       architecture: process.arch,
+      daemonSupported: true,
     })
+  })
+
+  it("[neoview.super-resolution.daemon-capability] detects daemon mode only when UpScayl help declares it", () => {
+    expect(detectSuperResolutionDaemonSupport("upscayl", "  -d daemon mode\n  -i input")).toBe(true)
+    expect(detectSuperResolutionDaemonSupport("upscayl", "  --daemon keep process ready")).toBe(true)
+    expect(detectSuperResolutionDaemonSupport("upscayl", "  -i input\n  -o output")).toBe(false)
+    expect(detectSuperResolutionDaemonSupport("upscayl", "daemon mode is unavailable in this build")).toBe(false)
+    expect(detectSuperResolutionDaemonSupport("waifu2x", "  -d daemon mode")).toBe(false)
   })
 
   it("[neoview.super-resolution.trusted-fallback] tries trusted candidates after a broken PATH result", async () => {

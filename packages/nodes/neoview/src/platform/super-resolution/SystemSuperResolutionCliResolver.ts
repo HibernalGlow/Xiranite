@@ -25,6 +25,7 @@ const ENGINE_SIGNATURES: Readonly<Record<SuperResolutionEngine, RegExp>> = {
 export interface SystemSuperResolutionCliProbeResult {
   version?: string
   output?: string
+  daemonSupported?: boolean
 }
 
 export interface SystemSuperResolutionCliResolverOptions {
@@ -120,6 +121,7 @@ export class SystemSuperResolutionCliResolver {
           executablePath,
           version: probe.version,
           architecture: process.arch,
+          daemonSupported: probe.daemonSupported,
         },
       }
     } catch (error) {
@@ -159,11 +161,19 @@ async function defaultProbe(engine: SuperResolutionEngine, executablePath: strin
     if (!ENGINE_SIGNATURES[engine].test(output)) throw new Error(details.message ?? `Unable to probe ${engine}.`)
   }
   if (!ENGINE_SIGNATURES[engine].test(output)) throw new Error(`Executable does not identify as ${engine}.`)
-  return { version: parseVersion(output), output }
+  return {
+    version: parseVersion(output),
+    output,
+    daemonSupported: detectSuperResolutionDaemonSupport(engine, output),
+  }
 }
 
 function parseVersion(output: string): string | undefined {
   return output.match(/\bv?(\d+\.\d+(?:\.\d+){0,2})\b/iu)?.[1]
+}
+
+export function detectSuperResolutionDaemonSupport(engine: SuperResolutionEngine, output: string): boolean {
+  return engine === "upscayl" && /(?:^|\s)(?:-d|--daemon)(?:\s|,|$)/imu.test(output)
 }
 
 function unavailable(engine: SuperResolutionEngine, reason?: string): SuperResolutionEngineCapability {

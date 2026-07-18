@@ -77,6 +77,7 @@
     "benchmark:neoview-sevenzip": "bun scripts/benchmark-neoview-sevenzip.ts",
     "benchmark:neoview-reader": "bun scripts/benchmark-neoview-reader.ts",
     "audit:neoview-performance": "bun scripts/verify-neoview-performance.ts",
+    "benchmark:neoview-super-resolution": "bun scripts/benchmark-neoview-super-resolution.ts",
     "migrate:neoview-capability-status": "bun scripts/migrate-neoview-capability-status.ts",
     "audit:neoview-capability-status": "bun scripts/migrate-neoview-capability-status.ts --check",
     "test:neoview-compatibility": "bun test scripts/lib/neoview-capability-status.test.ts",
