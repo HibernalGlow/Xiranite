@@ -527,17 +527,17 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   async function updateCatalogProjection(
     request: (sessionId: string, focusPath: string | undefined, signal: AbortSignal | undefined) => Promise<ReaderDirectoryPageDto>,
     resetSelection = false,
-  ) {
+  ): Promise<ReaderDirectoryPageDto | undefined> {
     const sessionId = sessionIdRef.current
     const current = catalogRef.current
-    if (!sessionId || !current) return
+    if (!sessionId || !current) return undefined
     captureCurrentState()
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
     try {
       const result = await request(sessionId, focusedPath, navigationRequestRef.current?.signal)
-      if (generation !== navigationGenerationRef.current) return
+      if (generation !== navigationGenerationRef.current) return undefined
       const suggested = result.suggestedSelection
       applyPage(result, {
         total: result.total,
@@ -551,8 +551,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         thumbnailUrls,
         thumbnailProfiles: thumbnailProfilesRef.current,
       }, false, { preserveThumbnailCache: true })
+      return result
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
+      return undefined
     } finally {
       if (generation === navigationGenerationRef.current) setLoading(false)
     }
@@ -561,7 +563,20 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   async function updateSort(sort: ReaderDirectorySortDto) {
     const applySort = client.sortDirectoryBrowser
     if (!applySort) return
-    await updateCatalogProjection((sessionId, focusPath, signal) => applySort(sessionId, sort, focusPath, signal))
+    const sorted = await updateCatalogProjection((sessionId, focusPath, signal) => applySort(sessionId, sort, focusPath, signal))
+    if (!sorted || sort.field !== "size" || !client.directorySizes) return
+    const directoryPaths = sorted.entries
+      .filter((entry) => entry.kind === "directory" && entry.size === undefined)
+      .map((entry) => entry.path)
+      .slice(0, 64)
+    if (!directoryPaths.length) return
+    try {
+      const measured = await client.directorySizes(sorted.sessionId, sorted.generation, directoryPaths, catalogRequestRef.current?.signal)
+      if (!measured.results.some((result) => result.status === "ok")) return
+      await updateCatalogProjection((sessionId, focusPath, signal) => applySort(sessionId, sort, focusPath, signal))
+    } catch (cause) {
+      if (!isAbortError(cause)) setError(folderErrorMessage(cause))
+    }
   }
 
   async function updateFilter(filter: ReaderDirectoryFilterDto) {

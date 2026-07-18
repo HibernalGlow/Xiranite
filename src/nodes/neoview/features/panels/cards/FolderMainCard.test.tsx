@@ -1308,6 +1308,58 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(currentView.getByRole("button", { name: "取消临时排序" })).toBeTruthy())
   })
 
+  it("[neoview.folder.sort-folder-size-ui] hydrates visible directory sizes and reissues the same sort without reopening the card", async () => {
+    const folderA = { name: "large", path: "C:/books/large", kind: "directory" as const, readerSupported: true }
+    const folderB = { name: "small", path: "C:/books/small", kind: "directory" as const, readerSupported: true }
+    const file = { name: "book.cbz", path: "C:/books/book.cbz", kind: "file" as const, readerSupported: true }
+    const opened = page({ entries: [folderA, folderB, file], total: 3 })
+    const firstSort = page({ ...opened, generation: 2, sort: { field: "size", order: "asc", directoriesFirst: true }, entries: [folderA, folderB, file], total: 3 })
+    const hydratedSort = page({ ...firstSort, generation: 3, entries: [folderB, folderA, file] })
+    const sortDirectoryBrowser = vi.fn()
+      .mockResolvedValueOnce(firstSort)
+      .mockResolvedValueOnce(hydratedSort)
+    const directorySizes = vi.fn(async () => ({
+      sessionId: "browser-1",
+      generation: 2,
+      results: [
+        { path: folderA.path, status: "ok" as const, bytes: 900, fileCount: 9 },
+        { path: folderB.path, status: "ok" as const, bytes: 10, fileCount: 1 },
+      ],
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      sortDirectoryBrowser,
+      directorySizes,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    await currentView.findByTitle("C:/books/large")
+    selectFolderHandleAction(currentView, "\u6392\u5e8f")
+    fireEvent.click(await currentView.findByRole("combobox", { name: "\u6392\u5e8f\u5b57\u6bb5" }))
+    fireEvent.click(await screen.findByRole("option", { name: "\u5927\u5c0f" }))
+
+    await waitFor(() => expect(directorySizes).toHaveBeenCalledWith(
+      "browser-1",
+      2,
+      [folderA.path, folderB.path],
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(sortDirectoryBrowser).toHaveBeenCalledTimes(2))
+    expect(sortDirectoryBrowser.mock.calls[1]).toEqual([
+      "browser-1",
+      { field: "size", order: "asc", directoriesFirst: true },
+      undefined,
+      expect.any(AbortSignal),
+    ])
+    await waitFor(() => expect(currentView.getByTitle("C:/books/small")).toBeTruthy())
+    view.unmount()
+  })
+
   it("[neoview.folder.emm-display] shows hydrated rating and favorite-tag counts without per-row requests", async () => {
     const opened = page({
       total: 1,

@@ -174,6 +174,7 @@ interface BrowserSession {
   treeWatchWaiters: Set<() => void>
   searches: Set<ReaderFileTreeSearchHandle>
   directorySizeOperations: Set<AbortController>
+  directorySizeCache: Map<string, number>
 }
 
 interface BrowserNavigationEntry {
@@ -254,6 +255,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       treeWatchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
+      directorySizeCache: new Map(),
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
@@ -351,6 +353,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       treeWatchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
+      directorySizeCache: new Map(),
     }
     if (this.#sessions.size >= 8) {
       const evictionId = [...this.#sessions.keys()].find((id) => id !== sessionId)
@@ -406,6 +409,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       treeWatchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
+      directorySizeCache: new Map(),
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
@@ -505,7 +509,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
           : undefined
       const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, targetTemporarySort)
       this.#assertSortAvailable(sortPreference.sort)
-      const hydratedEntries = await this.#hydrate(rawListing.entries, sortPreference.sort, combinedSignal)
+      const hydratedEntries = applyCachedDirectorySizes(session, await this.#hydrate(rawListing.entries, sortPreference.sort, combinedSignal))
       const listing = sortListing(
         { ...rawListing, entries: hydratedEntries },
         sortPreference.sort,
@@ -549,7 +553,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const unlinkAbort = forwardAbort(signal, controller)
     const combinedSignal = controller.signal
     try {
-      const entries = await this.#hydrate(session.listing.entries, sort, combinedSignal)
+      const entries = applyCachedDirectorySizes(session, await this.#hydrate(session.listing.entries, sort, combinedSignal))
       combinedSignal.throwIfAborted()
       const remembered = await this.sortPreferences.rememberCurrent(
         session.scopeId,
@@ -614,7 +618,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
         }
       }
       this.#assertSortAvailable(next.preference.sort)
-      const entries = await this.#hydrate(session.listing.entries, next.preference.sort, combinedSignal)
+      const entries = applyCachedDirectorySizes(session, await this.#hydrate(session.listing.entries, next.preference.sort, combinedSignal))
       combinedSignal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
       session.sort = next.preference.sort
@@ -817,6 +821,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
       controller.signal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.generation !== generation) {
         throw new Error(`Reader directory size generation is stale: ${generation}`)
+      }
+      for (const result of results) {
+        if (result.status === "ok") session.directorySizeCache.set(result.path, result.bytes)
       }
       return { sessionId, generation, results }
     } finally {
@@ -1076,7 +1083,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const rawListing = await this.provider.read(session.listing.path, signal)
     const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
     this.#assertSortAvailable(sortPreference.sort)
-    const entries = await this.#hydrate(rawListing.entries, sortPreference.sort, signal)
+    const entries = applyCachedDirectorySizes(session, await this.#hydrate(rawListing.entries, sortPreference.sort, signal))
     signal.throwIfAborted()
     if (this.#sessions.get(session.id) !== session) return
     session.listing = sortListing(
@@ -1109,7 +1116,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const rawListing = await this.provider.read(session.listing.path, signal)
     const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
     this.#assertSortAvailable(sortPreference.sort)
-    const entries = await this.#hydrate(rawListing.entries, sortPreference.sort, signal)
+    const entries = applyCachedDirectorySizes(session, await this.#hydrate(rawListing.entries, sortPreference.sort, signal))
     signal.throwIfAborted()
     if (this.#sessions.get(session.id) !== session || !session.listingReleased) return
     session.listing = sortListing(
@@ -1375,6 +1382,18 @@ function sortListing(
   randomSeed: string,
 ): ReaderDirectoryListing {
   return { ...listing, entries: sortReaderDirectoryEntries(listing.entries, sort, randomSeed) }
+}
+
+function applyCachedDirectorySizes(
+  session: BrowserSession,
+  entries: readonly ReaderDirectoryEntry[],
+): readonly ReaderDirectoryEntry[] {
+  if (!session.directorySizeCache.size) return entries
+  return entries.map((entry) => {
+    if (entry.kind !== "directory") return entry
+    const bytes = session.directorySizeCache.get(entry.path)
+    return bytes === undefined || entry.size === bytes ? entry : { ...entry, size: bytes }
+  })
 }
 
 function randomSeedForPath(session: BrowserSession, path: string): string {

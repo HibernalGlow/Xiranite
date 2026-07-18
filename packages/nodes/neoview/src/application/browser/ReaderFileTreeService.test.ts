@@ -20,7 +20,10 @@ describe("ReaderFileTreeService", () => {
           { name: "file", path: `${path}/file.cbz`, kind: "file", readerSupported: true },
         ] }
       },
-    }, undefined, undefined, { directorySizeProvider: { measure }, directorySizeConcurrency: 2 })
+    }, {
+      supportedFields: new Set(["size"]),
+      async hydrate(entries) { return entries },
+    }, undefined, { directorySizeProvider: { measure }, directorySizeConcurrency: 2 })
     const opened = await browser.open("C:/books")
 
     await expect(browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/small", "C:/books/large", "C:/books/broken"]))
@@ -33,8 +36,10 @@ describe("ReaderFileTreeService", () => {
           { path: "C:/books/broken", status: "failed", error: "offline volume" },
         ],
       })
+    const sorted = await browser.sort(opened.sessionId, { field: "size", order: "asc", directoriesFirst: true })
+    expect(sorted?.entries.map((entry) => entry.name)).toEqual(["broken", "small", "large", "file"])
     await expect(browser.directorySizes(opened.sessionId, opened.generation - 1, ["C:/books/small"])).rejects.toThrow("stale")
-    await expect(browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/file.cbz"])).rejects.toThrow("current browser listing")
+    await expect(browser.directorySizes(opened.sessionId, sorted!.generation, ["C:/books/file.cbz"])).rejects.toThrow("current browser listing")
     await browser[Symbol.asyncDispose]()
   })
 
