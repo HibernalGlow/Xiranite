@@ -185,6 +185,7 @@ export class SolidArchiveCache implements AsyncDisposable {
       memoryBytes: this.#memory.retainedBytes,
       maxMemoryBytes: this.#maxMemoryBytes,
       maxMemoryEntryBytes: this.#maxMemoryEntryBytes,
+      indexCache: this.#indexCache.snapshot(),
     }
   }
 

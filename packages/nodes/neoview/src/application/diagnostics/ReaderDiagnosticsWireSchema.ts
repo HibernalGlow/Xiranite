@@ -187,6 +187,15 @@ export const ReaderDiagnosticsWireSchema = loose({
     memoryBytes: count.optional(),
     maxMemoryBytes: count.optional(),
     maxMemoryEntryBytes: count.optional(),
+    indexCache: loose({
+      entries: count,
+      maxEntries: count,
+      payloadBytes: count,
+      maxPayloadBytes: count,
+      hits: count,
+      misses: count,
+      evictions: count,
+    }).optional(),
   }),
   scheduler: loose({ cpu: schedulerPool, io: schedulerPool, gpu: schedulerPool }).nullable(),
 })

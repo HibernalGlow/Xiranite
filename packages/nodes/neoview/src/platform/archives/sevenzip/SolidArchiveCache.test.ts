@@ -29,11 +29,11 @@ describe("SolidArchiveCache", () => {
     const concurrent = await cache.acquire(input("fingerprint", "archive", 40, create))
     expect(concurrent.materializer).toBe(first.materializer)
     expect(create).toHaveBeenCalledTimes(1)
-    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 1, activeLeases: 2, memoryBytes: 0, maxMemoryBytes: 32 * 1024 * 1024, maxMemoryEntryBytes: 8 * 1024 * 1024 })
+    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 1, activeLeases: 2, memoryBytes: 0, maxMemoryBytes: 32 * 1024 * 1024, maxMemoryEntryBytes: 8 * 1024 * 1024, indexCache: { entries: 0, maxEntries: 32, payloadBytes: 0, maxPayloadBytes: 0, hits: 0, misses: 0, evictions: 0 } })
     ;(first.materializer as FakeMaterializer).isComplete = true
     await first.release()
     await concurrent.release()
-    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 0, activeLeases: 0, memoryBytes: 0, maxMemoryBytes: 32 * 1024 * 1024, maxMemoryEntryBytes: 8 * 1024 * 1024 })
+    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 0, activeLeases: 0, memoryBytes: 0, maxMemoryBytes: 32 * 1024 * 1024, maxMemoryEntryBytes: 8 * 1024 * 1024, indexCache: { entries: 0, maxEntries: 32, payloadBytes: 0, maxPayloadBytes: 0, hits: 0, misses: 0, evictions: 0 } })
     expect(cache.entryCount).toBe(1)
     expect(cache.retainedBytes).toBe(40)
 
@@ -94,6 +94,13 @@ describe("SolidArchiveCache", () => {
     expect(oldMaterializer.close).toHaveBeenCalledTimes(1)
     await newLease.release()
     await cache.close()
+  })
+
+  it("[neoview.sevenzip.solid-cache-index-snapshot] exposes the hosted index tier without listing", () => {
+    const cache = new SolidArchiveCache({ maxBytes: 100 })
+    expect(cache.snapshot().indexCache).toEqual({ entries: 0, maxEntries: 32, payloadBytes: 0, maxPayloadBytes: 0, hits: 0, misses: 0, evictions: 0 })
+    expect(JSON.stringify(cache.snapshot())).not.toContain("sourceIdentity")
+    expect(JSON.stringify(cache.snapshot())).not.toContain("path")
   })
 
   it("[neoview.memory-pressure.solid-trim] evicts idle LRU materializations without deleting active leases", async () => {

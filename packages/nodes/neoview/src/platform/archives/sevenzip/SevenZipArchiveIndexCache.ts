@@ -3,6 +3,7 @@ import { realpath, stat } from "node:fs/promises"
 import { LRUCache } from "lru-cache"
 
 import type { ArchiveEntry } from "../../../ports/ArchiveProvider.js"
+import { archiveIndexPayloadBytes } from "../ArchiveIndexMetrics.js"
 
 export interface SevenZipArchiveIndex {
   entries: readonly ArchiveEntry[]
@@ -18,6 +19,16 @@ export interface SevenZipArchiveIndexLoadOptions {
   load(): Promise<SevenZipArchiveIndex>
 }
 
+export interface SevenZipArchiveIndexCacheSnapshot {
+  readonly entries: number
+  readonly maxEntries: number
+  readonly payloadBytes: number
+  readonly maxPayloadBytes: number
+  readonly hits: number
+  readonly misses: number
+  readonly evictions: number
+}
+
 const DEFAULT_MAX_ENTRIES = 32
 const MAX_REVISION_RETRIES = 1
 
@@ -26,34 +37,66 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
   readonly #entries: LRUCache<string, SevenZipArchiveIndex>
   readonly #loads = new Map<string, Promise<SevenZipArchiveIndex>>()
   readonly #sourceRevisions = new Map<string, string>()
+  readonly #maxEntries: number
   readonly #enabled: boolean
+  #hits = 0
+  #misses = 0
+  #evictions = 0
+  #maxPayloadBytes = 0
   #closed = false
 
   constructor(maxEntries = DEFAULT_MAX_ENTRIES) {
     if (!Number.isSafeInteger(maxEntries) || maxEntries < 0) {
       throw new RangeError(`Invalid SevenZip archive index cache entry budget: ${maxEntries}`)
     }
+    this.#maxEntries = maxEntries
     this.#enabled = maxEntries > 0
-    this.#entries = this.#enabled ? new LRUCache({ max: maxEntries }) : new LRUCache({ max: 1 })
+    const dispose = () => { this.#evictions += 1 }
+    this.#entries = this.#enabled ? new LRUCache({ max: maxEntries, dispose }) : new LRUCache({ max: 1, dispose })
   }
 
   get size(): number {
     return this.#entries.size
   }
 
+  snapshot(): SevenZipArchiveIndexCacheSnapshot {
+    let payloadBytes = 0
+    for (const index of this.#entries.values()) payloadBytes += archiveIndexPayloadBytes(index.entries)
+    return {
+      entries: this.#entries.size,
+      maxEntries: this.#maxEntries,
+      payloadBytes,
+      maxPayloadBytes: this.#maxPayloadBytes,
+      hits: this.#hits,
+      misses: this.#misses,
+      evictions: this.#evictions,
+    }
+  }
+
   async getOrLoad(options: SevenZipArchiveIndexLoadOptions): Promise<SevenZipArchiveIndex> {
     this.#assertOpen()
     options.signal?.throwIfAborted()
-    if (!this.#enabled) return waitWithSignal(options.load(), options.signal)
+    if (!this.#enabled) {
+      this.#misses += 1
+      return waitWithSignal(options.load(), options.signal)
+    }
     const revision = await revisionKey(options).catch(() => undefined)
     options.signal?.throwIfAborted()
-    if (!revision) return waitWithSignal(options.load(), options.signal)
+    if (!revision) {
+      this.#misses += 1
+      return waitWithSignal(options.load(), options.signal)
+    }
     const { key } = revision
     this.#replaceSourceRevision(revision.sourceIdentity, key)
     const cached = this.#entries.get(key)
-    if (cached) return cloneIndex(cached)
+    if (cached) {
+      this.#hits += 1
+      return cloneIndex(cached)
+    }
     let loading = this.#loads.get(key)
+    if (loading) this.#hits += 1
     if (!loading) {
+      this.#misses += 1
       loading = this.#loadVerified(options, revision)
       this.#loads.set(key, loading)
       void loading.then(
@@ -102,7 +145,10 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
       const after = await revisionKey(options)
       if (after.sourceIdentity === before.sourceIdentity && after.key === before.key) {
         const normalized = cloneIndex(index)
-        if (this.#sourceRevisions.get(after.sourceIdentity) === after.key) this.#entries.set(after.key, normalized)
+        if (this.#sourceRevisions.get(after.sourceIdentity) === after.key) {
+          this.#entries.set(after.key, normalized)
+          this.#maxPayloadBytes = Math.max(this.#maxPayloadBytes, archiveIndexPayloadBytes(normalized.entries))
+        }
         return normalized
       }
       if (after.key !== initialRevision.key && after.sourceIdentity === initialRevision.sourceIdentity) {

@@ -34,7 +34,14 @@ describe("ReaderDiagnosticsService", () => {
         enabled: true, entries: 5, bytes: 70, maxBytes: 500, maxEntryBytes: 100, activeLeases: 3,
         hits: 1, misses: 2, writes: 3, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
       }),
-      solidArchiveCache: () => ({ entries: 1, retainedBytes: 80, maxBytes: 200, activeEntries: 1, activeLeases: 4 }),
+      solidArchiveCache: () => ({
+        entries: 1,
+        retainedBytes: 80,
+        maxBytes: 200,
+        activeEntries: 1,
+        activeLeases: 4,
+        indexCache: { entries: 2, maxEntries: 32, payloadBytes: 512, maxPayloadBytes: 768, hits: 3, misses: 2, evictions: 1 },
+      }),
       scheduler: () => ({
         cpu: pool(1, 2), io: pool(0, 1), gpu: pool(0, 0),
       }),
@@ -64,7 +71,14 @@ describe("ReaderDiagnosticsService", () => {
         disk: { presentationBytes: 70, solidArchiveBytes: 80, totalBytes: 150 },
         leases: { presentationMemory: 2, presentationDisk: 3, solidArchive: 4, thumbnailDemands: 2, total: 11 },
       },
-      solidArchiveCache: { entries: 1, retainedBytes: 80, maxBytes: 200, activeEntries: 1, activeLeases: 4 },
+      solidArchiveCache: {
+        entries: 1,
+        retainedBytes: 80,
+        maxBytes: 200,
+        activeEntries: 1,
+        activeLeases: 4,
+        indexCache: { entries: 2, maxEntries: 32, payloadBytes: 512, maxPayloadBytes: 768, hits: 3, misses: 2, evictions: 1 },
+      },
       scheduler: expect.objectContaining({ cpu: expect.objectContaining({ active: 1, queued: 2 }) }),
     }))
     expect(snapshot.assets.thumbnails?.telemetry).toMatchObject({ cacheHits: 3, cacheMisses: 4, completed: 2, failed: 1, cancelled: 1, evictions: 2 })
