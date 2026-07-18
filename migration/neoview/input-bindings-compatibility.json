@@ -798,10 +798,11 @@
       "testIds": [
         "neoview.bindings.dom-context",
         "neoview.bindings.editor",
-        "neoview.bindings.recording-focus"
+        "neoview.bindings.recording-focus",
+        "neoview.bindings.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Native controls, DOM context suppression and keyboard/device recorder focus restoration are covered by component tests; screen-reader E2E and real touch recorder capture remain pending."
+      "notes": "Native controls, DOM context suppression and keyboard/device recorder focus restoration are covered by component tests plus desktop/420x360 settings E2E; screen-reader E2E and real touch recorder capture remain pending."
     },
     {
       "id": "bindings.lifecycle",
