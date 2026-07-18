@@ -2214,7 +2214,7 @@ EMM 新写入同样不得回写旧 `thumbs` 行。XR 只读合并旧 `thumbs.rat
 
 剪贴板不在 NeoView 后端建立第二套实现。文本与图片继续使用 XR `NodeClipboardCapability` 的 WebView Clipboard API，普通文件继续调用宿主唯一的鉴权 `/local-files/clipboard`（Windows CF_HDROP）能力；Reader 只负责把归档 entry 转换成宿主可接受的本机路径。`ReaderClipboardMaterializationService` 与 `ReaderPageMaterializer` 是 GUI/CLI/TUI 可共用的 application/port 契约，platform adapter 将 `PageContent` 直接流式写入保留原页文件名和扩展名的随机临时目录，不经过 Base64/JSON，也不依赖 archive provider 私有类型。默认单项 512 MiB、总计 2 GiB、最多 16 个租约、TTL 60 分钟；每次写入取得宿主 interactive I/O lease。鉴权 `POST /reader/s/{sessionId}/clipboard-materializations` 只返回不透明 token、本机路径、字节数和过期时间，GUI 随后调用现有 `host.clipboard.writeFiles([path])`；`DELETE` 显式释放。session close、租约超时和 controller dispose 都会删除临时目录，取消或长度/预算校验失败不会留下半文件。该临时数据不写 SQLite、`xiranite.db` 或 TOML。
 
-旧 NeoView 的 cut 标记只是进程内 `localCutState`，不是 Windows 剪贴板的真实 cut effect，因此迁移为 Reader UI/session 状态，不进入全局后端。文件剪贴板反向读取与 clear 已由鉴权 `/local-files/clipboard` Windows CF_HDROP 宿主路由接管，并在非 Windows 返回显式 unavailable；Explorer 右键注册已由 Windows system capability 与 `xneoview explorer-context-menu-*` CLI 接管，GUI transport 仍待完成；快捷方式解析，以及 trash restore 的 GUI/CLI/TUI transport 与跨平台语义仍待完成，feature 保持 `pending`。
+旧 NeoView 的 cut 标记只是进程内 `localCutState`，不是 Windows 剪贴板的真实 cut effect，因此迁移为 Reader UI/session 状态，不进入全局后端。文件剪贴板反向读取与 clear 已由鉴权 `/local-files/clipboard` Windows CF_HDROP 宿主路由接管，并在非 Windows 返回显式 unavailable；Explorer 右键注册已由 Windows system capability、鉴权 GUI HTTP transport 与 `xneoview explorer-context-menu-*` CLI 接管；快捷方式解析已由 Windows COM adapter 接入 `detectViewSource`、目录 listing、adjacent-book 和 book loader，坏链保留原路径并明确失败。trash restore 的 GUI 操作入口与跨平台语义仍待完成，feature 保持 `partial/pending`。
 
 缩略图数据库是明确的例外：**不迁到 Xiranite 自己的节点数据目录，也不塞进 TOML**。当前 NeoView 由 Tauri `identifier: "NeoView"` 的 `app_data_dir` 初始化数据库：
 

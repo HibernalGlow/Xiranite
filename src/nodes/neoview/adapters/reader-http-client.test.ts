@@ -225,6 +225,29 @@ describe("reader-http-client", () => {
     expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.file.explorer-context-menu-client] exposes authenticated preview, status and confirmed toggle transport", async () => {
+    const preview = { available: true, plan: [], registryFile: "preview.reg" }
+    const status = { available: true, enabled: false }
+    const enabled = { available: true, enabled: true }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input)).pathname
+      if (path.endsWith("/preview")) return Response.json(preview)
+      if (path.endsWith("/status")) return Response.json(status)
+      return Response.json(enabled)
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.explorerContextMenuPreview!()).resolves.toEqual(preview)
+    await expect(client.explorerContextMenuStatus!()).resolves.toEqual(status)
+    await expect(client.setExplorerContextMenuEnabled!(true, true)).resolves.toEqual(enabled)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/system/explorer-context-menu/preview")
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/system/explorer-context-menu/status")
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe("http://127.0.0.1:41000/reader/system/explorer-context-menu")
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ enabled: true, confirmed: true })
+    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.storage-information.diagnostics-client] reads the authenticated shared diagnostics snapshot", async () => {
     const snapshot = { schemaVersion: 1, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
     const fetchMock = vi.fn(async () => Response.json(snapshot))

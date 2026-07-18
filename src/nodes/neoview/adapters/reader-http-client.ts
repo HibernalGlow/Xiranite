@@ -118,6 +118,30 @@ export interface ReaderFileUndoDiscardResultDto {
   journalPersisted?: boolean
 }
 
+export interface ReaderExplorerContextMenuPlanItemDto {
+  entryKey: string
+  hive: "HKCU" | "HKCR" | "HKLM"
+  scope: "file" | "directory" | "background"
+  registryPath: string
+  label: string
+  icon: string
+  command: string
+  enabled: boolean
+}
+
+export interface ReaderExplorerContextMenuPreviewDto {
+  available: boolean
+  plan: readonly ReaderExplorerContextMenuPlanItemDto[]
+  registryFile: string
+  reason?: string
+}
+
+export interface ReaderExplorerContextMenuStatusDto {
+  available: boolean
+  enabled: boolean
+  reason?: string
+}
+
 export interface ReaderDirectorySelectionDescriptorDto {
   generation: number
   allSelected: boolean
@@ -1021,6 +1045,9 @@ export interface ReaderHttpClient {
   clearThumbnailFailures?(limit?: number, signal?: AbortSignal): Promise<number>
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
+  explorerContextMenuPreview?(signal?: AbortSignal): Promise<ReaderExplorerContextMenuPreviewDto>
+  explorerContextMenuStatus?(signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatusDto>
+  setExplorerContextMenuEnabled?(enabled: boolean, confirmed?: boolean, signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatusDto>
   executeFileOperations?(operations: readonly ReaderFileMutationDto[], confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileOperationBatchResultDto>
   fileUndoState?(signal?: AbortSignal): Promise<ReaderFileUndoStateDto>
   undoLatestFileOperations?(confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileUndoResultDto>
@@ -1503,6 +1530,14 @@ export function createReaderHttpClient(
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ path }),
+      signal,
+    }),
+    explorerContextMenuPreview: (signal) => request<ReaderExplorerContextMenuPreviewDto>("/reader/system/explorer-context-menu/preview", { signal }),
+    explorerContextMenuStatus: (signal) => request<ReaderExplorerContextMenuStatusDto>("/reader/system/explorer-context-menu/status", { signal }),
+    setExplorerContextMenuEnabled: (enabled, confirmed = false, signal) => request<ReaderExplorerContextMenuStatusDto>("/reader/system/explorer-context-menu", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled, ...(confirmed ? { confirmed: true } : {}) }),
       signal,
     }),
     executeFileOperations: (operations, confirmed = false, signal) => request<ReaderFileOperationBatchResultDto>("/reader/files/operations", {
