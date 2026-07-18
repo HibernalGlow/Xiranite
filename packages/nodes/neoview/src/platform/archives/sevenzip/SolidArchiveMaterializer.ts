@@ -294,7 +294,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
         handle = await open(path, "wx")
         remaining = entry.uncompressedSize
         crc32 = 0
-        if (remaining > 0) return
+        if (remaining > 0) return false
         if (await finishEntry()) return true
       }
       return false
