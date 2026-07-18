@@ -1873,6 +1873,8 @@
         "neoview.diagnostics.backend",
         "neoview.diagnostics.cli",
         "neoview.diagnostics.cli-connect",
+        "neoview.video-process.scheduler",
+        "neoview.video-process.composition",
         "neoview.diagnostics.scheduler-telemetry-cli",
         "xiranite.scheduler.telemetry",
         "neoview.memory-pressure.route",

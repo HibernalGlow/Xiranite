@@ -66,7 +66,14 @@ export interface ReaderDiagnosticsSnapshot {
   cache?: ReaderUnifiedCacheDiagnostics
   presentationDiskCache: ReaderCacheStatus
   solidArchiveCache: SolidArchiveCacheSnapshot
+  videoProcess?: ReaderVideoProcessDiagnostics
   scheduler: Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>> | null
+}
+
+export interface ReaderVideoProcessDiagnostics {
+  active: number
+  queued: number
+  maxConcurrent: number
 }
 
 export interface ReaderDiagnosticsHistoryQuery {
@@ -114,6 +121,7 @@ export interface ReaderDiagnosticsSources {
   assets(): ReaderAssetDiagnostics
   presentationDiskCache(): Promise<ReaderCacheStatus>
   solidArchiveCache(): SolidArchiveCacheSnapshot
+  videoProcess?(): ReaderVideoProcessDiagnostics
   scheduler?(): Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>>
   close?(): void | Promise<void>
   now?(): number
@@ -174,6 +182,7 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
       cache: unifiedCacheDiagnostics(assets, presentationDiskCache, solidArchiveCache),
       presentationDiskCache,
       solidArchiveCache,
+      videoProcess: this.sources.videoProcess?.(),
       scheduler: this.sources.scheduler?.() ?? null,
     }
   }

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { CoreReaderService } from "./application/reader/ReaderService.js"
 import type { ResourceTaskRequest } from "./ports/ResourceScheduler.js"
+import { VideoProcessScheduler } from "./platform/video/VideoProcessScheduler.js"
 import { createZipFixture, type ZipFixture } from "../test/fixture-builders/create-zip-fixture.js"
 import { createReaderAssetRoute, createReaderBookLoader, createReaderHttpController } from "./platform.js"
 
@@ -112,5 +113,28 @@ describe("NeoView platform composition", () => {
     } finally {
       await controller[Symbol.asyncDispose]()
     }
+  })
+
+  it("[neoview.video-process.composition] reports and preserves an injected video process scheduler", async () => {
+    const videoScheduler = new VideoProcessScheduler()
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+      legacyThumbnailDatabasePath: false,
+      videoProcessScheduler: videoScheduler,
+    })
+    try {
+      const response = (await controller.handle(new Request("http://127.0.0.1:41000/reader/diagnostics", {
+        headers: { "x-xiranite-token": "route-token" },
+      })))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        videoProcess: { active: 0, queued: 0, maxConcurrent: 1 },
+      })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+    expect(videoScheduler.snapshot().closed).toBe(false)
+    await videoScheduler.close()
   })
 })

@@ -52,7 +52,7 @@ import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../.
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
 import { ReaderSeekableMediaCache } from "../../application/reader/ReaderSeekableMediaCache.js"
 import { ReaderSubtitleService } from "../../application/reader/ReaderSubtitleService.js"
-import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
+import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics, type ReaderVideoProcessDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../application/metadata/ReaderBookMetadataService.js"
 import { ReaderPageMediaInformationService } from "../../application/metadata/ReaderPageMediaInformationService.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
@@ -78,6 +78,7 @@ import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirecto
 import { platformReaderBookCandidate } from "../filesystem/PlatformReaderBookCandidate.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
+import { VideoProcessScheduler, type VideoProcessSchedulerSnapshot } from "../video/VideoProcessScheduler.js"
 import { ReaderArchivePreloadDemandBridge } from "../archives/ReaderArchivePreloadDemandBridge.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 import { SuperResolutionArtifactRoute } from "./SuperResolutionArtifactRoute.js"
@@ -221,6 +222,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   thumbnailStore?: ReaderThumbnailStore
   loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
+  videoProcessScheduler?: ResourceScheduler
   loadPageMediaMetadataProvider?: ReaderPageMediaMetadataProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
   progressStore?: ReaderProgressStore | false
@@ -305,6 +307,9 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #subtitles: ReaderSubtitleService
   readonly #diagnostics: ReaderDiagnosticsService
   readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
+  readonly #videoProcessScheduler: ResourceScheduler
+  readonly #ownedVideoProcessScheduler?: VideoProcessScheduler
+  readonly #videoProcessSnapshot?: () => ReaderVideoProcessDiagnostics
   readonly #bookMetadata: ReaderBookMetadataService
   readonly #pageMediaInformation: ReaderPageMediaInformationService
   readonly #adjacentBooks: ReaderAdjacentBookService
@@ -366,6 +371,12 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
       maxBytes: options.maxSolidArchiveCacheBytes,
     })
+    const ownedVideoProcessScheduler = options.videoProcessScheduler === undefined
+      ? new VideoProcessScheduler()
+      : undefined
+    this.#ownedVideoProcessScheduler = ownedVideoProcessScheduler
+    this.#videoProcessScheduler = options.videoProcessScheduler ?? ownedVideoProcessScheduler!
+    this.#videoProcessSnapshot = videoProcessSnapshot(this.#videoProcessScheduler)
     const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache, mediaFormats: this.#mediaFormats })
     const imageMetadataProbe = new StreamingImageMetadataProbe()
     const loadImageTransformer = async () => {
@@ -377,7 +388,10 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     const loadVideoThumbnailProvider = options.loadVideoThumbnailProvider ?? (async () => {
       const { FfmpegVideoThumbnailProvider } = await import("../video/FfmpegVideoThumbnailProvider.js")
-      return new FfmpegVideoThumbnailProvider({ resourceScheduler: options.resourceScheduler })
+      return new FfmpegVideoThumbnailProvider({
+        resourceScheduler: options.resourceScheduler,
+        processScheduler: this.#videoProcessScheduler,
+      })
     })
     const loadMosaicImageComposer = async () => {
       const { SharpMosaicImageComposer } = await import("../images/sharp/SharpMosaicImageComposer.js")
@@ -426,7 +440,10 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#pageMediaInformation = new ReaderPageMediaInformationService(
       options.loadPageMediaMetadataProvider ?? (async () => {
         const { FfprobePageMediaMetadataProvider } = await import("../video/FfprobePageMediaMetadataProvider.js")
-        return new FfprobePageMediaMetadataProvider({ resourceScheduler: options.resourceScheduler })
+        return new FfprobePageMediaMetadataProvider({
+          resourceScheduler: options.resourceScheduler,
+          processScheduler: this.#videoProcessScheduler,
+        })
       }),
     )
     this.#clipboardMaterializations = new ReaderClipboardMaterializationService(
@@ -532,6 +549,7 @@ export class ReaderHttpController implements AsyncDisposable {
       assets: () => this.#assets.snapshot(),
       presentationDiskCache: () => this.#cacheService.status(),
       solidArchiveCache: () => this.#solidArchiveCache.snapshot(),
+      videoProcess: this.#videoProcessSnapshot,
       scheduler: this.#schedulerSnapshot,
     })
     this.#mediaProgress = options.mediaProgressStore
@@ -762,6 +780,13 @@ export class ReaderHttpController implements AsyncDisposable {
       await this.#pageMediaInformation[Symbol.asyncDispose]()
     } catch (error) {
       errors.push(error)
+    }
+    if (this.#ownedVideoProcessScheduler) {
+      try {
+        await this.#ownedVideoProcessScheduler[Symbol.asyncDispose]()
+      } catch (error) {
+        errors.push(error)
+      }
     }
     try {
       await this.#sourceChanges[Symbol.asyncDispose]()
@@ -2176,6 +2201,23 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 function methodNotAllowed(allow: string): Response {
   return new Response("Method not allowed", { status: 405, headers: { allow } })
+}
+
+function videoProcessSnapshot(
+  scheduler: ResourceScheduler | undefined,
+): (() => ReaderVideoProcessDiagnostics) | undefined {
+  const source = scheduler as (ResourceScheduler & {
+    snapshot?: () => Readonly<VideoProcessSchedulerSnapshot>
+  }) | undefined
+  if (typeof source?.snapshot !== "function") return undefined
+  return () => {
+    const snapshot = source.snapshot!()
+    return {
+      active: snapshot.active,
+      queued: snapshot.queued,
+      maxConcurrent: snapshot.maxConcurrent,
+    }
+  }
 }
 
 function schedulerSnapshot(
