@@ -128,7 +128,7 @@ export default function FolderDetailsView({
 
   return (
     <div
-      className="h-72 min-w-0"
+      className="h-full min-h-0 min-w-0"
       data-testid="folder-details-host"
       data-neoview-folder-details="true"
       data-table-engine="niko-sparse"
