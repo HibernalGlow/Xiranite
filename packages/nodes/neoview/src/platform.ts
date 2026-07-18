@@ -17,6 +17,7 @@ import type { ReaderSearchHistoryStore } from "./ports/ReaderSearchHistoryStore.
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmTagCatalogStore } from "./ports/ReaderEmmTagCatalogStore.js"
+import { emmTranslationKey } from "./ports/ReaderEmmTagTranslation.js"
 import type { ReaderDirectoryMetadataField } from "./ports/ReaderDirectoryMetadataProvider.js"
 import type { ResourceScheduler } from "./ports/ResourceScheduler.js"
 import type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
@@ -203,7 +204,7 @@ export async function createReaderFileTreeController(
   const { PlatformReaderDirectorySizeProvider } = await import("./platform/filesystem/PlatformReaderDirectorySizeProvider.js")
   const { PlatformDirectoryMetadataProvider } = await import("./platform/filesystem/PlatformDirectoryMetadataProvider.js")
   const { PlatformEmmCollectTagSource } = await import("./platform/emm/PlatformEmmCollectTagSource.js")
-  const { PlatformEmmTranslationSource, emmTranslationKey } = await import("./platform/emm/PlatformEmmTranslationSource.js")
+  const { PlatformEmmTranslationSource } = await import("./platform/emm/PlatformEmmTranslationSource.js")
   const { LazyReaderDirectoryMetadataProvider } = await import("./application/browser/LazyReaderDirectoryMetadataProvider.js")
   const { LazyReaderDataStoreResource } = await import("./platform/persistence/LazyReaderDataStoreResource.js")
   const { platformReaderDirectoryEntryType } = await import("./platform/filesystem/PlatformReaderDirectoryEntryClassifier.js")

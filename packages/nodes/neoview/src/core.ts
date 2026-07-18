@@ -69,7 +69,7 @@ export { ReaderDirectoryListingScanner } from "./application/browser/ReaderDirec
 export { ReaderMetadataHydratingScanner } from "./application/browser/ReaderMetadataHydratingScanner.js"
 export { ReaderEmmTagSuggestionService } from "./application/metadata/ReaderEmmTagSuggestionService.js"
 export type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "./ports/ReaderEmmTagCatalogStore.js"
-export { PlatformEmmTranslationSource, emmTranslationKey } from "./platform/emm/PlatformEmmTranslationSource.js"
+export { emmTranslationKey } from "./ports/ReaderEmmTagTranslation.js"
 export type { ReaderDirectorySize, ReaderDirectorySizeProvider } from "./ports/ReaderDirectorySizeProvider.js"
 export {
   ReaderFileTreeIndex,

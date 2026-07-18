@@ -21,7 +21,7 @@ import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.j
 import { PlatformFileTreeWatcher } from "../filesystem/PlatformFileTreeWatcher.js"
 import { PlatformReaderDirectorySizeProvider } from "../filesystem/PlatformReaderDirectorySizeProvider.js"
 import { PlatformEmmCollectTagSource } from "../emm/PlatformEmmCollectTagSource.js"
-import { emmTranslationKey, PlatformEmmTranslationSource } from "../emm/PlatformEmmTranslationSource.js"
+import { PlatformEmmTranslationSource } from "../emm/PlatformEmmTranslationSource.js"
 import { PlatformDirectoryRootProvider } from "../filesystem/PlatformDirectoryRootProvider.js"
 import { platformReaderDirectoryEntryType } from "../filesystem/PlatformReaderDirectoryEntryClassifier.js"
 import type { ReaderDirectoryRootProvider } from "../../ports/ReaderDirectoryRootProvider.js"
@@ -49,6 +49,7 @@ import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.
 import { z } from "zod"
 import { ReaderEmmTagSuggestionService } from "../../application/metadata/ReaderEmmTagSuggestionService.js"
 import type { ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
+import { emmTranslationKey } from "../../ports/ReaderEmmTagTranslation.js"
 import {
   ReaderDirectorySelectionStaleError,
   type ReaderDirectorySelectionDescriptor,

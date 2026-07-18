@@ -2,21 +2,11 @@ import { readFile, stat } from "node:fs/promises"
 import { resolve } from "node:path"
 
 import type { ReaderEmmCatalogTag } from "../../ports/ReaderEmmTagCatalogStore.js"
+import { emmTranslationKey, emmTranslationNamespace } from "../../ports/ReaderEmmTagTranslation.js"
+
+export { emmTranslationKey } from "../../ports/ReaderEmmTagTranslation.js"
 
 const MAX_TRANSLATION_BYTES = 8 * 1024 * 1024
-const ABBREVIATIONS: Readonly<Record<string, string>> = {
-  l: "language",
-  p: "parody",
-  c: "character",
-  g: "group",
-  a: "artist",
-  m: "male",
-  f: "female",
-  x: "mixed",
-  r: "reclass",
-  cos: "cosplayer",
-  o: "other",
-}
 
 export interface PlatformEmmTranslationSourceOptions {
   path?: string
@@ -39,7 +29,7 @@ export class PlatformEmmTranslationSource {
     if (!dictionary) return new Map()
     const requested = new Map<string, Set<string>>()
     for (const value of tags) {
-      const namespace = fullNamespace(value.category)
+      const namespace = emmTranslationNamespace(value.category)
       const names = requested.get(namespace) ?? new Set<string>()
       names.add(value.tag)
       requested.set(namespace, names)
@@ -48,14 +38,14 @@ export class PlatformEmmTranslationSource {
     const data = isRecord(dictionary) && Array.isArray(dictionary.data) ? dictionary.data : []
     for (const namespaceRecord of data) {
       if (!isRecord(namespaceRecord) || typeof namespaceRecord.namespace !== "string" || !isRecord(namespaceRecord.data)) continue
-      const namespace = fullNamespace(namespaceRecord.namespace)
+      const namespace = emmTranslationNamespace(namespaceRecord.namespace)
       const names = requested.get(namespace)
       if (!names) continue
       for (const tag of names) {
         const record = Object.prototype.hasOwnProperty.call(namespaceRecord.data, tag) ? namespaceRecord.data[tag] : undefined
         if (!isRecord(record) || typeof record.name !== "string") continue
         const translated = record.name.trim()
-        if (translated && translated.length <= 512) output.set(tagKey(namespace, tag), translated)
+        if (translated && translated.length <= 512) output.set(emmTranslationKey({ category: namespace, tag }), translated)
       }
     }
     return output
@@ -96,19 +86,6 @@ export class PlatformEmmTranslationSource {
     }
     return undefined
   }
-}
-
-export function emmTranslationKey(value: ReaderEmmCatalogTag): string {
-  return tagKey(fullNamespace(value.category), value.tag)
-}
-
-function fullNamespace(value: string): string {
-  const normalized = value.trim().toLocaleLowerCase()
-  return ABBREVIATIONS[normalized] ?? normalized
-}
-
-function tagKey(namespace: string, tag: string): string {
-  return `${namespace.normalize("NFKC").toLocaleLowerCase()}\0${tag.normalize("NFKC").toLocaleLowerCase()}`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
