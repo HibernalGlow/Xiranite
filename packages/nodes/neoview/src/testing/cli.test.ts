@@ -713,6 +713,51 @@ describe("NeoView CLI", () => {
     }
   })
 
+  it("[neoview.bindings.config-cli] lists, applies and resets a complete multi-binding configuration", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-bindings-cli-"))
+    const inputPath = join(directory, "bindings.json")
+    const configPath = join(directory, "xiranite.config.toml")
+    const bindings = [
+      { id: "key-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "keyboard", code: "ArrowRight" } },
+      { id: "mouse-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 3, action: "click" } },
+    ]
+    await writeFile(inputPath, JSON.stringify({ bindings }))
+    try {
+      await expect(runProgram(["input-bindings-apply", inputPath, "--config", configPath], host([]))).rejects.toThrow("requires --yes")
+      const applyOutput: unknown[] = []
+      await runProgram(["input-bindings-apply", inputPath, "--config", configPath, "--yes", "--json"], host(applyOutput))
+      expect(JSON.parse(applyOutput.join(""))).toMatchObject({ changed: true, config: { bindings } })
+
+      const listOutput: unknown[] = []
+      await runProgram(["input-bindings-list", "--config", configPath, "--json"], host(listOutput))
+      expect(JSON.parse(listOutput.join(""))).toEqual({ bindings })
+
+      const resetOutput: unknown[] = []
+      await runProgram(["input-bindings-reset", "--config", configPath, "--yes", "--json"], host(resetOutput))
+      expect(JSON.parse(resetOutput.join("")).config.bindings.length).toBeGreaterThan(bindings.length)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.bindings.action-dispatch-cli] maps legacy IDs and reports unsupported headless actions", async () => {
+    const controller = fakeReader()
+    const nextOutput: unknown[] = []
+    await runProgram(["input-action-dispatch", "book.cbz", "--action", "nextPage", "--json"], host(nextOutput), {
+      ...testPlatformDependencies,
+      createController: async () => controller,
+    })
+    expect(JSON.parse(nextOutput.join(""))).toMatchObject({ handled: true, action: "reader.next-page", snapshot: { frame: { anchorPageIndex: 1 } } })
+    expect(controller.next).toHaveBeenCalledOnce()
+
+    const unsupportedOutput: unknown[] = []
+    await runProgram(["input-action-dispatch", "book.cbz", "--action", "zoomIn", "--json"], host(unsupportedOutput), {
+      ...testPlatformDependencies,
+      createController: async () => fakeReader(),
+    })
+    expect(JSON.parse(unsupportedOutput.join(""))).toEqual({ handled: false, action: "reader.zoom-in", reason: "unsupported-on-headless-surface" })
+  })
+
   it("[neoview.settings.portable-cli] exports and round-trips the current node config without sensitive values", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-settings-portable-"))
     const configPath = join(directory, "xiranite.config.toml")
