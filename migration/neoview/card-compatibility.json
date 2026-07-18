@@ -475,12 +475,12 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
-        "cli": "not-applicable",
-        "tui": "not-applicable",
-        "evidence": "pending"
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
       },
       "sourceComponent": "src/lib/cards/info/ColorFilterCard.svelte",
       "sourceDisposition": "component"
