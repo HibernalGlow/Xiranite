@@ -1,5 +1,6 @@
 import {
   readerInputActionFromLegacyId,
+  readerInputConflictKey,
   type ReaderInputBinding,
   type ReaderInputContext,
   type ReaderInputDescriptor,
@@ -60,7 +61,34 @@ export function convertLegacyReaderInputBindings(value: unknown): ReaderLegacyIn
       report.push({ sourcePath: source.path, status: "converted", message: `Converted to ${action}.`, bindingId: id })
     }
   }
-  return { bindings, report }
+  return { bindings: normalizeBindings(bindings, report), report }
+}
+
+function normalizeBindings(bindings: ReaderInputBinding[], report: ReaderLegacyInputBindingReportEntry[]): ReaderInputBinding[] {
+  const result: ReaderInputBinding[] = []
+  const exact = new Set<string>()
+  const enabledInputs = new Set<string>()
+  for (const binding of bindings) {
+    if (result.length >= 256) {
+      report.push({ sourcePath: "keybindings", status: "skipped", message: "Only the first 256 distinct bindings can be imported.", bindingId: binding.id })
+      continue
+    }
+    const conflictKey = readerInputConflictKey(binding)
+    const exactKey = `${binding.action}:${conflictKey}`
+    if (exact.has(exactKey)) {
+      report.push({ sourcePath: "keybindings", status: "skipped", message: "Skipped a duplicate binding for the same action.", bindingId: binding.id })
+      continue
+    }
+    exact.add(exactKey)
+    if (enabledInputs.has(conflictKey)) {
+      result.push({ ...binding, enabled: false })
+      report.push({ sourcePath: "keybindings", status: "converted", message: "Preserved a conflicting legacy binding as disabled.", bindingId: binding.id })
+    } else {
+      enabledInputs.add(conflictKey)
+      result.push(binding)
+    }
+  }
+  return result
 }
 
 function convertLegacyInput(value: unknown): ReaderInputDescriptor | undefined {
@@ -92,10 +120,10 @@ function keyboardInput(value: Record<string, unknown>): ReaderInputDescriptor | 
     device: "keyboard",
     code,
     ...(trigger === "hold" ? { trigger, durationMs: bounded(value.durationMs, 100, 5_000, 450) } : {}),
-    ctrl: modifiers.has("ctrl") || modifiers.has("control") || undefined,
-    alt: modifiers.has("alt") || undefined,
-    shift: modifiers.has("shift") || undefined,
-    meta: modifiers.has("meta") || modifiers.has("cmd") || modifiers.has("command") || undefined,
+    ...(modifiers.has("ctrl") || modifiers.has("control") ? { ctrl: true } : {}),
+    ...(modifiers.has("alt") ? { alt: true } : {}),
+    ...(modifiers.has("shift") ? { shift: true } : {}),
+    ...(modifiers.has("meta") || modifiers.has("cmd") || modifiers.has("command") ? { meta: true } : {}),
   }
 }
 

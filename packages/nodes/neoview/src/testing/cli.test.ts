@@ -20,6 +20,7 @@ import { createReaderFileTreeController, createReaderHeadlessController } from "
 import { ReaderCacheService } from "../application/cache/ReaderCacheService.js"
 import { ReaderDiagnosticsService } from "../application/diagnostics/ReaderDiagnosticsService.js"
 import type { ReaderPresentationDiskCache } from "../ports/ReaderPresentationDiskCache.js"
+import { loadNeoviewRuntimeConfig } from "../platform/config/loadNeoviewRuntimeConfig.js"
 
 const testPlatformDependencies = {
   createController: (options = {}) => createReaderHeadlessController({ ...options, progressStore: false }),
@@ -674,6 +675,39 @@ describe("NeoView CLI", () => {
         "settings-import", inputPath, "--config", configPath, "--strategy", "merge", "--modules", "native-settings", "--yes", "--json",
       ], host(secondOutput))
       expect(JSON.parse(secondOutput.join(""))).toMatchObject({ changed: false })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.bindings.legacy-import-cli] atomically imports multiple bindings and radial menus into runtime TOML", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-bindings-import-"))
+    const inputPath = join(directory, "settings.json")
+    const configPath = join(directory, "xiranite.config.toml")
+    await writeFile(inputPath, JSON.stringify({
+      version: "1.0.0",
+      keybindings: [{
+        action: "nextPage",
+        bindings: [{ type: "keyboard", key: "ArrowRight" }, { type: "keyboard", key: "Space" }],
+        contextBindings: [{ context: "viewer", input: { type: "mouse", gesture: "click", button: "right" } }],
+      }],
+      radialMenus: {
+        id: "default",
+        name: "旧轮盘",
+        items: [{ id: "next", label: "下一页", action: "nextPage" }],
+      },
+    }))
+    try {
+      const output: unknown[] = []
+      await runProgram([
+        "settings-import", inputPath, "--config", configPath, "--strategy", "merge", "--modules", "keybindings", "--yes", "--json",
+      ], host(output))
+      expect(JSON.parse(output.join(""))).toMatchObject({ changed: true, strategy: "merge" })
+
+      const runtime = await loadNeoviewRuntimeConfig({ configPath })
+      expect(runtime.inputBindings.bindings).toHaveLength(3)
+      expect(runtime.inputBindings.bindings.filter((binding) => binding.action === "reader.next-page")).toHaveLength(3)
+      expect(runtime.radialMenu.menus[0]?.layers[0]?.[0]).toMatchObject({ action: "reader.next-page" })
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

@@ -27,4 +27,16 @@ describe("ReaderLegacyInputBindings", () => {
     expect(result.bindings).toEqual([])
     expect(result.report.map((entry) => entry.status)).toEqual(["skipped", "skipped"])
   })
+
+  it("[neoview.bindings.legacy-conflicts] preserves multiple bindings and disables only ambiguous legacy collisions", () => {
+    const result = convertLegacyReaderInputBindings([
+      { action: "nextPage", bindings: [{ type: "keyboard", key: "ArrowRight" }, { type: "keyboard", key: "Space" }] },
+      { action: "prevPage", bindings: [{ type: "keyboard", key: "ArrowRight" }] },
+    ])
+
+    expect(result.bindings).toHaveLength(3)
+    expect(result.bindings.filter((binding) => binding.action === "reader.next-page")).toHaveLength(2)
+    expect(result.bindings[2]).toMatchObject({ action: "reader.previous-page", enabled: false })
+    expect(result.report).toContainEqual(expect.objectContaining({ bindingId: result.bindings[2]?.id, status: "converted", message: expect.stringContaining("conflicting") }))
+  })
 })

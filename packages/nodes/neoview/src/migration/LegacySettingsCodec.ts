@@ -2,6 +2,8 @@ import {
   LegacySuperResolutionSettingsCodec,
   type DecodedLegacySuperResolutionSettings,
 } from "./LegacySuperResolutionSettingsCodec.js"
+import { convertLegacyReaderInputBindings } from "../application/config/ReaderLegacyInputBindings.js"
+import { LegacyRadialMenuCodec } from "./LegacyRadialMenuCodec.js"
 
 export const NEOVIEW_CONFIG_SCHEMA_VERSION = 1 as const
 export const LEGACY_NEOVIEW_SETTINGS_SOURCE_HASH = "sha256:78e22b555978be0712e053efe890a6621a965de6284e5c5df4901df0f704fcea"
@@ -250,6 +252,7 @@ const SENSITIVE_STORAGE_KEY = /(?:gist-sync|ai-api|api-config|auth|credential|se
 const THEME_STORAGE_KEYS = new Set(["theme-mode", "theme-name", "runtime-theme", "custom-themes"])
 const PENDING_EXTENDED_KEYS = new Set(["bookmarks", "history", "searchHistory", "folderRatings"])
 const legacySuperResolution = new LegacySuperResolutionSettingsCodec()
+const legacyRadialMenu = new LegacyRadialMenuCodec()
 const LEGACY_NATIVE_SUPER_RESOLUTION_KEYS = new Set([
   "enableSuperResolution",
   "superResolutionModel",
@@ -510,6 +513,10 @@ function mapAppSettings(
       entries.push({ sourcePath, disposition: "converted", message: "Envelope metadata is not runtime configuration." })
     } else if (target === "theme") {
       entries.push({ sourcePath, disposition: "host-replaced", message: "Xiranite owns the application theme." })
+    } else if (key === "keybindings") {
+      mapLegacyInputBindings(value, config, sourcePath, entries)
+    } else if (key === "radialMenus") {
+      mapLegacyRadialMenu(value, config, sourcePath, entries)
     } else {
       mapOpaqueSetting(value, config, target, sourcePath, entries)
     }
@@ -621,6 +628,18 @@ function mapRawLocalStorage(
       if (parsed !== undefined) applyLegacySuperResolution(legacySuperResolution.decodePanel(parsed, sourcePath), config, entries)
       continue
     }
+    if (key === "neoview-keybindings" || key === "neoview-radial-menus") {
+      if (!modules.has("keybindings")) {
+        entries.push({ sourcePath, disposition: "skipped", message: "Module keybindings was not selected." })
+        continue
+      }
+      const parsed = parseStorageJson(raw, sourcePath, entries)
+      if (parsed !== undefined) {
+        if (key === "neoview-keybindings") mapLegacyInputBindings(parsed, config, sourcePath, entries)
+        else mapLegacyRadialMenu(parsed, config, sourcePath, entries)
+      }
+      continue
+    }
     if (isKnownPendingStorageKey(key)) {
       const module = pendingStorageModule(key)
       if (!modules.has(module)) {
@@ -633,6 +652,49 @@ function mapRawLocalStorage(
     }
     entries.push({ sourcePath, disposition: "unknown", message: "Unmapped localStorage key." })
   }
+}
+
+function mapLegacyInputBindings(
+  value: unknown,
+  config: Record<string, unknown>,
+  sourcePath: string,
+  entries: LegacySettingsReportEntry[],
+): void {
+  const decoded = convertLegacyReaderInputBindings(value)
+  if (decoded.bindings.length) setPath(config, ["bindings", "items"], decoded.bindings)
+  for (const entry of decoded.report) {
+    const bindingIndex = entry.bindingId ? decoded.bindings.findIndex((binding) => binding.id === entry.bindingId) : -1
+    entries.push({
+      sourcePath: rebaseSourcePath(entry.sourcePath, "keybindings", sourcePath),
+      targetPath: bindingIndex >= 0 ? `bindings.items.${bindingIndex}` : undefined,
+      disposition: entry.status === "converted" ? "converted" : entry.status,
+      message: entry.message,
+    })
+  }
+}
+
+function mapLegacyRadialMenu(
+  value: unknown,
+  config: Record<string, unknown>,
+  sourcePath: string,
+  entries: LegacySettingsReportEntry[],
+): void {
+  const decoded = legacyRadialMenu.decode(value, sourcePath)
+  if (decoded.config) setPath(config, ["bindings", "radial_menus"], decoded.config)
+  for (const entry of decoded.report) {
+    entries.push({
+      sourcePath: entry.sourcePath,
+      targetPath: decoded.config ? "bindings.radial_menus" : undefined,
+      disposition: entry.status === "converted" ? "converted" : entry.status,
+      message: entry.message,
+    })
+  }
+}
+
+function rebaseSourcePath(path: string, originalRoot: string, sourceRoot: string): string {
+  return path === originalRoot ? sourceRoot : path.startsWith(`${originalRoot}[`) || path.startsWith(`${originalRoot}.`)
+    ? `${sourceRoot}${path.slice(originalRoot.length)}`
+    : sourceRoot
 }
 
 function applyLegacySuperResolution(

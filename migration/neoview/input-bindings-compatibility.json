@@ -659,10 +659,12 @@
       "testIds": [
         "neoview.bindings.config",
         "neoview.bindings.reset",
-        "neoview.bindings.reset-ui"
+        "neoview.bindings.reset-ui",
+        "neoview.bindings.radial-toml-shape",
+        "neoview.bindings.legacy-import-cli"
       ],
       "plannedTestIds": [],
-      "notes": "GUI HTTP persists canonical items atomically. Explicit CLI/TUI edit commands and a real TOML roundtrip test remain pending."
+      "notes": "GUI HTTP persists canonical items atomically, and the real settings-import CLI round-trips multiple bindings plus radial menus through xiranite.config.toml and the production runtime parser. Explicit CLI/TUI inspect, edit and dispatch commands remain pending."
     },
     {
       "id": "bindings.legacy-import",
@@ -683,7 +685,7 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "partial",
-        "cli": "partial",
+        "cli": "complete",
         "tui": "partial",
         "evidence": "partial"
       },
@@ -691,10 +693,15 @@
         "neoview.settings.codec",
         "neoview.bindings.reset",
         "neoview.bindings.legacy-action-conversion",
-        "neoview.bindings.legacy-action-report"
+        "neoview.bindings.legacy-action-report",
+        "neoview.bindings.legacy-conflicts",
+        "neoview.bindings.legacy-radial",
+        "neoview.bindings.legacy-radial-report",
+        "neoview.bindings.legacy-import-transaction",
+        "neoview.bindings.legacy-import-cli"
       ],
       "plannedTestIds": [],
-      "notes": "A pure converter expands every legacy ActionBinding.bindings/contextBindings entry into independent XR records, maps global/viewer/videoPlayer contexts, converts supported keyboard/mouse/wheel/trajectory/touch/area descriptors, and reports unknown actions or inputs. Wiring the converter into the one-time settings import transaction and radial-menu conversion remains pending."
+      "notes": "The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. A GUI/TUI import projection remains pending."
     },
     {
       "id": "bindings.states",

@@ -44,4 +44,11 @@ describe("ReaderRadialMenuConfig", () => {
     expect(parsed.tomlPatch).toEqual({ bindings: { radial_menus: DEFAULT_READER_RADIAL_MENU_CONFIG } })
     expect(parseReaderRadialMenuPatch({ radialMenu: { reset: "defaults" } }).patch).toEqual({ radialMenu: { reset: "defaults" } })
   })
+
+  it("[neoview.bindings.radial-toml-shape] omits unset optional item fields from persistence", () => {
+    const parsed = parseReaderRadialMenuConfig({ id: "default", name: "默认轮盘", items: [{ id: "next", label: "下一页", action: "reader.next-page" }] })
+    const item = parsed.menus[0]?.layers[0]?.[0]
+    expect(item).toEqual({ id: "next", label: "下一页", action: "reader.next-page", slotIndex: 0 })
+    expect(JSON.stringify(parsed)).not.toContain("undefined")
+  })
 })
