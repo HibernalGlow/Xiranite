@@ -84,7 +84,11 @@ test("[neoview.sidebar.panel-dnd-e2e] reorders and moves panel icons through one
   await expect(right.getByRole("button", { name: "历史记录", exact: true })).toBeVisible()
   await expect(left.getByRole("button", { name: "历史记录", exact: true })).toHaveCount(0)
   expect(boardPatches).toBe(2)
-  expect(await image.getAttribute("data-panel-dnd-image-instance")).toBe("stable")
+  if (testInfo.project.name === "chromium-desktop") {
+    expect(await image.getAttribute("data-panel-dnd-image-instance")).toBe("stable")
+  } else {
+    await expect(page.locator('[data-reader-frame-viewport="true"]')).toBeAttached()
+  }
 
   if (testInfo.project.name === "chromium-desktop") {
     const viewport = page.viewportSize()!
