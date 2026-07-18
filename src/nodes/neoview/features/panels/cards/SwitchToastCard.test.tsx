@@ -39,6 +39,9 @@ describe("SwitchToastCard", () => {
     expect(screen.getByText("页面提示模板")).toBeTruthy()
     expect(screen.getAllByText("变量")).toHaveLength(2)
     expect(screen.getByText("{{page.name}}")).toBeTruthy()
+    expect(screen.getAllByRole("table")).toHaveLength(2)
+    expect(screen.getAllByRole("table").every((table) => table.className.includes("table-fixed"))).toBe(true)
+    expect(screen.getAllByRole("table")[0]?.getAttribute("data-switch-toast-variable-table")).toBe("true")
   })
 
   it("[neoview.switch-toast.draft-commit] keeps numeric and text drafts local until blur", () => {
