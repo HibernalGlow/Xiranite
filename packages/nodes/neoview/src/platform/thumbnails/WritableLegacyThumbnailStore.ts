@@ -19,6 +19,8 @@ import {
   type ThumbnailDatabaseAccessLock,
 } from "./ThumbnailDatabaseAccessLock.js"
 import type { LegacyThumbnailCategory, LegacyThumbnailRecord } from "./ReadonlyLegacyThumbnailStore.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import { readLegacyThumbnailStatistics } from "./LegacyThumbnailStatistics.js"
 
 export interface WritableLegacyThumbnailStoreOptions {
   maxThumbnailBytes?: number
@@ -30,6 +32,8 @@ export interface WritableLegacyThumbnailStoreOptions {
   writeBusyBaseDelayMs?: number
   pathState?: (path: string) => Promise<ThumbnailPathState>
   dataVersionPollIntervalMs?: number
+  resourceScheduler?: ResourceScheduler
+  statisticsChunkSize?: number
 }
 
 export type ThumbnailPathState = "exists" | "missing" | "unavailable"
@@ -50,6 +54,8 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
   readonly #writeBusyBaseDelayMs: number
   readonly #pathState: (path: string) => Promise<ThumbnailPathState>
   readonly #dataVersion: SqliteDataVersionTracker
+  readonly #resourceScheduler?: ResourceScheduler
+  readonly #statisticsChunkSize?: number
   #pending: PendingWrite[] = []
   #flushTimer?: ReturnType<typeof setTimeout>
   #flushing?: Promise<void>
@@ -80,6 +86,8 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.#dataVersion = new SqliteDataVersionTracker(database, {
       pollIntervalMs: options.dataVersionPollIntervalMs,
     })
+    this.#resourceScheduler = options.resourceScheduler
+    this.#statisticsChunkSize = options.statisticsChunkSize
     assertInteger(this.#maxThumbnailBytes, "maxThumbnailBytes", 1, 256 * 1024 * 1024)
     assertInteger(this.#flushIntervalMs, "flushIntervalMs", 0, 60_000)
     assertInteger(this.#maxBatchSize, "maxBatchSize", 1, 512)
@@ -219,38 +227,18 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.#assertOpen()
     signal?.throwIfAborted()
     await this.flush()
-    const thumbs = this.#database.get(
-      `SELECT COUNT(*) AS total_rows,
-              SUM(category = 'file') AS file_rows,
-              SUM(category = 'folder') AS folder_rows,
-              COALESCE(SUM(length(value)), 0) AS blob_bytes,
-              SUM(value IS NULL OR length(value) = 0) AS empty_blobs
-       FROM thumbs`,
-    ) ?? {}
-    const failures = this.#database.all(
-      "SELECT reason, COUNT(*) AS count FROM failed_thumbnails GROUP BY reason ORDER BY reason",
-    )
-    const failuresByReason: Record<string, number> = {}
-    let failedRows = 0
-    for (const row of failures) {
-      const reason = requireString(row.reason, "failed_thumbnails.reason")
-      const count = optionalInteger(row.count) ?? 0
-      failuresByReason[reason] = count
-      failedRows += count
-    }
+    const statistics = await readLegacyThumbnailStatistics(this.report.path, {
+      chunkSize: this.#statisticsChunkSize,
+      resourceScheduler: this.#resourceScheduler,
+      signal,
+    })
     const [databaseBytes, walBytes, shmBytes] = await Promise.all([
       fileSize(this.report.path),
       fileSize(`${this.report.path}-wal`),
       fileSize(`${this.report.path}-shm`),
     ])
     return {
-      totalRows: optionalInteger(thumbs.total_rows) ?? 0,
-      fileRows: optionalInteger(thumbs.file_rows) ?? 0,
-      folderRows: optionalInteger(thumbs.folder_rows) ?? 0,
-      blobBytes: optionalInteger(thumbs.blob_bytes) ?? 0,
-      emptyBlobs: optionalInteger(thumbs.empty_blobs) ?? 0,
-      failedRows,
-      failuresByReason,
+      ...statistics,
       databaseBytes,
       walBytes,
       shmBytes,
