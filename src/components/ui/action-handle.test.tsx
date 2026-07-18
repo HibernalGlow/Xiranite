@@ -59,6 +59,8 @@ describe("ActionHandle", () => {
     fireEvent.click(handle)
     const menu = screen.getByRole("menu")
     expect(menu.getAttribute("data-action-rings")).toBe("2")
+    expect(menu.getAttribute("data-action-palette-frame")).toBe("circle")
+    expect(menu.className).not.toContain(" border ")
     const customOuter = screen.getByRole("menuitem", { name: /操作 0/ })
     expect(customOuter.getAttribute("style")).toContain("top: 6px")
 
