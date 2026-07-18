@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Readable, type Writable } from "node:stream"
 
-import type { ArchiveEntry } from "../../../ports/ArchiveProvider.js"
+import type { ArchiveEntry, ArchivePreloadDemand } from "../../../ports/ArchiveProvider.js"
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { appendCrc32 } from "./incremental-crc32.js"
 import { SolidArchiveMemoryCache } from "./SolidArchiveCache.js"
@@ -56,8 +56,11 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   readonly #lifecycle = new AbortController()
   readonly #paths = new Map<string, DeferredPath>()
   readonly #awaitingProcessVerification: Array<{ entryId: string; path: string }> = []
+  readonly #roots = new Set<string>()
   #run?: Promise<void>
   #root?: string
+  #preloadDemand?: ArchivePreloadDemand
+  #requiredEntryIndex = -1
   #child?: SevenZipChild
   #closed = false
   #complete = false
@@ -136,8 +139,26 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     signal?.throwIfAborted()
     const target = this.#paths.get(entryId)
     if (!target) throw new Error(`Solid archive entry was not indexed: ${entryId}`)
+    const entryIndex = this.#entries.findIndex((entry) => entry.id === entryId)
+    this.#requiredEntryIndex = Math.max(this.#requiredEntryIndex, entryIndex)
     this.#start()
     return waitWithSignal(target.promise, signal)
+  }
+
+  /**
+   * Update speculative work without changing the hard entry demands made by
+   * pathFor/streamFor. A lower target stops the current sequential extractor
+   * at the next verified entry boundary; a later generation can resume from a
+   * fresh extractor when another entry is required.
+   */
+  updatePreloadDemand(demand: ArchivePreloadDemand): void {
+    assertPreloadDemand(demand)
+    if (this.#preloadDemand && demand.generation < this.#preloadDemand.generation) return
+    for (const entryId of demand.entryIds) {
+      if (!this.#entriesById.has(entryId)) throw new Error(`Solid archive preload entry was not indexed: ${entryId}`)
+    }
+    this.#preloadDemand = { ...demand, entryIds: [...demand.entryIds] }
+    if (demand.entryIds.length) this.#start()
   }
 
   async close(): Promise<void> {
@@ -150,7 +171,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     if (this.#ownsMemory) this.#memory.clear()
     await this.#run?.catch(() => undefined)
     this.#rejectPending(reason)
-    if (this.#root) await rm(this.#root, { recursive: true, force: true })
+    await Promise.all([...this.#roots].map((root) => rm(root, { recursive: true, force: true })))
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -158,12 +179,16 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   }
 
   #start(): void {
-    if (this.#run) return
-    this.#run = this.#extract().catch((error) => {
+    if (this.#run || this.#complete) return
+    let run: Promise<void>
+    run = this.#extract().catch((error) => {
       this.#rejectPending(error)
       throw error
+    }).finally(() => {
+      if (this.#run === run) this.#run = undefined
     })
-    void this.#run.catch(() => undefined)
+    this.#run = run
+    void run.catch(() => undefined)
   }
 
   async #extract(): Promise<void> {
@@ -177,6 +202,8 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
       const parent = this.#tempDirectory ?? tmpdir()
       await mkdir(parent, { recursive: true })
       this.#root = await mkdtemp(join(parent, "xiranite-neoview-solid-"))
+      this.#roots.add(this.#root)
+      this.#awaitingProcessVerification.length = 0
       signal.throwIfAborted()
       const child = spawn(this.#executable.path, [
         "x", "-so", "-bd", "-bb0", "-sccUTF-8", "-spd", "--", this.#sourcePath,
@@ -191,19 +218,28 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
       const onAbort = () => child.kill()
       signal.addEventListener("abort", onAbort, { once: true })
       try {
-        const [exit, stderr, demultiplexError] = await Promise.all([
+        const demultiplex = this.#demultiplex(child.stdout, signal).then(
+          (stoppedEarly) => ({ stoppedEarly } as const),
+          (error: unknown) => ({ error } as const),
+        )
+        const [exit, stderr, demultiplexResult] = await Promise.all([
           processExit(child),
           readStderr(child),
-          this.#demultiplex(child.stdout, signal).then(
-            () => undefined,
-            (error: unknown) => error,
-          ),
+          demultiplex,
           passwordWrite,
-        ]).then(([exit, stderr, demultiplexError]) => [exit, stderr, demultiplexError] as const)
+        ])
         signal.throwIfAborted()
         if (exit.error) throw exit.error
+        if ("error" in demultiplexResult) {
+          if (stderr.trim()) throw new Error(stderr.trim())
+          throw demultiplexResult.error
+        }
+        if (demultiplexResult.stoppedEarly) {
+          for (const pending of this.#awaitingProcessVerification) this.#resolve(pending.entryId, pending.path)
+          this.#awaitingProcessVerification.length = 0
+          return
+        }
         if (exit.code !== 0 && stderr.trim()) throw new Error(stderr.trim())
-        if (demultiplexError) throw demultiplexError
         if (exit.code !== 0) throw new Error(`7-Zip solid extraction exited with code ${exit.code}.`)
         for (const pending of this.#awaitingProcessVerification) this.#resolve(pending.entryId, pending.path)
         this.#awaitingProcessVerification.length = 0
@@ -217,13 +253,14 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     }
   }
 
-  async #demultiplex(stdout: Readable, signal: AbortSignal): Promise<void> {
+  async #demultiplex(stdout: Readable, signal: AbortSignal): Promise<boolean> {
     let entryIndex = 0
     let handle: FileHandle | undefined
     let remaining = 0
     let crc32 = 0
 
-    const finishEntry = async () => {
+    const finishEntry = async (): Promise<boolean> => {
+      const finishedIndex = entryIndex
       const entry = this.#entries[entryIndex]!
       const path = join(this.#root!, `${entryIndex.toString().padStart(8, "0")}.entry`)
       await handle?.close()
@@ -237,9 +274,10 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
         this.#awaitingProcessVerification.push({ entryId: entry.id, path })
       }
       entryIndex += 1
+      return this.#shouldStopAfter(finishedIndex)
     }
 
-    const prepareEntry = async () => {
+    const prepareEntry = async (): Promise<boolean> => {
       while (entryIndex < this.#entries.length) {
         signal.throwIfAborted()
         const entry = this.#entries[entryIndex]!
@@ -248,12 +286,16 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
         remaining = entry.uncompressedSize
         crc32 = 0
         if (remaining > 0) return
-        await finishEntry()
+        if (await finishEntry()) return true
       }
+      return false
     }
 
     try {
-      await prepareEntry()
+      if (await prepareEntry()) {
+        this.#child?.kill()
+        return true
+      }
       for await (const chunk of stdout) {
         signal.throwIfAborted()
         const bytes = typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk as Uint8Array
@@ -269,14 +311,21 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
           offset += length
           remaining -= length
           if (remaining === 0) {
-            await finishEntry()
-            await prepareEntry()
+            if (await finishEntry()) {
+              this.#child?.kill()
+              return true
+            }
+            if (await prepareEntry()) {
+              this.#child?.kill()
+              return true
+            }
           }
         }
       }
       if (entryIndex !== this.#entries.length || remaining !== 0) {
         throw new Error(`7-Zip solid extraction ended before entry ${entryIndex + 1} of ${this.#entries.length}.`)
       }
+      return false
     } catch (error) {
       this.#child?.kill()
       throw error
@@ -316,6 +365,35 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
 
   #memoryKey(entryId: string): string {
     return `${this.#memoryKeyPrefix}\0${entryId}`
+  }
+
+  #shouldStopAfter(entryIndex: number): boolean {
+    const demand = this.#preloadDemand
+    if (!demand || this.#complete) return false
+    let target = this.#requiredEntryIndex
+    for (const entryId of demand.entryIds) {
+      const index = this.#entries.findIndex((entry) => entry.id === entryId)
+      target = Math.max(target, index)
+    }
+    return target < this.#entries.length - 1 && entryIndex >= target
+  }
+}
+
+function assertPreloadDemand(demand: ArchivePreloadDemand): void {
+  if (!Number.isSafeInteger(demand.generation) || demand.generation < 0) {
+    throw new RangeError("Solid archive preload generation must be a non-negative safe integer.")
+  }
+  if (demand.direction !== "forward" && demand.direction !== "backward") {
+    throw new TypeError(`Invalid solid archive preload direction: ${demand.direction}`)
+  }
+  if (!Number.isFinite(demand.directionConfidence) || demand.directionConfidence < 0 || demand.directionConfidence > 1) {
+    throw new RangeError("Solid archive preload direction confidence must be between 0 and 1.")
+  }
+  if (!Array.isArray(demand.entryIds) || demand.entryIds.length > 256) {
+    throw new RangeError("Solid archive preload entry IDs must contain at most 256 entries.")
+  }
+  if (new Set(demand.entryIds).size !== demand.entryIds.length || demand.entryIds.some((entryId) => typeof entryId !== "string" || !entryId)) {
+    throw new TypeError("Solid archive preload entry IDs must be unique, non-empty strings.")
   }
 }
 

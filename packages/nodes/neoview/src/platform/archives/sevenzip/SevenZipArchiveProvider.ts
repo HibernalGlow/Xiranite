@@ -7,6 +7,7 @@ import { Readable, type Writable } from "node:stream"
 import type {
   ArchiveCapabilities,
   ArchiveEntry,
+  ArchivePreloadDemand,
   ArchiveProvider,
   ArchiveProviderSnapshot,
   MaterializedEntryLease,
@@ -83,6 +84,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   #initializing?: Promise<void>
   #solidMaterializer?: CacheableSolidArchiveMaterializer
   #solidMaterializerLoading?: Promise<CacheableSolidArchiveMaterializer>
+  #solidPreloadDemand?: ArchivePreloadDemand
   #solidCacheLease?: SolidArchiveCacheLease
   #solidFingerprint?: { fingerprint: string; sourceIdentity: string; materializedBytes: number }
   #initialized = false
@@ -142,6 +144,22 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     } finally {
       password.release()
     }
+  }
+
+  async updatePreloadDemand(demand: ArchivePreloadDemand): Promise<void> {
+    this.#assertOpen()
+    assertPreloadDemand(demand)
+    await waitWithSignal(this.#ensureInitialized(), this.#lifecycle.signal)
+    this.#assertOpen()
+    if (!this.capabilities.solid) return
+    for (const entryId of demand.entryIds) {
+      if (!this.#entriesById.has(entryId)) throw new Error(`Archive preload entry not found: ${entryId}`)
+    }
+    if (this.#solidPreloadDemand && demand.generation < this.#solidPreloadDemand.generation) return
+    this.#solidPreloadDemand = { ...demand, entryIds: [...demand.entryIds] }
+    if (!demand.entryIds.length && !this.#solidMaterializer) return
+    const materializer = await this.#solidMaterializerInstance(this.#rawPassword)
+    materializer.updatePreloadDemand?.(this.#solidPreloadDemand)
   }
 
   async materializeEntry(
@@ -327,6 +345,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       } else {
         this.#solidMaterializer = create()
       }
+      if (this.#solidPreloadDemand) this.#solidMaterializer.updatePreloadDemand?.(this.#solidPreloadDemand)
       return this.#solidMaterializer
     })()
     return this.#solidMaterializerLoading.finally(() => {
@@ -540,5 +559,23 @@ function resolvePassword(
       options.rawPassword?.fill(0)
       encoded?.fill(0)
     },
+  }
+}
+
+function assertPreloadDemand(demand: ArchivePreloadDemand): void {
+  if (!Number.isSafeInteger(demand.generation) || demand.generation < 0) {
+    throw new RangeError("Archive preload generation must be a non-negative safe integer.")
+  }
+  if (demand.direction !== "forward" && demand.direction !== "backward") {
+    throw new TypeError(`Invalid archive preload direction: ${demand.direction}`)
+  }
+  if (!Number.isFinite(demand.directionConfidence) || demand.directionConfidence < 0 || demand.directionConfidence > 1) {
+    throw new RangeError("Archive preload direction confidence must be between 0 and 1.")
+  }
+  if (!Array.isArray(demand.entryIds) || demand.entryIds.length > 256) {
+    throw new RangeError("Archive preload entry IDs must contain at most 256 entries.")
+  }
+  if (new Set(demand.entryIds).size !== demand.entryIds.length || demand.entryIds.some((entryId) => typeof entryId !== "string" || !entryId)) {
+    throw new TypeError("Archive preload entry IDs must be unique, non-empty strings.")
   }
 }

@@ -1,10 +1,12 @@
 import { LRUCache } from "lru-cache"
+import type { ArchivePreloadDemand } from "../../../ports/ArchiveProvider.js"
 import { SevenZipArchiveIndexCache } from "./SevenZipArchiveIndexCache.js"
 
 export interface CacheableSolidArchiveMaterializer extends AsyncDisposable {
   readonly isComplete: boolean
   pathFor(entryId: string, signal?: AbortSignal): Promise<string>
   streamFor?(entryId: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
+  updatePreloadDemand?(demand: ArchivePreloadDemand): void
   close(): Promise<void>
 }
 

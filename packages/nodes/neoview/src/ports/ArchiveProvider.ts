@@ -34,6 +34,19 @@ export interface OpenArchiveEntryOptions {
   resourceLease?: ResourceLease
 }
 
+export type ArchivePreloadDirection = "forward" | "backward"
+
+/**
+ * Advisory speculative demand supplied by the reader preload coordinator.
+ * Entry IDs are provider-local; visible openEntry calls remain hard demands.
+ */
+export interface ArchivePreloadDemand {
+  generation: number
+  direction: ArchivePreloadDirection
+  directionConfidence: number
+  entryIds: readonly string[]
+}
+
 export interface MaterializedEntryLease extends AsyncDisposable {
   readonly path: string
   release(): Promise<void>
@@ -52,6 +65,7 @@ export interface ArchiveProvider extends AsyncDisposable {
   readonly entryStreamResource?: ResourceClass
   list(signal?: AbortSignal): Promise<readonly ArchiveEntry[]>
   openEntry(entryId: string, options?: OpenArchiveEntryOptions): Promise<ReadableStream<Uint8Array>>
+  updatePreloadDemand?(demand: ArchivePreloadDemand): Promise<void>
   materializeEntry?(
     entryId: string,
     options?: Pick<OpenArchiveEntryOptions, "signal" | "password" | "rawPassword">,
