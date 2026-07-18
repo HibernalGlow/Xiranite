@@ -25,7 +25,6 @@ import type {
   HeadlessSuperResolutionPageInput,
   HeadlessSuperResolutionPageResult,
   HeadlessSuperResolutionCapabilitySnapshot,
-  ReaderHeadlessController,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -43,14 +42,10 @@ import type { ReaderCompositionOptions } from "./platform.js"
 import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRestoreResult } from "./platform/backup/ReaderBackupBundleService.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
 import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
-import type { ReaderInputBinding } from "./domain/input/ReaderInputBindings.js"
-import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
-import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities", "input-action-dispatch", "settings-inspect", "settings-import",
-  "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
+  "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities", "settings-inspect", "settings-import",
   "book-settings-get", "book-settings-set",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
   "settings-backup",
@@ -112,13 +107,11 @@ const VALUE_FLAGS = new Set([
   "--page-mode",
   "--horizontal-book",
   "--input",
-  "--action",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 const MAX_EMM_EDIT_INPUT_BYTES = 1024 * 1024
-const MAX_INPUT_BINDINGS_BYTES = 2 * 1024 * 1024
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -151,12 +144,6 @@ interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, A
 
 export interface CliReaderController extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
-  inspect?(): HeadlessReaderSnapshot
-  next?(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
-  previous?(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
-  goTo?(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
-  openAdjacent?: ReaderHeadlessController["openAdjacent"]
-  closeBook?(): Promise<void>
   listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
@@ -218,10 +205,6 @@ export async function runProgram(
     await runBookSettingsUi(args.slice(1), host, dependencies)
     return
   }
-  if (command === "input-bindings-ui") {
-    await runInputBindingsUi(args.slice(1), host)
-    return
-  }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
   const parsed = parseArguments(args.slice(1), command)
@@ -249,10 +232,6 @@ export async function runProgram(
   if (command === "diagnostics") {
     if (parsed.positionals.length) throw usage("diagnostics does not accept a path.")
     await runDiagnostics(parsed, host, dependencies)
-    return
-  }
-  if (command.startsWith("input-bindings-")) {
-    await runInputBindingsCommand(command, parsed, host)
     return
   }
   if (command.startsWith("reader-data-")) {
@@ -345,17 +324,6 @@ export async function runProgram(
       archivePasswords: credentials.inputs,
       initialPage: index,
     })
-    if (command === "input-action-dispatch") {
-      const action = inputActionOption(parsed)
-      const result = controller.inspect
-        ? await executeReaderHeadlessInputAction(action, controller as CliReaderController & { inspect(): HeadlessReaderSnapshot })
-        : { handled: false as const, action, reason: "missing-controller-capability" as const }
-      if (parsed.booleans.has("--json")) writeJson(host, result)
-      else writeLine(host, result.handled
-        ? `Input action handled: ${action}${result.boundary ? " (boundary)" : ""}`
-        : `Input action unsupported: ${action} (${result.reason})`)
-      return
-    }
     if (command === "inspect") return printInspect(snapshot, parsed.booleans.has("--json"), host)
     if (command === "frame") return printFrame(snapshot, parsed.booleans.has("--json"), host)
     if (command === "pages") {
@@ -394,18 +362,6 @@ export async function runProgram(
 }
 
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
-  if (command === "input-action-dispatch") {
-    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--action"]))
-    return
-  }
-  if (command === "input-bindings-list") {
-    rejectOptions(parsed, new Set(["--json", "--config"]))
-    return
-  }
-  if (command === "input-bindings-apply" || command === "input-bindings-reset") {
-    rejectOptions(parsed, new Set(["--json", "--config", "--yes"]))
-    return
-  }
   if (command === "upscale-capabilities") {
     rejectOptions(parsed, new Set(["--json", "--config", "--refresh"]))
     return
@@ -1739,52 +1695,6 @@ async function writeBinaryStdout(stream: ReadableStream<Uint8Array>, host: CliHo
   }
 }
 
-async function runInputBindingsCommand(
-  command: string,
-  parsed: ParsedArguments,
-  host: CliHost,
-): Promise<void> {
-  const { ReaderInputBindingsConfigService } = await import("./platform/config/ReaderInputBindingsConfigService.js")
-  const service = new ReaderInputBindingsConfigService({ configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env })
-  if (command === "input-bindings-list") {
-    if (parsed.positionals.length) throw usage("input-bindings-list does not accept a JSON path.")
-    const config = await service.inspect()
-    if (parsed.booleans.has("--json")) writeJson(host, config)
-    else {
-      writeLine(host, `${config.bindings.length} input binding(s).`)
-      for (const binding of config.bindings) writeLine(host, JSON.stringify(binding))
-    }
-    return
-  }
-  if (!parsed.booleans.has("--yes")) throw usage(`${command} requires --yes after reviewing the current bindings.`)
-  if (command === "input-bindings-reset") {
-    if (parsed.positionals.length) throw usage("input-bindings-reset does not accept a JSON path.")
-    const result = await service.reset(true)
-    if (parsed.booleans.has("--json")) writeJson(host, result)
-    else writeLine(host, result.changed ? `Input bindings reset: ${result.configPath}` : "Input bindings already use defaults.")
-    return
-  }
-  if (parsed.positionals.length !== 1) throw usage("input-bindings-apply requires exactly one bindings JSON path.")
-  const inputPath = resolve(host.cwd, parsed.positionals[0]!)
-  const inputStat = await stat(inputPath)
-  if (!inputStat.isFile()) throw usage(`Input bindings JSON is not a file: ${inputPath}`)
-  if (inputStat.size > MAX_INPUT_BINDINGS_BYTES) throw usage(`Input bindings JSON exceeds ${MAX_INPUT_BINDINGS_BYTES} bytes.`)
-  const bindings = inputBindingsPayload(JSON.parse(await readFile(inputPath, "utf8")) as unknown)
-  const result = await service.apply(bindings, true)
-  if (parsed.booleans.has("--json")) writeJson(host, result)
-  else writeLine(host, result.changed ? `Input bindings updated: ${result.configPath}` : "Input bindings unchanged.")
-}
-
-function inputBindingsPayload(value: unknown): ReaderInputBinding[] {
-  const bindings = Array.isArray(value)
-    ? value
-    : value && typeof value === "object" && Array.isArray((value as { bindings?: unknown }).bindings)
-      ? (value as { bindings: unknown[] }).bindings
-      : undefined
-  if (!bindings) throw usage("Input bindings JSON must be an array or { bindings: [...] }.")
-  return bindings as ReaderInputBinding[]
-}
-
 async function runSettingsCommand(
   command: string,
   inputPath: string,
@@ -2019,15 +1929,6 @@ function oneValue(parsed: ParsedArguments, flag: string): string | undefined {
   return values[0]
 }
 
-function inputActionOption(parsed: ParsedArguments): ReaderInputAction {
-  const value = oneValue(parsed, "--action")
-  if (!value) throw usage("input-action-dispatch requires --action <id>.")
-  if (READER_INPUT_ACTIONS.includes(value as ReaderInputAction)) return value as ReaderInputAction
-  const converted = readerInputActionFromLegacyId(value)
-  if (converted) return converted
-  throw usage(`Unknown Reader input action: ${value}`)
-}
-
 function readerDirectoryFilterOption(parsed: ParsedArguments): ReaderDirectoryFilter {
   const filter = oneValue(parsed, "--filter") ?? "all"
   if (filter !== "all" && filter !== "archive" && filter !== "directory" && filter !== "video") {
@@ -2209,31 +2110,6 @@ async function runBookSettingsUi(
   }
 }
 
-async function runInputBindingsUi(args: readonly string[], host: CliHost): Promise<void> {
-  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView input-bindings-ui requires an interactive terminal.")
-  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
-  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
-  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
-    throw usage(flags.error ?? `Unknown input-bindings-ui argument: ${flags.args[0]}`)
-  }
-  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
-  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
-    throw usage(`Unknown terminal theme: ${flags.theme}.`)
-  }
-  const { createNeoviewInputBindingsTuiDefinition } = await import("./interaction.js")
-  const { ReaderInputBindingsConfigService } = await import("./platform/config/ReaderInputBindingsConfigService.js")
-  await runTerminalUi(createNeoviewInputBindingsTuiDefinition(
-    flags.language,
-    new ReaderInputBindingsConfigService({ cwd: host.cwd, env: host.env }),
-  ), {
-    host,
-    language: flags.language,
-    renderer: flags.renderer,
-    theme: flags.theme,
-    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["input-bindings-ui", ...args] } : undefined,
-  })
-}
-
 function usage(message: string): CliUsageError {
   return new CliUsageError(`${message}\n\n${formatCliHelp()}`)
 }
@@ -2249,13 +2125,8 @@ function formatCliHelp(): string {
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  upscale-page <path>  Upscale one page using the configured policy",
     "  upscale-capabilities Inspect registered models and system CLI capabilities",
-    "  input-action-dispatch <path> Dispatch one supported action (--action)",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
-    "  input-bindings-list       Inspect canonical multi-device bindings",
-    "  input-bindings-apply <json> Apply a complete binding array (--yes)",
-    "  input-bindings-reset      Restore canonical defaults (--yes)",
-    "  input-bindings-ui         Open terminal binding management",
     "  settings-export          Export current [nodes.neoview] as portable JSON",
     "  settings-portable-inspect <json>  Validate a portable Xiranite settings export",
     "  settings-portable-import <json>   Import a portable settings export",
@@ -2342,7 +2213,6 @@ function formatCliHelp(): string {
     "  --exclude-tag TAG    Repeatable excluded EMM tag",
     "  --tag-mode MODE      Required-tag mode: all or any",
     "  --input PATH         JSON input for folder-emm-edit: { updates, concurrency? }",
-    "  --action ID          Stable XR or legacy action ID for input-action-dispatch",
     "  --node PATH          Explicit tree node for tree/cache commands",
     "  --depth N            Recursive search depth (0..4096)",
     "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",
