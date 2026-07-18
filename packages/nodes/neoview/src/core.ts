@@ -134,6 +134,11 @@ export {
   parseReaderDiagnosticsSnapshot,
 } from "./application/diagnostics/ReaderDiagnosticsWireSchema.js"
 export {
+  exportReaderDiagnosticsHistory,
+  type ReaderDiagnosticsHistoryExport,
+  type ReaderDiagnosticsHistoryExportFormat,
+} from "./application/diagnostics/ReaderDiagnosticsHistoryExport.js"
+export {
   ReaderThumbnailMaintenanceService,
   type ReaderThumbnailCleanupCommand,
   type ReaderThumbnailCleanupResult,
