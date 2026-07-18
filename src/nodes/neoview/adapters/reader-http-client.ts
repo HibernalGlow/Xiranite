@@ -1,6 +1,7 @@
 import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ViewSource } from "@xiranite/node-neoview/ui-core"
 import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
 import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
+import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/switch-toast"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -467,6 +468,9 @@ export interface ReaderDirectorySearchOptionsDto {
   maximumDepth?: number
   maximumResults?: number
   excludePatterns?: readonly string[]
+  includeTags?: readonly string[]
+  excludeTags?: readonly string[]
+  tagMode?: "all" | "any"
   onEntries?: (entries: readonly ReaderDirectoryEntryDto[]) => void
 }
 
@@ -592,8 +596,10 @@ export interface ReaderRuntimeConfigDto {
   historyList: ReaderHistoryListPreferencesDto
   folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
+  media: ReaderMediaConfigDto
   colorFilter: ReaderColorFilterSettings
   pageTransition: ReaderPageTransitionSettings
+  switchToast?: ReaderSwitchToastSettings
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
 }
@@ -609,6 +615,43 @@ import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig } from "@xiranit
 
 export interface ReaderInputBindingsPatch {
   inputBindings: { bindings?: ReaderInputBindingsConfig["bindings"]; reset?: "defaults" }
+}
+
+export interface ReaderSubtitleConfigDto {
+  fontSize: number
+  color: string
+  backgroundOpacity: number
+  bottomPercent: number
+}
+
+export interface ReaderMediaConfigDto {
+  supportedImageFormats: readonly string[]
+  videoFormats: readonly string[]
+  mediaMimeTypes: Readonly<Record<string, string>>
+  autoPlayAnimatedImages: boolean
+  videoMinPlaybackRate: number
+  videoMaxPlaybackRate: number
+  videoPlaybackRateStep: number
+  subtitle: ReaderSubtitleConfigDto
+}
+
+export interface ReaderMediaPatchDto {
+  media: { subtitle?: Partial<ReaderSubtitleConfigDto> }
+}
+
+export interface ReaderMediaProgressDto {
+  position: number
+  duration: number
+  completed: boolean
+  updatedAt: number
+}
+
+export interface ReaderSubtitleTrackDto {
+  id: string
+  name: string
+  format: "srt" | "ass" | "ssa" | "vtt"
+  contentVersion: string
+  assetUrl: string
 }
 
 export type ReaderShellSurface = "top" | "bottom" | "sidebar"
@@ -643,6 +686,10 @@ export interface ReaderColorFilterConfigPatch {
 
 export interface ReaderPageTransitionConfigPatch {
   pageTransition: ReaderPageTransitionPatch | { reset: "defaults" }
+}
+
+export interface ReaderSwitchToastConfigPatch {
+  switchToast: ReaderSwitchToastPatch | { reset: "defaults" }
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
@@ -812,10 +859,12 @@ export interface ReaderHttpClient {
   updateHistoryList?(patch: ReaderHistoryListPreferencesPatch, signal?: AbortSignal): Promise<ReaderHistoryListPreferencesDto>
   updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
+  updateMedia?(patch: ReaderMediaPatchDto, signal?: AbortSignal): Promise<ReaderMediaConfigDto>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
   updateColorFilter?(patch: ReaderColorFilterConfigPatch, signal?: AbortSignal): Promise<ReaderColorFilterSettings>
   updatePageTransition?(patch: ReaderPageTransitionConfigPatch, signal?: AbortSignal): Promise<ReaderPageTransitionSettings>
+  updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
@@ -864,6 +913,9 @@ export interface ReaderHttpClient {
   ): Promise<ReaderLibraryThumbnailBatchDto>
   releaseLibraryThumbnailContext?(contextId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
+  mediaProgress?(sessionId: string, signal?: AbortSignal): Promise<ReaderMediaProgressDto | undefined>
+  updateMediaProgress?(sessionId: string, progress: Pick<ReaderMediaProgressDto, "position" | "duration" | "completed">, flush?: boolean, signal?: AbortSignal): Promise<ReaderMediaProgressDto>
+  subtitleTracks?(sessionId: string, pageId: string, signal?: AbortSignal): Promise<readonly ReaderSubtitleTrackDto[]>
   bookSettings?(sessionId: string, signal?: AbortSignal): Promise<ReaderBookSettingsSnapshotDto>
   updateBookSettings?(sessionId: string, expectedRevision: number, patch: ReaderBookSettingsPatchDto, signal?: AbortSignal): Promise<ReaderBookSettingsUpdateDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
@@ -1001,6 +1053,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.slideshow),
+    updateMedia: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.media),
     updateInputBindings: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -1024,6 +1082,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.pageTransition),
+    updateSwitchToast: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.switchToast),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1090,6 +1154,9 @@ export function createReaderHttpClient(
       if (options.maximumDepth !== undefined) search.set("depth", String(options.maximumDepth))
       if (options.maximumResults !== undefined) search.set("limit", String(options.maximumResults))
       for (const pattern of options.excludePatterns ?? []) search.append("exclude", pattern)
+      for (const tag of options.includeTags ?? []) search.append("tag", tag)
+      for (const tag of options.excludeTags ?? []) search.append("excludeTag", tag)
+      if (options.tagMode) search.set("tagMode", options.tagMode)
       return requestDirectorySearch(
         new URL(`/reader/browser/s/${encodeURIComponent(sessionId)}/search?${search}`, config.baseUrl),
         config.token,
@@ -1210,6 +1277,23 @@ export function createReaderHttpClient(
       `/reader/s/${encodeURIComponent(sessionId)}/pages?cursor=${cursor}&limit=${limit}`,
       { signal },
     ),
+    mediaProgress: (sessionId, signal) => request<{ progress: ReaderMediaProgressDto | null }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/media-progress`,
+      { signal },
+    ).then((value) => value.progress ?? undefined),
+    updateMediaProgress: (sessionId, progress, flush = false, signal) => request<{ progress: ReaderMediaProgressDto }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/media-progress`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...progress, flush }),
+        signal,
+      },
+    ).then((value) => value.progress),
+    subtitleTracks: (sessionId, pageId, signal) => request<{ tracks: ReaderSubtitleTrackDto[] }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/subtitles?pageId=${encodeURIComponent(pageId)}`,
+      { signal },
+    ).then((value) => value.tracks),
     bookSettings: (sessionId, signal) => request<{ settings: ReaderBookSettingsSnapshotDto }>(
       `/reader/s/${encodeURIComponent(sessionId)}/book-settings`,
       { signal },

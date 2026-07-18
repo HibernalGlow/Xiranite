@@ -480,6 +480,9 @@ describe("reader-http-client", () => {
       maximumDepth: 0,
       maximumResults: 512,
       excludePatterns: ["cache/**"],
+      includeTags: ["artist:alice", "female:glasses"],
+      excludeTags: ["language:chinese"],
+      tagMode: "any",
     })
 
     expect(result).toEqual({
@@ -499,6 +502,9 @@ describe("reader-http-client", () => {
     expect(parsed.searchParams.get("path")).toBe("1")
     expect(parsed.searchParams.get("limit")).toBe("512")
     expect(parsed.searchParams.getAll("exclude")).toEqual(["cache/**"])
+    expect(parsed.searchParams.getAll("tag")).toEqual(["artist:alice", "female:glasses"])
+    expect(parsed.searchParams.getAll("excludeTag")).toEqual(["language:chinese"])
+    expect(parsed.searchParams.get("tagMode")).toBe("any")
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 

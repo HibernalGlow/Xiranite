@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { parseToml } from "@xiranite/config"
 import { lock } from "proper-lockfile"
 import { commitNeoviewConfig } from "./NeoviewConfigStore.js"
+import { parseNeoviewRuntimeConfig, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
 
 describe("commitNeoviewConfig", () => {
   const roots: string[] = []
@@ -63,6 +64,38 @@ describe("commitNeoviewConfig", () => {
     expect(second.nodeConfig).not.toHaveProperty("old")
     const written = parseToml(await readFile(configPath, "utf8")) as Record<string, any>
     expect(written.nodes.other.enabled).toBe(true)
+  })
+
+  it("[neoview.switch-toast.persistence] atomically writes canonical leaves and preserves future fields", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "[nodes.neoview.view.switch_toast]",
+      "enable_book = false",
+      "future_field = \"keep\"",
+      "",
+    ].join("\n"), "utf8")
+    const { tomlPatch } = parseNeoviewSwitchToastPatch({ switchToast: {
+      enableBook: true,
+      positionX: 88,
+      bookTitleTemplate: "已切换到 {{book.displayName}}",
+    } })
+    const committed = await commitNeoviewConfig(tomlPatch, { configPath, strategy: "merge" })
+    expect(committed.nodeConfig).toMatchObject({ view: { switch_toast: {
+      enable_book: true,
+      position_x: 88,
+      future_field: "keep",
+    } } })
+    expect(parseNeoviewRuntimeConfig(committed.nodeConfig).switchToast).toMatchObject({
+      enableBook: true,
+      positionX: 88,
+      bookTitleTemplate: "已切换到 {{book.displayName}}",
+    })
+    const written = await readFile(configPath, "utf8")
+    expect(written).toContain("[nodes.neoview.view.switch_toast]")
+    expect(written).toContain('future_field = "keep"')
   })
 
   it("[neoview.settings.cross-process-lock] serializes concurrent read-merge-write operations without losing fields", async () => {

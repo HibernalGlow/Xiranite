@@ -156,6 +156,15 @@ describe("NeoView CLI remote Reader", () => {
     expect(dependencies.createRemoteController).toHaveBeenCalledTimes(2)
     expect(controller[Symbol.asyncDispose]).toHaveBeenCalledTimes(2)
   })
+
+  it("[neoview.super-resolution.cache-controls.tui.launch] requires a connected backend before loading OpenTUI", async () => {
+    const interactive = host([])
+    ;(interactive.stdin as { isTTY: boolean }).isTTY = true
+    ;(interactive.stdout as { isTTY: boolean }).isTTY = true
+    await expect(runProgram(["upscale-cache-ui"], interactive, {
+      createController: vi.fn(async () => fakeRemoteReader()),
+    })).rejects.toThrow("requires --connect")
+  })
 })
 
 function fakeRemoteReader(): CliReaderController {

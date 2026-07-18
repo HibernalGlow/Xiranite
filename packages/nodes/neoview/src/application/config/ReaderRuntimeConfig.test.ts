@@ -415,6 +415,93 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { edges: { top: { lockMode: "forever" } } } })).toThrow("lockMode")
   })
 
+  it("[neoview.material.persistence] reads and atomically writes the complete shell material", () => {
+    const shell = parseNeoviewRuntimeConfig({
+      panels: {
+        top_toolbar_opacity: 76,
+        bottom_bar_opacity: 82,
+        sidebar_opacity: 68,
+        top_toolbar_blur: 14,
+        bottom_bar_blur: 10,
+        sidebar_blur: 18,
+        material: {
+          preset: "custom",
+          top_saturation: 132,
+          bottom_saturation: 118,
+          sidebar_saturation: 144,
+          top_highlight: 28,
+          bottom_highlight: 34,
+          sidebar_highlight: 42,
+          top_shadow: 51,
+          bottom_shadow: 47,
+          sidebar_shadow: 56,
+        },
+      },
+    }).shellOptions
+    expect(shell).toMatchObject({
+      opacity: { top: 76, bottom: 82, sidebar: 68 },
+      blur: { top: 14, bottom: 10, sidebar: 18 },
+      material: {
+        preset: "custom",
+        saturation: { top: 132, bottom: 118, sidebar: 144 },
+        highlight: { top: 28, bottom: 34, sidebar: 42 },
+        shadow: { top: 51, bottom: 47, sidebar: 56 },
+      },
+    })
+
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 9,
+      shellControl: {
+        material: {
+          preset: "custom",
+          opacity: { top: 76, bottom: 82, sidebar: 68 },
+          blur: { top: 14, bottom: 10, sidebar: 18 },
+          saturation: { top: 132, bottom: 118, sidebar: 144 },
+          highlight: { top: 28, bottom: 34, sidebar: 42 },
+          shadow: { top: 51, bottom: 47, sidebar: 56 },
+        },
+      },
+    })).toEqual({
+      patch: {
+        expectedRevision: 9,
+        shellControl: {
+          material: {
+            preset: "custom",
+            opacity: { top: 76, bottom: 82, sidebar: 68 },
+            blur: { top: 14, bottom: 10, sidebar: 18 },
+            saturation: { top: 132, bottom: 118, sidebar: 144 },
+            highlight: { top: 28, bottom: 34, sidebar: 42 },
+            shadow: { top: 51, bottom: 47, sidebar: 56 },
+          },
+        },
+      },
+      tomlPatch: { panels: {
+        top_toolbar_opacity: 76,
+        bottom_bar_opacity: 82,
+        sidebar_opacity: 68,
+        top_toolbar_blur: 14,
+        bottom_bar_blur: 10,
+        sidebar_blur: 18,
+        material: {
+          preset: "custom",
+          top_saturation: 132,
+          bottom_saturation: 118,
+          sidebar_saturation: 144,
+          top_highlight: 28,
+          bottom_highlight: 34,
+          sidebar_highlight: 42,
+          top_shadow: 51,
+          bottom_shadow: 47,
+          sidebar_shadow: 56,
+        },
+      } },
+    })
+    expect(() => parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: { material: { saturation: { top: 181 } } },
+    })).toThrow("material.saturation.top")
+  })
+
   it("rejects shell values outside safe rendering and timer limits", () => {
     expect(() => parseNeoviewRuntimeConfig({ panels: { hover_areas: { top_trigger_height: 0 } } })).toThrow("top trigger")
     expect(() => parseNeoviewRuntimeConfig({ panels: { auto_hide_timing: { hide_delay_sec: 6 } } })).toThrow("hide_delay_sec")
@@ -484,6 +571,57 @@ describe("parseNeoviewRuntimeConfig", () => {
       "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 1, height: 240 },
       "future-card": { panelId: "future", visible: false, expanded: true, order: 2 },
     })
+  })
+
+  it("[neoview.card.sidebar-height.config] normalizes and persists real sidebar interaction behavior", () => {
+    expect(parseNeoviewRuntimeConfig({
+      panels: {
+        sidebar_interaction: {
+          show_drag_handle: true,
+          enable_blank_area_collapse: false,
+          blank_area_collapse_mode: "double",
+        },
+      },
+    }).shellOptions.sidebarInteraction).toEqual({
+      showDragHandle: true,
+      enableBlankAreaCollapse: false,
+      blankAreaCollapseMode: "double",
+    })
+
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 7,
+      shellControl: {
+        sidebarInteraction: {
+          showDragHandle: true,
+          enableBlankAreaCollapse: true,
+          blankAreaCollapseMode: "double",
+        },
+      },
+    })).toEqual({
+      patch: {
+        expectedRevision: 7,
+        shellControl: {
+          sidebarInteraction: {
+            showDragHandle: true,
+            enableBlankAreaCollapse: true,
+            blankAreaCollapseMode: "double",
+          },
+        },
+      },
+      tomlPatch: {
+        panels: {
+          sidebar_interaction: {
+            show_drag_handle: true,
+            enable_blank_area_collapse: true,
+            blank_area_collapse_mode: "double",
+          },
+        },
+      },
+    })
+    expect(() => parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: { sidebarInteraction: { blankAreaCollapseMode: "triple" } },
+    })).toThrow("blankAreaCollapseMode")
   })
 
   it("[neoview.page-transition.config] [neoview.page-transition.toml] parses canonical settings and emits strict leaf patches", () => {

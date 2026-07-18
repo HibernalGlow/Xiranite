@@ -56,11 +56,12 @@ export const READER_CARD_MANIFEST = [
   card("input-bindings-settings", "操作绑定", "settings", false, true, 0, true, false, "bindings"),
   card("preload-status", "预加载状态", "info", true, true, 4, true, true),
   card("book-settings", "本书设置", "properties", true, true, 0, true, true),
-  card("sidebar-control", "侧栏控制", "control", true, true, 0, true, false),
-  card("color-filter", "颜色滤镜", "control", true, true, 1, true, false),
-  card("page-transition", "翻页动画", "control", true, true, 2, true, false),
+  card("switch-toast", "切换提示", "control", true, true, 0, true, false),
+  card("sidebar-control", "侧栏控制", "control", true, true, 1, true, false),
+  card("color-filter", "颜色滤镜", "control", true, true, 2, true, false),
+  card("page-transition", "翻页动画", "control", true, true, 3, true, false),
   card("thumbnail-maintenance", "缩略图维护", "control", false, true, 2, true, false),
-  card("sidebar-height", "侧边栏高度", "control", true, true, 3, true, false),
+  card("sidebar-height", "侧边栏高度", "control", true, true, 4, true, false),
 ] as const satisfies readonly ReaderCardManifestEntry[]
 
 export type ReaderPanelId = typeof READER_PANEL_MANIFEST[number]["id"]
