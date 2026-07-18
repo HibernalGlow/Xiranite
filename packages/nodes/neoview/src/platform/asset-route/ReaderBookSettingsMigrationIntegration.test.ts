@@ -3,8 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { afterEach, describe, expect, it } from "vitest"
+import type { CliHost } from "@xiranite/cli-runtime"
 
 import { createReaderHttpController } from "../../platform.js"
+import { runProgram } from "../../cli.js"
 import { inspectLegacyThumbnailDatabase } from "../thumbnails/LegacyThumbnailDatabaseInspector.js"
 import type { ReaderSessionDto } from "./ReaderHttpController.js"
 
@@ -86,7 +88,53 @@ describe("Reader book settings migration integration", () => {
       journalMode: "wal",
     })
   })
+
+  it("[neoview.book-settings.legacy-cli-integration] owns one CLI store and preserves the legacy database contract", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-book-settings-cli-integration-"))
+    roots.push(root)
+    const databasePath = join(root, "thumbnails.db")
+    const bookPath = join(root, "book")
+    const inputPath = join(root, "book-settings.json")
+    await mkdir(bookPath)
+    await writeFile(join(bookPath, "1.jpg"), Uint8Array.of(1))
+    await writeFile(inputPath, JSON.stringify({ [bookPath]: { favorite: true, rating: 4 } }), "utf8")
+    const { DatabaseSync } = await import("node:sqlite")
+    const seed = new DatabaseSync(databasePath)
+    seed.exec(CURRENT_SCHEMA_SQL)
+    seed.close()
+
+    const output: unknown[] = []
+    await runProgram([
+      "book-settings-legacy-import", inputPath, "--database", databasePath,
+      "--strategy", "merge", "--yes", "--json",
+    ], cliHost(root, output))
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      report: { validEntries: 1 },
+      result: { applied: { inserted: 1, updated: 0, unchanged: 0 }, unresolvedSources: 0 },
+    })
+
+    const verified = new DatabaseSync(databasePath, { readOnly: true })
+    try {
+      expect(verified.prepare("SELECT COUNT(*) AS count FROM xr_reader_book_settings").get()).toEqual({ count: 1 })
+      expect(verified.prepare("SELECT value FROM metadata WHERE key = 'version'").get()).toEqual({ value: "2.4" })
+      expect(verified.prepare("PRAGMA user_version").get()).toEqual({ user_version: 7 })
+      expect(verified.prepare("PRAGMA journal_mode").get()).toEqual({ journal_mode: "wal" })
+    } finally {
+      verified.close()
+    }
+  })
 })
+
+function cliHost(cwd: string, output: unknown[]): CliHost {
+  return {
+    cwd,
+    env: {},
+    stdin: { isTTY: false, read: async () => null },
+    stdout: { isTTY: false, write: (value: unknown) => { output.push(value); return true } },
+    stderr: { isTTY: false, write: (value: unknown) => { output.push(value); return true } },
+    exitCode: 0,
+  } as unknown as CliHost
+}
 
 function jsonRequest(path: string, body: unknown, authorizedRequest = true): Request {
   const headers: Record<string, string> = { "content-type": "application/json" }

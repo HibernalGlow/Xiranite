@@ -30,6 +30,7 @@ import type { ReaderCacheService } from "./application/cache/ReaderCacheService.
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderSettingsMigrationService } from "./application/migration/ReaderSettingsMigrationService.js"
+import type { ReaderBookSettingsMigrationService } from "./application/migration/ReaderBookSettingsMigrationService.js"
 import type { ReaderSettingsPortableService } from "./application/migration/ReaderSettingsPortableService.js"
 import type { ReaderBackupBundleService } from "./platform/backup/ReaderBackupBundleService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
@@ -858,6 +859,25 @@ export async function createReaderHeadlessController(
     emmMetadata,
     superResolution,
   )
+}
+
+export async function createReaderBookSettingsMigrationService(
+  databasePath?: string,
+): Promise<ReaderBookSettingsMigrationService> {
+  const store = await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(databasePath))
+  try {
+    const { ReaderBookSettingsMigrationService } = await import("./application/migration/ReaderBookSettingsMigrationService.js")
+    const { LegacyBookSettingsImporter } = await import("./migration/LegacyBookSettingsImporter.js")
+    const { resolveLegacyReaderSource } = await import("./platform/migration/resolveLegacyReaderSource.js")
+    return new ReaderBookSettingsMigrationService(
+      new LegacyBookSettingsImporter(store, resolveLegacyReaderSource),
+      undefined,
+      () => store.close(),
+    )
+  } catch (error) {
+    await store.close()
+    throw error
+  }
 }
 
 function isReaderMediaProgressStore(store: ReaderProgressStore | undefined): store is ReaderProgressStore & ReaderMediaProgressStore {
