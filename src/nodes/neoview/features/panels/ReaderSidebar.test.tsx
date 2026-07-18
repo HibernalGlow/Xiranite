@@ -145,6 +145,25 @@ describe("ReaderSidebar layout gestures", () => {
     expect(await screen.findByText("打开书本后显示页面导航")).toBeTruthy()
     expect(screen.getByRole("button", { name: "折叠页面导航" })).toBeTruthy()
   })
+
+  it("[neoview.sidebar-height.blank-collapse] collapses only blank sidebar clicks in the configured mode", () => {
+    const shellControl = {
+      setPinned: vi.fn(),
+      requestOpen: vi.fn(),
+    }
+    const value = context()
+    value.shellControl = shellControl as never
+    const config = shell()
+    config.sidebarInteraction = { showDragHandle: false, enableBlankAreaCollapse: true, blankAreaCollapseMode: "single" }
+    render(<ReaderSidebar side="left" context={value} shell={config} />)
+    const sidebar = document.querySelector<HTMLElement>('[data-reader-sidebar="left"]')!
+
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
+    expect(shellControl.setPinned).not.toHaveBeenCalled()
+    fireEvent.click(sidebar)
+    expect(shellControl.setPinned).toHaveBeenCalledWith("left", false)
+    expect(shellControl.requestOpen).toHaveBeenCalledWith("left", false)
+  })
 })
 
 function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "full"): ReaderShellConfigDto {
