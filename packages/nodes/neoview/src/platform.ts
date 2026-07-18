@@ -87,8 +87,10 @@ export {
   type SuperResolutionImageInspection,
 } from "./platform/super-resolution/opencomic-system/OpenComicAiSystemProvider.js"
 export {
+  createOpenComicAiSystemCapability,
   createOpenComicAiSystemService,
   runtimeModels as openComicSystemRuntimeModels,
+  type OpenComicAiSystemCapability,
   type OpenComicAiSystemCompositionOptions,
 } from "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
 export {

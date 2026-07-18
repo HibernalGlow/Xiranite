@@ -1712,6 +1712,8 @@ Xiranite 侧的共享边界已经由 `f4d58552`、`19d31807`、`8e42df71`、`95c
 
 旧 `image.enableSuperResolution`、`image.superResolutionModel`、`image.currentImageUpscaleEnabled`、`extended.upscalePanelSettings` 和 `rawLocalStorage.pyo3_upscale_settings` 现在统一交给 `LegacySuperResolutionSettingsCodec`。该 codec 使用与运行时相同的 Zod wire schema，将 UI/当前页/自动超分偏好写入 `[nodes.neoview.super_resolution.preferences]`，不会把 `enableSuperResolution=false` 错译成 `provider=disabled`。条件转换保留宽高、百万像素范围、and/or、时间范围、书籍/图片正则、inner-path、preload 排除、metadata 表达式、优先级、skip/cache/tile/noise/GPU/TTA；正则和范围在写 TOML 前验证。只有能证明等价的 RealESRGAN AnimeVideo/X4Plus、RealCUGAN SE 与 Waifu2x CUnet 枚举会映射到 runtime model ID；RealCUGAN Pro、Waifu2x Photo/Anime、MangaJaNai 等未证明等价的模型保留在 inspect/import report，并从可执行 conditions 中排除，禁止静默换模型。现有鉴权 inspect/import、确认、备份、原子写入与回读链路不变。
 
+`SuperResolutionPolicyService` 现在是 preferences 的共享 application 消费边界：构造时固定 enabled 条件的优先级顺序，使用已有 `lru-cache` 对正则做有界惰性缓存，按宽高、百万像素、时间、book/image/inner path 和 metadata 表达式生成 `run/skip/disabled` 决策。自动当前页、预加载和显式手动触发具有独立语义；provider capability 开关不参与 UI 偏好判断，手动触发不会被 auto/preload 开关误禁用，preload exclusion、粗粒度最小宽高与 condition skip 在进入 Provider 前完成。决策只携带现有 `SuperResolutionService.run()` 所需的 model/scale/noise/tile/TTA/GPU 参数和 cache hint，不另建队列、GPU 调度或模型表。`createOpenComicAiSystemCapability()` 从同一份 runtime config 组合 `{ service, policy }`，原 `createOpenComicAiSystemService()` 保持兼容并继续惰性加载 runtime。
+
 预发布依赖示例：
 
 ```json
