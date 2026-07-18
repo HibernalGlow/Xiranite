@@ -125,6 +125,15 @@ const VIEW_MODE_OPTIONS: readonly { value: ReaderFolderViewMode; label: string; 
 
 type FolderViewMode = ReaderFolderViewMode
 type FolderPreviewCount = 4 | 9 | 16
+type FolderNavigationOptions = {
+  keepTree?: boolean
+  focusPath?: string
+  selectFocus?: boolean
+  clearSelection?: boolean
+}
+type FolderRetryOperation =
+  | { kind: "open"; path: string }
+  | { kind: "navigate"; navigation: ReaderDirectoryNavigationDto; options: FolderNavigationOptions }
 
 const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   homePath: "",
@@ -210,6 +219,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
+  const retryOperationRef = useRef<FolderRetryOperation | undefined>(undefined)
   const catalogRequestRef = useRef<AbortController | undefined>(undefined)
   const thumbnailRequestRef = useRef<AbortController | undefined>(undefined)
   const pendingCursorsRef = useRef(new Set<string>())
@@ -414,6 +424,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
+    retryOperationRef.current = { kind: "open", path: normalized }
     try {
       const opened = await client.openDirectoryBrowser(normalized, navigationRequestRef.current?.signal, undefined, true)
       if (generation !== navigationGenerationRef.current) {
@@ -424,6 +435,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       if (previous && previous !== opened.sessionId) releaseThumbnailContext()
       sessionIdRef.current = opened.sessionId
       applyPage(opened)
+      retryOperationRef.current = undefined
       if (previous && previous !== opened.sessionId) void client.closeDirectoryBrowser?.(previous).catch(() => undefined)
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
@@ -438,7 +450,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     applyPage(snapshot.clonedPage!, snapshot.currentState)
   }
 
-  async function navigate(navigation: ReaderDirectoryNavigationDto, options: { keepTree?: boolean; focusPath?: string; selectFocus?: boolean; clearSelection?: boolean } = {}) {
+  async function navigate(navigation: ReaderDirectoryNavigationDto, options: FolderNavigationOptions = {}) {
     const sessionId = sessionIdRef.current
     if (!sessionId) {
       if (navigation.action === "path") await openBrowser(navigation.path)
@@ -451,6 +463,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
+    retryOperationRef.current = { kind: "navigate", navigation, options }
     try {
       const result = await client.navigateDirectoryBrowser(
         sessionId,
@@ -478,6 +491,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           }
         }
         applyPage(result, preferredState, false, { preserveThumbnailCache: navigation.action !== "refresh" })
+        retryOperationRef.current = undefined
       }
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
@@ -605,6 +619,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     } catch (cause) {
       if (!isAbortError(cause)) setError(folderErrorMessage(cause))
     }
+  }
+
+  function retryLastOperation() {
+    const operation = retryOperationRef.current
+    if (!operation) return
+    if (operation.kind === "open") void openBrowser(operation.path)
+    else void navigate(operation.navigation, operation.options)
   }
 
   async function updateFilter(filter: ReaderDirectoryFilterDto) {
@@ -1297,7 +1318,17 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           />
         </Suspense>
       ) : null}
-      {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
+      {error ? (
+        <div role="alert" className="flex items-center gap-2 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">
+          <span className="min-w-0 flex-1">{error}</span>
+          {retryOperationRef.current ? (
+            <Button type="button" size="sm" variant="outline" disabled={loading} onClick={retryLastOperation}>
+              <RefreshCw className="mr-1 h-3 w-3" aria-hidden="true" />
+              重试
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {active && clipboard.feedback ? (
         <div role={clipboard.feedback.kind} className={clipboard.feedback.kind === "alert" ? "rounded bg-destructive/10 px-2 py-1 text-xs text-destructive" : "sr-only"}>
           {clipboard.feedback.text}
