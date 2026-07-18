@@ -363,6 +363,21 @@ describe("NeoView CLI", () => {
     expect(reader[Symbol.asyncDispose]).toHaveBeenCalledTimes(1)
   })
 
+  it("[neoview.book-information.cli-projection] prints the shared title, type, page and progress semantics", async () => {
+    const output: unknown[] = []
+    const reader = fakeReader({ open: async () => ({
+      ...snapshot(1),
+      book: { displayName: "Original.cbz", translatedTitle: "Translated", sourceKind: "archive", pageCount: 3 },
+    }) })
+    await runProgram(["inspect", "book.cbz"], host(output), { createController: async () => reader })
+
+    expect(output.join("\n")).toContain("Title: Translated")
+    expect(output.join("\n")).toContain("Original title: Original.cbz")
+    expect(output.join("\n")).toContain("Type: Archive")
+    expect(output.join("\n")).toContain("Page: 2 / 3")
+    expect(output.join("\n")).toContain("Progress: 66.7%")
+  })
+
   it("[neoview.cli.pages] lists a bounded page window", async () => {
     const output: unknown[] = []
     const reader = fakeReader()

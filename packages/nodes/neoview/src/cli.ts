@@ -37,6 +37,7 @@ import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImpor
 import type { LegacySearchHistoryImporter } from "./migration/LegacySearchHistoryImporter.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRestoreResult } from "./platform/backup/ReaderBackupBundleService.js"
+import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
@@ -1453,7 +1454,15 @@ function connectionToken(variable: string | undefined, host: CliHost): string {
 
 function printInspect(snapshot: HeadlessReaderSnapshot, json: boolean, host: CliHost): void {
   if (json) return writeJson(host, snapshot)
-  writeLine(host, `${snapshot.book.displayName}: ${snapshot.book.pageCount} page(s)`)
+  const book = projectReaderBookInformation({
+    ...snapshot.book,
+    currentPage: snapshot.book.pageCount > 0 ? snapshot.frame.anchorPageIndex + 1 : 0,
+  }, "en")
+  writeLine(host, `Title: ${book.displayTitle}`)
+  if (book.originalTitle) writeLine(host, `Original title: ${book.originalTitle}`)
+  writeLine(host, `Type: ${book.typeLabel}`)
+  writeLine(host, `Page: ${book.pageText}`)
+  writeLine(host, `Progress: ${book.progressText}`)
   writeLine(host, frameLine(snapshot))
   for (const page of snapshot.visiblePages) writeLine(host, pageLine(page))
 }
