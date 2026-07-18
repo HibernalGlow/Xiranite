@@ -210,6 +210,35 @@ describe("SuperResolutionArtifactRoute", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.cache-controls-http] reuses the owned store for authenticated session-scoped maintenance", async () => {
+    const store = createStore()
+    const service = readerService(readerPage())
+    const snapshot = {
+      entries: 3, bytes: 300, maxBytes: 1024, maxEntryBytes: 512, activeLeases: 0,
+      hits: 2, misses: 1, writes: 3, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
+    }
+    const snapshotCall = vi.spyOn(store, "snapshot").mockResolvedValue(snapshot)
+    const cleanup = vi.spyOn(store, "cleanup").mockResolvedValue({ ...snapshot, reason: "age", removedEntries: 1, removedBytes: 100 })
+    const clearBook = vi.spyOn(store, "clearBook").mockResolvedValue({ ...snapshot, reason: "book", removedEntries: 2, removedBytes: 200 })
+    const clear = vi.spyOn(store, "clear").mockResolvedValue({ ...snapshot, reason: "explicit", removedEntries: 3, removedBytes: 300 })
+    const route = new SuperResolutionArtifactRoute(service, port(vi.fn()), store, { baseUrl: BASE_URL, token: TOKEN })
+
+    expect((await route.handle(new Request(new URL("/reader/s/session-1/upscale-artifact-cache", BASE_URL))))?.status).toBe(401)
+    const stats = (await route.handle(authorized("/reader/s/session-1/upscale-artifact-cache")))!
+    await expect(stats.json()).resolves.toEqual(snapshot)
+    expect(snapshotCall).toHaveBeenCalledOnce()
+    expect((await route.handle(authorized("/reader/s/session-1/upscale-artifact-cache?kind=all", { method: "POST" })))?.status).toBe(400)
+    expect((await route.handle(authorized("/reader/s/session-1/upscale-artifact-cache?kind=age&kind=all&confirmed=true", { method: "POST" })))?.status).toBe(400)
+
+    await expect((await route.handle(authorized("/reader/s/session-1/upscale-artifact-cache?kind=age&confirmed=true", { method: "POST" })))?.json()).resolves.toMatchObject({ reason: "age", removedEntries: 1 })
+    expect(cleanup).toHaveBeenCalledWith("age")
+    await expect((await route.handle(authorized("/reader/s/session-1/upscale-artifact-cache?kind=book&confirmed=true", { method: "POST" })))?.json()).resolves.toMatchObject({ reason: "book", removedEntries: 2 })
+    expect(clearBook).toHaveBeenCalledWith("opaque-book")
+    await expect((await route.handle(authorized("/reader/s/session-1/upscale-artifact-cache?kind=all&confirmed=true", { method: "POST" })))?.json()).resolves.toMatchObject({ reason: "explicit", removedEntries: 3 })
+    expect(clear).toHaveBeenCalledOnce()
+    await store.close()
+  })
+
   function createStore() {
     return new CacacheSuperResolutionArtifactStore({
       root: join(root, "cache"),

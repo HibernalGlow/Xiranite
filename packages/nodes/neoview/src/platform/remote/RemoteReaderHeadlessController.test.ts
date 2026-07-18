@@ -165,7 +165,7 @@ describe("RemoteReaderHeadlessController", () => {
     }
   })
 
-  it("[neoview.progressive-upscale.cli-connect] controls artifact and preload routes through the authenticated session", async () => {
+  it("[neoview.progressive-upscale.cli-connect] [neoview.super-resolution.cache-controls-remote] controls artifact, preload and cache routes through the authenticated session", async () => {
     const requests: Request[] = []
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
@@ -182,6 +182,12 @@ describe("RemoteReaderHeadlessController", () => {
           execution: { modelId: "anime", engine: "upscayl", scale: 2, width: 200, height: 300, elapsedMs: 12.5 },
         }, { status: 201 })
       }
+      if (url.pathname.endsWith("/upscale-artifact-cache")) {
+        const snapshot = artifactCacheSnapshot()
+        return Response.json(request.method === "POST"
+          ? { ...snapshot, reason: url.searchParams.get("kind") === "book" ? "book" : "explicit", removedEntries: 2, removedBytes: 20 }
+          : snapshot)
+      }
       if (url.pathname.includes("/upscale-preload")) return Response.json({ snapshots: [preloadSnapshot(url.searchParams.get("mode") ?? "nearby")] }, { status: request.method === "POST" ? 202 : 200 })
       return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1"), { status: 201 })
     }) as typeof fetch
@@ -193,6 +199,8 @@ describe("RemoteReaderHeadlessController", () => {
       await expect(remote.startUpscalePreload("progressive")).resolves.toMatchObject([{ mode: "progressive" }])
       await expect(remote.pauseUpscalePreload()).resolves.toMatchObject([{ mode: "nearby" }])
       await expect(remote.retryUpscalePreload("nearby")).resolves.toMatchObject([{ mode: "nearby" }])
+      await expect(remote.getUpscaleArtifactCache()).resolves.toMatchObject({ entries: 3, bytes: 300 })
+      await expect(remote.cleanupUpscaleArtifactCache("book")).resolves.toMatchObject({ reason: "book", removedEntries: 2 })
     } finally {
       await remote[Symbol.asyncDispose]()
     }
@@ -203,6 +211,8 @@ describe("RemoteReaderHeadlessController", () => {
       ["POST", "/reader/s/reader-1/upscale-preload/start", "progressive"],
       ["POST", "/reader/s/reader-1/upscale-preload/pause", null],
       ["POST", "/reader/s/reader-1/upscale-preload/retry", "nearby"],
+      ["GET", "/reader/s/reader-1/upscale-artifact-cache", null],
+      ["POST", "/reader/s/reader-1/upscale-artifact-cache", null],
     ])
     expect(controls.every((request) => request.headers.get("x-xiranite-token") === "token")).toBe(true)
   })
@@ -212,6 +222,7 @@ describe("RemoteReaderHeadlessController", () => {
       init?.signal?.throwIfAborted()
       const request = new Request(input, init)
       if (request.method === "DELETE") return new Response(null, { status: 204 })
+      if (request.url.includes("upscale-artifact-cache")) return Response.json({ ...artifactCacheSnapshot(), bytes: -1 })
       if (request.url.includes("upscale-preload")) return Response.json({ snapshots: [{ ...preloadSnapshot("nearby"), progress: 2 }] })
       if (request.url.includes("upscale-artifact")) return Response.json({ status: "hit", artifactUrl: "https://example.com/not-local", contentType: "image/png", bytes: 1, version: "v1" })
       return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1"), { status: 201 })
@@ -220,6 +231,7 @@ describe("RemoteReaderHeadlessController", () => {
     try {
       await remote.open({ path: "D:/book.cbz" })
       await expect(remote.getUpscalePreload()).rejects.toThrow()
+      await expect(remote.getUpscaleArtifactCache()).rejects.toThrow()
       await expect(remote.generateUpscaleArtifact(0)).rejects.toThrow("outside the connected backend")
       const controller = new AbortController()
       controller.abort(new Error("stop preload"))
@@ -395,6 +407,13 @@ function preloadSnapshot(mode: string) {
     progress: 0.25,
     startedAt: 10,
     updatedAt: 20,
+  }
+}
+
+function artifactCacheSnapshot() {
+  return {
+    entries: 3, bytes: 300, maxBytes: 1_024, maxEntryBytes: 512, activeLeases: 0,
+    hits: 2, misses: 1, writes: 3, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
   }
 }
 

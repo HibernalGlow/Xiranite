@@ -51,6 +51,9 @@ import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAc
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
 import type {
   RemoteSuperResolutionArtifactResult,
+  RemoteSuperResolutionArtifactCacheCleanupKind,
+  RemoteSuperResolutionArtifactCacheCleanupResult,
+  RemoteSuperResolutionArtifactCacheSnapshot,
   RemoteSuperResolutionPreloadMode,
   RemoteSuperResolutionPreloadSnapshot,
 } from "./platform/remote/RemoteReaderHeadlessController.js"
@@ -59,6 +62,7 @@ const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
   "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
+  "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "settings-inspect", "settings-import",
   "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
   "book-settings-get", "book-settings-set", "book-settings-legacy-inspect", "book-settings-legacy-import",
@@ -186,6 +190,8 @@ export interface CliReaderController extends AsyncDisposable {
   startUpscalePreload?(mode: RemoteSuperResolutionPreloadMode, signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]>
   pauseUpscalePreload?(signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]>
   retryUpscalePreload?(mode: RemoteSuperResolutionPreloadMode, signal?: AbortSignal): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]>
+  getUpscaleArtifactCache?(signal?: AbortSignal): Promise<RemoteSuperResolutionArtifactCacheSnapshot>
+  cleanupUpscaleArtifactCache?(kind: RemoteSuperResolutionArtifactCacheCleanupKind, signal?: AbortSignal): Promise<RemoteSuperResolutionArtifactCacheCleanupResult>
 }
 
 export interface CliInteractiveReaderController extends CliReaderController {
@@ -351,6 +357,10 @@ export async function runProgram(
     expectedRevision: requiredIntegerOption(parsed, "--expected-revision", 0, Number.MAX_SAFE_INTEGER),
     patch: bookSettingsPatch(parsed),
   } : undefined
+  if (command === "upscale-cache-cleanup" && !parsed.booleans.has("--yes")) throw usage("upscale-cache-cleanup requires --yes.")
+  const artifactCacheCleanupKind = command === "upscale-cache-cleanup"
+    ? upscaleArtifactCacheCleanupKind(oneValue(parsed, "--kind"))
+    : undefined
   const index = integerOption(parsed, "--index", 0, Number.MAX_SAFE_INTEGER, 0)
   const credentials = credentialsFromEnvironment(parsed, host)
   let controller: CliReaderController | undefined
@@ -358,6 +368,7 @@ export async function runProgram(
     const connect = oneValue(parsed, "--connect")
     const tokenVariable = oneValue(parsed, "--token-env")
     if (!connect && tokenVariable) throw usage("--token-env requires --connect.")
+    if (command.startsWith("upscale-cache-") && !connect) throw usage(`${command} requires --connect to the running Reader backend.`)
     if (connect && parsed.values.has("--config")) throw usage("--config cannot be combined with --connect because the running backend owns configuration.")
     controller = connect
       ? await (dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!)({
@@ -420,6 +431,14 @@ export async function runProgram(
       }
       return printUpscalePreloadSnapshots(snapshots, parsed.booleans.has("--json"), host)
     }
+    if (command === "upscale-cache-stats") {
+      if (!controller.getUpscaleArtifactCache) throw missingUpscaleArtifactCacheCapability()
+      return printUpscaleArtifactCache(await controller.getUpscaleArtifactCache(), parsed.booleans.has("--json"), host)
+    }
+    if (command === "upscale-cache-cleanup") {
+      if (!controller.cleanupUpscaleArtifactCache) throw missingUpscaleArtifactCacheCapability()
+      return printUpscaleArtifactCache(await controller.cleanupUpscaleArtifactCache(artifactCacheCleanupKind!), parsed.booleans.has("--json"), host)
+    }
     if (command === "upscale-page") {
       if (!controller.upscalePage) throw new Error("Reader super-resolution is unavailable for this transport.")
       const output = oneValue(parsed, "--output")
@@ -470,6 +489,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     const allowed = new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"])
     if (command === "upscale-preload-start" || command === "upscale-preload-retry") allowed.add("--mode")
     rejectOptions(parsed, allowed)
+    return
+  }
+  if (command === "upscale-cache-stats") {
+    rejectOptions(parsed, new Set(["--json", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"]))
+    return
+  }
+  if (command === "upscale-cache-cleanup") {
+    rejectOptions(parsed, new Set(["--json", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--kind", "--yes"]))
     return
   }
   if (command === "book-settings-get") {
@@ -1775,6 +1802,27 @@ function missingUpscalePreloadCapability(): Error {
   return new Error("Reader super-resolution preload control is unavailable for this transport.")
 }
 
+function upscaleArtifactCacheCleanupKind(value: string | undefined): RemoteSuperResolutionArtifactCacheCleanupKind {
+  if (value === "age" || value === "book" || value === "all") return value
+  throw usage("--kind must be age, book or all.")
+}
+
+function missingUpscaleArtifactCacheCapability(): Error {
+  return new Error("Reader super-resolution artifact cache maintenance is unavailable for this transport.")
+}
+
+function printUpscaleArtifactCache(
+  snapshot: RemoteSuperResolutionArtifactCacheSnapshot | RemoteSuperResolutionArtifactCacheCleanupResult,
+  json: boolean,
+  host: CliHost,
+): void {
+  if (json) return writeJson(host, snapshot)
+  writeLine(host, `Upscale artifact cache: ${snapshot.entries} entries, ${snapshot.bytes}/${snapshot.maxBytes} bytes, active leases=${snapshot.activeLeases}`)
+  if ("removedEntries" in snapshot) {
+    writeLine(host, `Removed: ${snapshot.removedEntries} entries, ${snapshot.removedBytes} bytes (${snapshot.reason})`)
+  }
+}
+
 async function runSuperResolutionCapabilities(
   parsed: ParsedArguments,
   host: CliHost,
@@ -2457,6 +2505,8 @@ function formatCliHelp(): string {
     "  upscale-preload-start <path>  Start one preload mode (--mode)",
     "  upscale-preload-pause <path>  Pause active preload work",
     "  upscale-preload-retry <path>  Retry one preload mode (--mode)",
+    "  upscale-cache-stats <path>    Inspect the running artifact cache (--connect)",
+    "  upscale-cache-cleanup <path>  Clean age/current-book/all artifacts (--kind, --yes, --connect)",
     "  input-action-dispatch <path> Dispatch one supported action (--action)",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
