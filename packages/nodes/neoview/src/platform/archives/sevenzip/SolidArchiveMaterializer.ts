@@ -4,11 +4,11 @@ import { mkdir, open, mkdtemp, readFile, rm, type FileHandle } from "node:fs/pro
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Readable, type Writable } from "node:stream"
-import { LRUCache } from "lru-cache"
 
 import type { ArchiveEntry } from "../../../ports/ArchiveProvider.js"
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { appendCrc32 } from "./incremental-crc32.js"
+import { SolidArchiveMemoryCache } from "./SolidArchiveCache.js"
 import type { SevenZipExecutable } from "./SevenZipExecutable.js"
 import { assertSevenZipPassword, writeSevenZipPassword } from "./SevenZipExecutable.js"
 
@@ -31,6 +31,8 @@ export interface SolidArchiveMaterializerOptions {
   maxMaterializedBytes?: number
   memoryCacheBytes?: number
   maxMemoryEntryBytes?: number
+  memoryCache?: SolidArchiveMemoryCache
+  memoryKeyPrefix?: string
   rawPassword?: Uint8Array
 }
 
@@ -47,7 +49,9 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   readonly #rawPassword?: Uint8Array
   readonly #maxMemoryEntryBytes: number
   readonly #memoryEnabled: boolean
-  readonly #memory: LRUCache<string, Uint8Array>
+  readonly #memory: SolidArchiveMemoryCache
+  readonly #ownsMemory: boolean
+  readonly #memoryKeyPrefix: string
   readonly #memoryLoads = new Map<string, Promise<Uint8Array>>()
   readonly #lifecycle = new AbortController()
   readonly #paths = new Map<string, DeferredPath>()
@@ -65,6 +69,8 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     this.#entriesById = new Map(this.#entries.map((entry) => [entry.id, entry]))
     this.#resourceScheduler = options.resourceScheduler
     this.#tempDirectory = options.tempDirectory
+    this.#memoryKeyPrefix = options.memoryKeyPrefix ?? options.sourcePath
+    this.#ownsMemory = !options.memoryCache
     const memoryCacheBytes = options.memoryCacheBytes ?? DEFAULT_MEMORY_CACHE_BYTES
     if (!Number.isSafeInteger(memoryCacheBytes) || memoryCacheBytes < 0) {
       throw new RangeError(`Invalid solid archive memory cache byte budget: ${memoryCacheBytes}`)
@@ -77,15 +83,9 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     if (maxMemoryEntryBytes > memoryCacheBytes) {
       throw new RangeError("Solid archive memory entry budget must not exceed the memory budget.")
     }
-    this.#maxMemoryEntryBytes = maxMemoryEntryBytes
-    this.#memoryEnabled = memoryCacheBytes > 0 && maxMemoryEntryBytes > 0
-    this.#memory = this.#memoryEnabled
-      ? new LRUCache({
-          maxSize: memoryCacheBytes,
-          maxEntrySize: maxMemoryEntryBytes,
-          sizeCalculation: (bytes) => bytes.byteLength,
-        })
-      : new LRUCache({ max: 1 })
+    this.#memory = options.memoryCache ?? new SolidArchiveMemoryCache(memoryCacheBytes, maxMemoryEntryBytes)
+    this.#maxMemoryEntryBytes = this.#memory.maxEntryBytes
+    this.#memoryEnabled = this.#memory.maxBytes > 0 && this.#maxMemoryEntryBytes > 0
     if (options.rawPassword) {
       assertSevenZipPassword(options.rawPassword)
       this.#rawPassword = options.rawPassword.slice()
@@ -110,7 +110,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     signal?.throwIfAborted()
     const entry = this.#entriesById.get(entryId)
     if (!entry) throw new Error(`Solid archive entry was not indexed: ${entryId}`)
-    const cached = this.#memory.get(entryId)
+    const cached = this.#memory.get(this.#memoryKey(entryId))
     if (cached) return byteStream(cached)
     const path = await this.pathFor(entryId, signal)
     signal?.throwIfAborted()
@@ -147,7 +147,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     this.#lifecycle.abort(reason)
     this.#child?.kill()
     this.#rawPassword?.fill(0)
-    this.#memory.clear()
+    if (this.#ownsMemory) this.#memory.clear()
     await this.#run?.catch(() => undefined)
     this.#rejectPending(reason)
     if (this.#root) await rm(this.#root, { recursive: true, force: true })
@@ -310,8 +310,12 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
       throw new Error(`Solid archive entry ${entryId} changed after materialization.`)
     }
     this.#assertOpen()
-    this.#memory.set(entryId, bytes)
+    this.#memory.set(this.#memoryKey(entryId), bytes)
     return bytes
+  }
+
+  #memoryKey(entryId: string): string {
+    return `${this.#memoryKeyPrefix}\0${entryId}`
   }
 }
 

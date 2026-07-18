@@ -1,3 +1,5 @@
+import { LRUCache } from "lru-cache"
+
 export interface CacheableSolidArchiveMaterializer extends AsyncDisposable {
   readonly isComplete: boolean
   pathFor(entryId: string, signal?: AbortSignal): Promise<string>
@@ -33,6 +35,73 @@ export interface SolidArchiveCacheSnapshot {
   activeLeases: number
 }
 
+/** Shared host-level byte-bounded cache for verified solid entry payloads. */
+export class SolidArchiveMemoryCache {
+  readonly #maxBytes: number
+  readonly #maxEntryBytes: number
+  readonly #entries: LRUCache<string, Uint8Array>
+
+  constructor(maxBytes: number, maxEntryBytes: number) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+      throw new RangeError(`Invalid solid archive cache memory byte budget: ${maxBytes}`)
+    }
+    if (!Number.isSafeInteger(maxEntryBytes) || maxEntryBytes < 0) {
+      throw new RangeError(`Invalid solid archive cache memory entry byte budget: ${maxEntryBytes}`)
+    }
+    if (maxEntryBytes > maxBytes) {
+      throw new RangeError("Solid archive cache memory entry budget must not exceed the memory budget.")
+    }
+    this.#maxBytes = maxBytes
+    this.#maxEntryBytes = maxEntryBytes
+    this.#entries = maxBytes > 0 && maxEntryBytes > 0
+      ? new LRUCache({
+          maxSize: maxBytes,
+          maxEntrySize: maxEntryBytes,
+          sizeCalculation: (bytes) => bytes.byteLength,
+        })
+      : new LRUCache({ max: 1 })
+  }
+
+  get maxBytes(): number {
+    return this.#maxBytes
+  }
+
+  get maxEntryBytes(): number {
+    return this.#maxEntryBytes
+  }
+
+  get retainedBytes(): number {
+    return this.#entries.calculatedSize
+  }
+
+  get(key: string): Uint8Array | undefined {
+    return this.#entries.get(key)
+  }
+
+  set(key: string, bytes: Uint8Array): boolean {
+    if (!this.#maxBytes || !this.#maxEntryBytes || bytes.byteLength > this.#maxEntryBytes) return false
+    this.#entries.set(key, bytes)
+    return this.#entries.has(key)
+  }
+
+  trimTo(maxBytes: number): void {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+      throw new RangeError(`Invalid solid archive memory trim target: ${maxBytes}`)
+    }
+    while (this.#entries.calculatedSize > maxBytes && this.#entries.size) this.#entries.pop()
+  }
+
+  clearPrefix(prefix: string): void {
+    for (const key of this.#entries.keys()) {
+      if (key.startsWith(prefix)) this.#entries.delete(key)
+    }
+  }
+
+  clear(): void {
+    this.#entries.clear()
+  }
+}
+
 interface CacheEntry {
   fingerprint: string
   sourceIdentity: string
@@ -53,6 +122,7 @@ export class SolidArchiveCache implements AsyncDisposable {
   readonly #maxBytes: number
   readonly #maxMemoryBytes: number
   readonly #maxMemoryEntryBytes: number
+  readonly #memory: SolidArchiveMemoryCache
   readonly #entries = new Map<string, CacheEntry>()
   #clock = 0
   #closed = false
@@ -65,18 +135,10 @@ export class SolidArchiveCache implements AsyncDisposable {
     }
     this.#maxBytes = maxBytes
     const maxMemoryBytes = options.maxMemoryBytes ?? DEFAULT_MAX_MEMORY_BYTES
-    if (!Number.isSafeInteger(maxMemoryBytes) || maxMemoryBytes < 0) {
-      throw new RangeError(`Invalid solid archive cache memory byte budget: ${maxMemoryBytes}`)
-    }
     const maxMemoryEntryBytes = options.maxMemoryEntryBytes ?? Math.min(DEFAULT_MAX_MEMORY_ENTRY_BYTES, maxMemoryBytes)
-    if (!Number.isSafeInteger(maxMemoryEntryBytes) || maxMemoryEntryBytes < 0) {
-      throw new RangeError(`Invalid solid archive cache memory entry byte budget: ${maxMemoryEntryBytes}`)
-    }
-    if (maxMemoryEntryBytes > maxMemoryBytes) {
-      throw new RangeError("Solid archive cache memory entry budget must not exceed the memory budget.")
-    }
     this.#maxMemoryBytes = maxMemoryBytes
     this.#maxMemoryEntryBytes = maxMemoryEntryBytes
+    this.#memory = new SolidArchiveMemoryCache(maxMemoryBytes, maxMemoryEntryBytes)
   }
 
   get maxMemoryBytes(): number {
@@ -85,6 +147,10 @@ export class SolidArchiveCache implements AsyncDisposable {
 
   get maxMemoryEntryBytes(): number {
     return this.#maxMemoryEntryBytes
+  }
+
+  get memoryCache(): SolidArchiveMemoryCache {
+    return this.#memory
   }
 
   get entryCount(): number {
@@ -113,6 +179,10 @@ export class SolidArchiveCache implements AsyncDisposable {
     this.#assertOpen()
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new RangeError(`Invalid solid archive cache trim target: ${maxBytes}`)
     const evictedEntries = await this.#evictToBudget(maxBytes)
+    const memoryTarget = this.#maxBytes === 0
+      ? 0
+      : Math.min(this.#maxMemoryBytes, Math.floor(this.#maxMemoryBytes * Math.min(1, maxBytes / this.#maxBytes)))
+    this.#memory.trimTo(memoryTarget)
     return {
       evictedEntries,
       retainedBytes: this.retainedBytes,
@@ -179,6 +249,7 @@ export class SolidArchiveCache implements AsyncDisposable {
     this.#closed = true
     const entries = [...this.#entries.values()]
     this.#entries.clear()
+    this.#memory.clear()
     for (const entry of entries) entry.stale = true
     this.#closing = Promise.resolve().then(async () => {
       const results = await Promise.allSettled(entries.map((entry) => this.#closeEntry(entry)))
@@ -233,6 +304,7 @@ export class SolidArchiveCache implements AsyncDisposable {
   }
 
   #closeEntry(entry: CacheEntry): Promise<void> {
+    this.#memory.clearPrefix(entry.fingerprint)
     entry.closing ??= entry.materializer.close()
     return entry.closing
   }

@@ -172,6 +172,7 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     const scheduler = new RecordingScheduler()
     const provider = createProvider(solidPath, scheduler)
     const tempDirectory = join(directory, "solid-memory-tier")
+    const memoryCache = new SolidArchiveCache({ maxBytes: 100, maxMemoryBytes: 5, maxMemoryEntryBytes: 5 })
     await mkdir(tempDirectory)
     try {
       const entries = await provider.list()
@@ -182,8 +183,8 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
         entries,
         resourceScheduler: scheduler,
         tempDirectory,
-        memoryCacheBytes: first.uncompressedSize,
-        maxMemoryEntryBytes: first.uncompressedSize,
+        memoryCache: memoryCache.memoryCache,
+        memoryKeyPrefix: "solid-memory-test",
       })
       try {
         const path = await materializer.pathFor(first.id)
@@ -194,6 +195,7 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
         await materializer.close()
       }
     } finally {
+      await memoryCache.close()
       await provider.close()
     }
     expect(await readdir(tempDirectory)).toEqual([])
