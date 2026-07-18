@@ -17,6 +17,18 @@ interface RecorderDragMemo {
   trace: ReaderMouseGestureTrace
 }
 
+interface TouchHoldState {
+  timer: ReturnType<typeof setTimeout>
+  pointerId: number
+  startX: number
+  startY: number
+  moved: boolean
+  triggered: boolean
+}
+
+const TOUCH_HOLD_DURATION_MS = 500
+const TOUCH_HOLD_MOVE_TOLERANCE_PX = 12
+
 export interface ReaderDeviceInputRecorderProps {
   device: RecordableDevice
   onCancel(): void
@@ -29,6 +41,78 @@ export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: Reader
   const [gamepadConnected, setGamepadConnected] = useState(false)
   const onRecordRef = useRef(onRecord)
   onRecordRef.current = onRecord
+  const touchPointersRef = useRef(new Map<number, { x: number; y: number }>())
+  const touchHoldRef = useRef<TouchHoldState>()
+  const touchHoldConsumedRef = useRef(false)
+
+  useEffect(() => {
+    if (device !== "touch" || !target.current) return
+    const element = target.current
+    const pointers = touchPointersRef.current
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || isReaderInputInteractive(event.target)) return
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      if (pointers.size !== 1) return
+      const state = {
+        timer: undefined as unknown as ReturnType<typeof setTimeout>,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        triggered: false,
+      } as TouchHoldState
+      state.timer = setTimeout(() => {
+        if (state.moved || touchHoldRef.current !== state) return
+        state.triggered = true
+        onRecordRef.current({
+          device: "touch",
+          gesture: "long-press",
+          fingers: Math.min(3, pointers.size) as 1 | 2 | 3,
+          durationMs: TOUCH_HOLD_DURATION_MS,
+          moveTolerancePx: TOUCH_HOLD_MOVE_TOLERANCE_PX,
+        })
+      }, TOUCH_HOLD_DURATION_MS)
+      touchHoldRef.current = state
+    }
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") return
+      const pointer = pointers.get(event.pointerId)
+      if (pointer) {
+        pointer.x = event.clientX
+        pointer.y = event.clientY
+      }
+      const state = touchHoldRef.current
+      if (!state || state.pointerId !== event.pointerId || state.moved) return
+      if (Math.hypot(event.clientX - state.startX, event.clientY - state.startY) > TOUCH_HOLD_MOVE_TOLERANCE_PX) {
+        state.moved = true
+        clearTimeout(state.timer)
+      }
+    }
+    const onPointerEnd = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") return
+      const state = touchHoldRef.current
+      if (state?.pointerId === event.pointerId) {
+        touchHoldConsumedRef.current = state.triggered
+        clearTimeout(state.timer)
+        touchHoldRef.current = undefined
+      }
+      pointers.delete(event.pointerId)
+      if (!pointers.size) pointers.clear()
+    }
+    element.addEventListener("pointerdown", onPointerDown)
+    element.addEventListener("pointermove", onPointerMove)
+    element.addEventListener("pointerup", onPointerEnd)
+    element.addEventListener("pointercancel", onPointerEnd)
+    return () => {
+      element.removeEventListener("pointerdown", onPointerDown)
+      element.removeEventListener("pointermove", onPointerMove)
+      element.removeEventListener("pointerup", onPointerEnd)
+      element.removeEventListener("pointercancel", onPointerEnd)
+      clearTimeout(touchHoldRef.current?.timer)
+      touchHoldRef.current = undefined
+      pointers.clear()
+    }
+  }, [device])
 
   useHotkeys("escape", (event) => {
     event.stopImmediatePropagation()
@@ -66,6 +150,10 @@ export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: Reader
         if (current.trace.directions.length !== previousLength) setGesturePreview(current.trace.directions)
       }
       if (!last) return current
+      if (device === "touch" && (touchHoldRef.current?.triggered || touchHoldConsumedRef.current)) {
+        touchHoldConsumedRef.current = false
+        return current
+      }
       if (device === "mouse" && pointer.pointerType === "mouse" && tap) {
         onRecordRef.current({ device: "mouse", button: current.button, action: pointer.detail > 1 ? "double-click" : "click" })
       }

@@ -19,10 +19,31 @@ vi.mock("gamepad.js", () => ({ GamepadListener: MockGamepadListener }))
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   gamepad.instances.length = 0
 })
 
 describe("ReaderDeviceInputRecorder", () => {
+  it("[neoview.bindings.touch-recording] records a bounded touch long-press without also recording a tap", () => {
+    vi.useFakeTimers()
+    const onRecord = vi.fn()
+    render(<ReaderDeviceInputRecorder device="touch" onCancel={vi.fn()} onRecord={onRecord} />)
+    const recorder = document.querySelector('[data-input-recording="true"]')!
+
+    fireEvent.pointerDown(recorder, { pointerType: "touch", pointerId: 1, clientX: 10, clientY: 10 })
+    act(() => vi.advanceTimersByTime(500))
+    expect(onRecord).toHaveBeenCalledWith({
+      device: "touch",
+      gesture: "long-press",
+      fingers: 1,
+      durationMs: 500,
+      moveTolerancePx: 12,
+    })
+
+    fireEvent.pointerUp(recorder, { pointerType: "touch", pointerId: 1, clientX: 10, clientY: 10 })
+    expect(onRecord).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.bindings.mouse-gesture-recording] records a direction sequence through use-gesture", async () => {
     const onRecord = vi.fn()
     render(<ReaderDeviceInputRecorder device="mouse-gesture" onCancel={vi.fn()} onRecord={onRecord} />)
