@@ -14,6 +14,27 @@ describe("SidebarHeightCard", () => {
     expect(screen.getByText("侧边栏布局控制加载中...")).toBeTruthy()
   })
 
+  it("keeps the resident shell while inactive and restores the ready editor after activation", () => {
+    const context = {
+      client: {},
+      disabled: false,
+      onGoTo: () => undefined,
+      shell: shell(),
+      shellControl: { setTriggerSize: vi.fn(), persist: vi.fn() },
+      onSidebarLayout: vi.fn(),
+    } as unknown as Parameters<typeof SidebarHeightCard>[0]
+    const view = render(<SidebarHeightCard {...context} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-sidebar-height-state="loading"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-sidebar-height-state="ready"]')).toBeNull()
+    expect(view.container.querySelectorAll('input[type="range"]')).toHaveLength(0)
+
+    view.rerender(<SidebarHeightCard {...context} panelActive />)
+
+    expect(view.container.querySelector('[data-sidebar-height-state="ready"]')).toBeTruthy()
+    expect(view.container.querySelectorAll('input[type="range"]')).toHaveLength(10)
+  })
+
   it("[neoview.sidebar-height.ui] preserves the legacy hierarchy and responsive geometry controls", () => {
     render(<SidebarHeightEditor shell={shell()} onSidebarLayout={() => undefined} onTriggerSize={() => undefined} onInteraction={() => undefined} />)
     expect(screen.getByText("左侧边栏")).toBeTruthy()
