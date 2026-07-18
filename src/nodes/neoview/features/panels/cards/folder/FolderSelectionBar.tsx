@@ -1,4 +1,4 @@
-import { Ban, CheckSquare, Link, LoaderCircle, MousePointer2, Square, SquareX, Trash2, X } from "lucide-react"
+import { Ban, CheckSquare, ClipboardPaste, Copy, Link, LoaderCircle, MousePointer2, Scissors, Square, SquareX, Trash2, X } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -8,13 +8,15 @@ import type {
   ReaderDirectorySelectionOperationSnapshotDto,
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
+import { useFolderClipboard } from "./FolderClipboard"
 
-export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, disabled, chainSelectMode, clickBehavior, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted }: {
+export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted }: {
   client: ReaderHttpClient
   sessionId: string
   selection: ReaderDirectorySelectionDescriptorDto
   selectedCount: number
   total: number
+  currentPath: string
   disabled: boolean
   chainSelectMode: boolean
   clickBehavior: "open" | "select"
@@ -26,6 +28,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   onClose(): void
   onTrashCompleted(snapshot: ReaderDirectorySelectionOperationSnapshotDto): void | Promise<void>
 }) {
+  const clipboard = useFolderClipboard()
   const contextMenu = useContextMenu()
   const completedRef = useRef(onTrashCompleted)
   completedRef.current = onTrashCompleted
@@ -90,11 +93,14 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
     }
   }
 
-  const running = operation?.status === "running"
+  const runningClipboard = clipboard.operation?.status === "running"
+  const runningTrash = operation?.status === "running"
+  const running = runningClipboard || runningTrash
+  const activeOperation = runningTrash ? operation : runningClipboard ? clipboard.operation : undefined
   return (
     <div className="flex min-w-0 items-center gap-1 border-y px-1 py-1" data-neoview-folder-selection-bar="true" data-selection-operation={operation?.status}>
       <span className="min-w-[4.5rem] text-xs font-medium tabular-nums">
-        {running ? <><span className="text-primary">{operation.processed}</span> / {operation.total}</> : <><span className="text-primary">{selectedCount}</span> / {total}</>}
+        {running && activeOperation ? <><span className="text-primary">{activeOperation.processed}</span> / {activeOperation.total}</> : <><span className="text-primary">{selectedCount}</span> / {total}</>}
       </span>
       <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto">
         <Action label="选择全部项目" disabled={disabled || running || selectedCount === total} onClick={onSelectAll}><CheckSquare /></Action>
@@ -113,8 +119,27 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
         >
           <MousePointer2 />{clickBehavior === "select" ? "点选" : "点开"}
         </Button>
+        <Action
+          label="复制所选项目"
+          disabled={disabled || running || selectedCount === 0 || !client.prepareDirectoryClipboard}
+          onClick={() => { void clipboard.prepare(sessionId, selection, "copy").catch(() => undefined) }}
+        ><Copy /></Action>
+        <Action
+          label="剪切所选项目"
+          disabled={disabled || running || selectedCount === 0 || !client.prepareDirectoryClipboard}
+          onClick={() => { void clipboard.prepare(sessionId, selection, "move").catch(() => undefined) }}
+        ><Scissors /></Action>
+        <Action
+          label="粘贴到当前目录"
+          disabled={disabled || running || !clipboard.clipboard.available || !client.pasteDirectoryClipboard}
+          onClick={() => { void clipboard.paste(currentPath).catch(() => undefined) }}
+        ><ClipboardPaste /></Action>
         {running ? (
-          <Action label="取消批量操作" disabled={!client.cancelDirectorySelectionOperation} onClick={() => { void cancelOperation() }}><Ban /></Action>
+          <Action
+            label="取消批量操作"
+            disabled={!client.cancelDirectorySelectionOperation}
+            onClick={() => { if (runningTrash) void cancelOperation(); else void clipboard.cancel() }}
+          ><Ban /></Action>
         ) : (
           <Action
             label="将所选项目移到回收站"

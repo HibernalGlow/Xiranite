@@ -43,6 +43,7 @@ export function restoreDirectoryVisitState<T extends {
   anchorIndex: number
   listSnapshot?: unknown
   gridSnapshot?: unknown
+  gridScrollTop?: number
   detailsScrollTop?: number
 }>(
   page: ReaderDirectoryPageDto,
@@ -64,6 +65,7 @@ export function restoreDirectoryVisitState<T extends {
     anchorIndex: suggested.index,
     listSnapshot: focusMoved ? undefined : restored.listSnapshot,
     gridSnapshot: focusMoved ? undefined : restored.gridSnapshot,
+    gridScrollTop: focusMoved ? undefined : restored.gridScrollTop,
     detailsScrollTop: focusMoved ? undefined : restored.detailsScrollTop,
   }
 }

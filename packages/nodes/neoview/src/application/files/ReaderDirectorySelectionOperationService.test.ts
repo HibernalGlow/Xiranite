@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { join } from "node:path"
 
 import { createReaderDirectorySelectionBatchSource } from "../browser/ReaderDirectorySelection.js"
 import { ReaderDirectorySelectionOperationService } from "./ReaderDirectorySelectionOperationService.js"
@@ -44,6 +45,47 @@ describe("ReaderDirectorySelectionOperationService", () => {
     })
     expect(completed?.failureSamples).toHaveLength(64)
     expect(completed?.failureSamples.every((item) => item.status === "failed" && item.error === "locked")).toBe(true)
+    await service.close()
+  })
+
+  it("[neoview.folder.clipboard-batch-job] maps a sparse source into bounded copy destinations", async () => {
+    const execute = vi.fn(async () => undefined)
+    const service = new ReaderDirectorySelectionOperationService(new ReaderFileOperationService({ execute }))
+    const destination = absolute("destination")
+    const started = service.start(selectedSource(513), "copy", destination)
+    const completed = await service.wait(started.id)
+
+    expect(completed).toMatchObject({ kind: "copy", destinationPath: destination, total: 513, succeeded: 513 })
+    expect(execute).toHaveBeenCalledTimes(513)
+    expect(execute).toHaveBeenNthCalledWith(1, {
+      kind: "copy",
+      sourcePath: absolute("item-0"),
+      destinationPath: join(destination, "item-0"),
+      overwrite: false,
+    }, expect.any(AbortSignal))
+    await service.close()
+  })
+
+  it("[neoview.folder.clipboard-destination] rejects copy and move jobs without an absolute destination", () => {
+    const service = new ReaderDirectorySelectionOperationService(new ReaderFileOperationService({ execute: vi.fn() }))
+
+    expect(() => service.start(selectedSource(1), "copy", "relative")).toThrow("absolute destinationPath")
+    expect(() => service.start(selectedSource(1), "move")).toThrow("absolute destinationPath")
+  })
+
+  it("[neoview.folder.clipboard-conflict] keeps the batch running and reports non-overwriting conflicts", async () => {
+    const service = new ReaderDirectorySelectionOperationService(new ReaderFileOperationService({
+      async execute(operation) {
+        if ("sourcePath" in operation && operation.sourcePath.endsWith("item-1")) {
+          throw Object.assign(new Error("Destination already exists"), { code: "EEXIST" })
+        }
+      },
+    }))
+    const started = service.start(selectedSource(3), "copy", absolute("destination"))
+    const completed = await service.wait(started.id)
+
+    expect(completed).toMatchObject({ status: "completed", processed: 3, succeeded: 2, failed: 1 })
+    expect(completed?.failureSamples).toMatchObject([{ status: "failed", errorCode: "EEXIST" }])
     await service.close()
   })
 

@@ -4,7 +4,7 @@ import {
   type ListRange,
   type VirtuosoGridHandle,
 } from "react-virtuoso"
-import type { MouseEvent as ReactMouseEvent, RefObject } from "react"
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react"
 
 import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
@@ -26,9 +26,11 @@ export default function FolderGridWorkspace({
   showReturnFooter,
   returnFooterContext,
   restoreSnapshot,
+  initialScrollTop,
   initialIndex,
   onRangeChange,
   onStateChange,
+  onScrollTopChange,
   onSelect,
 }: {
   virtualKey: string
@@ -43,19 +45,67 @@ export default function FolderGridWorkspace({
   showReturnFooter: boolean
   returnFooterContext: FolderReturnFooterContext
   restoreSnapshot?: GridStateSnapshot
+  initialScrollTop?: number
   initialIndex?: number
   onRangeChange(range: ListRange): void
   onStateChange(snapshot: GridStateSnapshot): void
+  onScrollTopChange(scrollTop: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
   const banner = viewUsesBanner(viewMode)
   const showRating = catalog.metadataFields.includes("rating")
   const showCollectTagCount = catalog.metadataFields.includes("collectTagCount")
+  const [scroller, setScroller] = useState<HTMLElement | null>(null)
+  const scrollerElementRef = useRef<HTMLElement | null>(null)
+  const onScrollTopChangeRef = useRef(onScrollTopChange)
+  const restoreKeyRef = useRef(virtualKey)
+  const pendingScrollTopRef = useRef(initialScrollTop)
+  const restoreFramesRef = useRef<readonly number[]>([])
+  onScrollTopChangeRef.current = onScrollTopChange
+  if (restoreKeyRef.current !== virtualKey) {
+    restoreKeyRef.current = virtualKey
+    pendingScrollTopRef.current = initialScrollTop
+  }
+
+  useEffect(() => {
+    if (!scroller) return
+    const onScroll = () => onScrollTopChangeRef.current(scroller.scrollTop)
+    scroller.addEventListener("scroll", onScroll, { passive: true })
+    return () => {
+      scroller.removeEventListener("scroll", onScroll)
+    }
+  }, [scroller, virtualKey])
+
+  useEffect(() => () => {
+    for (const frame of restoreFramesRef.current) cancelAnimationFrame(frame)
+  }, [])
+
+  function handleRangeChange(range: ListRange) {
+    onRangeChange(range)
+    const restoreScrollTop = pendingScrollTopRef.current
+    if (restoreScrollTop === undefined) return
+    pendingScrollTopRef.current = undefined
+    const firstFrame = requestAnimationFrame(() => {
+      const secondFrame = requestAnimationFrame(() => {
+        scrollerElementRef.current?.scrollTo({ top: restoreScrollTop })
+        onScrollTopChangeRef.current(restoreScrollTop)
+        restoreFramesRef.current = []
+      })
+      restoreFramesRef.current = [secondFrame]
+    })
+    restoreFramesRef.current = [firstFrame]
+  }
 
   return (
     <VirtuosoGrid
       key={virtualKey}
       ref={gridRef}
+      scrollerRef={(element) => {
+        scrollerElementRef.current = element
+        setScroller(element)
+      }}
+      data-folder-navigation-entry-id={catalog.navigationEntryId}
+      data-folder-restore-scroll-top={initialScrollTop}
       style={{ height: GRID_HEIGHT }}
       totalCount={catalog.total}
       components={showReturnFooter ? FOLDER_GRID_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
@@ -66,7 +116,7 @@ export default function FolderGridWorkspace({
       itemClassName="min-w-0"
       increaseViewportBy={{ top: 144, bottom: 288 }}
       computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-      rangeChanged={onRangeChange}
+      rangeChanged={handleRangeChange}
       restoreStateFrom={restoreSnapshot}
       initialTopMostItemIndex={initialIndex !== undefined ? { index: initialIndex, align: "center" } : undefined}
       stateChanged={onStateChange}

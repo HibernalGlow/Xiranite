@@ -1,9 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ContextMenuBuilderContext, type ContextMenuAPI } from "@/components/context-menu/context"
 import type { ReaderDirectorySelectionOperationSnapshotDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderSelectionBar from "./FolderSelectionBar"
+import { FolderClipboardProvider } from "./FolderClipboard"
+
+afterEach(cleanup)
 
 describe("FolderSelectionBar", () => {
   it("[neoview.folder.delete-batch-ui] confirms, polls and publishes bounded batch progress", async () => {
@@ -31,6 +34,7 @@ describe("FolderSelectionBar", () => {
           selection={{ generation: 7, allSelected: true, ranges: [], explicit: [] }}
           selectedCount={100_000}
           total={100_000}
+          currentPath="D:/library"
           disabled={false}
           chainSelectMode={false}
           clickBehavior="select"
@@ -54,6 +58,56 @@ describe("FolderSelectionBar", () => {
     await waitFor(() => expect(directorySelectionOperation).toHaveBeenCalledWith(running.id, expect.any(AbortSignal)))
     await waitFor(() => expect(onTrashCompleted).toHaveBeenCalledWith(completed))
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("已将 100000 项移到回收站"))
+  })
+
+  it("[neoview.folder.clipboard-ui] prepares a sparse copy and pastes it without materializing paths", async () => {
+    const prepared = { available: true as const, mode: "copy" as const, generation: 7, total: 100_000, createdAt: 1 }
+    const running = operation({ id: "copy-1", kind: "copy", destinationPath: "D:/target", total: 100_000 })
+    const completed = operation({ ...running, status: "completed", processed: 100_000, succeeded: 100_000 })
+    const prepareDirectoryClipboard = vi.fn(async () => prepared)
+    const pasteDirectoryClipboard = vi.fn(async () => running)
+    const directorySelectionOperation = vi.fn(async () => completed)
+    const client = {
+      directoryClipboard: vi.fn(async () => ({ available: false as const })),
+      prepareDirectoryClipboard,
+      pasteDirectoryClipboard,
+      directorySelectionOperation,
+      cancelDirectorySelectionOperation: vi.fn(),
+    } as unknown as ReaderHttpClient
+
+    render(
+      <FolderClipboardProvider client={client}>
+        <FolderSelectionBar
+          client={client}
+          sessionId="browser-1"
+          selection={{ generation: 7, allSelected: true, ranges: [], explicit: [] }}
+          selectedCount={100_000}
+          total={100_000}
+          currentPath="D:/target"
+          disabled={false}
+          chainSelectMode={false}
+          clickBehavior="select"
+          onSelectAll={vi.fn()}
+          onInvert={vi.fn()}
+          onToggleChain={vi.fn()}
+          onToggleClickBehavior={vi.fn()}
+          onClear={vi.fn()}
+          onClose={vi.fn()}
+          onTrashCompleted={vi.fn()}
+        />
+      </FolderClipboardProvider>,
+    )
+
+    fireEvent.click(screen.getByLabelText("复制所选项目"))
+    await waitFor(() => expect(prepareDirectoryClipboard).toHaveBeenCalledWith(
+      "browser-1",
+      { generation: 7, allSelected: true, ranges: [], explicit: [] },
+      "copy",
+    ))
+    await waitFor(() => expect((screen.getByLabelText("粘贴到当前目录") as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByLabelText("粘贴到当前目录"))
+    await waitFor(() => expect(pasteDirectoryClipboard).toHaveBeenCalledWith("D:/target"))
+    await waitFor(() => expect(directorySelectionOperation).toHaveBeenCalledWith("copy-1", expect.any(AbortSignal)))
   })
 })
 

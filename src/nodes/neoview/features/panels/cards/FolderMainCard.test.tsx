@@ -5,11 +5,19 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderFolderViewConfig, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import { ContextMenuProvider } from "@/components/context-menu"
-import FolderMainCard from "./FolderMainCard"
+import FolderMainCard, { mergeThumbnailUrls } from "./FolderMainCard"
 
 afterEach(cleanup)
 
 describe("FolderMainCard", () => {
+  it("[neoview.folder.thumbnail-visit-cache] keeps recent URLs in a bounded visit cache", () => {
+    const current = new Map([["A", "url-a"], ["B", "url-b"]])
+    const merged = mergeThumbnailUrls(current, [["A", "url-a-2"], ["C", "url-c"]], 2)
+
+    expect([...merged]).toEqual([["A", "url-a-2"], ["C", "url-c"]])
+    expect(current.get("A")).toBe("url-a")
+  })
+
   it("[neoview.folder.single-click-open] opens files and folders by default while modified clicks select", async () => {
     const opened = page({
       entries: [
@@ -711,6 +719,11 @@ describe("FolderMainCard", () => {
       expect.objectContaining({ id: "1", kind: "file", previewCount: 1 }),
     ])))
     expect(currentView.getByLabelText("多图数量")).toBeTruthy()
+    await waitFor(() => expect(view.container.querySelectorAll('[data-preview-mode="mosaic-grid"] img')).toHaveLength(2))
+    fireEvent.click(currentView.getByLabelText("紧凑列表"))
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-thumbnail-cache-size")).toBe("2")
+    registerLibraryThumbnails.mockImplementationOnce(() => new Promise(() => undefined))
+    fireEvent.click(currentView.getByLabelText("多图网格"))
     await waitFor(() => expect(view.container.querySelectorAll('[data-preview-mode="mosaic-grid"] img')).toHaveLength(2))
     view.unmount()
     expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(contextId)
