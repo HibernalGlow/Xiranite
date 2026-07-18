@@ -97,6 +97,32 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
   })
 
+  it("[neoview.folder.panel-resident] keeps the browser session and card DOM resident while the panel is inactive", async () => {
+    const opened = page({ entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }], total: 1 })
+    const openDirectoryBrowser = vi.fn(async () => opened)
+    const client = {
+      openDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const renderCard = (panelActive: boolean) => (
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} panelActive={panelActive} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>
+    )
+    const view = render(renderCard(true))
+    const card = await within(view.container).findByTitle("C:/books/book.cbz")
+    const pane = view.container.querySelector('[data-neoview-folder-pane="true"]')
+    expect(pane).toBeTruthy()
+    view.rerender(renderCard(false))
+    expect(view.container.querySelector('[data-neoview-folder-pane="true"]')).toBe(pane)
+    view.rerender(renderCard(true))
+    expect(view.container.querySelector('[data-neoview-folder-pane="true"]')).toBe(pane)
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy()
+    expect(await within(view.container).findByTitle("C:/books/book.cbz")).toBe(card)
+    expect(openDirectoryBrowser).toHaveBeenCalledOnce()
+    view.unmount()
+  })
+
   it("[neoview.folder.rename-focus] refreshes the same browser session and selects the renamed path", async () => {
     const opened = page({
       path: "C:/books",
