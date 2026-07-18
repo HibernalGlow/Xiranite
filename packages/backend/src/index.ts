@@ -76,6 +76,7 @@ export async function createDefaultBackendApp(options: CreateDefaultBackendOptio
 
 export async function createDefaultBackend(options: CreateDefaultBackendOptions = {}): Promise<XiraniteBackendApp> {
   const database = options.repository ? undefined : resolveBackendDatabaseConfig(options)
+  const ownsResourceScheduler = options.resourceScheduler === undefined
   const repository = options.repository ?? await createDefaultRepository(options)
   const historyRepository = options.historyRepository ?? (options.repository ? undefined : await createDefaultHistoryRepository(options))
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
@@ -104,6 +105,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     close() {
       closeRepository(repository)
       closeHistoryRepository(historyRepository)
+      if (ownsResourceScheduler) services.resources.close()
     },
   }
 }

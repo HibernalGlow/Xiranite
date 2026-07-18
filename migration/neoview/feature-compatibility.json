@@ -772,6 +772,7 @@
         "xiranite.scheduler.priority",
         "xiranite.scheduler.pools",
         "xiranite.scheduler.telemetry",
+        "xiranite.scheduler.close",
         "neoview.image.transform-cancellation",
         "neoview.cache.singleflight",
         "neoview.cache.waiter-cancellation",
