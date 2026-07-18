@@ -46,6 +46,28 @@ describe("ActionHandle", () => {
     expect(menu.getAttribute("data-action-palette-size")).toBe("240")
   })
 
+  it("supports custom compass slots for a wheel preset", () => {
+    const selected = vi.fn()
+    render(
+      <ActionHandle
+        items={items(2).map((item, index) => ({ ...item, onSelect: index === 1 ? selected : vi.fn() }))}
+        layout={{ positions: { "1": { x: 1, y: 0, ring: 0 }, "0": { x: 0, y: -1, ring: 1 } } }}
+      />,
+    )
+    const handle = screen.getByRole("button", { name: /手柄/ })
+    Object.defineProperty(handle, "getBoundingClientRect", { configurable: true, value: () => ({ left: 100, top: 100, width: 28, height: 28 }) })
+    fireEvent.click(handle)
+    const menu = screen.getByRole("menu")
+    expect(menu.getAttribute("data-action-rings")).toBe("2")
+    const customOuter = screen.getByRole("menuitem", { name: /操作 0/ })
+    expect(customOuter.getAttribute("style")).toContain("top: 6px")
+
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 11, clientX: 114, clientY: 114 })
+    fireEvent.pointerMove(handle, { pointerId: 11, clientX: 180, clientY: 114 })
+    fireEvent.pointerUp(handle, { pointerId: 11, clientX: 180, clientY: 114 })
+    expect(selected).toHaveBeenCalledOnce()
+  })
+
   it("selects a direction without invoking actions during pointer moves", () => {
     const selected = vi.fn()
     render(<ActionHandle items={items(8).map((item, index) => ({ ...item, onSelect: index === 4 ? selected : vi.fn() }))} />)
