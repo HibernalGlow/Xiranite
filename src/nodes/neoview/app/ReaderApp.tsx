@@ -67,6 +67,7 @@ import { ReaderPanelDndProvider } from "../features/panels/ReaderPanelDnd"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/material/ReaderShellMaterial"
 import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
 import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInfoOverlayStore"
+import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -261,6 +262,13 @@ export function ReaderApp({
   const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const [shellControlStore] = useState(() => createReaderShellControlStore({
+  const [imageTrim] = useState(() => createReaderImageTrimStore({
+    async persist(settings, reset, signal) {
+      if (!clientRef.current.updateImageTrim) return settings
+      return await clientRef.current.updateImageTrim({ imageTrim: reset ? { reset: "defaults" } : settings }, signal)
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  }))
     edges: {
       top: { open: true },
       left: { open: true, pinned: true },
@@ -304,6 +312,7 @@ export function ReaderApp({
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
   }, [])
+    imageTrim.dispose()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -348,6 +357,7 @@ export function ReaderApp({
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
         void migrateLegacySidebarHeight({
+      if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
           storage: localStorage,
           canonical: config.shell,
           persist: async ({ left, right, interaction }) => {
@@ -1206,6 +1216,7 @@ export function ReaderApp({
     ),
   } : undefined
   const rightEdge: ReaderControlledEdgeSlot | undefined = shell && shell.edges.right.enabled ? {
+    imageTrim,
     ariaLabel: "NeoView 右侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
@@ -1282,6 +1293,7 @@ export function ReaderApp({
             onRadialMenu={persistRadialMenu}
             onMaterial={commitShellMaterial}
           />
+                imageTrim={imageTrim}
         </Suspense>
       ) : null}
     </div>

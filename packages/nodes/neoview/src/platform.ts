@@ -440,6 +440,7 @@ export async function createReaderHttpController(
     pageTransition: runtimeConfig.pageTransition,
     switchToast: runtimeConfig.switchToast,
     infoOverlay: runtimeConfig.infoOverlay,
+    imageTrim: runtimeConfig.imageTrim,
     inputBindings: runtimeConfig.inputBindings,
     radialMenu: runtimeConfig.radialMenu,
     presentationDiskCache,
@@ -516,6 +517,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).infoOverlay
+    },
+    updateImageTrim: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).imageTrim
     },
     updateInputBindings: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")

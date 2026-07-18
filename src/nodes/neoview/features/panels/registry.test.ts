@@ -68,10 +68,10 @@ describe("NeoView panel and card registries", () => {
       requiresSession: false,
       canHide: true,
     })
-    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height"])
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim"])
     expect(cardsForPanel("control", {
       cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
-    } as never, false).map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "thumbnail-maintenance"])
+    } as never, false).map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "thumbnail-maintenance"])
   })
 
   it("[neoview.switch-toast.registry] exposes the legacy Card first, resident and lazy", () => {

@@ -44,6 +44,13 @@ import {
   type ReaderInfoOverlayPatch,
   type ReaderInfoOverlaySettings,
 } from "../info-overlay/ReaderInfoOverlay.js"
+import {
+  DEFAULT_READER_IMAGE_TRIM,
+  normalizeReaderImageTrim,
+  parseReaderImageTrimPatch,
+  type ReaderImageTrimPatch,
+  type ReaderImageTrimSettings,
+} from "../image-trim/ReaderImageTrim.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -63,6 +70,7 @@ export interface NeoviewRuntimeConfig {
   pageTransition: ReaderPageTransitionSettings
   switchToast: ReaderSwitchToastSettings
   infoOverlay: ReaderInfoOverlaySettings
+  imageTrim: ReaderImageTrimSettings
   superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
@@ -509,6 +517,10 @@ export interface NeoviewInfoOverlayPatch {
   infoOverlay: ReaderInfoOverlayPatch | { reset: "defaults" }
 }
 
+export interface NeoviewImageTrimPatch {
+  imageTrim: ReaderImageTrimPatch | { reset: "defaults" }
+}
+
 export const DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG: NeoviewShellMaterialConfig = {
   preset: "frosted",
   saturation: { top: 115, bottom: 115, sidebar: 115 },
@@ -568,6 +580,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     pageTransition: DEFAULT_READER_PAGE_TRANSITION,
     switchToast: DEFAULT_READER_SWITCH_TOAST,
     infoOverlay: DEFAULT_READER_INFO_OVERLAY,
+    imageTrim: DEFAULT_READER_IMAGE_TRIM,
     superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
@@ -600,6 +613,13 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       ?? nestedValue(reader, "view", "info_overlay")
       ?? nestedValue(reader, "view", "infoOverlay"),
     "[nodes.neoview.view.info_overlay]",
+  )
+  const imageTrim = optionalRecord(
+    view?.image_trim
+      ?? view?.imageTrim
+      ?? nestedValue(reader, "view", "image_trim")
+      ?? nestedValue(reader, "view", "imageTrim"),
+    "[nodes.neoview.view.image_trim]",
   )
   const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
@@ -674,6 +694,17 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       showBorder: infoOverlay?.show_border ?? infoOverlay?.showBorder,
       width: infoOverlay?.width,
       height: infoOverlay?.height,
+    }),
+    imageTrim: normalizeReaderImageTrim({
+      enabled: imageTrim?.enabled,
+      top: imageTrim?.top,
+      bottom: imageTrim?.bottom,
+      left: imageTrim?.left,
+      right: imageTrim?.right,
+      linkVertical: imageTrim?.link_vertical ?? imageTrim?.linkVertical,
+      linkHorizontal: imageTrim?.link_horizontal ?? imageTrim?.linkHorizontal,
+      autoTrimThreshold: imageTrim?.auto_trim_threshold ?? imageTrim?.autoTrimThreshold,
+      autoTrimTarget: imageTrim?.auto_trim_target ?? imageTrim?.autoTrimTarget,
     }),
     superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
@@ -1096,6 +1127,42 @@ export function parseNeoviewInfoOverlayPatch(value: unknown): {
     patch: { infoOverlay: mutation },
     tomlPatch: { view: { info_overlay: toml } },
   }
+}
+
+export function parseNeoviewImageTrimPatch(value: unknown): {
+  patch: NeoviewImageTrimPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader image trim patch")
+  if (Object.keys(record).some((key) => key !== "imageTrim")) {
+    throw new Error("reader image trim patch contains unsupported fields.")
+  }
+  const imageTrim = requireRecord(record.imageTrim, "reader image trim patch.imageTrim")
+  const mutation = parseReaderImageTrimPatch(imageTrim)
+  const toml: Record<string, unknown> = {}
+  if ("reset" in mutation) {
+    Object.assign(toml, imageTrimToml(DEFAULT_READER_IMAGE_TRIM))
+    return {
+      patch: { imageTrim: { reset: "defaults" } },
+      tomlPatch: { view: { image_trim: toml } },
+    }
+  }
+  Object.assign(toml, imageTrimToml(mutation))
+  return { patch: { imageTrim: mutation }, tomlPatch: { view: { image_trim: toml } } }
+}
+
+function imageTrimToml(value: ReaderImageTrimPatch | ReaderImageTrimSettings): Record<string, unknown> {
+  const toml: Record<string, unknown> = {}
+  if (value.enabled !== undefined) toml.enabled = value.enabled
+  if (value.top !== undefined) toml.top = value.top
+  if (value.bottom !== undefined) toml.bottom = value.bottom
+  if (value.left !== undefined) toml.left = value.left
+  if (value.right !== undefined) toml.right = value.right
+  if (value.linkVertical !== undefined) toml.link_vertical = value.linkVertical
+  if (value.linkHorizontal !== undefined) toml.link_horizontal = value.linkHorizontal
+  if (value.autoTrimThreshold !== undefined) toml.auto_trim_threshold = value.autoTrimThreshold
+  if (value.autoTrimTarget !== undefined) toml.auto_trim_target = value.autoTrimTarget
+  return toml
 }
 
 function infoOverlayToml(value: ReaderInfoOverlayPatch | { reset: "defaults" }): Record<string, unknown> {

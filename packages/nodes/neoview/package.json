@@ -37,6 +37,10 @@
       "types": "./dist/info-overlay.d.ts",
       "default": "./dist/info-overlay.js"
     },
+    "./image-trim": {
+      "types": "./dist/image-trim.d.ts",
+      "default": "./dist/image-trim.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"
