@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 export type SidebarControlEdge = "top" | "right" | "bottom" | "left"
 export type SidebarControlLockMode = "auto" | "locked-open" | "locked-hidden"
@@ -203,7 +204,8 @@ function EdgeControlButton({
   )
 }
 
-export default function DockedSidebarControlCard({ disabled, shell, shellControl }: ReaderPanelContext) {
+export default function DockedSidebarControlCard({ disabled, shell, shellControl, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
   if (!shell || !shellControl) return <p className="text-xs text-muted-foreground">侧栏控制尚未就绪。</p>
   return <ConnectedSidebarControlCard disabled={disabled} shell={shell} control={shellControl} />
 }

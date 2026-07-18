@@ -1,11 +1,26 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { SwitchToastCard, type SwitchToastPatch, type SwitchToastPort, type SwitchToastSettings } from "./SwitchToastCard"
+import DockedSwitchToastCard, { SwitchToastCard, type SwitchToastPatch, type SwitchToastPort, type SwitchToastSettings } from "./SwitchToastCard"
 
 afterEach(cleanup)
 
 describe("SwitchToastCard", () => {
+  it("[neoview.switch-toast.inactive-zero-subscription] keeps an empty shell while hidden and subscribes after activation", async () => {
+    const port = memoryPort()
+    const subscribe = vi.spyOn(port, "subscribe")
+    const context = { switchToast: port, disabled: false, client: {} as never, onGoTo: () => undefined }
+    const view = render(<DockedSwitchToastCard {...context} panelActive={false} />)
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(subscribe).not.toHaveBeenCalled()
+
+    view.rerender(<DockedSwitchToastCard {...context} panelActive />)
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalled())
+    expect(view.container.querySelector('[data-neoview-card="switch-toast"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-switch-toast-state="ready"]')).toBeTruthy()
+  })
+
   it("[neoview.switch-toast.loading] remains mounted with a stable empty state before config hydration", () => {
     const view = render(<SwitchToastCard />)
     expect(view.container.querySelector('[data-neoview-card="switch-toast"]')).toBeTruthy()
