@@ -5,7 +5,7 @@ import { ReaderLibraryService } from "../library/ReaderLibraryService.js"
 import { ReaderLibraryHeadlessController } from "./ReaderLibraryHeadlessController.js"
 
 describe("ReaderLibraryHeadlessController", () => {
-  it("[neoview.library.headless] resolves paths once and delegates all state to ReaderLibraryService", async () => {
+  it("[neoview.library.headless] [neoview.folder.filter-library-headless] resolves paths once and delegates all state to ReaderLibraryService", async () => {
     const store = fakeStore()
     vi.mocked(store.updateBookmark).mockResolvedValue({
       id: "bookmark-1",
@@ -32,8 +32,10 @@ describe("ReaderLibraryHeadlessController", () => {
     expect(resolveSource).toHaveBeenCalledWith("demo.cbz")
     await expect(controller.updateBookmark("bookmark-1", { starred: false, listIds: ["default"] })).resolves.toMatchObject({ starred: false })
     expect(store.updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: false, listIds: ["default"], updatedAt: 100 })
-    await controller.listRecent(20, 5)
-    expect(store.listRecent).toHaveBeenCalledWith({ limit: 20, offset: 5 })
+    await controller.listRecent(20, 5, "video")
+    expect(store.listRecent).toHaveBeenCalledWith({ limit: 20, offset: 5, filter: "video" })
+    await controller.listBookmarks("reading", 10, 2, "archive")
+    expect(store.listBookmarks).toHaveBeenCalledWith({ listId: "reading", limit: 10, offset: 2, filter: "archive" })
     await controller.clearByFolder("bookmarks", "D:\\Books")
     expect(store.clearByPathPrefix).toHaveBeenCalledWith("bookmarks", "d:/books")
     await controller.removeOldestBookmarks(2)

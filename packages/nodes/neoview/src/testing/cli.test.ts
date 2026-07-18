@@ -80,10 +80,11 @@ describe("NeoView CLI", () => {
     expect(revealSystem).toHaveBeenCalledWith(resolve("source.jpg"))
   })
 
-  it("[neoview.library.cli] adapts shared library operations and confirms destructive commands", async () => {
+  it("[neoview.library.cli] [neoview.folder.filter-library-cli] adapts shared library operations and confirms destructive commands", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {
       listRecent: vi.fn(async () => [{ bookId: "book-1", displayName: "Book" }]),
+      listBookmarks: vi.fn(async () => [{ id: "bookmark-1", name: "Demo" }]),
       savePathBookmark: vi.fn(async () => ({ id: "bookmark-1", name: "Demo" })),
       removeBookmark: vi.fn(async () => true),
       cleanupInvalid: vi.fn(async () => ({ kind: "both", scanned: 2, missing: 1, unknown: 0, deleted: 1, truncated: false })),
@@ -92,9 +93,12 @@ describe("NeoView CLI", () => {
     const dependencies = { createController: async () => fakeReader(), createLibraryController: async () => controller }
 
     const recents: unknown[] = []
-    await runProgram(["library-recents", "--limit", "20", "--json"], host(recents), dependencies)
+    await runProgram(["library-recents", "--limit", "20", "--filter", "video", "--json"], host(recents), dependencies)
     expect(JSON.parse(recents.join(""))).toEqual({ items: [{ bookId: "book-1", displayName: "Book" }] })
-    expect(controller.listRecent).toHaveBeenCalledWith(20, 0)
+    expect(controller.listRecent).toHaveBeenCalledWith(20, 0, "video")
+    const bookmarks: unknown[] = []
+    await runProgram(["library-bookmarks", "--list", "reading", "--filter", "archive", "--json"], host(bookmarks), dependencies)
+    expect(controller.listBookmarks).toHaveBeenCalledWith("reading", 100, 0, "archive")
     const bookmark: unknown[] = []
     await runProgram(["library-bookmark-add", "demo.cbz", "--list", "reading", "--starred", "--json"], host(bookmark), dependencies)
     expect(controller.savePathBookmark).toHaveBeenCalledWith(expect.objectContaining({ starred: true, listIds: ["reading"] }))
@@ -104,7 +108,8 @@ describe("NeoView CLI", () => {
     await expect(runProgram(["library-invalid-cleanup"], host([]), dependencies)).rejects.toThrow("requires --yes")
     await runProgram(["library-invalid-cleanup", "--kind", "both", "--scan-limit", "20", "--limit", "10", "--concurrency", "2", "--yes"], host([]), dependencies)
     expect(controller.cleanupInvalid).toHaveBeenCalledWith({ kind: "both", scanLimit: 20, deleteLimit: 10, concurrency: 2 })
-    expect(dispose).toHaveBeenCalledTimes(4)
+    expect(dispose).toHaveBeenCalledTimes(5)
+    await expect(runProgram(["library-recents", "--filter", "invalid"], host([]), dependencies)).rejects.toThrow("--filter must be")
   })
 
   it("[neoview.folder.search-history-cli] shares headless history operations and confirms destructive commands", async () => {
@@ -194,7 +199,7 @@ describe("NeoView CLI", () => {
     }
   })
 
-  it("[neoview.folder.cli] [neoview.folder.search-path-cli] reuses shared search options and persists exclusions only after confirmation", async () => {
+  it("[neoview.folder.cli] [neoview.folder.filter-cli] [neoview.folder.search-path-cli] reuses shared search options and persists exclusions only after confirmation", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-folder-cli-"))
     const privatePath = join(directory, "private")
     const visiblePath = join(directory, "visible")
@@ -203,6 +208,7 @@ describe("NeoView CLI", () => {
     await mkdir(visiblePath)
     await writeFile(join(privatePath, "hidden.cbz"), "hidden")
     await writeFile(join(visiblePath, "shown.cbz"), "shown")
+    await writeFile(join(visiblePath, "movie.mp4"), "movie")
     try {
       const treeOutput: unknown[] = []
       await runProgram(["folder-tree", directory, "--json"], host(treeOutput), testPlatformDependencies)
@@ -216,6 +222,14 @@ describe("NeoView CLI", () => {
       const searched = JSON.parse(searchOutput.join("")) as { entries: Array<{ name: string }>; complete: { matched: number; truncated: boolean } }
       expect(searched.entries.map((entry) => entry.name).toSorted()).toEqual(["hidden.cbz", "shown.cbz"])
       expect(searched.complete).toMatchObject({ matched: 2, truncated: false })
+
+      const archiveOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "o", "--filter", "archive", "--json"], host(archiveOutput), testPlatformDependencies)
+      expect((JSON.parse(archiveOutput.join("")) as { entries: Array<{ name: string }> }).entries.map((entry) => entry.name)).toEqual(["shown.cbz"])
+      const videoOutput: unknown[] = []
+      await runProgram(["folder-search", directory, "--query", "o", "--filter", "video", "--json"], host(videoOutput), testPlatformDependencies)
+      expect((JSON.parse(videoOutput.join("")) as { entries: Array<{ name: string }> }).entries.map((entry) => entry.name)).toEqual(["movie.mp4"])
+      await expect(runProgram(["folder-search", directory, "--query", "*", "--filter", "invalid"], host([]), testPlatformDependencies)).rejects.toThrow("--filter must be")
 
       const nameOnlyOutput: unknown[] = []
       await runProgram(["folder-search", directory, "--query", "visible/shown", "--json"], host(nameOnlyOutput), testPlatformDependencies)

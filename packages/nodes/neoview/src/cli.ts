@@ -20,6 +20,7 @@ import type {
   HeadlessReaderBookSettingsUpdate,
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
+  ReaderDirectoryFilter,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -76,6 +77,7 @@ const VALUE_FLAGS = new Set([
   "--database",
   "--query",
   "--mode",
+  "--filter",
   "--depth",
   "--exclude",
   "--node",
@@ -387,7 +389,7 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "library-recents" || command === "library-bookmarks") {
-    rejectOptions(parsed, new Set(["--json", "--database", "--limit", "--offset", "--list"]))
+    rejectOptions(parsed, new Set(["--json", "--database", "--limit", "--offset", "--list", "--filter"]))
     return
   }
   if (command === "library-bookmark-lists") {
@@ -491,7 +493,7 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "folder-search") {
-    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
+    rejectOptions(parsed, new Set(["--json", "--config", "--query", "--mode", "--kind", "--filter", "--depth", "--limit", "--exclude", "--case-sensitive", "--search-in-path"]))
     return
   }
   if (command === "folder-emm-tags") {
@@ -585,6 +587,7 @@ async function runFolderSearch(
   const depthValue = oneValue(parsed, "--depth")
   const maximumDepth = depthValue === undefined ? undefined : integerOption(parsed, "--depth", 0, 4_096, 0)
   const maximumResults = integerOption(parsed, "--limit", 1, 10_000, 512)
+  await controller.setFilter(readerDirectoryFilterOption(parsed))
   const handle = controller.search(query, {
     mode,
     kind,
@@ -953,6 +956,7 @@ async function runLibraryCommand(
       const items = await controller.listRecent(
         integerOption(parsed, "--limit", 1, 500, 100),
         integerOption(parsed, "--offset", 0, Number.MAX_SAFE_INTEGER, 0),
+        readerDirectoryFilterOption(parsed),
       )
       return printLibraryItems("recents", items, json, host)
     }
@@ -982,6 +986,7 @@ async function runLibraryCommand(
         oneValue(parsed, "--list"),
         integerOption(parsed, "--limit", 1, 500, 100),
         integerOption(parsed, "--offset", 0, Number.MAX_SAFE_INTEGER, 0),
+        readerDirectoryFilterOption(parsed),
       )
       return printLibraryItems("bookmarks", items, json, host)
     }
@@ -1751,6 +1756,14 @@ function oneValue(parsed: ParsedArguments, flag: string): string | undefined {
   return values[0]
 }
 
+function readerDirectoryFilterOption(parsed: ParsedArguments): ReaderDirectoryFilter {
+  const filter = oneValue(parsed, "--filter") ?? "all"
+  if (filter !== "all" && filter !== "archive" && filter !== "directory" && filter !== "video") {
+    throw usage("--filter must be all, archive, directory or video.")
+  }
+  return filter
+}
+
 async function runReaderUi(args: readonly string[], host: CliHost, dependencies: NeoviewCliDependencies): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView ui requires an interactive terminal.")
   const connection = parseReaderUiConnectionArgs(args)
@@ -2018,6 +2031,7 @@ function formatCliHelp(): string {
     "  --config PATH        Xiranite TOML path for settings/cache commands",
     "  --query QUERY        Folder search text or glob",
     "  --mode MODE          Folder search mode: text or glob",
+    "  --filter TYPE        Source type: all, archive, directory or video",
     "  --node PATH          Explicit tree node for tree/cache commands",
     "  --depth N            Recursive search depth (0..4096)",
     "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",

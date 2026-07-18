@@ -51,7 +51,7 @@ import {
   READER_DIRECTORY_FILTERS,
   type ReaderDirectoryEntryType,
   type ReaderDirectoryFilter,
-} from "./ReaderDirectoryFilter.js"
+} from "../../domain/browser/ReaderDirectoryFilter.js"
 import { ReaderDirectoryListingScanner } from "./ReaderDirectoryListingScanner.js"
 import { ReaderMetadataHydratingScanner } from "./ReaderMetadataHydratingScanner.js"
 import {

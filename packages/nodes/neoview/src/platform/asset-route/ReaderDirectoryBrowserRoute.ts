@@ -5,7 +5,7 @@ import {
   type ReaderDirectorySortPreferenceCommand,
   type ReaderFileTreeServiceOptions,
 } from "../../application/browser/ReaderFileTreeService.js"
-import { READER_DIRECTORY_FILTERS } from "../../application/browser/ReaderDirectoryFilter.js"
+import { READER_DIRECTORY_FILTERS } from "../../domain/browser/ReaderDirectoryFilter.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
