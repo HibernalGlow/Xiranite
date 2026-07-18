@@ -65,6 +65,7 @@ for (const chunk of deferredPanelChunks) {
 // [neoview.bookmark.chunk] [neoview.page-list.chunk] [neoview.shared-thumbnail.chunk] [neoview.shared-entry.chunk]
 const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]BookmarkListCard\.tsx$/i.test(module)))
 const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
+// [neoview.history.cleanup-lazy-chunk]
 const historyCleanupChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]history[/\\]HistoryCleanupDialog\.tsx$/i.test(module)))
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
 const pageListToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]page-list[/\\]PageListToolbar\.tsx$/i.test(module)))
