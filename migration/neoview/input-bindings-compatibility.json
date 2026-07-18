@@ -739,10 +739,11 @@
         "neoview.bindings.legacy-radial-report",
         "neoview.bindings.legacy-import-transaction",
         "neoview.bindings.legacy-import-cli",
-        "neoview.bindings.legacy-import-ui"
+        "neoview.bindings.legacy-import-ui",
+        "neoview.bindings.legacy-import-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. GUI now exposes inspect-before-import with merge/overwrite and refreshes canonical runtime state; TUI import projection and browser rollback evidence remain pending."
+      "notes": "The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. GUI now exposes inspect-before-import with merge/overwrite, refreshes canonical runtime state, and is covered by a real Chromium inspect/import flow; TUI import projection remains pending."
     },
     {
       "id": "bindings.states",

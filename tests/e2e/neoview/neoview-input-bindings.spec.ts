@@ -133,6 +133,22 @@ test("[neoview.bindings.rollback-e2e] keeps the edited binding when persistence 
   await page.unroute(`${backend.url}/reader/config`)
 })
 
+test("[neoview.bindings.legacy-import-e2e] inspects and imports legacy bindings in the GUI", async ({ page }) => {
+  await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+  await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  await page.getByRole("button", { name: "操作绑定" }).click()
+  const card = page.locator('[data-neoview-settings-card="input-bindings"]')
+  const settingsJson = card.getByRole("textbox", { name: "Legacy settings JSON" })
+  await settingsJson.fill('{"keybindings":[]}')
+  await card.getByRole("button", { name: "Inspect" }).click()
+  await expect(card.getByRole("status")).toContainText("Recognized legacy settings")
+  await card.getByRole("button", { name: "Import" }).click()
+  await expect(card.getByText("Imported successfully", { exact: false })).toBeVisible()
+})
+
 test("[neoview.bindings.devices-e2e] routes mouse, hold, modified wheel and area input", async ({ page }) => {
   const bindings: ReaderInputBinding[] = [
     ...DEFAULT_READER_INPUT_BINDINGS.bindings,
