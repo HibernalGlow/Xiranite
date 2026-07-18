@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
 import type { OpenComicSystemModelInfo, OpenComicSystemRuntime } from "./OpenComicAiSystemProvider.js"
-import { createOpenComicAiSystemService, registerRuntimeCustomModels, runtimeModels } from "./OpenComicAiSystemComposition.js"
+import {
+  createOpenComicAiSystemCapability,
+  createOpenComicAiSystemService,
+  registerRuntimeCustomModels,
+  runtimeModels,
+} from "./OpenComicAiSystemComposition.js"
 import { OpenComicSystemRuntimeUnavailableError } from "./OpenComicSystemRuntimeLoader.js"
 
 const enabledConfig: NeoviewSuperResolutionConfig = {
@@ -12,6 +17,13 @@ const enabledConfig: NeoviewSuperResolutionConfig = {
   daemonIdleTimeoutMs: 300_000,
   taskTimeoutMs: 600_000,
   customModels: [],
+  preferences: {
+    schemaVersion: 1,
+    autoUpscaleEnabled: true,
+    defaultModelId: "realesr-animevideov3",
+    defaultScale: 2,
+    conditions: [],
+  },
 }
 
 const customModel = {
@@ -97,6 +109,28 @@ describe("OpenComic AI system composition", () => {
       license: undefined,
       checksums: undefined,
     }])
+  })
+
+  it("[neoview.super-resolution.policy-composition] composes policy and execution around one runtime config", async () => {
+    const capability = await createOpenComicAiSystemCapability({
+      loadRuntime: async () => fakeRuntime(),
+      runtimeConfig: enabledConfig,
+      modelsDirectory: "D:/Models",
+      cliResolver: fakeResolver(),
+    })
+    expect(capability?.service.listModels().map((model) => model.id)).toContain("realesr-animevideov3")
+    expect(capability?.policy.decide({
+      trigger: "automatic-current",
+      width: 800,
+      height: 1_200,
+      bookPath: "D:/book.cbz",
+      imagePath: "page.png",
+    })).toMatchObject({
+      kind: "run",
+      modelId: "realesr-animevideov3",
+      scale: 2,
+    })
+    await capability?.service.dispose()
   })
 
   it("[neoview.super-resolution.custom-model-registration] registers TOML manifests once per shared runtime", () => {

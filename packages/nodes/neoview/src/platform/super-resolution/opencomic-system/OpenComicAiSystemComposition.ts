@@ -1,6 +1,7 @@
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import type { SuperResolutionCustomModelManifest, SuperResolutionModelManifest } from "../../../ports/SuperResolutionProvider.js"
 import { SuperResolutionService } from "../../../application/super-resolution/SuperResolutionService.js"
+import { SuperResolutionPolicyService } from "../../../application/super-resolution/SuperResolutionPolicyService.js"
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
 import type { NeoviewRuntimeLoadOptions } from "../../config/loadNeoviewRuntimeConfig.js"
@@ -29,9 +30,20 @@ export interface OpenComicAiSystemCompositionOptions extends NeoviewRuntimeLoadO
 
 const registeredCustomModels = new WeakMap<object, Map<string, string>>()
 
+export interface OpenComicAiSystemCapability {
+  service: SuperResolutionService
+  policy: SuperResolutionPolicyService
+}
+
 export async function createOpenComicAiSystemService(
   options: OpenComicAiSystemCompositionOptions = {},
 ): Promise<SuperResolutionService | undefined> {
+  return (await createOpenComicAiSystemCapability(options))?.service
+}
+
+export async function createOpenComicAiSystemCapability(
+  options: OpenComicAiSystemCompositionOptions = {},
+): Promise<OpenComicAiSystemCapability | undefined> {
   const config = options.runtimeConfig ?? (await loadRuntimeConfig(options))
   if (config.provider === "disabled") return undefined
 
@@ -64,11 +76,14 @@ export async function createOpenComicAiSystemService(
     daemonIdleTimeoutMs: config.daemonIdleTimeoutMs,
     taskTimeoutMs: config.taskTimeoutMs,
   })
-  return new SuperResolutionService(provider, {
-    scheduler: options.resourceScheduler,
-    ownerId: options.ownerId ?? "neoview:super-resolution",
-    models,
-  })
+  return {
+    service: new SuperResolutionService(provider, {
+      scheduler: options.resourceScheduler,
+      ownerId: options.ownerId ?? "neoview:super-resolution",
+      models,
+    }),
+    policy: new SuperResolutionPolicyService(config.preferences),
+  }
 }
 
 export function registerRuntimeCustomModels(
