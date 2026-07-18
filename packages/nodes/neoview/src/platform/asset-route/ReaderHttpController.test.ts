@@ -13,6 +13,11 @@ import {
   DEFAULT_READER_COLOR_FILTER,
   normalizeReaderColorFilter,
 } from "../../domain/color-filter/ReaderColorFilter.js"
+import {
+  DEFAULT_READER_PAGE_TRANSITION,
+  normalizeReaderPageTransition,
+  type ReaderPageTransitionSettings,
+} from "../../domain/page-transition/ReaderPageTransition.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 
 const cleanupDirectories: string[] = []
@@ -463,6 +468,68 @@ describe("ReaderHttpController", () => {
       }, true, "PATCH")))?.status).toBe(405)
       const failed = (await failing.handle(jsonRequest("/reader/config", {
         colorFilter: { brightness: 120 },
+      }, true, "PATCH")))!
+      expect(failed.status).toBe(500)
+      expect(await failed.json()).toEqual({ error: "config disk unavailable" })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+      await readOnly[Symbol.asyncDispose]()
+      await failing[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.page-transition.http] serializes strict page transition patches and exclusive reset", async () => {
+    let current: ReaderPageTransitionSettings = { ...DEFAULT_READER_PAGE_TRANSITION, enabled: true, type: "fade", duration: 200 }
+    const updatePageTransition = vi.fn(async (patch, tomlPatch) => {
+      void tomlPatch
+      current = "reset" in patch.pageTransition
+        ? { ...DEFAULT_READER_PAGE_TRANSITION }
+        : normalizeReaderPageTransition({ ...current, ...patch.pageTransition })
+      return current
+    })
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      pageTransition: current,
+      updatePageTransition,
+    })
+    const readOnly = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    const failing = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      updatePageTransition: async () => { throw new Error("config disk unavailable") },
+    })
+    try {
+      expect(await (await controller.handle(authorizedRequest("/reader/config")))!.json()).toMatchObject({
+        pageTransition: { enabled: true, type: "fade", duration: 200, easing: "easeOutQuad" },
+      })
+      const patched = (await controller.handle(jsonRequest("/reader/config", {
+        pageTransition: { type: "flip", duration: 320, easing: "easeOutCubic" },
+      }, true, "PATCH")))!
+      expect(patched.status).toBe(200)
+      expect(await patched.json()).toMatchObject({ pageTransition: { enabled: true, type: "flip", duration: 320 } })
+      expect(updatePageTransition).toHaveBeenLastCalledWith(
+        { pageTransition: { type: "flip", duration: 320, easing: "easeOutCubic" } },
+        { image: { page_transition: { type: "flip", duration: 320, easing: "easeOutCubic" } } },
+      )
+
+      const reset = (await controller.handle(jsonRequest("/reader/config", {
+        pageTransition: { reset: "defaults" },
+      }, true, "PATCH")))!
+      expect(reset.status).toBe(200)
+      expect(await reset.json()).toMatchObject({ pageTransition: DEFAULT_READER_PAGE_TRANSITION })
+      expect(updatePageTransition).toHaveBeenLastCalledWith(
+        { pageTransition: { reset: "defaults" } },
+        { image: { page_transition: { enabled: false, type: "none", duration: 0, easing: "easeOutQuad" } } },
+      )
+      expect((await controller.handle(jsonRequest("/reader/config", {
+        pageTransition: { duration: 501 },
+      }, true, "PATCH")))?.status).toBe(400)
+      expect((await readOnly.handle(jsonRequest("/reader/config", {
+        pageTransition: { enabled: true },
+      }, true, "PATCH")))?.status).toBe(405)
+      const failed = (await failing.handle(jsonRequest("/reader/config", {
+        pageTransition: { enabled: true },
       }, true, "PATCH")))!
       expect(failed.status).toBe(500)
       expect(await failed.json()).toEqual({ error: "config disk unavailable" })

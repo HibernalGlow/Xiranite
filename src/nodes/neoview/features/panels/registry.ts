@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Loader, Palette, type LucideIcon } from "lucide-react"
+import { Loader, Palette, Play, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -34,6 +34,7 @@ import type {
 } from "../../adapters/reader-http-client"
 import type { ReaderShellControlPort } from "../shell/ReaderShellControlPort"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
+import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTransitionStore"
 
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
@@ -71,6 +72,7 @@ export interface ReaderPanelContext {
   presentation?: ReaderPresentation
   shellControl?: ReaderShellControlPort
   colorFilter?: ReaderColorFilterPort
+  pageTransition?: ReaderPageTransitionPort
 }
 
 export interface ReaderPanelDefinition {
@@ -146,6 +148,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "book-settings": () => import("./cards/BookSettingsCard"),
   "sidebar-control": () => import("./cards/SidebarControlCard"),
   "color-filter": () => import("./cards/ColorFilterCard"),
+  "page-transition": () => import("./cards/PageTransitionCard"),
   "thumbnail-maintenance": () => import("./cards/ThumbnailMaintenanceCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
@@ -156,6 +159,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
 const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
   "preload-status": Loader,
   "color-filter": Palette,
+  "page-transition": Play,
 }
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {

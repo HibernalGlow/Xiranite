@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -484,6 +484,44 @@ describe("parseNeoviewRuntimeConfig", () => {
       "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 1, height: 240 },
       "future-card": { panelId: "future", visible: false, expanded: true, order: 2 },
     })
+  })
+
+  it("[neoview.page-transition.config] [neoview.page-transition.toml] parses canonical settings and emits strict leaf patches", () => {
+    expect(parseNeoviewRuntimeConfig({ image: { page_transition: {
+      enabled: true,
+      type: "slideUp",
+      duration: 750,
+      easing: "easeOutCubic",
+      future_field: "preserved-on-disk",
+    } } }).pageTransition).toEqual({
+      enabled: true,
+      type: "slideUp",
+      duration: 750,
+      easing: "easeOutCubic",
+    })
+    expect(parseNeoviewPageTransitionPatch({ pageTransition: { enabled: true, type: "flip", duration: 320 } })).toEqual({
+      patch: { pageTransition: { enabled: true, type: "flip", duration: 320 } },
+      tomlPatch: { image: { page_transition: { enabled: true, type: "flip", duration: 320 } } },
+    })
+    expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { duration: 501 } })).toThrow("duration")
+    expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { type: "fold" } })).toThrow("type")
+    expect(() => parseNeoviewPageTransitionPatch({ pageTransition: {} })).toThrow("at least one")
+    expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { enabled: true }, other: true })).toThrow("unsupported")
+  })
+
+  it("[neoview.page-transition.reset] emits one exclusive full canonical reset", () => {
+    expect(parseNeoviewPageTransitionPatch({ pageTransition: { reset: "defaults" } })).toEqual({
+      patch: { pageTransition: { reset: "defaults" } },
+      tomlPatch: { image: { page_transition: {
+        enabled: false,
+        type: "none",
+        duration: 0,
+        easing: "easeOutQuad",
+      } } },
+    })
+    expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { reset: "defaults", enabled: true } }))
+      .toThrow("cannot be combined")
+    expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { reset: true } })).toThrow('must be "defaults"')
   })
 
   it("[neoview.thumbnail-maintenance.layout] keeps maintenance hidden until explicitly docked", () => {

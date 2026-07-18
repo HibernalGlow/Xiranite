@@ -1,5 +1,6 @@
 import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ViewSource } from "@xiranite/node-neoview/ui-core"
 import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
+import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -522,6 +523,7 @@ export interface ReaderRuntimeConfigDto {
   folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
   colorFilter: ReaderColorFilterSettings
+  pageTransition: ReaderPageTransitionSettings
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
 }
@@ -547,6 +549,10 @@ export interface ReaderRadialMenuPatch {
 
 export interface ReaderColorFilterConfigPatch {
   colorFilter: ReaderColorFilterPatch | { reset: "defaults" }
+}
+
+export interface ReaderPageTransitionConfigPatch {
+  pageTransition: ReaderPageTransitionPatch | { reset: "defaults" }
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
@@ -717,6 +723,7 @@ export interface ReaderHttpClient {
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
   updateColorFilter?(patch: ReaderColorFilterConfigPatch, signal?: AbortSignal): Promise<ReaderColorFilterSettings>
+  updatePageTransition?(patch: ReaderPageTransitionConfigPatch, signal?: AbortSignal): Promise<ReaderPageTransitionSettings>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
@@ -915,6 +922,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.colorFilter),
+    updatePageTransition: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.pageTransition),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },

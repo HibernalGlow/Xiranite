@@ -485,6 +485,20 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
     },
     slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
+    colorFilter: {
+      colorizeEnabled: false,
+      colorizePreset: "redAndBlueGray",
+      customColors: [],
+      onlyBlackAndWhite: false,
+      brightness: 100,
+      contrast: 100,
+      saturation: 100,
+      sepia: 0,
+      hueRotate: 0,
+      invert: false,
+      negative: false,
+    },
+    pageTransition: { enabled: false, type: "none", duration: 0, easing: "easeOutQuad" },
     inputBindings: { bindings: [] },
   }
 }

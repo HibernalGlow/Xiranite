@@ -24,6 +24,20 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ colorFilter: { brightness: 125 } })
   })
 
+  it("[neoview.page-transition.client] sends one authenticated aggregate config mutation", async () => {
+    const pageTransition = { enabled: true, type: "slide", duration: 240, easing: "easeOutQuad" } as const
+    const fetchMock = vi.fn(async () => Response.json({ pageTransition }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.updatePageTransition!({ pageTransition: { type: "slide", duration: 240 } })).resolves.toEqual(pageTransition)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ pageTransition: { type: "slide", duration: 240 } })
+  })
+
   it("[neoview.react.control] sends token-authenticated open, navigation and close requests", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(request)
