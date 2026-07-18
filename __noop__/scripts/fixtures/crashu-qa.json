@@ -1,0 +1,37 @@
+{
+  "theme": "wuling",
+  "data": {
+    "sourcePathsText": "D:/legacy/config\nD:/legacy/assets\nD:/legacy/utils",
+    "targetNamesText": "config\nassets\nutils",
+    "destinationPath": "D:/system/target",
+    "similarityThreshold": 0.65,
+    "moveDirection": "to_target",
+    "conflictPolicy": "rename",
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "已生成 3 条匹配计划；2 条需按冲突策略处理。",
+    "logs": ["[scan] 3 source folders", "[match] 3 candidate pairs", "[plan] generated 3 planned moves"],
+    "result": {
+      "sourceCount": 3,
+      "targetCount": 3,
+      "totalScanned": 6,
+      "similarFound": 3,
+      "movedCount": 0,
+      "skippedCount": 0,
+      "errorCount": 0,
+      "pairsFile": "D:/system/target/crashu-pairs.json",
+      "errors": [],
+      "similarFolders": [
+        { "name": "config/settings.json", "path": "D:/legacy/config/settings.json", "target": "config", "similarity": 0.94, "matchDim": "name", "matchSrc": "settings", "matchTgt": "settings" },
+        { "name": "assets/hero_bg.png", "path": "D:/legacy/assets/hero_bg.png", "target": "assets", "similarity": 0.78, "matchDim": "name", "matchSrc": "hero bg", "matchTgt": "hero bg" },
+        { "name": "utils/parser.js", "path": "D:/legacy/utils/parser.js", "target": "utils", "similarity": 0.66, "matchDim": "name", "matchSrc": "parser", "matchTgt": "parser" }
+      ],
+      "plan": [
+        { "sourcePath": "D:/legacy/config/settings.json", "targetName": "config", "destinationPath": "D:/system/target/config/settings.json", "direction": "to_target", "similarity": 0.94, "status": "pending", "reason": "rename on collision" },
+        { "sourcePath": "D:/legacy/assets/hero_bg.png", "targetName": "assets", "destinationPath": "D:/system/target/assets/hero_bg.png", "direction": "to_target", "similarity": 0.78, "status": "pending", "reason": "rename on collision" },
+        { "sourcePath": "D:/legacy/utils/parser.js", "targetName": "utils", "destinationPath": "D:/system/target/utils/parser.js", "direction": "to_target", "similarity": 0.66, "status": "pending", "reason": "ready" }
+      ]
+    }
+  }
+}

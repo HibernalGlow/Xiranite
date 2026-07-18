@@ -1,0 +1,27 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/index.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "radix",
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "registries": {
+    "@termcn": "https://termcn.dev/r/{name}.json",
+    "@niko-table": "https://niko-table.com/r/{name}.json",
+    "@diceui": "https://diceui.com/r/{style}/{name}.json",
+    "@magicui": "https://raw.githubusercontent.com/magicuidesign/magicui/main/apps/www/public/r/{name}.json"
+  }
+}

@@ -1,0 +1,26 @@
+# Core
+core_similarity_original = Original
+core_similarity_very_high = Sehr Hoch
+core_similarity_high = Hoch
+core_similarity_medium = Mittel
+core_similarity_small = Klein
+core_similarity_very_small = Sehr klein
+core_similarity_minimal = Minimal
+core_cannot_open_dir = Verzeichnis { $dir } kann nicht geöffnet werden, Grund { $reason }
+core_cannot_read_entry_dir = Kann Eintrag in Verzeichnis { $dir } nicht lesen, Grund { $reason }
+core_cannot_read_metadata_dir = Metadaten können in Verzeichnis { $dir } nicht gelesen werden, Grund { $reason }
+core_file_modified_before_epoch = Datei { $name } scheint vor dieser Unix-Epoche geändert worden zu sein
+core_folder_modified_before_epoch = Ordner { $name } scheint vor dieser Unix-Epoche geändert worden zu sein
+core_file_no_modification_date = Konnte das Änderungsdatum von Datei { $name } nicht abrufen, Grund { $reason }
+core_folder_no_modification_date = Konnte das Änderungsdatum aus dem Ordner { $name } nicht abrufen, Grund { $reason }
+core_missing_no_chosen_included_directory = Mindestens ein Verzeichnis muss angegeben werden
+core_directory_must_exists = Verzeichnisse: Der angegebene Ordnerpfad muss existieren, { $path } wird ignoriert
+core_directory_must_be_directory = Verzeichnisse: Der angegebene Pfad muss auf das Verzeichnis zeigen, { $path } wird ignoriert
+core_included_directory_zero_valid_directories = Einbezogenes Verzeichnis-FEHLER: Kein korrekter Pfad gefunden, welcher einbezogen werden soll, was erforderlich ist
+core_excluded_directory_pointless_slash = Verzeichnisse: / auszuschließen ist sinnlos, weil somit keine Dateien gescannt werden
+core_directory_overlap = Verzeichnisse: Alle zu durchsuchende Verzeichnisse überlappen mit den ausgeschlossenen Verzeichnissen
+core_directory_unable_to_get_device_id = Verzeichnisse: Geräte-ID kann nicht aus dem Ordner { $path } geholt werden
+core_ffmpeg_not_found = Es kann keine richtige Installation von FFmpeg gefunden werden, dies ist ein externes Programm, das Sie manuell installieren müssen.
+core_ffmpeg_not_found_windows = Stellen Sie sicher, dass ffmpeg.exe und ffprobe.exe in PATH verfügbar sind oder direkt in den gleichen Ordner gelegt werden, in dem die App ausführbar ist
+core_invalid_symlink_infinite_recursion = Endlose Rekursion
+core_invalid_symlink_non_existent_destination = Nicht existierende Zieldatei

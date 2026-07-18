@@ -1,0 +1,231 @@
+/*
+  Svelte Editorial Framework theme pack.
+  Source reviewed in browser: svelte.dev and github.com/sveltejs/svelte.
+  Visual takeaways: open-source framework site, warm paper canvas,
+  serif editorial lead type, precise black text, and vivid orange actions.
+*/
+
+.theme-svelte {
+  color-scheme: light;
+  --radius: 0.375rem;
+  --svelte-paper: oklch(0.985 0.018 75);
+  --svelte-surface: oklch(0.955 0.025 68);
+  --svelte-panel: oklch(1 0 0);
+  --svelte-ink: oklch(0.16 0.035 48);
+  --svelte-muted-ink: oklch(0.48 0.035 48);
+  --svelte-orange: oklch(0.62 0.22 32);
+  --svelte-orange-deep: oklch(0.46 0.18 32);
+  --svelte-cream-line: oklch(0.82 0.04 62);
+  --svelte-shadow: 0 1px 0 oklch(0.16 0.035 48 / 0.08), 0 18px 42px oklch(0.22 0.08 40 / 0.12);
+  --svelte-motion-duration: 180ms;
+  --svelte-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --background: var(--svelte-paper);
+  --foreground: var(--svelte-ink);
+  --card: var(--svelte-panel);
+  --card-foreground: var(--svelte-ink);
+  --popover: var(--svelte-panel);
+  --popover-foreground: var(--svelte-ink);
+  --primary: var(--svelte-orange);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: var(--svelte-surface);
+  --secondary-foreground: var(--svelte-ink);
+  --muted: oklch(0.93 0.02 68);
+  --muted-foreground: var(--svelte-muted-ink);
+  --accent: oklch(0.88 0.075 48);
+  --accent-foreground: oklch(0.22 0.06 40);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(1 0 0);
+  --border: var(--svelte-cream-line);
+  --input: oklch(0.96 0.016 68);
+  --ring: var(--svelte-orange);
+
+  --chart-1: var(--svelte-orange);
+  --chart-2: oklch(0.56 0.12 80);
+  --chart-3: oklch(0.48 0.13 190);
+  --chart-4: oklch(0.50 0.12 280);
+  --chart-5: oklch(0.52 0.18 18);
+
+  --sidebar: oklch(0.96 0.022 70);
+  --sidebar-foreground: var(--svelte-ink);
+  --sidebar-primary: var(--svelte-orange);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.91 0.035 60);
+  --sidebar-accent-foreground: var(--svelte-ink);
+  --sidebar-border: var(--svelte-cream-line);
+  --sidebar-ring: var(--svelte-orange);
+
+  --ws-grid-color: oklch(0.16 0.035 48 / 0.06);
+  --ws-canvas: var(--svelte-paper);
+  --ws-accent-glow: oklch(0.62 0.22 32 / 0.14);
+  --ws-focused-overlay: oklch(0.16 0.035 48 / 0.30);
+}
+
+.theme-svelte.dark,
+.dark .theme-svelte {
+  color-scheme: dark;
+  --svelte-paper: oklch(0.17 0.035 48);
+  --svelte-surface: oklch(0.22 0.04 48);
+  --svelte-panel: oklch(0.20 0.035 48);
+  --svelte-ink: oklch(0.95 0.02 68);
+  --svelte-muted-ink: oklch(0.70 0.025 68);
+  --svelte-orange: oklch(0.70 0.20 32);
+  --svelte-orange-deep: oklch(0.58 0.19 32);
+  --svelte-cream-line: oklch(0.38 0.055 48);
+  --svelte-shadow: 0 1px 0 oklch(1 0 0 / 0.06), 0 18px 42px oklch(0 0 0 / 0.30);
+  --background: var(--svelte-paper);
+  --foreground: var(--svelte-ink);
+  --card: var(--svelte-panel);
+  --card-foreground: var(--svelte-ink);
+  --popover: var(--svelte-panel);
+  --popover-foreground: var(--svelte-ink);
+  --primary: var(--svelte-orange);
+  --primary-foreground: oklch(0.12 0.035 48);
+  --secondary: var(--svelte-surface);
+  --secondary-foreground: var(--svelte-ink);
+  --muted: oklch(0.25 0.035 48);
+  --muted-foreground: var(--svelte-muted-ink);
+  --accent: oklch(0.30 0.075 48);
+  --accent-foreground: oklch(0.96 0.02 68);
+  --border: var(--svelte-cream-line);
+  --input: oklch(0.24 0.035 48);
+  --ring: var(--svelte-orange);
+  --sidebar: oklch(0.15 0.033 48);
+  --sidebar-foreground: var(--svelte-ink);
+  --sidebar-primary: var(--svelte-orange);
+  --sidebar-primary-foreground: oklch(0.12 0.035 48);
+  --sidebar-accent: var(--svelte-surface);
+  --sidebar-accent-foreground: var(--svelte-ink);
+  --sidebar-border: var(--svelte-cream-line);
+  --sidebar-ring: var(--svelte-orange);
+  --ws-grid-color: oklch(0.95 0.02 68 / 0.055);
+  --ws-canvas: var(--svelte-paper);
+  --ws-accent-glow: oklch(0.70 0.20 32 / 0.16);
+  --ws-focused-overlay: oklch(0 0 0 / 0.70);
+}
+
+.theme-svelte .ws-canvas-bg {
+  background:
+    radial-gradient(circle at 18% 16%, color-mix(in oklch, var(--svelte-orange) 12%, transparent), transparent 22rem),
+    linear-gradient(90deg, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(0deg, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px) 0 0 / 56px 56px,
+    var(--ws-canvas);
+}
+
+.theme-svelte .comp-card--animated {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 96%, var(--svelte-surface)), var(--card));
+  box-shadow: var(--svelte-shadow);
+  transition:
+    transform var(--svelte-motion-duration) var(--svelte-motion-ease),
+    border-color var(--svelte-motion-duration) linear,
+    box-shadow var(--svelte-motion-duration) var(--svelte-motion-ease);
+}
+
+.theme-svelte .comp-card--animated:hover,
+.theme-svelte .comp-card--focused,
+.theme-svelte .comp-card--fullscreen {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklch, var(--svelte-orange) 52%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--svelte-orange) 10%, transparent), var(--svelte-shadow);
+}
+
+.theme-svelte .xiranite-node-surface {
+  color: var(--foreground);
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--svelte-orange) 16%, transparent) 0 0.375rem, transparent 0.375rem),
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 94%, transparent), color-mix(in oklch, var(--svelte-surface) 72%, transparent));
+}
+
+.theme-svelte .xiranite-node-surface > * {
+  animation: svelte-editorial-in 180ms var(--svelte-motion-ease) both;
+}
+
+.theme-svelte .xiranite-node-surface h1,
+.theme-svelte .xiranite-node-surface h2,
+.theme-svelte .xiranite-node-surface h3,
+.theme-svelte .xiranite-node-surface [data-slot="card-title"] {
+  color: var(--foreground);
+  font-family: var(--font-app-sans);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.theme-svelte .xiranite-node-surface button,
+.theme-svelte .xiranite-node-surface [role="button"],
+.theme-svelte .xiranite-node-surface input,
+.theme-svelte .xiranite-node-surface textarea,
+.theme-svelte .xiranite-node-surface select,
+.theme-svelte .xiranite-node-surface [contenteditable="true"] {
+  border: 1px solid color-mix(in oklch, var(--foreground) 18%, var(--border));
+  border-radius: 6px;
+}
+
+.theme-svelte .xiranite-node-surface button,
+.theme-svelte .xiranite-node-surface [role="button"] {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 2px 0 var(--svelte-orange-deep);
+  font-weight: 700;
+}
+
+.theme-svelte .xiranite-node-surface button:hover,
+.theme-svelte .xiranite-node-surface [role="button"]:hover {
+  background-color: var(--svelte-orange-deep);
+  transform: translateY(-1px);
+}
+
+.theme-svelte .xiranite-node-surface input,
+.theme-svelte .xiranite-node-surface textarea,
+.theme-svelte .xiranite-node-surface select,
+.theme-svelte .xiranite-node-surface [contenteditable="true"] {
+  background-color: color-mix(in oklch, var(--background) 88%, var(--card));
+  color: var(--foreground);
+}
+
+.theme-svelte .xiranite-node-surface textarea,
+.theme-svelte .xiranite-node-surface [contenteditable="true"] {
+  border-radius: 8px;
+}
+
+.theme-svelte [data-slot="badge"] {
+  border: 1px solid color-mix(in oklch, var(--svelte-orange) 42%, var(--border));
+  border-radius: 999px;
+  background-color: color-mix(in oklch, var(--svelte-orange) 12%, var(--card));
+  color: var(--svelte-orange-deep);
+  font-weight: 700;
+}
+
+.theme-svelte [data-slot="progress"] {
+  height: 0.5rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 16%, var(--border));
+  border-radius: 999px;
+  background-color: color-mix(in oklch, var(--background) 86%, var(--border));
+  overflow: hidden;
+}
+
+.theme-svelte [data-slot="progress-indicator"] {
+  background:
+    repeating-linear-gradient(115deg, var(--svelte-orange) 0 10px, color-mix(in oklch, var(--svelte-orange) 72%, var(--svelte-ink)) 10px 14px);
+}
+
+@keyframes svelte-editorial-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-svelte .comp-card--animated,
+  .theme-svelte .xiranite-node-surface > * {
+    animation: none;
+    transition: none;
+  }
+}

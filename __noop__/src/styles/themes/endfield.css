@@ -1,0 +1,80 @@
+/*
+  Endfield tactical theme pack.
+  Dark slate surfaces with Endfield green operational accents.
+*/
+
+.theme-endfield {
+  color-scheme: dark;
+  --background: oklch(0.13 0.025 216);
+  --foreground: oklch(0.90 0.04 148);
+  --card: oklch(0.17 0.025 216);
+  --card-foreground: oklch(0.90 0.04 148);
+  --popover: oklch(0.15 0.025 216);
+  --popover-foreground: oklch(0.90 0.04 148);
+  --primary: oklch(0.62 0.18 152);
+  --primary-foreground: oklch(0.10 0.02 216);
+  --secondary: oklch(0.22 0.03 216);
+  --secondary-foreground: oklch(0.80 0.05 148);
+  --muted: oklch(0.20 0.025 216);
+  --muted-foreground: oklch(0.55 0.05 165);
+  --accent: oklch(0.24 0.04 216);
+  --accent-foreground: oklch(0.85 0.06 152);
+  --destructive: oklch(0.62 0.24 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.26 0.03 216);
+  --input: oklch(0.22 0.03 216);
+  --ring: oklch(0.55 0.15 152);
+  --chart-1: oklch(0.62 0.18 152);
+  --chart-2: oklch(0.55 0.16 196);
+  --chart-3: oklch(0.70 0.15 65);
+  --chart-4: oklch(0.60 0.18 340);
+  --chart-5: oklch(0.62 0.18 30);
+  --sidebar: oklch(0.11 0.025 216);
+  --sidebar-foreground: oklch(0.85 0.05 148);
+  --sidebar-primary: oklch(0.62 0.18 152);
+  --sidebar-primary-foreground: oklch(0.10 0.02 216);
+  --sidebar-accent: oklch(0.22 0.04 216);
+  --sidebar-accent-foreground: oklch(0.85 0.06 152);
+  --sidebar-border: oklch(0.24 0.03 216);
+  --sidebar-ring: oklch(0.55 0.15 152);
+  --badge-gray: oklch(0.65 0 0);
+  --badge-gray-foreground: oklch(0.985 0 0);
+  --badge-gray-subtle: oklch(0.239 0 0);
+  --badge-gray-subtle-foreground: oklch(0.946 0 0);
+  --badge-blue: oklch(57.61% 0.2321 258.23);
+  --badge-blue-foreground: oklch(0.985 0 0);
+  --badge-blue-subtle: oklch(25.45% 0.0811 255.8);
+  --badge-blue-subtle-foreground: oklch(71.7% 0.1648 250.794);
+  --badge-purple: oklch(55.5% 0.2186 306.12);
+  --badge-purple-foreground: oklch(0.985 0 0);
+  --badge-purple-subtle: oklch(25.91% 0.0921 314.41);
+  --badge-purple-subtle-foreground: oklch(69.87% 0.2037 309.51);
+  --badge-yellow: oklch(81.87% 0.1969 76.46);
+  --badge-yellow-foreground: oklch(0 0 0);
+  --badge-yellow-subtle: oklch(24.95% 0.0642 64.78);
+  --badge-yellow-subtle-foreground: oklch(77.21% 0.1991 64.28);
+  --badge-orange: oklch(64.6% 0.222 41.116);
+  --badge-orange-foreground: oklch(0.985 0 0);
+  --badge-orange-subtle: oklch(26.5% 0.08 40);
+  --badge-orange-subtle-foreground: oklch(74% 0.19 50);
+  --badge-red: oklch(62.56% 0.2234 23.03);
+  --badge-red-foreground: oklch(0.985 0 0);
+  --badge-red-subtle: oklch(25.93% 0.0834 19.02);
+  --badge-red-subtle-foreground: oklch(69.96% 0.2136 22.03);
+  --badge-pink: oklch(63.52% 0.2346 1.01);
+  --badge-pink-foreground: oklch(0.985 0 0);
+  --badge-pink-subtle: oklch(26.2% 0.0859 356.68);
+  --badge-pink-subtle-foreground: oklch(69.36% 0.2223 3.91);
+  --badge-green: oklch(64.58% 0.199 147.27);
+  --badge-green-foreground: oklch(0.985 0 0);
+  --badge-green-subtle: oklch(27.12% 0.0895 150.09);
+  --badge-green-subtle-foreground: oklch(73.1% 0.2158 148.29);
+  --badge-teal: oklch(64.92% 0.1403 181.95);
+  --badge-teal-foreground: oklch(0.985 0 0);
+  --badge-teal-subtle: oklch(31.5% 0.0767 180.99);
+  --badge-teal-subtle-foreground: oklch(74.56% 0.1765 182.8);
+  --ws-grid-color: oklch(0.30 0.04 216 / 0.5);
+  --ws-canvas: oklch(0.14 0.025 216);
+  --ws-accent-glow: oklch(0.62 0.18 152 / 0.22);
+  --ws-focused-overlay: oklch(0.05 0.01 216 / 0.72);
+}

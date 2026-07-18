@@ -1,0 +1,26 @@
+# Core
+core_similarity_original = Оригінал
+core_similarity_very_high = Дуже висока
+core_similarity_high = Висока
+core_similarity_medium = Середня
+core_similarity_small = Низька
+core_similarity_very_small = Дуже низька
+core_similarity_minimal = Мінімальна
+core_cannot_open_dir = Не вдалося відкрити каталог { $dir }, причина: { $reason }
+core_cannot_read_entry_dir = Не вдалося прочитати запис в каталозі { $dir }, причина: { $reason }
+core_cannot_read_metadata_dir = Не вдалося прочитати метадані в каталозі { $dir }, причина: { $reason }
+core_file_modified_before_epoch = Файл { $name }, здається, змінено до початку епохи Unix
+core_folder_modified_before_epoch = Папка { $name }, здається, змінена до початку епохи Unix
+core_file_no_modification_date = Не вдалося отримати дату модифікації з файлу { $name }, причина: { $reason }
+core_folder_no_modification_date = Не вдалося отримати дату модифікації з каталогу { $name }, причина: { $reason }
+core_missing_no_chosen_included_directory = Необхідно вказати принаймні один каталог
+core_directory_must_exists = Директорії: Вказаний шлях до папки має існувати, буде проігнорован { $path }
+core_directory_must_be_directory = Директорії: Вказаний шлях повинен вказувати на директорію, буде проігнорован { $path }
+core_included_directory_zero_valid_directories = Включений каталог, ПОМИЛКА: Не знайдено жодного коректного шляху для включення до списку пошуку — обов'язково додати хоча б один
+core_excluded_directory_pointless_slash = Директорії: Виключення кореневого каталогу «/» не має сенсу, тому що в такому разі жоден файл не буде просканований
+core_directory_overlap = Каталоги: Усі директорії для пошуку також присутні у списку виключених каталогів
+core_directory_unable_to_get_device_id = Каталоги: Не вдалося отримати ідентифікатор пристрою з папки { $path }
+core_ffmpeg_not_found = Не вдається встановити FFmpeg, це зовнішня програма, яку потрібно встановити вручну.
+core_ffmpeg_not_found_windows = Будьте впевнені, що ffmpeg.exe і ffprobe.exe доступні в PATH або прямо в тій же папці, де є виконуваний додаток
+core_invalid_symlink_infinite_recursion = Нескінченна рекурсія
+core_invalid_symlink_non_existent_destination = Неіснуючий файл призначення

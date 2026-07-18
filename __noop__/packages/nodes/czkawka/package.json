@@ -1,0 +1,47 @@
+{
+  "name": "@xiranite/node-czkawka",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Czkawka file analysis workbench with eleven native scanners and TypeScript orchestration.",
+  "license": "MIT",
+  "bin": { "xczkawka": "./dist/cli.js" },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
+    "./filters": { "types": "./dist/filters.d.ts", "default": "./dist/filters.js" },
+    "./selection-assistant": { "types": "./dist/selection-assistant.d.ts", "default": "./dist/selection-assistant.js" },
+    "./analysis": { "types": "./dist/analysis.d.ts", "default": "./dist/analysis.js" },
+    "./activity-log": { "types": "./dist/activity-log.d.ts", "default": "./dist/activity-log.js" },
+    "./card-layout": { "types": "./dist/card-layout.d.ts", "default": "./dist/card-layout.js" },
+    "./floating-panel": { "types": "./dist/floating-panel.d.ts", "default": "./dist/floating-panel.js" },
+    "./operations": { "types": "./dist/operations.d.ts", "default": "./dist/operations.js" },
+    "./scan-presets": { "types": "./dist/scan-presets.d.ts", "default": "./dist/scan-presets.js" },
+    "./source-inputs": { "types": "./dist/source-inputs.d.ts", "default": "./dist/source-inputs.js" },
+    "./similar-folders": { "types": "./dist/similar-folders.d.ts", "default": "./dist/similar-folders.js" },
+    "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
+    "./tool-options": { "types": "./dist/tool-options.d.ts", "default": "./dist/tool-options.js" },
+    "./workspace-layout": { "types": "./dist/workspace-layout.d.ts", "default": "./dist/workspace-layout.js" },
+    "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" },
+    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "vitest run src --exclude src/Tui.bun.test.tsx && bun --bun vitest run src/Tui.bun.test.tsx",
+    "smoke:cli": "bun run build && bun scripts/smoke-cli.mjs"
+  },
+  "dependencies": {
+    "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/config": "workspace:*",
+    "@xiranite/contract": "workspace:*",
+    "@xiranite/czkawka-native": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

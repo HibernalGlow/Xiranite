@@ -1,0 +1,212 @@
+/*
+  Hilden & Kaira Poster theme pack.
+  Source reviewed in browser: Awwwards SOTD "Hilden & Kaira".
+  Visual takeaways: oversized black type on pale canvas, billboard framing,
+  hard UI outlines, sharp contrast, and poster-like spacing.
+*/
+
+.theme-hilden {
+  color-scheme: light;
+  --radius: 0;
+  --hilden-ink: oklch(0.08 0 0);
+  --hilden-paper: oklch(0.965 0.006 105);
+  --hilden-rule: oklch(0.08 0 0);
+  --hilden-shadow: 5px 5px 0 var(--hilden-ink);
+  --hilden-display-font: "Fraunces", "Bodoni 72", "Bodoni MT", Didot, Georgia, "Times New Roman", serif;
+  --hilden-metal: linear-gradient(105deg, oklch(0.98 0 0), oklch(0.62 0 0) 18%, oklch(0.98 0 0) 36%, oklch(0.38 0 0) 52%, oklch(0.88 0 0) 72%, oklch(0.54 0 0));
+  --hilden-motion-duration: 120ms;
+  --hilden-motion-ease: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --background: var(--hilden-paper);
+  --foreground: var(--hilden-ink);
+  --card: oklch(0.99 0.004 105);
+  --card-foreground: var(--hilden-ink);
+  --popover: oklch(0.99 0.004 105);
+  --popover-foreground: var(--hilden-ink);
+  --primary: oklch(0.08 0 0);
+  --primary-foreground: oklch(0.98 0.01 105);
+  --secondary: oklch(0.90 0.012 105);
+  --secondary-foreground: var(--hilden-ink);
+  --muted: oklch(0.91 0.008 105);
+  --muted-foreground: oklch(0.35 0 0);
+  --accent: oklch(0.84 0.18 92);
+  --accent-foreground: var(--hilden-ink);
+  --destructive: oklch(0.62 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: var(--hilden-rule);
+  --input: oklch(0.93 0.006 105);
+  --ring: var(--hilden-ink);
+
+  --chart-1: oklch(0.08 0 0);
+  --chart-2: oklch(0.84 0.18 92);
+  --chart-3: oklch(0.62 0.22 27);
+  --chart-4: oklch(0.60 0.12 245);
+  --chart-5: oklch(0.62 0.12 150);
+
+  --sidebar: oklch(0.93 0.008 105);
+  --sidebar-foreground: var(--hilden-ink);
+  --sidebar-primary: var(--hilden-ink);
+  --sidebar-primary-foreground: oklch(0.98 0.01 105);
+  --sidebar-accent: oklch(0.84 0.18 92);
+  --sidebar-accent-foreground: var(--hilden-ink);
+  --sidebar-border: var(--hilden-rule);
+  --sidebar-ring: var(--hilden-ink);
+
+  --ws-grid-color: oklch(0.08 0 0 / 0.18);
+  --ws-canvas: oklch(0.945 0.008 105);
+  --ws-accent-glow: oklch(0.84 0.18 92 / 0.18);
+  --ws-focused-overlay: oklch(0.08 0 0 / 0.42);
+}
+
+.theme-hilden.dark,
+.dark .theme-hilden {
+  color-scheme: dark;
+  --hilden-ink: oklch(0.96 0.006 105);
+  --hilden-paper: oklch(0.09 0 0);
+  --hilden-rule: oklch(0.96 0.006 105);
+  --hilden-shadow: 5px 5px 0 oklch(0.84 0.18 92);
+  --hilden-metal: linear-gradient(105deg, oklch(0.78 0 0), oklch(0.98 0 0) 18%, oklch(0.52 0 0) 36%, oklch(0.98 0 0) 52%, oklch(0.38 0 0) 72%, oklch(0.88 0 0));
+  --background: var(--hilden-paper);
+  --foreground: var(--hilden-ink);
+  --card: oklch(0.13 0 0);
+  --card-foreground: var(--hilden-ink);
+  --popover: oklch(0.12 0 0);
+  --popover-foreground: var(--hilden-ink);
+  --primary: oklch(0.96 0.006 105);
+  --primary-foreground: oklch(0.08 0 0);
+  --secondary: oklch(0.20 0 0);
+  --secondary-foreground: var(--hilden-ink);
+  --muted: oklch(0.19 0 0);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: oklch(0.84 0.18 92);
+  --accent-foreground: oklch(0.08 0 0);
+  --border: var(--hilden-rule);
+  --input: oklch(0.18 0 0);
+  --ring: oklch(0.84 0.18 92);
+  --sidebar: oklch(0.10 0 0);
+  --sidebar-foreground: var(--hilden-ink);
+  --sidebar-primary: oklch(0.96 0.006 105);
+  --sidebar-primary-foreground: oklch(0.08 0 0);
+  --sidebar-accent: oklch(0.84 0.18 92);
+  --sidebar-accent-foreground: oklch(0.08 0 0);
+  --sidebar-border: var(--hilden-rule);
+  --sidebar-ring: oklch(0.84 0.18 92);
+  --ws-grid-color: oklch(0.96 0.006 105 / 0.16);
+  --ws-canvas: oklch(0.08 0 0);
+  --ws-accent-glow: oklch(0.84 0.18 92 / 0.18);
+  --ws-focused-overlay: oklch(0 0 0 / 0.72);
+}
+
+.theme-hilden.theme-bg-grid .ws-canvas-bg::before {
+  background-size: 36px 36px;
+}
+
+.theme-hilden .comp-card--animated {
+  border: 2px solid var(--hilden-rule);
+  background-color: var(--card);
+  box-shadow: var(--hilden-shadow);
+  transition:
+    transform var(--hilden-motion-duration) var(--hilden-motion-ease),
+    box-shadow var(--hilden-motion-duration) var(--hilden-motion-ease),
+    background-color var(--hilden-motion-duration) linear;
+}
+
+.theme-hilden .comp-card--animated:hover,
+.theme-hilden .comp-card--focused,
+.theme-hilden .comp-card--fullscreen {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 var(--hilden-ink);
+}
+
+.theme-hilden .xiranite-node-drag-handle,
+.theme-hilden .xiranite-node-surface,
+.theme-hilden .xiranite-node-surface section,
+.theme-hilden .xiranite-node-surface [class*="rounded-md"],
+.theme-hilden .xiranite-node-surface [class*="rounded-lg"],
+.theme-hilden [data-slot="badge"],
+.theme-hilden [data-slot="progress"] {
+  border-radius: 0;
+}
+
+.theme-hilden .xiranite-node-surface {
+  color: var(--foreground);
+  background:
+    linear-gradient(112deg, transparent 0 60%, color-mix(in oklch, var(--accent) 28%, transparent) 60% 64%, transparent 64% 100%),
+    linear-gradient(90deg, color-mix(in oklch, var(--accent) 22%, transparent) 0 12px, transparent 12px 100%) 0 0 / 48px 48px,
+    var(--card);
+}
+
+.theme-hilden .xiranite-node-surface h1,
+.theme-hilden .xiranite-node-surface h2,
+.theme-hilden .xiranite-node-surface h3,
+.theme-hilden .xiranite-node-surface [data-slot="card-title"] {
+  font-family: var(--hilden-display-font);
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: 0;
+}
+
+.theme-hilden .xiranite-node-drag-handle,
+.theme-hilden .comp-card--animated::before {
+  background-image: var(--hilden-metal);
+}
+
+.theme-hilden .xiranite-node-surface > * {
+  animation: hilden-poster-in 140ms var(--hilden-motion-ease) both;
+}
+
+.theme-hilden .xiranite-node-surface button,
+.theme-hilden .xiranite-node-surface [role="button"],
+.theme-hilden .xiranite-node-surface input,
+.theme-hilden .xiranite-node-surface textarea,
+.theme-hilden .xiranite-node-surface select,
+.theme-hilden .xiranite-node-surface [contenteditable="true"] {
+  border-radius: 0;
+  border: 2px solid var(--hilden-rule);
+  font-family: var(--font-app-mono);
+}
+
+.theme-hilden .xiranite-node-surface button:hover,
+.theme-hilden .xiranite-node-surface [role="button"]:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+  box-shadow: 4px 4px 0 var(--hilden-ink);
+}
+
+.theme-hilden [data-slot="badge"] {
+  border: 2px solid var(--hilden-rule);
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+  font-family: var(--font-app-mono);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.theme-hilden [data-slot="progress"] {
+  height: 0.625rem;
+  border: 2px solid var(--hilden-rule);
+  background-color: var(--background);
+}
+
+.theme-hilden [data-slot="progress-indicator"] {
+  background-color: var(--accent);
+}
+
+@keyframes hilden-poster-in {
+  from {
+    opacity: 0;
+    transform: translate(4px, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-hilden .comp-card--animated,
+  .theme-hilden .xiranite-node-surface > * {
+    animation: none;
+    transition: none;
+  }
+}

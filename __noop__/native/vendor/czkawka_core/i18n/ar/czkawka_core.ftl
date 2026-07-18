@@ -1,0 +1,26 @@
+# Core
+core_similarity_original = الأصل
+core_similarity_very_high = عالية جدا
+core_similarity_high = مرتفع
+core_similarity_medium = متوسط
+core_similarity_small = صغير
+core_similarity_very_small = صغير جدا
+core_similarity_minimal = الحد الأدنى
+core_cannot_open_dir = لا يمكن فتح dir { $dir }، السبب { $reason }
+core_cannot_read_entry_dir = لا يمكن قراءة الإدخال في dir { $dir }، السبب { $reason }
+core_cannot_read_metadata_dir = لا يمكن قراءة البيانات الوصفية في dir { $dir }، السبب { $reason }
+core_file_modified_before_epoch = يبدو أن الملف { $name } قد تم تعديله قبل يونكس Epoch
+core_folder_modified_before_epoch = يبدو أن المجلد { $name } قد تم تعديله قبل يونكس Epoch
+core_file_no_modification_date = غير قادر على الحصول على تاريخ التعديل من الملف { $name }، السبب { $reason }
+core_folder_no_modification_date = غير قادر على الحصول على تاريخ التعديل من المجلد { $name }، السبب { $reason }
+core_missing_no_chosen_included_directory = يجب توفير دليل واحد على الأقل
+core_directory_must_exists = الأدلة: يجب أن يكون مسار المجلد المتوفر موجودا، تجاهل { $path }
+core_directory_must_be_directory = الأدلة: المسار المقدم يجب أن يشير إلى الدليل، تجاهل { $path }
+core_included_directory_zero_valid_directories = خطأ في الدليل المضمن: لا يوجد حتى مسار واحد صحيح للإدراج المطلوب
+core_excluded_directory_pointless_slash = الأدلة: استبعاد / لا معنى له، لأنه يعني أنه لن يتم مسح أي ملفات
+core_directory_overlap = الأدلة: جميع الدلائل للبحث عن التداخل مع الدلائل المستبعدة
+core_directory_unable_to_get_device_id = الأدلة: غير قادر على الحصول على معرف الجهاز من المجلد { $path }
+core_ffmpeg_not_found = لا يمكن العثور على التثبيت المناسب لـ FFmpeg، هذا برنامج خارجي، تحتاج إلى تثبيته يدويا.
+core_ffmpeg_not_found_windows = تأكد من أن ffmpeg.exe و ffprobe.exe متاحان في PATH أو يتم وضعهما مباشرة لنفس المجلد حيث التطبيق قابل للتنفيذ
+core_invalid_symlink_infinite_recursion = التكرار اللامتناهي
+core_invalid_symlink_non_existent_destination = ملف الوجهة غير موجود

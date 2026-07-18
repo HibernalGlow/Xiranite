@@ -1,0 +1,21 @@
+import { cleanup, render } from "@testing-library/react"
+import { afterEach, expect, it, vi } from "vitest"
+import type { NodeComponentProps } from "@xiranite/contract"
+
+const readerProps = vi.hoisted(() => ({ current: undefined as Record<string, unknown> | undefined }))
+vi.mock("./app/ReaderApp", () => ({ ReaderApp: (props: Record<string, unknown>) => { readerProps.current = props; return null } }))
+import { Component, type NeoViewCardState } from "./Component"
+
+afterEach(cleanup)
+
+it("[neoview.book-information.host-clipboard] passes only the host clipboard writer into ReaderApp", () => {
+  const writeText = vi.fn(async () => undefined)
+  const host = {
+    state: { getData: () => ({ path: "D:/book.cbz" }), patchData: vi.fn() },
+    clipboard: { writeText },
+    localFiles: {},
+  } as unknown as NodeComponentProps<NeoViewCardState>["host"]
+  render(<Component compId="neoview-1" host={host} />)
+  expect(readerProps.current).toMatchObject({ initialPath: "D:/book.cbz", copyText: writeText })
+  expect(readerProps.current).not.toHaveProperty("host")
+})

@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 2,
+  "scope": {
+    "legacyRegistry": "src/lib/cards/registry.ts",
+    "cardCount": 77,
+    "inventory": "migration/neoview/card-compatibility.json",
+    "functionalScopes": "migration/neoview/card-functional-scopes.json"
+  },
+  "policy": "Every legacy Card must have a frozen functional scope, a reproducible AST-generated TSX prototype and a scripted legacy screenshot before production implementation, plus a source-evidenced compatibility checklist before completion. A Card cannot be marked complete from API, title-level inventory or smoke UI coverage alone.",
+  "architectureMigrationGuidance": {
+    "purpose": "Cross-task architecture guidance for NeoView migration. Agents must use this section when choosing task boundaries, reporting progress, or changing shared migration infrastructure.",
+    "statusModel": {
+      "before": "A single item-level status mixes core implementation, transport, GUI/CLI/TUI wiring and browser evidence, so completed backend work can appear indistinguishable from a fully migrated capability.",
+      "after": "Report progress independently for core, transport, GUI, CLI, TUI and evidence. Keep the existing item status conservative until every required surface and evidence requirement is complete.",
+      "difference": "Progress reports become composable across parallel agents without allowing partial GUI work or missing end-to-end evidence to be mistaken for completion.",
+      "agentInstructions": [
+        "Do not promote an item to complete/migrated from a single surface or API-level test.",
+        "In notes and task handoffs, state which of core, transport, GUI, CLI, TUI and evidence changed, and name the remaining surfaces.",
+        "Treat generated checklists as views of machine compatibility sources; edit the source JSON and regenerate rather than editing generated Markdown alone."
+      ]
+    },
+    "readerAppBoundary": {
+      "before": "ReaderApp owns session lifecycle/navigation, presentation, runtime configuration, shell control and several separate optimistic persistence queues with generation and rollback handling.",
+      "after": "Keep ReaderApp as composition only. Isolate session/navigation, presentation, runtime configuration and shell-control state behind focused hooks or stores; reuse one revisioned serialized-mutation primitive for optimistic writes, confirmation, stale-result rejection and rollback.",
+      "difference": "Concurrent-write and session-switch semantics have one reusable implementation, which reduces duplicated race handling and makes each state domain independently testable.",
+      "agentInstructions": [
+        "Do not add a new ad-hoc Promise queue, generation counter or confirmed-value ref to ReaderApp when the shared mutation primitive can serve the update.",
+        "Keep canonical DTO/CAS behavior in the transport or application boundary; UI hooks coordinate state but must not create a parallel persistence contract.",
+        "Preserve current cancellation, stale-session rejection and rollback behavior when moving code."
+      ]
+    },
+    "deliveryBoundary": {
+      "before": "Core or HTTP work can be described as migrated while GUI remains wired through provisional flows or lacks browser-level evidence.",
+      "after": "Deliver non-visual capability changes through the canonical core/application DTO first, then wire GUI, CLI and TUI to that contract and close lifecycle, responsive and end-to-end evidence explicitly.",
+      "difference": "Parallel surface work converges on one contract instead of accumulating presentation-specific adapters or storage paths.",
+      "agentInstructions": [
+        "Do not introduce GUI-only persistence, DTOs or local storage as a shortcut for a missing shared capability.",
+        "When a task is only core/transport complete, record GUI/CLI/TUI/evidence as remaining rather than implying full feature completion.",
+        "Prefer extending the existing canonical DTO and service over duplicating behavior per presentation surface."
+      ]
+    },
+    "buildAuditBoundary": {
+      "before": "The chunk audit encodes individual card paths, separation relationships and byte budgets directly in imperative checks.",
+      "after": "Move ordinary lazy level, byte budget and separation metadata into the panel registry or a dedicated manifest; let the audit traverse that metadata while retaining a small set of architectural leak checks for entry, sidebar and Node-only modules.",
+      "difference": "Adding or moving a Card changes its declared delivery metadata once instead of duplicating architectural facts across registry, audit and migration notes.",
+      "agentInstructions": [
+        "Until a manifest exists, update the registry, audit and compatibility source together when changing a Card's loading boundary.",
+        "Do not weaken entry/sidebar isolation or Node-only browser-leak assertions merely to satisfy a new chunk layout."
+      ]
+    },
+    "cliBoundary": {
+      "before": "The NeoView CLI concentrates command inventory, argument parsing, dependency composition, command dispatch and output formatting in one module.",
+      "after": "Keep one thin CLI entry router and group handlers by capability: reader session, settings, library, folder, file operations and thumbnail maintenance. Retain shared ReaderService/application contracts.",
+      "difference": "Capability changes have smaller conflict surfaces and focused tests without fragmenting the domain/service layer.",
+      "agentInstructions": [
+        "New commands belong to an existing capability module where possible; do not enlarge the top-level router with business logic.",
+        "Do not split shared ReaderService/application contracts merely to mirror CLI file boundaries."
+      ]
+    },
+    "implementationOrder": [
+      "Adopt surface-aware progress reporting and generated status summaries.",
+      "Extract the shared revisioned serialized-mutation primitive, then migrate ReaderApp state domains incrementally.",
+      "Close GUI wiring and browser evidence against canonical DTOs for capabilities already complete in core/transport.",
+      "Introduce declarative build-audit metadata while preserving hard architectural leak checks.",
+      "Split CLI handlers by capability only when touching the relevant command family."
+    ]
+  },
+  "requiredItemFields": [
+    "id",
+    "category",
+    "title",
+    "sourceEvidence",
+    "targetContract",
+    "surfaces",
+    "testIds",
+    "notes",
+    "capabilityStatus"
+  ],
+  "requiredDimensions": [
+    {
+      "id": "ast-prototype",
+      "requirement": "Before production React work, generate and review a reproducible svelte/compiler + OXC AST TSX prototype that freezes component/DOM hierarchy, icon imports, classes, conditional/loop structure, control attributes, events and every unsupported source node. A genuinely empty legacy component must instead record source-empty evidence and an explicit replacement design contract; it may not silently bypass this dimension."
+    },
+    {
+      "id": "capabilities",
+      "requirement": "Enumerate every user-visible command, mode, data field, batch action and integration from the frozen source."
+    },
+    {
+      "id": "source-ui-inventory",
+      "requirement": "Before implementation, enumerate every source control, menu item, option value, visible field, shortcut and state with source evidence and map each entry to dedicated acceptance items; summaries are not sufficient."
+    },
+    {
+      "id": "ui-parity",
+      "requirement": "Freeze layout hierarchy, controls, icon meaning, density, labels and responsive geometry; record intentional XR-token adaptations."
+    },
+    {
+      "id": "interaction-states",
+      "requirement": "Cover default, hover, focus, selected, active, disabled, loading, empty, partial, error, retry and disposed states."
+    },
+    {
+      "id": "settings",
+      "requirement": "List defaults, persistence keys, precedence, migration source and reset behavior; target one canonical storage version."
+    },
+    {
+      "id": "keyboard-accessibility",
+      "requirement": "List shortcuts, focus order, semantic roles, keyboard equivalents, IME/input exclusions and screen-reader labels."
+    },
+    {
+      "id": "data-contract",
+      "requirement": "Define stable DTOs, identity, pagination/streaming, cancellation, generation, error and stale-result semantics shared by GUI/CLI/TUI."
+    },
+    {
+      "id": "lifecycle",
+      "requirement": "Define lazy load, open, suspend, resume, close, dispose and failure cleanup; prove background work stops when the Card is inactive."
+    },
+    {
+      "id": "performance",
+      "requirement": "Set representative corpus, latency, memory, DOM/task/cache bounds and regression budgets; run heavy checks serially on Windows."
+    },
+    {
+      "id": "tests",
+      "requirement": "Each completed checklist item has stable automated test IDs; GUI behavior includes interaction and screenshot/geometry evidence where relevant."
+    },
+    {
+      "id": "deviations",
+      "requirement": "Any removed, replaced or deliberately changed legacy behavior needs an explicit rationale and replacement contract."
+    }
+  ],
+  "completionGate": [
+    "A reproducible AST TSX prototype exists for the Card source, records its source hash and unsupported nodes, and has been reviewed before production implementation; genuinely empty source uses a documented source-empty replacement contract.",
+    "A terminal-scripted legacy 1920x1080 screenshot exists and the target hierarchy, icons, density and responsive geometry are compared against it.",
+    "A source UI inventory exists for the Card and every inventory group maps to source-evidenced acceptance items.",
+    "No pending or partial checklist items remain for the Card.",
+    "Every item has source evidence and at least one automated test ID.",
+    "GUI, CLI and TUI use the same core/application contract where the capability is non-visual.",
+    "Visual parity has desktop and constrained-card evidence.",
+    "Canonical persistence and legacy import are verified without dual runtime versions.",
+    "Lifecycle and performance budgets pass without running heavy jobs concurrently."
+  ],
+  "capabilityStatus": {
+    "dimensions": [
+      "core",
+      "transport",
+      "gui",
+      "cli",
+      "tui",
+      "evidence"
+    ],
+    "values": [
+      "pending",
+      "partial",
+      "complete",
+      "not-applicable"
+    ],
+    "overall": "Derived only: complete when every applicable dimension is complete; pending when every applicable dimension is pending; partial otherwise. not-applicable dimensions do not affect overall status.",
+    "applicability": "GUI/CLI/TUI listed in an item's surfaces are required and cannot be not-applicable. Core and transport applicability follows the canonical application/DTO boundary. Evidence is required for every item."
+  }
+}

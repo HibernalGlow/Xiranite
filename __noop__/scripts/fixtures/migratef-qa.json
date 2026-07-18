@@ -1,0 +1,31 @@
+{
+  "theme": "wuling",
+  "data": {
+    "sourceText": "D:/data/core_logs.db\nD:/config/system.ini\nD:/assets/mesh_09.obj\nD:/temp/cache_tmp.001",
+    "targetPath": "D:/processed",
+    "mode": "preserve",
+    "action": "move",
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "迁移预演完成：3 项可执行，1 项跳过。",
+    "result": {
+      "plan": [
+        { "sourcePath": "D:/data/core_logs.db", "targetPath": "D:/processed/data/core_logs.db", "action": "move", "kind": "file", "status": "success" },
+        { "sourcePath": "D:/config/system.ini", "targetPath": "D:/processed/config/system.ini", "action": "move", "kind": "file", "status": "conflict" },
+        { "sourcePath": "D:/temp/cache_tmp.001", "targetPath": "", "action": "move", "kind": "file", "status": "skipped" },
+        { "sourcePath": "D:/assets/mesh_09.obj", "targetPath": "D:/processed/assets/mesh_09.obj", "action": "move", "kind": "file", "status": "success" }
+      ],
+      "history": [],
+      "migratedCount": 3,
+      "skippedCount": 1,
+      "errorCount": 0,
+      "totalCount": 4,
+      "operationId": "batch-preview-42",
+      "successCount": 3,
+      "failedCount": 0,
+      "errors": []
+    },
+    "logs": ["读取 4 个源路径。", "检测到 1 个冲突。", "预演完成：3 项可执行。"]
+  }
+}

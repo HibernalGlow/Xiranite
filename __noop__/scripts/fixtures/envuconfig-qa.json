@@ -1,0 +1,42 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "backup",
+    "root": "D:/EnvU/wuling-core/config",
+    "includeText": "config/\ndotfile/\nsrc/scoolp/*.toml\nsrc/linku/*.toml\n*.toml\n*.md",
+    "backupDir": "D:/EnvU/registry/WULING_CENTRAL_01",
+    "manifestName": "envu-config-manifest.json",
+    "databasePath": "D:/EnvU/.xiranite/envu-config-inventory.jsonl",
+    "dryRun": true,
+    "recordRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "Sync plan is ready for 5 configuration files; dry run made no changes.",
+    "logs": [
+      "[25%] Scanning EnvU config files.",
+      "[65%] Built backup plan for WULING_CENTRAL_01.",
+      "Manifest planned for 5 file(s)."
+    ],
+    "result": {
+      "files": [
+        { "path": "D:/EnvU/wuling-core/config/system.yaml", "relativePath": "config/system.yaml", "group": "config", "size": 18432, "modifiedMs": 1783651321000 },
+        { "path": "D:/EnvU/wuling-core/config/network.json", "relativePath": "config/network.json", "group": "config", "size": 6912, "modifiedMs": 1783652115000 },
+        { "path": "D:/EnvU/wuling-core/dotfile/auth/policies.yaml", "relativePath": "dotfile/auth/policies.yaml", "group": "dotfile", "size": 12288, "modifiedMs": 1783598400000 },
+        { "path": "D:/EnvU/wuling-core/src/scoolp/scoolp.toml", "relativePath": "src/scoolp/scoolp.toml", "group": "scoolp", "size": 4096, "modifiedMs": 1783483200000 },
+        { "path": "D:/EnvU/wuling-core/src/linku/linku.toml", "relativePath": "src/linku/linku.toml", "group": "linku", "size": 3072, "modifiedMs": 1783411200000 }
+      ],
+      "operations": [
+        { "sourcePath": "D:/EnvU/wuling-core/config/system.yaml", "targetPath": "D:/EnvU/registry/WULING_CENTRAL_01/config/system.yaml", "status": "planned" },
+        { "sourcePath": "D:/EnvU/wuling-core/config/network.json", "targetPath": "D:/EnvU/registry/WULING_CENTRAL_01/config/network.json", "status": "planned" },
+        { "sourcePath": "D:/EnvU/wuling-core/dotfile/auth/policies.yaml", "targetPath": "D:/EnvU/registry/WULING_CENTRAL_01/dotfile/auth/policies.yaml", "status": "planned" },
+        { "sourcePath": "D:/EnvU/wuling-core/src/scoolp/scoolp.toml", "targetPath": "D:/EnvU/registry/WULING_CENTRAL_01/src/scoolp/scoolp.toml", "status": "planned" },
+        { "sourcePath": "D:/EnvU/wuling-core/src/linku/linku.toml", "targetPath": "D:/EnvU/registry/WULING_CENTRAL_01/src/linku/linku.toml", "status": "planned" }
+      ],
+      "manifestPath": "D:/EnvU/registry/WULING_CENTRAL_01/envu-config-manifest.json",
+      "database": { "path": "D:/EnvU/.xiranite/envu-config-inventory.jsonl", "enabled": true, "mode": "jsonl", "defaultPath": false },
+      "fileCount": 5,
+      "totalSize": 44800,
+      "errors": []
+    }
+  }
+}

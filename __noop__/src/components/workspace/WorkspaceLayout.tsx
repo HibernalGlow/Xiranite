@@ -1,0 +1,76 @@
+import { lazy, Suspense } from "react"
+import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
+import { TopBar } from "./TopBar"
+import { CardView } from "./CardView"
+import { OverlayHost } from "./OverlayHost"
+import { SelectionToolbar } from "./SelectionToolbar"
+import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./WorkspaceMusicDock"
+import { AlphabetNodeRail } from "./AlphabetNodeRail"
+import { WorkspaceUrlState } from "./WorkspaceUrlState"
+import { BackendStatusBanner } from "./BackendStatusBanner"
+import { DefaultContextMenuItems } from "@/components/context-menu/defaults"
+import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
+import { cn } from "@/lib/utils"
+
+const DockviewView = lazy(() => import("./DockviewView").then((module) => ({ default: module.DockviewView })))
+const FlowView = lazy(() => import("./FlowView").then((module) => ({ default: module.FlowView })))
+const LaneView = lazy(() => import("./lane/LaneView").then((module) => ({ default: module.LaneView })))
+const BentoView = lazy(() => import("./BentoView").then((module) => ({ default: module.BentoView })))
+const UsageDashboard = lazy(() => import("@/components/views/UsageDashboard").then((module) => ({ default: module.UsageDashboard })))
+
+export function WorkspaceLayout() {
+  const chrome = useWorkspaceShallowSelector((state) => ({
+    theme: state.theme,
+    activeCustomThemeName: state.activeCustomThemeName,
+    viewMode: state.viewMode,
+    bgMode: state.bgMode,
+    bgImageUrl: state.bgImageUrl,
+    bgOpacity: state.bgOpacity,
+    bgBlur: state.bgBlur,
+    bgCoverTopBar: state.bgCoverTopBar,
+  }))
+  const themeClass = chrome.activeCustomThemeName ? "" : chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
+  const bgClass = `theme-bg-${chrome.bgMode || "dot-grid"}`
+  const bgCoverClass = chrome.bgMode === "image" && chrome.bgCoverTopBar ? "theme-bg-cover-topbar" : ""
+
+  const bgStyles = {
+    "--ws-bg-image-url": chrome.bgImageUrl ? `url(${JSON.stringify(toBackgroundImageCssUrl(chrome.bgImageUrl))})` : "none",
+    "--ws-bg-opacity": String((chrome.bgOpacity ?? 30) / 100),
+    "--ws-bg-blur": `${chrome.bgBlur ?? 5}px`,
+  } as React.CSSProperties
+
+  return (
+    <div
+      className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
+      style={bgStyles}
+    >
+      <DefaultContextMenuItems />
+      <WorkspaceMusicDockProvider>
+        <WorkspaceUrlState />
+        <TopBar />
+        <BackendStatusBanner />
+
+        <main className="relative flex min-h-0 flex-1 overflow-hidden">
+          <div
+            key={chrome.viewMode}
+            data-context-menu="workspace-canvas"
+            className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
+          >
+            <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
+              {chrome.viewMode === "dashboard" && <UsageDashboard />}
+              {chrome.viewMode === "cards" && <CardView />}
+              {chrome.viewMode === "dockview" && <DockviewView />}
+              {chrome.viewMode === "flow" && <FlowView />}
+              {chrome.viewMode === "lane" && <LaneView />}
+              {chrome.viewMode === "bento" && <BentoView />}
+            </Suspense>
+          </div>
+          <OverlayHost />
+          <SelectionToolbar />
+          <AlphabetNodeRail />
+          <WorkspaceMusicDockPanel />
+        </main>
+      </WorkspaceMusicDockProvider>
+    </div>
+  )
+}

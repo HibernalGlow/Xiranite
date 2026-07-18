@@ -1,0 +1,25 @@
+{
+  "theme": "wuling",
+  "data": {
+    "module": "content_replace",
+    "inputText": "# Wuling Sector 07 Logistics Protocol\n\n> Initiating data transfer sequence.\n\n## Component Inventory\n- Flux Capacitors: `ONLINE`\n- Resonance Dampeners: `STANDBY`\n\n## Status Matrix\n| Node | Status | Latency |\n| --- | --- | --- |\n| Alpha | OK | 12ms |\n| Beta | WARN | 45ms |",
+    "configText": "{\"search\":\"\\[WARN\\]\",\"replace\":\"<span class='alert'>$&</span>\",\"caseSensitive\":true}",
+    "dryRun": true,
+    "enableUndo": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "Text processed: changed.",
+    "logs": ["Text processing started.", "[100%] Text processed.", "Text processed: changed."],
+    "result": {
+      "filesProcessed": 1,
+      "filesChanged": 1,
+      "inputText": "# Wuling Sector 07 Logistics Protocol",
+      "outputText": "# Wuling Sector 07 Logistics Protocol\n\n> Initiating data transfer sequence.\n\n## Component Inventory\n- Flux Capacitors: `ONLINE`\n- Resonance Dampeners: `<span class='alert'>STANDBY</span>`",
+      "diffText": "- Resonance Dampeners: `STANDBY`\n+ Resonance Dampeners: `<span class='alert'>STANDBY</span>`",
+      "diffs": [{ "file": "input.md", "diff": "- STANDBY\n+ <span class='alert'>STANDBY</span>", "changed": true }],
+      "history": [],
+      "undoId": "",
+      "errors": []
+    }
+  }
+}

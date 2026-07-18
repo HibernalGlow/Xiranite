@@ -1,0 +1,1266 @@
+{
+  "schemaVersion": 2,
+  "featureId": "history-list",
+  "legacyCardId": "historyList",
+  "title": "历史记录",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "completionRule": "Complete only when the history virtual source preserves the source-evidenced shared file renderers, progress restoration, cleanup, search/sort/filter/view controls, file actions and legacy migration while using one bounded GUI/CLI/TUI recent-history contract with inactive-zero-work lifecycle, desktop/constrained visual evidence and explicit shell deviations.",
+  "sourceUiInventory": [
+    {
+      "id": "history-ui.shared-folder-surface",
+      "title": "共享文件浏览器外观与虚拟历史源",
+      "sourceEvidence": [
+        "src/lib/cards/history/HistoryListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte",
+        "src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts"
+      ],
+      "acceptanceItems": [
+        "virtual://history 初始源",
+        "mode=history",
+        "本地历史标签标题",
+        "复用 FileListPanel",
+        "复用 ToolbarCard",
+        "复用 FileListCard",
+        "list/content/banner/thumbnail 视觉语义",
+        "文件与文件夹图标",
+        "名称与路径层级",
+        "选中背景",
+        "hover 状态",
+        "窄 Card 响应式密度"
+      ],
+      "mappedChecklistIds": [
+        "history.shared-renderer",
+        "history.views",
+        "history.selection",
+        "history.ui-parity"
+      ]
+    },
+    {
+      "id": "history-ui.item-fields",
+      "title": "历史条目字段、进度与徽章",
+      "sourceEvidence": [
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte",
+        "src/lib/components/panels/file/components/FileItemCard.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte"
+      ],
+      "acceptanceItems": [
+        "稳定 id",
+        "displayName",
+        "完整 source path",
+        "pathStack",
+        "currentFilePath",
+        "contentType",
+        "timestamp",
+        "currentIndex",
+        "totalItems",
+        "阅读进度 badge",
+        "视频 position",
+        "视频 duration",
+        "视频 completed",
+        "相对时间",
+        "已读标记",
+        "书签标记",
+        "缩略图",
+        "翻译标题",
+        "评分",
+        "EMM/manual 标签",
+        "文件类型 icon"
+      ],
+      "mappedChecklistIds": [
+        "history.fields",
+        "history.progress",
+        "history.thumbnails",
+        "history.ui-parity",
+        "history.data-contract"
+      ]
+    },
+    {
+      "id": "history-ui.open-restore",
+      "title": "打开、恢复阅读位置与文件夹同步",
+      "sourceEvidence": [
+        "src/lib/cards/shared/useFileActions.ts",
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/stores/historySettings.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "单击选择",
+        "双击打开",
+        "压缩包恢复 currentIndex",
+        "普通文件恢复 currentIndex",
+        "文件夹恢复 currentIndex",
+        "文件夹恢复 currentFilePath",
+        "图片/视频单文件模式",
+        "pathStack 精确定位",
+        "打开失败反馈",
+        "同步文件夹默认关闭",
+        "同步开启后定位父目录",
+        "同步开关即时生效"
+      ],
+      "mappedChecklistIds": [
+        "history.open-resume",
+        "history.sync-folder",
+        "history.states",
+        "history.data-contract"
+      ]
+    },
+    {
+      "id": "history-ui.toolbar-cleanup",
+      "title": "历史工具栏、刷新与快速清理",
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/ToolbarCard.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte"
+      ],
+      "acceptanceItems": [
+        "重新加载历史 icon button",
+        "同步文件夹 icon button",
+        "同步开关 pressed 状态",
+        "清理选项 icon button",
+        "清理中 pulse",
+        "清理中 disabled",
+        "清理结果三秒反馈",
+        "清理失效记录",
+        "高级清理选项",
+        "菜单分隔线",
+        "一键清除全部",
+        "清空 destructive 确认",
+        "刷新后保留活动设置"
+      ],
+      "mappedChecklistIds": [
+        "history.actions",
+        "history.cleanup",
+        "history.sync-folder",
+        "history.states",
+        "history.accessibility"
+      ]
+    },
+    {
+      "id": "history-ui.advanced-cleanup",
+      "title": "高级清理对话框",
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte",
+        "src/lib/stores/unifiedHistory.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "高级清理选项历史标题",
+        "说明文本",
+        "最旧记录数量默认 10",
+        "数量最小值 1",
+        "按数量执行",
+        "指定天数默认 30",
+        "天数最小值 1",
+        "按日期执行",
+        "文件夹路径输入",
+        "系统目录选择",
+        "空路径禁用执行",
+        "按文件夹前缀清理",
+        "一键清除全部记录",
+        "二次 destructive 确认",
+        "成功反馈",
+        "完成后刷新并关闭"
+      ],
+      "mappedChecklistIds": [
+        "history.cleanup",
+        "history.states",
+        "history.accessibility",
+        "history.deviations"
+      ]
+    },
+    {
+      "id": "history-ui.search-sort-filter",
+      "title": "搜索、八字段排序与类型筛选",
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/ToolbarCard.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte"
+      ],
+      "acceptanceItems": [
+        "搜索历史记录 placeholder",
+        "本地有界搜索",
+        "名称排序",
+        "路径排序",
+        "添加时间排序",
+        "大小排序",
+        "类型排序",
+        "随机排序",
+        "评分排序",
+        "收藏标签数排序",
+        "升序",
+        "降序",
+        "默认 date desc",
+        "全部类型",
+        "压缩包",
+        "文件夹",
+        "视频",
+        "活动筛选强调",
+        "独立 History 设置"
+      ],
+      "mappedChecklistIds": [
+        "history.search-sort-filter",
+        "history.persistence",
+        "history.performance",
+        "history.ui-parity"
+      ]
+    },
+    {
+      "id": "history-ui.views-thumbnails",
+      "title": "四种视图、密度与可见缩略图",
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte",
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts"
+      ],
+      "acceptanceItems": [
+        "list",
+        "content",
+        "banner",
+        "thumbnail",
+        "活动视图图标",
+        "thumbnail 紧凑模式",
+        "缩略图宽度 10..90",
+        "响应式列数",
+        "可见范围虚拟化",
+        "lazy img",
+        "async decode",
+        "骨架屏",
+        "失败 fallback",
+        "hover 大图预览",
+        "folder 1/4/9/16 多图预览",
+        "切换视图取消旧缩略图",
+        "History 视图独立持久化"
+      ],
+      "mappedChecklistIds": [
+        "history.views",
+        "history.thumbnails",
+        "history.lifecycle",
+        "history.performance",
+        "history.image-stability"
+      ]
+    },
+    {
+      "id": "history-ui.selection",
+      "title": "多选、链选与批量移除",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/components/SelectionBar.svelte",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte"
+      ],
+      "acceptanceItems": [
+        "多选模式",
+        "checkbox",
+        "选中计数",
+        "全选",
+        "反选",
+        "取消全选",
+        "链选模式",
+        "点选/点开行为",
+        "焦点与选择分离",
+        "批量复制",
+        "批量剪切",
+        "批量移除历史",
+        "退出多选",
+        "无选择 disabled",
+        "确认移除数量"
+      ],
+      "mappedChecklistIds": [
+        "history.selection",
+        "history.actions",
+        "history.accessibility",
+        "history.performance"
+      ]
+    },
+    {
+      "id": "history-ui.context-actions",
+      "title": "文件上下文菜单与宿主动作",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/shared/useFileActions.ts",
+        "src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte"
+      ],
+      "acceptanceItems": [
+        "右键菜单 portal",
+        "视口边界调整",
+        "剪切",
+        "复制",
+        "粘贴",
+        "从历史移除",
+        "重命名",
+        "浏览文件夹",
+        "在新标签页打开",
+        "作为书籍打开",
+        "打开所在文件夹",
+        "系统默认软件打开",
+        "资源管理器定位",
+        "撤回删除",
+        "添加书签",
+        "文件树置顶/取消",
+        "编辑标签",
+        "复制路径",
+        "复制文件名",
+        "重载缩略图",
+        "点击外部关闭",
+        "按项目类型显示动作"
+      ],
+      "mappedChecklistIds": [
+        "history.actions",
+        "history.selection",
+        "history.accessibility",
+        "history.deviations"
+      ]
+    },
+    {
+      "id": "history-ui.keyboard",
+      "title": "条目键盘语义与虚拟面板输入保护",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte",
+        "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts"
+      ],
+      "acceptanceItems": [
+        "listbox role",
+        "条目 role=button",
+        "条目 tabindex=0",
+        "Enter",
+        "Space",
+        "输入框不触发 Reader 命令",
+        "搜索输入保护",
+        "上下文菜单键盘等价扩展",
+        "方向键焦点扩展",
+        "Home/End 扩展",
+        "Delete 扩展",
+        "Ctrl/Cmd+A 扩展",
+        "Ctrl/Cmd+F 扩展",
+        "Escape 扩展",
+        "焦点恢复",
+        "旧虚拟实例不注册 document keydown 的事实"
+      ],
+      "mappedChecklistIds": [
+        "history.selection",
+        "history.accessibility",
+        "history.deviations"
+      ]
+    },
+    {
+      "id": "history-ui.settings",
+      "title": "History 独立工具栏与行为设置",
+      "sourceEvidence": [
+        "src/lib/stores/virtualPanelSettings.svelte.ts",
+        "src/lib/stores/historySettings.svelte.ts",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte"
+      ],
+      "acceptanceItems": [
+        "neoview-history-panel-settings",
+        "viewStyle=list",
+        "sortField=date",
+        "sortOrder=desc",
+        "itemTypeFilter=all",
+        "multiSelectMode=false",
+        "deleteMode=false",
+        "showSearchBar=false",
+        "showMigrationBar=false",
+        "penetrateMode=false",
+        "inlineTreeMode=false",
+        "thumbnailWidthPercent=20",
+        "folderTreeVisible=false",
+        "folderTreeLayout=left",
+        "folderTreeSize=200",
+        "showToolbarTooltip=false",
+        "neoview-history-settings",
+        "syncFileTreeOnHistorySelect=false",
+        "maxHistorySize=0",
+        "工具栏提示开关",
+        "同步文件夹开关",
+        "默认评分",
+        "空白点击行为",
+        "返回按钮可见性",
+        "重置"
+      ],
+      "mappedChecklistIds": [
+        "history.persistence",
+        "history.sync-folder",
+        "history.views",
+        "history.search-sort-filter",
+        "history.deviations"
+      ]
+    },
+    {
+      "id": "history-ui.persistence-migration",
+      "title": "历史业务数据、限制与旧格式迁移",
+      "sourceEvidence": [
+        "src/lib/stores/history.svelte.ts",
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/stores/historySettings.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "neoview-history 旧 key",
+        "neoview-unified-history 新 key",
+        "旧 entry 迁移",
+        "旧视频进度迁移",
+        "旧数据迁移后保留",
+        "pathStack identity",
+        "重复项更新并移到最前",
+        "updateIndex 不改变时间戳",
+        "视频进度完成映射",
+        "maxHistorySize 0 为无限",
+        "正数限制保存数量",
+        "无效 JSON 降级",
+        "单项移除",
+        "清空",
+        "按数量清理",
+        "按日期清理",
+        "按文件夹清理"
+      ],
+      "mappedChecklistIds": [
+        "history.data-contract",
+        "history.persistence",
+        "history.cleanup",
+        "history.lifecycle",
+        "history.deviations"
+      ]
+    },
+    {
+      "id": "history-ui.states-lifecycle",
+      "title": "加载、空、错误、失效路径与释放",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts",
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "acceptanceItems": [
+        "加载状态",
+        "空历史状态",
+        "分页错误",
+        "操作错误",
+        "重试",
+        "刷新",
+        "路径失效降级",
+        "首次加载后台清理一次",
+        "存在检查失败时保留记录",
+        "Card 折叠零查询",
+        "搜索切换取消旧结果",
+        "缩略图上下文释放",
+        "store subscription 释放",
+        "迟到结果拒绝",
+        "独立 lazy chunk",
+        "大列表有界 DOM"
+      ],
+      "mappedChecklistIds": [
+        "history.states",
+        "history.lifecycle",
+        "history.shell",
+        "history.performance",
+        "history.deviations"
+      ]
+    },
+    {
+      "id": "history-ui.shell",
+      "title": "History Panel 与无标题 full-height Card shell",
+      "sourceEvidence": [
+        "src/lib/cards/history/HistoryListCard.svelte",
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "acceptanceItems": [
+        "History 图标",
+        "历史记录标题",
+        "history Panel",
+        "defaultVisible",
+        "defaultExpanded",
+        "canHide=false",
+        "fullHeight=true",
+        "hideHeader=true",
+        "动态 loader",
+        "Panel 折叠",
+        "Card Window",
+        "失败边界",
+        "当前 XR canHide=true 偏离待解决"
+      ],
+      "mappedChecklistIds": [
+        "history.shell",
+        "history.ui-parity",
+        "history.lifecycle",
+        "history.deviations"
+      ]
+    },
+    {
+      "id": "history-ui.shared-contract",
+      "title": "GUI、CLI、TUI 共用阅读历史契约",
+      "sourceEvidence": [
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/types/content.ts",
+        "src/lib/cards/shared/useFileActions.ts"
+      ],
+      "acceptanceItems": [
+        "稳定 book/history id",
+        "规范 source identity",
+        "displayName",
+        "pageIndex",
+        "pageCount",
+        "updatedAt",
+        "pathStack 导入",
+        "media progress 导入",
+        "有界 offset/limit",
+        "按 updatedAt 倒序",
+        "单项删除",
+        "按 before/limit 清理",
+        "失效路径清理",
+        "取消",
+        "错误",
+        "数据库关闭",
+        "GUI CLI TUI 共用服务",
+        "不暴露第二套 store"
+      ],
+      "mappedChecklistIds": [
+        "history.data-contract",
+        "history.progress",
+        "history.cleanup",
+        "history.lifecycle",
+        "history.performance"
+      ]
+    },
+    {
+      "id": "history-ui.accessibility-parity",
+      "title": "可访问性、响应式与视觉 characterization",
+      "sourceEvidence": [
+        "src/lib/cards/history/HistoryListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte"
+      ],
+      "acceptanceItems": [
+        "命名 icon button",
+        "pressed 状态",
+        "destructive confirmation",
+        "live feedback",
+        "焦点可见",
+        "触摸可达操作",
+        "desktop screenshot",
+        "420x360 screenshot",
+        "无重叠",
+        "旧信息密度",
+        "完整路径 tooltip",
+        "活动 Reader 图像不重挂",
+        "重复 active asset 请求为零"
+      ],
+      "mappedChecklistIds": [
+        "history.accessibility",
+        "history.ui-parity",
+        "history.image-stability",
+        "history.performance"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "history.shared-renderer",
+      "category": "ui-parity",
+      "title": "复用文件浏览器条目视觉契约",
+      "sourceEvidence": [
+        "src/lib/cards/history/HistoryListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "targetContract": "History rows use the same source-evidenced file item renderers as the folder surface instead of a divergent text-only recent list.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.card",
+        "neoview.history.views",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.history.shared-renderer"
+      ],
+      "notes": "History now renders list, content, banner and thumbnail modes through ReaderEntrySurface with the shared selection, media and action slots instead of maintaining a History-only row renderer."
+    },
+    {
+      "id": "history.fields",
+      "category": "capabilities",
+      "title": "显示完整历史条目字段",
+      "sourceEvidence": [
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte"
+      ],
+      "targetContract": "Each entry preserves stable identity, display name, canonical source, path stack, current file, content type, updated time and bounded page or media progress fields.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.card",
+        "neoview.library.contract"
+      ],
+      "plannedTestIds": [
+        "neoview.history.fields",
+        "neoview.history.e2e"
+      ],
+      "notes": "Current shared recents expose name, source, page index/count and updated time; path-stack, media and content-type presentation remain incomplete."
+    },
+    {
+      "id": "history.progress",
+      "category": "capabilities",
+      "title": "显示并更新页面与视频进度",
+      "sourceEvidence": [
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/components/panels/file/components/FileItemListView.svelte"
+      ],
+      "targetContract": "Page progress and video position/duration/completed state share one normalized recent identity and update monotonically without creating duplicate history rows.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.progress.sqlite"
+      ],
+      "plannedTestIds": [
+        "neoview.history.progress",
+        "neoview.history.media-progress",
+        "neoview.history.e2e"
+      ],
+      "notes": "Page recents and a separate compatible media-progress table exist; the Card does not yet render full video progress or completion semantics."
+    },
+    {
+      "id": "history.open-resume",
+      "category": "capabilities",
+      "title": "从历史恢复原书源与阅读位置",
+      "sourceEvidence": [
+        "src/lib/cards/shared/useFileActions.ts",
+        "src/lib/stores/unifiedHistory.svelte.ts"
+      ],
+      "targetContract": "Opening an archive, file, directory or nested single-file history item restores its canonical source, page index and current file or media position through the shared Reader session.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.card"
+      ],
+      "plannedTestIds": [
+        "neoview.history.resume",
+        "neoview.history.path-stack",
+        "neoview.history.e2e"
+      ],
+      "notes": "React reopens the source path, but current tests do not prove page, current-file, path-stack or media-position restoration."
+    },
+    {
+      "id": "history.search-sort-filter",
+      "category": "capabilities",
+      "title": "搜索、八字段排序与类型筛选",
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/ToolbarCard.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte"
+      ],
+      "targetContract": "History supports bounded search, name/path/date/size/type/random/rating/collect-tag sorting, ascending/descending order and all/archive/folder/video filters with date-desc defaults.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.history.search",
+        "neoview.history.sort",
+        "neoview.history.filter",
+        "neoview.history.e2e"
+      ],
+      "notes": "The current React Card exposes only backend updated-time order and refresh."
+    },
+    {
+      "id": "history.views",
+      "category": "capabilities",
+      "title": "切换四种共享文件视图",
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "targetContract": "List, content, banner and thumbnail modes retain their legacy icons, active state, compact thumbnail option and History-specific size preference.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.views",
+        "neoview.history.view-settings-config",
+        "neoview.settings.shell-http",
+        "neoview.history.view-settings",
+        "neoview.history.view-settings-rollback",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The four legacy labels and active icon states drive one- and multi-column virtual layouts, while the selected mode now round-trips through bounded [nodes.neoview.history_list], authenticated config PATCH and GUI rollback. Compact-thumbnail control and width sizing remain pending."
+    },
+    {
+      "id": "history.thumbnails",
+      "category": "capabilities",
+      "title": "显示可见历史缩略图与文件夹预览",
+      "sourceEvidence": [
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte",
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts"
+      ],
+      "targetContract": "Only the virtual visible history window requests authenticated file or folder thumbnails, including bounded multi-image folder previews, and releases stale contexts on mode, query or mount changes.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.thumbnail-visible",
+        "neoview.history.views",
+        "neoview.history.thumbnail-e2e",
+        "neoview.shared-thumbnail.fit"
+      ],
+      "plannedTestIds": [],
+      "notes": "Content, banner and thumbnail modes register authenticated cover thumbnails only for the visible virtual rows, directory sources request four-image previews, compact list performs zero thumbnail work, and mode transitions release obsolete demand; explicit headless demand remains pending."
+    },
+    {
+      "id": "history.selection",
+      "category": "interaction-states",
+      "title": "共享选择、链选与焦点语义",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/components/SelectionBar.svelte",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte"
+      ],
+      "targetContract": "Single, toggle, range/chain, all, invert and keyboard focus selection remain bounded and separate from opening behavior across all History views.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.selection",
+        "neoview.history.selection-keyboard",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Stable book IDs back single, Ctrl/Meta toggle, Shift range, loaded-item select-all/invert/clear and a semantic multiselect list. Arrow/Home/End use the virtual row index and restore the focused item across all four views; explicit chain-mode and click-open/select controls remain pending."
+    },
+    {
+      "id": "history.actions",
+      "category": "capabilities",
+      "title": "打开、定位、书签、文件与历史动作",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/shared/useFileActions.ts",
+        "src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte"
+      ],
+      "targetContract": "History preserves open, browse/new-tab, system-open, reveal, copy path/name, add bookmark, tree pin, tag, thumbnail reload and confirmed single/batch history removal through authenticated host capabilities.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.card",
+        "neoview.history.batch-remove",
+        "neoview.history.context-actions",
+        "neoview.history.context-actions-e2e",
+        "neoview.history.thumbnail-reload-e2e",
+        "neoview.library.http",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab, tree pin and tag editing remain pending."
+    },
+    {
+      "id": "history.cleanup",
+      "category": "capabilities",
+      "title": "清理失效、最旧、过期、目录与全部历史",
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte",
+        "src/lib/stores/unifiedHistory.svelte.ts"
+      ],
+      "targetContract": "Bounded, cancellable cleanup supports confirmed missing paths, oldest count, timestamp cutoff, folder scope and clear-all without deleting unrelated progress or bookmarks.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.library.cleanup-invalid",
+        "neoview.library.cleanup-cancel",
+        "neoview.library.cli",
+        "neoview.library.tui",
+        "neoview.history.cleanup-headless",
+        "neoview.history.cleanup-cli",
+        "neoview.history.cleanup-tui",
+        "neoview.history.cleanup-tui-cancel",
+        "neoview.history.cleanup-oldest",
+        "neoview.history.cleanup-oldest-cancel",
+        "neoview.history.cleanup-oldest-http",
+        "neoview.history.cleanup-oldest-composition",
+        "neoview.library.cleanup-folder",
+        "neoview.library.cleanup-folder-sqlite",
+        "neoview.library.advanced-cleanup",
+        "neoview.history.cleanup-state-sqlite",
+        "neoview.bookmark.advanced-cleanup-sqlite",
+        "neoview.history.cleanup-e2e",
+        "neoview.history.cleanup-client",
+        "neoview.history.cleanup-gui",
+        "neoview.history.cleanup-folder-gui",
+        "neoview.history.cleanup-cancel-gui",
+        "neoview.history.cleanup-lazy-chunk"
+      ],
+      "plannedTestIds": [],
+      "notes": "Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. The independently lazy React dialog preserves the legacy count/day/folder/all controls, adds invalid-path cleanup, requires confirmation, exposes pending/cancel/result/error states, reuses the host directory picker and refreshes only after success. Desktop and 420x360 Chromium prove the real route and stable Reader image. CLI and OpenTUI now expose confirmed timestamp, oldest-count, folder, clear-all and invalid-path cleanup through the same Headless controller; OpenTUI cancellation aborts oldest cleanup before its atomic transaction starts."
+    },
+    {
+      "id": "history.sync-folder",
+      "category": "settings",
+      "title": "同步历史选择到文件夹 Panel",
+      "sourceEvidence": [
+        "src/lib/cards/shared/useFileActions.ts",
+        "src/lib/stores/historySettings.svelte.ts",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte"
+      ],
+      "targetContract": "A default-off History-specific toggle optionally reveals the selected source parent in the shared folder surface without changing the history source or opening duplicate sessions.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.history.sync-folder",
+        "neoview.history.settings",
+        "neoview.history.e2e"
+      ],
+      "notes": "No canonical XR setting or React control exists."
+    },
+    {
+      "id": "history.data-contract",
+      "category": "data-contract",
+      "title": "GUI、CLI、TUI 共用阅读历史契约",
+      "sourceEvidence": [
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/types/content.ts"
+      ],
+      "targetContract": "All surfaces share stable source identity, display name, page and media progress, updated time, bounded paging, deletion, cleanup, cancellation and disposal through one Reader library service.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.contract",
+        "neoview.library.http",
+        "neoview.library.headless",
+        "neoview.library.cli",
+        "neoview.library.tui",
+        "neoview.library.sqlite"
+      ],
+      "plannedTestIds": [],
+      "notes": "The shared service covers page recents and destructive commands; richer path-stack/media/view contracts remain incomplete."
+    },
+    {
+      "id": "history.states",
+      "category": "interaction-states",
+      "title": "加载、空、错误、刷新与失效路径",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts",
+        "src/lib/stores/unifiedHistory.svelte.ts"
+      ],
+      "targetContract": "Stable loading, empty, request error, action error, retry, cleanup pending/result and invalid-path states retain usable rows when optional thumbnail or metadata work fails.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.card",
+        "neoview.library.lifecycle"
+      ],
+      "plannedTestIds": [
+        "neoview.history.states",
+        "neoview.history.e2e"
+      ],
+      "notes": "React has empty, request error, refresh and action error states; retry, partial thumbnail/metadata and cleanup feedback are incomplete."
+    },
+    {
+      "id": "history.persistence",
+      "category": "settings",
+      "title": "迁移业务历史并持久化独立视图设置",
+      "sourceEvidence": [
+        "src/lib/stores/history.svelte.ts",
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/stores/historySettings.svelte.ts",
+        "src/lib/stores/virtualPanelSettings.svelte.ts",
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "targetContract": "Legacy neoview-history and neoview-unified-history data import once into compatible xr_ progress tables, History view/behavior settings use canonical [nodes.neoview], and Card layout remains separate.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.reader-data.import",
+        "neoview.library.sqlite",
+        "neoview.settings.card-layout",
+        "neoview.history.view-settings-config",
+        "neoview.settings.shell-http",
+        "neoview.history.view-settings",
+        "neoview.history.view-settings-rollback"
+      ],
+      "plannedTestIds": [
+        "neoview.reader-data.codec",
+        "neoview.history.settings"
+      ],
+      "notes": "Legacy business import and xr_ tables exist, and the History view mode now uses canonical [nodes.neoview.history_list] with authenticated persistence and GUI rollback. Remaining behavior settings, legacy codec evidence and explicit CLI/TUI controls keep the item partial."
+    },
+    {
+      "id": "history.lifecycle",
+      "category": "lifecycle",
+      "title": "取消分页、缩略图和清理并释放所有权",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts",
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "Refresh, query/view changes, collapse, unmount and backend disposal abort stale pages, thumbnails and cleanup, release subscriptions and contexts, and reject late publication.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.lifecycle",
+        "neoview.library.cleanup-cancel",
+        "neoview.history.thumbnail-visible",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.history.lifecycle"
+      ],
+      "notes": "Pagination and visible-thumbnail requests abort on replacement/unmount and the thumbnail owner context is released; cleanup, collapse and full backend disposal evidence remain pending."
+    },
+    {
+      "id": "history.shell",
+      "category": "ui-parity",
+      "title": "保持 History full-height 无标题 Card shell",
+      "sourceEvidence": [
+        "src/lib/cards/history/HistoryListCard.svelte",
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "targetContract": "History remains independently lazy in the History Panel with default visible/expanded, canHide=false, fullHeight=true and hideHeader=true while retaining Panel collapse, window and failure boundaries.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.shell.registry-lazy",
+        "neoview.history.shell",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.history.chunk"
+      ],
+      "notes": "The manifest now restores canHide=false and the Card remains independently lazy; generic shell full-height/hide-header parity remains pending."
+    },
+    {
+      "id": "history.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "命名动作、键盘选择与焦点恢复",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte",
+        "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts"
+      ],
+      "targetContract": "Rows, search, view/filter controls, menus, selection and destructive dialogs are keyboard/touch operable with accessible names, input guards, visible focus and focus restoration.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.card",
+        "neoview.history.selection",
+        "neoview.history.selection-keyboard",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The multiselect list and named selection controls support Space/Enter, grid-aware arrows, Home/End, Ctrl/Cmd+A, Delete and Escape. Focus returns to the same stable item after view changes; search focus, keyboard context menus and dialog-close focus restoration remain pending."
+    },
+    {
+      "id": "history.ui-parity",
+      "category": "ui-parity",
+      "title": "保持旧版历史信息密度与响应式几何",
+      "sourceEvidence": [
+        "src/lib/cards/history/HistoryListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte"
+      ],
+      "targetContract": "Progress, time, read/bookmark state, folder-style media hierarchy and toolbar density remain readable at desktop and 420x360 without overlap or horizontal overflow.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.views",
+        "neoview.history.thumbnail-e2e",
+        "neoview.history.selection"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Chromium prove compact/content rows, two-column banners and three-column thumbnails preserve cover media, progress hierarchy, selection density and zero horizontal overflow; read/bookmark badges and the full toolbar remain pending."
+    },
+    {
+      "id": "history.performance",
+      "category": "performance",
+      "title": "有界分页、DOM、缩略图、清理与独立 chunk",
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/FileListCard.svelte",
+        "src/lib/components/panels/file/components/VirtualizedFileListV2.svelte",
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "A 10K history corpus keeps bounded paging and DOM, registers only visible thumbnails, bounds path checks and cleanup batches, performs zero hidden work and stays in an independent deferred chunk.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.contract",
+        "neoview.library.lifecycle",
+        "neoview.library.cleanup-invalid",
+        "neoview.history.thumbnail-visible",
+        "neoview.history.views",
+        "neoview.history.thumbnail-e2e",
+        "neoview.history.context-actions-chunk"
+      ],
+      "plannedTestIds": [
+        "neoview.history.chunk"
+      ],
+      "notes": "All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work, and production audit keeps History in an independent 10,042-byte chunk plus a shared 5,859-byte ReaderLibraryList chunk; file context actions remain in a second-level 3,944-byte chunk. 10K Chromium and advanced cleanup budgets remain pending."
+    },
+    {
+      "id": "history.image-stability",
+      "category": "performance",
+      "title": "历史交互不重挂活动阅读媒体",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts"
+      ],
+      "targetContract": "Opening History, refreshing, searching, changing views, scrolling thumbnails, selecting and cleaning records preserve the active Reader media node and asset URL until an explicit history entry is opened.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.image-stability",
+        "neoview.history.views",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Chromium prove opening, thumbnail loading, all four view changes, selection and batch removal preserve the active image node; search and scrolling identity remain pending."
+    },
+    {
+      "id": "history.deviations",
+      "category": "deviations",
+      "title": "记录共享后端、键盘扩展与 shell 差异",
+      "sourceEvidence": [
+        "src/lib/cards/history/HistoryListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/stores/unifiedHistory.svelte.ts",
+        "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts",
+        "src/lib/cards/registry.ts"
+      ],
+      "targetContract": "Document authenticated paged xr_ history storage, shared React entry/thumbnail primitives and full keyboard operation as XR replacements while preserving legacy fields and controls; explicitly resolve current canHide=true against legacy canHide=false/fullHeight/hideHeader, and replace unbounded in-process invalid-path checks with cancellable bounded cleanup.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.history.shell",
+        "neoview.history.selection",
+        "neoview.history.thumbnail-visible",
+        "neoview.history.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "XR replaces localStorage and unbounded Promise.all path checks with authenticated paged xr_ history, visible-window thumbnail contexts and bounded cancellable services; keyboard focus additions are intentional, canHide=false is restored, while fullHeight/hideHeader remain unresolved."
+    }
+  ]
+}

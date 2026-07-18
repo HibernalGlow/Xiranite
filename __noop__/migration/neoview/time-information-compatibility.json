@@ -1,0 +1,506 @@
+{
+  "schemaVersion": 2,
+  "featureId": "time-information",
+  "legacyCardId": "time",
+  "title": "时间信息",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "completionRule": "Complete only when legacy fields and empty state, explicit target time-source semantics, shared GUI/CLI/TUI data, lazy Card lifecycle, responsive UI and regression budgets all have automated evidence.",
+  "sourceUiInventory": [
+    {
+      "id": "time-ui.content",
+      "title": "时间字段与格式",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte"
+      ],
+      "acceptanceItems": [
+        "创建时间行",
+        "修改时间行",
+        "zh-CN 本地时区格式",
+        "缺失时间 em dash",
+        "无法解析的旧字符串原样显示",
+        "两列 justify-between 布局",
+        "值使用较小字号"
+      ],
+      "mappedChecklistIds": [
+        "time.fields",
+        "time.format",
+        "time.ui-parity"
+      ]
+    },
+    {
+      "id": "time-ui.empty",
+      "title": "空数据状态",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "imageInfo 为空时不渲染字段",
+        "居中显示暂无时间信息",
+        "初始状态为空",
+        "无书/无页/关闭阅读器时清空"
+      ],
+      "mappedChecklistIds": [
+        "time.states",
+        "time.lifecycle"
+      ]
+    },
+    {
+      "id": "time-ui.shell",
+      "title": "通用 Card 外壳与布局状态",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "Time 图标与时间信息标题",
+        "默认 info Panel",
+        "默认显示并展开",
+        "允许隐藏",
+        "标题/箭头折叠",
+        "上移/下移",
+        "独立窗口",
+        "高度拖动最小 50px",
+        "双击或按钮恢复自动高度",
+        "折叠时内容不挂载",
+        "动态 import 加载状态",
+        "动态 import 失败状态",
+        "visible/expanded/order/height 持久化"
+      ],
+      "mappedChecklistIds": [
+        "time.shell",
+        "time.persistence",
+        "time.accessibility",
+        "time.lifecycle",
+        "time.performance"
+      ]
+    },
+    {
+      "id": "time-ui.data-flow",
+      "title": "共享元数据生产与生命周期",
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/stores/book/core.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "acceptanceItems": [
+        "Card 挂载订阅 store",
+        "Card 销毁取消订阅",
+        "翻页后刷新当前页时间",
+        "快速翻页拒绝迟到结果",
+        "相同页面请求去重",
+        "关闭书籍清空状态",
+        "元数据失败稳定降级"
+      ],
+      "mappedChecklistIds": [
+        "time.data-contract",
+        "time.lifecycle",
+        "time.performance"
+      ]
+    },
+    {
+      "id": "time-ui.target-extension",
+      "title": "XR 明确扩展语义",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/types/metadata.ts"
+      ],
+      "acceptanceItems": [
+        "访问时间为 XR 扩展而非旧控件",
+        "文件系统页面使用页面 stat 时间",
+        "归档页面只使用条目自身修改时间",
+        "未知归档创建/访问时间不得回退外层压缩包",
+        "书籍源 fallback 显式标记",
+        "非法时间不得传播 NaN 或 Invalid Date"
+      ],
+      "mappedChecklistIds": [
+        "time.access-source",
+        "time.deviations",
+        "time.data-contract"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "time.fields",
+      "category": "capabilities",
+      "title": "显示当前页创建与修改时间",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte"
+      ],
+      "targetContract": "TimeInformation Card renders created and modified rows from the current page metadata without substituting unrelated values.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book.directory",
+        "neoview.book.archive",
+        "neoview.metadata.http",
+        "neoview.metadata.cards",
+        "neoview.headless.navigation",
+        "neoview.time-information.projection",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.time-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Filesystem and archive page timestamps are captured during book load, copied into bounded headless page snapshots and projected consistently by React, CLI and TUI without additional stat work."
+    },
+    {
+      "id": "time.access-source",
+      "category": "capabilities",
+      "title": "访问时间与时间来源语义",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/types/metadata.ts"
+      ],
+      "targetContract": "The shared DTO distinguishes filesystem, archive-entry and book-source timestamps; unavailable fields stay unknown.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.time-information.archive-source",
+        "neoview.time-information.archive-invalid",
+        "neoview.headless.navigation",
+        "neoview.time-information.projection",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.time-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English; this remains an intentional XR extension required by the frozen functional scope."
+    },
+    {
+      "id": "time.format",
+      "category": "ui-parity",
+      "title": "本地时区与未知值格式",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte"
+      ],
+      "targetContract": "Finite timestamps use zh-CN local time; missing or invalid values render an em dash.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.time-information.format",
+        "neoview.time-information.projection",
+        "neoview.time-information.projection-invalid",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader"
+      ],
+      "plannedTestIds": [],
+      "notes": "One browser-safe formatter uses local zh-CN/en-US time and rejects missing, non-finite or invalid values as an em dash across React, CLI and TUI without exposing Invalid Date."
+    },
+    {
+      "id": "time.states",
+      "category": "interaction-states",
+      "title": "加载、空、错误与重试",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "The Card has stable loading, empty, error and retry states and never shows stale data as current.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.time-information.states",
+        "neoview.time-information.retry",
+        "neoview.metadata.cancel"
+      ],
+      "plannedTestIds": [],
+      "notes": "Loading/error/retry are XR accessibility improvements over the legacy silent failure."
+    },
+    {
+      "id": "time.shell",
+      "category": "ui-parity",
+      "title": "共享 Card 外壳行为",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "targetContract": "The Time Card remains independently lazy, dockable, hideable, collapsible, movable, resizable and window-capable through the shared shell.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.card.collapse",
+        "neoview.card.resize-bounds",
+        "neoview.settings.card-docking"
+      ],
+      "plannedTestIds": [
+        "neoview.time-information.lazy-chunk"
+      ],
+      "notes": "Shared shell tests apply and the Time-specific production chunk is independently gated."
+    },
+    {
+      "id": "time.data-contract",
+      "category": "data-contract",
+      "title": "共享可取消时间 DTO",
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/stores/book/core.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "GUI, CLI and TUI receive the same bounded session metadata DTO with generation, cancellation and source semantics.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book.directory",
+        "neoview.book.archive",
+        "neoview.metadata.http",
+        "neoview.metadata.client",
+        "neoview.metadata.cards",
+        "neoview.metadata.cancel",
+        "neoview.headless.navigation",
+        "neoview.time-information.projection",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader"
+      ],
+      "plannedTestIds": [],
+      "notes": "Page timestamps are captured during book load and copied into the existing headless page DTO, avoiding a second endpoint, file stat, content decode path or persistence store."
+    },
+    {
+      "id": "time.lifecycle",
+      "category": "lifecycle",
+      "title": "会话切换、取消与释放",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/stores/book/core.svelte.ts"
+      ],
+      "targetContract": "Hidden/unmounted Cards do no work; the final subscriber aborts; generation changes cannot publish old metadata.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cancel",
+        "neoview.card.zero-mount",
+        "neoview.time-information.generation-stale"
+      ],
+      "plannedTestIds": [],
+      "notes": "Final-subscriber cancellation and generation replacement are both covered."
+    },
+    {
+      "id": "time.persistence",
+      "category": "settings",
+      "title": "仅持久化共享 Card 布局",
+      "sourceEvidence": [
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "targetContract": "Time content has no settings; panel/order/visible/expanded/height persist only through canonical [nodes.neoview] layout.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.settings.card-layout",
+        "neoview.card.persist-react"
+      ],
+      "plannedTestIds": [],
+      "notes": "No time data is written to xiranite.db or a second NeoView database."
+    },
+    {
+      "id": "time.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "语义字段与键盘等价操作",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte"
+      ],
+      "targetContract": "The Card uses a semantic description list; shell and retry controls have keyboard operation and accessible names.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.time-information.states",
+        "neoview.time-information.retry",
+        "neoview.card.collapse"
+      ],
+      "plannedTestIds": [],
+      "notes": "Legacy had no Time-specific shortcut."
+    },
+    {
+      "id": "time.ui-parity",
+      "category": "ui-parity",
+      "title": "桌面、窄侧栏与窗口几何",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "targetContract": "Two-column density, labels and long local-date values remain readable at desktop and 420x360 Card widths.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.time-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Playwright runs assert zero horizontal overflow and capture the target Card."
+    },
+    {
+      "id": "time.performance",
+      "category": "performance",
+      "title": "常量 DOM、共享请求与独立 chunk",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "O(1) DOM, one metadata request per session generation, zero work while hidden and a deferred Time Card chunk under 8 KiB.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cards",
+        "neoview.metadata.cancel",
+        "neoview.time-information.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.time-information.lazy-chunk"
+      ],
+      "notes": "The production Time Card chunk is 1816 bytes; its shared projection remains in the deferred 10602-byte ui-core host chunk, and browser evidence confirms one request per generation."
+    },
+    {
+      "id": "time.deviations",
+      "category": "deviations",
+      "title": "记录访问时间、来源与错误状态扩展",
+      "sourceEvidence": [
+        "src/lib/cards/info/TimeCard.svelte",
+        "src/lib/types/metadata.ts"
+      ],
+      "targetContract": "Document that accessedAt, timeSource, loading/error/retry are intentional additions; archive outer-file times are never misrepresented as entry times.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.time-information.archive-source",
+        "neoview.time-information.retry",
+        "neoview.time-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "No legacy command or field is removed."
+    }
+  ]
+}

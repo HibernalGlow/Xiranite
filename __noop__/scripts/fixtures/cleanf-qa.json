@@ -1,0 +1,19 @@
+{
+  "theme": "wuling",
+  "data": {
+    "pathText": "D:/library/cache\nD:/library/downloads",
+    "selectedPresets": ["empty_folders", "temp_folders", "backup_files"],
+    "excludeKeywords": ".git, node_modules",
+    "previewMode": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "预演完成：已识别 14 个可清理项目。",
+    "result": {
+      "totalRemoved": 14,
+      "removedDetails": { "empty_folders": 4, "temp_folders": 7, "backup_files": 3 },
+      "previewFiles": ["D:/library/cache/temp_01.tmp", "D:/library/cache/old_backup.bak", "D:/library/downloads/empty-folder"],
+      "skipped": 2
+    },
+    "logs": ["正在分析目标路径…", "检测到 14 个候选项目。", "2 个项目因排除规则跳过。", "预演完成，等待确认。"]
+  }
+}

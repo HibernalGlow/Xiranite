@@ -1,0 +1,243 @@
+#!/usr/bin/env node
+import { pathToFileURL } from "node:url";
+import {
+  nodeCliName,
+  readStdinLines,
+  runGuidedInteraction,
+  writeError,
+  writeJson,
+  writeLine,
+  type CliCommand,
+  type CliHost,
+} from "@xiranite/cli-runtime";
+import {
+  resolveInteractionPreferences,
+  type CliInteractionPreferencesSource,
+  type TerminalInteractionDefinition,
+} from "@xiranite/cli-runtime/interaction";
+import {
+  resolveTerminalLanguage,
+  type TerminalLanguage,
+} from "@xiranite/cli-runtime/i18n";
+import {
+  runInteractionCli,
+  runTerminalUi,
+  type TerminalPreferenceController,
+  type TerminalPreferenceValues,
+} from "@xiranite/cli-runtime/terminal";
+import {
+  loadNodeConfigWithHints,
+  loadXiraniteConfig,
+  saveXiraniteConfig,
+  updateNodeConfig,
+} from "@xiranite/config";
+import {
+  runTimeu,
+  type TimeuInput,
+  type TimeuResult,
+  type TimeuRuntime,
+} from "./core.js";
+import {
+  createTimeuInteractionSchema,
+  type TimeuInteractionValues,
+} from "./interaction.js";
+import { createNodeTimeuRuntime } from "./platform.js";
+import { help } from "./help.js";
+
+const CLI_NAME = nodeCliName("timeu");
+interface TimeuConfig extends CliInteractionPreferencesSource {
+  record_path?: string;
+  recursive?: boolean;
+  include_directories?: boolean;
+  dry_run?: boolean;
+}
+type TimeuDefaults = Pick<
+  TimeuInteractionValues,
+  "recordPath" | "recursive" | "includeDirectories" | "dryRun"
+>;
+export interface TimeuCliDependencies {
+  createRuntime: () => TimeuRuntime;
+  runGuide: typeof runGuidedInteraction;
+  runUi: typeof runTerminalUi;
+}
+const defaults: TimeuCliDependencies = {
+  createRuntime: createNodeTimeuRuntime,
+  runGuide: runGuidedInteraction,
+  runUi: runTerminalUi,
+};
+export const cli: CliCommand = {
+  name: CLI_NAME,
+  description: "Back up and restore file timestamps.",
+  run: (args, host) => runProgram(args, host),
+};
+export async function runProgram(
+  args = process.argv.slice(2),
+  host: CliHost = createHost(),
+  dependencies: TimeuCliDependencies = defaults,
+) {
+  await runInteractionCli({
+    args,
+    host,
+    cliName: CLI_NAME,
+    loadContext: () => context(host, true),
+    createDefinition: (value, language) =>
+      definition(value, language, dependencies),
+    runPipe: (pipeArgs, pipeHost) => runPipe(pipeArgs, pipeHost, dependencies),
+    runGuide: dependencies.runGuide,
+    runUi: dependencies.runUi,
+    loadScreen: async () => (await import("./Tui.js")).TimeuTui,
+    createPreferences: (_value, values) => preferences(host, values),
+    reexecEntrypoint: process.argv[1],
+    help,
+  });
+}
+async function context(host: CliHost, json: boolean) {
+  try {
+    const { config } = await loadNodeConfigWithHints<TimeuConfig>("timeu", {
+      cwd: host.cwd,
+      env: host.env,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    });
+    return {
+      preferences: resolveInteractionPreferences(config),
+      value: {
+        recordPath: config?.record_path ?? "",
+        recursive: config?.recursive ?? true,
+        includeDirectories: config?.include_directories ?? false,
+        dryRun: config?.dry_run ?? true,
+      },
+    };
+  } catch {
+    return {
+      preferences: resolveInteractionPreferences(undefined),
+      value: {
+        recordPath: "",
+        recursive: true,
+        includeDirectories: false,
+        dryRun: true,
+      },
+    };
+  }
+}
+function definition(
+  value: TimeuDefaults,
+  language: TerminalLanguage,
+  dependencies: TimeuCliDependencies,
+): TerminalInteractionDefinition<TimeuInput, TimeuResult> {
+  return {
+    schema: createTimeuInteractionSchema(value, language),
+    run: (input, onEvent) =>
+      runTimeu(input, dependencies.createRuntime(), onEvent),
+  };
+}
+function preferences(
+  host: CliHost,
+  current: TerminalPreferenceValues,
+): TerminalPreferenceController {
+  const configOptions = { cwd: host.cwd, env: host.env };
+  return {
+    nodeId: "timeu",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(configOptions);
+      await saveXiraniteConfig(
+        updateNodeConfig(config, "timeu", {
+          cli: {
+            theme: values.theme,
+            default_mode: values.defaultMode,
+            language: values.language,
+          },
+        }),
+        { ...configOptions, configPath: path },
+      );
+    },
+    async restore() {
+      const loaded = await context(host, true);
+      return {
+        theme: loaded.preferences.theme,
+        defaultMode: loaded.preferences.mode,
+        language:
+          loaded.preferences.language ??
+          resolveTerminalLanguage(undefined, host.env),
+      };
+    },
+  };
+}
+async function runPipe(
+  args: string[],
+  host: CliHost,
+  dependencies: TimeuCliDependencies,
+) {
+  if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
+    writeLine(
+      host,
+      `Usage:\n  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]\n  ${CLI_NAME} gd\n  ${CLI_NAME} scan|backup|restore PATH... [--record FILE] [--no-recursive] [--include-directories] [--dry-run] [--json]`,
+    );
+    return;
+  }
+  const action =
+    args[0] === "backup" || args[0] === "restore"
+      ? args[0]
+      : args[0] === "scan"
+        ? "scan"
+        : undefined;
+  if (!action) {
+    writeError(
+      host,
+      `Unknown TimeU command: ${args[0] ?? ""}. Use \`${CLI_NAME} --help\`.`,
+    );
+    process.exitCode = 2;
+    return;
+  }
+  const json = args.includes("--json");
+  const loaded = await context(host, json);
+  let paths = args
+    .slice(1)
+    .filter(
+      (arg, index, all) =>
+        !arg.startsWith("--") && all[index - 1] !== "--record",
+    );
+  if (paths.includes("-"))
+    paths = paths
+      .filter((path) => path !== "-")
+      .concat(await readStdinLines(host.stdin));
+  const result = await runTimeu(
+    {
+      action,
+      paths,
+      recordPath: valueFor(args, "--record") ?? loaded.value.recordPath,
+      recursive: !args.includes("--no-recursive"),
+      includeDirectories: args.includes("--include-directories"),
+      dryRun: args.includes("--dry-run") || loaded.value.dryRun,
+    },
+    dependencies.createRuntime(),
+    (event) => {
+      if (!json && event.message) writeLine(host, event.message);
+    },
+  );
+  if (json) writeJson(host, result);
+  else writeLine(host, result.message);
+  if (!result.success) process.exitCode = 1;
+}
+function valueFor(args: string[], flag: string) {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+function createHost(): CliHost {
+  return {
+    cwd: process.cwd(),
+    env: process.env,
+    stdin: process.stdin,
+    stdout: process.stdout,
+    stderr: process.stderr,
+  };
+}
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url)
+  await runProgram().catch((error) => {
+    writeError(
+      createHost(),
+      error instanceof Error ? error.message : String(error),
+    );
+    process.exitCode = 1;
+  });

@@ -1,0 +1,39 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "plan",
+    "rootsText": "D:/images/architecture\nD:/images/schematics",
+    "mode": "copy",
+    "scanOrder": "deepest-first",
+    "namePrefix": "simiu_set",
+    "minGroupSize": "2",
+    "sizeToleranceBytes": "128",
+    "dryRun": true,
+    "recordRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "Simiu planned 2 group(s).",
+    "logs": ["[20%] Scanning image folders.", "[55%] Planning groups.", "Simiu planned 2 group(s)."],
+    "result": {
+      "batches": [
+        { "folder": "D:/images/architecture", "images": [{ "path": "D:/images/architecture/IMG_A912.jpg", "size": 4404019, "signature": "4404019:.jpg" }, { "path": "D:/images/architecture/IMG_A912_EDIT.png", "size": 4404088, "signature": "4404019:.jpg" }, { "path": "D:/images/architecture/ARCH_VAR_03.webp", "size": 1887436, "signature": "1887436:.webp" }] },
+        { "folder": "D:/images/schematics", "images": [{ "path": "D:/images/schematics/SCHEMATIC_V1.jpg", "size": 943718, "signature": "943718:.jpg" }, { "path": "D:/images/schematics/SCHEMATIC_V1_ALT.jpg", "size": 943790, "signature": "943718:.jpg" }] }
+      ],
+      "groups": [
+        { "parentDir": "D:/images/architecture", "name": "simiu_set__set_001", "files": ["D:/images/architecture/IMG_A912.jpg", "D:/images/architecture/IMG_A912_EDIT.png"] },
+        { "parentDir": "D:/images/schematics", "name": "simiu_set__set_001", "files": ["D:/images/schematics/SCHEMATIC_V1.jpg", "D:/images/schematics/SCHEMATIC_V1_ALT.jpg"] }
+      ],
+      "operations": [
+        { "mode": "copy", "sourcePath": "D:/images/architecture/IMG_A912.jpg", "targetPath": "D:/images/architecture/simiu_set__set_001/IMG_A912.jpg", "status": "planned" },
+        { "mode": "copy", "sourcePath": "D:/images/schematics/SCHEMATIC_V1.jpg", "targetPath": "D:/images/schematics/simiu_set__set_001/SCHEMATIC_V1.jpg", "status": "planned" }
+      ],
+      "database": { "path": "D:/images/architecture/.xiranite/simiu-runs.jsonl", "enabled": true, "mode": "jsonl", "defaultPath": true },
+      "imageCount": 5,
+      "groupCount": 2,
+      "movedCount": 0,
+      "skippedCount": 0,
+      "errorCount": 0,
+      "errors": []
+    }
+  }
+}

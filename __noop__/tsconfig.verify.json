@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.app.json",
+  "exclude": [
+    "src/nodes/classq/Component.tsx",
+    "src/nodes/classq/Component.test.tsx",
+    "**/__backup__"
+  ]
+}

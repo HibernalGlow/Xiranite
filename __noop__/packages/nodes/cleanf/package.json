@@ -1,0 +1,51 @@
+{
+  "name": "@xiranite/node-cleanf",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "File cleanup node migrated from aestivus/cleanf.",
+  "license": "UNLICENSED",
+  "bin": {
+    "xcleanf": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    },
+    "./help": {
+      "types": "./dist/help.d.ts",
+      "default": "./dist/help.js"
+    },
+    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "default": "./dist/cli.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "default": "./dist/platform.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "node ../../../node_modules/vitest/vitest.mjs run src --environment node --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts && bun test src/Tui.bun.test.tsx"
+  },
+  "dependencies": {
+    "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/config": "workspace:*",
+    "@xiranite/contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "^7.0.2"
+  }
+}

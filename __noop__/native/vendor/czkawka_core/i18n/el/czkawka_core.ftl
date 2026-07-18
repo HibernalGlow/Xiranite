@@ -1,0 +1,26 @@
+# Core
+core_similarity_original = Αρχικό
+core_similarity_very_high = Πολύ Υψηλή
+core_similarity_high = Υψηλή
+core_similarity_medium = Μεσαίο
+core_similarity_small = Μικρό
+core_similarity_very_small = Πολύ Μικρό
+core_similarity_minimal = Ελάχιστα
+core_cannot_open_dir = Αδυναμία ανοίγματος dir { $dir }, λόγος { $reason }
+core_cannot_read_entry_dir = Αδυναμία ανάγνωσης καταχώρησης στον κατάλογο { $dir }, λόγος { $reason }
+core_cannot_read_metadata_dir = Αδύνατη η ανάγνωση μεταδεδομένων στον κατάλογο { $dir }, λόγος { $reason }
+core_file_modified_before_epoch = Το { $name } φαίνεται να τροποποιείται πριν το Unix Epoch
+core_folder_modified_before_epoch = Ο φάκελος { $name } φαίνεται να τροποποιείται πριν το Unix Epoch
+core_file_no_modification_date = Δεν είναι δυνατή η λήψη ημερομηνίας τροποποίησης από το αρχείο { $name }, λόγος { $reason }
+core_folder_no_modification_date = Δεν είναι δυνατή η λήψη ημερομηνίας τροποποίησης από το φάκελο { $name }, λόγος { $reason }
+core_missing_no_chosen_included_directory = Πρέπει να παρέχεται τουλάχιστον ένας κατάλογος
+core_directory_must_exists = Κατάλογοι: Η παρεχόμενη διαδρομή φακέλου πρέπει να υπάρχει, αγνοώντας { $path }
+core_directory_must_be_directory = Κατάλογοι: Παρέχεται διαδρομή πρέπει να δείχνει στον κατάλογο, αγνοώντας { $path }
+core_included_directory_zero_valid_directories = Συμπεριλαμβανόμενος κατάλογος ΣΦΑΛΜΑ: Δεν βρέθηκε ούτε μια σωστή διαδρομή για να συμπεριληφθεί η οποία απαιτείται
+core_excluded_directory_pointless_slash = Κατάλογοι: Εξαιρούνται / είναι άσκοπες, επειδή σημαίνει ότι δεν θα σαρωθούν αρχεία
+core_directory_overlap = Κατάλογοι: Όλοι οι κατάλογοι για αναζήτηση επικαλύψεων με αποκλεισμένους καταλόγους
+core_directory_unable_to_get_device_id = Κατάλογοι: Αδυναμία λήψης id συσκευής από το φάκελο { $path }
+core_ffmpeg_not_found = Αδυναμία εύρεσης σωστής εγκατάστασης του FFmpeg, αυτό είναι ένα εξωτερικό πρόγραμμα, το οποίο θα πρέπει να εγκαταστήσετε χειροκίνητα.
+core_ffmpeg_not_found_windows = Να είστε βέβαιος ότι ffmpeg.exe και ffprobe.exe είναι διαθέσιμα σε PATH ή τίθενται απευθείας στον ίδιο φάκελο όπου είναι εκτελέσιμο app
+core_invalid_symlink_infinite_recursion = Άπειρη αναδρομή
+core_invalid_symlink_non_existent_destination = Αρχείο ανύπαρκτου προορισμού
