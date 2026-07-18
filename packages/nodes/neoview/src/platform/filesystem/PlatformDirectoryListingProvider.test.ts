@@ -1,10 +1,10 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { PlatformDirectoryListingProvider } from "./PlatformDirectoryListingProvider.js"
-import { normalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
+import { canonicalizePlatformDirectoryPath, normalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
 const temporaryPaths: string[] = []
 
@@ -18,6 +18,13 @@ describe("PlatformDirectoryListingProvider", () => {
     expect(normalizePlatformDirectoryPath("E:/", "win32")).toBe("E:\\")
     expect(normalizePlatformDirectoryPath("E:\\library", "win32")).toBe("E:\\library")
     expect(normalizePlatformDirectoryPath("E:", "linux")).toBe("E:")
+  })
+
+  it("[neoview.folder.windows-drive-root] restores the root separator stripped by Windows realpath", async () => {
+    const canonicalize = vi.fn(async () => "E:")
+
+    await expect(canonicalizePlatformDirectoryPath("E:", "win32", canonicalize)).resolves.toBe("E:\\")
+    expect(canonicalize).toHaveBeenCalledWith("E:\\")
   })
 
   it("[neoview.file-tree.opendir] streams one native level without applying application sorting or leaking nested entries", async () => {

@@ -1,11 +1,12 @@
-import { realpath, stat } from "node:fs/promises"
+import { stat } from "node:fs/promises"
 
 import type { ViewSource } from "../../domain/book/book.js"
 import { pageMediaType, pathExtension, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
+import { canonicalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
 export async function detectViewSource(path: string, signal?: AbortSignal, mediaFormats?: ReaderMediaTypeResolver): Promise<Exclude<ViewSource, { kind: "path" }>> {
   signal?.throwIfAborted()
-  const canonicalPath = await realpath(path)
+  const canonicalPath = await canonicalizePlatformDirectoryPath(path)
   const sourceStats = await stat(canonicalPath)
   signal?.throwIfAborted()
   if (sourceStats.isDirectory()) return { kind: "directory", path: canonicalPath }

@@ -1,4 +1,4 @@
-import { opendir, realpath, stat } from "node:fs/promises"
+import { opendir, stat } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
 import { pageMediaType, pathExtension, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
@@ -8,7 +8,7 @@ import type {
   ReaderDirectoryListingProvider,
 } from "../../ports/ReaderDirectoryListingProvider.js"
 import { platformReaderBookFileKind } from "./PlatformReaderBookCandidate.js"
-import { normalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
+import { canonicalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
 const MAX_DIRECTORY_ENTRIES = 100_000
 
@@ -17,7 +17,7 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
 
   async canonicalize(path: string, signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted()
-    const canonicalPath = normalizePlatformDirectoryPath(await realpath(normalizePlatformDirectoryPath(path)))
+    const canonicalPath = await canonicalizePlatformDirectoryPath(path)
     const sourceStats = await stat(canonicalPath)
     signal?.throwIfAborted()
     if (!sourceStats.isDirectory()) throw new Error(`Reader browser path is not a directory: ${path}`)
@@ -26,7 +26,7 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
 
   async read(path: string, signal?: AbortSignal): Promise<ReaderDirectoryListing> {
     signal?.throwIfAborted()
-    const canonicalPath = normalizePlatformDirectoryPath(await realpath(normalizePlatformDirectoryPath(path)))
+    const canonicalPath = await canonicalizePlatformDirectoryPath(path)
     const sourceStats = await stat(canonicalPath)
     const directoryPath = sourceStats.isDirectory() ? canonicalPath : sourceStats.isFile() ? dirname(canonicalPath) : undefined
     if (!directoryPath) throw new Error(`Reader browser path is not a file or directory: ${path}`)
