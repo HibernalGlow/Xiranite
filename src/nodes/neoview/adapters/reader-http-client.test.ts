@@ -7,6 +7,23 @@ afterEach(() => {
 })
 
 describe("reader-http-client", () => {
+  it("[neoview.color-filter.client] sends one authenticated aggregate config mutation", async () => {
+    const colorFilter = {
+      colorizeEnabled: false, colorizePreset: "redAndBlueGray", customColors: [], onlyBlackAndWhite: false,
+      brightness: 125, contrast: 100, saturation: 100, sepia: 0, hueRotate: 0, invert: false, negative: false,
+    } as const
+    const fetchMock = vi.fn(async () => Response.json({ colorFilter }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.updateColorFilter!({ colorFilter: { brightness: 125 } })).resolves.toEqual(colorFilter)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ colorFilter: { brightness: 125 } })
+  })
+
   it("[neoview.react.control] sends token-authenticated open, navigation and close requests", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(request)
@@ -339,6 +356,21 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
       action: "set-default",
       scope: "tab",
+      focusPath: "D:/books/book.cbz",
+    })
+  })
+
+  it("[neoview.folder.filter-client] sends the canonical type filter without reopening the browser session", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ filter: "archive", filterOptions: ["all", "archive", "directory", "video"] }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await client.filterDirectoryBrowser!("browser/source", "archive", "D:/books/book.cbz")
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/s/browser%2Fsource/filter")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      filter: "archive",
       focusPath: "D:/books/book.cbz",
     })
   })

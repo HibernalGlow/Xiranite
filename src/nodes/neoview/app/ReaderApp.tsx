@@ -55,6 +55,8 @@ import type { ReaderShellControlPort } from "../features/shell/ReaderShellContro
 import { ReaderWindowBar } from "../features/shell/ReaderWindowBar"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
+import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
+import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -209,6 +211,13 @@ export function ReaderApp({
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [colorFilter] = useState(() => createReaderColorFilterStore({
+    async persist(settings, reset, signal) {
+      if (!clientRef.current.updateColorFilter) return settings
+      return await clientRef.current.updateColorFilter({ colorFilter: reset ? { reset: "defaults" } : settings }, signal)
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  }))
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const [shellControlStore] = useState(() => createReaderShellControlStore({
     edges: {
@@ -245,6 +254,7 @@ export function ReaderApp({
   useEffect(() => () => {
     operationRef.current?.abort()
     slideshow.dispose()
+    colorFilter.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
   }, [])
@@ -264,6 +274,16 @@ export function ReaderApp({
       }
       if (bookmarkListPreferencesGenerationRef.current === 0) setBookmarkListPreferences(config.bookmarkList)
       if (historyListPreferencesGenerationRef.current === 0) setHistoryListPreferences(config.historyList)
+      if (config.colorFilter) {
+        colorFilter.hydrate(config.colorFilter)
+        if (typeof localStorage !== "undefined") {
+          void migrateLegacyReaderColorFilter({
+            storage: localStorage,
+            canonical: config.colorFilter,
+            persist: async (settings) => colorFilter.update(settings),
+          }).catch((cause) => setError(errorMessage(cause)))
+        }
+      }
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (folderViewGenerationRef.current === 0) {
@@ -913,6 +933,7 @@ export function ReaderApp({
     onOpen: openPath,
     shell,
     shellControl,
+    colorFilter,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
     onViewDefaults: applyConfiguredViewDefaults,
@@ -970,7 +991,7 @@ export function ReaderApp({
             </div>
           ) : (
             <Suspense fallback={null}>
-              <LazyReaderFrame pages={session.visiblePages} presentation={presentation} />
+              <LazyReaderFrame pages={session.visiblePages} presentation={presentation} colorFilter={colorFilter} />
             </Suspense>
           )}
           {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}

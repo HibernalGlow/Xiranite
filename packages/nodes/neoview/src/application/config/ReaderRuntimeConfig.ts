@@ -16,6 +16,13 @@ import {
   parseSuperResolutionPreferences,
   type SuperResolutionPreferences,
 } from "../../domain/super-resolution/super-resolution-preferences.js"
+import {
+  DEFAULT_READER_COLOR_FILTER,
+  normalizeReaderColorFilter,
+  parseReaderColorFilterPatch,
+  type ReaderColorFilterPatch,
+  type ReaderColorFilterSettings,
+} from "../../domain/color-filter/ReaderColorFilter.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -31,6 +38,7 @@ export interface NeoviewRuntimeConfig {
   fileTree: NeoviewFileTreeConfig
   slideshow: NeoviewSlideshowConfig
   media: NeoviewMediaConfig
+  colorFilter: ReaderColorFilterSettings
   superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
@@ -431,6 +439,10 @@ export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConf
   preferences: parseSuperResolutionPreferences(undefined),
 }
 
+export interface NeoviewColorFilterPatch {
+  colorFilter: ReaderColorFilterPatch | { reset: "defaults" }
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -473,6 +485,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     fileTree: DEFAULT_NEOVIEW_FILE_TREE_CONFIG,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
+    colorFilter: DEFAULT_READER_COLOR_FILTER,
     superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
@@ -489,6 +502,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const historyList = optionalRecord(config.history_list, "[nodes.neoview.history_list]")
   const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
+  const colorFilter = optionalRecord(image?.color_filter, "[nodes.neoview.image.color_filter]")
   const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
@@ -548,6 +562,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     media: parseMediaConfig(image, subtitle),
+    colorFilter: parseColorFilterConfig(colorFilter),
     superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
@@ -591,6 +606,23 @@ function parseSuperResolutionConfig(value: Record<string, unknown> | undefined):
     customModels: parseSuperResolutionCustomModels(value.custom_models),
     preferences: parseSuperResolutionPreferences(value.preferences),
   }
+}
+
+function parseColorFilterConfig(value: Record<string, unknown> | undefined): ReaderColorFilterSettings {
+  if (!value) return DEFAULT_READER_COLOR_FILTER
+  return normalizeReaderColorFilter({
+    colorizeEnabled: value.colorize_enabled,
+    colorizePreset: value.colorize_preset,
+    customColors: value.custom_colors,
+    onlyBlackAndWhite: value.only_black_and_white,
+    brightness: value.brightness,
+    contrast: value.contrast,
+    saturation: value.saturation,
+    sepia: value.sepia,
+    hueRotate: value.hue_rotate,
+    invert: value.invert,
+    negative: value.negative,
+  })
 }
 
 function parseSuperResolutionCustomModels(value: unknown): readonly SuperResolutionCustomModelManifest[] {
@@ -805,6 +837,51 @@ export function parseNeoviewMediaPatch(
   if (Object.keys(imageToml).length) tomlPatch.image = imageToml
   if (Object.keys(readerToml).length) tomlPatch.reader = readerToml
   return { patch, tomlPatch }
+}
+
+export function parseNeoviewColorFilterPatch(value: unknown): {
+  patch: NeoviewColorFilterPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader color filter patch")
+  if (Object.keys(record).some((key) => key !== "colorFilter")) {
+    throw new Error("reader color filter patch contains unsupported fields.")
+  }
+  const colorFilter = requireRecord(record.colorFilter, "reader color filter patch.colorFilter")
+  if (colorFilter.reset !== undefined) {
+    if (colorFilter.reset !== "defaults") {
+      throw new Error('reader color filter patch.reset must be "defaults".')
+    }
+    if (Object.keys(colorFilter).length !== 1) {
+      throw new Error("reader color filter patch.reset cannot be combined with other fields.")
+    }
+    return {
+      patch: { colorFilter: { reset: "defaults" } },
+      tomlPatch: { image: { color_filter: colorFilterToml(DEFAULT_READER_COLOR_FILTER) } },
+    }
+  }
+  const settings = parseReaderColorFilterPatch(colorFilter)
+  if (!Object.keys(settings).length) throw new Error("reader color filter patch must change at least one field.")
+  return {
+    patch: { colorFilter: settings },
+    tomlPatch: { image: { color_filter: colorFilterToml(settings) } },
+  }
+}
+
+function colorFilterToml(value: ReaderColorFilterPatch): Record<string, unknown> {
+  const toml: Record<string, unknown> = {}
+  if (value.colorizeEnabled !== undefined) toml.colorize_enabled = value.colorizeEnabled
+  if (value.colorizePreset !== undefined) toml.colorize_preset = value.colorizePreset
+  if (value.customColors !== undefined) toml.custom_colors = value.customColors.map((point) => ({ ...point }))
+  if (value.onlyBlackAndWhite !== undefined) toml.only_black_and_white = value.onlyBlackAndWhite
+  if (value.brightness !== undefined) toml.brightness = value.brightness
+  if (value.contrast !== undefined) toml.contrast = value.contrast
+  if (value.saturation !== undefined) toml.saturation = value.saturation
+  if (value.sepia !== undefined) toml.sepia = value.sepia
+  if (value.hueRotate !== undefined) toml.hue_rotate = value.hueRotate
+  if (value.invert !== undefined) toml.invert = value.invert
+  if (value.negative !== undefined) toml.negative = value.negative
+  return toml
 }
 
 function parseFileTreeConfig(value: Record<string, unknown> | undefined): NeoviewFileTreeConfig {

@@ -13,9 +13,14 @@ import {
 } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
+import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import { PageImage } from "./PageImage"
 
-export function ReaderFrame({ pages, presentation }: { pages: ReaderPageDto[]; presentation: ReaderPresentation }) {
+export function ReaderFrame({ pages, presentation, colorFilter }: {
+  pages: ReaderPageDto[]
+  presentation: ReaderPresentation
+  colorFilter?: ReaderColorFilterPort
+}) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const viewport = useObservedSize(viewportRef)
   const dimensions = pages.flatMap((page) => page.dimensions ? [page.dimensions] : [])
@@ -55,6 +60,7 @@ export function ReaderFrame({ pages, presentation }: { pages: ReaderPageDto[]; p
               page={page}
               rotation={presentation.rotation}
               scale={scale}
+              colorFilter={colorFilter}
             />
           ))}
         </div>

@@ -21,6 +21,10 @@
       "types": "./dist/ui-core.d.ts",
       "default": "./dist/ui-core.js"
     },
+    "./color-filter": {
+      "types": "./dist/color-filter.d.ts",
+      "default": "./dist/color-filter.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"

@@ -1,0 +1,47 @@
+#!/usr/bin/env bun
+import { mkdir } from "node:fs/promises"
+import { dirname, resolve } from "node:path"
+import { chromium } from "playwright"
+
+const options = parseArgs(process.argv.slice(2))
+console.log(`launching ${options.viewport.width}x${options.viewport.height}`)
+const browser = await chromium.launch({ headless: true })
+try {
+  const page = await browser.newPage({ viewport: options.viewport, deviceScaleFactor: 1 })
+  console.log(`opening ${options.url}`)
+  await page.goto(options.url, { waitUntil: "domcontentloaded", timeout: 30_000 })
+  console.log("page loaded")
+  if (options.checkLabel) {
+    const label = page.getByText(options.checkLabel, { exact: true }).first()
+    await label.waitFor({ state: "visible", timeout: 30_000 })
+    await label.click()
+    console.log(`clicked ${options.checkLabel}`)
+  }
+  await Promise.race([
+    page.evaluate(() => document.fonts.ready),
+    new Promise((resolve) => setTimeout(resolve, 2_000)),
+  ])
+  await mkdir(dirname(options.output), { recursive: true })
+  await page.screenshot({ path: options.output, fullPage: false })
+  console.log(options.output)
+} finally {
+  await browser.close()
+}
+
+function parseArgs(args: readonly string[]) {
+  const values = new Map(args.map((argument) => {
+    const separator = argument.indexOf("=")
+    return separator < 0 ? [argument, ""] : [argument.slice(0, separator), argument.slice(separator + 1)]
+  }))
+  const url = values.get("--url")
+  const output = values.get("--output")
+  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--check-label=<label>] [--viewport=1920x1080]")
+  const [width, height] = (values.get("--viewport") ?? "1920x1080").split("x").map(Number)
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width! <= 0 || height! <= 0) throw new Error("Invalid viewport")
+  return {
+    url,
+    output: resolve(output),
+    checkLabel: values.get("--check-label"),
+    viewport: { width: width!, height: height! },
+  }
+}

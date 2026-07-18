@@ -68,10 +68,23 @@ describe("NeoView panel and card registries", () => {
       requiresSession: false,
       canHide: true,
     })
-    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control"])
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["sidebar-control", "color-filter"])
     expect(cardsForPanel("control", {
       cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
-    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "thumbnail-maintenance"])
+    } as never, false).map((card) => card.id)).toEqual(["sidebar-control", "color-filter", "thumbnail-maintenance"])
+  })
+
+  it("[neoview.color-filter.registry] exposes the session-independent legacy control Card lazily", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "color-filter")
+    expect(definition).toMatchObject({
+      title: "颜色滤镜",
+      defaultPanel: "control",
+      defaultSidebarVisible: true,
+      requiresSession: false,
+      canHide: true,
+    })
+    expect(definition?.icon).toBeTruthy()
+    expect(cardsForPanel("control", undefined, false).map((card) => card.id)).toContain("color-filter")
   })
 
   it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {

@@ -488,7 +488,13 @@ describe("parseNeoviewRuntimeConfig", () => {
 
   it("[neoview.thumbnail-maintenance.layout] keeps maintenance hidden until explicitly docked", () => {
     expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["thumbnail-maintenance"]).toEqual({
-      panelId: "control", visible: false, expanded: true, order: 1,
+      panelId: "control", visible: false, expanded: true, order: 2,
+    })
+  })
+
+  it("[neoview.color-filter.layout] keeps the legacy filter visible in the control panel without a session", () => {
+    expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["color-filter"]).toEqual({
+      panelId: "control", visible: true, expanded: true, order: 1,
     })
   })
 
