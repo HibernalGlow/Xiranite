@@ -54,7 +54,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
   const expandedRef = useRef(expanded)
   pagesRef.current = pages
   expandedRef.current = expanded
-  const rootPath = useMemo(() => directoryRoot(currentPath), [currentPath])
+  const rootPath = useMemo(() => directoryRoot(normalizeFolderNavigationPath(currentPath)), [currentPath])
   const roots = useMemo(() => treeRoots(rootPath, pinnedPaths, volumeRoots), [rootPath, pinnedPaths, volumeRoots])
 
   const loadPage = useCallback(async (path: string, refresh = false, scopeSignal?: AbortSignal, preserveTree = false) => {
@@ -383,7 +383,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
 }
 
 export function directoryRoot(path: string): string {
-  const normalized = path.replaceAll("\\", "/")
+  const normalized = normalizeFolderNavigationPath(path).replaceAll("\\", "/")
   const unc = /^(\/\/[^/]+\/[^/]+)(?:\/|$)/u.exec(normalized)
   if (unc) return `${unc[1]}/`
   const drive = /^([A-Za-z]:)(?:\/|$)/u.exec(normalized)
@@ -392,8 +392,9 @@ export function directoryRoot(path: string): string {
 }
 
 export function directoryAncestors(path: string): string[] {
-  const normalized = path.replaceAll("\\", "/").replace(/\/+$/u, "")
-  const root = directoryRoot(path)
+  const normalizedPath = normalizeFolderNavigationPath(path)
+  const normalized = normalizedPath.replaceAll("\\", "/").replace(/\/+$/u, "")
+  const root = directoryRoot(normalizedPath)
   const rootNormalized = root.replaceAll("\\", "/").replace(/\/+$/u, "")
   const remainder = normalized.slice(rootNormalized.length).replace(/^\/+|\/+$/gu, "")
   const separator = root.includes("\\") ? "\\" : "/"
