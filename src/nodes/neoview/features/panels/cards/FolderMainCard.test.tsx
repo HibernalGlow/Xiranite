@@ -511,7 +511,7 @@ describe("FolderMainCard", () => {
     expect(reopenDirectoryBrowser).toHaveBeenLastCalledWith("browser-b", expect.any(AbortSignal))
     expect(openDirectoryBrowser).toHaveBeenCalledTimes(2)
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
-    expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy()
+    await waitFor(() => expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy())
     expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).not.toBeNull()
     view.unmount()
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-restored")

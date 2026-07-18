@@ -315,6 +315,49 @@ describe("FolderContextActions", () => {
     expect(onTrashed).not.toHaveBeenCalled()
   })
 
+  it("[neoview.folder.delete-context] confirms permanent deletion and refreshes the same browser session", async () => {
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "delete" as const, sourcePath: "D:/library/old.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 0,
+    }))
+    const onTrashed = vi.fn(async () => undefined)
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+          onTrashed={onTrashed}
+        />
+        <button
+          data-context-menu="neoview-folder-entry"
+          data-folder-index="0"
+          data-folder-path="D:/library/old.cbz"
+          data-folder-name="old.cbz"
+          data-folder-kind="file"
+          data-folder-reader-supported="true"
+        >old.cbz</button>
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "old.cbz" }), { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "永久删除" }))
+    expect(await screen.findByRole("alertdialog")).toBeTruthy()
+    expect(screen.getByText(/无法从回收站恢复/)).toBeTruthy()
+    expect(executeFileOperations).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "永久删除" }))
+
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith(
+      [{ kind: "delete", sourcePath: "D:/library/old.cbz" }],
+      true,
+      expect.any(AbortSignal),
+    ))
+    expect(onTrashed).toHaveBeenCalledWith(expect.objectContaining({ path: "D:/library/old.cbz" }))
+    expect((await screen.findByRole("status")).textContent).toContain("已永久删除 old.cbz")
+  })
+
   it("[neoview.folder.trash-refresh-failure] reports that trash succeeded when only refresh fails", async () => {
     const executeFileOperations = vi.fn(async () => ({
       results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/library/old.cbz" }, status: "succeeded" as const }],
