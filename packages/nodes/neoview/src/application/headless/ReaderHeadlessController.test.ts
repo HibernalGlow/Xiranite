@@ -191,7 +191,11 @@ describe("ReaderHeadlessController", () => {
       undefined,
       undefined,
       undefined,
-      { run, [Symbol.asyncDispose]: dispose },
+      {
+        run,
+        inspect: async () => ({ available: false, reason: "test", models: [], engines: [] }),
+        [Symbol.asyncDispose]: dispose,
+      },
     )
     try {
       await controller.open({ path: "D:/private/book.cbz" })

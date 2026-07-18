@@ -269,6 +269,7 @@ export {
   type HeadlessReaderSnapshot,
   type HeadlessSuperResolutionPageInput,
   type HeadlessSuperResolutionPageResult,
+  type HeadlessSuperResolutionCapabilitySnapshot,
   type OpenHeadlessReaderInput,
   type ReaderHeadlessBookSettingsOptions,
   type ReaderHeadlessSuperResolutionPort,

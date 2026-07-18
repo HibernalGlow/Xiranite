@@ -29,7 +29,11 @@ import type {
   SuperResolutionPageInput,
   SuperResolutionPageResult,
 } from "../super-resolution/SuperResolutionPageService.js"
-import type { SuperResolutionExecutionContext } from "../../ports/SuperResolutionProvider.js"
+import type {
+  SuperResolutionCapabilitySnapshot,
+  SuperResolutionExecutionContext,
+  SuperResolutionModelManifest,
+} from "../../ports/SuperResolutionProvider.js"
 
 export interface OpenHeadlessReaderInput {
   path: string
@@ -89,7 +93,22 @@ export interface ReaderHeadlessSuperResolutionPort extends AsyncDisposable {
     input: SuperResolutionPageInput,
     context?: SuperResolutionExecutionContext,
   ): Promise<SuperResolutionPageResult>
+  inspect(options?: { refresh?: boolean; signal?: AbortSignal }): Promise<HeadlessSuperResolutionCapabilitySnapshot>
 }
+
+export type HeadlessSuperResolutionCapabilitySnapshot =
+  | {
+      available: false
+      reason: string
+      models: readonly []
+      engines: readonly []
+    }
+  | {
+      available: true
+      models: readonly SuperResolutionModelManifest[]
+      engines: SuperResolutionCapabilitySnapshot["engines"]
+      probedAt: number
+    }
 
 export interface HeadlessSuperResolutionPageInput {
   pageIndex: number
@@ -265,6 +284,16 @@ export class ReaderHeadlessController implements AsyncDisposable {
     if (!output.result) return output
     const { sourcePath: _sourcePath, ...result } = output.result
     return { decision: output.decision, result }
+  }
+
+  inspectSuperResolution(
+    options: { refresh?: boolean; signal?: AbortSignal } = {},
+  ): Promise<HeadlessSuperResolutionCapabilitySnapshot> {
+    this.#assertOpen()
+    if (!this.superResolution) {
+      return Promise.resolve({ available: false, reason: "super-resolution-disabled", models: [], engines: [] })
+    }
+    return this.superResolution.inspect(options)
   }
 
   async getMediaProgress(): Promise<ReaderMediaProgressRecord | undefined> {

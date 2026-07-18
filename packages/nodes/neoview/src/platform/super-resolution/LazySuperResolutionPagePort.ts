@@ -6,6 +6,11 @@ import type {
   SuperResolutionPageResult,
 } from "../../application/super-resolution/SuperResolutionPageService.js"
 import type { SuperResolutionExecutionContext } from "../../ports/SuperResolutionProvider.js"
+import type {
+  SuperResolutionCapabilitySnapshot,
+  SuperResolutionModelManifest,
+} from "../../ports/SuperResolutionProvider.js"
+import type { HeadlessSuperResolutionCapabilitySnapshot } from "../../application/headless/ReaderHeadlessController.js"
 
 export interface SuperResolutionPageCapability {
   pages: {
@@ -14,6 +19,8 @@ export interface SuperResolutionPageCapability {
       context?: SuperResolutionExecutionContext,
     ): Promise<SuperResolutionPageResult>
   }
+  listModels(): readonly SuperResolutionModelManifest[]
+  capabilities(options?: { refresh?: boolean; signal?: AbortSignal }): Promise<SuperResolutionCapabilitySnapshot>
   dispose(): Promise<void>
 }
 
@@ -36,6 +43,23 @@ export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutio
     this.#assertActive()
     if (!capability) throw new Error("Reader super-resolution runtime is unavailable.")
     return capability.pages.run(input, context)
+  }
+
+  async inspect(
+    options: { refresh?: boolean; signal?: AbortSignal } = {},
+  ): Promise<HeadlessSuperResolutionCapabilitySnapshot> {
+    this.#assertActive()
+    const capability = await waitForSharedPromise(this.#load(), options.signal)
+    options.signal?.throwIfAborted()
+    this.#assertActive()
+    if (!capability) return { available: false, reason: "runtime-unavailable", models: [], engines: [] }
+    const snapshot = await capability.capabilities(options)
+    return {
+      available: true,
+      models: capability.listModels(),
+      engines: snapshot.engines,
+      probedAt: snapshot.probedAt,
+    }
   }
 
   async [Symbol.asyncDispose](): Promise<void> {

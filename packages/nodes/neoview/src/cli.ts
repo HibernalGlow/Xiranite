@@ -24,6 +24,7 @@ import type {
   ReaderDirectoryEmmEditCommand,
   HeadlessSuperResolutionPageInput,
   HeadlessSuperResolutionPageResult,
+  HeadlessSuperResolutionCapabilitySnapshot,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -44,7 +45,7 @@ import { projectReaderTimeInformation } from "./domain/page/TimeInformationProje
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "upscale-page", "settings-inspect", "settings-import",
+  "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities", "settings-inspect", "settings-import",
   "book-settings-get", "book-settings-set",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
   "settings-backup",
@@ -148,6 +149,9 @@ export interface CliReaderController extends AsyncDisposable {
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
   updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
   upscalePage?(input: HeadlessSuperResolutionPageInput): Promise<HeadlessSuperResolutionPageResult>
+  inspectSuperResolution?(
+    options?: { refresh?: boolean; signal?: AbortSignal },
+  ): Promise<HeadlessSuperResolutionCapabilitySnapshot>
 }
 
 export interface CliInteractiveReaderController extends CliReaderController {
@@ -263,6 +267,11 @@ export async function runProgram(
     await runFolderCommand(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
     return
   }
+  if (command === "upscale-capabilities") {
+    if (parsed.positionals.length) throw usage("upscale-capabilities does not accept a book path.")
+    await runSuperResolutionCapabilities(parsed, host, dependencies)
+    return
+  }
   if (command === "settings-export") {
     if (parsed.positionals.length) throw usage("settings-export does not accept an input path.")
     await runPortableSettingsExport(parsed, host)
@@ -353,6 +362,10 @@ export async function runProgram(
 }
 
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
+  if (command === "upscale-capabilities") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--refresh"]))
+    return
+  }
   if (command === "upscale-page") {
     rejectOptions(parsed, new Set([
       "--json", "--config", "--entry", "--password-env", "--archive-password-env", "--index", "--output", "--force",
@@ -1535,6 +1548,35 @@ function printSuperResolutionResult(result: HeadlessSuperResolutionPageResult, j
   writeLine(host, `Elapsed: ${result.result.elapsedMs.toFixed(2)} ms`)
 }
 
+async function runSuperResolutionCapabilities(
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const controller = await dependencies.createController({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+    progressStore: false,
+    legacyThumbnailDatabasePath: false,
+  })
+  try {
+    if (!controller.inspectSuperResolution) throw new Error("Reader super-resolution inspection is unavailable.")
+    const result = await controller.inspectSuperResolution({ refresh: parsed.booleans.has("--refresh") })
+    if (parsed.booleans.has("--json")) return writeJson(host, result)
+    if (!result.available) {
+      writeLine(host, `Super-resolution unavailable: ${result.reason}`)
+      return
+    }
+    for (const engine of result.engines) {
+      writeLine(host, `${engine.engine}: ${engine.available ? engine.version ?? "available" : engine.reason ?? "unavailable"}`)
+    }
+    writeLine(host, `${result.models.length} model(s)`)
+  } finally {
+    await controller[Symbol.asyncDispose]()
+  }
+}
+
 async function assertOutputAvailable(path: string, force: boolean): Promise<void> {
   if (force) return
   try {
@@ -2082,6 +2124,7 @@ function formatCliHelp(): string {
     "  frame <path>         Show the frame at --index",
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  upscale-page <path>  Upscale one page using the configured policy",
+    "  upscale-capabilities Inspect registered models and system CLI capabilities",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
     "  settings-export          Export current [nodes.neoview] as portable JSON",
