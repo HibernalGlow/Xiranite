@@ -276,6 +276,7 @@ export {
   type HeadlessSuperResolutionCapabilitySnapshot,
   type OpenHeadlessReaderInput,
   type ReaderHeadlessBookSettingsOptions,
+  type ReaderHeadlessSuperResolutionArtifactFactory,
   type ReaderHeadlessSuperResolutionPort,
 } from "./application/headless/ReaderHeadlessController.js"
 export {
