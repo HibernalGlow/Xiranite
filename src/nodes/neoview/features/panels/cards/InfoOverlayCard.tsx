@@ -59,6 +59,8 @@ export function InfoOverlayCard({ port, infoOverlay, panelActive = true, disable
         className="grid min-h-20 place-items-center text-xs text-muted-foreground"
         data-neoview-card="info-overlay"
         data-info-overlay-state="loading"
+        role="status"
+        aria-live="polite"
       >
         信息悬浮窗配置加载中...
       </section>
