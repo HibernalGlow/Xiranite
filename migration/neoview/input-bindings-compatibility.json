@@ -304,8 +304,8 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "partial",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
@@ -314,10 +314,14 @@
         "neoview.bindings.keyboard-runtime",
         "neoview.bindings.video-surface",
         "neoview.bindings.video-actions-react",
-        "neoview.bindings.video-player-e2e"
+        "neoview.bindings.video-player-e2e",
+        "neoview.bindings.context-stack-headless",
+        "neoview.bindings.context-stack-isolation",
+        "neoview.bindings.context-stack-cli",
+        "neoview.bindings.context-stack-tui"
       ],
       "plannedTestIds": [],
-      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. The native video surface advertises the video context, routes multiple bindings plus seek-mode remapping through the shared executor, and preserves interactive media controls in the DOM context at desktop and 420x360. CLI/TUI context-stack projection remains pending."
+      "notes": "The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. The native video surface advertises the video context, routes multiple bindings plus seek-mode remapping through the shared executor, and preserves interactive media controls in the DOM context at desktop and 420x360. Headless, CLI and TUI now consume the same ordered context stack and preserve editor/modal isolation; GUI browser evidence remains partial."
     },
     {
       "id": "bindings.keyboard",
