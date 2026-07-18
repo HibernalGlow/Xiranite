@@ -97,13 +97,55 @@ describe("ImageInformationCard", () => {
     expect(screen.queryByText("stale")).toBeNull()
   })
 
-  it("[neoview.image-information.zero-session] renders no DOM and performs no work without a session", () => {
+  it("[neoview.image-information.resident-empty] keeps the legacy empty shell without a session", () => {
     const metadataRequest = vi.fn()
     const pageMediaInformation = vi.fn()
     const view = render(<ImageInformationCard client={client(metadataRequest, pageMediaInformation)} disabled={false} onGoTo={vi.fn()} />)
-    expect(view.container.innerHTML).toBe("")
+    expect(view.container.querySelector('[data-neoview-card="image-information"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-image-information-state="empty"]')).toBeTruthy()
+    expect(screen.getByText("暂无媒体信息")).toBeTruthy()
     expect(metadataRequest).not.toHaveBeenCalled()
     expect(pageMediaInformation).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.image-information.inactive-zero-work] keeps the empty shell while hidden and resumes on activation", async () => {
+    const metadataRequest = vi.fn(async () => metadata("video"))
+    const pageMediaInformation = vi.fn(async () => ({
+      pageId: "page-1",
+      contentVersion: "v1",
+      mediaKind: "video" as const,
+      durationSeconds: 10,
+    }))
+    const readerClient = client(metadataRequest, pageMediaInformation)
+    const currentSession = session(page("video"))
+    const view = render(
+      <ImageInformationCard
+        client={readerClient}
+        session={currentSession}
+        panelActive={false}
+        disabled={false}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-image-information-state="empty"]')).toBeTruthy()
+    expect(metadataRequest).not.toHaveBeenCalled()
+    expect(pageMediaInformation).not.toHaveBeenCalled()
+
+    view.rerender(
+      <ImageInformationCard
+        client={readerClient}
+        session={currentSession}
+        panelActive
+        disabled={false}
+        onGoTo={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText("clip.mp4")).toBeTruthy()
+    await waitFor(() => expect(metadataRequest).toHaveBeenCalledOnce())
+    await waitFor(() => expect(pageMediaInformation).toHaveBeenCalledOnce())
   })
 
   it("[neoview.image-information.formatting] freezes legacy duration, bitrate, byte and format boundaries", () => {

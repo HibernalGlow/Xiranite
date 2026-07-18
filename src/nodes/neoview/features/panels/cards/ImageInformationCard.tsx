@@ -14,8 +14,17 @@ import {
 import { useReaderMetadata } from "./useReaderMetadata"
 import { useReaderPageMediaInformation } from "./useReaderPageMediaInformation"
 
+/**
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/ImageInfoCard.tsx
+ */
 export default function ImageInformationCard(context: ReaderPanelContext) {
-  if (!context.session) return <ReaderCardEmptyState>打开书本后显示图像信息</ReaderCardEmptyState>
+  if (!context.session || context.panelActive === false) {
+    return (
+      <section data-neoview-card="image-information" data-image-information-state="empty">
+        <ReaderCardEmptyState>暂无媒体信息</ReaderCardEmptyState>
+      </section>
+    )
+  }
   return <ImageInformationContent {...context} session={context.session} />
 }
 
