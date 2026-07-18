@@ -32,20 +32,26 @@ describe("ReaderMemoryPressureMonitor", () => {
   })
 
   it("[neoview.memory-pressure.critical] escalates immediately and tolerates unavailable platform metrics", () => {
-    let available = 100
+    let now = 1
+    let available: number | undefined = 100
     const monitor = new ReaderMemoryPressureMonitor({
       criticalAvailableBytes: 200,
       elevatedAvailableBytes: 400,
       recoveryAvailableBytes: 800,
       sampleIntervalMs: 0,
+      reliefIntervalMs: 50,
       availableMemory: () => available,
-      now: () => 1,
+      now: () => now,
     })
     expect(monitor.sample()).toMatchObject({ level: "critical", relieve: true, availableBytes: 100 })
     monitor.recordRelief("critical")
     monitor.recordAdmissionRejection()
-    available = Number.NaN
-    expect(monitor.sample()).toMatchObject({ level: "normal", relieve: false })
+    available = undefined
+    expect(monitor.sample()).toMatchObject({ level: "normal", relieve: false, availableBytes: undefined })
+    expect(monitor.sample()).toMatchObject({ level: "normal", relieve: false, availableBytes: undefined })
+    available = 100
+    now = 60
+    expect(monitor.sample()).toMatchObject({ level: "critical", relieve: true, availableBytes: 100 })
     expect(monitor.snapshot()).toMatchObject({ criticalReliefs: 1, admissionRejections: 1 })
   })
 })
