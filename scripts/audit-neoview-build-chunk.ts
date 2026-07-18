@@ -67,6 +67,8 @@ const bookmarkListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some
 // [neoview.bookmark.context-actions-chunk]
 const bookmarkContextActionsChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]bookmark[/\\]BookmarkContextActions\.tsx$/i.test(module)))
 const historyListChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]HistoryListCard\.tsx$/i.test(module)))
+// [neoview.history.context-actions-chunk]
+const historyContextActionsChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]history[/\\]HistoryContextActions\.tsx$/i.test(module)))
 // [neoview.history.cleanup-lazy-chunk]
 const historyCleanupChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]history[/\\]HistoryCleanupDialog\.tsx$/i.test(module)))
 const pageNavigationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]PageNavigationCard\.tsx$/i.test(module)))
@@ -87,6 +89,12 @@ if (bookmarkContextActionsChunk.bytes > 8 * 1024) {
 }
 if (!historyListChunk || historyListChunk === readerSidebarChunk) {
   throw new Error("NeoView HistoryListCard did not produce an independent deferred production chunk.")
+}
+if (!historyContextActionsChunk || historyContextActionsChunk === historyListChunk || historyContextActionsChunk === readerSidebarChunk || historyContextActionsChunk === neoViewChunk || historyContextActionsChunk === initialChunk) {
+  throw new Error("NeoView History context actions did not produce a second-level deferred production chunk.")
+}
+if (historyContextActionsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView History context actions chunk ${historyContextActionsChunk.fileName} is ${historyContextActionsChunk.bytes} bytes, above 8 KiB.`)
 }
 if (!historyCleanupChunk || historyCleanupChunk === historyListChunk || historyCleanupChunk === readerSidebarChunk) {
   throw new Error("NeoView HistoryCleanupDialog did not produce a second-level deferred production chunk.")
@@ -308,6 +316,7 @@ console.log(JSON.stringify({
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   historyListChunk: { fileName: historyListChunk.fileName, bytes: historyListChunk.bytes },
+  historyContextActionsChunk: { fileName: historyContextActionsChunk.fileName, bytes: historyContextActionsChunk.bytes },
   historyCleanupChunk: { fileName: historyCleanupChunk.fileName, bytes: historyCleanupChunk.bytes },
   bookmarkListChunk: { fileName: bookmarkListChunk.fileName, bytes: bookmarkListChunk.bytes },
   bookmarkContextActionsChunk: { fileName: bookmarkContextActionsChunk.fileName, bytes: bookmarkContextActionsChunk.bytes },

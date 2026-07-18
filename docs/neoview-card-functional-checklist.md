@@ -3410,9 +3410,9 @@
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：History preserves open, browse/new-tab, system-open, reveal, copy path/name, add bookmark, tree pin, tag, thumbnail reload and confirmed single/batch history removal through authenticated host capabilities.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`、`src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte`
-  - 测试：`neoview.history.card`、`neoview.history.batch-remove`、`neoview.library.http`、`neoview.history.thumbnail-e2e`
+  - 测试：`neoview.history.card`、`neoview.history.batch-remove`、`neoview.history.context-actions`、`neoview.history.context-actions-e2e`、`neoview.history.thumbnail-reload-e2e`、`neoview.library.http`、`neoview.history.thumbnail-e2e`
   - 计划测试：无
-  - 备注：Single/double-click and explicit resume plus confirmed single/batch history removal exist; browse, new-tab, reveal, copy, add-bookmark, tag and thumbnail-reload actions remain pending.
+  - 备注：Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab, tree pin and tag editing remain pending.
 - [ ] `history.cleanup` 清理失效、最旧、过期、目录与全部历史
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Bounded, cancellable cleanup supports confirmed missing paths, oldest count, timestamp cutoff, folder scope and clear-all without deleting unrelated progress or bookmarks.
@@ -3480,9 +3480,9 @@
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：A 10K history corpus keeps bounded paging and DOM, registers only visible thumbnails, bounds path checks and cleanup batches, performs zero hidden work and stays in an independent deferred chunk.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.library.contract`、`neoview.library.lifecycle`、`neoview.library.cleanup-invalid`、`neoview.history.thumbnail-visible`、`neoview.history.views`、`neoview.history.thumbnail-e2e`
+  - 测试：`neoview.library.contract`、`neoview.library.lifecycle`、`neoview.library.cleanup-invalid`、`neoview.history.thumbnail-visible`、`neoview.history.views`、`neoview.history.thumbnail-e2e`、`neoview.history.context-actions-chunk`
   - 计划测试：`neoview.history.chunk`
-  - 备注：All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work, and production audit keeps History in an independent 8,039-byte chunk plus a shared 4,464-byte ReaderLibraryList chunk; 10K Chromium and advanced cleanup budgets remain pending.
+  - 备注：All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work, and production audit keeps History in an independent 10,042-byte chunk plus a shared 5,859-byte ReaderLibraryList chunk; file context actions remain in a second-level 3,944-byte chunk. 10K Chromium and advanced cleanup budgets remain pending.
 - [ ] `history.image-stability` 历史交互不重挂活动阅读媒体
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Opening History, refreshing, searching, changing views, scrolling thumbnails, selecting and cleaning records preserve the active Reader media node and asset URL until an explicit history entry is opened.

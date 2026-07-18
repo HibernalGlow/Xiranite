@@ -840,11 +840,14 @@
       "testIds": [
         "neoview.history.card",
         "neoview.history.batch-remove",
+        "neoview.history.context-actions",
+        "neoview.history.context-actions-e2e",
+        "neoview.history.thumbnail-reload-e2e",
         "neoview.library.http",
         "neoview.history.thumbnail-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Single/double-click and explicit resume plus confirmed single/batch history removal exist; browse, new-tab, reveal, copy, add-bookmark, tag and thumbnail-reload actions remain pending."
+      "notes": "Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab, tree pin and tag editing remain pending."
     },
     {
       "id": "history.cleanup",
@@ -1184,12 +1187,13 @@
         "neoview.library.cleanup-invalid",
         "neoview.history.thumbnail-visible",
         "neoview.history.views",
-        "neoview.history.thumbnail-e2e"
+        "neoview.history.thumbnail-e2e",
+        "neoview.history.context-actions-chunk"
       ],
       "plannedTestIds": [
         "neoview.history.chunk"
       ],
-      "notes": "All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work, and production audit keeps History in an independent 8,039-byte chunk plus a shared 4,464-byte ReaderLibraryList chunk; 10K Chromium and advanced cleanup budgets remain pending."
+      "notes": "All four modes share the bounded one/multi-column virtual engine, compact mode performs zero thumbnail work, and production audit keeps History in an independent 10,042-byte chunk plus a shared 5,859-byte ReaderLibraryList chunk; file context actions remain in a second-level 3,944-byte chunk. 10K Chromium and advanced cleanup budgets remain pending."
     },
     {
       "id": "history.image-stability",

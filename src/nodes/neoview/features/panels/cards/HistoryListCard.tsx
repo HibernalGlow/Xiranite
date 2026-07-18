@@ -18,8 +18,9 @@ interface PendingDelete {
 
 type HistoryViewMode = "compact" | "content" | "banner" | "thumbnail"
 const LazyHistoryCleanupDialog = lazy(() => import("./history/HistoryCleanupDialog"))
+const LazyHistoryContextActions = lazy(() => import("./history/HistoryContextActions"))
 
-export default function HistoryListCard({ client, disabled, onOpen, pickDirectory, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
+export default function HistoryListCard({ client, disabled, onOpen, pickDirectory, systemActions, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string>()
   const [cleanupMessage, setCleanupMessage] = useState<string>()
@@ -191,6 +192,21 @@ export default function HistoryListCard({ client, disabled, onOpen, pickDirector
       data-history-view-mode={viewMode}
       onKeyDown={handleCardKeyDown}
     >
+      <Suspense fallback={null}>
+        <LazyHistoryContextActions
+          client={client}
+          disabled={disabled}
+          items={loadedRecents}
+          copyText={systemActions?.copyText}
+          onOpen={onOpen ? (item) => onOpen(item.source.path) : undefined}
+          onReloadThumbnail={(item) => thumbnails.refresh(item.bookId)}
+          onRemove={async (item) => {
+            if (!client.removeRecent) throw new Error("当前后端不支持删除历史记录")
+            await client.removeRecent(item.bookId)
+          }}
+          onChanged={() => setRevision((value) => value + 1)}
+        />
+      </Suspense>
       <div className="flex items-center gap-1" role="group" aria-label="历史记录视图">
         <HistoryViewButton label="列表" mode="compact" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><List /></HistoryViewButton>
         <HistoryViewButton label="内容" mode="content" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><Rows3 /></HistoryViewButton>
@@ -354,6 +370,8 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
     <ReaderEntrySurface
       variant={viewMode}
       selected={selected}
+      data-context-menu="neoview-history-entry"
+      data-history-context-id={item.bookId}
       data-history-id={item.bookId}
       leading={viewMode === "compact" || viewMode === "content" ? <Checkbox checked={selected} aria-label={`选择历史记录：${item.displayName}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
       media={viewMode === "compact" ? undefined : (
@@ -373,6 +391,8 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
         "aria-pressed": selected,
         disabled,
         tabIndex: focused ? 0 : -1,
+        "data-context-menu": "neoview-history-entry",
+        "data-history-context-id": item.bookId,
         "data-history-row-button": index,
         "data-library-item-focus": "true",
         onFocus: () => onFocus(index),
