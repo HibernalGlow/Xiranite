@@ -78,6 +78,14 @@ export {
   type SystemSuperResolutionCliResolverOptions,
 } from "./platform/super-resolution/SystemSuperResolutionCliResolver.js"
 export {
+  CacacheSuperResolutionArtifactStore,
+  type CacacheSuperResolutionArtifactStoreOptions,
+} from "./platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
+export {
+  buildSuperResolutionArtifactKey,
+  type SuperResolutionArtifactKeyInput,
+} from "./platform/super-resolution/SuperResolutionArtifactKey.js"
+export {
   OpenComicAiSystemProvider,
   type OpenComicAiSystemProviderOptions,
   type OpenComicSystemBinaryRequest,
