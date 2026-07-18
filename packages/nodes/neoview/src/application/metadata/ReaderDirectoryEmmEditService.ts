@@ -32,7 +32,25 @@ export const ReaderDirectoryEmmEditCommandSchema = z.object({
   }
 })
 
+export const ReaderDirectoryEmmReadCommandSchema = z.object({
+  generation: z.number().int().nonnegative(),
+  paths: z.array(z.string().trim().min(1).max(32_768).refine((path) => !path.includes("\0"), "path contains NUL")).min(1).max(MAX_UPDATES),
+}).strict().superRefine((value, context) => {
+  const paths = new Set<string>()
+  for (const [index, path] of value.paths.entries()) {
+    const key = normalizePath(path)
+    if (paths.has(key)) context.addIssue({ code: "custom", path: ["paths", index], message: "duplicate path" })
+    paths.add(key)
+  }
+})
+
 export type ReaderDirectoryEmmEditCommand = z.infer<typeof ReaderDirectoryEmmEditCommandSchema>
+export type ReaderDirectoryEmmReadCommand = z.infer<typeof ReaderDirectoryEmmReadCommandSchema>
+
+export interface ReaderDirectoryEmmReadResult {
+  generation: number
+  items: readonly { path: string; metadata: ReaderEmmMetadataSnapshot }[]
+}
 
 export interface ReaderDirectoryEmmEditScope {
   resolveEntries(
@@ -47,7 +65,11 @@ export interface ReaderDirectoryEmmEditScope {
     paths: readonly string[],
     fields: ReadonlySet<ReaderDirectoryMetadataField>,
     signal?: AbortSignal,
-  ): Promise<number | undefined>
+  ): Promise<{
+    generation: number
+    entries: readonly ReaderDirectoryEntry[]
+    orderChanged: boolean
+  } | undefined>
 }
 
 export type ReaderDirectoryEmmEditResultItem =
@@ -58,6 +80,7 @@ export type ReaderDirectoryEmmEditResultItem =
 export interface ReaderDirectoryEmmEditResult {
   generation: number | null
   refreshRequired: boolean
+  entries: readonly ReaderDirectoryEntry[]
   results: readonly ReaderDirectoryEmmEditResultItem[]
   succeeded: number
   conflicts: number
@@ -76,6 +99,22 @@ export class ReaderDirectoryEmmEditService {
     private readonly metadata: ReaderEmmMetadataService,
     private readonly scope: ReaderDirectoryEmmEditScope,
   ) {}
+
+  async read(
+    sessionId: string,
+    command: ReaderDirectoryEmmReadCommand,
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectoryEmmReadResult> {
+    const input = ReaderDirectoryEmmReadCommandSchema.parse(command)
+    signal?.throwIfAborted()
+    const entries = await this.scope.resolveEntries(sessionId, input.generation, input.paths, signal)
+    if (!entries) throw new ReaderDirectoryEmmEditSessionNotFound()
+    const items = await pMap(entries, async (entry) => ({
+      path: entry.path,
+      metadata: await this.metadata.read(legacyEmmBookPathKey(entry.path), signal),
+    }), { concurrency: MAX_CONCURRENCY })
+    return { generation: input.generation, items }
+  }
 
   async update(
     sessionId: string,
@@ -110,16 +149,19 @@ export class ReaderDirectoryEmmEditService {
     const succeededPaths = results.flatMap((result) => result.status === "succeeded" ? [entries[result.index]!.path] : [])
     let generation: number | null = input.generation
     let refreshRequired = false
+    let refreshedEntries: readonly ReaderDirectoryEntry[] = []
     if (succeededPaths.length) {
       try {
-        generation = await this.scope.refreshEntryMetadata(
+        const refreshed = await this.scope.refreshEntryMetadata(
           sessionId,
           input.generation,
           succeededPaths,
           REFRESH_FIELDS,
           signal,
-        ) ?? null
-        refreshRequired = generation === null
+        )
+        generation = refreshed?.generation ?? null
+        refreshedEntries = refreshed?.entries ?? []
+        refreshRequired = !refreshed || refreshed.orderChanged
       } catch (error) {
         if (signal?.aborted) throw error
         generation = null
@@ -129,6 +171,7 @@ export class ReaderDirectoryEmmEditService {
     return {
       generation,
       refreshRequired,
+      entries: refreshedEntries,
       results,
       succeeded: results.filter((result) => result.status === "succeeded").length,
       conflicts: results.filter((result) => result.status === "conflict").length,

@@ -386,9 +386,53 @@ describe("FolderContextActions", () => {
     await user.click(screen.getByRole("button", { name: "重命名", exact: true }))
     await waitFor(() => expect(onRenamed).toHaveBeenCalledWith("D:/library/new.cbz"))
   })
+
+  it("[neoview.folder.emm-edit-context] opens the lazy metadata editor for the concrete context target", async () => {
+    const readDirectoryEmm = vi.fn(async () => ({
+      generation: 3,
+      items: [{ path: "D:/library/book.cbz", metadata: { revision: 2, overrides: { rating: 4 }, inherited: ["manualTags", "translatedTitle"] as const } }],
+    }))
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({
+            resolveDirectorySelection: vi.fn(),
+            readDirectoryEmm,
+            editDirectoryEmm: vi.fn(),
+          })}
+          disabled={false}
+          sessionId="browser-1"
+          generation={3}
+          selection={{ generation: 3, allSelected: false, ranges: [], explicit: [{ path: "D:/library/book.cbz", index: 0 }] }}
+          selectedCount={1}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+        />
+        <button
+          data-context-menu="neoview-folder-entry"
+          data-folder-index="0"
+          data-folder-path="D:/library/book.cbz"
+          data-folder-name="book.cbz"
+          data-folder-kind="file"
+          data-folder-reader-supported="true"
+        >book.cbz</button>
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "book.cbz" }), { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "编辑标签与评分" }))
+    expect(await screen.findByRole("dialog")).toBeTruthy()
+    await waitFor(() => expect(readDirectoryEmm).toHaveBeenCalledWith(
+      "browser-1",
+      3,
+      ["D:/library/book.cbz"],
+      expect.any(AbortSignal),
+    ))
+  })
 })
 
-function clientWith(actions: Partial<Pick<ReaderHttpClient, "openSystemPath" | "revealSystemPath" | "saveBookmark" | "executeFileOperations" | "prepareDirectoryClipboard" | "pasteDirectoryClipboard">>): ReaderHttpClient {
+function clientWith(actions: Partial<ReaderHttpClient>): ReaderHttpClient {
   return {
     config: vi.fn(), updateSidebarLayout: vi.fn(), updateCardLayout: vi.fn(), updateBoardLayout: vi.fn(), updateViewDefaults: vi.fn(),
     updateSlideshow: vi.fn(), open: vi.fn(), listPages: vi.fn(), navigate: vi.fn(), goTo: vi.fn(), updateSessionOptions: vi.fn(), close: vi.fn(),

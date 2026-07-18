@@ -937,12 +937,12 @@
   - 计划测试：无
   - 备注：compact 与 cover-grid 已显示评分和收藏标签数，details 已接入完整 EMM + manual tag 文本；默认评分 4.2 同时参与显示/排序。cover/mosaic list/grid 的完整标签、tooltip 详情与可配置默认评分仍待完成。
 - [ ] `folder.emm.edit` 编辑 EMM 标签与评分
-  - 六维：`core=C transport=C gui=- cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：单项/批量编辑标签与评分，乐观更新、失败回滚并让搜索/排序立即一致。
   - 源码：`components/FolderContextMenu.svelte`、`components/FavoriteTagPanel.svelte`
-  - 测试：`neoview.folder.emm-edit-service`、`neoview.folder.emm-edit-conflict`、`neoview.folder.emm-edit-validation`、`neoview.folder.emm-edit-http`、`neoview.folder.emm-edit-boundary`、`neoview.folder.emm-edit-headless`、`neoview.folder.emm-edit-headless-composition`、`neoview.folder.emm-headless-disabled`、`neoview.folder.emm-edit-cli`、`neoview.folder.emm-edit-tui`、`neoview.folder.tui`
+  - 测试：`neoview.folder.emm-read-service`、`neoview.folder.emm-edit-service`、`neoview.folder.emm-edit-conflict`、`neoview.folder.emm-edit-validation`、`neoview.folder.emm-edit-http`、`neoview.folder.emm-edit-boundary`、`neoview.folder.emm-edit-headless`、`neoview.folder.emm-edit-headless-composition`、`neoview.folder.emm-headless-disabled`、`neoview.folder.emm-edit-cli`、`neoview.folder.emm-edit-tui`、`neoview.folder.tui`、`neoview.folder.emm-edit-client`、`neoview.folder.emm-edit-ui`、`neoview.folder.emm-edit-rollback-ui`、`neoview.folder.emm-edit-sort-projection`、`neoview.folder.emm-edit-context`、`neoview.folder.context-actions-e2e`
   - 计划测试：无
-  - 备注：后端通过共享 ReaderEmmMetadataService 与 ReaderDirectoryEmmEditService 提供 generation-bound 单项/最多 64 项批量 rating/manualTags/translatedTitle 编辑、逐项 CAS、p-map 有界并发和一次目录 metadata 回填重排。HTTP、惰性 Headless composition、folder-emm-edit JSON CLI 与 OpenTUI 均直接复用同一 Zod command；写入仍位于原 NeoView thumbnails.db 的 xr_reader_emm_overrides，禁用旧库时普通浏览保留而编辑明确 unavailable。FolderMain/独立 EMM Card GUI、乐观回滚和收藏标签快捷应用仍待完成。
+  - 备注：后端通过共享 ReaderEmmMetadataService 与 ReaderDirectoryEmmEditService 提供 generation-bound 单项/最多 64 项批量 rating/manualTags/translatedTitle 编辑、逐项 CAS、p-map 有界并发和一次目录 metadata 回填重排。HTTP、惰性 Headless composition、folder-emm-edit JSON CLI 与 OpenTUI 均直接复用同一 Zod command；写入仍位于原 NeoView thumbnails.db 的 xr_reader_emm_overrides，禁用旧库时普通浏览保留而编辑明确 unavailable。FolderMain 右键入口二级懒加载共享编辑器，单项/稀疏批量先读取真实 revision，提交前局部乐观投影，冲突/失败逐项回滚；普通名称排序只替换受影响行并推进 generation，不触发目录 scandir 或缩略图重载，排序位移才从现有 session 拉取投影。真实 desktop/420x360 Chromium 已验证一次 PATCH、评分即时显示、File Card 与阅读图片身份稳定。打开中的搜索结果同步与独立 Favorite Tags 快选面板仍待完成，因此 evidence 保持 partial。
 
 ### penetration（3）
 

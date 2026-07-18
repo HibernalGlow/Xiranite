@@ -252,6 +252,7 @@ const folderClipboardChunk = deferredPanelChunks.find((chunk) => chunk.modules.s
 const folderTypeFilterBarChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTypeFilterBar\.tsx$/i.test(module)))
 const folderContextActionsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderContextActions\.tsx$/i.test(module)))
 const folderRenameDialogChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderRenameDialog\.tsx$/i.test(module)))
+const folderEmmEditorChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderEmmEditor\.tsx$/i.test(module)))
 const folderSearchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderSearchPanel\.tsx$/i.test(module)))
 const folderTreeChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]FolderTreePanel\.tsx$/i.test(module)))
 const directoryWatchChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]folder[/\\]DirectoryWatch\.tsx$/i.test(module)))
@@ -289,14 +290,20 @@ if (folderTypeFilterBarChunk.bytes > 8 * 1024) {
 if (!folderContextActionsChunk || folderContextActionsChunk === folderMainChunk || folderContextActionsChunk === readerSidebarChunk || folderContextActionsChunk === neoViewChunk || folderContextActionsChunk === initialChunk) {
   throw new Error("NeoView Folder context actions did not produce a second-level deferred production chunk.")
 }
-if (folderContextActionsChunk.bytes > 8 * 1024) {
-  throw new Error(`NeoView Folder context actions chunk ${folderContextActionsChunk.fileName} is ${folderContextActionsChunk.bytes} bytes, above 8 KiB.`)
+if (folderContextActionsChunk.bytes > 9 * 1024) {
+  throw new Error(`NeoView Folder context actions chunk ${folderContextActionsChunk.fileName} is ${folderContextActionsChunk.bytes} bytes, above 9 KiB.`)
 }
 if (!folderRenameDialogChunk || folderRenameDialogChunk === folderContextActionsChunk || folderRenameDialogChunk === folderMainChunk || folderRenameDialogChunk === readerSidebarChunk || folderRenameDialogChunk === neoViewChunk || folderRenameDialogChunk === initialChunk) {
   throw new Error("NeoView Folder rename dialog did not produce a third-level deferred production chunk.")
 }
 if (folderRenameDialogChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView Folder rename dialog chunk ${folderRenameDialogChunk.fileName} is ${folderRenameDialogChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!folderEmmEditorChunk || folderEmmEditorChunk === folderContextActionsChunk || folderEmmEditorChunk === folderMainChunk || folderEmmEditorChunk === readerSidebarChunk || folderEmmEditorChunk === neoViewChunk || folderEmmEditorChunk === initialChunk) {
+  throw new Error("NeoView Folder EMM editor did not produce a third-level deferred production chunk.")
+}
+if (folderEmmEditorChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView Folder EMM editor chunk ${folderEmmEditorChunk.fileName} is ${folderEmmEditorChunk.bytes} bytes, above 16 KiB.`)
 }
 if (!folderSearchChunk || folderSearchChunk === folderMainChunk) {
   throw new Error("NeoView FolderSearchPanel did not produce a second-level deferred production chunk.")
@@ -395,6 +402,7 @@ console.log(JSON.stringify({
   folderTreeChunk: { fileName: folderTreeChunk.fileName, bytes: folderTreeChunk.bytes },
   directoryWatchChunk: { fileName: directoryWatchChunk.fileName, bytes: directoryWatchChunk.bytes },
   folderContextActionsChunk: { fileName: folderContextActionsChunk.fileName, bytes: folderContextActionsChunk.bytes },
+  folderEmmEditorChunk: { fileName: folderEmmEditorChunk.fileName, bytes: folderEmmEditorChunk.bytes },
   settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },
   sidebarManagementSettingsCardChunk: { fileName: sidebarManagementSettingsCardChunk.fileName, bytes: sidebarManagementSettingsCardChunk.bytes },
   inputBindingsSettingsCardChunk: { fileName: inputBindingsSettingsCardChunk.fileName, bytes: inputBindingsSettingsCardChunk.bytes },

@@ -867,18 +867,23 @@ export class ReaderFileTreeService implements AsyncDisposable {
     paths: readonly string[],
     fields: ReadonlySet<ReaderDirectoryMetadataField>,
     signal?: AbortSignal,
-  ): Promise<number | undefined> {
+  ): Promise<{
+    generation: number
+    entries: readonly ReaderDirectoryEntry[]
+    orderChanged: boolean
+  } | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
     await this.#ensureListing(session, signal)
     assertCurrentGeneration(session, generation, "metadata edit")
-    if (!this.metadataProvider) return session.generation
+    const selected = new Set(paths.map(normalizePathKey))
+    const beforeEntries = filteredEntries(session, this.options.classifyEntry)
+    const sourceEntries = beforeEntries.filter((entry) => selected.has(normalizePathKey(entry.path)))
+    if (sourceEntries.length !== selected.size) throw new RangeError("Reader directory metadata edit path is not in the current listing.")
+    if (!this.metadataProvider) return { generation: session.generation, entries: sourceEntries, orderChanged: false }
     const requestedFields = new Set([...fields].filter((field) => this.metadataProvider!.supportedFields.has(field)))
     for (const field of readerDirectoryMetadataFields(session.sort.field)) requestedFields.add(field)
-    if (!requestedFields.size) return session.generation
-    const selected = new Set(paths.map(normalizePathKey))
-    const sourceEntries = filteredEntries(session, this.options.classifyEntry).filter((entry) => selected.has(normalizePathKey(entry.path)))
-    if (sourceEntries.length !== selected.size) throw new RangeError("Reader directory metadata edit path is not in the current listing.")
+    if (!requestedFields.size) return { generation: session.generation, entries: sourceEntries, orderChanged: false }
     const hydrated = await this.metadataProvider.hydrate(sourceEntries, requestedFields, signal)
     signal?.throwIfAborted()
     if (this.#sessions.get(sessionId) !== session) return undefined
@@ -890,7 +895,15 @@ export class ReaderFileTreeService implements AsyncDisposable {
       entries: session.listing.entries.map((entry) => replacements.get(normalizePathKey(entry.path)) ?? entry),
     }, session.sort, randomSeedForPath(session, session.listing.path))
     session.generation += 1
-    return session.generation
+    const afterEntries = filteredEntries(session, this.options.classifyEntry)
+    const orderChanged = beforeEntries.length !== afterEntries.length
+      || beforeEntries.some((entry, index) => normalizePathKey(entry.path) !== normalizePathKey(afterEntries[index]!.path))
+    const refreshedByPath = new Map(afterEntries.map((entry) => [normalizePathKey(entry.path), entry]))
+    return {
+      generation: session.generation,
+      entries: paths.map((path) => refreshedByPath.get(normalizePathKey(path))!),
+      orderChanged,
+    }
   }
 
   async close(sessionId: string, remember = false): Promise<boolean> {

@@ -8,6 +8,26 @@ import {
 import { ReaderEmmMetadataService } from "./ReaderEmmMetadataService.js"
 
 describe("ReaderDirectoryEmmEditService", () => {
+  it("[neoview.folder.emm-read-service] reads bounded revisions only for current listing members", async () => {
+    const store = memoryStore()
+    await store.saveEmmOverride("D:\\Books\\A.cbz", { rating: 4 }, 0, 1)
+    const scope = memoryScope(["D:/Books/A.cbz", "D:/Books/B.cbz"])
+    const service = new ReaderDirectoryEmmEditService(new ReaderEmmMetadataService(store), scope)
+
+    await expect(service.read("browser-1", {
+      generation: 7,
+      paths: ["D:/Books/A.cbz", "D:/Books/B.cbz"],
+    })).resolves.toMatchObject({
+      generation: 7,
+      items: [
+        { path: "D:/Books/A.cbz", metadata: { revision: 1, overrides: { rating: 4 } } },
+        { path: "D:/Books/B.cbz", metadata: { revision: 0, overrides: {} } },
+      ],
+    })
+    await expect(service.read("browser-1", { generation: 7, paths: ["D:/Books/A.cbz", "d:\\books\\a.cbz"] }))
+      .rejects.toThrow("duplicate path")
+  })
+
   it("[neoview.folder.emm-edit-service] applies a bounded batch and refreshes the browser generation once", async () => {
     const store = memoryStore()
     const scope = memoryScope(["D:/Books/A.cbz", "D:/Books/B.cbz"])
@@ -21,7 +41,14 @@ describe("ReaderDirectoryEmmEditService", () => {
       concurrency: 2,
     })
 
-    expect(result).toMatchObject({ generation: 8, refreshRequired: false, succeeded: 2, conflicts: 0, failed: 0 })
+    expect(result).toMatchObject({
+      generation: 8,
+      refreshRequired: false,
+      entries: [{ path: "D:/Books/A.cbz" }, { path: "D:/Books/B.cbz" }],
+      succeeded: 2,
+      conflicts: 0,
+      failed: 0,
+    })
     expect(result.results).toMatchObject([
       { index: 0, status: "succeeded", metadata: { revision: 1, overrides: { rating: 5 } } },
       { index: 1, status: "succeeded", metadata: { revision: 1, overrides: { manualTags: [{ namespace: "artist", tag: "Alice" }] } } },
@@ -48,6 +75,7 @@ describe("ReaderDirectoryEmmEditService", () => {
     })).resolves.toEqual({
       generation: 7,
       refreshRequired: false,
+      entries: [],
       results: [{ index: 0, status: "conflict", actualRevision: 1 }],
       succeeded: 0,
       conflicts: 1,
@@ -101,7 +129,16 @@ function memoryScope(paths: readonly string[]): ReaderDirectoryEmmEditScope & {
         return { name: actual.split(/[\\/]/u).at(-1)!, path: actual, kind: "file" as const, readerSupported: true }
       })
     }),
-    refreshEntryMetadata: vi.fn(async () => 8),
+    refreshEntryMetadata: vi.fn(async (_sessionId, _generation, requested) => ({
+      generation: 8,
+      entries: requested.map((path: string) => ({
+        name: path.split(/[\\/]/u).at(-1)!,
+        path,
+        kind: "file" as const,
+        readerSupported: true,
+      })),
+      orderChanged: false,
+    })),
   }
 }
 

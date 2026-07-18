@@ -33,6 +33,17 @@ describe("Reader directory EMM edit HTTP", () => {
       const opened = await json(controller, "/reader/browser/sessions", "POST", { path: directory }, 201) as BrowserPage
       const first = opened.entries[0]!
       const endpoint = `/reader/browser/s/${encodeURIComponent(opened.sessionId)}/emm-metadata`
+      const initial = await json(controller, `${endpoint}/read`, "POST", {
+        generation: opened.generation,
+        paths: opened.entries.map((entry) => entry.path),
+      })
+      expect(initial).toMatchObject({
+        generation: opened.generation,
+        items: [
+          { path: opened.entries[0]!.path, metadata: { revision: 0, overrides: {} } },
+          { path: opened.entries[1]!.path, metadata: { revision: 0, overrides: {} } },
+        ],
+      })
       const updated = await json(controller, endpoint, "PATCH", {
         generation: opened.generation,
         updates: [{
@@ -77,6 +88,11 @@ describe("Reader directory EMM edit HTTP", () => {
         conflicts: 1,
         results: [{ index: 0, status: "conflict", actualRevision: 1 }],
       })
+      const afterConflict = await json(controller, `${endpoint}/read`, "POST", {
+        generation: refreshed.generation,
+        paths: [first.path],
+      })
+      expect(afterConflict).toMatchObject({ items: [{ metadata: { revision: 1, overrides: { rating: 5 } } }] })
     } finally {
       await controller[Symbol.asyncDispose]()
     }

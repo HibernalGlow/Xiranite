@@ -1,12 +1,15 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Scissors, Trash2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Scissors, Tags, Trash2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
 import { publishReaderLibraryMutation } from "../../../library/reader-library-mutations"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectorySelectionDescriptorDto } from "../../../../adapters/reader-http-client"
 import { useFolderClipboard } from "./FolderClipboard"
+import type { FolderCatalogUpdater } from "./FolderEmmEditor"
 
 const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
+const FolderEmmEditor = lazy(() => import("./FolderEmmEditor"))
 
 export interface FolderContextEntry {
   index: number
@@ -23,11 +26,15 @@ export default function FolderContextActions({
   sessionId,
   generation,
   currentPath,
+  selection,
+  selectedCount = 0,
   onActivate,
   onOpenInNewTab,
   onOpenAsBook,
   onRenamed,
   onTrashed,
+  onCatalogUpdate = () => undefined,
+  onRefreshEmm = () => undefined,
 }: {
   client: ReaderHttpClient
   disabled: boolean
@@ -35,11 +42,15 @@ export default function FolderContextActions({
   sessionId?: string
   generation?: number
   currentPath?: string
+  selection?: ReaderDirectorySelectionDescriptorDto
+  selectedCount?: number
   onActivate(entry: FolderContextEntry): void | Promise<void>
   onOpenInNewTab(path: string): void
   onOpenAsBook?: (path: string) => void | Promise<void>
   onRenamed?(destinationPath: string): void | Promise<void>
   onTrashed?(entry: FolderContextEntry): void | Promise<void>
+  onCatalogUpdate?(update: FolderCatalogUpdater): void
+  onRefreshEmm?(focusPath: string): Promise<void> | void
 }) {
   const clipboard = useFolderClipboard()
   const contextMenu = useContextMenu()
@@ -47,6 +58,7 @@ export default function FolderContextActions({
   const [pending, setPending] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
   const [renameEntry, setRenameEntry] = useState<FolderContextEntry>()
+  const [emmEntry, setEmmEntry] = useState<FolderContextEntry>()
 
   useEffect(() => () => operationRef.current?.abort(), [])
 
@@ -54,6 +66,10 @@ export default function FolderContextActions({
     if (pending) return
     if (action === "rename") {
       setRenameEntry(entry)
+      return
+    }
+    if (action === "edit-metadata") {
+      setEmmEntry(entry)
       return
     }
     if (action === "trash") {
@@ -196,6 +212,7 @@ export default function FolderContextActions({
       canBookmark: Boolean(client.findBookmarkByPath && client.saveBookmark && client.removeBookmark),
       canRename: Boolean(client.executeFileOperations),
       canTrash: Boolean(client.executeFileOperations),
+      canEditMetadata: Boolean(sessionId && generation !== undefined && selection && client.resolveDirectorySelection && client.readDirectoryEmm && client.editDirectoryEmm),
       onAction: run,
     }) : null
   })
@@ -216,11 +233,26 @@ export default function FolderContextActions({
           />
         </Suspense>
       ) : null}
+      {emmEntry && sessionId && generation !== undefined && selection ? (
+        <Suspense fallback={null}>
+          <FolderEmmEditor
+            client={client}
+            sessionId={sessionId}
+            generation={generation}
+            selection={selection}
+            selectedCount={Math.max(1, selectedCount)}
+            fallbackEntry={emmEntry}
+            onCatalogUpdate={onCatalogUpdate}
+            onRefresh={onRefreshEmm}
+            onClose={() => setEmmEntry(undefined)}
+          />
+        </Suspense>
+      ) : null}
     </>
   )
 }
 
-type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "rename" | "trash"
+type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash"
 
 export function buildFolderContextMenuItems(
   entry: FolderContextEntry,
@@ -236,6 +268,7 @@ export function buildFolderContextMenuItems(
     canBookmark: boolean
     canRename: boolean
     canTrash: boolean
+    canEditMetadata?: boolean
     onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
   },
 ): ContextMenuItemDef[] {
@@ -264,10 +297,11 @@ export function buildFolderContextMenuItems(
     { id: "neoview-folder-cut", label: "剪切", icon: <Scissors />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("cut", entry) },
     { id: "neoview-folder-paste", label: entry.kind === "directory" ? "粘贴到此文件夹" : "粘贴到当前文件夹", icon: <ClipboardPaste />, disabled: unavailable || !options.canPaste, onSelect: () => options.onAction("paste", entry) },
     { type: "separator" },
+    { id: "neoview-folder-toggle-bookmark", label: "添加/移除书签", icon: <BookmarkPlus />, disabled: unavailable || !options.canBookmark, onSelect: () => options.onAction("toggle-bookmark", entry) },
+    { id: "neoview-folder-edit-metadata", label: "编辑标签与评分", icon: <Tags />, disabled: unavailable || !options.canEditMetadata, onSelect: () => options.onAction("edit-metadata", entry) },
+    { type: "separator" },
     { id: "neoview-folder-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", entry) },
     { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },
-    { id: "neoview-folder-toggle-bookmark", label: "添加/移除书签", icon: <BookmarkPlus />, disabled: unavailable || !options.canBookmark, onSelect: () => options.onAction("toggle-bookmark", entry) },
-    { type: "separator" },
     { id: "neoview-folder-rename", label: "重命名", icon: <Pencil />, disabled: unavailable || !options.canRename, onSelect: () => options.onAction("rename", entry) },
     buildTrashContextMenuItem(entry, {
       disabled: unavailable || !options.canTrash,

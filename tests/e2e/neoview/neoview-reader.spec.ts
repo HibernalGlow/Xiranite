@@ -1636,8 +1636,7 @@ test("[neoview.folder.context-actions-e2e] keeps Explorer item context actions c
     await folderCard.getByRole("radio", { name: "详细信息" }).click()
     const detailsRow = folderCard.locator('tr[data-context-menu="neoview-folder-entry"]').filter({ hasText: "nested" })
     await expect(detailsRow).toBeVisible()
-    await detailsRow.click({ modifiers: ["Control"] })
-    await detailsRow.press("Shift+F10")
+    await detailsRow.click({ button: "right" })
     await expect(page.getByRole("menuitem", { name: "作为书籍打开" })).toBeVisible()
     await page.keyboard.press("Escape")
 
