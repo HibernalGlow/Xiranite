@@ -363,13 +363,14 @@
       "priority": "deferred",
       "featureId": "metadata-dimensions-properties",
       "disposition": "migrate",
+      "currentCardId": "switch-toast",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
       "sourceComponent": "src/lib/cards/info/InfoOverlayCard.svelte",
       "sourceDisposition": "component"
