@@ -12,6 +12,7 @@ const CONTROL_PATH = /^\/reader\/s\/([^/]+)\/pages\/([^/]+)\/upscale-artifact$/
 const ASSET_PATH = /^\/reader\/s\/([^/]+)\/upscale-artifact\/([A-Za-z0-9_-]{43})$/
 const PRELOAD_PATH = /^\/reader\/s\/([^/]+)\/upscale-preload$/
 const PRELOAD_ACTION_PATH = /^\/reader\/s\/([^/]+)\/upscale-preload\/(start|pause|retry)$/
+const CACHE_PATH = /^\/reader\/s\/([^/]+)\/upscale-artifact-cache$/
 const ARTIFACT_KEY_PREFIX = "neoview:super-resolution:v1:"
 export const SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION = "opencomic-system-artifact-v1"
 
@@ -47,6 +48,8 @@ export class SuperResolutionArtifactRoute {
     if (preloadAction) return this.#preloadAction(request, url, preloadAction[1]!, preloadAction[2]! as "start" | "pause" | "retry")
     const preload = PRELOAD_PATH.exec(url.pathname)
     if (preload) return this.#preloadSnapshot(request, url, preload[1]!)
+    const cache = CACHE_PATH.exec(url.pathname)
+    if (cache) return this.#artifactCache(request, url, cache[1]!)
     return undefined
   }
 
@@ -182,6 +185,29 @@ export class SuperResolutionArtifactRoute {
     if (!sessionId || !this.reader.getSession(sessionId)) return jsonResponse({ error: "Reader session not found" }, 404)
     if (!this.preload) return jsonResponse({ error: "Reader super-resolution preload is unavailable" }, 503)
     return jsonResponse({ snapshots: await this.preload.snapshots(preloadContextId(sessionId), request.signal) })
+  }
+
+  async #artifactCache(request: Request, url: URL, encodedSessionId: string): Promise<Response> {
+    if (this.#closed) return jsonResponse({ error: "Reader super-resolution route is closed" }, 410)
+    if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
+    const sessionId = safeDecode(encodedSessionId)
+    const session = sessionId ? this.reader.getSession(sessionId) : undefined
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (request.method === "GET") {
+      if (url.searchParams.size) return jsonResponse({ error: "Artifact cache stats do not accept query parameters" }, 400)
+      return jsonResponse(await this.artifacts.snapshot())
+    }
+    if (request.method !== "POST") return methodNotAllowed("GET, POST")
+    const kind = url.searchParams.get("kind")
+    const confirmed = url.searchParams.get("confirmed")
+    if ((kind !== "age" && kind !== "book" && kind !== "all") || confirmed !== "true"
+      || url.searchParams.size !== 2
+      || [...url.searchParams.keys()].some((key) => key !== "kind" && key !== "confirmed")) {
+      return jsonResponse({ error: "Artifact cache cleanup requires kind=age|book|all and confirmed=true" }, 400)
+    }
+    if (kind === "age") return jsonResponse(await this.artifacts.cleanup("age"))
+    if (kind === "book") return jsonResponse(await this.artifacts.clearBook(session.book.id))
+    return jsonResponse(await this.artifacts.clear())
   }
 
   async #preloadAction(

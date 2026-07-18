@@ -118,6 +118,44 @@ describe("NeoView CLI remote Reader", () => {
     )).rejects.toThrow("unavailable for this transport")
     expect(local[Symbol.asyncDispose]).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.super-resolution.cache-controls-cli] maintains only the connected backend cache with explicit confirmation", async () => {
+    const output: unknown[] = []
+    const controller = fakeRemoteReader()
+    const dependencies = {
+      createController: vi.fn(async () => { throw new Error("local must stay lazy") }),
+      createRemoteController: vi.fn(async () => controller),
+    }
+    await runProgram(
+      ["upscale-cache-stats", "book.cbz", "--connect", "http://127.0.0.1:41000", "--json"],
+      host(output, { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      dependencies,
+    )
+    expect(JSON.parse(output.join(""))).toMatchObject({ entries: 3, bytes: 300, maxBytes: 1024 })
+    expect(controller.getUpscaleArtifactCache).toHaveBeenCalledOnce()
+    await expect(runProgram(
+      ["upscale-cache-cleanup", "book.cbz", "--connect", "http://127.0.0.1:41000", "--kind", "book"],
+      host([], { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      dependencies,
+    )).rejects.toThrow("requires --yes")
+    await runProgram(
+      ["upscale-cache-cleanup", "book.cbz", "--connect", "http://127.0.0.1:41000", "--kind", "book", "--yes"],
+      host([], { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      dependencies,
+    )
+    expect(controller.cleanupUpscaleArtifactCache).toHaveBeenCalledWith("book")
+    await expect(runProgram(
+      ["upscale-cache-stats", "book.cbz"], host([]), dependencies,
+    )).rejects.toThrow("requires --connect")
+    await expect(runProgram(
+      ["upscale-cache-cleanup", "book.cbz", "--connect", "http://127.0.0.1:41000", "--kind", "invalid", "--yes"],
+      host([], { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      dependencies,
+    )).rejects.toThrow("--kind must be age, book or all")
+    expect(dependencies.createController).not.toHaveBeenCalled()
+    expect(dependencies.createRemoteController).toHaveBeenCalledTimes(2)
+    expect(controller[Symbol.asyncDispose]).toHaveBeenCalledTimes(2)
+  })
 })
 
 function fakeRemoteReader(): CliReaderController {
@@ -142,7 +180,18 @@ function fakeRemoteReader(): CliReaderController {
     startUpscalePreload: vi.fn(async (mode) => [preloadSnapshot(mode)]),
     pauseUpscalePreload: vi.fn(async () => [preloadSnapshot("nearby")]),
     retryUpscalePreload: vi.fn(async (mode) => [preloadSnapshot(mode)]),
+    getUpscaleArtifactCache: vi.fn(async () => artifactCacheSnapshot()),
+    cleanupUpscaleArtifactCache: vi.fn(async (kind) => ({
+      ...artifactCacheSnapshot(), reason: kind === "book" ? "book" as const : "explicit" as const, removedEntries: 2, removedBytes: 20,
+    })),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function artifactCacheSnapshot() {
+  return {
+    entries: 3, bytes: 300, maxBytes: 1_024, maxEntryBytes: 512, activeLeases: 0,
+    hits: 2, misses: 1, writes: 3, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
   }
 }
 

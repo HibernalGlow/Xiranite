@@ -253,10 +253,10 @@
       ],
       "targetContract": "Replace the legacy unbounded in-memory Blob map and PyO3 cache with one streaming, byte-budgeted artifact store supporting fingerprint invalidation, current-book/age/all cleanup, stats and opaque asset leases without reading high-resolution outputs wholly into JS memory.",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "partial" },
-      "testIds": ["neoview.super-resolution.artifact-stream-lease", "neoview.super-resolution.artifact-maintenance", "neoview.super-resolution.artifact-dedup-accounting", "neoview.super-resolution.artifact-streaming-rss", "neoview.super-resolution.artifact-demand-cancel", "neoview.super-resolution.artifact-corrupt", "neoview.super-resolution.preload-http"],
-      "plannedTestIds": ["neoview.super-resolution.cache-controls"],
-      "notes": "A dedicated cacache streaming store provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. Authenticated HTTP streams those leases with ETag/HEAD/cancel semantics; user-facing controls remain pending."
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "pending", "cli": "complete", "tui": "pending", "evidence": "partial" },
+      "testIds": ["neoview.super-resolution.artifact-stream-lease", "neoview.super-resolution.artifact-maintenance", "neoview.super-resolution.artifact-dedup-accounting", "neoview.super-resolution.artifact-streaming-rss", "neoview.super-resolution.artifact-demand-cancel", "neoview.super-resolution.artifact-corrupt", "neoview.super-resolution.preload-http", "neoview.super-resolution.cache-controls-http", "neoview.super-resolution.cache-controls-remote", "neoview.super-resolution.cache-controls-cli"],
+      "plannedTestIds": ["neoview.super-resolution.cache-controls-gui", "neoview.super-resolution.cache-controls-tui"],
+      "notes": "A dedicated cacache streaming store provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. The authenticated session route now exposes strict stats and confirmed age/current-book/all maintenance; current-book is resolved to the opaque book ID only inside the backend. Remote Headless validates the complete wire DTO with Zod, while --connect CLI reuses the running store and refuses local/offline cache ownership. GUI and OpenTUI controls remain pending."
     },
     {
       "id": "progressive-upscale.lifecycle",

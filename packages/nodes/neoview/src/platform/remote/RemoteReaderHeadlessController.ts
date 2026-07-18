@@ -92,6 +92,32 @@ const preloadEnvelopeSchema = z.object({ snapshots: z.array(preloadSnapshotSchem
 
 export type RemoteSuperResolutionPreloadSnapshot = z.infer<typeof preloadSnapshotSchema>
 
+const artifactCacheSnapshotSchema = z.object({
+  entries: z.number().int().nonnegative(),
+  bytes: z.number().int().nonnegative(),
+  maxBytes: z.number().int().nonnegative(),
+  maxEntryBytes: z.number().int().nonnegative(),
+  activeLeases: z.number().int().nonnegative(),
+  hits: z.number().int().nonnegative(),
+  misses: z.number().int().nonnegative(),
+  writes: z.number().int().nonnegative(),
+  rejectedWrites: z.number().int().nonnegative(),
+  evictions: z.number().int().nonnegative(),
+  integrityFailures: z.number().int().nonnegative(),
+}).strict()
+
+const artifactCacheCleanupSchema = artifactCacheSnapshotSchema.extend({
+  reason: z.enum(["age", "budget", "book", "explicit", "low-disk"]),
+  removedEntries: z.number().int().nonnegative(),
+  removedBytes: z.number().int().nonnegative(),
+}).strict()
+
+const artifactCacheCleanupKindSchema = z.enum(["age", "book", "all"])
+
+export type RemoteSuperResolutionArtifactCacheSnapshot = z.infer<typeof artifactCacheSnapshotSchema>
+export type RemoteSuperResolutionArtifactCacheCleanupResult = z.infer<typeof artifactCacheCleanupSchema>
+export type RemoteSuperResolutionArtifactCacheCleanupKind = z.infer<typeof artifactCacheCleanupKindSchema>
+
 interface ReaderFrameDto {
   frame: ReaderSessionDto["frame"]
   visiblePages: ReaderPageDto[]
@@ -358,6 +384,26 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     signal?: AbortSignal,
   ): Promise<readonly RemoteSuperResolutionPreloadSnapshot[]> {
     return await this.#upscalePreloadRequest("upscale-preload/retry", mode, signal, "POST")
+  }
+
+  async getUpscaleArtifactCache(signal?: AbortSignal): Promise<RemoteSuperResolutionArtifactCacheSnapshot> {
+    const session = this.#requireSession()
+    return artifactCacheSnapshotSchema.parse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/upscale-artifact-cache`,
+      { signal },
+    ))
+  }
+
+  async cleanupUpscaleArtifactCache(
+    kind: RemoteSuperResolutionArtifactCacheCleanupKind,
+    signal?: AbortSignal,
+  ): Promise<RemoteSuperResolutionArtifactCacheCleanupResult> {
+    const session = this.#requireSession()
+    const query = new URLSearchParams({ kind: artifactCacheCleanupKindSchema.parse(kind), confirmed: "true" })
+    return artifactCacheCleanupSchema.parse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/upscale-artifact-cache?${query}`,
+      { method: "POST", signal },
+    ))
   }
 
   async closeBook(): Promise<void> {
