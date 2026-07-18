@@ -60,6 +60,14 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
     }
   }, [client, disabled, panelActive])
 
+  useEffect(() => {
+    if (!disabled || !operation) return
+    generationRef.current += 1
+    controllerRef.current?.abort()
+    controllerRef.current = undefined
+    setOperation(undefined)
+  }, [disabled, operation])
+
   if (!panelActive) return null
 
   function cancelOperation() {
@@ -135,14 +143,13 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
             variant="ghost"
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
-            disabled={disabled}
             data-testid="thumbnail-maintenance-cancel"
-            aria-label="鍙栨秷缁存姢鎿嶄綔"
-            title="鍙栨秷缁存姢鎿嶄綔"
+            aria-label="Cancel maintenance operation"
+            title="Cancel maintenance operation"
             onClick={cancelOperation}
           >
             <X className="size-3.5" aria-hidden="true" />
-            <span>鍙栨秷</span>
+            <span>Cancel</span>
           </Button>
         ) : null}
         <Button
@@ -236,6 +243,9 @@ function MaintenanceStatistics({ snapshot }: { snapshot: ReaderThumbnailMaintena
         <span>文件 {snapshot.fileRows.toLocaleString()}</span>
         <span>空 Blob {snapshot.emptyBlobs.toLocaleString()}</span>
         <span>Blob {formatBytes(snapshot.blobBytes)}</span>
+        <span>Database {formatBytes(snapshot.databaseBytes)}</span>
+        <span>WAL {formatBytes(snapshot.walBytes)}</span>
+        <span>SHM {formatBytes(snapshot.shmBytes)}</span>
         <span>待写入 {snapshot.writer.pendingWrites.toLocaleString()}</span>
         <span>Writer {snapshot.writer.flushing ? "写入中" : "空闲"}</span>
         <span>忙重试 {snapshot.writer.busyRetries.toLocaleString()}</span>
