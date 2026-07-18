@@ -62,7 +62,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.bookmark.thumbnail-e2e] [neoview.bookmark.thumbnail-lease-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
+test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview.history.cleanup-e2e] [neoview.bookmark.thumbnail-e2e] [neoview.bookmark.thumbnail-lease-e2e] [neoview.page-list.thumbnail-e2e] [neoview.image-information.image-e2e] [neoview.preload-status.e2e] reuses bounded Card surfaces", async ({ page }, testInfo) => {
   let pageMediaInformationRequests = 0
   let diagnosticsRequests = 0
   const pageCatalogRequests: string[] = []
@@ -113,6 +113,22 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   expect(await historyCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
   expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
   await activateControl(historyCard.getByRole("button", { name: "内容" }))
+
+  await activateControl(historyCard.getByRole("button", { name: "高级清理历史记录" }))
+  const cleanupDialog = page.getByRole("dialog", { name: "高级清理历史记录" })
+  await expect(cleanupDialog).toBeVisible()
+  const invalidCleanupRow = cleanupDialog.locator("div.rounded").filter({ hasText: "清理失效路径" }).first()
+  await invalidCleanupRow.getByRole("button", { name: "执行" }).click()
+  const invalidCleanupResponse = page.waitForResponse((response) => (
+    response.request().method() === "POST" && response.url().endsWith("/reader/library/cleanup-invalid")
+  ))
+  await page.getByRole("button", { name: "确认清理" }).click()
+  expect((await invalidCleanupResponse).status()).toBe(200)
+  await expect(cleanupDialog).toBeHidden()
+  await expect(historyCard.getByRole("status")).toContainText("已扫描 1 条，删除 0 条失效记录")
+  expect(await readerImage.getAttribute("data-library-page-card-image")).toBe("stable")
+  await historyCard.screenshot({ path: testInfo.outputPath(`neoview-history-cleanup-${testInfo.project.name}.png`) })
+
   const historyRowButton = historyRow.locator("[data-history-row-button]")
   await historyRowButton.focus()
   await historyRowButton.press("Control+a")

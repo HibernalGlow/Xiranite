@@ -195,6 +195,27 @@ export interface ReaderRecentBatchRemoveResultDto {
   missingIds: readonly string[]
 }
 
+export type ReaderRecentCleanupRequestDto =
+  | { kind: "oldest"; limit: number }
+  | { kind: "before"; before: number; limit?: number }
+  | { kind: "folder"; path: string }
+  | { kind: "all"; confirmed: true }
+
+export interface ReaderRecentCleanupResultDto {
+  deleted: number
+  selectedIds?: readonly string[]
+  missingIds?: readonly string[]
+}
+
+export interface ReaderInvalidLibraryCleanupResultDto {
+  kind: "recents" | "bookmarks" | "both"
+  scanned: number
+  missing: number
+  unknown: number
+  deleted: number
+  truncated: boolean
+}
+
 export interface ReaderBookmarkDto {
   id: string
   source: ViewSource
@@ -686,6 +707,8 @@ export interface ReaderHttpClient {
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
+  cleanupRecents?(request: ReaderRecentCleanupRequestDto, signal?: AbortSignal): Promise<ReaderRecentCleanupResultDto>
+  cleanupInvalidLibrary?(kind: "recents" | "bookmarks" | "both", signal?: AbortSignal): Promise<ReaderInvalidLibraryCleanupResultDto>
   listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
   findBookmarkByPath?(path: string, signal?: AbortSignal): Promise<ReaderBookmarkDto | undefined>
   saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
@@ -1009,6 +1032,20 @@ export function createReaderHttpClient(
       method: "DELETE",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ids }),
+      signal,
+    }),
+    cleanupRecents: (cleanup, signal) => request<ReaderRecentCleanupResultDto>("/reader/library/recents/cleanup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(cleanup.kind === "before"
+        ? { before: cleanup.before, ...(cleanup.limit === undefined ? {} : { limit: cleanup.limit }) }
+        : cleanup),
+      signal,
+    }),
+    cleanupInvalidLibrary: (kind, signal) => request<ReaderInvalidLibraryCleanupResultDto>("/reader/library/cleanup-invalid", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind }),
       signal,
     }),
     listBookmarks: (offset, limit, listId, signal) => {

@@ -1,5 +1,5 @@
-import { BookOpen, CheckSquare, GalleryHorizontalEnd, Grid2X2, List, Rows3, Square, SquareX, Trash2, X } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { BookOpen, CheckSquare, GalleryHorizontalEnd, Grid2X2, List, Rows3, SlidersHorizontal, Square, SquareX, Trash2, X } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,15 +17,18 @@ interface PendingDelete {
 }
 
 type HistoryViewMode = "compact" | "content" | "banner" | "thumbnail"
+const LazyHistoryCleanupDialog = lazy(() => import("./history/HistoryCleanupDialog"))
 
-export default function HistoryListCard({ client, disabled, onOpen, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
+export default function HistoryListCard({ client, disabled, onOpen, pickDirectory, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string>()
+  const [cleanupMessage, setCleanupMessage] = useState<string>()
   const [switchingView, setSwitchingView] = useState(false)
   const [loadedRecents, setLoadedRecents] = useState<readonly ReaderRecentDto[]>([])
   const [visibleRecents, setVisibleRecents] = useState<readonly ReaderRecentDto[]>([])
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>()
+  const [cleanupOpen, setCleanupOpen] = useState(false)
   const [viewMode, setViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
   const [confirmedViewMode, setConfirmedViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
   const [focusedIndex, setFocusedIndex] = useState<number>()
@@ -193,6 +196,18 @@ export default function HistoryListCard({ client, disabled, onOpen, historyListP
         <HistoryViewButton label="内容" mode="content" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><Rows3 /></HistoryViewButton>
         <HistoryViewButton label="横幅" mode="banner" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><GalleryHorizontalEnd /></HistoryViewButton>
         <HistoryViewButton label="缩略图" mode="thumbnail" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><Grid2X2 /></HistoryViewButton>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className="ml-auto"
+          aria-label="高级清理历史记录"
+          title="高级清理"
+          disabled={disabled || !client.cleanupRecents}
+          onClick={() => { setCleanupMessage(undefined); setCleanupOpen(true) }}
+        >
+          <SlidersHorizontal />
+        </Button>
       </div>
       {selectedIds.size ? (
         <div className="flex min-w-0 items-center gap-1 rounded border bg-muted/30 px-2 py-1" aria-label="历史记录选择操作">
@@ -225,6 +240,7 @@ export default function HistoryListCard({ client, disabled, onOpen, historyListP
         </div>
       ) : null}
       {actionError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{actionError}</div> : null}
+      {cleanupMessage ? <div role="status" className="rounded bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700">{cleanupMessage}</div> : null}
       <ReaderLibraryList
         queryKey="history"
         revision={revision}
@@ -272,6 +288,22 @@ export default function HistoryListCard({ client, disabled, onOpen, historyListP
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {cleanupOpen ? (
+        <Suspense fallback={<div className="h-24 animate-pulse rounded bg-muted" aria-label="正在加载高级清理" />}>
+          <LazyHistoryCleanupDialog
+            open={cleanupOpen}
+            client={client}
+            pickDirectory={pickDirectory}
+            onOpenChange={setCleanupOpen}
+            onCompleted={(result) => {
+              clearSelection()
+              setCleanupMessage(result.message)
+              setRevision((value) => value + 1)
+            }}
+          />
+        </Suspense>
+      ) : null}
     </div>
   )
 }
