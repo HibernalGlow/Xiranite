@@ -64,6 +64,11 @@ export function SidebarManagementSettingsCard({
     }
   }
 
+  function updateDraft(updater: (current: PanelDraft[]) => PanelDraft[]) {
+    setError(undefined)
+    setDraft(updater)
+  }
+
   return (
     <section className="grid gap-4" data-neoview-settings-card="sidebar-management">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
@@ -72,14 +77,14 @@ export function SidebarManagementSettingsCard({
           <p className="mt-1 text-xs text-muted-foreground">管理左右边栏的面板位置、顺序和可见性。</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => setDraft(resetSidebarPanelDraft(draft))}><RotateCcw />重置</Button>
+          <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => updateDraft(resetSidebarPanelDraft)}><RotateCcw />重置</Button>
           <Button type="button" size="sm" disabled={saving} onClick={() => void save()}><Save />保存边栏布局</Button>
         </div>
       </header>
 
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input aria-label="搜索边栏面板" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索面板..." className="h-9 pl-8" />
+        <Input aria-label="搜索边栏面板" disabled={saving} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索面板..." className="h-9 pl-8" />
       </div>
 
       {error ? <p role="alert" className="text-sm text-destructive">保存失败：{error}</p> : null}
@@ -103,8 +108,7 @@ export function SidebarManagementSettingsCard({
                 value={destination}
                 disabled={saving || (!panel.canMove && !panel.canHide)}
                 onChange={(event) => {
-                  setError(undefined)
-                  setDraft((current) => assignSidebarPanel(current, panel.id, event.target.value as PanelDestination))
+                  updateDraft((current) => assignSidebarPanel(current, panel.id, event.target.value as PanelDestination))
                 }}
               >
                 <option value="left">左侧栏</option>
@@ -113,8 +117,8 @@ export function SidebarManagementSettingsCard({
                 {panel.defaultPosition === "floating" ? <option value="floating">浮动</option> : null}
               </select>
               <div className="flex justify-end gap-1">
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={`上移${panel.title}`} disabled={!panel.visible || siblingIndex <= 0} onClick={() => setDraft((current) => moveSidebarPanel(current, panel.id, -1))}><ArrowUp /></Button>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={`下移${panel.title}`} disabled={!panel.visible || siblingIndex < 0 || siblingIndex >= siblings.length - 1} onClick={() => setDraft((current) => moveSidebarPanel(current, panel.id, 1))}><ArrowDown /></Button>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={`上移${panel.title}`} disabled={saving || !panel.visible || siblingIndex <= 0} onClick={() => updateDraft((current) => moveSidebarPanel(current, panel.id, -1))}><ArrowUp /></Button>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={`下移${panel.title}`} disabled={saving || !panel.visible || siblingIndex < 0 || siblingIndex >= siblings.length - 1} onClick={() => updateDraft((current) => moveSidebarPanel(current, panel.id, 1))}><ArrowDown /></Button>
               </div>
             </div>
           )

@@ -41,6 +41,8 @@ export interface InfoOverlayCardProps {
   disabled?: boolean
 }
 
+type SaveAction = () => Promise<void>
+
 export function InfoOverlayCard({ port, infoOverlay, panelActive = true, disabled = false }: InfoOverlayCardProps) {
   const activePort = port ?? infoOverlay
   const subscribe = panelActive ? activePort?.subscribe ?? subscribeNoop : subscribeNoop
@@ -50,6 +52,51 @@ export function InfoOverlayCard({ port, infoOverlay, panelActive = true, disable
     getSnapshot,
     getSnapshot,
   )
+  const [saveError, setSaveError] = useState<string>()
+  const [saving, setSaving] = useState(false)
+  const lifecycleRef = useRef(0)
+  const saveRunRef = useRef(0)
+  const retryRef = useRef<SaveAction>()
+  const mountedRef = useRef(true)
+
+  useEffect(() => () => {
+    mountedRef.current = false
+  }, [])
+
+  useEffect(() => {
+    const generation = ++lifecycleRef.current
+    return () => {
+      if (lifecycleRef.current === generation) lifecycleRef.current += 1
+      retryRef.current = undefined
+      if (mountedRef.current) {
+        setSaveError(undefined)
+        setSaving(false)
+      }
+    }
+  }, [activePort, panelActive])
+
+  function persist(action: SaveAction) {
+    const generation = lifecycleRef.current
+    const run = ++saveRunRef.current
+    retryRef.current = action
+    setSaveError(undefined)
+    setSaving(true)
+    void action().then(() => {
+      if (lifecycleRef.current !== generation || saveRunRef.current !== run) return
+      retryRef.current = undefined
+      setSaveError(undefined)
+    }).catch(() => {
+      if (lifecycleRef.current !== generation || saveRunRef.current !== run) return
+      setSaveError("信息悬浮窗保存失败")
+    }).finally(() => {
+      if (lifecycleRef.current === generation && saveRunRef.current === run) setSaving(false)
+    })
+  }
+
+  function retrySave() {
+    const action = retryRef.current
+    if (action) persist(action)
+  }
 
   if (!panelActive) return <ReaderCardEmptyState />
 
@@ -72,13 +119,22 @@ export function InfoOverlayCard({ port, infoOverlay, panelActive = true, disable
       className="space-y-2 text-xs text-muted-foreground"
       data-neoview-card="info-overlay"
       data-info-overlay-state="ready"
+      aria-busy={saving}
     >
-      <SwitchRow label="启用悬浮窗" checked={settings.enabled} disabled={disabled} onCheckedChange={(enabled) => void activePort!.update({ enabled })} />
+      {saving ? <p role="status" aria-live="polite">正在保存信息悬浮窗设置...</p> : null}
+      {saveError ? (
+        <div className="flex items-center justify-between gap-2 rounded bg-destructive/10 p-2 text-destructive" role="alert" aria-live="assertive">
+          <span>{saveError}</span>
+          <Button type="button" variant="outline" size="sm" className="shrink-0 text-destructive hover:text-destructive" onClick={retrySave}>重试保存</Button>
+        </div>
+      ) : null}
+
+      <SwitchRow label="启用悬浮窗" checked={settings.enabled} disabled={disabled} onCheckedChange={(enabled) => persist(() => activePort!.update({ enabled }))} />
 
       <div className="flex items-center justify-between gap-2">
         <span>透明度</span>
         <div className="flex items-center gap-2">
-          <OpacityInput value={settings.opacity} disabled={disabled} onCommit={(opacity) => void activePort!.update({ opacity })} />
+          <OpacityInput value={settings.opacity} disabled={disabled} onCommit={(opacity) => persist(() => activePort!.update({ opacity }))} />
           <span className="text-[11px] tabular-nums">{Math.round(settings.opacity * 100)}%</span>
         </div>
       </div>
@@ -91,9 +147,9 @@ export function InfoOverlayCard({ port, infoOverlay, panelActive = true, disable
         max={1600}
         step={20}
         onPreview={(width) => activePort!.preview({ width })}
-        onCommit={() => void activePort!.commit()}
+        onCommit={(width) => persist(() => { activePort!.preview({ width }); return activePort!.commit() })}
         disabled={disabled}
-        onReset={() => { activePort!.preview({ width: null }); void activePort!.commit() }}
+        onReset={() => persist(() => { activePort!.preview({ width: null }); return activePort!.commit() })}
       />
 
       <DimensionSlider
@@ -104,12 +160,12 @@ export function InfoOverlayCard({ port, infoOverlay, panelActive = true, disable
         max={600}
         step={8}
         onPreview={(height) => activePort!.preview({ height })}
-        onCommit={() => void activePort!.commit()}
+        onCommit={(height) => persist(() => { activePort!.preview({ height }); return activePort!.commit() })}
         disabled={disabled}
-        onReset={() => { activePort!.preview({ height: null }); void activePort!.commit() }}
+        onReset={() => persist(() => { activePort!.preview({ height: null }); return activePort!.commit() })}
       />
 
-      <SwitchRow label="显示边框" checked={settings.showBorder} disabled={disabled} onCheckedChange={(showBorder) => void activePort!.update({ showBorder })} />
+      <SwitchRow label="显示边框" checked={settings.showBorder} disabled={disabled} onCheckedChange={(showBorder) => persist(() => activePort!.update({ showBorder }))} />
       <p className="text-[10px]">调节悬浮信息窗的背景透明度（0% - 100%，0% 为仅文字无底色）。</p>
     </section>
   )
@@ -188,7 +244,7 @@ function DimensionSlider({ label, value, automaticValue, min, max, step, disable
   step: number
   disabled: boolean
   onPreview(value: number): void
-  onCommit(): void
+  onCommit(value: number): void
   onReset?(): void
 }) {
   return (
@@ -212,7 +268,7 @@ function DimensionSlider({ label, value, automaticValue, min, max, step, disable
         value={[value ?? automaticValue]}
         disabled={disabled}
         onValueChange={([next]) => onPreview(next ?? automaticValue)}
-        onValueCommit={onCommit}
+        onValueCommit={([next]) => onCommit(next ?? automaticValue)}
       />
     </div>
   )

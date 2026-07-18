@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import InfoOverlayCard, { type InfoOverlayPatch, type InfoOverlayPort, type InfoOverlaySettings } from "./InfoOverlayCard"
@@ -93,6 +93,42 @@ describe("InfoOverlayCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "宽度恢复自动" }))
     expect(port.preview).toHaveBeenCalledWith({ width: null })
     expect(port.commit).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.info-overlay.persistence] reports save failure and retries the latest update", async () => {
+    const port = memoryPort()
+    const update = vi.fn<(patch: InfoOverlayPatch) => Promise<void>>()
+      .mockRejectedValueOnce(new Error("write failed"))
+      .mockResolvedValueOnce(undefined)
+    port.update = update
+    render(<InfoOverlayCard port={port} />)
+
+    fireEvent.click(screen.getByRole("switch", { name: "启用悬浮窗" }))
+    expect((await screen.findByRole("alert")).textContent).toContain("信息悬浮窗保存失败")
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }))
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("[neoview.info-overlay.lifecycle] unsubscribes hidden editors and drops late save errors", async () => {
+    const port = memoryPort()
+    const unsubscribe = vi.fn()
+    vi.spyOn(port, "subscribe").mockReturnValue(unsubscribe)
+    let rejectUpdate: (cause?: unknown) => void = () => undefined
+    port.update = vi.fn(() => new Promise<void>((_, reject) => { rejectUpdate = reject }))
+    const view = render(<InfoOverlayCard port={port} />)
+
+    fireEvent.click(screen.getByRole("switch", { name: "启用悬浮窗" }))
+    await waitFor(() => expect(port.update).toHaveBeenCalledOnce())
+    view.rerender(<InfoOverlayCard port={port} panelActive={false} />)
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    rejectUpdate(new Error("late failure"))
+    await Promise.resolve()
+    view.rerender(<InfoOverlayCard port={port} panelActive />)
+
+    expect(screen.queryByRole("alert")).toBeNull()
+    view.unmount()
   })
 })
 
