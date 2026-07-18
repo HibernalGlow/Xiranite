@@ -42,6 +42,7 @@ export function SidebarManagementSettingsCard({
   const [draft, setDraft] = useState<PanelDraft[]>(() => createSidebarPanelDraft(shell))
   const [query, setQuery] = useState("")
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string>()
 
   useEffect(() => setDraft(createSidebarPanelDraft(shell)), [shell])
 
@@ -53,8 +54,11 @@ export function SidebarManagementSettingsCard({
   async function save() {
     if (saving) return
     setSaving(true)
+    setError(undefined)
     try {
       await onSave(createSidebarBoardPatch(shell, draft))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setSaving(false)
     }
@@ -78,6 +82,7 @@ export function SidebarManagementSettingsCard({
         <Input aria-label="搜索边栏面板" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索面板..." className="h-9 pl-8" />
       </div>
 
+      {error ? <p role="alert" className="text-sm text-destructive">保存失败：{error}</p> : null}
       <div className="overflow-hidden rounded-md border bg-card/50">
         <div className="hidden grid-cols-[minmax(8rem,1fr)_7rem_5.5rem] gap-2 border-b bg-muted/25 px-3 py-2 text-xs font-medium sm:grid">
           <span>名称</span><span>位置</span><span className="text-right">顺序</span>
@@ -96,8 +101,11 @@ export function SidebarManagementSettingsCard({
                 aria-label={`${panel.title}位置`}
                 className="h-8 rounded-md border bg-background px-2 text-xs disabled:opacity-50"
                 value={destination}
-                disabled={!panel.canMove && !panel.canHide}
-                onChange={(event) => setDraft((current) => assignSidebarPanel(current, panel.id, event.target.value as PanelDestination))}
+                disabled={saving || (!panel.canMove && !panel.canHide)}
+                onChange={(event) => {
+                  setError(undefined)
+                  setDraft((current) => assignSidebarPanel(current, panel.id, event.target.value as PanelDestination))
+                }}
               >
                 <option value="left">左侧栏</option>
                 <option value="right">右侧栏</option>
