@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Bell, Crop, Info, Loader, Palette, Play, type LucideIcon } from "lucide-react"
+import { Bell, Crop, Info, Loader, Palette, Play, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -27,6 +27,8 @@ import type {
   ReaderPageListPreferencesDto,
   ReaderPreloadActionResultDto,
   ReaderRuntimeConfigDto,
+  ReaderMediaConfigDto,
+  ReaderMediaPatchDto,
   ReaderSettingsMigrationImportResult,
   ReaderSettingsMigrationInspection,
   ReaderSessionDto,
@@ -78,6 +80,8 @@ export interface ReaderPanelContext {
   onFolderView?(patch: ReaderFolderViewPatch["folderView"]): Promise<void>
   presentation?: ReaderPresentation
   shellControl?: ReaderShellControlPort
+  media?: ReaderMediaConfigDto
+  onMediaChange?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   colorFilter?: ReaderColorFilterPort
   pageTransition?: ReaderPageTransitionPort
   switchToast?: ReaderSwitchToastPort
@@ -162,6 +166,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "sidebar-height": () => import("./cards/SidebarHeightCard"),
   "color-filter": () => import("./cards/ColorFilterCard"),
   "page-transition": () => import("./cards/PageTransitionCard"),
+  "animated-video-mode": () => import("./cards/AnimatedVideoModeCard"),
   "switch-toast": () => import("./cards/SwitchToastCard"),
   "info-overlay": () => import("./cards/InfoOverlayCard"),
   "thumbnail-maintenance": () => import("./cards/ThumbnailMaintenanceCard"),
@@ -176,6 +181,7 @@ const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
   "preload-status": Loader,
   "color-filter": Palette,
   "page-transition": Play,
+  "animated-video-mode": Video,
   "switch-toast": Bell,
   "info-overlay": Info,
 }

@@ -15,6 +15,15 @@ describe("InputBindingsSettingsCard", () => {
     expect(screen.queryAllByRole("listitem")).toHaveLength(0)
   })
 
+  it("[neoview.bindings.action-capability] hides actions without a GUI provider", () => {
+    render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} />)
+    const actionSelect = screen.getByRole("combobox", { name: "动作" })
+    expect(actionSelect.querySelector('option[value="reader.next-page"]')).not.toBeNull()
+    expect(actionSelect.querySelector('option[value="file.delete-current"]')).toBeNull()
+    expect(actionSelect.querySelector('option[value="upscale.toggle-auto"]')).toBeNull()
+    expect(actionSelect.querySelector('option[value="viewer.toggle-dynamic-background"]')).toBeNull()
+  })
+
   it("[neoview.bindings.conflict-ui] blocks ambiguous saves and permits disabled collisions", async () => {
     const save = vi.fn(async ({ bindings }: { bindings?: ReturnType<typeof binding>[] }) => ({ bindings: bindings ?? [] }))
     render(<InputBindingsEditor value={{ bindings: [binding("one", "keyboard"), binding("two", "keyboard")] }} onSave={save as never} />)
