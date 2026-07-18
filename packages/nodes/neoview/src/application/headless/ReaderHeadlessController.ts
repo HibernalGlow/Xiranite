@@ -25,6 +25,11 @@ import type {
   ReaderEmmMetadataSnapshot,
 } from "../metadata/ReaderEmmMetadataService.js"
 import { legacyEmmBookPathKey } from "../metadata/LegacyEmmBookMetadataCodec.js"
+import type {
+  SuperResolutionPageInput,
+  SuperResolutionPageResult,
+} from "../super-resolution/SuperResolutionPageService.js"
+import type { SuperResolutionExecutionContext } from "../../ports/SuperResolutionProvider.js"
 
 export interface OpenHeadlessReaderInput {
   path: string
@@ -79,6 +84,32 @@ export interface ReaderHeadlessBookSettingsOptions {
   defaults: ReaderBookSettingsDefaults
 }
 
+export interface ReaderHeadlessSuperResolutionPort extends AsyncDisposable {
+  run(
+    input: SuperResolutionPageInput,
+    context?: SuperResolutionExecutionContext,
+  ): Promise<SuperResolutionPageResult>
+}
+
+export interface HeadlessSuperResolutionPageInput {
+  pageIndex: number
+  destinationPath: string
+  trigger?: SuperResolutionPageInput["trigger"]
+  metadata?: Readonly<Record<string, unknown>>
+  priority?: SuperResolutionPageInput["priority"]
+  maxMaterializationBytes?: number
+}
+
+export type HeadlessSuperResolutionPageResult =
+  | {
+      decision: Exclude<SuperResolutionPageResult["decision"], { kind: "run" }>
+      result?: never
+    }
+  | {
+      decision: Extract<SuperResolutionPageResult["decision"], { kind: "run" }>
+      result: Omit<NonNullable<SuperResolutionPageResult["result"]>, "sourcePath">
+    }
+
 export interface HeadlessReaderEmmMetadataUpdate {
   metadata: ReaderEmmMetadataSnapshot
   reader: HeadlessReaderSnapshot
@@ -102,6 +133,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     private readonly bookSettings?: ReaderHeadlessBookSettingsOptions,
     private readonly adjacentBooks?: ReaderAdjacentBookService,
     private readonly emmMetadata?: ReaderEmmMetadataService,
+    private readonly superResolution?: ReaderHeadlessSuperResolutionPort,
   ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
@@ -212,6 +244,29 @@ export class ReaderHeadlessController implements AsyncDisposable {
     }
   }
 
+  async upscalePage(
+    input: HeadlessSuperResolutionPageInput,
+    context: SuperResolutionExecutionContext = {},
+  ): Promise<HeadlessSuperResolutionPageResult> {
+    assertPageIndex(input.pageIndex)
+    const session = this.#requireSession()
+    const page = session.book.pages[input.pageIndex]
+    if (!page) throw new RangeError(`Reader page index is out of range: ${input.pageIndex}`)
+    if (!this.superResolution) throw new Error("Reader super-resolution is unavailable.")
+    const output = await this.superResolution.run({
+      page,
+      destinationPath: input.destinationPath,
+      trigger: input.trigger ?? "manual",
+      bookPath: session.book.source.path,
+      metadata: input.metadata,
+      priority: input.priority,
+      maxMaterializationBytes: input.maxMaterializationBytes,
+    }, context)
+    if (!output.result) return output
+    const { sourcePath: _sourcePath, ...result } = output.result
+    return { decision: output.decision, result }
+  }
+
   async getMediaProgress(): Promise<ReaderMediaProgressRecord | undefined> {
     const session = this.#requireVideoSession()
     if (!this.#mediaProgress) return undefined
@@ -306,6 +361,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
         this.#mediaProgress ? () => this.#mediaProgress!.close() : undefined,
         session ? () => session.close() : undefined,
         () => this.#service[Symbol.asyncDispose](),
+        this.superResolution ? () => this.superResolution![Symbol.asyncDispose]() : undefined,
         this.#disposeDependencies,
       ]) {
         if (!dispose) continue

@@ -267,8 +267,11 @@ export {
   type HeadlessReaderEmmMetadataUpdate,
   type HeadlessReaderPageSnapshot,
   type HeadlessReaderSnapshot,
+  type HeadlessSuperResolutionPageInput,
+  type HeadlessSuperResolutionPageResult,
   type OpenHeadlessReaderInput,
   type ReaderHeadlessBookSettingsOptions,
+  type ReaderHeadlessSuperResolutionPort,
 } from "./application/headless/ReaderHeadlessController.js"
 export {
   ReaderFileTreeHeadlessController,

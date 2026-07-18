@@ -168,6 +168,48 @@ describe("ReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.super-resolution.headless] delegates the open page without exposing its source path", async () => {
+    const dispose = vi.fn(async () => undefined)
+    const run = vi.fn(async () => ({
+      decision: { kind: "run" as const, reason: "default-policy", modelId: "model", scale: 2, useCache: true },
+      result: {
+        sourcePath: "D:/private/book.cbz::2.png",
+        destinationPath: "D:/output/page.png",
+        modelId: "model",
+        engine: "upscayl" as const,
+        scale: 2,
+        width: 200,
+        height: 300,
+        elapsedMs: 10,
+      },
+    }))
+    const controller = new ReaderHeadlessController(
+      new CoreReaderService(async () => book("D:/private/book.cbz", [])),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { run, [Symbol.asyncDispose]: dispose },
+    )
+    try {
+      await controller.open({ path: "D:/private/book.cbz" })
+      const output = await controller.upscalePage({ pageIndex: 1, destinationPath: "D:/output/page.png" })
+      expect(run).toHaveBeenCalledWith(expect.objectContaining({
+        page: expect.objectContaining({ id: "page-1", entryPath: "2.png" }),
+        bookPath: "D:/private/book.cbz",
+        trigger: "manual",
+      }), {})
+      expect(output).toMatchObject({ result: { destinationPath: "D:/output/page.png", width: 200, height: 300 } })
+      expect(JSON.stringify(output)).not.toContain("sourcePath")
+      await expect(controller.upscalePage({ pageIndex: 3, destinationPath: "D:/output/page.png" })).rejects.toThrow("out of range")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.headless.media-progress] shares restore and durable updates with CLI/TUI", async () => {
     const saved = vi.fn(async () => undefined)
     const mediaProgress = new ReaderMediaProgressService({
