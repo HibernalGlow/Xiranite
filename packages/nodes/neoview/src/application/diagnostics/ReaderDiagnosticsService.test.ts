@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { ReaderDiagnosticsService } from "./ReaderDiagnosticsService.js"
-import { parseReaderDiagnosticsSnapshot } from "./ReaderDiagnosticsWireSchema.js"
+import { parseReaderDiagnosticsHistory, parseReaderDiagnosticsSnapshot } from "./ReaderDiagnosticsWireSchema.js"
 
 describe("ReaderDiagnosticsService", () => {
   it("[neoview.diagnostics.snapshot] aggregates bounded runtime sources without paths or persistent writes", async () => {
@@ -69,6 +69,11 @@ describe("ReaderDiagnosticsService", () => {
     }))
     expect(snapshot.assets.thumbnails?.telemetry).toMatchObject({ cacheHits: 3, cacheMisses: 4, completed: 2, failed: 1, cancelled: 1, evictions: 2 })
     expect(parseReaderDiagnosticsSnapshot(snapshot)).toEqual(snapshot)
+    const sampled = await service.sample()
+    expect(service.history({ limit: 1 })).toMatchObject({ schemaVersion: 1, samples: [sampled], droppedSamples: 0 })
+    expect(parseReaderDiagnosticsHistory(service.history())).toEqual(service.history())
+    expect(service.resetHistory()).toBe(1)
+    expect(service.history().samples).toHaveLength(0)
     await service.close()
     await service.close()
     expect(close).toHaveBeenCalledOnce()

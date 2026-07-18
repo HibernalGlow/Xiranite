@@ -109,6 +109,31 @@ describe("ReaderHttpController", () => {
     }
   })
 
+  it("[neoview.diagnostics.history-http] samples, queries and resets bounded in-memory history", async () => {
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+    })
+    try {
+      expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/diagnostics/history")))?.status).toBe(401)
+      const sample = (await controller.handle(authorizedRequest("/reader/diagnostics/history/sample", { method: "POST" })))!
+      expect(sample.status).toBe(200)
+      expect(await sample.json()).toMatchObject({ schemaVersion: 1, process: expect.any(Object) })
+
+      const history = (await controller.handle(authorizedRequest("/reader/diagnostics/history?limit=1")))!
+      expect(history.status).toBe(200)
+      await expect(history.json()).resolves.toMatchObject({ schemaVersion: 1, samples: [expect.any(Object)], droppedSamples: 0 })
+
+      const invalid = (await controller.handle(authorizedRequest("/reader/diagnostics/history?limit=oops")))!
+      expect(invalid.status).toBe(400)
+      const reset = (await controller.handle(authorizedRequest("/reader/diagnostics/history/reset", { method: "POST" })))!
+      expect(reset.status).toBe(200)
+      await expect(reset.json()).resolves.toEqual({ cleared: 1 })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.cache.l3-maintenance-http] exposes authenticated stats, cleanup and clear operations", async () => {
     const base = {
       entries: 3, bytes: 30, maxBytes: 100, maxEntryBytes: 20, activeLeases: 0,

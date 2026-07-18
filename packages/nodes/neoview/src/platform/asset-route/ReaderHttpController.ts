@@ -603,6 +603,22 @@ export class ReaderHttpController implements AsyncDisposable {
     if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "GET") {
       return jsonResponse(await this.#cacheService.status())
     }
+    if (url.pathname === "/reader/diagnostics/history" && request.method === "GET") {
+      const sinceMs = parseOptionalDiagnosticsInteger(url.searchParams.get("sinceMs"))
+      const limit = parseOptionalDiagnosticsInteger(url.searchParams.get("limit"))
+      if (sinceMs === "invalid" || limit === "invalid") {
+        return jsonResponse({ error: "sinceMs and limit must be finite integers." }, 400)
+      }
+      return jsonResponse(await this.#diagnostics.history({ sinceMs, limit }))
+    }
+    if (url.pathname === "/reader/diagnostics/history/sample") {
+      if (request.method !== "POST") return methodNotAllowed("POST")
+      return jsonResponse(await this.#diagnostics.sample())
+    }
+    if (url.pathname === "/reader/diagnostics/history/reset") {
+      if (request.method !== "POST") return methodNotAllowed("POST")
+      return jsonResponse({ cleared: this.#diagnostics.resetHistory() })
+    }
     if (url.pathname === "/reader/diagnostics" && request.method === "GET") {
       const diagnostics = await this.#diagnostics.snapshot()
       const sessionId = url.searchParams.get("sessionId")
@@ -2106,6 +2122,13 @@ function parseNonNegativeInteger(value: string | null): number | undefined {
   if (value === null || !/^\d+$/.test(value)) return undefined
   const parsed = Number(value)
   return Number.isSafeInteger(parsed) ? parsed : undefined
+}
+
+function parseOptionalDiagnosticsInteger(value: string | null): number | undefined | "invalid" {
+  if (value === null) return undefined
+  if (!/^\d+$/.test(value)) return "invalid"
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) ? parsed : "invalid"
 }
 
 async function safeStat(path: string, signal?: AbortSignal): Promise<Stats | undefined> {

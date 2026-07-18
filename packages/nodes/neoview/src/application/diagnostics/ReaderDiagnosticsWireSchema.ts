@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { ReaderDiagnosticsSnapshot } from "./ReaderDiagnosticsService.js"
+import type { ReaderDiagnosticsHistory, ReaderDiagnosticsSnapshot } from "./ReaderDiagnosticsService.js"
 
 const count = z.number().finite().int().nonnegative()
 const measurement = z.number().finite().nonnegative()
@@ -191,10 +191,24 @@ export const ReaderDiagnosticsWireSchema = loose({
   scheduler: loose({ cpu: schedulerPool, io: schedulerPool, gpu: schedulerPool }).nullable(),
 })
 
+export const ReaderDiagnosticsHistoryWireSchema = loose({
+  schemaVersion: z.literal(1),
+  samples: z.array(ReaderDiagnosticsWireSchema).max(1_000),
+  droppedSamples: count,
+})
+
 export function parseReaderDiagnosticsSnapshot(value: unknown): ReaderDiagnosticsSnapshot {
   const parsed = ReaderDiagnosticsWireSchema.safeParse(value)
   if (!parsed.success) {
     throw new Error("Xiranite Reader returned an invalid diagnostics response.", { cause: parsed.error })
   }
   return parsed.data as ReaderDiagnosticsSnapshot
+}
+
+export function parseReaderDiagnosticsHistory(value: unknown): ReaderDiagnosticsHistory {
+  const parsed = ReaderDiagnosticsHistoryWireSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error("Xiranite Reader returned an invalid diagnostics history response.", { cause: parsed.error })
+  }
+  return parsed.data as ReaderDiagnosticsHistory
 }
