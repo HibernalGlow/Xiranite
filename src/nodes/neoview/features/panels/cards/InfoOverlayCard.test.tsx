@@ -42,7 +42,8 @@ describe("InfoOverlayCard", () => {
     const width = screen.getByRole("slider", { name: "宽度" })
     fireEvent.keyDown(width, { key: "ArrowRight" })
     expect(port.preview).toHaveBeenCalled()
-    expect(port.commit).not.toHaveBeenCalled()
+    // Radix treats each keyboard increment as a complete interaction.
+    expect(port.commit).toHaveBeenCalledOnce()
     fireEvent.keyUp(width, { key: "ArrowRight" })
     expect(port.commit).toHaveBeenCalledOnce()
   })
@@ -54,6 +55,14 @@ describe("InfoOverlayCard", () => {
     fireEvent.click(screen.getByRole("switch", { name: "显示边框" }))
     expect(port.update).toHaveBeenNthCalledWith(1, { enabled: true })
     expect(port.update).toHaveBeenNthCalledWith(2, { showBorder: true })
+  })
+
+  it("[neoview.info-overlay.auto-size] exposes an explicit reset for fixed dimensions", () => {
+    const port = memoryPort({ ...defaults(), width: 480, height: 56 })
+    render(<InfoOverlayCard port={port} />)
+    fireEvent.click(screen.getByRole("button", { name: "宽度恢复自动" }))
+    expect(port.preview).toHaveBeenCalledWith({ width: null })
+    expect(port.commit).toHaveBeenCalledOnce()
   })
 })
 

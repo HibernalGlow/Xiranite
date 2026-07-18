@@ -55,6 +55,7 @@ export const READER_CARD_MANIFEST = [
   card("sidebar-management-settings", "边栏管理设置", "settings", false, true, 1, true, false, "sidebar"),
   card("input-bindings-settings", "操作绑定", "settings", false, true, 0, true, false, "bindings"),
   card("preload-status", "预加载状态", "info", true, true, 4, true, true),
+  card("info-overlay", "信息悬浮窗", "info", true, true, 5, true, false),
   card("book-settings", "本书设置", "properties", true, true, 0, true, true),
   card("switch-toast", "切换提示", "control", true, true, 0, true, false),
   card("sidebar-control", "侧栏控制", "control", true, true, 1, true, false),

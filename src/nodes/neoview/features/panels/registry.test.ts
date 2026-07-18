@@ -139,7 +139,7 @@ describe("NeoView panel and card registries", () => {
     expect(availablePanels("left", undefined, false).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
     expect(availablePanels("right", undefined, false).map((panel) => panel.id)).toEqual(["info", "properties", "control"])
     expect(cardsForPanel("info", undefined, false).map((card) => card.id)).toEqual([
-      "book-information", "image-information", "storage-information", "time-information", "preload-status",
+      "book-information", "image-information", "storage-information", "time-information", "preload-status", "info-overlay",
     ])
   })
 })

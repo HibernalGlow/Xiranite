@@ -1106,8 +1106,8 @@ function infoOverlayToml(value: ReaderInfoOverlayPatch | { reset: "defaults" }):
   if (value.enabled !== undefined) toml.enabled = value.enabled
   if (value.opacity !== undefined) toml.opacity = value.opacity
   if (value.showBorder !== undefined) toml.show_border = value.showBorder
-  if (value.width !== undefined) toml.width = value.width
-  if (value.height !== undefined) toml.height = value.height
+  if (value.width !== undefined) toml.width = value.width === null ? "auto" : value.width
+  if (value.height !== undefined) toml.height = value.height === null ? "auto" : value.height
   return toml
 }
 

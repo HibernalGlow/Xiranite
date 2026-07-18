@@ -19,6 +19,10 @@ import {
   DEFAULT_READER_SWITCH_TOAST,
   type ReaderSwitchToastSettings,
 } from "../../application/switch-toast/ReaderSwitchToast.js"
+import {
+  DEFAULT_READER_INFO_OVERLAY,
+  type ReaderInfoOverlaySettings,
+} from "../../application/info-overlay/ReaderInfoOverlay.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
@@ -111,6 +115,7 @@ import {
   parseNeoviewColorFilterPatch,
   parseNeoviewPageTransitionPatch,
   parseNeoviewSwitchToastPatch,
+  parseNeoviewInfoOverlayPatch,
   parseNeoviewBookmarkListPatch,
   parseNeoviewHistoryListPatch,
   parseNeoviewPageListPatch,
@@ -122,6 +127,7 @@ import {
   type NeoviewColorFilterPatch,
   type NeoviewPageTransitionPatch,
   type NeoviewSwitchToastPatch,
+  type NeoviewInfoOverlayPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -250,6 +256,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updatePageTransition?: (patch: NeoviewPageTransitionPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderPageTransitionSettings>
   switchToast?: ReaderSwitchToastSettings
   updateSwitchToast?: (patch: NeoviewSwitchToastPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderSwitchToastSettings>
+  infoOverlay?: ReaderInfoOverlaySettings
+  updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
   inputBindings?: ReaderInputBindingsConfig
   updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
   radialMenu?: ReaderRadialMenuConfig
@@ -310,6 +318,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #colorFilter: ReaderColorFilterSettings
   #pageTransition: ReaderPageTransitionSettings
   #switchToast: ReaderSwitchToastSettings
+  #infoOverlay: ReaderInfoOverlaySettings
   #inputBindings: ReaderInputBindingsConfig
   #radialMenu: ReaderRadialMenuConfig
   #sessionOptions: Partial<ReaderSessionOptions>
@@ -324,6 +333,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateColorFilter?: ReaderHttpControllerOptions["updateColorFilter"]
   readonly #updatePageTransition?: ReaderHttpControllerOptions["updatePageTransition"]
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
+  readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
@@ -530,6 +540,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#colorFilter = options.colorFilter ?? DEFAULT_READER_COLOR_FILTER
     this.#pageTransition = options.pageTransition ?? DEFAULT_READER_PAGE_TRANSITION
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
+    this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
     this.#sessionOptions = options.sessionOptions ?? {}
@@ -544,6 +555,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateColorFilter = options.updateColorFilter
     this.#updatePageTransition = options.updatePageTransition
     this.#updateSwitchToast = options.updateSwitchToast
+    this.#updateInfoOverlay = options.updateInfoOverlay
     this.#updateInputBindings = options.updateInputBindings
     this.#updateRadialMenu = options.updateRadialMenu
   }
@@ -918,6 +930,27 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "infoOverlay")) {
+      if (!this.#updateInfoOverlay) return jsonResponse({ error: "Reader info overlay config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewInfoOverlayPatch>
+      try {
+        parsed = parseNeoviewInfoOverlayPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: ReaderInfoOverlaySettings | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateInfoOverlay!(parsed.patch, parsed.tomlPatch)
+        this.#infoOverlay = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "media")) {
       if (!this.#updateMedia) return jsonResponse({ error: "Reader media config is read-only" }, 405)
       let updated: NeoviewMediaConfig | undefined
@@ -1124,6 +1157,7 @@ export class ReaderHttpController implements AsyncDisposable {
       colorFilter: this.#colorFilter,
       pageTransition: this.#pageTransition,
       switchToast: this.#switchToast,
+      infoOverlay: this.#infoOverlay,
       inputBindings: this.#inputBindings,
       radialMenu: this.#radialMenu,
     }

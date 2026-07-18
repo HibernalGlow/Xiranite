@@ -2,6 +2,7 @@ import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitM
 import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
 import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
 import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/switch-toast"
+import type { ReaderInfoOverlayPatch, ReaderInfoOverlaySettings } from "@xiranite/node-neoview/info-overlay"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -600,6 +601,7 @@ export interface ReaderRuntimeConfigDto {
   colorFilter: ReaderColorFilterSettings
   pageTransition: ReaderPageTransitionSettings
   switchToast?: ReaderSwitchToastSettings
+  infoOverlay?: ReaderInfoOverlaySettings
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
 }
@@ -690,6 +692,10 @@ export interface ReaderPageTransitionConfigPatch {
 
 export interface ReaderSwitchToastConfigPatch {
   switchToast: ReaderSwitchToastPatch | { reset: "defaults" }
+}
+
+export interface ReaderInfoOverlayConfigPatch {
+  infoOverlay: ReaderInfoOverlayPatch | { reset: "defaults" }
 }
 
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
@@ -865,6 +871,7 @@ export interface ReaderHttpClient {
   updateColorFilter?(patch: ReaderColorFilterConfigPatch, signal?: AbortSignal): Promise<ReaderColorFilterSettings>
   updatePageTransition?(patch: ReaderPageTransitionConfigPatch, signal?: AbortSignal): Promise<ReaderPageTransitionSettings>
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
+  updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
@@ -1088,6 +1095,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.switchToast),
+    updateInfoOverlay: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.infoOverlay),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
