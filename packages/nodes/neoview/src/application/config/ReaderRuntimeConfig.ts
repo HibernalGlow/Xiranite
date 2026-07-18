@@ -555,7 +555,7 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   floatingControl: { enabled: true, position: { x: 100, y: 100 } },
   edges: {
     top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32, lockMode: "auto" },
-    right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32, lockMode: "auto" },
+    right: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32, lockMode: "auto" },
     bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32, lockMode: "auto" },
     left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 32, lockMode: "auto" },
   },
@@ -2134,7 +2134,7 @@ function parseShellOptions(
   const canonicalEdges = optionalRecord(panels.edges, "[nodes.neoview.panels.edges]")
   const legacyEdges = {
     top: { enabled: true, initialVisible: autoHideToolbar === false, pinned: autoHideToolbar === false, trigger: hover?.top_trigger_height },
-    right: { enabled: optionalBoolean(panels.right_sidebar_visible, "right_sidebar_visible") ?? true, initialVisible: false, pinned: optionalBoolean(right?.pinned, "right.pinned") ?? false, trigger: hover?.right_trigger_width },
+    right: { enabled: optionalBoolean(panels.right_sidebar_visible, "right_sidebar_visible") ?? true, initialVisible: optionalBoolean(right?.open, "right.open") ?? true, pinned: optionalBoolean(right?.pinned, "right.pinned") ?? false, trigger: hover?.right_trigger_width },
     bottom: { enabled: optionalBoolean(panels.bottom_panel_visible, "bottom_panel_visible") ?? true, initialVisible: optionalBoolean(panels.bottom_panel_visible, "bottom_panel_visible") ?? false, pinned: false, trigger: hover?.bottom_trigger_height },
     left: { enabled: optionalBoolean(panels.left_sidebar_visible, "left_sidebar_visible") ?? true, initialVisible: optionalBoolean(left?.open, "left.open") ?? true, pinned: optionalBoolean(left?.pinned, "left.pinned") ?? true, trigger: hover?.left_trigger_width },
   } satisfies Record<NeoviewShellEdge, { enabled: boolean; initialVisible: boolean; pinned: boolean; trigger: unknown }>

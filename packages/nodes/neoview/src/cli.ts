@@ -66,6 +66,7 @@ const COMMANDS = new Set([
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
+  "page-transition-get", "page-transition-set", "page-transition-reset",
   "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
   "book-settings-get", "book-settings-set", "book-settings-legacy-inspect", "book-settings-legacy-import",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
@@ -265,6 +266,10 @@ export async function runProgram(
 
   const parsed = parseArguments(args.slice(1), command)
   validateCommandOptions(command, parsed)
+  if (command === "page-transition-get" || command === "page-transition-set" || command === "page-transition-reset") {
+    await runPageTransitionCommand(command, parsed, host)
+    return
+  }
   if (command === "thumbnail-db-inspect") {
     if (parsed.positionals.length > 1) throw usage("thumbnail-db-inspect accepts at most one database path.")
     await runThumbnailDatabaseInspect(parsed.positionals[0], parsed.booleans.has("--json"), host)
@@ -606,6 +611,13 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--database", "--before", "--limit", "--yes"]))
     return
   }
+  if (command.startsWith("page-transition-")) {
+    const allowed = command === "page-transition-get" ? new Set(["--json", "--config"])
+      : command === "page-transition-reset" ? new Set(["--json", "--config"])
+        : new Set(["--json", "--config", "--enabled", "--type", "--duration", "--easing"])
+    rejectOptions(parsed, allowed)
+    return
+  }
   if (command === "library-bookmark-batch-update") {
     rejectOptions(parsed, new Set(["--json", "--database", "--id", "--list"]))
     return
@@ -632,6 +644,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "file-open" || command === "file-reveal") {
     rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
+  if (command === "explorer-context-menu-preview" || command === "explorer-context-menu-status") {
+    rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
+  if (command === "explorer-context-menu-enable" || command === "explorer-context-menu-disable") {
+    rejectOptions(parsed, new Set(["--json", "--yes"]))
     return
   }
   if (command === "file-delete" || command === "file-trash") {
@@ -2621,6 +2641,9 @@ function formatCliHelp(): string {
     "  input-bindings-dispatch <path> Dispatch a configured input (--input-json, --contexts-json)",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
+    "  page-transition-get       Show global page-transition settings",
+    "  page-transition-set       Update page-transition settings",
+    "  page-transition-reset     Restore page-transition defaults",
     "  input-bindings-list       Inspect canonical multi-device bindings",
     "  input-bindings-apply <json> Apply a complete binding array (--yes)",
     "  input-bindings-reset      Restore canonical defaults (--yes)",

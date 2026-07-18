@@ -14,6 +14,24 @@ describe("ReaderSystemIntegrationService", () => {
     expect(provider.reveal).toHaveBeenCalledWith(path, undefined)
     await expect(service.open("relative.jpg")).rejects.toThrow("absolute")
   })
+
+  it("[neoview.file.explorer-context-menu.service] delegates capability state and mutations", async () => {
+    const explorerContextMenu = {
+      preview: vi.fn(async () => ({ available: true, plan: [], registryFile: "registry" })),
+      status: vi.fn(async () => ({ available: true, enabled: false })),
+      setEnabled: vi.fn(async (enabled: boolean) => ({ available: true, enabled })),
+    }
+    const service = new ReaderSystemIntegrationService({
+      open: vi.fn(async () => undefined),
+      reveal: vi.fn(async () => undefined),
+      explorerContextMenu,
+    })
+
+    await expect(service.explorerContextMenuPreview()).resolves.toMatchObject({ available: true, registryFile: "registry" })
+    await expect(service.explorerContextMenuStatus()).resolves.toEqual({ available: true, enabled: false })
+    await expect(service.explorerContextMenuSetEnabled(true)).resolves.toEqual({ available: true, enabled: true })
+    expect(explorerContextMenu.setEnabled).toHaveBeenCalledWith(true, undefined)
+  })
 })
 
 function absolute(path: string): string {

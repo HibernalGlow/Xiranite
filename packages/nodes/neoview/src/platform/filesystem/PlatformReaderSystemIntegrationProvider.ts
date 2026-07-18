@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises"
 
+import type { ReaderExplorerContextMenuProvider } from "../../ports/ReaderExplorerContextMenuProvider.js"
 import type { ReaderSystemIntegrationProvider } from "../../ports/ReaderSystemIntegrationProvider.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
@@ -8,6 +9,7 @@ export interface PlatformReaderSystemIntegrationProviderOptions {
   ownerId?: string
   openPath?: (path: string) => Promise<unknown>
   revealPath?: (path: string) => Promise<unknown>
+  explorerContextMenu?: ReaderExplorerContextMenuProvider
 }
 
 export class PlatformReaderSystemIntegrationProvider implements ReaderSystemIntegrationProvider {
@@ -15,12 +17,14 @@ export class PlatformReaderSystemIntegrationProvider implements ReaderSystemInte
   readonly #ownerId: string
   readonly #openPath: (path: string) => Promise<unknown>
   readonly #revealPath: (path: string) => Promise<unknown>
+  readonly explorerContextMenu?: ReaderExplorerContextMenuProvider
 
   constructor(options: PlatformReaderSystemIntegrationProviderOptions = {}) {
     this.#scheduler = options.scheduler
     this.#ownerId = options.ownerId ?? "neoview:system-integration"
     this.#openPath = options.openPath ?? (async (path) => (await import("open")).default(path, { wait: false }))
     this.#revealPath = options.revealPath ?? (async (path) => (await import("reveal-file")).default(path))
+    this.explorerContextMenu = options.explorerContextMenu
   }
 
   open(path: string, signal?: AbortSignal): Promise<void> {

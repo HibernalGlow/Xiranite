@@ -81,6 +81,30 @@ describe("NeoView CLI", () => {
     expect(revealSystem).toHaveBeenCalledWith(resolve("source.jpg"))
   })
 
+  it("[neoview.file.explorer-context-menu.cli] previews and explicitly toggles the shared system capability", async () => {
+    const preview = vi.fn(async () => ({ available: true, plan: [], registryFile: "registry" }))
+    const status = vi.fn(async () => ({ available: true, enabled: false }))
+    const setEnabled = vi.fn(async (enabled: boolean) => ({ available: true, enabled }))
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createSystemIntegrationService: async () => ({
+        explorerContextMenuPreview: preview,
+        explorerContextMenuStatus: status,
+        explorerContextMenuSetEnabled: setEnabled,
+      }) as unknown as ReaderSystemIntegrationService,
+    }
+
+    const previewOutput: unknown[] = []
+    await runProgram(["explorer-context-menu-preview", "--json"], host(previewOutput), dependencies)
+    expect(JSON.parse(previewOutput.join(""))).toEqual({ available: true, plan: [], registryFile: "registry" })
+    await runProgram(["explorer-context-menu-status"], host([]), dependencies)
+    await expect(runProgram(["explorer-context-menu-enable"], host([]), dependencies)).rejects.toThrow("requires --yes")
+    await runProgram(["explorer-context-menu-enable", "--yes"], host([]), dependencies)
+    expect(preview).toHaveBeenCalledOnce()
+    expect(status).toHaveBeenCalledOnce()
+    expect(setEnabled).toHaveBeenCalledWith(true)
+  })
+
   it("[neoview.library.cli] [neoview.history.cleanup-cli] [neoview.bookmark.batch-cli] [neoview.folder.filter-library-cli] adapts shared library operations and confirms destructive commands", async () => {
     const dispose = vi.fn(async () => undefined)
     const controller = {
@@ -636,6 +660,35 @@ describe("NeoView CLI", () => {
         frame: { direction: "right-to-left", layout: { pageMode: "double" } },
         visiblePages: [{ index: 2 }, { index: 1 }],
       })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.page-transition.surfaces] exposes strict CLI get/set/reset values in canonical TOML", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-page-transition-cli-"))
+    const configPath = join(directory, "xiranite.config.toml")
+    try {
+      const initial: unknown[] = []
+      await runProgram(["page-transition-get", "--config", configPath, "--json"], host(initial))
+      expect(JSON.parse(initial.join(""))).toEqual({ enabled: false, type: "none", duration: 0, easing: "easeOutQuad" })
+
+      const updated: unknown[] = []
+      await runProgram([
+        "page-transition-set", "--config", configPath, "--enabled", "true", "--type", "flip",
+        "--duration", "320", "--easing", "easeOutCubic", "--json",
+      ], host(updated))
+      expect(JSON.parse(updated.join(""))).toEqual({ enabled: true, type: "flip", duration: 320, easing: "easeOutCubic" })
+      const toml = await readFile(configPath, "utf8")
+      expect(toml).toContain("[nodes.neoview.image.page_transition]")
+      expect(toml).not.toContain("pageTransition")
+      await expect(runProgram(["page-transition-set", "--config", configPath, "--duration", "501"], host([])))
+        .rejects.toThrow("duration")
+
+      await runProgram(["page-transition-reset", "--config", configPath], host([]))
+      const reset: unknown[] = []
+      await runProgram(["page-transition-get", "--config", configPath, "--json"], host(reset))
+      expect(JSON.parse(reset.join(""))).toEqual({ enabled: false, type: "none", duration: 0, easing: "easeOutQuad" })
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
