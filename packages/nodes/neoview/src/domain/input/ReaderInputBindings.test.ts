@@ -4,6 +4,7 @@ import {
   matchingReaderInputBinding,
   readerInputConflicts,
   readerInputDescriptorKey,
+  readerViewAreaAtPoint,
   type ReaderInputBinding,
 } from "./ReaderInputBindings.js"
 
@@ -37,7 +38,14 @@ describe("ReaderInputBindings", () => {
     expect(readerInputDescriptorKey({ device: "wheel", direction: "down", shift: true })).toBe("wheel:--S-:down")
     expect(readerInputDescriptorKey({ device: "touch", gesture: "swipe-left", fingers: 2 })).toBe("touch:2:swipe-left")
     expect(readerInputDescriptorKey({ device: "gamepad", button: 5 })).toBe("gamepad:5")
+    expect(readerInputDescriptorKey({ device: "area", area: "bottom-right", button: 2, action: "double-click" })).toBe("area:bottom-right:2:double-click")
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "touch")).toBe(true)
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "gamepad")).toBe(true)
+  })
+
+  it("[neoview.bindings.area-grid] maps bounded points into the legacy nine-area grid", () => {
+    expect(readerViewAreaAtPoint(0, 0, 900, 600)).toBe("top-left")
+    expect(readerViewAreaAtPoint(450, 300, 900, 600)).toBe("middle-center")
+    expect(readerViewAreaAtPoint(900, 600, 900, 600)).toBe("bottom-right")
   })
 })

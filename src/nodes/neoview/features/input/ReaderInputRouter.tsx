@@ -1,5 +1,6 @@
 import {
   matchingReaderInputBinding,
+  readerViewAreaAtPoint,
   type ReaderInputAction,
   type ReaderInputBindingsConfig,
   type ReaderInputContext,
@@ -19,6 +20,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   executeRef.current = execute
   const bindingsRef = useRef(config.bindings)
   bindingsRef.current = config.bindings
+  const handledAreaPressPointers = useRef(new Set<number>())
 
   const keyboardKeys = useMemo(() => config.bindings.flatMap((binding) => {
     if (!binding.enabled || binding.input.device !== "keyboard") return []
@@ -47,7 +49,24 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
 
   const onPointerUp: PointerEventHandler<HTMLElement> = (event) => {
     if (disabled || event.pointerType !== "mouse" || isInteractive(event.target)) return
+    if (handledAreaPressPointers.current.delete(event.pointerId)) {
+      event.preventDefault()
+      return
+    }
+    const areaInput = readerAreaInput(event, event.detail > 1 ? "double-click" : "click")
+    if (areaInput && dispatch(areaInput, event.target)) {
+      event.preventDefault()
+      return
+    }
     if (dispatch({ device: "mouse", button: event.button, click: event.detail > 1 ? "double" : "single" }, event.target)) event.preventDefault()
+  }
+
+  const onPointerDown: PointerEventHandler<HTMLElement> = (event) => {
+    if (disabled || event.pointerType !== "mouse" || isInteractive(event.target)) return
+    const input = readerAreaInput(event, "press")
+    if (!input || !dispatch(input, event.target)) return
+    handledAreaPressPointers.current.add(event.pointerId)
+    event.preventDefault()
   }
 
   useEffect(() => {
@@ -79,7 +98,18 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
     return true
   }
 
-  return { dispatch, onPointerUp }
+  return { dispatch, onPointerDown, onPointerUp }
+}
+
+function readerAreaInput(event: Parameters<PointerEventHandler<HTMLElement>>[0], action: "click" | "double-click" | "press"): ReaderInputDescriptor | undefined {
+  if (event.button < 0 || event.button > 2) return undefined
+  const rect = event.currentTarget.getBoundingClientRect()
+  return {
+    device: "area",
+    area: readerViewAreaAtPoint(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height),
+    button: event.button as 0 | 1 | 2,
+    action,
+  }
 }
 
 export function readerInputContexts(target: EventTarget | null): ReaderInputContext[] {

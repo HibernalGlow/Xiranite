@@ -15,6 +15,13 @@ export type ReaderInputAction = typeof READER_INPUT_ACTIONS[number]
 export const READER_INPUT_ACTION_CATEGORIES = ["navigation", "view", "session"] as const
 export type ReaderInputActionCategory = typeof READER_INPUT_ACTION_CATEGORIES[number]
 
+export const READER_VIEW_AREAS = [
+  "top-left", "top-center", "top-right",
+  "middle-left", "middle-center", "middle-right",
+  "bottom-left", "bottom-center", "bottom-right",
+] as const
+export type ReaderViewArea = typeof READER_VIEW_AREAS[number]
+
 export interface ReaderInputActionMetadata {
   label: string
   category: ReaderInputActionCategory
@@ -26,6 +33,7 @@ export type ReaderInputDescriptor =
   | { device: "wheel"; direction: "up" | "down"; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
   | { device: "touch"; gesture: "swipe-left" | "swipe-right" | "swipe-up" | "swipe-down"; fingers: 1 | 2 | 3 }
   | { device: "gamepad"; button: number }
+  | { device: "area"; area: ReaderViewArea; button: 0 | 1 | 2; action: "click" | "double-click" | "press" }
 
 export interface ReaderInputBinding {
   id: string
@@ -111,6 +119,8 @@ export function readerInputDescriptorKey(input: ReaderInputDescriptor): string {
       return `touch:${input.fingers}:${input.gesture}`
     case "gamepad":
       return `gamepad:${input.button}`
+    case "area":
+      return `area:${input.area}:${input.button}:${input.action}`
   }
 }
 
@@ -140,6 +150,12 @@ export function matchingReaderInputBinding(
 
 export function cloneReaderInputBindings(config: ReaderInputBindingsConfig): ReaderInputBindingsConfig {
   return { bindings: config.bindings.map((current) => ({ ...current, input: { ...current.input } })) }
+}
+
+export function readerViewAreaAtPoint(x: number, y: number, width: number, height: number): ReaderViewArea {
+  const column = Math.max(0, Math.min(2, Math.floor((x / Math.max(1, width)) * 3)))
+  const row = Math.max(0, Math.min(2, Math.floor((y / Math.max(1, height)) * 3)))
+  return READER_VIEW_AREAS[row * 3 + column]!
 }
 
 function binding(

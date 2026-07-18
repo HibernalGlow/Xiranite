@@ -40,9 +40,11 @@ export {
   READER_INPUT_CONTEXT_LABELS,
   READER_INPUT_CONTEXT_PRIORITY,
   READER_INPUT_CONTEXTS,
+  READER_VIEW_AREAS,
   readerInputConflictKey,
   readerInputConflicts,
   readerInputDescriptorKey,
+  readerViewAreaAtPoint,
   type ReaderInputAction,
   type ReaderInputActionCategory,
   type ReaderInputActionMetadata,
@@ -51,6 +53,7 @@ export {
   type ReaderInputConflict,
   type ReaderInputContext,
   type ReaderInputDescriptor,
+  type ReaderViewArea,
 } from "./domain/input/ReaderInputBindings.js"
 export type {
   PageDimensions,

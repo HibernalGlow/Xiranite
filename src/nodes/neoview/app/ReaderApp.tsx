@@ -908,6 +908,7 @@ export function ReaderApp({
       data-input-context="reader"
       className="h-full min-h-0 w-full touch-none overflow-hidden bg-background text-foreground"
       tabIndex={0}
+      onPointerDown={inputRouter.onPointerDown}
       onPointerUp={inputRouter.onPointerUp}
     >
       <Suspense fallback={null}>
