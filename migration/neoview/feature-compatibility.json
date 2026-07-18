@@ -768,6 +768,7 @@
       "testIds": [
         "neoview.scheduler.interactive-slot",
         "neoview.scheduler.cancellation",
+        "neoview.scheduler.close",
         "neoview.scheduler.host-injection",
         "xiranite.scheduler.priority",
         "xiranite.scheduler.pools",

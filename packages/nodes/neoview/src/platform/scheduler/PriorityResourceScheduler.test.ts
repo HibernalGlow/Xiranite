@@ -35,4 +35,20 @@ describe("PriorityResourceScheduler", () => {
     active.release()
     expect(scheduler.active).toBe(0)
   })
+
+  it("[neoview.scheduler.close] rejects queued work and preserves active lease release", async () => {
+    const scheduler = new PriorityResourceScheduler({ maxConcurrent: 1, reservedInteractive: 0 })
+    const active = await scheduler.acquire({ resource: "cpu", kind: "active", priority: "interactive" })
+    const queued = scheduler.acquire({ resource: "cpu", kind: "queued", priority: "background" })
+
+    scheduler.close()
+    scheduler.close()
+
+    await expect(queued).rejects.toMatchObject({ name: "AbortError" })
+    expect(scheduler.queued).toBe(0)
+    await expect(scheduler.acquire({ resource: "cpu", kind: "after-close", priority: "interactive" })).rejects.toMatchObject({ name: "AbortError" })
+    active.release()
+    active.release()
+    expect(scheduler.active).toBe(0)
+  })
 })
