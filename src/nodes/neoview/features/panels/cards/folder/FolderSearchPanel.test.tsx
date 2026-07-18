@@ -77,6 +77,53 @@ describe("FolderSearchPanel", () => {
     expect(onActivate).toHaveBeenCalledWith(entry)
   })
 
+  it("[neoview.folder.emm-tags-gui] searches structured favorite tags with legacy click modifiers", async () => {
+    const searchDirectoryBrowser = vi.fn(async (_sessionId: string, query: string) => result(query))
+    const view = renderPanel({
+      suggestDirectoryEmmTags: vi.fn(async () => [
+        { category: "artist", tag: "alice", favorite: true, translatedTag: "爱丽丝" },
+        { category: "female", tag: "glasses", favorite: false },
+        { category: "language", tag: "chinese", favorite: false },
+      ]),
+      searchDirectoryBrowser,
+    } as unknown as ReaderHttpClient)
+    const current = within(view.container)
+
+    fireEvent.click(current.getByRole("button", { name: "收藏标签快选" }))
+    const artist = await current.findByRole("button", { name: "选择标签 artist:alice" })
+    fireEvent.click(artist)
+    await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
+      "browser-1",
+      "",
+      expect.objectContaining({ includeTags: ["artist:alice"], excludeTags: [], tagMode: "all" }),
+      expect.any(AbortSignal),
+    ))
+
+    fireEvent.click(current.getByRole("button", { name: "选择标签 female:glasses" }), { ctrlKey: true })
+    await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
+      "browser-1",
+      "",
+      expect.objectContaining({ includeTags: ["artist:alice", "female:glasses"], excludeTags: [], tagMode: "all" }),
+      expect.any(AbortSignal),
+    ))
+
+    fireEvent.click(current.getByRole("button", { name: "选择标签 language:chinese" }), { shiftKey: true })
+    await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
+      "browser-1",
+      "",
+      expect.objectContaining({ includeTags: ["artist:alice", "female:glasses"], excludeTags: ["language:chinese"], tagMode: "all" }),
+      expect.any(AbortSignal),
+    ))
+
+    fireEvent.click(current.getByRole("button", { name: "标签匹配方式" }))
+    await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenLastCalledWith(
+      "browser-1",
+      "",
+      expect.objectContaining({ tagMode: "any" }),
+      expect.any(AbortSignal),
+    ))
+  })
+
   it("[neoview.folder.search-stale] ignores a superseded search and renders error and truncated states", async () => {
     const first = deferred<ReaderDirectorySearchResultDto>()
     const second = deferred<ReaderDirectorySearchResultDto>()

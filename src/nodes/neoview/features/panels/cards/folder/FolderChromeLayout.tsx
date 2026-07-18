@@ -16,7 +16,7 @@ export default function FolderChromeLayout({ layout, tabBar, breadcrumb, childre
   const toolbarVertical = isVertical(layout.toolbarPosition)
   return (
     <div className={`flex min-h-0 min-w-0 flex-1 gap-2 ${breadcrumbVertical ? "flex-row" : "flex-col"}`} data-folder-layout-layer="breadcrumb">
-      {layout.breadcrumbPosition !== "none" ? (
+      {layout.breadcrumbPosition !== "none" && breadcrumb ? (
         <div
           className={breadcrumbVertical ? "min-h-0 w-40 shrink-0 overflow-auto" : "min-w-0 shrink-0"}
           style={{ order: isTrailing(layout.breadcrumbPosition) ? 2 : 0 }}
@@ -26,13 +26,13 @@ export default function FolderChromeLayout({ layout, tabBar, breadcrumb, childre
         </div>
       ) : null}
       <div className={`flex min-h-0 min-w-0 flex-1 gap-2 ${tabsVertical ? "flex-row" : "flex-col"}`} style={{ order: 1 }} data-folder-layout-layer="tabs">
-        <div
+        {tabBar ? <div
           className="min-h-0 min-w-0 shrink-0"
           style={{ order: isTrailing(layout.layout) ? 2 : 0 }}
           data-folder-layout-region={layout.layout === "none" ? "tab-layout-control" : "tabs"}
         >
           {tabBar}
-        </div>
+        </div> : null}
         <div className={`flex min-h-0 min-w-0 flex-1 gap-2 ${toolbarVertical ? "flex-row" : "flex-col"}`} style={{ order: 1 }} data-folder-layout-layer="toolbar">
           {layout.toolbarPosition !== "none" ? (
             <div

@@ -62,6 +62,7 @@ describe("ReaderSidebar layout gestures", () => {
   it("[neoview.card.collapse] keeps collapsed card content out of the DOM and emits one discrete patch", () => {
     const cardCommit = vi.fn()
     const config = shell()
+    config.cardLayout["book-information"]!.panelId = "pageList"
     config.cardLayout["page-navigation"]!.expanded = false
     render(<ReaderSidebar side="left" context={context()} shell={config} onCardLayoutCommit={cardCommit} />)
     fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
@@ -75,6 +76,7 @@ describe("ReaderSidebar layout gestures", () => {
   it("[neoview.card.resize-patch] applies stored height and emits one card patch after a drag", () => {
     const cardCommit = vi.fn()
     const config = shell()
+    config.cardLayout["book-information"]!.panelId = "pageList"
     config.cardLayout["page-navigation"]!.height = 180
     render(<ReaderSidebar side="left" context={context()} shell={config} onCardLayoutCommit={cardCommit} />)
     fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
@@ -105,10 +107,14 @@ describe("ReaderSidebar layout gestures", () => {
     Object.assign(value.client, { openDirectoryBrowser, closeDirectoryBrowser, watchDirectoryBrowser })
     value.sourcePath = opened.path
 
-    render(<ReaderSidebar side="left" context={value} shell={shell()} />)
+    const config = shell()
+    const view = render(<ReaderSidebar side="left" context={value} shell={config} />)
     await waitFor(() => expect(document.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy())
     const folderCard = document.querySelector<HTMLElement>('[data-neoview-folder-card="true"]')!
     folderCard.setAttribute("data-folder-card-instance", "stable")
+    expect(document.querySelector('[data-reader-panel-cache="folder"] h2')).toBeNull()
+    expect(document.querySelector('[data-reader-card="文件浏览"]')?.getAttribute("data-reader-card-chrome")).toBe("none")
+    expect(screen.queryByRole("button", { name: "折叠文件浏览" })).toBeNull()
     await waitFor(() => expect(watchDirectoryBrowser).toHaveBeenCalledOnce())
     const folderPanel = document.querySelector<HTMLElement>('[data-reader-panel-cache="folder"]')!
 
@@ -125,6 +131,13 @@ describe("ReaderSidebar layout gestures", () => {
     expect(document.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-folder-card-instance")).toBe("stable")
     expect(openDirectoryBrowser).toHaveBeenCalledOnce()
     expect(closeDirectoryBrowser).not.toHaveBeenCalled()
+
+    config.cardLayout["page-navigation"]!.panelId = "folder"
+    view.rerender(<ReaderSidebar side="left" context={value} shell={config} />)
+    expect(document.querySelector('[data-neoview-folder-card="true"]')).toBe(folderCard)
+    expect(document.querySelector('[data-reader-panel-cache="folder"] h2')?.textContent).toBe("文件夹")
+    expect(document.querySelector('[data-reader-card="文件浏览"]')?.getAttribute("data-reader-card-chrome")).toBe("default")
+    expect(screen.getByRole("button", { name: "折叠文件浏览" })).toBeTruthy()
   })
 
   it("[neoview.settings.sessionless-card] exposes only docked setting cards when no book is open", () => {
@@ -134,8 +147,8 @@ describe("ReaderSidebar layout gestures", () => {
     render(<ReaderSidebar side="left" context={context(false)} shell={config} />)
     fireEvent.click(screen.getByRole("button", { name: "设置" }))
 
-    expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "设置" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "展开面板布局设置" })).toBeNull()
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
   })
 
@@ -143,7 +156,7 @@ describe("ReaderSidebar layout gestures", () => {
     render(<ReaderSidebar side="left" context={context(false)} shell={shell()} />)
     fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
     expect(await screen.findByText("打开书本后显示页面导航")).toBeTruthy()
-    expect(screen.getByRole("button", { name: "折叠页面导航" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "折叠页面导航" })).toBeNull()
   })
 
   it("[neoview.sidebar-height.blank-collapse] collapses only blank sidebar clicks in the configured mode", () => {

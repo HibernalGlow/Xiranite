@@ -3,8 +3,8 @@
  * @migrated-from cards/folder/cards/ToolbarCard.svelte
  * @migration-status partial
  */
-import { Asterisk, CaseSensitive, ChevronDown, File, Folder, ListTree, LoaderCircle, Search, Trash2, X } from "lucide-react"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { Asterisk, CaseSensitive, ChevronDown, File, Folder, ListTree, LoaderCircle, Search, Star, Trash2, X } from "lucide-react"
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
 import { Virtuoso } from "react-virtuoso"
 
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ import type {
 
 const SEARCH_RESULT_LIMIT = 512
 const SEARCH_HISTORY_LIMIT = 20
+const FolderFavoriteTagPanel = lazy(() => import("./FolderFavoriteTagPanel"))
 const HISTORY_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   month: "numeric",
   day: "numeric",
@@ -54,6 +55,10 @@ export default function FolderSearchPanel({
   const [mode, setMode] = useState<ReaderDirectorySearchModeDto>("text")
   const [kind, setKind] = useState<ReaderDirectorySearchKindDto>("all")
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [includeTags, setIncludeTags] = useState<ReadonlySet<string>>(() => new Set())
+  const [excludeTags, setExcludeTags] = useState<ReadonlySet<string>>(() => new Set())
+  const [tagMode, setTagMode] = useState<"all" | "any">("all")
+  const [showFavoriteTags, setShowFavoriteTags] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [history, setHistory] = useState<readonly ReaderSearchHistoryDto[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -83,9 +88,9 @@ export default function FolderSearchPanel({
     return () => document.removeEventListener("pointerdown", closeHistory)
   }, [])
 
-  async function search(nextQuery = query) {
+  async function search(nextQuery = query, tags: TagSearch = { includeTags: [...includeTags], excludeTags: [...excludeTags], tagMode }) {
     const normalized = nextQuery.trim()
-    if (!normalized || !client.searchDirectoryBrowser) return
+    if ((!normalized && !tags.includeTags.length && !tags.excludeTags.length) || !client.searchDirectoryBrowser) return
     requestRef.current?.abort()
     const controller = new AbortController()
     requestRef.current = controller
@@ -102,6 +107,9 @@ export default function FolderSearchPanel({
         searchInPath: settings.searchInPath,
         maximumDepth: settings.includeSubfolders ? undefined : 0,
         maximumResults: SEARCH_RESULT_LIMIT,
+        includeTags: tags.includeTags,
+        excludeTags: tags.excludeTags,
+        tagMode: tags.tagMode,
         onEntries: (entries) => {
           if (requestRef.current === controller) setStreamedEntries(entries)
         },
@@ -110,7 +118,7 @@ export default function FolderSearchPanel({
       setResult(next)
       setStreamedEntries([])
       setSelectedPath(undefined)
-      void recordHistory(normalized)
+      if (normalized) void recordHistory(normalized)
     } catch (cause) {
       if (controller.signal.aborted) return
       setStreamedEntries([])
@@ -207,9 +215,38 @@ export default function FolderSearchPanel({
     setResult(undefined)
     setStreamedEntries([])
     setSelectedPath(undefined)
+    setIncludeTags(new Set())
+    setExcludeTags(new Set())
     setError(undefined)
     setLoading(false)
     inputRef.current?.focus()
+  }
+
+  function applyTag(tag: { category: string; tag: string }, action: "replace-include" | "toggle-include" | "toggle-exclude") {
+    const key = `${tag.category}:${tag.tag}`
+    const nextInclude = action === "replace-include" ? new Set<string>() : new Set(includeTags)
+    const nextExclude = action === "replace-include" ? new Set<string>() : new Set(excludeTags)
+    if (action === "toggle-exclude") {
+      nextInclude.delete(key)
+      if (nextExclude.has(key)) nextExclude.delete(key)
+      else nextExclude.add(key)
+    } else {
+      nextExclude.delete(key)
+      if (action === "replace-include") nextInclude.add(key)
+      else if (nextInclude.has(key)) nextInclude.delete(key)
+      else nextInclude.add(key)
+    }
+    setIncludeTags(nextInclude)
+    setExcludeTags(nextExclude)
+    void search(query, { includeTags: [...nextInclude], excludeTags: [...nextExclude], tagMode })
+  }
+
+  function toggleTagMode() {
+    const next = tagMode === "all" ? "any" : "all"
+    setTagMode(next)
+    if (includeTags.size || excludeTags.size) {
+      void search(query, { includeTags: [...includeTags], excludeTags: [...excludeTags], tagMode: next })
+    }
   }
 
   return (
@@ -245,7 +282,7 @@ export default function FolderSearchPanel({
             {historyLoading ? <LoaderCircle className="animate-spin" /> : <ChevronDown />}
           </Button>
         ) : null}
-        <Button type="submit" size="icon-sm" variant="outline" aria-label="执行搜索" disabled={disabled || loading || !query.trim() || !client.searchDirectoryBrowser}>
+        <Button type="submit" size="icon-sm" variant="outline" aria-label="执行搜索" disabled={disabled || loading || (!query.trim() && !includeTags.size && !excludeTags.size) || !client.searchDirectoryBrowser}>
           {loading ? <LoaderCircle className="animate-spin" /> : <Search />}
         </Button>
         <Button type="button" size="icon-sm" variant="ghost" aria-label="清除搜索" disabled={!query && !result && !error} onClick={clearSearch}><X /></Button>
@@ -261,6 +298,10 @@ export default function FolderSearchPanel({
         <Button type="button" size="sm" variant={settings.includeSubfolders ? "default" : "ghost"} className="h-7 gap-1 px-2 text-xs" aria-pressed={settings.includeSubfolders} onClick={() => onSettingsChange({ includeSubfolders: !settings.includeSubfolders })}><ListTree />子目录</Button>
         <Button type="button" size="icon-sm" variant={mode === "glob" ? "default" : "ghost"} aria-label="Glob 模式" aria-pressed={mode === "glob"} onClick={() => setMode((current) => current === "text" ? "glob" : "text")}><Asterisk /></Button>
         <Button type="button" size="icon-sm" variant={caseSensitive ? "default" : "ghost"} aria-label="区分大小写" aria-pressed={caseSensitive} onClick={() => setCaseSensitive((current) => !current)}><CaseSensitive /></Button>
+        <Button type="button" size="sm" variant={showFavoriteTags ? "default" : "ghost"} className="h-7 gap-1 px-2 text-xs" aria-label="收藏标签快选" aria-expanded={showFavoriteTags} disabled={!client.suggestDirectoryEmmTags} onClick={() => setShowFavoriteTags((value) => !value)}><Star className={showFavoriteTags ? "fill-current" : undefined} />标签</Button>
+        {(includeTags.size > 1 || excludeTags.size > 0) ? <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[10px]" aria-label="标签匹配方式" onClick={toggleTagMode}>{tagMode === "all" ? "全部标签" : "任一标签"}</Button> : null}
+        {[...includeTags].map((tag) => <button key={`include:${tag}`} type="button" className="h-6 max-w-28 truncate rounded border border-primary bg-primary/10 px-1.5 text-[10px] text-primary" title={tag} onClick={() => applyTag(splitTag(tag), "toggle-include")}>+ {tag}</button>)}
+        {[...excludeTags].map((tag) => <button key={`exclude:${tag}`} type="button" className="h-6 max-w-28 truncate rounded border border-destructive bg-destructive/10 px-1.5 text-[10px] text-destructive line-through" title={tag} onClick={() => applyTag(splitTag(tag), "toggle-exclude")}>- {tag}</button>)}
         <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground">
           <label className="flex items-center gap-1" title="匹配相对路径">
             <input type="checkbox" checked={settings.searchInPath} onChange={(event) => onSettingsChange({ searchInPath: event.currentTarget.checked })} />
@@ -272,6 +313,12 @@ export default function FolderSearchPanel({
           </label>
         </div>
       </div>
+
+      {showFavoriteTags ? (
+        <Suspense fallback={null}>
+          <FolderFavoriteTagPanel client={client} includeTags={includeTags} excludeTags={excludeTags} onTag={applyTag} onClose={() => setShowFavoriteTags(false)} />
+        </Suspense>
+      ) : null}
 
       {showHistory ? (
         <div className="absolute inset-x-1 top-10 z-30 max-h-56 overflow-y-auto rounded border bg-popover shadow-md" data-neoview-folder-search-history="true">
@@ -306,7 +353,7 @@ export default function FolderSearchPanel({
       <div className="min-h-0" aria-live="polite">
         {loading && streamedEntries.length === 0 ? <SearchState icon={<LoaderCircle className="size-5 animate-spin" />} label="正在搜索..." /> : null}
         {!loading && error ? <SearchState label={error} tone="error" action={<Button type="button" size="sm" variant="outline" onClick={() => void search()}>重试</Button>} /> : null}
-        {!loading && !error && result?.entries.length === 0 ? <SearchState label={`未找到“${result.query}”`} /> : null}
+        {!loading && !error && result?.entries.length === 0 ? <SearchState label={result.query ? `未找到“${result.query}”` : "未找到匹配标签的项目"} /> : null}
         {!error && (result?.entries.length || streamedEntries.length) ? (
           <div className="grid h-full min-h-0 grid-rows-[auto_1fr]">
             <div className="flex items-center justify-between border-b px-2 py-1 text-[10px] text-muted-foreground">
@@ -357,4 +404,15 @@ function SearchState({ icon, label, tone = "muted", action }: { icon?: ReactNode
       {action}
     </div>
   )
+}
+
+interface TagSearch {
+  includeTags: readonly string[]
+  excludeTags: readonly string[]
+  tagMode: "all" | "any"
+}
+
+function splitTag(value: string): { category: string; tag: string } {
+  const separator = value.indexOf(":")
+  return separator < 0 ? { category: "", tag: value } : { category: value.slice(0, separator), tag: value.slice(separator + 1) }
 }

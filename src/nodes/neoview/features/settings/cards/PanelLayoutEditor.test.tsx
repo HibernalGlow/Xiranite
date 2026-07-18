@@ -46,6 +46,16 @@ describe("PanelLayoutEditor", () => {
     expect(movePanelLayoutCard(columns, "page-navigation", "__hidden__")).toBe(columns)
     expect(movePanelLayoutCard(columns, "book-information", "cardwindow")).toBe(columns)
   })
+
+  it("[neoview.sidebar.panel-dnd-settings] reflects a panel side change from the shared shell", () => {
+    const current = shell()
+    const view = render(<PanelLayoutEditor shell={current} onSave={vi.fn()} />)
+    expect(document.querySelector('[data-panel-layout-column="pageList"]')?.textContent).toContain("左侧栏")
+
+    const updated = { ...current, panelLayout: { ...current.panelLayout, pageList: { ...current.panelLayout.pageList!, position: "right" as const } } }
+    view.rerender(<PanelLayoutEditor shell={updated} onSave={vi.fn()} />)
+    expect(document.querySelector('[data-panel-layout-column="pageList"]')?.textContent).toContain("右侧栏")
+  })
 })
 
 function shell(): ReaderShellConfigDto {

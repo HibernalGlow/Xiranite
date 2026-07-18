@@ -7,6 +7,21 @@ import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type 
 import { ContextMenuProvider } from "@/components/context-menu"
 import FolderMainCard, { mergeThumbnailUrls } from "./FolderMainCard"
 
+function selectFolderViewMode(scope: ReturnType<typeof within> | typeof screen, label: string) {
+  if (!scope.queryByRole("button", { name: label })) selectFolderHandleAction(scope, "视图")
+  fireEvent.click(scope.getByRole("button", { name: label }))
+}
+
+function createFolderTab(scope: ReturnType<typeof within> | typeof screen) {
+  if (!scope.queryByRole("button", { name: "新建文件夹标签" })) selectFolderHandleAction(scope, "更多操作")
+  fireEvent.click(scope.getByRole("button", { name: "新建文件夹标签" }))
+}
+
+function selectFolderHandleAction(scope: ReturnType<typeof within> | typeof screen, label: string) {
+  fireEvent.click(scope.getByRole("button", { name: "文件操作手柄" }))
+  fireEvent.click(screen.getByRole("menuitem", { name: label }))
+}
+
 afterEach(cleanup)
 
 describe("FolderMainCard", () => {
@@ -214,21 +229,22 @@ describe("FolderMainCard", () => {
     const view = render(renderCard("C:/B"))
     const ui = within(view.container)
     const activeCard = () => within(view.container.querySelector('[data-neoview-folder-card="true"]') as HTMLElement)
+    const activeViewMode = () => view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-folder-view-mode")
 
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/A", expect.any(AbortSignal), undefined, true))
     await activeCard().findByTitle("C:/A/a.cbz")
     fireEvent.click(activeCard().getByTitle("C:/A/a.cbz"), { ctrlKey: true })
-    fireEvent.click(activeCard().getByRole("radio", { name: "详细信息" }))
-    await waitFor(() => expect(activeCard().getByRole("radio", { name: "详细信息" }).getAttribute("data-state")).toBe("on"))
+    selectFolderViewMode(activeCard(), "详细信息")
+    await waitFor(() => expect(activeViewMode()).toBe("details"))
 
-    fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
+    createFolderTab(ui)
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/B", expect.any(AbortSignal), undefined, true))
     await activeCard().findByTitle("C:/B/b.cbz")
-    expect(ui.getByRole("tab", { name: "B" }).getAttribute("aria-selected")).toBe("true")
-    expect(activeCard().getByRole("radio", { name: "紧凑列表" }).getAttribute("data-state")).toBe("on")
+    expect((await ui.findByRole("tab", { name: "B" })).getAttribute("aria-selected")).toBe("true")
+    expect(activeViewMode()).toBe("compact")
 
     view.rerender(renderCard("C:/C"))
-    fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
+    createFolderTab(ui)
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/C", expect.any(AbortSignal), undefined, true))
     await activeCard().findByTitle("C:/C/c.cbz")
     expect(ui.getByRole("tab", { name: "C" }).getAttribute("aria-selected")).toBe("true")
@@ -236,7 +252,7 @@ describe("FolderMainCard", () => {
     fireEvent.click(ui.getByRole("tab", { name: "A" }))
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1"))
     expect(view.container.querySelector('[data-neoview-folder-card="true"] [data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")?.replaceAll("\\", "/")).toBe("C:/A")
-    expect(activeCard().getByRole("radio", { name: "详细信息" }).getAttribute("data-state")).toBe("on")
+    expect(activeViewMode()).toBe("details")
 
     fireEvent.click(ui.getByRole("tab", { name: "B" }))
     fireEvent.click(ui.getByRole("button", { name: "关闭标签 B" }))
@@ -269,7 +285,7 @@ describe("FolderMainCard", () => {
     const ui = within(view.container)
     const createTab = async (path: string) => {
       view.rerender(renderCard(path))
-      fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
+      createFolderTab(ui)
       await waitFor(() => expect(ui.getByRole("tab", { name: path.at(-1)! }).getAttribute("aria-selected")).toBe("true"))
     }
     const selectMenuItem = async (tab: string, item: string) => {
@@ -334,14 +350,15 @@ describe("FolderMainCard", () => {
 
     await ui.findByTitle("C:/A/a.cbz")
     fireEvent.click(ui.getByTitle("C:/A/a.cbz"), { ctrlKey: true })
-    fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
-    await openMenu("A", "复制标签")
+    selectFolderViewMode(ui, "详细信息")
+    selectFolderHandleAction(ui, "更多操作")
+    fireEvent.click(ui.getByRole("button", { name: "复制当前标签" }))
 
     await waitFor(() => expect(client.cloneDirectoryBrowser).toHaveBeenCalledWith("browser-source", expect.any(AbortSignal)))
     await waitFor(() => expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy())
     expect(client.openDirectoryBrowser).toHaveBeenCalledTimes(1)
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
-    expect(ui.getByRole("radio", { name: "详细信息" }).getAttribute("data-state")).toBe("on")
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-folder-view-mode")).toBe("details")
 
     await openMenu("A", "固定标签")
     await waitFor(() => expect(updateFolderView).toHaveBeenCalledWith({ tabs: { pinned: [{ path: "C:/A", title: "A" }] } }))
@@ -379,25 +396,26 @@ describe("FolderMainCard", () => {
     const ui = within(view.container)
 
     await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledTimes(1))
-    fireEvent.click(ui.getByRole("button", { name: "新建文件夹标签" }))
+    createFolderTab(ui)
     await ui.findByTitle("C:/B/b.cbz")
     fireEvent.click(ui.getByTitle("C:/B/b.cbz"), { ctrlKey: true })
-    fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
+    selectFolderViewMode(ui, "详细信息")
     fireEvent.click(ui.getByRole("button", { name: "关闭标签 B" }))
 
     await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b", true))
     expect(ui.queryByRole("tab", { name: "B" })).toBeNull()
-    fireEvent.pointerDown(ui.getByRole("button", { name: "重新打开关闭的页签" }), { button: 0, pointerType: "mouse" })
-    fireEvent.click(await screen.findByRole("menuitem", { name: "B" }))
+    if (!ui.queryByRole("button", { name: "重新打开关闭的标签" })) selectFolderHandleAction(ui, "更多操作")
+    await waitFor(() => expect(ui.getByRole("button", { name: "重新打开关闭的标签" }).getAttribute("disabled")).toBeNull())
+    fireEvent.click(ui.getByRole("button", { name: "重新打开关闭的标签" }))
     await waitFor(() => expect(reopenDirectoryBrowser).toHaveBeenCalledTimes(1))
-    expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).toBeNull()
+    expect(ui.getByRole("button", { name: "重新打开关闭的标签" }).getAttribute("disabled")).toBeNull()
 
     fireEvent.keyDown(window, { key: "T", ctrlKey: true, shiftKey: true })
     await waitFor(() => expect(ui.getByRole("tab", { name: "B" }).getAttribute("aria-selected")).toBe("true"))
     expect(reopenDirectoryBrowser).toHaveBeenLastCalledWith("browser-b", expect.any(AbortSignal))
     expect(openDirectoryBrowser).toHaveBeenCalledTimes(2)
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
-    expect(ui.getByRole("radio", { name: "详细信息" }).getAttribute("data-state")).toBe("on")
+    expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy()
     expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).not.toBeNull()
     view.unmount()
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-restored")
@@ -421,6 +439,14 @@ describe("FolderMainCard", () => {
     const view = render(renderCard(layout()))
     const ui = within(view.container)
     await ui.findByTitle("C:/books/book.cbz")
+    expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeNull()
+    expect(view.container.querySelector('[data-folder-tab-count="1"]')).toBeTruthy()
+
+    createFolderTab(ui)
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy())
+    const breadcrumb = view.container.querySelector('[data-folder-layout-region="breadcrumb"]')!
+    const tabRegion = view.container.querySelector('[data-folder-layout-region="tabs"]')!
+    expect(breadcrumb.compareDocumentPosition(tabRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.pointerDown(ui.getByRole("button", { name: "标签栏布局设置" }), { button: 0, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("button", { name: "标签栏位置：左侧" }))
@@ -596,7 +622,6 @@ describe("FolderMainCard", () => {
     )
     const ui = within(view.container)
     const currentItem = (path: string, index: number) => ui.getByTitle(`${path}/item-${index}.cbz`)
-    const viewButton = (index: number) => view.container.querySelectorAll<HTMLButtonElement>('[data-slot="toggle-group-item"]')[index]!
     const currentPath = () => view.container
       .querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')
       ?.getAttribute("title")
@@ -612,12 +637,12 @@ describe("FolderMainCard", () => {
 
     await waitFor(() => expect(currentItem("C:/A", 1)).toBeTruthy())
     fireEvent.click(currentItem("C:/A", 1), { ctrlKey: true })
-    fireEvent.click(viewButton(4))
+    selectFolderViewMode(ui, "封面网格")
     await waitFor(() => expect(currentItem("C:/A", 1).getAttribute("data-preview-mode")).toBe("cover-grid"))
 
     await navigatePath("C:/B")
     await navigatePath("C:/A")
-    fireEvent.click(viewButton(0))
+    selectFolderViewMode(ui, "紧凑列表")
     fireEvent.click(currentItem("C:/A", 3), { ctrlKey: true })
     expect(currentItem("C:/A", 3).getAttribute("aria-selected")).toBe("true")
 
@@ -704,8 +729,8 @@ describe("FolderMainCard", () => {
       </VirtuosoGridMockContext.Provider>,
     )
     const currentView = within(view.container)
-    await waitFor(() => expect(currentView.getByLabelText("封面网格")).toBeTruthy())
-    fireEvent.click(currentView.getByLabelText("封面网格"))
+    await waitFor(() => expect(currentView.getByRole("button", { name: "文件操作手柄" })).toBeTruthy())
+    selectFolderViewMode(currentView, "封面网格")
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalled())
     const [contextId, generation, items] = registerLibraryThumbnails.mock.calls.at(-1)!
     expect(contextId).toMatch(/^folder:browser-1:\d+$/)
@@ -713,7 +738,7 @@ describe("FolderMainCard", () => {
     expect(items.length).toBeGreaterThan(0)
     expect(items.length).toBeLessThanOrEqual(64)
     expect(items).toEqual(expect.arrayContaining([expect.objectContaining({ id: "0", path: "C:/books/folder", kind: "folder", previewCount: 1 })]))
-    fireEvent.click(currentView.getByLabelText("多图网格"))
+    selectFolderViewMode(currentView, "多图网格")
     await waitFor(() => expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "0", kind: "folder", previewCount: 4 }),
       expect.objectContaining({ id: "1", kind: "file", previewCount: 1 }),
@@ -721,11 +746,11 @@ describe("FolderMainCard", () => {
     expect(currentView.getByLabelText("多图数量")).toBeTruthy()
     await waitFor(() => expect(view.container.querySelectorAll('[data-preview-mode="mosaic-grid"] img')).toHaveLength(2))
     const registeredBeforeLeavingThumbnailView = registerLibraryThumbnails.mock.calls.length
-    fireEvent.click(currentView.getByLabelText("紧凑列表"))
+    selectFolderViewMode(currentView, "紧凑列表")
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-thumbnail-cache-size")).toBe("2")
     expect(releaseLibraryThumbnailContext).not.toHaveBeenCalled()
     registerLibraryThumbnails.mockImplementationOnce(() => new Promise(() => undefined))
-    fireEvent.click(currentView.getByLabelText("多图网格"))
+    selectFolderViewMode(currentView, "多图网格")
     await waitFor(() => expect(view.container.querySelectorAll('[data-preview-mode="mosaic-grid"] img')).toHaveLength(2))
     expect(registerLibraryThumbnails).toHaveBeenCalledTimes(registeredBeforeLeavingThumbnailView)
     view.unmount()
@@ -770,13 +795,13 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("2")
     expect(item(2).getAttribute("aria-selected")).toBe("false")
 
-    fireEvent.click(currentView.getByLabelText("封面网格"))
+    selectFolderViewMode(currentView, "封面网格")
     await waitFor(() => expect(item(1).getAttribute("data-preview-mode")).toBe("cover-grid"))
     expect(item(1).getAttribute("aria-selected")).toBe("true")
     expect(item(2).getAttribute("aria-selected")).toBe("false")
     expect(item(3).getAttribute("aria-selected")).toBe("true")
 
-    fireEvent.click(currentView.getByLabelText("多选模式"))
+    selectFolderHandleAction(currentView, "多选模式")
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-selection-bar="true"]')).toBeTruthy())
     expect(currentView.getByText("2").closest('[data-neoview-folder-selection-bar="true"]')).toBeTruthy()
     fireEvent.click(currentView.getByLabelText("选择全部项目"))
@@ -963,6 +988,7 @@ describe("FolderMainCard", () => {
 
     fireEvent.keyDown(host, { key: "End", shiftKey: true })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("100000")
+    selectFolderHandleAction(currentView, "排序")
     fireEvent.click(currentView.getByRole("button", { name: "升序" }))
     await waitFor(() => expect(sortDirectoryBrowser).toHaveBeenCalledWith(
       "browser-1",
@@ -1110,7 +1136,8 @@ describe("FolderMainCard", () => {
     const list = await currentView.findByRole("listbox", { name: "文件项目" })
     fireEvent.click(await currentView.findByTitle("C:\\books\\book.cbz"), { ctrlKey: true })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
-    fireEvent.click(await currentView.findByRole("button", { name: "文件树" }))
+    await currentView.findByRole("button", { name: "文件操作手柄" })
+    selectFolderHandleAction(currentView, "文件树")
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-tree="true"]')).toBeTruthy())
     expect(list.isConnected).toBe(true)
     expect(within(list).getByTitle("C:\\books\\book.cbz")).toBeTruthy()
@@ -1146,7 +1173,8 @@ describe("FolderMainCard", () => {
     )
     const ui = within(view.container)
 
-    fireEvent.click(await ui.findByRole("button", { name: "文件树" }))
+    await ui.findByRole("button", { name: "文件操作手柄" })
+    selectFolderHandleAction(ui, "文件树")
     await waitFor(() => expect(onFolderView).toHaveBeenLastCalledWith({ tree: { visible: true } }))
     for (const [name, layout] of [["文件树位于右侧", "right"], ["文件树位于底部", "bottom"], ["文件树位于左侧", "left"], ["文件树位于顶部", "top"]] as const) {
       fireEvent.click(ui.getByRole("radio", { name }))
@@ -1208,6 +1236,8 @@ describe("FolderMainCard", () => {
       </VirtuosoMockContext.Provider>,
     )
     const currentView = within(view.container)
+    await currentView.findByRole("button", { name: "文件操作手柄" })
+    selectFolderHandleAction(currentView, "排序")
     await waitFor(() => expect(currentView.getByRole("button", { name: "升序" })).toBeTruthy())
     fireEvent.click(currentView.getByRole("button", { name: "升序" }))
     await waitFor(() => expect(sortDirectoryBrowser).toHaveBeenCalledWith(
@@ -1287,9 +1317,9 @@ describe("FolderMainCard", () => {
       </VirtuosoMockContext.Provider>,
     )
     const currentView = within(view.container)
-    await waitFor(() => expect(currentView.getByLabelText("详细信息")).toBeTruthy())
+    await waitFor(() => expect(currentView.getByRole("button", { name: "文件操作手柄" })).toBeTruthy())
     expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeNull()
-    fireEvent.click(currentView.getByLabelText("详细信息"))
+    selectFolderViewMode(currentView, "详细信息")
     await waitFor(() => expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy(), { timeout: 5_000 })
     await waitFor(() => expect(listDirectoryBrowser).toHaveBeenCalledWith(
       "browser-1",
@@ -1336,8 +1366,9 @@ describe("FolderMainCard", () => {
       </VirtuosoMockContext.Provider>,
     )
     const currentView = within(view.container)
-    await waitFor(() => expect(currentView.getByLabelText("详细信息").getAttribute("data-state")).toBe("on"))
-    fireEvent.click(currentView.getByLabelText("封面列表"))
+    await waitFor(() => expect(currentView.getByRole("button", { name: "文件操作手柄" })).toBeTruthy())
+    expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy()
+    selectFolderViewMode(currentView, "封面列表")
     await waitFor(() => expect(onFolderView).toHaveBeenCalledTimes(1))
     expect(onFolderView).toHaveBeenCalledWith({ viewMode: "cover-list" })
   })
@@ -1381,6 +1412,7 @@ describe("FolderMainCard", () => {
     )
     const ui = within(view.container)
     const host = await ui.findByRole("listbox", { name: "文件项目" })
+    selectFolderHandleAction(ui, "项目尺寸")
     const thumbnailSlider = ui.getByRole("slider", { name: "缩略图宽度" })
     expect(thumbnailSlider.getAttribute("aria-valuenow")).toBe("20")
     expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("20%")
@@ -1392,7 +1424,8 @@ describe("FolderMainCard", () => {
     expect(onFolderView).toHaveBeenCalledTimes(1)
 
     onFolderView.mockClear()
-    fireEvent.click(ui.getByRole("radio", { name: "多图列表" }))
+    selectFolderViewMode(ui, "多图列表")
+    selectFolderHandleAction(ui, "项目尺寸")
     await waitFor(() => expect(ui.getByRole("slider", { name: "横幅宽度" }).getAttribute("aria-valuenow")).toBe("50"))
     expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("50%")
     expect(view.container.querySelector('[data-preview-mode="mosaic-list"]')).toBeTruthy()
@@ -1431,7 +1464,7 @@ describe("FolderMainCard", () => {
     const ui = within(view.container)
 
     await ui.findByTitle("C:/books/clip.mp4")
-    fireEvent.click(ui.getByRole("button", { name: "类型筛选" }))
+    selectFolderHandleAction(ui, "类型筛选")
     fireEvent.click(await ui.findByRole("button", { name: "压缩包" }))
 
     await waitFor(() => expect(filterDirectoryBrowser).toHaveBeenCalledWith(
@@ -1481,6 +1514,7 @@ describe("FolderMainCard", () => {
     const ui = within(view.container)
     const host = await ui.findByRole("listbox", { name: "文件项目" })
 
+    selectFolderHandleAction(ui, "更多操作")
     fireEvent.pointerDown(ui.getByRole("button", { name: "空白区域操作" }))
     expect(await screen.findByText("显示底部返回按钮")).toBeTruthy()
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
@@ -1524,7 +1558,7 @@ describe("FolderMainCard", () => {
     expect(folderCard?.getAttribute("data-selection-total")).toBe("1")
     expect(ui.getAllByTitle("C:/books/child/book.cbz")).toHaveLength(1)
 
-    fireEvent.click(ui.getByRole("radio", { name: "详细信息" }))
+    selectFolderViewMode(ui, "详细信息")
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-details="true"] [data-folder-return-footer="true"]')).toBeTruthy())
     expect(folderCard?.getAttribute("data-selection-total")).toBe("1")
 

@@ -6,10 +6,11 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckSquare, ClipboardPaste, Filter, GalleryHorizontalEnd, Grid2X2, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, RefreshCw, Rows3, Search, TableProperties, Unlock } from "lucide-react"
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckSquare, ClipboardPaste, Copy, Filter, GalleryHorizontalEnd, Grid2X2, History, Home, List, ListTree, Lock, MoreHorizontal, PanelsTopLeft, Pin, PinOff, Plus, RefreshCw, Rows3, Search, TableProperties, Unlock, type LucideIcon } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { ActionHandle } from "@/components/ui/action-handle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type {
   ReaderDirectoryEntryDto,
   ReaderDirectoryFilterDto,
@@ -114,6 +114,15 @@ const SORT_SOURCE_LABELS: Record<ReaderDirectorySortSourceDto, string> = {
   "global-default": "全局默认",
 }
 
+const VIEW_MODE_OPTIONS: readonly { value: ReaderFolderViewMode; label: string; icon: LucideIcon }[] = [
+  { value: "compact", label: "紧凑列表", icon: List },
+  { value: "cover-list", label: "封面列表", icon: Rows3 },
+  { value: "mosaic-list", label: "多图列表", icon: GalleryHorizontalEnd },
+  { value: "details", label: "详细信息", icon: TableProperties },
+  { value: "cover-grid", label: "封面网格", icon: Grid2X2 },
+  { value: "mosaic-grid", label: "多图网格", icon: PanelsTopLeft },
+]
+
 type FolderViewMode = ReaderFolderViewMode
 type FolderPreviewCount = 4 | 9 | 16
 
@@ -195,7 +204,7 @@ export default function FolderMainCard(context: ReaderPanelContext) {
   )
 }
 
-function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, folderTabCount, maxFolderTabs, onCreateTab, currentFolderTabPinned, canReopenFolderTab, onDuplicateCurrentTab, onToggleCurrentTabPinned, onReopenFolderTab, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
   const clipboard = useFolderClipboard()
   const pendingInitialCloneRef = useRef(initialClone)
   const sessionIdRef = useRef<string | undefined>(undefined)
@@ -223,6 +232,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [searchOpen, setSearchOpen] = useState(false)
   const [filterBarOpen, setFilterBarOpen] = useState(false)
+  const [activeToolbar, setActiveToolbar] = useState<"view" | "sort" | "size" | "more">()
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
   const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
   const [treeSize, setTreeSize] = useState(folderView.tree.size)
@@ -720,6 +730,15 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     void onFolderView?.({ tree: { visible } })
   }
 
+  function toggleMultiSelectMode() {
+    if (multiSelectMode) {
+      setSelection(createDirectorySelection(catalog?.generation ?? selection.generation))
+      chainAnchorIndexRef.current = undefined
+      setChainSelectMode(false)
+    }
+    setMultiSelectMode((current) => !current)
+  }
+
   function switchTreeLayout(layout: ReaderFolderTreeLayout) {
     if (layout === treeLayout) return
     setTreeLayout(layout)
@@ -903,6 +922,37 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
     onReturn: () => runFolderNavigation("return", catalogRef.current, (command) => { void navigate(command) }),
   }
+  const currentViewOption = VIEW_MODE_OPTIONS.find((option) => option.value === viewMode) ?? VIEW_MODE_OPTIONS[0]!
+  const CurrentViewIcon = currentViewOption.icon
+  const breadcrumbNode = (
+    <Suspense fallback={<div className="h-8 rounded-md border bg-background" aria-label="正在加载路径导航" />}>
+      <FolderBreadcrumb
+        path={catalog?.path ?? sourcePath ?? ""}
+        disabled={disabled}
+        loading={loading}
+        vertical={isVerticalFolderRegion(tabLayout.breadcrumbPosition)}
+        canGoBack={catalog?.canGoBack}
+        canGoForward={catalog?.canGoForward}
+        canGoUp={Boolean(catalog?.parentPath)}
+        onNavigate={(path) => { void navigate({ action: "path", path }) }}
+        onNavigateAction={(action) => { void navigate({ action }) }}
+        onCopyPath={systemActions?.copyText}
+      />
+    </Suspense>
+  )
+  const toggleToolbar = (toolbar: "view" | "sort" | "size" | "more") => {
+    setActiveToolbar((current) => current === toolbar ? undefined : toolbar)
+  }
+  const actionHandleItems = [
+    { id: "view", label: "视图", preview: "显示六种文件视图切换栏", icon: <CurrentViewIcon className="size-4" />, active: activeToolbar === "view", onSelect: () => toggleToolbar("view") },
+    { id: "search", label: "搜索文件", preview: searchOpen ? "关闭当前搜索面板" : "打开当前目录搜索面板", icon: <Search className="size-4" />, active: searchOpen, onSelect: () => setSearchOpen((current) => !current) },
+    { id: "filter", label: "类型筛选", preview: filterBarOpen ? "关闭文件类型筛选栏" : "显示文件类型筛选栏", icon: <Filter className="size-4" />, disabled: !client.filterDirectoryBrowser, active: filterBarOpen, onSelect: () => setFilterBarOpen((current) => !current) },
+    { id: "sort", label: "排序", preview: "显示字段、方向和临时排序控制", icon: <ArrowDown className="size-4" />, active: activeToolbar === "sort", onSelect: () => toggleToolbar("sort") },
+    { id: "tree", label: "文件树", preview: treeOpen ? "关闭独立文件树面板" : "打开独立文件树面板", icon: <ListTree className="size-4" />, disabled: !client.treeDirectoryBrowser, active: treeOpen, onSelect: toggleTree },
+    { id: "size", label: "项目尺寸", preview: "显示当前视图的项目尺寸滑杆", icon: <Grid2X2 className="size-4" />, disabled: !viewUsesThumbnailGrid(viewMode) && !viewUsesBanner(viewMode), active: activeToolbar === "size", onSelect: () => toggleToolbar("size") },
+    { id: "select", label: multiSelectMode ? "退出多选" : "多选模式", preview: multiSelectMode ? "关闭批量选择操作栏" : "打开批量选择操作栏", icon: <CheckSquare className="size-4" />, active: multiSelectMode, onSelect: toggleMultiSelectMode },
+    { id: "more", label: "更多操作", preview: "显示新建标签、粘贴和导航设置", icon: <MoreHorizontal className="size-4" />, active: activeToolbar === "more", onSelect: () => toggleToolbar("more") },
+  ]
 
   return (
     <div
@@ -912,6 +962,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       data-folder-breadcrumb-position={tabLayout.breadcrumbPosition}
       data-folder-toolbar-position={tabLayout.toolbarPosition}
       data-folder-tab-position={tabLayout.layout}
+      data-folder-view-mode={viewMode}
       data-selection-count={selectedCount}
       data-selection-total={catalog?.total ?? 0}
       data-thumbnail-cache-size={thumbnailUrls.size}
@@ -988,78 +1039,158 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         <FolderChromeLayout
           layout={tabLayout}
           tabBar={tabBar}
-          breadcrumb={(
-            <Suspense fallback={<div className="h-8 rounded-md border bg-background" aria-label="正在加载路径导航" />}>
-            <FolderBreadcrumb
-              path={catalog?.path ?? sourcePath ?? ""}
-              disabled={disabled}
-              loading={loading}
-              vertical={isVerticalFolderRegion(tabLayout.breadcrumbPosition)}
-              canGoBack={catalog?.canGoBack}
-              canGoForward={catalog?.canGoForward}
-              canGoUp={Boolean(catalog?.parentPath)}
-              onNavigate={(path) => { void navigate({ action: "path", path }) }}
-              onNavigateAction={(action) => { void navigate({ action }) }}
-              onCopyPath={systemActions?.copyText}
-            />
-            </Suspense>
-          )}
+          breadcrumb={breadcrumbNode}
         >
       <div
         className="contents"
         data-folder-chrome-slot="toolbar"
+        data-folder-toolbar-layout="one-row"
       >
-        <div className="flex min-w-0 items-center gap-1">
-          <BrowserButton label="后退" disabled={!catalog?.canGoBack || loading} onClick={() => void navigate({ action: "back" })}><ArrowLeft /></BrowserButton>
-          <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
-          <BrowserButton label="上级" disabled={!catalog?.parentPath || loading} onClick={() => void navigate({ action: "up" })}><ArrowUp /></BrowserButton>
-          <BrowserButton
-            label="主页（单击返回主页，右键设置当前路径为主页）"
-            disabled={!catalog || loading}
-            clickDisabled={!folderView.homePath}
-            active={Boolean(catalog && folderView.homePath && catalog.path === folderView.homePath)}
-            onClick={() => {
-              if (folderView.homePath && catalog?.path !== folderView.homePath) void navigate({ action: "path", path: folderView.homePath })
-            }}
-            onContextMenu={(event) => {
-              event.preventDefault()
-              if (catalog && !loading && catalog.path !== folderView.homePath) void onFolderView?.({ homePath: catalog.path })
-            }}
-          >
-            <Home />
-          </BrowserButton>
-          <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
-          <BrowserButton
-            label={clipboard.operation?.status === "running" ? `正在粘贴 ${clipboard.operation.processed} / ${clipboard.operation.total}` : "粘贴到当前目录"}
-            disabled={!catalog || loading || !clipboard.clipboard.available || clipboard.operation?.status === "running"}
-            onClick={() => { if (catalog) void clipboard.paste(catalog.path) }}
-          >
-            <ClipboardPaste />
-          </BrowserButton>
-          <BrowserButton
-            label={multiSelectMode ? "退出多选" : "多选模式"}
-            disabled={!catalog || loading}
-            onClick={() => {
-              if (multiSelectMode) {
-                setSelection(createDirectorySelection(catalog?.generation ?? selection.generation))
-                chainAnchorIndexRef.current = undefined
-                setChainSelectMode(false)
-              }
-              setMultiSelectMode((current) => !current)
-            }}
-          >
-            <CheckSquare />
-          </BrowserButton>
-          <BrowserButton label="文件树" disabled={!catalog || loading || !client.treeDirectoryBrowser} active={treeOpen} onClick={toggleTree}><ListTree /></BrowserButton>
-          <BrowserButton label="搜索文件" disabled={!catalog || loading} active={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search /></BrowserButton>
-          <BrowserButton label="类型筛选" disabled={!catalog || loading || !client.filterDirectoryBrowser} active={filterBarOpen} onClick={() => setFilterBarOpen((current) => !current)}><Filter /></BrowserButton>
-          <FolderNavigationSettingsControl
-            value={folderView.emptyArea}
-            disabled={!catalog || loading}
-            onChange={(emptyArea) => { void onFolderView?.({ emptyArea }) }}
-          />
-          <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto" data-folder-toolbar-row="operations" data-active-toolbar={activeToolbar ?? "navigation"}>
+          <div className="flex shrink-0 items-center gap-0.5" data-folder-toolbar-group="nav">
+            <BrowserButton label="后退" disabled={!catalog?.canGoBack || loading} onClick={() => void navigate({ action: "back" })}><ArrowLeft /></BrowserButton>
+            <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
+            <BrowserButton label="上级" disabled={!catalog?.parentPath || loading} onClick={() => void navigate({ action: "up" })}><ArrowUp /></BrowserButton>
+          </div>
+          <div className="mx-0.5 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" />
+          <div className="flex shrink-0 items-center gap-0.5" data-folder-toolbar-group="home">
+            <BrowserButton
+              label="主页（单击返回主页，右键设置当前路径为主页）"
+              disabled={!catalog || loading}
+              clickDisabled={!folderView.homePath}
+              active={Boolean(catalog && folderView.homePath && catalog.path === folderView.homePath)}
+              onClick={() => {
+                if (folderView.homePath && catalog?.path !== folderView.homePath) void navigate({ action: "path", path: folderView.homePath })
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                if (catalog && !loading && catalog.path !== folderView.homePath) void onFolderView?.({ homePath: catalog.path })
+              }}
+            >
+              <Home />
+            </BrowserButton>
+            <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
+          </div>
+          <ActionHandle items={actionHandleItems} disabled={!catalog || loading} label="文件操作手柄" menuLabel="文件操作" />
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
+          {activeToolbar ? <div className="mx-0.5 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" /> : null}
+          {activeToolbar === "view" ? (
+            <div className="flex min-w-max items-center gap-0.5" data-folder-toolbar-group="view">
+              {VIEW_MODE_OPTIONS.map((option) => {
+                const Icon = option.icon
+                return (
+                  <BrowserButton key={option.value} label={option.label} disabled={!catalog || loading} active={viewMode === option.value} onClick={() => switchView(option.value)}>
+                    <Icon />
+                  </BrowserButton>
+                )
+              })}
+              {viewUsesMosaic(viewMode) ? (
+                <Select value={String(previewCount)} onValueChange={(value) => switchPreviewCount(Number(value) as FolderPreviewCount)}>
+                  <SelectTrigger size="sm" className="h-7 w-[4.5rem] shrink-0 text-xs" aria-label="多图数量"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4">4 图</SelectItem>
+                    <SelectItem value="9">9 图</SelectItem>
+                    <SelectItem value="16">16 图</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : null}
+            </div>
+          ) : null}
+          {activeToolbar === "sort" && catalog ? (
+            <div className="flex min-w-[10rem] flex-1 items-center gap-0.5" data-folder-toolbar-group="sort">
+              <Select
+                value={catalog.sort.field}
+                disabled={loading || !client.sortDirectoryBrowser}
+                onValueChange={(field) => void updateSort({ ...catalog.sort, field: field as ReaderDirectorySortFieldDto })}
+              >
+                <SelectTrigger size="sm" className="h-7 min-w-24 flex-1 text-xs" aria-label="排序字段"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {catalog.sortFields.map((field) => <SelectItem key={field} value={field}>{SORT_LABELS[field]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <BrowserButton label={catalog.sort.order === "asc" ? "升序" : "降序"} disabled={loading || !client.sortDirectoryBrowser} onClick={() => void updateSort({ ...catalog.sort, order: catalog.sort.order === "asc" ? "desc" : "asc" })}>
+                {catalog.sort.order === "asc" ? <ArrowUp /> : <ArrowDown />}
+              </BrowserButton>
+              <BrowserButton label={catalog.sortTemporary ? "取消临时排序" : "锁定当前目录排序"} disabled={loading || !client.updateDirectorySortPreference} active={catalog.sortTemporary} onClick={() => void updateSortPreference({ action: "temporary", enabled: !catalog.sortTemporary })}>
+                {catalog.sortTemporary ? <Lock /> : <Unlock />}
+              </BrowserButton>
+            </div>
+          ) : null}
+          {activeToolbar === "size" && viewUsesThumbnailGrid(viewMode) ? (
+            <div className="grid min-w-40 flex-1 grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2 px-1" data-folder-size-control="thumbnail">
+              <Grid2X2 className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <Slider aria-label="缩略图宽度" min={10} max={90} step={1} value={[thumbnailWidthPercent]} disabled={disabled} onValueChange={(value) => setThumbnailWidthPercent(value[0] ?? 20)} onValueCommit={(value) => commitThumbnailWidth(value[0] ?? 20)} />
+              <span className="text-right text-[10px] tabular-nums text-muted-foreground">{thumbnailPixelSize(thumbnailWidthPercent)}px</span>
+            </div>
+          ) : null}
+          {activeToolbar === "size" && viewUsesBanner(viewMode) ? (
+            <div className="grid min-w-40 flex-1 grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2 px-1" data-folder-size-control="banner">
+              <GalleryHorizontalEnd className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <Slider aria-label="横幅宽度" min={20} max={100} step={10} value={[bannerWidthPercent]} disabled={disabled} onValueChange={(value) => setBannerWidthPercent(value[0] ?? 50)} onValueCommit={(value) => commitBannerWidth(value[0] ?? 50)} />
+              <span className="text-right text-[10px] tabular-nums text-muted-foreground">{Math.max(1, Math.floor(100 / bannerWidthPercent))} 列</span>
+            </div>
+          ) : null}
+          {activeToolbar === "more" ? (
+            <div className="flex min-w-max items-center gap-0.5" data-folder-toolbar-group="more">
+              <BrowserButton label="新建文件夹标签" disabled={folderTabCount >= maxFolderTabs || loading} onClick={onCreateTab}><Plus /></BrowserButton>
+              <BrowserButton label="复制当前标签" disabled={folderTabCount >= maxFolderTabs || loading || !client.cloneDirectoryBrowser} onClick={onDuplicateCurrentTab}><Copy /></BrowserButton>
+              <BrowserButton label={currentFolderTabPinned ? "取消固定当前标签" : "固定当前标签"} disabled={loading} active={currentFolderTabPinned} onClick={onToggleCurrentTabPinned}>{currentFolderTabPinned ? <PinOff /> : <Pin />}</BrowserButton>
+              <BrowserButton label="重新打开关闭的标签" disabled={loading || !canReopenFolderTab} onClick={onReopenFolderTab}><History /></BrowserButton>
+              <BrowserButton label={clipboard.operation?.status === "running" ? `正在粘贴 ${clipboard.operation.processed} / ${clipboard.operation.total}` : "粘贴到当前目录"} disabled={!catalog || loading || !clipboard.clipboard.available || clipboard.operation?.status === "running"} onClick={() => { if (catalog) void clipboard.paste(catalog.path) }}><ClipboardPaste /></BrowserButton>
+            <FolderNavigationSettingsControl
+              value={folderView.emptyArea}
+              disabled={!catalog || loading}
+              onChange={(emptyArea) => { void onFolderView?.({ emptyArea }) }}
+            />
+              <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="更多操作"
+                  title="更多操作"
+                  disabled={!catalog || loading}
+                >
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" data-folder-toolbar-overflow="true">
+                <DropdownMenuItem
+                  disabled={!catalog || loading || !clipboard.clipboard.available || clipboard.operation?.status === "running"}
+                  onSelect={() => { if (catalog) void clipboard.paste(catalog.path) }}
+                >
+                  <ClipboardPaste />
+                  {clipboard.operation?.status === "running"
+                    ? `正在粘贴 ${clipboard.operation.processed} / ${clipboard.operation.total}`
+                    : "粘贴到当前目录"}
+                </DropdownMenuItem>
+                {catalog && client.updateDirectorySortPreference ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>{SORT_SOURCE_LABELS[catalog.sortSource]}</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "set-default", scope: "tab" })}>
+                      设为标签默认
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "set-default", scope: "global" })}>
+                      设为全局默认
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "clear-memory", scope: "current" })}>
+                      清除此文件夹记忆
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "clear-memory", scope: "all" })}>
+                      清除全部排序记忆
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : null}
         </div>
+
+        {/* Conditional third row: type filter */}
         {catalog && filterBarOpen ? (
           <Suspense fallback={<div className="h-8 border-t border-border/50" aria-label="正在加载类型筛选" />}>
             <FolderTypeFilterBar
@@ -1070,124 +1201,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             />
           </Suspense>
         ) : null}
-        <div className="flex min-w-0 items-center gap-1">
-          <ToggleGroup
-            type="single"
-            size="sm"
-            value={viewMode}
-            className="min-w-0"
-            onValueChange={(value) => { if (value) switchView(value as FolderViewMode) }}
-          >
-            <ToggleGroupItem value="compact" aria-label="紧凑列表" title="紧凑列表"><List /></ToggleGroupItem>
-            <ToggleGroupItem value="cover-list" aria-label="封面列表" title="封面列表"><Rows3 /></ToggleGroupItem>
-            <ToggleGroupItem value="mosaic-list" aria-label="多图列表" title="多图列表"><GalleryHorizontalEnd /></ToggleGroupItem>
-            <ToggleGroupItem value="details" aria-label="详细信息" title="详细信息"><TableProperties /></ToggleGroupItem>
-            <ToggleGroupItem value="cover-grid" aria-label="封面网格" title="封面网格"><Grid2X2 /></ToggleGroupItem>
-            <ToggleGroupItem value="mosaic-grid" aria-label="多图网格" title="多图网格"><PanelsTopLeft /></ToggleGroupItem>
-          </ToggleGroup>
-          {viewUsesMosaic(viewMode) ? (
-            <Select value={String(previewCount)} onValueChange={(value) => switchPreviewCount(Number(value) as FolderPreviewCount)}>
-              <SelectTrigger size="sm" className="ml-auto h-7 w-[5.25rem] text-xs" aria-label="多图数量"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="4">4 图</SelectItem>
-                <SelectItem value="9">9 图</SelectItem>
-                <SelectItem value="16">16 图</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : null}
-        </div>
-        {viewUsesThumbnailGrid(viewMode) ? (
-          <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2 px-1" data-folder-size-control="thumbnail">
-            <Grid2X2 className="size-3.5 text-muted-foreground" aria-hidden="true" />
-            <Slider
-              aria-label="缩略图宽度"
-              min={10}
-              max={90}
-              step={1}
-              value={[thumbnailWidthPercent]}
-              disabled={disabled}
-              onValueChange={(value) => setThumbnailWidthPercent(value[0] ?? 20)}
-              onValueCommit={(value) => commitThumbnailWidth(value[0] ?? 20)}
-            />
-            <span className="text-right text-[10px] tabular-nums text-muted-foreground">{thumbnailPixelSize(thumbnailWidthPercent)}px</span>
-          </div>
-        ) : null}
-        {viewUsesBanner(viewMode) ? (
-          <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2 px-1" data-folder-size-control="banner">
-            <GalleryHorizontalEnd className="size-3.5 text-muted-foreground" aria-hidden="true" />
-            <Slider
-              aria-label="横幅宽度"
-              min={20}
-              max={100}
-              step={10}
-              value={[bannerWidthPercent]}
-              disabled={disabled}
-              onValueChange={(value) => setBannerWidthPercent(value[0] ?? 50)}
-              onValueCommit={(value) => commitBannerWidth(value[0] ?? 50)}
-            />
-            <span className="text-right text-[10px] tabular-nums text-muted-foreground">{Math.max(1, Math.floor(100 / bannerWidthPercent))} 列</span>
-          </div>
-        ) : null}
-        {catalog ? (
-          <div className="grid grid-cols-[minmax(6rem,1fr)_2rem_2rem_2rem] items-center gap-1">
-            <Select
-              value={catalog.sort.field}
-              disabled={loading || !client.sortDirectoryBrowser}
-              onValueChange={(field) => void updateSort({ ...catalog.sort, field: field as ReaderDirectorySortFieldDto })}
-            >
-              <SelectTrigger size="sm" className="h-7 min-w-0 text-xs" aria-label="排序字段">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {catalog.sortFields.map((field) => <SelectItem key={field} value={field}>{SORT_LABELS[field]}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <BrowserButton
-              label={catalog.sort.order === "asc" ? "升序" : "降序"}
-              disabled={loading || !client.sortDirectoryBrowser}
-              onClick={() => void updateSort({ ...catalog.sort, order: catalog.sort.order === "asc" ? "desc" : "asc" })}
-            >
-              {catalog.sort.order === "asc" ? <ArrowUp /> : <ArrowDown />}
-            </BrowserButton>
-            <BrowserButton
-              label={catalog.sortTemporary ? "取消临时排序" : "锁定当前目录排序"}
-              disabled={loading || !client.updateDirectorySortPreference}
-              onClick={() => void updateSortPreference({ action: "temporary", enabled: !catalog.sortTemporary })}
-            >
-              {catalog.sortTemporary ? <Lock /> : <Unlock />}
-            </BrowserButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="排序设置"
-                  title="排序设置"
-                  disabled={loading || !client.updateDirectorySortPreference}
-                >
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuLabel>{SORT_SOURCE_LABELS[catalog.sortSource]}</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "set-default", scope: "tab" })}>
-                  设为标签默认
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "set-default", scope: "global" })}>
-                  设为全局默认
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "clear-memory", scope: "current" })}>
-                  清除此文件夹记忆
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "clear-memory", scope: "all" })}>
-                  清除全部排序记忆
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : null}
+
       </div>
       <div className="contents" data-folder-chrome-slot="content">
       {catalog && multiSelectMode ? (

@@ -1,9 +1,11 @@
 import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Monitor, PanelLeft, Palette, Settings2, SlidersHorizontal } from "lucide-react"
-import { Suspense, useState, type ComponentType } from "react"
+import { lazy, Suspense, useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRadialMenuPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
+import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRadialMenuPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderShellMaterialPatch, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
+
+const LazyReaderMaterialSettingsCard = lazy(() => import("./cards/ReaderMaterialSettingsCard"))
 
 export function ReaderSettingsWindow({
   shell,
@@ -15,6 +17,7 @@ export function ReaderSettingsWindow({
   onInputBindings,
   radialMenu,
   onRadialMenu,
+  onMaterial,
 }: {
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
@@ -25,27 +28,29 @@ export function ReaderSettingsWindow({
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
 }) {
   const [active, setActive] = useState<SettingsSectionId>("sidebar")
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
-        className="overflow-hidden p-0"
+        className="z-[91] overflow-hidden p-0"
+        overlayClassName="z-[90]"
         style={{ width: "min(64rem, calc(100vw - 2rem))", maxWidth: "none", height: "min(70rem, calc(100vh - 2rem))", maxHeight: "calc(100vh - 2rem)" }}
       >
         <DialogHeader className="border-b px-4 py-3">
           <DialogTitle className="flex items-center gap-2"><Settings2 className="size-4" />设置</DialogTitle>
           <DialogDescription className="sr-only">NeoView 节点设置</DialogDescription>
         </DialogHeader>
-        <div className="grid min-h-0 grid-cols-[10rem_minmax(0,1fr)]">
-          <nav className="min-h-0 overflow-y-auto border-r bg-muted/15 p-2" aria-label="NeoView 设置分类">
+        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[10rem_minmax(0,1fr)] sm:grid-rows-1">
+          <nav className="flex min-w-0 overflow-x-auto border-b bg-muted/15 p-2 sm:block sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-r" aria-label="NeoView 设置分类">
             {SETTINGS_SECTIONS.map((section) => {
               const Icon = section.icon
               return (
                 <button
                   key={section.id}
                   type="button"
-                  className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs ${active === section.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                  className={`flex shrink-0 items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs sm:w-full ${active === section.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
                   onClick={() => setActive(section.id)}
                 >
                   <Icon className="size-3.5" />{section.label}
@@ -54,7 +59,7 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} />
+            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} onMaterial={onMaterial} />
           </div>
         </div>
       </DialogContent>
@@ -72,6 +77,7 @@ function SettingsSection({
   onInputBindings,
   radialMenu,
   onRadialMenu,
+  onMaterial,
 }: {
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
@@ -82,7 +88,11 @@ function SettingsSection({
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
 }) {
+  if (sectionId === "appearance") {
+    return <Suspense fallback={<div className="h-48 animate-pulse rounded-md bg-muted/35" aria-label="正在加载界面材质设置" />}><LazyReaderMaterialSettingsCard shell={shell} onMaterial={onMaterial} /></Suspense>
+  }
   const definitions = settingsCardsForSection(sectionId)
   if (!definitions.length) return <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} />
   return definitions.map((definition) => {

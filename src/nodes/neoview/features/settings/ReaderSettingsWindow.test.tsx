@@ -25,6 +25,7 @@ describe("ReaderSettingsWindow", () => {
         onViewDefaults={saveViewDefaults}
         onInputBindings={vi.fn(async () => ({ bindings: [] }))}
         onRadialMenu={vi.fn(async () => DEFAULT_READER_RADIAL_MENU_CONFIG)}
+        onMaterial={vi.fn(async () => shell())}
       />,
     )
     expect(screen.getByRole("dialog")).toBeTruthy()
@@ -42,6 +43,9 @@ describe("ReaderSettingsWindow", () => {
     expect(await screen.findByRole("heading", { name: "视图默认值" })).toBeTruthy()
     fireEvent.change(screen.getByRole("combobox", { name: "默认缩放模式" }), { target: { value: "fit-width" } })
     expect(saveViewDefaults).toHaveBeenCalledWith({ fitMode: "fit-width" })
+
+    fireEvent.click(screen.getByRole("button", { name: "外观" }))
+    expect(await screen.findByRole("heading", { name: "界面材质" })).toBeTruthy()
   })
 })
 

@@ -94,4 +94,24 @@ describe("CollapsibleReaderCard", () => {
     expect(screen.queryByRole("button", { name: "调整性能卡片高度" })).toBeNull()
     expect(screen.queryByTestId("heavy-card-content")).toBeNull()
   })
+
+  it("[neoview.card.single-exclusive] removes chrome without replacing the Card content", () => {
+    const view = render(
+      <CollapsibleReaderCard title="文件浏览">
+        <div data-testid="resident-card">content</div>
+      </CollapsibleReaderCard>,
+    )
+    const resident = screen.getByTestId("resident-card")
+
+    view.rerender(
+      <CollapsibleReaderCard title="文件浏览" frameless collapsed height={180}>
+        <div data-testid="resident-card">content</div>
+      </CollapsibleReaderCard>,
+    )
+
+    expect(screen.getByTestId("resident-card")).toBe(resident)
+    expect(document.querySelector('[data-reader-card="文件浏览"]')?.getAttribute("data-reader-card-chrome")).toBe("none")
+    expect(screen.queryByRole("button", { name: "展开文件浏览" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "调整文件浏览高度" })).toBeNull()
+  })
 })

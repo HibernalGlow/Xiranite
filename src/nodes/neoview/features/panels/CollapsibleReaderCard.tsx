@@ -9,12 +9,14 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import { ChevronDown, ChevronUp, GripHorizontal, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 export function CollapsibleReaderCard({
   title,
   icon,
   collapsed = false,
   height,
+  frameless = false,
   children,
   onCollapsedChange,
   onHeightChange,
@@ -23,6 +25,7 @@ export function CollapsibleReaderCard({
   icon?: ReactNode
   collapsed?: boolean
   height?: number
+  frameless?: boolean
   children: ReactNode
   onCollapsedChange?(collapsed: boolean): void
   onHeightChange?(height?: number): void
@@ -31,8 +34,15 @@ export function CollapsibleReaderCard({
   const gestureRef = useRef<CardHeightGesture | undefined>(undefined)
 
   return (
-    <section className="overflow-hidden border-b border-border/50 bg-transparent last:border-b-0" data-reader-card={title}>
-      <header className="flex min-h-10 items-center justify-between gap-2 px-1 py-1.5">
+    <section
+      className={cn(
+        "overflow-hidden border-b border-border/50 bg-transparent last:border-b-0",
+        frameless && "flex min-h-0 flex-1 flex-col border-b-0",
+      )}
+      data-reader-card={title}
+      data-reader-card-chrome={frameless ? "none" : "default"}
+    >
+      {frameless ? null : <header className="flex min-h-10 items-center justify-between gap-2 px-1 py-1.5">
         <h3 className="flex min-w-0 items-center gap-1.5 truncate text-xs font-medium">
           {icon ? <span className="shrink-0 text-muted-foreground" aria-hidden="true">{icon}</span> : null}
           <span className="truncate">{title}</span>
@@ -61,18 +71,21 @@ export function CollapsibleReaderCard({
             {collapsed ? <ChevronDown /> : <ChevronUp />}
           </Button>
         </div>
-      </header>
-      {collapsed ? null : (
+      </header>}
+      {collapsed && !frameless ? null : (
         <>
           <div
             ref={contentRef}
-            className="overflow-auto px-1 pb-3 pt-1"
+            className={cn(
+              "overflow-auto px-1 pb-3 pt-1",
+              frameless && "relative flex min-h-0 flex-1 flex-col overflow-hidden p-0",
+            )}
             data-reader-card-content={title}
-            style={{ height }}
+            style={{ height: frameless ? undefined : height }}
           >
             {children}
           </div>
-          <button
+          {frameless ? null : <button
             type="button"
             className="grid h-2 w-full touch-none cursor-ns-resize place-items-center text-muted-foreground/45 hover:bg-muted/50 hover:text-muted-foreground focus-visible:bg-muted/50 focus-visible:text-muted-foreground"
             aria-label={`调整${title}高度`}
@@ -83,7 +96,7 @@ export function CollapsibleReaderCard({
             onDoubleClick={resetHeight}
           >
             <GripHorizontal className="size-3" aria-hidden="true" />
-          </button>
+          </button>}
         </>
       )}
     </section>
