@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient } from "../../../adapters/reader-http-client"
@@ -27,6 +27,32 @@ describe("BookmarkListCard", () => {
     await waitFor(() => expect(listBookmarkLists).toHaveBeenCalledOnce())
     await waitFor(() => expect(listBookmarks).toHaveBeenCalledOnce())
     expect(screen.getByText("当前列表没有书签")).toBeTruthy()
+  })
+
+  it("[neoview.bookmark.focus-restoration] restores focus to the all-list tab after deleting the active custom list", async () => {
+    const lists = [
+      { id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
+      { id: "reading", name: "待读", isFavorite: false, createdAt: 1, updatedAt: 1, system: false },
+    ]
+    const listBookmarkLists = vi.fn(async () => lists)
+    const listBookmarks = vi.fn(async () => [])
+    const removeBookmarkList = vi.fn(async () => undefined)
+    const base = context(listBookmarkLists, listBookmarks)
+    render(
+      <BookmarkListCard
+        {...base}
+        client={{ ...base.client, removeBookmarkList } as ReaderHttpClient}
+        bookmarkListPreferences={{ activeListId: "reading" }}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "编辑当前书签列表" })).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "编辑当前书签列表" }))
+    fireEvent.click(screen.getByRole("button", { name: "删除", exact: true }))
+    fireEvent.click(screen.getByRole("button", { name: "删除列表" }))
+
+    await waitFor(() => expect(removeBookmarkList).toHaveBeenCalledWith("reading"))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "全部" })))
   })
 })
 
