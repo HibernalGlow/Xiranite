@@ -188,6 +188,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       previewCount: 9,
       thumbnailWidthPercent: 34,
       bannerWidthPercent: 70,
+      hoverPreviewEnabled: true,
+      hoverPreviewDelayMs: 500,
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -215,6 +217,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       previewCount: 16,
       thumbnailWidthPercent: 42,
       bannerWidthPercent: 80,
+      hoverPreviewEnabled: false,
+      hoverPreviewDelayMs: 1200,
       tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       tabs: { pinned: [{ path: "E:/Library", title: "Library" }] },
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
@@ -226,6 +230,8 @@ describe("parseNeoviewRuntimeConfig", () => {
         previewCount: 16,
         thumbnailWidthPercent: 42,
         bannerWidthPercent: 80,
+        hoverPreviewEnabled: false,
+        hoverPreviewDelayMs: 1200,
         details: {
           columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hiddenColumns: ["tags"],
@@ -243,6 +249,8 @@ describe("parseNeoviewRuntimeConfig", () => {
         preview_count: 16,
         thumbnail_width_percent: 42,
         banner_width_percent: 80,
+        hover_preview_enabled: false,
+        hover_preview_delay_ms: 1200,
         details: {
           column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hidden_columns: ["tags"],
@@ -277,6 +285,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { previewCount: 8 } })).toThrow("4, 9 or 16")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { thumbnailWidthPercent: 9 } })).toThrow("between 10 and 90")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { bannerWidthPercent: 101 } })).toThrow("between 20 and 100")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { hoverPreviewDelayMs: 300 } })).toThrow("one of: 200, 500, 800, 1200")
+    expect(() => parseNeoviewRuntimeConfig({ folder: { hover_preview_delay_ms: 800 } })).not.toThrow()
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { hiddenColumns: ["name"] } } })).toThrow("cannot hide name")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnOrder: ["unknown"] } } })).toThrow("unknown column")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnWidths: { name: 47 } } } })).toThrow("between 48 and 800")

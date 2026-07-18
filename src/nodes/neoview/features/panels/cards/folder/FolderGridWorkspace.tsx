@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type R
 import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { FolderHoverPreview } from "./FolderHoverPreview"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 
 const GRID_HEIGHT = 288
@@ -23,6 +24,8 @@ export default function FolderGridWorkspace({
   focusedIndex,
   itemIdPrefix,
   thumbnailUrls,
+  hoverPreviewEnabled,
+  hoverPreviewDelayMs,
   showReturnFooter,
   returnFooterContext,
   restoreSnapshot,
@@ -42,6 +45,8 @@ export default function FolderGridWorkspace({
   focusedIndex?: number
   itemIdPrefix?: string
   thumbnailUrls: ReadonlyMap<string, string>
+  hoverPreviewEnabled: boolean
+  hoverPreviewDelayMs: number
   showReturnFooter: boolean
   returnFooterContext: FolderReturnFooterContext
   restoreSnapshot?: GridStateSnapshot
@@ -135,6 +140,8 @@ export default function FolderGridWorkspace({
             showCollectTagCount={showCollectTagCount}
             visualMode={viewMode}
             thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
+            hoverPreviewEnabled={hoverPreviewEnabled}
+            hoverPreviewDelayMs={hoverPreviewDelayMs}
             onSelect={onSelect}
           />
         )
@@ -154,12 +161,15 @@ interface DirectoryGridItemProps {
   showCollectTagCount: boolean
   visualMode: ReaderFolderViewMode
   thumbnailUrl?: string
+  hoverPreviewEnabled: boolean
+  hoverPreviewDelayMs: number
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }
 
-function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect }: DirectoryGridItemProps) {
+function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
+    <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <button
       id={itemId}
       type="button"
@@ -190,13 +200,15 @@ function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused
         <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
       </span>
     </button>
+    </FolderHoverPreview>
   )
 }
 
-function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect }: DirectoryGridItemProps) {
+function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   const showMetadata = showRating || showCollectTagCount
   return (
+    <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <button
       id={itemId}
       type="button"
@@ -227,5 +239,6 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
       </span>
       {showMetadata ? <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
     </button>
+    </FolderHoverPreview>
   )
 }
