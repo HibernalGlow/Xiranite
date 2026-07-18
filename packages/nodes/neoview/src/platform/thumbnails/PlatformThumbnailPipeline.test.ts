@@ -8,6 +8,7 @@ import { createZipFixture } from "../../../test/fixture-builders/create-zip-fixt
 import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import type { ResourceTaskRequest } from "../../ports/ResourceScheduler.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import { FfmpegVideoThumbnailProvider } from "../video/FfmpegVideoThumbnailProvider.js"
@@ -40,6 +41,42 @@ describe("PlatformThumbnailPipeline", () => {
     await writeFile(file, Uint8Array.of(1, 2, 3, 4, 5))
     const changedFolder = await pipeline.describeLibrarySource(folder, "folder")
     expect(changedFolder.contentVersion).not.toBe(folderSource.contentVersion)
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.library.describe-scheduler] routes source stat and folder scans through host I/O priorities", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-thumbnail-library-scheduler-"))
+    roots.push(root)
+    const folder = join(root, "folder")
+    const file = join(folder, "cover.png")
+    await mkdir(folder)
+    await writeFile(file, Uint8Array.of(1, 2, 3))
+    const requests: ResourceTaskRequest[] = []
+    let activeLeases = 0
+    const pipeline = new PlatformThumbnailPipeline({
+      resourceScheduler: {
+        acquire: async (request) => {
+          requests.push({ ...request })
+          activeLeases += 1
+          let released = false
+          return {
+            release() {
+              if (released) return
+              released = true
+              activeLeases -= 1
+            },
+          }
+        },
+      },
+    })
+    await pipeline.describeLibrarySource(file, "file")
+    await pipeline.describeLibrarySource(folder, "folder", undefined, 4, "background")
+    expect(requests).toEqual([
+      { resource: "io", kind: "neoview.thumbnail.source-describe", priority: "view" },
+      { resource: "io", kind: "neoview.thumbnail.source-describe", priority: "background" },
+      { resource: "io", kind: "neoview.thumbnail.folder-representative", priority: "background" },
+    ])
+    expect(activeLeases).toBe(0)
     await pipeline.dispose()
   })
 

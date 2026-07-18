@@ -15,7 +15,7 @@ import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
-import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import type { ResourcePriority, ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailAsset, ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { SystemThumbnailProvider, SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
@@ -113,7 +113,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#resourceScheduler = options.resourceScheduler
     this.#loadMosaicImageComposer = options.loadMosaicImageComposer
     this.#ownsFolderRepresentativeIndex = !options.folderRepresentativeIndex
-    this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex({ mediaFormats: options.mediaFormats })
+    this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex({
+      mediaFormats: options.mediaFormats,
+      resourceScheduler: options.resourceScheduler,
+    })
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
       maxMemoryBytes: options.maxMemoryBytes,
       maxEntryBytes: options.maxEntryBytes,
@@ -251,22 +254,34 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     kind: LibraryThumbnailKind,
     signal?: AbortSignal,
     previewCount: LibraryThumbnailPreviewCount = 1,
+    priority: ResourcePriority = "view",
   ): Promise<LibraryThumbnailSource> {
     signal?.throwIfAborted()
     if (previewCount !== 1 && previewCount !== 4 && previewCount !== 9 && previewCount !== 16) {
       throw new RangeError("Library thumbnail preview count must be 1, 4, 9 or 16.")
     }
     if (kind !== "folder" && previewCount !== 1) throw new Error("Mosaic previews are only available for folders.")
-    const normalizedPath = await realpath(path)
-    signal?.throwIfAborted()
-    const sourceStats = await stat(normalizedPath)
+    const lease = await this.#resourceScheduler?.acquire({
+      resource: "io",
+      kind: "neoview.thumbnail.source-describe",
+      priority,
+    }, signal)
+    let normalizedPath: string
+    let sourceStats: Awaited<ReturnType<typeof stat>>
+    try {
+      normalizedPath = await realpath(path)
+      signal?.throwIfAborted()
+      sourceStats = await stat(normalizedPath)
+    } finally {
+      lease?.release()
+    }
     if ((kind === "file" && !sourceStats.isFile()) || (kind === "folder" && !sourceStats.isDirectory())) {
       throw new Error(`Thumbnail source does not match ${kind}: ${path}`)
     }
     const sourceSize = kind === "file" ? sourceStats.size : undefined
     const modifiedAtMs = Math.trunc(sourceStats.mtimeMs)
     const representativeVersion = kind === "folder"
-      ? await this.#folderRepresentativeIndex.describe(normalizedPath, modifiedAtMs, signal, previewCount)
+      ? await this.#folderRepresentativeIndex.describe(normalizedPath, modifiedAtMs, signal, previewCount, priority)
       : undefined
     const profile = libraryThumbnailProfile(previewCount)
     return {

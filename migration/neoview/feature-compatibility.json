@@ -788,6 +788,8 @@
         "neoview.react.predecode",
         "neoview.thumbnail.react-list",
         "neoview.thumbnail.scheduler-priority",
+        "neoview.thumbnail.library.describe-scheduler",
+        "neoview.thumbnail.folder-index-scheduler",
         "terminal.image.decode.cancellation",
         "terminal.image.decode.scheduler"
       ],
