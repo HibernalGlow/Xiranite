@@ -154,9 +154,18 @@ describe("ReaderSidebar layout gestures", () => {
 
   it("[neoview.shell.resident-cards] renders stable sessionless Card shells and empty states", async () => {
     render(<ReaderSidebar side="left" context={context(false)} shell={shell()} />)
-    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
     expect(await screen.findByText("打开书本后显示页面导航")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "折叠页面导航" })).toBeNull()
+  })
+
+  it("[neoview.shell.resident-panel-cache] mounts every visible panel cache before its tab is clicked", () => {
+    render(<ReaderSidebar side="left" context={context(false)} shell={shell()} />)
+
+    expect(document.querySelector('[data-reader-panel-cache="folder"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-cache="history"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-cache="bookmark"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-cache="pageList"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-cache="settings"]')).toBeNull()
   })
 
   it("[neoview.sidebar-height.blank-collapse] collapses only blank sidebar clicks in the configured mode", () => {
