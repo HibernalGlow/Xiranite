@@ -2,6 +2,7 @@ import readdirp, { type ReaddirpStream } from "readdirp"
 
 import type { ReaderDirectorySize, ReaderDirectorySizeProvider } from "../../ports/ReaderDirectorySizeProvider.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import { normalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
 const DEFAULT_MAXIMUM_FILES = 1_000_000
 
@@ -22,6 +23,7 @@ export class PlatformReaderDirectorySizeProvider implements ReaderDirectorySizeP
 
   async measure(path: string, signal?: AbortSignal): Promise<ReaderDirectorySize> {
     signal?.throwIfAborted()
+    const normalizedPath = normalizePlatformDirectoryPath(path)
     const lease = await this.options.resourceScheduler?.acquire({
       resource: "io",
       kind: "reader.directory-size.scan",
@@ -34,7 +36,7 @@ export class PlatformReaderDirectorySizeProvider implements ReaderDirectorySizeP
     let bytes = 0
     let fileCount = 0
     try {
-      stream = readdirp(path, {
+      stream = readdirp(normalizedPath, {
         type: "files",
         alwaysStat: true,
         lstat: true,
@@ -47,16 +49,16 @@ export class PlatformReaderDirectorySizeProvider implements ReaderDirectorySizeP
         fileCount += 1
         if (fileCount > this.#maximumFiles) {
           stream.destroy()
-          throw new RangeError(`Directory exceeds the ${this.#maximumFiles} file size-scan limit: ${path}`)
+          throw new RangeError(`Directory exceeds the ${this.#maximumFiles} file size-scan limit: ${normalizedPath}`)
         }
         const size = safeStatSize(entry.stats?.size)
         if (size === undefined || bytes > Number.MAX_SAFE_INTEGER - size) {
           stream.destroy()
-          throw new RangeError(`Directory size exceeds the safe integer range: ${path}`)
+          throw new RangeError(`Directory size exceeds the safe integer range: ${normalizedPath}`)
         }
         bytes += size
       }
-      return { path, bytes, fileCount }
+      return { path: normalizedPath, bytes, fileCount }
     } finally {
       signal?.removeEventListener("abort", abort)
       stream?.off("warn", failOnWarning)
