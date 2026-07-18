@@ -503,7 +503,20 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse(await this.#cacheService.status())
     }
     if (url.pathname === "/reader/diagnostics" && request.method === "GET") {
-      return jsonResponse(await this.#diagnostics.snapshot())
+      const diagnostics = await this.#diagnostics.snapshot()
+      const sessionId = url.searchParams.get("sessionId")
+      if (!sessionId) return jsonResponse(diagnostics)
+      const session = this.#service.getSession(sessionId)
+      if (!session) return jsonResponse({ error: "Reader session was not found." }, 404)
+      const telemetry = session.preloadTelemetry()
+      const pages = telemetry.outcomes.flatMap(({ pageId, outcome }) => {
+        const page = session.getPage(pageId)
+        return page ? [{ pageIndex: page.index, outcome }] : []
+      })
+      return jsonResponse({
+        ...diagnostics,
+        reader: { ...diagnostics.reader, sessionPreload: { generation: telemetry.generation, pages } },
+      })
     }
     if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "DELETE") {
       return jsonResponse(await this.#cacheService.clear())

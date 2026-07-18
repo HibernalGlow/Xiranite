@@ -25,6 +25,10 @@ describe("ReaderPreloadTelemetry", () => {
       ready: 1,
       failed: 1,
       evicted: 1,
+      outcomes: [
+        { pageId: "p2", outcome: "evicted" },
+        { pageId: "p3", outcome: "failed" },
+      ],
       performance: {
         ttfbSamples: 1,
         totalTtfbMs: 12.5,

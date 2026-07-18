@@ -70,7 +70,7 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const imageRequests: string[] = []
   page.on("request", (request) => {
     if (request.url().includes("/page-media-information")) pageMediaInformationRequests += 1
-    if (request.url().endsWith("/reader/diagnostics")) diagnosticsRequests += 1
+    if (new URL(request.url()).pathname === "/reader/diagnostics") diagnosticsRequests += 1
     if (/\/reader\/s\/[^/]+\/pages\?/.test(request.url())) pageCatalogRequests.push(request.url())
     if (/\/reader\/s\/[^/]+\/pages\/[^/]+\/actions$/.test(request.url())) pageActionRequests.push(request.url())
     if (request.resourceType() === "image") imageRequests.push(request.url())
@@ -79,7 +79,9 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
   const openButton = page.getByRole("button", { name: "打开书籍" })
   await expect(openButton).toBeVisible()
+  const openResponse = page.waitForResponse((response) => response.url().endsWith("/reader/sessions") && response.request().method() === "POST")
   await openButton.click()
+  const opened = await (await openResponse).json() as { sessionId: string }
   const readerImage = page.locator('img[alt="001.png"]')
   await expect(readerImage).toBeVisible()
   await readerImage.evaluate((node) => node.setAttribute("data-library-page-card-image", "stable"))
@@ -389,6 +391,17 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(preloadCard.getByRole("progressbar", { name: "服务端呈现缓存使用率" })).toBeVisible()
   await expect(preloadCard.getByText("已同步", { exact: true })).toBeVisible()
   await expect(preloadCard.getByLabel(/第 \d+ 页/)).toHaveCount(6)
+  const currentSession = await page.request.get(`${backend.url}/reader/s/${encodeURIComponent(opened.sessionId)}`, { headers: { "x-xiranite-token": backend.token } })
+  const currentSnapshot = await currentSession.json() as { preload?: { generation: number; candidates: Array<{ pageIds: string[] }> } }
+  const cachedPageId = currentSnapshot.preload?.candidates.flatMap((candidate) => candidate.pageIds)[0]
+  expect(cachedPageId).toBeTruthy()
+  const preloadEvent = await page.request.post(`${backend.url}/reader/s/${encodeURIComponent(opened.sessionId)}/preload-events`, {
+    headers: { "x-xiranite-token": backend.token },
+    data: { generation: currentSnapshot.preload!.generation, events: [{ pageId: cachedPageId, outcome: "ready" }] },
+  })
+  expect(preloadEvent.status()).toBe(202)
+  await expect(preloadCard.locator('[data-server-cache-state="cached"]').first()).toBeVisible()
+  await expect(preloadCard.locator('[data-server-cache-state="cold"]').first()).toBeVisible()
   const activeAssetUrl = new URL((await readerImage.getAttribute("src"))!, page.url()).href
   const activeAssetRequestsBeforePreloadActions = imageRequests.filter((url) => url === activeAssetUrl).length
   expect(await preloadCard.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)

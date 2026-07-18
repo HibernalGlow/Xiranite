@@ -167,6 +167,13 @@ export interface ReaderStorageDiagnosticsDto {
       cancelled: number
       evicted: number
     }
+    sessionPreload?: {
+      generation?: number
+      pages: readonly {
+        pageIndex: number
+        outcome: "started" | "ready" | "failed" | "cancelled" | "evicted"
+      }[]
+    }
   }
   assets: {
     presentation: {
@@ -694,6 +701,7 @@ export interface ReaderHttpClient {
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
+  preloadDiagnostics?(sessionId: string, signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   executeFileOperations?(operations: readonly ReaderFileMutationDto[], confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileOperationBatchResultDto>
@@ -986,6 +994,7 @@ export function createReaderHttpClient(
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
     pageMediaInformation: (sessionId, signal) => request<ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
+    preloadDiagnostics: (sessionId, signal) => request<ReaderStorageDiagnosticsDto>(`/reader/diagnostics?sessionId=${encodeURIComponent(sessionId)}`, { signal }),
     openSystemPath: (path, signal) => request<void>("/reader/files/open", {
       method: "POST",
       headers: { "content-type": "application/json" },

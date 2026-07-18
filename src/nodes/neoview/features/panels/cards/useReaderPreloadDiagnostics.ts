@@ -28,8 +28,11 @@ export function useReaderPreloadDiagnostics(
         ? { ...current, loading: true, error: undefined }
         : { sessionId, loading: true })
       try {
-        if (!client.diagnostics) throw new Error("unavailable")
-        const value = await client.diagnostics(controller.signal)
+        const request = client.preloadDiagnostics
+          ? client.preloadDiagnostics(sessionId, controller.signal)
+          : client.diagnostics?.(controller.signal)
+        if (!request) throw new Error("unavailable")
+        const value = await request
         if (!controller.signal.aborted) setState({ sessionId, loading: false, value })
       } catch {
         if (!controller.signal.aborted) {
