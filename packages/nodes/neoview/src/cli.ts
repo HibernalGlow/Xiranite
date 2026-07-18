@@ -102,6 +102,7 @@ const VALUE_FLAGS = new Set([
   "--strategy",
   "--modules",
   "--kind",
+  "--prefix",
   "--days",
   "--scan-limit",
   "--reason",
@@ -688,7 +689,7 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "thumbnail-db-cleanup") {
-    rejectOptions(parsed, new Set(["--json", "--yes", "--kind", "--days", "--limit", "--scan-limit"]))
+    rejectOptions(parsed, new Set(["--json", "--yes", "--kind", "--prefix", "--days", "--limit", "--scan-limit"]))
     return
   }
   if (command === "thumbnail-db-clear-failures") {
@@ -1574,6 +1575,11 @@ async function runThumbnailMaintenanceCommand(
       if (!result.enabled || result.kind !== "invalid") throw new Error("Invalid-path thumbnail cleanup is unavailable.")
       return printMaintenanceResult({ operation: plan.kind, ...result.result }, parsed.booleans.has("--json"), host)
     }
+    if (plan.kind === "path-prefix") {
+      const result = await service.cleanup(plan)
+      if (!result.enabled || result.kind !== "path-prefix") throw new Error("Path-prefix thumbnail cleanup is unavailable.")
+      return printMaintenanceResult({ operation: result.kind, prefix: result.prefix, deleted: result.deleted }, parsed.booleans.has("--json"), host)
+    }
     if (plan.kind === "empty") {
       const result = await service.cleanup(plan)
       if (!result.enabled || result.kind !== "empty") throw new Error("Thumbnail cleanup is unavailable.")
@@ -1643,6 +1649,7 @@ type ThumbnailMaintenancePlan =
   | { kind: "empty"; limit: number }
   | { kind: "expired"; limit: number; days: number }
   | { kind: "invalid"; limit: number; scanLimit: number }
+  | { kind: "path-prefix"; prefix: string; limit: number }
 
 function thumbnailMaintenancePlan(command: string, parsed: ParsedArguments): ThumbnailMaintenancePlan {
   if (command === "thumbnail-db-stats") return { kind: "stats" }
@@ -1653,13 +1660,21 @@ function thumbnailMaintenancePlan(command: string, parsed: ParsedArguments): Thu
     return { kind: "clear-failures", reason, limit }
   }
   const kind = oneValue(parsed, "--kind")
-  if (kind !== "empty" && kind !== "expired" && kind !== "invalid") {
-    throw usage("thumbnail-db-cleanup requires --kind empty|expired|invalid.")
+  if (kind !== "empty" && kind !== "expired" && kind !== "invalid" && kind !== "path-prefix") {
+    throw usage("thumbnail-db-cleanup requires --kind empty|expired|invalid|path-prefix.")
   }
   if (kind === "invalid") {
     if (parsed.values.has("--days")) throw usage("--days is only valid with --kind expired.")
     const limit = integerOption(parsed, "--limit", 1, 500, 500)
     return { kind, limit, scanLimit: integerOption(parsed, "--scan-limit", 1, 2_000, 500) }
+  }
+  if (kind === "path-prefix") {
+    if (parsed.values.has("--days") || parsed.values.has("--scan-limit")) {
+      throw usage("--days and --scan-limit are only valid with their corresponding cleanup kinds.")
+    }
+    const prefix = oneValue(parsed, "--prefix")
+    if (!prefix?.trim()) throw usage("thumbnail-db-cleanup --kind path-prefix requires --prefix <path>.")
+    return { kind, prefix, limit: integerOption(parsed, "--limit", 1, 10_000, 500) }
   }
   const limit = integerOption(parsed, "--limit", 1, 1_000, 500)
   if (parsed.values.has("--scan-limit")) throw usage("--scan-limit is only valid with --kind invalid.")
@@ -2722,7 +2737,7 @@ function formatCliHelp(): string {
     "  explorer-context-menu-disable    Disable Explorer registration (--yes)",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
-    "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
+    "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid/path-prefix cleanup batch",
     "  thumbnail-db-clear-failures [path]  Clear a bounded failure batch",
     "  thumbnail-db-backup [path]   Create and verify a SQLite snapshot with VACUUM INTO",
     "  thumbnail-db-optimize [path] Backup, checkpoint and optimize an offline database",
@@ -2793,7 +2808,8 @@ function formatCliHelp(): string {
     "                       Also required for thumbnail database mutations",
     "  --overwrite          Allow copy/move/rename to replace a destination",
     "  --concurrency N      File-operation concurrency (1..8)",
-    "  --kind KIND          Thumbnail cleanup kind: empty, expired or invalid",
+    "  --kind KIND          Thumbnail cleanup kind: empty, expired, invalid or path-prefix",
+    "  --prefix PATH        Path prefix for thumbnail-db-cleanup --kind path-prefix",
     "  --days N             Expiration age in days (default 30)",
     "  --scan-limit N       Invalid-path scan batch (default 500)",
     "  --offline            Confirm all NeoView/Xiranite database users are closed",
