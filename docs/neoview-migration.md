@@ -1708,6 +1708,8 @@ TUI 交付顺序固定为：
 
 截至 2026-07-18，本地 `ref/opencomic-ai-system/` 的 `codex/system-cli-only` 分支已经形成两个隔离提交：`b86caac` 将包收口为 `@hibernalglow/opencomic-ai-system@0.1.0`，增加宿主 `binaryResolver`，移除生产入口的 YOLO/ONNX/Potrace 和包内 `win/linux/mac` 路径，并通过 `package.json#files` 与 pack 审计禁止发布 exe、动态库、原生 `.node`、ONNX、模型 `.bin/.param` 和 Python；`610e34b` 修复 daemon 参数拆分、跨 chunk `Ready>`、`Error -> Ready>` 成功误判、Windows/Unicode/引号 quoting，以及 process error/exit/close、主动 close 时当前和排队任务悬空。fork 自身 `npm test` 当前 15 项通过，`npm pack --dry-run` 仅包含 8 个文件，压缩包大小 23,943 bytes。上述提交目前只存在于本地 fork，尚未推送或发布，因此 Xiranite 不得声明不可从远端解析的 Git SHA，也不得从 `ref/` 直接 import；等用户明确授权推送或发布后再锁定完整 SHA/语义版本。
 
+Xiranite 侧的共享边界已经由 `f4d58552` 和 `19d31807` 建立：`SuperResolutionService` 位于 NeoView application/ports 层，GUI、CLI、TUI 后续只复用这一实例；模型 manifest 可注册，任务在进入 Provider 前完成 scale/path 校验、同一输出路径互斥和 `AbortSignal` 检查，并通过宿主 `ResourceScheduler` 获取 GPU lease，构造与列模型都保持零进程。`SystemSuperResolutionCliResolver` 位于 platform 层，按“显式路径 -> PATH -> 可信候选”惰性探测 canonical path、版本与架构；显式路径失效不会静默回退，同一 engine 共享缓存，单 caller 取消不会破坏其他等待者。两组定向测试共 13 项通过，NeoView package build 和 oxlint 通过。当前仍未创建生产 `OpenComicAiSystemProvider`，也未引入 fork 依赖；这两项必须等远端可解析的 commit/版本存在后再接，并同时闭环输出文件校验、进程树取消和真实 GPU benchmark。
+
 预发布依赖示例：
 
 ```json
