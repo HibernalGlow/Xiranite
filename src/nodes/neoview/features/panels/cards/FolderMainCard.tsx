@@ -1315,6 +1315,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               { action: "refresh" },
               { keepTree: true, clearSelection: true },
             )}
+            onDeleteCompleted={() => navigate(
+              { action: "refresh" },
+              { keepTree: true, clearSelection: true },
+            )}
           />
         </Suspense>
       ) : null}

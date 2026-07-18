@@ -1,4 +1,4 @@
-import { Ban, CheckSquare, ClipboardPaste, Copy, Link, LoaderCircle, MousePointer2, Scissors, Square, SquareX, Trash2, X } from "lucide-react"
+import { Ban, CheckSquare, ClipboardPaste, Copy, Link, LoaderCircle, MousePointer2, Scissors, Square, SquareX, Trash, Trash2, X } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import type {
 } from "../../../../adapters/reader-http-client"
 import { useFolderClipboard } from "./FolderClipboard"
 
-export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted }: {
+export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
   client: ReaderHttpClient
   sessionId: string
   selection: ReaderDirectorySelectionDescriptorDto
@@ -27,11 +27,15 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   onClear(): void
   onClose(): void
   onTrashCompleted(snapshot: ReaderDirectorySelectionOperationSnapshotDto): void | Promise<void>
+  onDeleteCompleted?(snapshot: ReaderDirectorySelectionOperationSnapshotDto): void | Promise<void>
 }) {
   const clipboard = useFolderClipboard()
   const contextMenu = useContextMenu()
   const completedRef = useRef(onTrashCompleted)
   completedRef.current = onTrashCompleted
+  const deleteCompletedRef = useRef(onDeleteCompleted)
+  deleteCompletedRef.current = onDeleteCompleted
+  const operationKindRef = useRef<"trash" | "delete">("trash")
   const [operation, setOperation] = useState<ReaderDirectorySelectionOperationSnapshotDto>()
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
 
@@ -52,11 +56,13 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
         }
         if (!finished && snapshot.status === "completed") {
           finished = true
-          await completedRef.current(snapshot)
+          if (operationKindRef.current === "delete") await deleteCompletedRef.current?.(snapshot)
+          else await completedRef.current(snapshot)
           if (!controller.signal.aborted) {
+            const permanent = operationKindRef.current === "delete"
             setFeedback(snapshot.failed > 0
-              ? { kind: "alert", text: `已移到回收站 ${snapshot.succeeded} 项，${snapshot.failed} 项失败。` }
-              : { kind: "status", text: `已将 ${snapshot.succeeded} 项移到回收站。` })
+              ? { kind: "alert", text: permanent ? `永久删除 ${snapshot.succeeded} 项，${snapshot.failed} 项失败。` : `移到回收站 ${snapshot.succeeded} 项，${snapshot.failed} 项失败。` }
+              : { kind: "status", text: permanent ? `已永久删除 ${snapshot.succeeded} 项。` : `已将 ${snapshot.succeeded} 项移到回收站。` })
           }
         } else if (snapshot.status === "failed") {
           setFeedback({ kind: "alert", text: snapshot.error ?? "批量文件操作失败。" })
@@ -74,11 +80,12 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
     }
   }, [client.directorySelectionOperation, operation?.id])
 
-  async function startTrash() {
+  async function startDestructiveOperation(kind: "trash" | "delete") {
     if (!client.startDirectorySelectionOperation || selectedCount === 0 || operation?.status === "running") return
     setFeedback(undefined)
     try {
-      setOperation(await client.startDirectorySelectionOperation(sessionId, selection, "trash"))
+      operationKindRef.current = kind
+      setOperation(await client.startDirectorySelectionOperation(sessionId, selection, kind))
     } catch (error) {
       setFeedback({ kind: "alert", text: errorMessage(error) })
     }
@@ -141,6 +148,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
             onClick={() => { if (runningTrash) void cancelOperation(); else void clipboard.cancel() }}
           ><Ban /></Action>
         ) : (
+          <>
           <Action
             label="将所选项目移到回收站"
             disabled={disabled || selectedCount === 0 || !contextMenu || !client.startDirectorySelectionOperation || !client.directorySelectionOperation}
@@ -155,11 +163,30 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
                 confirmLabel: "移到回收站",
                 destructive: true,
               },
-              onSelect: startTrash,
+              onSelect: () => { void startDestructiveOperation("trash") },
             })}
           >
             <Trash2 />
           </Action>
+          <Action
+            label="永久删除所选项目"
+            className="text-destructive hover:text-destructive"
+            disabled={disabled || selectedCount === 0 || !contextMenu || !client.startDirectorySelectionOperation || !client.directorySelectionOperation}
+            onClick={() => contextMenu?.confirm({
+              id: "neoview-folder-delete-selection",
+              label: `永久删除 ${selectedCount} 个项目`,
+              icon: <Trash />,
+              destructive: true,
+              confirm: {
+                title: `永久删除 ${selectedCount} 个项目？`,
+                description: "操作会在后台分批执行，删除后无法从回收站恢复；可以在多选栏中查看进度或取消。",
+                confirmLabel: "永久删除",
+                cancelLabel: "取消",
+              },
+              onSelect: () => { void startDestructiveOperation("delete") },
+            })}
+          ><Trash /></Action>
+          </>
         )}
         <Action label="取消全部选择" disabled={disabled || running || selectedCount === 0} onClick={onClear}><SquareX /></Action>
         <Action label="关闭多选模式" disabled={running} onClick={onClose}>{running ? <LoaderCircle className="animate-spin" /> : <X />}</Action>
@@ -169,9 +196,9 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   )
 }
 
-function Action({ label, disabled = false, pressed, onClick, children }: { label: string; disabled?: boolean; pressed?: boolean; onClick(): void; children: ReactNode }) {
+function Action({ label, disabled = false, pressed, className, onClick, children }: { label: string; disabled?: boolean; pressed?: boolean; className?: string; onClick(): void; children: ReactNode }) {
   return (
-    <Button type="button" size="icon-sm" variant={pressed ? "default" : "ghost"} aria-label={label} aria-pressed={pressed} title={label} disabled={disabled} onClick={onClick}>
+    <Button type="button" size="icon-sm" variant={pressed ? "default" : "ghost"} className={className} aria-label={label} aria-pressed={pressed} title={label} disabled={disabled} onClick={onClick}>
       {children}
     </Button>
   )
