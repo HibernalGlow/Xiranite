@@ -20,5 +20,6 @@ export function platformReaderBookCandidate(
   if (!entry.readerSupported) return false
   if (entry.kind === "directory") return true
   if (entry.kind !== "file") return false
+  if (pathExtension(entry.path) === "lnk") return entry.readerSupported
   return platformReaderBookFileKind(entry.path, mediaFormats) !== undefined
 }

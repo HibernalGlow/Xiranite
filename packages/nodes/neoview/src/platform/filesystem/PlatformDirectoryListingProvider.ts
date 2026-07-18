@@ -7,17 +7,22 @@ import type {
   ReaderDirectoryListing,
   ReaderDirectoryListingProvider,
 } from "../../ports/ReaderDirectoryListingProvider.js"
+import type { ReaderShortcutResolver } from "../../ports/ReaderShortcutResolver.js"
 import { platformReaderBookFileKind } from "./PlatformReaderBookCandidate.js"
 import { canonicalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
+import { resolveReaderShortcutChain } from "../windows/WindowsReaderShortcutResolver.js"
 
 const MAX_DIRECTORY_ENTRIES = 100_000
 
 export class PlatformDirectoryListingProvider implements ReaderDirectoryListingProvider {
-  constructor(private readonly mediaFormats?: ReaderMediaTypeResolver) {}
+  constructor(
+    private readonly mediaFormats?: ReaderMediaTypeResolver,
+    private readonly shortcutResolver?: ReaderShortcutResolver,
+  ) {}
 
   async canonicalize(path: string, signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted()
-    const canonicalPath = await canonicalizePlatformDirectoryPath(path)
+    const canonicalPath = await resolveListingPath(path, this.shortcutResolver, signal)
     const sourceStats = await stat(canonicalPath)
     signal?.throwIfAborted()
     if (!sourceStats.isDirectory()) throw new Error(`Reader browser path is not a directory: ${path}`)
@@ -26,7 +31,7 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
 
   async read(path: string, signal?: AbortSignal): Promise<ReaderDirectoryListing> {
     signal?.throwIfAborted()
-    const canonicalPath = await canonicalizePlatformDirectoryPath(path)
+    const canonicalPath = await resolveListingPath(path, this.shortcutResolver, signal)
     const sourceStats = await stat(canonicalPath)
     const directoryPath = sourceStats.isDirectory() ? canonicalPath : sourceStats.isFile() ? dirname(canonicalPath) : undefined
     if (!directoryPath) throw new Error(`Reader browser path is not a file or directory: ${path}`)
@@ -43,7 +48,7 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
         name: entry.name,
         path: join(directoryPath, entry.name),
         kind,
-        readerSupported: kind === "directory" || (kind === "file" && isReaderSupported(entry.name, this.mediaFormats)),
+        readerSupported: kind === "directory" || (kind === "file" && await isReaderSupported(join(directoryPath, entry.name), this.mediaFormats, this.shortcutResolver, signal)),
       })
     }
     signal?.throwIfAborted()
@@ -56,6 +61,29 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
   }
 }
 
-function isReaderSupported(path: string, mediaFormats?: ReaderMediaTypeResolver): boolean {
-  return Boolean(pageMediaType(path, mediaFormats)) || platformReaderBookFileKind(path, mediaFormats) !== undefined || pathExtension(path) === "pdf"
+async function isReaderSupported(
+  path: string,
+  mediaFormats?: ReaderMediaTypeResolver,
+  shortcutResolver?: ReaderShortcutResolver,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  let candidatePath = path
+  if (pathExtension(candidatePath) === "lnk") {
+    if (!shortcutResolver) return false
+    try {
+      const resolved = await resolveReaderShortcutChain(candidatePath, shortcutResolver, signal)
+      if (resolved.kind === "directory") return true
+      candidatePath = resolved.path
+    } catch {
+      return false
+    }
+  }
+  return Boolean(pageMediaType(candidatePath, mediaFormats)) || platformReaderBookFileKind(candidatePath, mediaFormats) !== undefined || pathExtension(candidatePath) === "pdf" || pathExtension(candidatePath) === "epub"
+}
+
+async function resolveListingPath(path: string, shortcutResolver: ReaderShortcutResolver | undefined, signal?: AbortSignal): Promise<string> {
+  const canonicalPath = await canonicalizePlatformDirectoryPath(path)
+  if (pathExtension(canonicalPath) !== "lnk") return canonicalPath
+  if (!shortcutResolver) return canonicalPath
+  return (await resolveReaderShortcutChain(canonicalPath, shortcutResolver, signal)).path
 }

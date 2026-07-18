@@ -2,11 +2,22 @@ import { stat } from "node:fs/promises"
 
 import type { ViewSource } from "../../domain/book/book.js"
 import { pageMediaType, pathExtension, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
+import type { ReaderShortcutResolver } from "../../ports/ReaderShortcutResolver.js"
 import { canonicalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
+import { resolveReaderShortcutChain } from "../windows/WindowsReaderShortcutResolver.js"
 
-export async function detectViewSource(path: string, signal?: AbortSignal, mediaFormats?: ReaderMediaTypeResolver): Promise<Exclude<ViewSource, { kind: "path" }>> {
+export async function detectViewSource(
+  path: string,
+  signal?: AbortSignal,
+  mediaFormats?: ReaderMediaTypeResolver,
+  shortcutResolver?: ReaderShortcutResolver,
+): Promise<Exclude<ViewSource, { kind: "path" }>> {
   signal?.throwIfAborted()
-  const canonicalPath = await canonicalizePlatformDirectoryPath(path)
+  let canonicalPath = await canonicalizePlatformDirectoryPath(path)
+  if (pathExtension(canonicalPath) === "lnk") {
+    const resolver = shortcutResolver ?? new (await import("../windows/WindowsReaderShortcutResolver.js")).WindowsReaderShortcutResolver()
+    canonicalPath = (await resolveReaderShortcutChain(canonicalPath, resolver, signal)).path
+  }
   const sourceStats = await stat(canonicalPath)
   signal?.throwIfAborted()
   if (sourceStats.isDirectory()) return { kind: "directory", path: canonicalPath }

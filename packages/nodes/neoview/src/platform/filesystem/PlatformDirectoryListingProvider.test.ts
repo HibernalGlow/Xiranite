@@ -13,6 +13,26 @@ afterEach(async () => {
 })
 
 describe("PlatformDirectoryListingProvider", () => {
+  it("[neoview.shortcut.listing] marks only resolvable .lnk files as reader-supported", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-tree-"))
+    temporaryPaths.push(root)
+    const target = join(root, "Book.cbz")
+    const link = join(root, "Book.lnk")
+    const broken = join(root, "Broken.lnk")
+    await writeFile(target, "archive")
+    await writeFile(link, "shortcut")
+    await writeFile(broken, "shortcut")
+    const shortcutResolver = {
+      resolve: vi.fn(async (path: string) => path === link
+        ? { status: "resolved" as const, shortcutPath: path, targetPath: target, targetKind: "file" as const }
+        : { status: "invalid" as const, shortcutPath: path, reason: "broken" }),
+    }
+
+    const listing = await new PlatformDirectoryListingProvider(undefined, shortcutResolver).read(root)
+    expect(listing.entries.find((entry) => entry.path === link)).toMatchObject({ readerSupported: true })
+    expect(listing.entries.find((entry) => entry.path === broken)).toMatchObject({ readerSupported: false })
+  })
+
   it("[neoview.folder.windows-drive-root] converts drive-relative volume labels into absolute drive roots", () => {
     expect(normalizePlatformDirectoryPath("E:", "win32")).toBe("E:\\")
     expect(normalizePlatformDirectoryPath("E:/", "win32")).toBe("E:\\")
