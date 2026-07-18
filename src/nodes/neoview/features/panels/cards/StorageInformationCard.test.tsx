@@ -45,6 +45,22 @@ describe("StorageInformationCard", () => {
     expect(diagnostics).toHaveBeenCalledTimes(2)
   })
 
+  it("[neoview.storage-information.retry-accessibility] gives each retry action a unique accessible name and respects the disabled panel state", async () => {
+    const metadata = vi.fn().mockRejectedValue(new Error("metadata unavailable"))
+    const diagnostics = vi.fn(async () => diagnosticsDto())
+
+    render(<StorageInformationCard {...context(clientWith(metadata, diagnostics), session())} disabled />)
+
+    expect((await screen.findByRole("button", { name: "重试存储信息" })).hasAttribute("disabled")).toBe(true)
+
+    cleanup()
+    const resourceDiagnostics = vi.fn().mockRejectedValue(new Error("diagnostics unavailable"))
+    render(<StorageInformationCard {...context(clientWith(vi.fn(async () => metadataDto()), resourceDiagnostics), session())} disabled />)
+
+    expect(await screen.findByText("D:/books/pages/001.jpg")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "重试资源占用" }).hasAttribute("disabled")).toBe(true)
+  })
+
   it("[neoview.storage-information.inactive-cancel] does no work while hidden and cancels activation requests when hidden again", async () => {
     let metadataSignal: AbortSignal | undefined
     let diagnosticsSignal: AbortSignal | undefined

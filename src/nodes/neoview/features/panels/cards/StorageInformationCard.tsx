@@ -13,17 +13,17 @@ import { formatStorageBytes } from "./reader-metadata-format"
 import { useReaderMetadata } from "./useReaderMetadata"
 import { useReaderStorageDiagnostics } from "./useReaderStorageDiagnostics"
 
-export default function StorageInformationCard({ session, client, panelActive = true }: ReaderPanelContext) {
+export default function StorageInformationCard({ session, client, disabled, panelActive = true }: ReaderPanelContext) {
   if (!panelActive) return <ReaderCardEmptyState />
   if (!session) return <ReaderCardEmptyState>打开书本后显示存储信息</ReaderCardEmptyState>
-  return <StorageInformationContent session={session} client={client} />
+  return <StorageInformationContent session={session} client={client} disabled={disabled} />
 }
 
-function StorageInformationContent({ session, client }: { session: NonNullable<ReaderPanelContext["session"]>; client: ReaderPanelContext["client"] }) {
+function StorageInformationContent({ session, client, disabled }: { session: NonNullable<ReaderPanelContext["session"]>; client: ReaderPanelContext["client"]; disabled: boolean }) {
   const metadata = useReaderMetadata(client, session.sessionId, session.frame.generation)
   const diagnostics = useReaderStorageDiagnostics(client)
   if (metadata.loading) return <div className="h-10 animate-pulse rounded bg-muted" aria-label="正在加载存储信息" />
-  if (metadata.error) return <StorageError message={metadata.error} retry={metadata.retry} />
+  if (metadata.error) return <StorageError message={metadata.error} retry={metadata.retry} disabled={disabled} />
   const page = metadata.value?.page
   if (!page) return <div className="py-2 text-center text-sm text-muted-foreground">暂无存储信息</div>
   const resourceValues = diagnostics.value ? {
@@ -47,7 +47,7 @@ function StorageInformationContent({ session, client }: { session: NonNullable<R
           <StorageRow label="归档缓存"><StorageMetric loading={diagnostics.loading} value={resourceValues?.archive} /></StorageRow>
           <StorageRow label="磁盘缓存"><StorageMetric loading={diagnostics.loading} value={resourceValues?.disk} /></StorageRow>
         </dl>
-        {diagnostics.error ? <StorageError message={diagnostics.error} retry={diagnostics.retry} compact /> : null}
+        {diagnostics.error ? <StorageError message={diagnostics.error} retry={diagnostics.retry} compact disabled={disabled} /> : null}
       </section>
     </div>
   )
@@ -67,11 +67,19 @@ function StorageMetric({ loading, value }: { loading: boolean; value?: number })
     : <StorageBytes value={value} />
 }
 
-function StorageError({ message, retry, compact = false }: { message: string; retry(): void; compact?: boolean }) {
+function StorageError({ message, retry, compact = false, disabled = false }: { message: string; retry(): void; compact?: boolean; disabled?: boolean }) {
   return (
     <div className={compact ? "mt-2 flex items-center justify-between gap-2 text-xs" : "space-y-2 text-xs"} role="alert">
       <span className="min-w-0 break-words text-destructive">{message}</span>
-      <button type="button" className="shrink-0 text-primary underline-offset-2 hover:underline" onClick={retry}>重试</button>
+      <button
+        type="button"
+        className="shrink-0 text-primary underline-offset-2 hover:underline"
+        aria-label={compact ? "重试资源占用" : "重试存储信息"}
+        disabled={disabled}
+        onClick={retry}
+      >
+        重试
+      </button>
     </div>
   )
 }
