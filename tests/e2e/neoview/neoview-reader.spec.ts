@@ -748,7 +748,6 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
   let selectionOperationRequest: Record<string, unknown> | undefined
   let selectionOperationPolls = 0
   let browserSessionOpens = 0
-  let restorePinnedSidebar = false
   const snapshot = (status: "running" | "completed", processed: number) => ({
     id: "e2e-selection-operation",
     kind: "trash",
@@ -782,7 +781,7 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
       }
       if (request.method() === "GET" && pathname === "/reader/files/selection-operations/e2e-selection-operation") {
         selectionOperationPolls += 1
-        if (selectionOperationPolls === 1) await new Promise((resolve) => setTimeout(resolve, 200))
+        if (selectionOperationPolls === 1) await new Promise((resolve) => setTimeout(resolve, 1_500))
         const next = selectionOperationPolls < 2 ? snapshot("running", 1) : snapshot("completed", 3)
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(next) })
         return
@@ -798,14 +797,12 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
     const leftSidebar = page.locator('[data-reader-sidebar="left"]')
     if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
     await expect(leftSidebar).toBeVisible()
-    const unpin = leftSidebar.getByRole("button", { name: "取消固定左侧栏" })
-    restorePinnedSidebar = await unpin.isVisible().catch(() => false)
-    if (restorePinnedSidebar) {
-      await unpin.click()
-      await expect(leftSidebar.getByRole("button", { name: "固定左侧栏" })).toBeVisible()
-    }
+    const leftPanelToggle = page.getByRole("button", { name: "左侧边栏", exact: true })
+    if (await leftPanelToggle.getAttribute("aria-pressed") !== "true") await leftPanelToggle.click()
+    await expect(leftPanelToggle).toHaveAttribute("aria-pressed", "true")
     let folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
-    await folderCard.evaluate((element) => element.setAttribute("data-batch-card-instance", "stable"))
+    const folderPane = page.locator('[data-neoview-folder-pane="true"]')
+    await folderPane.evaluate((element) => element.setAttribute("data-batch-card-instance", "stable"))
     const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
     const editPath = breadcrumb.getByRole("button", { name: "编辑路径" })
     await editPath.focus()
@@ -823,19 +820,23 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
     const confirmation = page.getByRole("alertdialog")
     await expect(confirmation).toContainText("将 3 个项目移到回收站？")
     await confirmation.getByRole("button", { name: "移到回收站" }).click()
+    await leftPanelToggle.click()
     await page.mouse.move(page.viewportSize()!.width - 1, page.viewportSize()!.height / 2)
-    await expect(leftSidebar).toHaveCount(0, { timeout: 1_500 })
-    await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeHidden()
+    await expect(folderPane).toHaveAttribute("data-batch-card-instance", "stable")
+    await leftPanelToggle.click()
     await expect(leftSidebar).toBeVisible()
     folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
     selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
     await expect(folderCard).toHaveAttribute("data-batch-card-instance", "stable")
     await expect(selectionBar).toHaveAttribute("data-selection-operation", "running")
 
+    await leftPanelToggle.click()
     await page.mouse.move(page.viewportSize()!.width - 1, page.viewportSize()!.height / 2)
-    await expect(leftSidebar).toHaveCount(0, { timeout: 1_500 })
-    await page.waitForTimeout(500)
-    await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeHidden()
+    await expect(folderPane).toHaveAttribute("data-batch-card-instance", "stable")
+    await page.waitForTimeout(1_800)
+    await leftPanelToggle.click()
     await expect(leftSidebar).toBeVisible()
     folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
     selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
@@ -852,11 +853,6 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
       confirmed: true,
     })
   } finally {
-    if (restorePinnedSidebar) {
-      await page.mouse.move(1, page.viewportSize()!.height / 2).catch(() => undefined)
-      const sidebar = page.locator('[data-reader-sidebar="left"]')
-      await sidebar.getByRole("button", { name: "固定左侧栏" }).click().catch(() => undefined)
-    }
     await rm(operationRoot, { recursive: true, force: true })
   }
 })
