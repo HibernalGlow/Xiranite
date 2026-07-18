@@ -142,6 +142,45 @@ test("[neoview.bindings.devices-e2e] routes mouse, hold, modified wheel and area
 
 })
 
+test("[neoview.bindings.gamepad-e2e] routes a connected standard gamepad button through the shared binding runtime", async ({ page }) => {
+  await page.addInitScript(() => {
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, touched: false, value: 0 }))
+    const pad = {
+      id: "XR virtual standard gamepad",
+      index: 0,
+      connected: true,
+      mapping: "standard",
+      timestamp: 0,
+      buttons,
+      axes: [0, 0, 0, 0],
+      vibrationActuator: null,
+    }
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => [pad] })
+    Object.defineProperty(window, "__setFakeGamepadButton", {
+      configurable: true,
+      value: (index: number, pressed: boolean) => {
+        const button = buttons[index]
+        if (!button) return
+        button.pressed = pressed
+        button.touched = pressed
+        button.value = pressed ? 1 : 0
+        pad.timestamp += 1
+      },
+    })
+  })
+  await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+  await expect(page.locator('[data-reader-input-runtime="ready"]')).toHaveCount(1)
+
+  await page.evaluate(() => (window as unknown as { __setFakeGamepadButton(index: number, pressed: boolean): void }).__setFakeGamepadButton(5, true))
+  await expect(page.locator('img[alt="002.png"]')).toBeVisible()
+  await page.evaluate(() => (window as unknown as { __setFakeGamepadButton(index: number, pressed: boolean): void }).__setFakeGamepadButton(5, false))
+  await page.waitForTimeout(80)
+  await expect(page.locator('img[alt="002.png"]')).toBeVisible()
+})
+
 test("[neoview.bindings.radial-pointer-e2e] opens the copied ray menu from the configured right-button press", async ({ page }) => {
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
