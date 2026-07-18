@@ -44,6 +44,14 @@ describe("FolderMainCard", () => {
     expect(current.get("A")).toBe("url-a")
   })
 
+  it("[neoview.folder.thumbnail-visit-cache] restores more than one visible demand batch", () => {
+    const current = new Map(Array.from({ length: 128 }, (_, index) => [`item-${index}`, `url-${index}`]))
+    const restored = mergeThumbnailUrls(current, [], 256)
+
+    expect(restored.size).toBe(128)
+    expect(restored.get("item-127")).toBe("url-127")
+  })
+
   it("[neoview.folder.single-click-open] opens files and folders by default while modified clicks select", async () => {
     const opened = page({
       entries: [

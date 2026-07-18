@@ -561,7 +561,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setPreviewCount(restored.previewCount)
     setMultiSelectMode(restored.multiSelectMode)
     const restoredThumbnailUrls = options.preserveThumbnailCache
-      ? mergeThumbnailUrls(thumbnailUrlsRef.current, restored.thumbnailUrls ? [...restored.thumbnailUrls] : [], MAX_THUMBNAILS)
+      ? mergeThumbnailUrls(thumbnailUrlsRef.current, restored.thumbnailUrls ? [...restored.thumbnailUrls] : [], MAX_CACHED_THUMBNAIL_URLS)
       : restored.thumbnailUrls ?? new Map()
     const restoredThumbnailProfiles = options.preserveThumbnailCache
       ? new Map([...restoredThumbnailUrls.keys()]
