@@ -185,6 +185,37 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     expect(await readdir(tempDirectory)).toEqual([])
   })
 
+  it("[neoview.sevenzip.solid-preload-demand] stops at an explicit target and resumes on a newer generation", async () => {
+    const scheduler = new RecordingScheduler()
+    const provider = createProvider(solidPath, scheduler)
+    try {
+      const entries = await provider.list()
+      const first = entries.find((entry) => entry.path === "pages/001.jpg")!
+      const second = entries.find((entry) => entry.path === "pages/002.jpg")!
+      await provider.updatePreloadDemand!({
+        generation: 1,
+        direction: "forward",
+        directionConfidence: 1,
+        entryIds: [first.id],
+      })
+      expect(await collect(await provider.openEntry(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      await expect.poll(() => scheduler.active.cpu).toBe(0)
+      expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract")).toHaveLength(1)
+
+      await provider.updatePreloadDemand!({
+        generation: 2,
+        direction: "backward",
+        directionConfidence: 0.75,
+        entryIds: [second.id],
+      })
+      expect(await collect(await provider.openEntry(second.id))).toEqual(Uint8Array.of(6, 7, 8))
+      await expect.poll(() => scheduler.active.cpu).toBe(0)
+      expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract")).toHaveLength(2)
+    } finally {
+      await provider.close()
+    }
+  })
+
   it("[neoview.sevenzip.solid-memory-tier] reuses small verified entries without rereading the temp file", async () => {
     const scheduler = new RecordingScheduler()
     const provider = createProvider(solidPath, scheduler)
