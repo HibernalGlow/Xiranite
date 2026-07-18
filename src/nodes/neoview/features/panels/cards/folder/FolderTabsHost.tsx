@@ -97,7 +97,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
 
   useEffect(() => {
     if (!context.sourcePath) return
-    setTabs((current) => current.map((tab) => tab.id === activeTabId && !tab.pinned && tab.sourcePath !== context.sourcePath
+    setTabs((current) => current.map((tab) => tab.id === activeTabId && !tab.pinned && tab.sourcePath !== context.sourcePath && !sameFolderOrChild(tab.currentPath, context.sourcePath)
       ? { ...tab, sourcePath: context.sourcePath!, currentPath: context.sourcePath!, title: folderTabTitle(context.sourcePath!) }
       : tab))
   }, [context.sourcePath])
@@ -455,4 +455,13 @@ function findMostRecentTab(history: readonly string[], availableIds: ReadonlySet
     if (availableIds.has(id)) return id
   }
   return undefined
+}
+
+function sameFolderOrChild(folderPath: string, sourcePath: string): boolean {
+  const folder = folderPath.replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase()
+  const source = sourcePath.trim().replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase()
+  if (!folder || !source || folder === source) return folder === source
+  const separator = source.lastIndexOf("/")
+  const parent = separator < 0 ? source : source.slice(0, separator).replace(/\/+$/u, "")
+  return parent === folder || parent === `${folder}:`
 }
