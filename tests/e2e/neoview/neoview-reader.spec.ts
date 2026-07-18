@@ -934,6 +934,78 @@ test("[neoview.folder.clipboard-e2e] copies and moves files across current-direc
   }
 })
 
+test("[neoview.folder.filter-e2e] filters the current directory without reopening the File Card", async ({ page }) => {
+  const root = join(fixture.directory, "zz-folder-filter")
+  const folderPath = join(root, "folder")
+  const archivePath = join(root, "book.cbz")
+  const videoPath = join(root, "clip.mp4")
+  const textPath = join(root, "note.txt")
+  await mkdir(folderPath, { recursive: true })
+  await Promise.all([writeFile(archivePath, ""), writeFile(videoPath, ""), writeFile(textPath, "")])
+  let browserSessionOpens = 0
+  const filterRequests: string[] = []
+
+  try {
+    await page.addInitScript(({ baseUrl, token }) => {
+      window.__XIRANITE_BACKEND__ = { baseUrl, token }
+    }, { baseUrl: backend.url, token: backend.token })
+    page.on("request", (request) => {
+      const pathname = new URL(request.url()).pathname
+      if (request.method() === "POST" && pathname === "/reader/browser/sessions") browserSessionOpens += 1
+      if (request.method() === "PATCH" && pathname.endsWith("/filter")) {
+        filterRequests.push((request.postDataJSON() as { filter: string }).filter)
+      }
+    })
+    await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "打开书籍" }).click()
+    const image = page.locator("img[data-reader-page-image]").first()
+    await expect(image).toBeVisible({ timeout: 20_000 })
+    await image.evaluate((element) => element.setAttribute("data-filter-image-instance", "stable"))
+    const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+    if (!await leftSidebar.isVisible()) await page.mouse.move(1, page.viewportSize()!.height / 2)
+    await expect(leftSidebar).toBeVisible()
+    const folderPane = page.locator('[data-neoview-folder-pane="true"]')
+    await folderPane.evaluate((element) => element.setAttribute("data-filter-card-instance", "stable"))
+    const folderCard = leftSidebar.locator('[data-neoview-folder-card="true"]')
+    const breadcrumb = folderCard.locator('[data-neoview-folder-breadcrumb="true"]')
+    const editPath = breadcrumb.getByRole("button", { name: "编辑路径" })
+    await editPath.focus()
+    await editPath.press("Enter")
+    const input = breadcrumb.getByRole("textbox", { name: "浏览路径" })
+    await input.fill(root)
+    await input.press("Enter")
+    await expect(breadcrumb.locator('[aria-current="page"]')).toHaveAttribute("title", root)
+    await expect(folderCard).toHaveAttribute("data-selection-total", "4")
+
+    await folderCard.getByRole("button", { name: "类型筛选" }).click()
+    const filterBar = folderCard.locator('[data-folder-type-filter-bar="true"]')
+    await expect(filterBar).toBeVisible()
+    await expect(filterBar).toHaveCSS("overflow", "visible")
+
+    await filterBar.getByRole("button", { name: "压缩包" }).click()
+    await expect(folderCard).toHaveAttribute("data-selection-total", "1")
+    await expect(folderCard.getByTitle(archivePath, { exact: true })).toBeVisible()
+    await expect(folderCard.getByTitle(folderPath, { exact: true })).toHaveCount(0)
+
+    await filterBar.getByRole("button", { name: "文件夹" }).click()
+    await expect(folderCard.getByTitle(folderPath, { exact: true })).toBeVisible()
+    await expect(folderCard.getByTitle(archivePath, { exact: true })).toHaveCount(0)
+
+    await filterBar.getByRole("button", { name: "视频" }).click()
+    await expect(folderCard.getByTitle(videoPath, { exact: true })).toBeVisible()
+    await expect(folderCard.getByTitle(textPath, { exact: true })).toHaveCount(0)
+
+    await filterBar.getByRole("button", { name: "全部" }).click()
+    await expect(folderCard).toHaveAttribute("data-selection-total", "4")
+    expect(filterRequests).toEqual(["archive", "directory", "video", "all"])
+    expect(browserSessionOpens).toBe(1)
+    expect(await folderPane.getAttribute("data-filter-card-instance")).toBe("stable")
+    expect(await image.getAttribute("data-filter-image-instance")).toBe("stable")
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test("[neoview.folder.single-click-open-e2e] opens folders and files while modified clicks select", async ({ page }) => {
   const clickRoot = join(fixture.directory, "zz-single-click-open")
   const nested = join(clickRoot, "nested")

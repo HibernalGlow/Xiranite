@@ -30,6 +30,17 @@ describe("DirectoryCatalog", () => {
     expect([...catalog.pageMetadataFields.keys()].toSorted((left, right) => left - right)).toEqual([256, 384, 512])
   })
 
+  it("[neoview.folder.filter-catalog] normalizes older pages and preserves server-advertised filters", () => {
+    expect(createDirectoryCatalog(page(0, 1))).toMatchObject({
+      filter: "all",
+      filterOptions: ["all", "archive", "directory", "video"],
+    })
+    expect(createDirectoryCatalog({ ...page(0, 1), filter: "video", filterOptions: ["all", "video"] })).toMatchObject({
+      filter: "video",
+      filterOptions: ["all", "video"],
+    })
+  })
+
   it("[neoview.folder.restore-focus-ui] relocates saved focus and drops incompatible viewport snapshots", () => {
     const restored = restoreDirectoryVisitState(
       { ...page(0, 10), suggestedSelection: { path: "D:/library/item-4", index: 4 } },
