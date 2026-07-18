@@ -52,4 +52,32 @@ describe("FolderHoverPreview", () => {
     )
     expect(screen.queryByRole("tooltip")).toBeNull()
   })
+
+  it("[neoview.folder.hover-preview-geometry] stays near the anchor in a 420x360 viewport", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 420 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 360 })
+    const { container } = render(
+      <FolderHoverPreview enabled delayMs={0} thumbnailUrl="thumb.webp" label="cover.cbz">
+        <button type="button">cover</button>
+      </FolderHoverPreview>,
+    )
+    const anchor = container.querySelector<HTMLElement>('[data-folder-hover-preview-anchor="true"]')!
+    Object.defineProperty(anchor, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 160, right: 220, top: 140, bottom: 190, width: 60, height: 50 }),
+    })
+    fireEvent.mouseEnter(anchor)
+    act(() => vi.advanceTimersByTime(0))
+    const tooltip = screen.getByRole("tooltip")
+    const left = Number.parseFloat(tooltip.style.left)
+    const top = Number.parseFloat(tooltip.style.top)
+    const width = Number.parseFloat(tooltip.style.width)
+    const height = Number.parseFloat(tooltip.style.maxHeight)
+    expect(width).toBeLessThanOrEqual(240)
+    expect(height).toBeLessThan(320)
+    expect(left).toBeGreaterThan(8)
+    expect(top).toBeGreaterThan(8)
+    expect(left).toBeLessThan(220)
+    expect(top).toBeLessThan(180)
+  })
 })
