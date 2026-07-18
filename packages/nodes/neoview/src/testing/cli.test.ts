@@ -490,6 +490,35 @@ describe("NeoView CLI", () => {
     expect(close).toHaveBeenCalledTimes(1)
   })
 
+  it("[neoview.super-resolution.cli] delegates one manual page to the shared headless workflow", async () => {
+    const output: unknown[] = []
+    const upscalePage = vi.fn(async () => ({
+      decision: { kind: "run" as const, reason: "default-policy", modelId: "model", scale: 2, useCache: true },
+      result: {
+        destinationPath: resolve("upscaled.png"),
+        modelId: "model",
+        engine: "upscayl" as const,
+        scale: 2,
+        width: 200,
+        height: 300,
+        elapsedMs: 12,
+      },
+    }))
+    const reader = fakeReader({ upscalePage })
+
+    await runProgram(["upscale-page", "book.cbz", "--index", "1", "--output", "upscaled.png", "--json"], host(output), {
+      createController: async () => reader,
+    })
+
+    expect(upscalePage).toHaveBeenCalledWith({
+      pageIndex: 1,
+      destinationPath: resolve("upscaled.png"),
+      trigger: "manual",
+    })
+    expect(JSON.parse(output.join(""))).toMatchObject({ result: { modelId: "model", width: 200, height: 300 } })
+    expect(reader.open).toHaveBeenCalledWith(expect.objectContaining({ initialPage: 1 }))
+  })
+
   it("rejects plaintext password argv and malformed commands", async () => {
     const reader = fakeReader()
     await expect(runProgram(["inspect", "book.cbz", "--password", "secret"], host([]), {
@@ -1128,6 +1157,7 @@ function fakeReader(overrides: Partial<{
   openPageStream: (index: number) => Promise<HeadlessPageStream>
   getBookSettings: ReaderHeadlessController["getBookSettings"]
   updateBookSettings: ReaderHeadlessController["updateBookSettings"]
+  upscalePage: ReaderHeadlessController["upscalePage"]
 }> = {}): ReaderHeadlessController {
   let current = 0
   const dispose = vi.fn(async () => undefined)
@@ -1145,6 +1175,7 @@ function fakeReader(overrides: Partial<{
     openPageStream: vi.fn(overrides.openPageStream ?? (async () => { throw new Error("not configured") })),
     getBookSettings: vi.fn(overrides.getBookSettings ?? (async () => bookSettingsSnapshot())),
     updateBookSettings: vi.fn(overrides.updateBookSettings ?? (async () => ({ settings: bookSettingsSnapshot(), reader: snapshot(current) }))),
+    upscalePage: vi.fn(overrides.upscalePage ?? (async () => { throw new Error("not configured") })),
     closeBook: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: dispose,
   } as unknown as ReaderHeadlessController

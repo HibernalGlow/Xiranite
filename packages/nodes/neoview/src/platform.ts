@@ -32,6 +32,7 @@ import type { ReaderSettingsPortableService } from "./application/migration/Read
 import type { ReaderBackupBundleService } from "./platform/backup/ReaderBackupBundleService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
+import type { ReaderHeadlessSuperResolutionPort } from "./application/headless/ReaderHeadlessController.js"
 import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
 import type { ReaderLibraryHeadlessController } from "./application/headless/ReaderLibraryHeadlessController.js"
 import type { ReaderFileTreeServiceOptions } from "./application/browser/ReaderFileTreeService.js"
@@ -119,6 +120,7 @@ export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & Neoview
   mediaProgressStore?: ReaderMediaProgressStore | false
   bookSettingsStore?: ReaderBookSettingsStore | false
   legacyThumbnailDatabasePath?: string | false
+  superResolution?: ReaderHeadlessSuperResolutionPort | false
 }
 export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
   ReaderFileTreeServiceOptions,
@@ -735,6 +737,24 @@ export async function createReaderHeadlessController(
     new PlatformDirectoryMetadataProvider(isReaderDirectoryEmmRecordStore(progressStore) ? progressStore : undefined),
     (entry) => platformReaderBookCandidate(entry, mediaFormats),
   )
+  const superResolution = options.superResolution === false
+    ? undefined
+    : options.superResolution ?? new (await import("./platform/super-resolution/LazySuperResolutionPagePort.js")).LazySuperResolutionPagePort(
+      async () => {
+        const { createOpenComicAiSystemCapability } = await import(
+          "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
+        )
+        const capability = await createOpenComicAiSystemCapability({
+          ...options,
+          runtimeConfig: runtimeConfig.superResolution,
+          resourceScheduler: options.resourceScheduler,
+        })
+        return capability && {
+          pages: capability.pages,
+          dispose: () => capability.service.dispose(),
+        }
+      },
+    )
   return new ReaderHeadlessController(
     new CoreReaderService(
       createPlatformReaderBookLoader({ ...options, solidArchiveCache, mediaFormats }),
@@ -752,6 +772,7 @@ export async function createReaderHeadlessController(
     } : undefined,
     adjacentBooks,
     emmMetadata,
+    superResolution,
   )
 }
 

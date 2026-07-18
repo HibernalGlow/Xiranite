@@ -22,6 +22,8 @@ import type {
   ReaderBookSettingsSnapshot,
   ReaderDirectoryFilter,
   ReaderDirectoryEmmEditCommand,
+  HeadlessSuperResolutionPageInput,
+  HeadlessSuperResolutionPageResult,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -42,7 +44,7 @@ import { projectReaderTimeInformation } from "./domain/page/TimeInformationProje
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
+  "inspect", "pages", "frame", "extract-page", "upscale-page", "settings-inspect", "settings-import",
   "book-settings-get", "book-settings-set",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
   "settings-backup",
@@ -145,6 +147,7 @@ export interface CliReaderController extends AsyncDisposable {
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
   updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
+  upscalePage?(input: HeadlessSuperResolutionPageInput): Promise<HeadlessSuperResolutionPageResult>
 }
 
 export interface CliInteractiveReaderController extends CliReaderController {
@@ -326,6 +329,19 @@ export async function runProgram(
       const updated = await controller.updateBookSettings(bookSettingsUpdate!.expectedRevision, bookSettingsUpdate!.patch)
       return printBookSettingsUpdate(updated, parsed.booleans.has("--json"), host)
     }
+    if (command === "upscale-page") {
+      if (!controller.upscalePage) throw new Error("Reader super-resolution is unavailable for this transport.")
+      const output = oneValue(parsed, "--output")
+      if (!output) throw usage("upscale-page requires --output <path>.")
+      const destinationPath = resolve(host.cwd, output)
+      await assertOutputAvailable(destinationPath, parsed.booleans.has("--force"))
+      const result = await controller.upscalePage({
+        pageIndex: index,
+        destinationPath,
+        trigger: "manual",
+      })
+      return printSuperResolutionResult(result, parsed.booleans.has("--json"), host)
+    }
     if (parsed.booleans.has("--json")) throw usage("extract-page does not support --json because its output is binary.")
     const output = oneValue(parsed, "--output")
     if (!output) throw usage("extract-page requires --output <path|->.")
@@ -337,6 +353,12 @@ export async function runProgram(
 }
 
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
+  if (command === "upscale-page") {
+    rejectOptions(parsed, new Set([
+      "--json", "--config", "--entry", "--password-env", "--archive-password-env", "--index", "--output", "--force",
+    ]))
+    return
+  }
   if (command === "book-settings-get") {
     rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"]))
     return
@@ -1501,6 +1523,29 @@ function printBookSettingsUpdate(result: HeadlessReaderBookSettingsUpdate, json:
   writeLine(host, frameLine(result.reader))
 }
 
+function printSuperResolutionResult(result: HeadlessSuperResolutionPageResult, json: boolean, host: CliHost): void {
+  if (json) return writeJson(host, result)
+  if (!result.result) {
+    writeLine(host, `Super-resolution ${result.decision.kind}: ${result.decision.reason}`)
+    return
+  }
+  writeLine(host, `Super-resolution complete: ${result.result.destinationPath}`)
+  writeLine(host, `Model: ${result.result.modelId} (${result.result.engine}, ${result.result.scale}x)`)
+  if (result.result.width && result.result.height) writeLine(host, `Size: ${result.result.width}x${result.result.height}`)
+  writeLine(host, `Elapsed: ${result.result.elapsedMs.toFixed(2)} ms`)
+}
+
+async function assertOutputAvailable(path: string, force: boolean): Promise<void> {
+  if (force) return
+  try {
+    await stat(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return
+    throw error
+  }
+  throw usage(`Output already exists: ${path}. Use --force to replace it.`)
+}
+
 function bookSettingsPatch(parsed: ParsedArguments): ReaderBookSettingsPatch {
   const patch: ReaderBookSettingsPatch = {}
   const favorite = inheritedBooleanOption(parsed, "--favorite")
@@ -2036,6 +2081,7 @@ function formatCliHelp(): string {
     "  pages <path>         List a bounded page window",
     "  frame <path>         Show the frame at --index",
     "  extract-page <path>  Stream the original page to --output <path|->",
+    "  upscale-page <path>  Upscale one page using the configured policy",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
     "  settings-export          Export current [nodes.neoview] as portable JSON",
@@ -2115,6 +2161,7 @@ function formatCliHelp(): string {
     "  --horizontal-book VALUE  true|false|inherit",
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
+    "  --output PATH|-      Output path for extract-page or upscale-page",
     "  --config PATH        Xiranite TOML path for settings/cache commands",
     "  --query QUERY        Folder search text or glob",
     "  --mode MODE          Folder search mode: text or glob",
