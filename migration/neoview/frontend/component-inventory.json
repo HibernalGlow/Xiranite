@@ -6,7 +6,7 @@
   },
   "sourceRevision": {
     "vcs": "git",
-    "commit": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
     "dirty": false,
     "dirtyDiffHash": null
   },
@@ -16,7 +16,7 @@
     "components": 551,
     "modules": 447,
     "stores": 142,
-    "graphEdges": 766,
+    "graphEdges": 770,
     "unresolvedComponentImports": 0,
     "tauriFiles": 107,
     "tauriCalls": 389,
@@ -36,7 +36,7 @@
       "replaced": 77,
       "blocked": 4
     },
-    "reactScaffolds": 29
+    "reactScaffolds": 102
   },
   "components": [
     {
@@ -11647,7 +11647,7 @@
     },
     {
       "file": "src/lib/components/cardwindow/CardWindowContent.svelte",
-      "hash": "sha256:d254fcc5e0dbfb655b1188533fc56d92aa9c4bf3a36f0e35ffe1114fc4a53728",
+      "hash": "sha256:04a068c751374395f37fd00fc12b350ab756acabe674dab2aec8cc5bd58dc013",
       "featureIds": [
         "card-windows-tabs"
       ],
@@ -11692,9 +11692,13 @@
         "$lib/cards/folder/FolderMainCard.svelte",
         "$lib/cards/history/HistoryListCard.svelte",
         "$lib/cards/info/BookInfoCard.svelte",
+        "$lib/cards/info/ColorFilterCard.svelte",
         "$lib/cards/info/ImageInfoCard.svelte",
         "$lib/cards/info/InfoOverlayCard.svelte",
+        "$lib/cards/info/PageTransitionCard.svelte",
+        "$lib/cards/info/PreloadStatusCard.svelte",
         "$lib/cards/info/SidebarControlCard.svelte",
+        "$lib/cards/info/SidebarHeightCard.svelte",
         "$lib/cards/info/StorageCard.svelte",
         "$lib/cards/info/SwitchToastCard.svelte",
         "$lib/cards/info/TimeCard.svelte",

@@ -6,7 +6,7 @@
     "inventory": "migration/neoview/card-compatibility.json",
     "functionalScopes": "migration/neoview/card-functional-scopes.json"
   },
-  "policy": "Every legacy Card must have a frozen functional scope before implementation and a source-evidenced compatibility checklist before completion. A Card cannot be marked complete from API, title-level inventory or smoke UI coverage alone.",
+  "policy": "Every legacy Card must have a frozen functional scope, a reproducible AST-generated TSX prototype and a scripted legacy screenshot before production implementation, plus a source-evidenced compatibility checklist before completion. A Card cannot be marked complete from API, title-level inventory or smoke UI coverage alone.",
   "architectureMigrationGuidance": {
     "purpose": "Cross-task architecture guidance for NeoView migration. Agents must use this section when choosing task boundaries, reporting progress, or changing shared migration infrastructure.",
     "statusModel": {
@@ -78,6 +78,10 @@
   ],
   "requiredDimensions": [
     {
+      "id": "ast-prototype",
+      "requirement": "Before production React work, generate and review a reproducible svelte/compiler + OXC AST TSX prototype that freezes component/DOM hierarchy, icon imports, classes, conditional/loop structure, control attributes, events and every unsupported source node. A genuinely empty legacy component must instead record source-empty evidence and an explicit replacement design contract; it may not silently bypass this dimension."
+    },
+    {
       "id": "capabilities",
       "requirement": "Enumerate every user-visible command, mode, data field, batch action and integration from the frozen source."
     },
@@ -123,6 +127,8 @@
     }
   ],
   "completionGate": [
+    "A reproducible AST TSX prototype exists for the Card source, records its source hash and unsupported nodes, and has been reviewed before production implementation; genuinely empty source uses a documented source-empty replacement contract.",
+    "A terminal-scripted legacy 1920x1080 screenshot exists and the target hierarchy, icons, density and responsive geometry are compared against it.",
     "A source UI inventory exists for the Card and every inventory group maps to source-evidenced acceptance items.",
     "No pending or partial checklist items remain for the Card.",
     "Every item has source evidence and at least one automated test ID.",

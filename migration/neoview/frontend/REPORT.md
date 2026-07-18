@@ -3,18 +3,18 @@
 This report is generated from Svelte compiler and OXC AST evidence. A `converted` disposition means structurally suitable for codemod scaffolding; it is not a claim of behavioral parity.
 
 - Generator: @xiranite/svelte-migrate 0.1.0
-- Source commit: a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45
+- Source commit: f4f8f02d88acdf4f639749f185c83abb91a1aa86
 - Source dirty: no
 - Dirty diff hash: -
 - Frontend source files: 998
 - Svelte components: 551
 - TypeScript/JavaScript modules: 447
 - Store/rune modules: 142
-- Component edges: 766
+- Component edges: 770
 - Unresolved component imports: 0
 - Tauri-using files/calls: 107/389
 - Unmapped components/modules: 0/0
-- Generated React TSX scaffolds: 29
+- Generated React TSX scaffolds: 102
 - Component dispositions: converted=10, adapter-needed=3, manual=247, replaced=282, blocked=9
 - Module dispositions: converted=214, adapter-needed=39, manual=113, replaced=77, blocked=4
 

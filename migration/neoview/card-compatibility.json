@@ -188,8 +188,9 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
-      "sourceDisposition": "registry-only",
-      "sourceNotes": "旧 CardRenderer 没有组件映射；迁移前必须显式补齐或记录替代决策。"
+      "sourceComponent": "src/lib/cards/benchmark/ProtocolTestCard.svelte",
+      "sourceDisposition": "component",
+      "sourceNotes": "旧 CardRenderer 注册信息落后于源码；AST inventory 已确认 ProtocolTestCard.svelte 为实际组件。"
     },
     {
       "legacyId": "results",

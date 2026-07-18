@@ -6,7 +6,7 @@
   },
   "sourceRevision": {
     "vcs": "git",
-    "commit": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
     "dirty": false,
     "dirtyDiffHash": null
   },
@@ -16,7 +16,7 @@
     "components": 551,
     "modules": 447,
     "stores": 142,
-    "graphEdges": 766,
+    "graphEdges": 770,
     "unresolvedComponentImports": 0,
     "tauriFiles": 107,
     "tauriCalls": 389,
@@ -36,9 +36,465 @@
       "replaced": 77,
       "blocked": 4
     },
-    "reactScaffolds": 29
+    "reactScaffolds": 102
   },
   "scaffolds": [
+    {
+      "sourceFile": "src/lib/cards/ai/AiServiceConfigCard.svelte",
+      "outputFile": "src/lib/cards/ai/AiServiceConfigCard.tsx",
+      "sourceHash": "sha256:1304ed4e13f5e4a1f3c7ab6dcaf6f0bd70bdee500f8da6d1257b10413c7aaed7",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/ai/AiTitleTranslationCard.svelte",
+      "outputFile": "src/lib/cards/ai/AiTitleTranslationCard.tsx",
+      "sourceHash": "sha256:756dc599026a7e3c0353d8cf806d032a0c67258ce80f2c99ac1fb968d429983d",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/ai/AiTranslationCacheCard.svelte",
+      "outputFile": "src/lib/cards/ai/AiTranslationCacheCard.tsx",
+      "sourceHash": "sha256:b339a6dc79290374bb72a0f8764c0eb202ac025729751ef672ca6f6cabbe414e",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/ai/AiTranslationTestCard.svelte",
+      "outputFile": "src/lib/cards/ai/AiTranslationTestCard.tsx",
+      "sourceHash": "sha256:2fe81150af88732f1a01cf736ce11410212069f70fdcaf3a99cc83fc7b22e8b4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/ai/TranslationOverlayCard.svelte",
+      "outputFile": "src/lib/cards/ai/TranslationOverlayCard.tsx",
+      "sourceHash": "sha256:3706b9b4a8ebef6f2755b053a0142a6699b108fa22848f3f43caea2d446d0228",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/ai/VoiceControlCard.svelte",
+      "outputFile": "src/lib/cards/ai/VoiceControlCard.tsx",
+      "sourceHash": "sha256:ccc038692ffc76040acaeeeab6c336a0df4a3f4b2133f479aefd312a3400edc2",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/ArchivesCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/ArchivesCard.tsx",
+      "sourceHash": "sha256:3881a1c68cc81eab1e12db5810c7d8e7cacc2fb90ed279f864e0e4f60f980947",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/DetailedCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/DetailedCard.tsx",
+      "sourceHash": "sha256:21f00fc23a4137c844559a28f0555e268c694f79724f4d29c4c4dd802eeee50e",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/FilesCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/FilesCard.tsx",
+      "sourceHash": "sha256:6f7d6d60ab8b43b4d3ab14a08e9a0ca86ca5e72788bcca85518bb0c74368a095",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/ImageSourceCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/ImageSourceCard.tsx",
+      "sourceHash": "sha256:fbd64d0bace3d0af487a364158291cfecbb1e456220626f3ecb0b816bb3bfb8e",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective",
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/LatencyCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/LatencyCard.tsx",
+      "sourceHash": "sha256:77349944a4020177b861640255c12c1824e24b8e09fbd3d54b890c8ffc7b5939",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/LoadModeCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/LoadModeCard.tsx",
+      "sourceHash": "sha256:b3eb0af1d5a7701e7d89709cc77f9c30c82526f5bafc2f64ed7f1fb871750b28",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/PageFlipMonitorCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/PageFlipMonitorCard.tsx",
+      "sourceHash": "sha256:989ef1404fa1e3c525430783be7d8088c55ed2618fc2cfd12a5d87356e3fa4a1",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/PipelineLatencyCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/PipelineLatencyCard.tsx",
+      "sourceHash": "sha256:cfe8a0800048000ef267cbb47e84415f3d4d0e84299a4b791690ede2b13696f2",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/ProtocolTestCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/ProtocolTestCard.tsx",
+      "sourceHash": "sha256:02fce6632caba0913ed5e14705691491db07b51b748b9174a1fc884e93fb1b04",
+      "featureIds": [
+        "performance-benchmark-diagnostics"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/RealWorldCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/RealWorldCard.tsx",
+      "sourceHash": "sha256:08a57faa9c531e038827b7a5ac1ae02f4171d3470b2ff6eae2912a64cc68374c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/RendererCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/RendererCard.tsx",
+      "sourceHash": "sha256:311336a00aa6fb583611fbd59b7e0b926a8f62ab85e2b699f3ba3047fcf74f2c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute ClassDirective"
+      ]
+    },
     {
       "sourceFile": "src/lib/cards/benchmark/ResultsCard.svelte",
       "outputFile": "src/lib/cards/benchmark/ResultsCard.tsx",
@@ -92,6 +548,115 @@
       "unsupported": []
     },
     {
+      "sourceFile": "src/lib/cards/benchmark/ThumbnailLatencyCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/ThumbnailLatencyCard.tsx",
+      "sourceHash": "sha256:c4c2d67e91ad60d1b015bdea2072edf7c008e1b0d88890680b282b5255389336",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/TranscodeBenchmarkCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/TranscodeBenchmarkCard.tsx",
+      "sourceHash": "sha256:83bdf162f4cb7f5ae45997db0437743cd48412c699bdf9765388e986291f489d",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/VisibilityCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/VisibilityCard.tsx",
+      "sourceHash": "sha256:6e2099dc59c94f296d11be9380434bcf89234ba88dd02349aeeb1f46479867e4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/bookmark/BookmarkListCard.svelte",
+      "outputFile": "src/lib/cards/bookmark/BookmarkListCard.tsx",
+      "sourceHash": "sha256:b3a57872754ed639fbf37e45996432da3a4c454cb1ce44b8264ff5fdd074c36f",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
       "sourceFile": "src/lib/cards/CardRenderer.svelte",
       "outputFile": "src/lib/cards/CardRenderer.tsx",
       "sourceHash": "sha256:dd854b58fb1db524426e01c2a983113d3664ec0d55afaeda73ae44717842c069",
@@ -118,6 +683,44 @@
       "unsupported": []
     },
     {
+      "sourceFile": "src/lib/cards/folder/cards/BreadcrumbTabCard.svelte",
+      "outputFile": "src/lib/cards/folder/cards/BreadcrumbTabCard.tsx",
+      "sourceHash": "sha256:5e8abdac39cdc4830e9562799df42826f611a5ce60d19c98bb1897337ce5f35c",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/folder/cards/FileListCard.svelte",
+      "outputFile": "src/lib/cards/folder/cards/FileListCard.tsx",
+      "sourceHash": "sha256:4c85dbb35851a39aeb62bf5638c73771b06ffd02a5f0d7c2e2f124fb7437d718",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/folder/cards/ToolbarCard.svelte",
+      "outputFile": "src/lib/cards/folder/cards/ToolbarCard.tsx",
+      "sourceHash": "sha256:994056fa3eeaa8441d472e8e7a62dc5e0c52f5daa4840e58924d76bcdc567966",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
       "sourceFile": "src/lib/cards/folder/FolderMainCard.svelte",
       "outputFile": "src/lib/cards/folder/FolderMainCard.tsx",
       "sourceHash": "sha256:d93869d9290513ffd008d0041f24bd040646e69bb5f10bcd683a6f29c843fc4b",
@@ -141,6 +744,571 @@
       ],
       "migrationStatus": "scaffold",
       "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/history/HistoryListCard.svelte",
+      "outputFile": "src/lib/cards/history/HistoryListCard.tsx",
+      "sourceHash": "sha256:91b086362ec3bc31550a6b6d76e0f6d48bc4af85eb38f54dfaaf63e7c7c7fd1b",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/AmbientBackgroundCard.svelte",
+      "outputFile": "src/lib/cards/info/AmbientBackgroundCard.tsx",
+      "sourceHash": "sha256:e7ed31ea4c7feca500574dcfb3f1c82d3f6cd41fecb1845fb1da4bf014fe106c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/info/AnimatedVideoModeCard.svelte",
+      "outputFile": "src/lib/cards/info/AnimatedVideoModeCard.tsx",
+      "sourceHash": "sha256:db33c8837b3a01da9bb33ae3a003bac5fc957de73c1c741dd7bdc689eca09416",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/BookInfoCard.svelte",
+      "outputFile": "src/lib/cards/info/BookInfoCard.tsx",
+      "sourceHash": "sha256:29f7489a66667bc7b5dec64584511b2b9c038909b045b024bc072ebb46910755",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/ColorFilterCard.svelte",
+      "outputFile": "src/lib/cards/info/ColorFilterCard.tsx",
+      "sourceHash": "sha256:4417b1cd588927c5b35921af0e3cdc3c182b63a9681459085ae3643c78bfca91",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-effects-transitions",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/info/ImageInfoCard.svelte",
+      "outputFile": "src/lib/cards/info/ImageInfoCard.tsx",
+      "sourceHash": "sha256:decab0a74ce5a7df364bfa07940700f2a3ee889ee401cdb0f8de67ec30c45fe7",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/ImageTrimCard.svelte",
+      "outputFile": "src/lib/cards/info/ImageTrimCard.tsx",
+      "sourceHash": "sha256:413b50582f039de6e0c563176543242b699c7e1c181322a54130bca578bc06ca",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-effects-transitions",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/info/InfoOverlayCard.svelte",
+      "outputFile": "src/lib/cards/info/InfoOverlayCard.tsx",
+      "sourceHash": "sha256:47bbb9b8824b6effc99211d400b5ad1520315cb91e2a6559e6dc3aaae4e844f1",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/PageTransitionCard.svelte",
+      "outputFile": "src/lib/cards/info/PageTransitionCard.tsx",
+      "sourceHash": "sha256:394878e16926095fe21609f72d4ba961f9c650dd2416fc724833b3dba3b21375",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-effects-transitions",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/info/PreloadStatusCard.svelte",
+      "outputFile": "src/lib/cards/info/PreloadStatusCard.tsx",
+      "sourceHash": "sha256:1cceb9bccf3022428af0708c673885636bd29e410abc2e7de79368f2f27e2b76",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/info/SidebarControlCard.svelte",
+      "outputFile": "src/lib/cards/info/SidebarControlCard.tsx",
+      "sourceHash": "sha256:737c9fb67ae59a5c9e33bdb04f910aa68fe814377dcd368464a66d82a050bffa",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/SidebarHeightCard.svelte",
+      "outputFile": "src/lib/cards/info/SidebarHeightCard.tsx",
+      "sourceHash": "sha256:f2c99617bdd104a04a2d495d4edc1e96454d7ba8e45de604410e87e2638f3978",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute ClassDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/info/StorageCard.svelte",
+      "outputFile": "src/lib/cards/info/StorageCard.tsx",
+      "sourceHash": "sha256:5146af9c4e87cbdd05062bac90c7f356c4b26aa0d369cc063e34adf2b9ec5db3",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/SwitchToastCard.svelte",
+      "outputFile": "src/lib/cards/info/SwitchToastCard.tsx",
+      "sourceHash": "sha256:5fe6e326300c28b466de5ee95b2aca8c43764e849d55074653292e2c1efe68b1",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/info/TimeCard.svelte",
+      "outputFile": "src/lib/cards/info/TimeCard.tsx",
+      "sourceHash": "sha256:91db51e3e9f2b8c0328ead4fb4ac8eb5943196dc60bc585404ab5c8e82a5abff",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/insights/BookmarkOverviewCard.svelte",
+      "outputFile": "src/lib/cards/insights/BookmarkOverviewCard.tsx",
+      "sourceHash": "sha256:691edc154d7fd3e0864ba8beedb4ef389fcb2390928cdbf3bbecd0cf621ecdf2",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/insights/DailyTrendCard.svelte",
+      "outputFile": "src/lib/cards/insights/DailyTrendCard.tsx",
+      "sourceHash": "sha256:c14433dfb8933c0a97bcdbaf66ebb698eac6da6b725b1628498bff8436e9e8d0",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/insights/EmmTagsHotCard.svelte",
+      "outputFile": "src/lib/cards/insights/EmmTagsHotCard.tsx",
+      "sourceHash": "sha256:cd5565aba9d7aac920f9ec4c31198574c36820ba6aaeab94ae66cf63f301f98d",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/insights/ReadingHeatmapCard.svelte",
+      "outputFile": "src/lib/cards/insights/ReadingHeatmapCard.tsx",
+      "sourceHash": "sha256:e56723336019055c9ac16dbacaf802d18e0ef823ba8870aa01e8a50bab909f15",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/insights/ReadingStreakCard.svelte",
+      "outputFile": "src/lib/cards/insights/ReadingStreakCard.tsx",
+      "sourceHash": "sha256:5174657fc4c74cc2710c56f05e52a0f6b633ab12e2c9c443456535ffb1ff22f5",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/insights/SourceBreakdownCard.svelte",
+      "outputFile": "src/lib/cards/insights/SourceBreakdownCard.tsx",
+      "sourceHash": "sha256:a1d54eecc905de25a70161e3d938589cb8508870b003752be758ca3af5d05000",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
       "unsupported": []
     },
     {
@@ -170,6 +1338,65 @@
       "unsupported": []
     },
     {
+      "sourceFile": "src/lib/cards/monitor/SystemMonitorCard.svelte",
+      "outputFile": "src/lib/cards/monitor/SystemMonitorCard.tsx",
+      "sourceHash": "sha256:599fbdeb29e842871c119c64ef4a1daa3ca0f7fa52e5f66670172d3178d0ad61",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/pageList/PageListCard.svelte",
+      "outputFile": "src/lib/cards/pageList/PageListCard.tsx",
+      "sourceHash": "sha256:d579024de54c968191a47c40661a8c539fb556e82e537a4be3054ddfb712aaf3",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective",
+        "template node KeyBlock"
+      ]
+    },
+    {
       "sourceFile": "src/lib/cards/PanelContainer.svelte",
       "outputFile": "src/lib/cards/PanelContainer.tsx",
       "sourceHash": "sha256:8c2dc923d863fd8e7c233964b27ccdef496ad68c3097003fe212e597b0c089a8",
@@ -180,6 +1407,96 @@
       "sourceDisposition": "manual",
       "unsupported": [
         "template node RenderTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/AiApiConfigCard.svelte",
+      "outputFile": "src/lib/cards/properties/AiApiConfigCard.tsx",
+      "sourceHash": "sha256:dcf897ea2a892b3330643b55a6056122cc4129e99aff1fe0473f18129a67c25b",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective",
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/AiTagsCard.svelte",
+      "outputFile": "src/lib/cards/properties/AiTagsCard.tsx",
+      "sourceHash": "sha256:6d74157d5660c8732448c982329e5c98d6169caf4a4da82efc5c014c8805bf49",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective",
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/BookSettingsCard.svelte",
+      "outputFile": "src/lib/cards/properties/BookSettingsCard.tsx",
+      "sourceHash": "sha256:7034b5cf6da4a88be90a5cfd1d7b0bd1e4cf296429a5aad9bb30fec9379a9e22",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
       ]
     },
     {
@@ -210,6 +1527,35 @@
       "unsupported": []
     },
     {
+      "sourceFile": "src/lib/cards/properties/EmmRawDataCard.svelte",
+      "outputFile": "src/lib/cards/properties/EmmRawDataCard.tsx",
+      "sourceHash": "sha256:15b65a69f7b7225df35baa20fb3841cb17f32ceb1cce68d9143869dcfbbe03a9",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
+      ]
+    },
+    {
       "sourceFile": "src/lib/cards/properties/EmmSyncCard.svelte",
       "outputFile": "src/lib/cards/properties/EmmSyncCard.tsx",
       "sourceHash": "sha256:3ba07ed1c95f283dff66592d7b97962cd90b5fe698a57bcae96d875cd5442942",
@@ -235,6 +1581,64 @@
       "migrationStatus": "scaffold",
       "sourceDisposition": "converted",
       "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/EmmTagsCard.svelte",
+      "outputFile": "src/lib/cards/properties/EmmTagsCard.tsx",
+      "sourceHash": "sha256:12dc7b10bcbdac94c659d88b8573bf35bbe85b26409dd90dda3e347c703307d3",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/FavoriteTagsCard.svelte",
+      "outputFile": "src/lib/cards/properties/FavoriteTagsCard.tsx",
+      "sourceHash": "sha256:7608952c390a24e9383b6cf608afd7b2d9ff1183e6e2617ffe86998b5be6bf65",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
+      ]
     },
     {
       "sourceFile": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
@@ -264,6 +1668,65 @@
       "unsupported": []
     },
     {
+      "sourceFile": "src/lib/cards/properties/FolderRatingsCard.svelte",
+      "outputFile": "src/lib/cards/properties/FolderRatingsCard.tsx",
+      "sourceHash": "sha256:893aa24600f971645f64515ed78acc74a5b6b582edaa0bebbd066ac55adb2017",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+      "outputFile": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.tsx",
+      "sourceHash": "sha256:7280c437093b9bf7b439da387b29b6107513735470ce96b0d93f2a1760890d07",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
       "sourceFile": "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
       "outputFile": "src/lib/cards/properties/ThumbnailMaintenanceCard.tsx",
       "sourceHash": "sha256:cf84c01530d011d23b609559c6b97a3ebc421d38fa000f744572b7d191481b72",
@@ -290,6 +1753,483 @@
       "migrationStatus": "scaffold",
       "sourceDisposition": "converted",
       "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/BindingsSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/BindingsSettingsCard.tsx",
+      "sourceHash": "sha256:669d0667f096ad915f38fe239e4e330039daf99242256c4bab6bcf5d63a658dc",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/BookSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/BookSettingsCard.tsx",
+      "sourceHash": "sha256:9b769409edeaf84889918e74cd023ebfd88343196ad9feaa08332cc374326694",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/CardManagementCard.svelte",
+      "outputFile": "src/lib/cards/settings/CardManagementCard.tsx",
+      "sourceHash": "sha256:4525a078f2d5937ce70db549ecb16db7c63597a17a8c590b1bbde48140e10fa6",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/DataSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/DataSettingsCard.tsx",
+      "sourceHash": "sha256:a019057db504300a28d10586463994f516eda675975c973051799a68b1d410dc",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/GeneralSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/GeneralSettingsCard.tsx",
+      "sourceHash": "sha256:4baea58a99220b82696139fa52c7cd20c4378e43fc16a2fbe89e3ecf163980e0",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/ImageSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/ImageSettingsCard.tsx",
+      "sourceHash": "sha256:32cf697b364ddd8a953b6e1509005a9e11172e64b78e974dc88e4d7b7d92684d",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/NotificationSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/NotificationSettingsCard.tsx",
+      "sourceHash": "sha256:4b6c29f1c2105e21dbad9ad9d651cc147151b2adfd391bad7ee7036d8c32509f",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/PanelManagementCard.svelte",
+      "outputFile": "src/lib/cards/settings/PanelManagementCard.tsx",
+      "sourceHash": "sha256:af9a4933961ccdb132ed67f2bed675cd19ac16f67bea31de9a5bd20940e9a416",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/PerformanceSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/PerformanceSettingsCard.tsx",
+      "sourceHash": "sha256:7ac94607aee61cd6f7f4c6091b6a3473fbcb1470ba29d89e54197f8f107c9680",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/SystemSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/SystemSettingsCard.tsx",
+      "sourceHash": "sha256:a110c31cdd48231b763a035ae05b2b5b48b4b24232d7647fc33c7bab64b71b6a",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/ThemeSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/ThemeSettingsCard.tsx",
+      "sourceHash": "sha256:76fd08d299418d511b35c476cd768b22006517c0fcf6e0c00b94541353e1d92c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "replaced",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/settings/ViewSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/ViewSettingsCard.tsx",
+      "sourceHash": "sha256:0b7dfc7623ad7afd86febccf9dcd90ffdd4e96c355f4368d3f2840870da398e4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
+      "outputFile": "src/lib/cards/upscale/ProgressiveUpscaleCard.tsx",
+      "sourceHash": "sha256:83acedf9cae856ef8224b45bcd63b1d8dc6e9f7312161eb649f07ed9dd6f99ef",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
+      "outputFile": "src/lib/cards/upscale/UpscaleCacheCard.tsx",
+      "sourceHash": "sha256:1bf602820ffb4e1dbba5e5243c88147d7389a0932ccced3418e162c529e0b37c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "Svelte runtime import",
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/upscale/UpscaleConditionsCard.svelte",
+      "outputFile": "src/lib/cards/upscale/UpscaleConditionsCard.tsx",
+      "sourceHash": "sha256:779e2df7aef63a5e45a84f75e38ff316d5c96b938b03192304f9475e9d693fca",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/upscale/UpscaleControlCard.svelte",
+      "outputFile": "src/lib/cards/upscale/UpscaleControlCard.tsx",
+      "sourceHash": "sha256:714c9bb823a2c30d7aa244e31df8d29a818e84cbff24f5ce4ede885e127ec76c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/upscale/UpscaleModelCard.svelte",
+      "outputFile": "src/lib/cards/upscale/UpscaleModelCard.tsx",
+      "sourceHash": "sha256:53109f03db9f490133bf5da353cd93e78e021db115b34b98613101350cff13f9",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/upscale/UpscaleStatusCard.svelte",
+      "outputFile": "src/lib/cards/upscale/UpscaleStatusCard.tsx",
+      "sourceHash": "sha256:096fc57a59abffe9daf6d1fbe64624482db714adfcd2d6a432ceb822afa6a6ae",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "template node ConstTag"
+      ]
     },
     {
       "sourceFile": "src/lib/components/browser/FileSystemBrowser.svelte",
@@ -321,7 +2261,7 @@
     {
       "sourceFile": "src/lib/components/cardwindow/CardWindowContent.svelte",
       "outputFile": "src/lib/components/cardwindow/CardWindowContent.tsx",
-      "sourceHash": "sha256:d254fcc5e0dbfb655b1188533fc56d92aa9c4bf3a36f0e35ffe1114fc4a53728",
+      "sourceHash": "sha256:04a068c751374395f37fd00fc12b350ab756acabe674dab2aec8cc5bd58dc013",
       "featureIds": [
         "card-windows-tabs"
       ],

@@ -1,6 +1,7 @@
 {
   "sourceRoot": "src",
   "scaffoldPatterns": [
+    "^src/lib/cards/(?!(?:ai/AiPanel|folder/cards/FolderTree|properties/ManualTags)Card\\.svelte$).*Card\\.svelte$",
     "^src/lib/components/layout/(?:MainLayout|HoverWrapper|LeftSidebar|RightSidebar|PanelTabBar|TabBar|BottomThumbnailBar)\\.svelte$",
     "^src/lib/components/layout/TopToolbar/.*\\.svelte$",
     "^src/lib/cards/(?:PanelContainer|CardRenderer)\\.svelte$",

@@ -6,7 +6,7 @@
   },
   "sourceRevision": {
     "vcs": "git",
-    "commit": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
     "dirty": false,
     "dirtyDiffHash": null
   },
@@ -16,7 +16,7 @@
     "components": 551,
     "modules": 447,
     "stores": 142,
-    "graphEdges": 766,
+    "graphEdges": 770,
     "unresolvedComponentImports": 0,
     "tauriFiles": 107,
     "tauriCalls": 389,
@@ -36,7 +36,7 @@
       "replaced": 77,
       "blocked": 4
     },
-    "reactScaffolds": 29
+    "reactScaffolds": 102
   },
   "graph": {
     "nodes": [
@@ -2400,6 +2400,12 @@
       },
       {
         "from": "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "to": "src/lib/cards/info/ColorFilterCard.svelte",
+        "specifier": "$lib/cards/info/ColorFilterCard.svelte",
+        "kind": "dynamic"
+      },
+      {
+        "from": "src/lib/components/cardwindow/CardWindowContent.svelte",
         "to": "src/lib/cards/info/ImageInfoCard.svelte",
         "specifier": "$lib/cards/info/ImageInfoCard.svelte",
         "kind": "dynamic"
@@ -2412,8 +2418,26 @@
       },
       {
         "from": "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "to": "src/lib/cards/info/PageTransitionCard.svelte",
+        "specifier": "$lib/cards/info/PageTransitionCard.svelte",
+        "kind": "dynamic"
+      },
+      {
+        "from": "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "to": "src/lib/cards/info/PreloadStatusCard.svelte",
+        "specifier": "$lib/cards/info/PreloadStatusCard.svelte",
+        "kind": "dynamic"
+      },
+      {
+        "from": "src/lib/components/cardwindow/CardWindowContent.svelte",
         "to": "src/lib/cards/info/SidebarControlCard.svelte",
         "specifier": "$lib/cards/info/SidebarControlCard.svelte",
+        "kind": "dynamic"
+      },
+      {
+        "from": "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "to": "src/lib/cards/info/SidebarHeightCard.svelte",
+        "specifier": "$lib/cards/info/SidebarHeightCard.svelte",
         "kind": "dynamic"
       },
       {
