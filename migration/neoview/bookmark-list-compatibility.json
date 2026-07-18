@@ -5,6 +5,8 @@
   "title": "书签列表",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "visualBaseline": "output/playwright/legacy-neoview-bookmark-list-1920x1080.png",
+  "visualTarget": "output/playwright/neoview-bookmark-list-1920x1080.png",
   "completionRule": "Complete only when the bookmark virtual source uses the same source-evidenced file item renderers and thumbnail semantics as the folder Card, preserves list management and file actions, and has bounded GUI/CLI/TUI lifecycle and performance evidence.",
   "sourceUiInventory": [
     {
@@ -823,7 +825,9 @@
       "testIds": [
         "neoview.library.lifecycle",
         "neoview.bookmark.active-list-fallback",
-        "neoview.bookmark.active-list-rollback"
+        "neoview.bookmark.active-list-rollback",
+        "neoview.bookmark.inactive-zero-work",
+        "neoview.bookmark.empty"
       ],
       "plannedTestIds": [],
       "notes": "Initial list-directory loading has a bounded skeleton, invalid persisted list IDs fall back before any bookmark query, and a failed preference write restores the confirmed list with an alert. Invalid source-path presentation and independent thumbnail failure remain partial."
@@ -982,7 +986,8 @@
         "neoview.bookmark.view-modes",
         "neoview.bookmark.thumbnail-e2e",
         "neoview.bookmark.selection",
-        "neoview.bookmark.context-actions-e2e"
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.ui-1920x1080"
       ],
       "plannedTestIds": [],
       "notes": "Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, host context actions, stable Reader media and zero horizontal overflow."
