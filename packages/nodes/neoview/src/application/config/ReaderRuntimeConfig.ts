@@ -25,6 +25,7 @@ export interface NeoviewRuntimeConfig {
   fileTree: NeoviewFileTreeConfig
   slideshow: NeoviewSlideshowConfig
   media: NeoviewMediaConfig
+  superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
 }
@@ -128,6 +129,19 @@ export interface NeoviewPresentationDiskCacheConfig {
   maxAgeMs: number
   trimRatio: number
   minFreeBytes: number
+}
+
+export type NeoviewSuperResolutionProvider = "opencomic-system" | "disabled"
+
+export interface NeoviewSuperResolutionConfig {
+  provider: NeoviewSuperResolutionProvider
+  upscaylPath?: string
+  waifu2xPath?: string
+  realcuganPath?: string
+  modelsDirectory?: string
+  maxDaemonsPerGpu: number
+  daemonIdleTimeoutMs: number
+  taskTimeoutMs: number
 }
 
 export interface NeoviewHistoryListConfig {
@@ -399,6 +413,13 @@ export const DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG: NeoviewPresentation
   minFreeBytes: 512 * 1024 * 1024,
 }
 
+export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConfig = {
+  provider: "opencomic-system",
+  maxDaemonsPerGpu: 1,
+  daemonIdleTimeoutMs: 300_000,
+  taskTimeoutMs: 10 * 60_000,
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -441,6 +462,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     fileTree: DEFAULT_NEOVIEW_FILE_TREE_CONFIG,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
+    superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
   }
@@ -459,6 +481,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
+  const superResolution = optionalRecord(config.super_resolution, "[nodes.neoview.super_resolution]")
   const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
   const presentationDiskCache = optionalRecord(
     performance?.presentation_disk_cache,
@@ -513,8 +536,45 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     media: parseMediaConfig(image, subtitle),
+    superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
+  }
+}
+
+function parseSuperResolutionConfig(value: Record<string, unknown> | undefined): NeoviewSuperResolutionConfig {
+  if (!value) return DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
+  return {
+    provider: optionalEnum(
+      value.provider,
+      "[nodes.neoview.super_resolution].provider",
+      ["opencomic-system", "disabled"] as const,
+    ) ?? DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.provider,
+    upscaylPath: optionalConfigPath(value.upscayl_path, "[nodes.neoview.super_resolution].upscayl_path"),
+    waifu2xPath: optionalConfigPath(value.waifu2x_path, "[nodes.neoview.super_resolution].waifu2x_path"),
+    realcuganPath: optionalConfigPath(value.realcugan_path, "[nodes.neoview.super_resolution].realcugan_path"),
+    modelsDirectory: optionalConfigPath(value.models_directory, "[nodes.neoview.super_resolution].models_directory"),
+    maxDaemonsPerGpu: boundedIntegerWithFallback(
+      value.max_daemons_per_gpu,
+      0,
+      8,
+      DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.maxDaemonsPerGpu,
+      "[nodes.neoview.super_resolution].max_daemons_per_gpu",
+    ),
+    daemonIdleTimeoutMs: boundedIntegerWithFallback(
+      value.daemon_idle_timeout_ms,
+      1_000,
+      3_600_000,
+      DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.daemonIdleTimeoutMs,
+      "[nodes.neoview.super_resolution].daemon_idle_timeout_ms",
+    ),
+    taskTimeoutMs: boundedIntegerWithFallback(
+      value.task_timeout_ms,
+      1_000,
+      24 * 60 * 60_000,
+      DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.taskTimeoutMs,
+      "[nodes.neoview.super_resolution].task_timeout_ms",
+    ),
   }
 }
 
@@ -1708,6 +1768,14 @@ function nestedValue(record: Record<string, unknown> | undefined, section: strin
 
 function optionalStringArray(value: unknown, fallback: readonly string[], path: string): readonly string[] {
   return value === undefined ? fallback : requiredStringArray(value, path)
+}
+
+function optionalConfigPath(value: unknown, path: string): string | undefined {
+  if (value === undefined || value === "") return undefined
+  if (typeof value !== "string" || !value.trim() || value.includes("\0")) {
+    throw new Error(`${path} must be an empty string or a non-empty path without NUL.`)
+  }
+  return value.trim()
 }
 
 function requiredStringArray(value: unknown, path: string): string[] {

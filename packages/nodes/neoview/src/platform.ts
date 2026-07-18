@@ -81,9 +81,15 @@ export {
   type OpenComicSystemBinaryRequest,
   type OpenComicSystemCapabilityResolver,
   type OpenComicSystemRuntime,
+  type OpenComicSystemModelInfo,
   type OpenComicSystemStep,
   type SuperResolutionImageInspection,
 } from "./platform/super-resolution/opencomic-system/OpenComicAiSystemProvider.js"
+export {
+  createOpenComicAiSystemService,
+  runtimeModels as openComicSystemRuntimeModels,
+  type OpenComicAiSystemCompositionOptions,
+} from "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
 export type { PlatformReaderPageMaterializerOptions } from "./platform/content/PlatformReaderPageMaterializer.js"
 export type {
   ReaderFileTreeChange,
