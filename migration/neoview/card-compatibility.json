@@ -856,7 +856,7 @@
       "disposition": "migrate",
       "capabilityStatus": {
         "core": "partial",
-        "transport": "pending",
+        "transport": "partial",
         "gui": "pending",
         "cli": "pending",
         "tui": "pending",

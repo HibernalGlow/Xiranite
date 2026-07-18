@@ -11,6 +11,11 @@ import type {
   SuperResolutionModelManifest,
 } from "../../ports/SuperResolutionProvider.js"
 import type { HeadlessSuperResolutionCapabilitySnapshot } from "../../application/headless/ReaderHeadlessController.js"
+import type {
+  SuperResolutionArtifactPageInput,
+  SuperResolutionArtifactPageResult,
+} from "../../application/super-resolution/SuperResolutionArtifactPageService.js"
+import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
 
 export interface SuperResolutionPageCapability {
   pages: {
@@ -19,12 +24,18 @@ export interface SuperResolutionPageCapability {
       context?: SuperResolutionExecutionContext,
     ): Promise<SuperResolutionPageResult>
   }
+  artifactPages?: {
+    acquireOrGenerate(
+      input: SuperResolutionArtifactPageInput,
+      context?: SuperResolutionExecutionContext,
+    ): Promise<SuperResolutionArtifactPageResult>
+  }
   listModels(): readonly SuperResolutionModelManifest[]
   capabilities(options?: { refresh?: boolean; signal?: AbortSignal }): Promise<SuperResolutionCapabilitySnapshot>
   dispose(): Promise<void>
 }
 
-export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutionPort {
+export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutionPort, SuperResolutionArtifactPagePort {
   #capability?: Promise<SuperResolutionPageCapability | undefined>
   #disposed = false
 
@@ -60,6 +71,20 @@ export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutio
       engines: snapshot.engines,
       probedAt: snapshot.probedAt,
     }
+  }
+
+  async acquireOrGenerate(
+    input: SuperResolutionArtifactPageInput,
+    context: SuperResolutionExecutionContext = {},
+  ): Promise<SuperResolutionArtifactPageResult> {
+    this.#assertActive()
+    context.signal?.throwIfAborted()
+    const capability = await waitForSharedPromise(this.#load(), context.signal)
+    context.signal?.throwIfAborted()
+    this.#assertActive()
+    if (!capability) throw new Error("Reader super-resolution runtime is unavailable.")
+    if (!capability.artifactPages) throw new Error("Reader super-resolution artifact cache is unavailable.")
+    return capability.artifactPages.acquireOrGenerate(input, context)
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
