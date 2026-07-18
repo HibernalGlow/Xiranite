@@ -35,7 +35,6 @@ interface FolderDetailsViewProps {
   onRangeChange(range: { startIndex: number; endIndex: number }): void
   onScrollTopChange?(scrollTop: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
-  onActivate(entry: ReaderDirectoryEntryDto): void
   onLayoutChange(patch: Partial<ReaderFolderDetailsConfig>): void
   showReturnFooter: boolean
   returnFooterContext: FolderReturnFooterContext
@@ -81,7 +80,6 @@ export default function FolderDetailsView({
   onRangeChange,
   onScrollTopChange,
   onSelect,
-  onActivate,
   onLayoutChange,
   showReturnFooter,
   returnFooterContext,
@@ -190,7 +188,6 @@ export default function FolderDetailsView({
               onRangeChange={onRangeChange}
               onScroll={(event) => onScrollTopChange?.(event.scrollTop)}
               onRowClick={(row, event) => { if (!disabled) onSelect(row.entry, row.index, event) }}
-              onRowDoubleClick={(row) => { if (!disabled) onActivate(row.entry) }}
               getRowDataAttributes={folderDetailsContextAttributes}
             >
               {showReturnFooter ? (

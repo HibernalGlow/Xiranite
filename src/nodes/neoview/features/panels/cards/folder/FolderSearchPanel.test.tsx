@@ -61,6 +61,22 @@ describe("FolderSearchPanel", () => {
     ])
   })
 
+  it("[neoview.folder.search-single-click-open] opens a search result on one click", async () => {
+    const entry = { name: "book.cbz", path: "D:/book.cbz", kind: "file" as const, readerSupported: true }
+    const onActivate = vi.fn()
+    const view = renderPanel({
+      searchDirectoryBrowser: vi.fn(async () => result("book", [entry])),
+    } as unknown as ReaderHttpClient, undefined, onActivate)
+    const current = within(view.container)
+    const input = current.getByRole("textbox", { name: "搜索文件" })
+    fireEvent.change(input, { target: { value: "book" } })
+    fireEvent.submit(input.closest("form")!)
+
+    fireEvent.click(await current.findByTitle("D:/book.cbz"))
+    expect(onActivate).toHaveBeenCalledOnce()
+    expect(onActivate).toHaveBeenCalledWith(entry)
+  })
+
   it("[neoview.folder.search-stale] ignores a superseded search and renders error and truncated states", async () => {
     const first = deferred<ReaderDirectorySearchResultDto>()
     const second = deferred<ReaderDirectorySearchResultDto>()
@@ -190,19 +206,19 @@ const DEFAULT_SEARCH_SETTINGS: ReaderFolderSearchConfig = {
   searchInPath: false,
 }
 
-function SearchPanelHarness({ client, onSettingsChange }: { client: ReaderHttpClient; onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void }) {
+function SearchPanelHarness({ client, onSettingsChange, onActivate }: { client: ReaderHttpClient; onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void; onActivate: (entry: ReaderDirectorySearchResultDto["entries"][number]) => void }) {
   const [settings, setSettings] = useState(DEFAULT_SEARCH_SETTINGS)
   function updateSettings(patch: Partial<ReaderFolderSearchConfig>) {
     setSettings((current) => ({ ...current, ...patch }))
     onSettingsChange?.(patch)
   }
-  return <FolderSearchPanel client={client} sessionId="browser-1" disabled={false} settings={settings} onSettingsChange={updateSettings} onActivate={vi.fn()} onClose={vi.fn()} />
+  return <FolderSearchPanel client={client} sessionId="browser-1" disabled={false} settings={settings} onSettingsChange={updateSettings} onActivate={onActivate} onClose={vi.fn()} />
 }
 
-function renderPanel(client: ReaderHttpClient, onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void) {
+function renderPanel(client: ReaderHttpClient, onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void, onActivate = vi.fn()) {
   return render(
     <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
-      <SearchPanelHarness client={client} onSettingsChange={onSettingsChange} />
+      <SearchPanelHarness client={client} onSettingsChange={onSettingsChange} onActivate={onActivate} />
     </VirtuosoMockContext.Provider>,
   )
 }

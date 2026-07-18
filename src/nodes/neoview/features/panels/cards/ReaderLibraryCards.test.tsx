@@ -94,6 +94,7 @@ describe("Reader library cards", () => {
     }))
     const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
     const removeRecents = vi.fn(async () => ({ deleted: 3, missingIds: [] }))
+    const onOpen = vi.fn()
     const view = render(
       <HistoryListCard
         client={{
@@ -103,7 +104,7 @@ describe("Reader library cards", () => {
           removeRecents,
         } as ReaderHttpClient}
         disabled={false}
-        onOpen={vi.fn()}
+        onOpen={onOpen}
         onGoTo={vi.fn()}
       />,
     )
@@ -142,13 +143,16 @@ describe("Reader library cards", () => {
     fireEvent.click(screen.getByRole("button", { name: "反选已加载历史记录" }))
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
     fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!)
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz")
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
+    fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!, { ctrlKey: true })
     fireEvent.click(screen.getByRole("button", { name: "选择全部已加载历史记录" }))
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
     fireEvent.click(screen.getByRole("button", { name: "取消全部历史记录选择" }))
     fireEvent.keyDown(focusedThumbnailRow, { key: "a", ctrlKey: true })
     fireEvent.keyDown(focusedThumbnailRow, { key: "Escape" })
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
-    fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!)
+    fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!, { ctrlKey: true })
     fireEvent.click(view.container.querySelector('[data-history-row-button="2"]')!, { shiftKey: true })
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
     fireEvent.keyDown(view.container.querySelector('[data-history-row-button="2"]')!, { key: "Delete" })
@@ -448,6 +452,9 @@ describe("Reader library cards", () => {
 
     await screen.findByText("one")
     fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!)
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz")
+    expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
+    fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!, { ctrlKey: true })
     fireEvent.click(view.container.querySelector('[data-bookmark-row-button="2"]')!, { shiftKey: true })
     expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-selection-count")).toBe("3")
     const firstRow = view.container.querySelector<HTMLButtonElement>('[data-bookmark-row-button="0"]')!
@@ -464,7 +471,7 @@ describe("Reader library cards", () => {
     expect(updateBookmarks).toHaveBeenCalledWith(bookmarks.map((item) => ({ id: item.id, listIds: ["default", "reading"] })))
 
     await waitFor(() => expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-selection-count")).toBe("0"))
-    fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!)
+    fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!, { ctrlKey: true })
     fireEvent.click(view.container.querySelector('[data-bookmark-row-button="2"]')!, { shiftKey: true })
     fireEvent.click(screen.getByRole("button", { name: "删除所选书签" }))
     fireEvent.click(screen.getByRole("button", { name: "删除书签" }))

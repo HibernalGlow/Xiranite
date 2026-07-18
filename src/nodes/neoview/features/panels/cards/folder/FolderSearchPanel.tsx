@@ -324,8 +324,10 @@ export default function FolderSearchPanel({
                   className="grid h-12 w-full grid-cols-[1rem_minmax(0,1fr)] items-center gap-x-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent"
                   aria-selected={entry.path === selectedPath}
                   title={entry.path}
-                  onClick={() => setSelectedPath(entry.path)}
-                  onDoubleClick={() => onActivate(entry)}
+                  onClick={() => {
+                    setSelectedPath(entry.path)
+                    onActivate(entry)
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault()

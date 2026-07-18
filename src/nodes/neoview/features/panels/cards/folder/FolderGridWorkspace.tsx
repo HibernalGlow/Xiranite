@@ -30,7 +30,6 @@ export default function FolderGridWorkspace({
   onRangeChange,
   onStateChange,
   onSelect,
-  onActivate,
 }: {
   virtualKey: string
   gridRef: RefObject<VirtuosoGridHandle | null>
@@ -48,7 +47,6 @@ export default function FolderGridWorkspace({
   onRangeChange(range: ListRange): void
   onStateChange(snapshot: GridStateSnapshot): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
-  onActivate(entry: ReaderDirectoryEntryDto): void
 }) {
   const banner = viewUsesBanner(viewMode)
   const showRating = catalog.metadataFields.includes("rating")
@@ -88,7 +86,6 @@ export default function FolderGridWorkspace({
             visualMode={viewMode}
             thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
             onSelect={onSelect}
-            onActivate={onActivate}
           />
         )
       }}
@@ -108,10 +105,9 @@ interface DirectoryGridItemProps {
   visualMode: ReaderFolderViewMode
   thumbnailUrl?: string
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
-  onActivate(entry: ReaderDirectoryEntryDto): void
 }
 
-function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryGridItemProps) {
+function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
     <button
@@ -123,7 +119,6 @@ function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused
       disabled={disabled}
       title={entry.path}
       onClick={(event) => onSelect(entry, index, event)}
-      onDoubleClick={() => onActivate(entry)}
       tabIndex={-1}
       data-preview-mode={visualMode}
       data-folder-entry="true"
@@ -148,7 +143,7 @@ function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused
   )
 }
 
-function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryGridItemProps) {
+function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   const showMetadata = showRating || showCollectTagCount
   return (
@@ -161,7 +156,6 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
       disabled={disabled}
       title={entry.path}
       onClick={(event) => onSelect(entry, index, event)}
-      onDoubleClick={() => onActivate(entry)}
       tabIndex={-1}
       data-preview-mode={visualMode}
       data-folder-entry="true"
