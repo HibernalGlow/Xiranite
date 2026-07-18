@@ -1,6 +1,7 @@
 /**
  * @migrated-from src/lib/cards/info/SwitchToastCard.svelte
  * @source-hash sha256:5fe6e326300c28b466de5ee95b2aca8c43764e849d55074653292e2c1efe68b1
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/SwitchToastCard.tsx
  * @features switch-toast
  * @migration-status adapted
  */
