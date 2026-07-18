@@ -97,6 +97,46 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
   })
 
+  it("[neoview.folder.thumbnail-unsupported-file] keeps text files on their icon surface and out of thumbnail demand", async () => {
+    const opened = page({
+      entries: [
+        { name: "cover.cbz", path: "C:/books/cover.cbz", kind: "file", readerSupported: true },
+        { name: "notes.txt", path: "C:/books/notes.txt", kind: "file", readerSupported: false },
+        { name: "scripts", path: "C:/books/scripts", kind: "directory", readerSupported: true },
+      ],
+      total: 3,
+    })
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string; path: string }[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({ id: item.id, thumbnailUrl: `http://thumb.test/${encodeURIComponent(item.path)}`, contentVersion: item.path })),
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      registerLibraryThumbnails,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={folderViewConfig({ viewMode: "cover-grid" })}
+        />
+      </VirtuosoGridMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalled())
+    const requested = registerLibraryThumbnails.mock.calls.at(-1)?.[2] as readonly { path: string }[]
+    expect(requested.map((item) => item.path)).not.toContain("C:/books/notes.txt")
+    await waitFor(() => expect(currentView.getByTitle("C:/books/notes.txt").querySelector("img")).toBeNull())
+    expect(currentView.getByTitle("C:/books/notes.txt").querySelector("svg")).toBeTruthy()
+    view.unmount()
+  })
+
   it("[neoview.folder.open-error-retry] retries an initial directory error without replacing the card", async () => {
     const opened = page({
       path: "E:\\",
