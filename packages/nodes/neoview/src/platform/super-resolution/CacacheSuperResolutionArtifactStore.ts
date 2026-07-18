@@ -33,6 +33,13 @@ interface LeaseState {
   invalidated: boolean
 }
 
+interface PublishFlight {
+  promise: Promise<boolean>
+  controller: AbortController
+  waiters: number
+  settled: boolean
+}
+
 export interface CacacheSuperResolutionArtifactStoreOptions {
   root: string
   maxBytes?: number
@@ -65,7 +72,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   readonly #loadCacache: () => Promise<CacacheApi>
   readonly #availableBytes: (path: string) => Promise<number | undefined>
   readonly #leases = new Map<string, LeaseState>()
-  readonly #publishFlights = new Map<string, Promise<boolean>>()
+  readonly #publishFlights = new Map<string, PublishFlight>()
   readonly #pendingRemovals = new Set<Promise<void>>()
   #apiPromise?: Promise<CacacheApi>
   #maintenance?: Promise<SuperResolutionArtifactCleanupResult>
@@ -160,13 +167,23 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
       this.#rejectedWrites += 1
       return Promise.resolve(false)
     }
-    const active = this.#publishFlights.get(key)
-    if (active) return waitForFlight(active, signal)
-    const flight = this.#publishOne(key, metadata, producer).finally(() => {
-      if (this.#publishFlights.get(key) === flight) this.#publishFlights.delete(key)
+    let flight = this.#publishFlights.get(key)
+    if (!flight) {
+      const controller = new AbortController()
+      flight = { controller, waiters: 0, settled: false, promise: undefined as unknown as Promise<boolean> }
+      flight.promise = this.#publishOne(key, metadata, producer, controller.signal).finally(() => {
+        flight!.settled = true
+        if (this.#publishFlights.get(key) === flight) this.#publishFlights.delete(key)
+      })
+      this.#publishFlights.set(key, flight)
+    }
+    flight.waiters += 1
+    return waitForFlight(flight.promise, signal).finally(() => {
+      flight!.waiters = Math.max(0, flight!.waiters - 1)
+      if (!flight!.settled && flight!.waiters === 0) {
+        flight!.controller.abort(abortError("Super-resolution artifact is no longer demanded."))
+      }
     })
-    this.#publishFlights.set(key, flight)
-    return waitForFlight(flight, signal)
   }
 
   async invalidate(key: string): Promise<void> {
@@ -200,7 +217,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     if (this.#closed) return
     this.#closed = true
     await Promise.allSettled([
-      ...this.#publishFlights.values(),
+      ...[...this.#publishFlights.values()].map((flight) => flight.promise),
       ...this.#pendingRemovals,
       ...(this.#maintenance ? [this.#maintenance] : []),
       ...(this.#vacuum ? [this.#vacuum] : []),
@@ -211,7 +228,12 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     return this.close()
   }
 
-  async #publishOne(key: string, metadata: SuperResolutionArtifactMetadata, producer: SuperResolutionArtifactProducer): Promise<boolean> {
+  async #publishOne(
+    key: string,
+    metadata: SuperResolutionArtifactMetadata,
+    producer: SuperResolutionArtifactProducer,
+    signal: AbortSignal,
+  ): Promise<boolean> {
     const api = await this.#api()
     this.#activeStaging += 1
     let producerCompleted = false
@@ -222,8 +244,9 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
         callback: (directory: string) => Promise<boolean>,
       ) => Promise<boolean>)(this.#root, { tmpPrefix: "xr-upscale-" }, async (directory) => {
         const destinationPath = join(directory, `artifact.${metadata.extension}`)
-        await producer(destinationPath, new AbortController().signal)
+        await producer(destinationPath, signal)
         producerCompleted = true
+        signal.throwIfAborted()
         const file = await stat(destinationPath)
         if (!file.isFile() || file.size <= 0 || file.size > this.#maxEntryBytes) {
           this.#rejectedWrites += 1

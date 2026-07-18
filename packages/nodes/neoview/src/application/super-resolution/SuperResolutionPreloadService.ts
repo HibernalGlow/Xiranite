@@ -9,6 +9,12 @@ import type {
   SuperResolutionPageInput,
   SuperResolutionPageResult,
 } from "./SuperResolutionPageService.js"
+import type {
+  SuperResolutionArtifactDescriptor,
+  SuperResolutionArtifactPageInput,
+  SuperResolutionArtifactRunDecision,
+  SuperResolutionArtifactWarmResult,
+} from "./SuperResolutionArtifactPageService.js"
 
 export interface SuperResolutionPreloadPageRunner {
   run(input: SuperResolutionPageInput, context?: { signal?: AbortSignal }): Promise<SuperResolutionPageResult>
@@ -26,12 +32,22 @@ export type SuperResolutionArtifactDestinationResolver = (
   context: SuperResolutionArtifactDestinationContext,
 ) => string | Promise<string>
 
+export type SuperResolutionArtifactDescriptorResolver = (
+  page: ReaderPage,
+  context: SuperResolutionArtifactDestinationContext & { decision: SuperResolutionArtifactRunDecision },
+) => SuperResolutionArtifactDescriptor | Promise<SuperResolutionArtifactDescriptor>
+
+interface SuperResolutionArtifactPageWarmer {
+  warm(input: SuperResolutionArtifactPageInput, context?: { signal?: AbortSignal }): Promise<SuperResolutionArtifactWarmResult>
+}
+
 export interface SuperResolutionPreloadPlanInput {
   contextId: string
   plan: ReaderPreloadPlan
   pages: readonly ReaderPage[]
   bookPath: string
-  destinationFor: SuperResolutionArtifactDestinationResolver
+  destinationFor?: SuperResolutionArtifactDestinationResolver
+  artifactFor?: SuperResolutionArtifactDescriptorResolver
   metadataFor?: (page: ReaderPage) => Readonly<Record<string, unknown>> | undefined
   maxMaterializationBytes?: number
   signal?: AbortSignal
@@ -44,7 +60,8 @@ export interface SuperResolutionProgressiveInput {
   currentPageIndex: number
   pages: readonly ReaderPage[]
   bookPath: string
-  destinationFor: SuperResolutionArtifactDestinationResolver
+  destinationFor?: SuperResolutionArtifactDestinationResolver
+  artifactFor?: SuperResolutionArtifactDescriptorResolver
   metadataFor?: (page: ReaderPage) => Readonly<Record<string, unknown>> | undefined
   maxMaterializationBytes?: number
   signal?: AbortSignal
@@ -56,7 +73,7 @@ export type SuperResolutionPreloadPageOutcome =
       pageId: string
       pageIndex: number
       status: "settled"
-      output: SuperResolutionPageResult
+      output: SuperResolutionPageResult | SuperResolutionArtifactWarmResult
     }
   | {
       pageId: string
@@ -107,6 +124,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
   constructor(
     private readonly pages: SuperResolutionPreloadPageRunner,
     preferences: SuperResolutionPreferences,
+    private readonly artifactPages?: SuperResolutionArtifactPageWarmer,
   ) {
     this.#preloadPages = boundedInteger(preferences.preloadPages ?? DEFAULT_PRELOAD_PAGES, "preload pages", 0, 1_000)
     this.#concurrency = boundedInteger(
@@ -220,22 +238,34 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     const outcomes = await pMap(selected, async ({ page, priority }): Promise<SuperResolutionPreloadPageOutcome> => {
       try {
         signal.throwIfAborted()
-        const destinationPath = await input.destinationFor(page, {
+        const destinationContext = {
           contextId: input.contextId,
           generation: input.generation,
           trigger: "preload",
           signal,
-        })
-        signal.throwIfAborted()
-        const output = await this.pages.run({
+        } satisfies SuperResolutionArtifactDestinationContext
+        const common = {
           page,
-          destinationPath,
-          trigger: "preload",
+          trigger: "preload" as const,
           bookPath: input.bookPath,
           metadata: input.metadataFor?.(page),
           priority,
           maxMaterializationBytes: input.maxMaterializationBytes,
-        }, { signal })
+        }
+        let output: SuperResolutionPageResult | SuperResolutionArtifactWarmResult
+        if (input.artifactFor) {
+          if (!this.artifactPages) throw new Error("Super-resolution artifact page service is unavailable.")
+          signal.throwIfAborted()
+          output = await this.artifactPages.warm({
+            ...common,
+            artifactFor: (decision) => input.artifactFor!(page, { ...destinationContext, decision }),
+          }, { signal })
+        } else {
+          if (!input.destinationFor) throw new Error("Super-resolution preload requires artifactFor or destinationFor.")
+          const destinationPath = await input.destinationFor(page, destinationContext)
+          signal.throwIfAborted()
+          output = await this.pages.run({ ...common, destinationPath }, { signal })
+        }
         const outcome = { pageId: page.id, pageIndex: page.index, status: "settled" as const, output }
         notify(input.onPageSettled, outcome)
         return outcome

@@ -40,6 +40,28 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.artifact-demand-cancel] aborts the producer after its last waiter leaves", async () => {
+    const store = createStore()
+    const started = deferred()
+    const stopped = deferred()
+    const producer = vi.fn(async (_path: string, signal: AbortSignal) => {
+      started.resolve()
+      await new Promise<never>((_resolve, reject) => {
+        const abort = () => { stopped.resolve(); reject(signal.reason) }
+        signal.addEventListener("abort", abort, { once: true })
+      })
+    })
+    const abort = new AbortController()
+    const publication = store.publish(key("cancel-last"), metadata, producer, abort.signal)
+    await started.promise
+    abort.abort(new DOMException("generation changed", "AbortError"))
+    await expect(publication).rejects.toMatchObject({ name: "AbortError" })
+    await stopped.promise
+    await expect.poll(async () => (await store.snapshot()).entries).toBe(0)
+    expect(producer).toHaveBeenCalledOnce()
+    await store.close()
+  })
+
   it("[neoview.super-resolution.artifact-stream-lease] streams a verified artifact and defers invalidation until release", async () => {
     const store = createStore()
     const cacheKey = key("leased")

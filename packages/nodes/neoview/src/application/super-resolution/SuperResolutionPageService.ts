@@ -32,6 +32,10 @@ export interface SuperResolutionPageInput {
   maxMaterializationBytes?: number
 }
 
+export interface SuperResolutionPagePlan {
+  decision: SuperResolutionPolicyDecision
+}
+
 export type SuperResolutionPageResult =
   | {
       decision: Exclude<SuperResolutionPolicyDecision, { kind: "run" }>
@@ -53,23 +57,37 @@ export class SuperResolutionPageService {
     input: SuperResolutionPageInput,
     context: SuperResolutionExecutionContext = {},
   ): Promise<SuperResolutionPageResult> {
-    context.signal?.throwIfAborted()
+    return this.runPlanned(input, this.plan(input), context)
+  }
+
+  plan(input: Omit<SuperResolutionPageInput, "destinationPath">): SuperResolutionPagePlan {
     const width = input.width ?? input.page.dimensions?.width
     const height = input.height ?? input.page.dimensions?.height
     if (width === undefined || height === undefined) {
       throw new Error(`Super-resolution requires page dimensions: ${input.page.id}`)
     }
-    const decision = this.policy.decide({
-      trigger: input.trigger,
-      width,
-      height,
-      bookPath: input.bookPath ?? input.page.sourcePath,
-      imagePath: input.page.entryPath ?? input.page.sourcePath,
-      innerPath: input.page.entryPath,
-      createdAt: input.page.timestamps?.createdAtMs,
-      modifiedAt: input.page.timestamps?.modifiedAtMs,
-      metadata: input.metadata,
-    })
+    return {
+      decision: this.policy.decide({
+        trigger: input.trigger,
+        width,
+        height,
+        bookPath: input.bookPath ?? input.page.sourcePath,
+        imagePath: input.page.entryPath ?? input.page.sourcePath,
+        innerPath: input.page.entryPath,
+        createdAt: input.page.timestamps?.createdAtMs,
+        modifiedAt: input.page.timestamps?.modifiedAtMs,
+        metadata: input.metadata,
+      }),
+    }
+  }
+
+  async runPlanned(
+    input: SuperResolutionPageInput,
+    plan: SuperResolutionPagePlan,
+    context: SuperResolutionExecutionContext = {},
+  ): Promise<SuperResolutionPageResult> {
+    context.signal?.throwIfAborted()
+    const { decision } = plan
     if (decision.kind !== "run") return { decision }
     const destinationPath = requiredPath(input.destinationPath, "destination path")
 

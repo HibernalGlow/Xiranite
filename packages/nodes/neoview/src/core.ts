@@ -398,14 +398,26 @@ export {
 export {
   SuperResolutionPageService,
   type SuperResolutionPageInput,
+  type SuperResolutionPagePlan,
   type SuperResolutionPageResult,
   type SuperResolutionPolicyResolver,
   type SuperResolutionRunner,
 } from "./application/super-resolution/SuperResolutionPageService.js"
 export {
+  SuperResolutionArtifactPageService,
+  type SuperResolutionArtifactDescriptor,
+  type SuperResolutionArtifactExecution,
+  type SuperResolutionArtifactPageInput,
+  type SuperResolutionArtifactPageResult,
+  type SuperResolutionArtifactResolver,
+  type SuperResolutionArtifactRunDecision,
+  type SuperResolutionArtifactWarmResult,
+} from "./application/super-resolution/SuperResolutionArtifactPageService.js"
+export {
   SuperResolutionPreloadService,
   type SuperResolutionArtifactDestinationContext,
   type SuperResolutionArtifactDestinationResolver,
+  type SuperResolutionArtifactDescriptorResolver,
   type SuperResolutionPreloadBatchResult,
   type SuperResolutionPreloadPageOutcome,
   type SuperResolutionPreloadPageRunner,
