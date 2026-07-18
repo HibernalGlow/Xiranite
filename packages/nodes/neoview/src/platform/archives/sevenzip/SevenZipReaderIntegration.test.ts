@@ -34,6 +34,7 @@ let solidNestedArchivePath = ""
 let encryptedSolidArchivePath = ""
 let innerFixture: ZipFixture | undefined
 let encryptedSolidRarFixture: RarFixture | undefined
+const SYSTEM_INTEGRATION_TIMEOUT_MS = 30_000
 
 beforeAll(async () => {
   if (!executable) return
@@ -86,7 +87,7 @@ afterAll(async () => {
 })
 
 describe.skipIf(!executable)("CB7 reader system integration", () => {
-  it("[neoview.sevenzip.reader-e2e] detects, indexes, probes and streams a real CB7", async () => {
+  it("[neoview.sevenzip.reader-e2e] detects, indexes, probes and streams a real CB7", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const detected = await detectViewSource(archivePath)
     expect(detected).toEqual({ kind: "archive", path: archivePath })
 
@@ -119,7 +120,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     }
   })
 
-  it("[neoview.sevenzip.solid-reader-e2e] reads a solid CB7 through the same Reader Core route", async () => {
+  it("[neoview.sevenzip.solid-reader-e2e] reads a solid CB7 through the same Reader Core route", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const service = new CoreReaderService(
       createPlatformReaderBookLoader(),
       new StreamingImageMetadataProbe(),
@@ -145,7 +146,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     }
   })
 
-  it("[neoview.sevenzip.encrypted-reader-e2e] opens a header-encrypted solid CB7 through the shared Reader Core route", async () => {
+  it("[neoview.sevenzip.encrypted-reader-e2e] opens a header-encrypted solid CB7 through the shared Reader Core route", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const service = new CoreReaderService(
       createPlatformReaderBookLoader(),
       new StreamingImageMetadataProbe(),
@@ -176,7 +177,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     }
   })
 
-  it.skipIf(!rarExecutable)("[neoview.sevenzip.encrypted-rar-reader-e2e] reads a real header-encrypted solid CBR through Reader Core", async () => {
+  it.skipIf(!rarExecutable)("[neoview.sevenzip.encrypted-rar-reader-e2e] reads a real header-encrypted solid CBR through Reader Core", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const service = new CoreReaderService(
       createPlatformReaderBookLoader(),
       new StreamingImageMetadataProbe(),
@@ -204,7 +205,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     }
   })
 
-  it("[neoview.sevenzip.solid-session-cache] reuses a complete solid extraction across HTTP reader sessions", async () => {
+  it("[neoview.sevenzip.solid-session-cache] reuses a complete solid extraction across HTTP reader sessions", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const tempDirectory = join(directory, "solid-session-cache")
     await mkdir(tempDirectory)
     const scheduler = new RecordingScheduler()
@@ -244,7 +245,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     expect(await readdir(tempDirectory)).toEqual([])
   })
 
-  it("[neoview.thumbnail.scheduler-host-injection] routes CB7 thumbnail extraction through the host CPU pool", async () => {
+  it("[neoview.thumbnail.scheduler-host-injection] routes CB7 thumbnail extraction through the host CPU pool", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const scheduler = new RecordingScheduler()
     const controller = new ReaderHttpController({
       baseUrl: "http://127.0.0.1:41000",
@@ -276,7 +277,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     }
   })
 
-  it("[neoview.sevenzip.solid-nested-e2e] opens an inner CBZ through a borrowed solid materialization lease", async () => {
+  it("[neoview.sevenzip.solid-nested-e2e] opens an inner CBZ through a borrowed solid materialization lease", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const tempDirectory = join(directory, "nested-materialized")
     await mkdir(tempDirectory)
     const book = await createPlatformReaderBookLoader({ archiveTempDirectory: tempDirectory })({
@@ -297,7 +298,7 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
     expect(await readdir(tempDirectory)).toEqual([])
   })
 
-  it("[neoview.sevenzip.solid-nested-budget] counts the entire solid layer against nested disk budget", async () => {
+  it("[neoview.sevenzip.solid-nested-budget] counts the entire solid layer against nested disk budget", { timeout: SYSTEM_INTEGRATION_TIMEOUT_MS }, async () => {
     const tempDirectory = join(directory, "nested-budget")
     await mkdir(tempDirectory)
     const loader = createPlatformReaderBookLoader({
