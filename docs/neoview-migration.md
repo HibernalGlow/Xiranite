@@ -1706,9 +1706,9 @@ TUI 交付顺序固定为：
 - Xiranite 只在共享超分包（预定 `@xiranite/super-resolution`）中声明该依赖，NeoView、GUI、CLI、TUI 均通过共享 service 调用，不各自直接依赖 fork；
 - fork 的 `origin` 指向 `https://github.com/HibernalGlow/opencomic-ai-bin.git`，另设只读 `upstream` 指向 `https://github.com/ollm/opencomic-ai-bin.git`；同步上游时先审查模型表、CLI 参数和 daemon 协议差异，再运行兼容与性能测试，不直接覆盖本地 system-only 改造。
 
-截至 2026-07-18，本地 `ref/opencomic-ai-system/` 的 `codex/system-cli-only` 分支已经形成两个隔离提交：`b86caac` 将包收口为 `@hibernalglow/opencomic-ai-system@0.1.0`，增加宿主 `binaryResolver`，移除生产入口的 YOLO/ONNX/Potrace 和包内 `win/linux/mac` 路径，并通过 `package.json#files` 与 pack 审计禁止发布 exe、动态库、原生 `.node`、ONNX、模型 `.bin/.param` 和 Python；`610e34b` 修复 daemon 参数拆分、跨 chunk `Ready>`、`Error -> Ready>` 成功误判、Windows/Unicode/引号 quoting，以及 process error/exit/close、主动 close 时当前和排队任务悬空。fork 自身 `npm test` 当前 15 项通过，`npm pack --dry-run` 仅包含 8 个文件，压缩包大小 23,943 bytes。上述提交目前只存在于本地 fork，尚未推送或发布，因此 Xiranite 不得声明不可从远端解析的 Git SHA，也不得从 `ref/` 直接 import；等用户明确授权推送或发布后再锁定完整 SHA/语义版本。
+截至 2026-07-18，本地 `ref/opencomic-ai-system/` 的 `codex/system-cli-only` 分支已经形成三个隔离提交：`b86caac` 将包收口为 `@hibernalglow/opencomic-ai-system@0.1.0`，增加宿主 `binaryResolver`，移除生产入口的 YOLO/ONNX/Potrace 和包内 `win/linux/mac` 路径，并通过 `package.json#files` 与 pack 审计禁止发布 exe、动态库、原生 `.node`、ONNX、模型 `.bin/.param` 和 Python；`610e34b` 修复 daemon 参数拆分、跨 chunk `Ready>`、`Error -> Ready>` 成功误判、Windows/Unicode/引号 quoting，以及 process error/exit/close、主动 close 时当前和排队任务悬空；`5102092` 统一跟踪 daemon 与 waifu2x/realcugan 等短进程，并通过 `closeAllProcesses()` 释放直接子进程，避免 Provider 取消时只关闭 daemon。fork 自身 `npm test` 当前 16 项通过，`npm pack --dry-run` 仅包含 8 个文件，压缩包大小 24,153 bytes。上述提交目前只存在于本地 fork，尚未推送或发布，因此 Xiranite 不得声明不可从远端解析的 Git SHA，也不得从 `ref/` 直接 import；等用户明确授权推送或发布后再锁定完整 SHA/语义版本。
 
-Xiranite 侧的共享边界已经由 `f4d58552` 和 `19d31807` 建立：`SuperResolutionService` 位于 NeoView application/ports 层，GUI、CLI、TUI 后续只复用这一实例；模型 manifest 可注册，任务在进入 Provider 前完成 scale/path 校验、同一输出路径互斥和 `AbortSignal` 检查，并通过宿主 `ResourceScheduler` 获取 GPU lease，构造与列模型都保持零进程。`SystemSuperResolutionCliResolver` 位于 platform 层，按“显式路径 -> PATH -> 可信候选”惰性探测 canonical path、版本与架构；显式路径失效不会静默回退，同一 engine 共享缓存，单 caller 取消不会破坏其他等待者。两组定向测试共 13 项通过，NeoView package build 和 oxlint 通过。当前仍未创建生产 `OpenComicAiSystemProvider`，也未引入 fork 依赖；这两项必须等远端可解析的 commit/版本存在后再接，并同时闭环输出文件校验、进程树取消和真实 GPU benchmark。
+Xiranite 侧的共享边界已经由 `f4d58552`、`19d31807` 和 `8e42df71` 建立：`SuperResolutionService` 位于 NeoView application/ports 层，GUI、CLI、TUI 后续只复用这一实例；模型 manifest 可注册，任务在进入 Provider 前完成 scale/path 校验、同一输出路径互斥和 `AbortSignal` 检查，并通过宿主 `ResourceScheduler` 获取 GPU lease，构造与列模型都保持零进程。`SystemSuperResolutionCliResolver` 位于 platform 层，按“显式路径 -> PATH -> 可信候选”惰性探测 canonical path、版本与架构；显式路径失效不会静默回退，同一 engine 共享缓存，单 caller 取消不会破坏其他等待者。`OpenComicAiSystemProvider` 是注入 runtime 的薄 adapter，不复制模型下载、参数生成、daemon 或进程队列；首次真实任务才加载 runtime、配置模型目录和已验证的 CLI resolver，取消/超时调用 fork 的统一进程释放，完成后复用现有 `FilePageContent + StreamingImageMetadataProbe` 检查输出文件非空、路径一致且尺寸等于请求 scale。三组定向测试共 19 项通过，NeoView package build 和 oxlint 通过。当前仍未把 fork 声明为生产依赖，也没有从 `ref/` import；等远端可解析的 commit/版本存在后，只需增加惰性 runtime loader 与 TOML composition。真实 GPU benchmark、CLI 子进程若再派生孙进程时的 Windows tree termination，以及自定义模型注册仍未完成。
 
 预发布依赖示例：
 
@@ -1762,12 +1762,12 @@ daemon_idle_timeout_ms = 300000
 
 `upscayl-bin` 使用长驻 daemon，等待 `Ready>` 后才发送首个任务，同一 GPU/模型实例内部串行；不同 GPU 是否并行由全局调度器决定。默认每个 GPU 最多一个 daemon，避免多个 Xiranite 工具争抢显存。`waifu2x` 和 `realcugan` 当前按受控短进程执行，统一纳入取消、超时、进程树终止和空闲回收；未来若其 CLI 提供可靠 daemon，再通过同一 Provider 契约增加 capability，调用方不变。
 
-不能照搬上游 `opencomic-ai-bin` 当前 wrapper 的所有实现细节。system-only fork 已覆盖参数拆分、协议分块、Error 状态、quoting 和 daemon 基础队列清理，但 Xiranite 共享 Provider 仍必须把取消、超时、输出校验、进程树终止和宿主 GPU lease 一并闭环。完整门禁如下：
+不能照搬上游 `opencomic-ai-bin` 当前 wrapper 的所有实现细节。system-only fork 与 Xiranite 薄 Provider 已覆盖参数拆分、协议分块、Error 状态、quoting、直接进程清理、取消/超时、输出校验和宿主 GPU lease；仍需以真实 CLI 验证派生进程树与 GPU 行为。完整门禁如下：
 
 - `-x` TTA 是无值参数，不能按固定 flag/value 两两拆分；
 - `Ready>` 需要跨 stderr chunk 缓冲解析；
-- 出现 `Error` 后再次进入 `Ready>` 不能被误判为任务成功；fork 已返回非零任务结果，Provider 还必须检查退出信息、输出文件存在性和尺寸；
-- daemon 启动失败、处理中 error/exit/close 和主动/idle quit 都必须 settle 当前 Promise 并清空队列；fork 已覆盖这些基础生命周期，Provider 继续负责 `AbortSignal`、超时与 Windows 进程树终止；
+- 出现 `Error` 后再次进入 `Ready>` 不能被误判为任务成功；fork 返回非零任务结果，Provider 继续检查输出路径、文件存在性、非空和精确 scale 尺寸；
+- daemon 启动失败、处理中 error/exit/close 和主动/idle quit 都必须 settle 当前 Promise 并清空队列；fork 已覆盖基础生命周期与直接子进程，Provider 已接 `AbortSignal` 和超时，真实 CLI 若派生孙进程仍需 Windows tree termination 测试；
 - 路径包含空格、引号、Unicode、长路径时不能通过 shell 字符串拼接，必须使用参数数组或经过测试的 daemon quoting；
 - stdout/stderr 只承载控制日志和进度，不传输图片字节。
 
