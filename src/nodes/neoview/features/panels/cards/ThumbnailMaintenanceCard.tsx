@@ -24,7 +24,7 @@ const DEFAULT_LIMIT = 500
 const DEFAULT_SCAN_LIMIT = 500
 
 type Operation = "refresh" | "invalid" | "empty" | "expired" | "failures"
-type Feedback = { tone: "success" | "error"; text: string }
+type Feedback = { tone: "success" | "warning" | "error"; text: string }
 
 export default function ThumbnailMaintenanceCard({ client, panelActive = true, disabled }: ReaderPanelContext) {
   const [snapshot, setSnapshot] = useState<ReaderThumbnailMaintenanceSnapshotDto>()
@@ -56,7 +56,8 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
     })
     return () => {
       generationRef.current += 1
-      controller.abort()
+      controllerRef.current?.abort()
+      controllerRef.current = undefined
     }
   }, [client, disabled, panelActive])
 
@@ -91,9 +92,16 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
     try {
       const value = await request(controller.signal)
       if (generation !== generationRef.current) return
-      setFeedback({ tone: "success", text: message(value) })
+      const successMessage = message(value)
+      setFeedback({ tone: "success", text: successMessage })
       if (kind !== "refresh" && client.thumbnailMaintenance) {
-        setSnapshot(await client.thumbnailMaintenance(controller.signal))
+        try {
+          setSnapshot(await client.thumbnailMaintenance(controller.signal))
+        } catch (error) {
+          if (generation === generationRef.current && !controller.signal.aborted) {
+            setFeedback({ tone: "warning", text: `${successMessage}；统计刷新失败：${maintenanceError(error)}` })
+          }
+        }
       }
     } catch (error) {
       if (generation === generationRef.current && !controller.signal.aborted) {
@@ -135,7 +143,11 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
 
       {feedback ? (
         <div
-          className={feedback.tone === "success" ? "rounded bg-emerald-500/10 p-2 text-emerald-700" : "rounded bg-destructive/10 p-2 text-destructive"}
+          className={feedback.tone === "success"
+            ? "rounded bg-emerald-500/10 p-2 text-emerald-700"
+            : feedback.tone === "warning"
+              ? "rounded bg-amber-500/10 p-2 text-amber-700"
+              : "rounded bg-destructive/10 p-2 text-destructive"}
           role={feedback.tone === "error" ? "alert" : "status"}
           aria-live="polite"
         >
@@ -184,13 +196,16 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
 }
 
 function MaintenanceStatistics({ snapshot }: { snapshot: ReaderThumbnailMaintenanceSnapshotDto }) {
-  const databaseBytes = (snapshot.databaseBytes ?? 0) + (snapshot.walBytes ?? 0) + (snapshot.shmBytes ?? 0)
+  const hasDatabaseSize = snapshot.databaseBytes !== undefined || snapshot.walBytes !== undefined || snapshot.shmBytes !== undefined
+  const databaseBytes = hasDatabaseSize
+    ? (snapshot.databaseBytes ?? 0) + (snapshot.walBytes ?? 0) + (snapshot.shmBytes ?? 0)
+    : undefined
   return (
     <div className="space-y-2" aria-label="缩略图数据库统计">
       <div className="grid grid-cols-2 gap-2">
         <Metric label="总条目" value={snapshot.totalRows.toLocaleString()} />
         <Metric label="文件夹" value={snapshot.folderRows.toLocaleString()} />
-        <Metric label="数据库" value={formatBytes(databaseBytes || undefined)} />
+        <Metric label="数据库" value={formatBytes(databaseBytes)} />
         <Metric label="失败记录" value={snapshot.failedRows.toLocaleString()} danger={snapshot.failedRows > 0} />
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
