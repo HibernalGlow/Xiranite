@@ -38,6 +38,16 @@ describe("ThumbnailMaintenanceRoute", () => {
       { kind: "expired", cutoff: "2026-06-15 00:00:00", limit: 250, preserveFolders: true },
       expect.any(AbortSignal),
     )
+    const scoped = (await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
+      kind: "path-prefix",
+      prefix: " D:/library ",
+      limit: 25,
+    }, true)))!
+    expect(await scoped.json()).toEqual({ deleted: 17, prefix: "D:/library" })
+    expect(cleanup).toHaveBeenCalledWith(
+      { kind: "path-prefix", prefix: "D:/library", limit: 25 },
+      expect.any(AbortSignal),
+    )
     expect((await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
       kind: "expired", days: 30, preserveFolders: false,
     }, true)))?.status).toBe(400)
@@ -51,6 +61,9 @@ describe("ThumbnailMaintenanceRoute", () => {
     }, true)))?.status).toBe(400)
     expect((await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
       kind: "invalid", scanLimit: 2001,
+    }, true)))?.status).toBe(400)
+    expect((await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
+      kind: "path-prefix", prefix: "", limit: 10,
     }, true)))?.status).toBe(400)
 
     const cleared = (await route.handle(jsonRequest("/reader/thumbnails/maintenance/failures/clear", {

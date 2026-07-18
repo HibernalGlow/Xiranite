@@ -17,12 +17,14 @@ export type ReaderThumbnailCleanupCommand =
   | { kind: "empty"; limit: number }
   | { kind: "expired"; days: number; limit: number }
   | { kind: "invalid"; scanLimit: number; deleteLimit: number }
+  | { kind: "path-prefix"; prefix: string; limit: number }
 
 export type ReaderThumbnailCleanupResult =
   | { enabled: false }
   | { enabled: true; kind: "empty"; deleted: number }
   | { enabled: true; kind: "expired"; deleted: number; cutoff: string; foldersPreserved: true }
   | { enabled: true; kind: "invalid"; result: ReaderThumbnailInvalidCleanupResult }
+  | { enabled: true; kind: "path-prefix"; prefix: string; deleted: number }
 
 export type ReaderThumbnailFailureCleanupResult =
   | { enabled: false }
@@ -58,6 +60,19 @@ export class ReaderThumbnailMaintenanceService {
           scanLimit: command.scanLimit,
           deleteLimit: command.deleteLimit,
         }, signal),
+      }
+    }
+
+    if (command.kind === "path-prefix") {
+      const prefix = validatePathPrefix(command.prefix)
+      assertInteger(command.limit, "limit", 1, 10_000)
+      const operation = this.#store?.cleanup
+      if (!operation) return { enabled: false }
+      return {
+        enabled: true,
+        kind: command.kind,
+        prefix,
+        deleted: await operation.call(this.#store, { kind: command.kind, prefix, limit: command.limit }, signal),
       }
     }
 
@@ -111,4 +126,13 @@ function assertInteger(value: number, name: string, minimum: number, maximum: nu
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
     throw new RangeError(`${name} must be an integer from ${minimum} to ${maximum}`)
   }
+}
+
+function validatePathPrefix(value: string): string {
+  if (typeof value !== "string") throw new TypeError("prefix must be a string.")
+  const prefix = value.trim()
+  if (!prefix || prefix.length > 4_096 || prefix.includes("\0")) {
+    throw new RangeError("prefix must be 1..4096 characters without NUL.")
+  }
+  return prefix
 }

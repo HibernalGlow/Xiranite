@@ -52,6 +52,7 @@ export interface ReaderThumbnailMaintenanceSnapshot {
 export type ReaderThumbnailCleanupRequest =
   | { kind: "empty"; limit: number }
   | { kind: "expired"; cutoff: string; limit: number; preserveFolders: true }
+  | { kind: "path-prefix"; prefix: string; limit: number }
 
 export interface ReaderThumbnailInvalidCleanupResult {
   scanned: number

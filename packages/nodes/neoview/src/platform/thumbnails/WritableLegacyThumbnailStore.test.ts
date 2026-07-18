@@ -270,6 +270,25 @@ describe("WritableLegacyThumbnailStore", () => {
     await store.close()
   })
 
+  it("[neoview.thumbnail.maintenance.path-prefix] deletes only the selected path region and keeps sibling prefixes", async () => {
+    const path = await createFixture(roots)
+    const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await Promise.all([
+      store.put({ key: "D:/library", category: "folder", bytes: fixtureWebp(1) }),
+      store.put({ key: "D:/library/page-1.jpg", category: "file", bytes: fixtureWebp(2) }),
+      store.put({ key: "D:/library\\nested/page-2.jpg", category: "file", bytes: fixtureWebp(3) }),
+      store.put({ key: "D:/library::inner/page-3.jpg", category: "file", bytes: fixtureWebp(4) }),
+      store.put({ key: "D:/library2/page-4.jpg", category: "file", bytes: fixtureWebp(5) }),
+    ])
+
+    expect(await store.cleanup({ kind: "path-prefix", prefix: "D:/library/", limit: 2 })).toBe(2)
+    expect(await store.get("D:/library2/page-4.jpg", "file")).toBeDefined()
+    expect(await store.cleanup({ kind: "path-prefix", prefix: "D:/library", limit: 10 })).toBe(2)
+    expect(await store.get("D:/library", "folder")).toBeUndefined()
+    expect(await store.get("D:/library2/page-4.jpg", "file")).toBeDefined()
+    await store.close()
+  })
+
   it("[neoview.thumbnail.maintenance-cooperative-stats] scans exact Blob totals in bounded host I/O chunks", async () => {
     const path = await createFixture(roots)
     const requests: ResourceTaskRequest[] = []

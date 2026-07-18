@@ -35,6 +35,13 @@ describe("ReaderThumbnailMaintenanceService", () => {
       kind: "invalid",
       result: { scanned: 40, deleted: 3, unavailableVolumeRowsPreserved: 2, wrapped: false },
     })
+    expect(await service.cleanup({ kind: "path-prefix", prefix: " D:/library ", limit: 25 })).toEqual({
+      enabled: true,
+      kind: "path-prefix",
+      prefix: "D:/library",
+      deleted: 7,
+    })
+    expect(cleanup).toHaveBeenLastCalledWith({ kind: "path-prefix", prefix: "D:/library", limit: 25 }, undefined)
     expect(await service.clearFailures({ reason: "decode-error", limit: 50 })).toEqual({ enabled: true, deleted: 4 })
   })
 
@@ -44,6 +51,7 @@ describe("ReaderThumbnailMaintenanceService", () => {
     expect(await service.cleanup({ kind: "empty", limit: 1 })).toEqual({ enabled: false })
     expect(await service.cleanup({ kind: "expired", days: 30, limit: 1 })).toEqual({ enabled: false })
     expect(await service.cleanup({ kind: "invalid", scanLimit: 1, deleteLimit: 1 })).toEqual({ enabled: false })
+    expect(await service.cleanup({ kind: "path-prefix", prefix: "D:/library", limit: 1 })).toEqual({ enabled: false })
     expect(await service.clearFailures({ limit: 1 })).toEqual({ enabled: false })
   })
 
@@ -54,6 +62,7 @@ describe("ReaderThumbnailMaintenanceService", () => {
     await expect(service.cleanup({ kind: "invalid", scanLimit: 500, deleteLimit: 501 })).rejects.toThrow("deleteLimit")
     await expect(service.cleanup({ kind: "expired", days: 0, limit: 1 })).rejects.toThrow("days")
     await expect(service.cleanup({ kind: "empty", limit: 10_001 })).rejects.toThrow("limit")
+    await expect(service.cleanup({ kind: "path-prefix", prefix: "\0", limit: 1 })).rejects.toThrow("prefix")
     expect(cleanupInvalid).not.toHaveBeenCalled()
     expect(cleanup).not.toHaveBeenCalled()
   })
