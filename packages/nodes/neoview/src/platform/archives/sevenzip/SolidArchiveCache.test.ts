@@ -29,11 +29,11 @@ describe("SolidArchiveCache", () => {
     const concurrent = await cache.acquire(input("fingerprint", "archive", 40, create))
     expect(concurrent.materializer).toBe(first.materializer)
     expect(create).toHaveBeenCalledTimes(1)
-    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 1, activeLeases: 2 })
+    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 1, activeLeases: 2, memoryBytes: 0, maxMemoryBytes: 32 * 1024 * 1024, maxMemoryEntryBytes: 8 * 1024 * 1024 })
     ;(first.materializer as FakeMaterializer).isComplete = true
     await first.release()
     await concurrent.release()
-    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 0, activeLeases: 0 })
+    expect(cache.snapshot()).toEqual({ entries: 1, retainedBytes: 40, maxBytes: 100, activeEntries: 0, activeLeases: 0, memoryBytes: 0, maxMemoryBytes: 32 * 1024 * 1024, maxMemoryEntryBytes: 8 * 1024 * 1024 })
     expect(cache.entryCount).toBe(1)
     expect(cache.retainedBytes).toBe(40)
 
