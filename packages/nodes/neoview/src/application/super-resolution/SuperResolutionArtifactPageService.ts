@@ -1,71 +1,23 @@
-import type { ResourcePriority } from "../../ports/ResourceScheduler.js"
-import type {
-  SuperResolutionArtifactLease,
-  SuperResolutionArtifactMetadata,
-  SuperResolutionArtifactStore,
-} from "../../ports/SuperResolutionArtifactStore.js"
+import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionArtifactStore.js"
 import type { SuperResolutionExecutionContext, SuperResolutionResult } from "../../ports/SuperResolutionProvider.js"
-import type { ReaderPage } from "../../domain/page/page.js"
 import type {
-  SuperResolutionPagePlan,
-  SuperResolutionPageResult,
-} from "./SuperResolutionPageService.js"
+  SuperResolutionArtifactExecution,
+  SuperResolutionArtifactPageInput,
+  SuperResolutionArtifactPageResult,
+  SuperResolutionArtifactWarmResult,
+} from "../../ports/SuperResolutionArtifact.js"
+import type { SuperResolutionPageResult } from "../../ports/SuperResolutionPage.js"
 import { SuperResolutionPageService } from "./SuperResolutionPageService.js"
-import type { SuperResolutionPolicyTrigger } from "./SuperResolutionPolicyService.js"
 
-export interface SuperResolutionArtifactDescriptor {
-  key: string
-  metadata: SuperResolutionArtifactMetadata
-}
-
-export interface SuperResolutionArtifactPageInput {
-  page: ReaderPage
-  artifactFor: SuperResolutionArtifactResolver
-  trigger: SuperResolutionPolicyTrigger
-  bookPath?: string
-  width?: number
-  height?: number
-  metadata?: Readonly<Record<string, unknown>>
-  priority?: ResourcePriority
-  maxMaterializationBytes?: number
-}
-
-export type SuperResolutionArtifactRunDecision = Extract<SuperResolutionPagePlan["decision"], { kind: "run" }>
-export type SuperResolutionArtifactResolver = (
-  decision: SuperResolutionArtifactRunDecision,
-) => SuperResolutionArtifactDescriptor | Promise<SuperResolutionArtifactDescriptor>
-
-export type SuperResolutionArtifactExecution = Omit<SuperResolutionResult, "sourcePath" | "destinationPath">
-
-export type SuperResolutionArtifactPageResult =
-  | {
-      status: "hit" | "shared"
-      artifact: SuperResolutionArtifactLease
-    }
-  | {
-      status: "generated"
-      artifact: SuperResolutionArtifactLease
-      execution: SuperResolutionArtifactExecution
-    }
-  | {
-      status: "skipped"
-      decision: Exclude<SuperResolutionPageResult["decision"], { kind: "run" }>
-    }
-  | {
-      status: "bypassed"
-      decision: SuperResolutionArtifactRunDecision
-    }
-  | {
-      status: "rejected"
-      execution?: SuperResolutionArtifactExecution
-    }
-
-export type SuperResolutionArtifactWarmResult =
-  | { status: "hit" | "shared" }
-  | { status: "generated"; execution: SuperResolutionArtifactExecution }
-  | { status: "rejected"; execution?: SuperResolutionArtifactExecution }
-  | { status: "skipped"; decision: Exclude<SuperResolutionPageResult["decision"], { kind: "run" }> }
-  | { status: "bypassed"; decision: SuperResolutionArtifactRunDecision }
+export type {
+  SuperResolutionArtifactDescriptor,
+  SuperResolutionArtifactExecution,
+  SuperResolutionArtifactPageInput,
+  SuperResolutionArtifactPageResult,
+  SuperResolutionArtifactResolver,
+  SuperResolutionArtifactRunDecision,
+  SuperResolutionArtifactWarmResult,
+} from "../../ports/SuperResolutionArtifact.js"
 
 export class SuperResolutionArtifactPageService {
   constructor(

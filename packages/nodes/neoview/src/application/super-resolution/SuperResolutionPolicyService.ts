@@ -5,41 +5,16 @@ import type {
   SuperResolutionConditionExpression,
   SuperResolutionPreferences,
 } from "../../domain/super-resolution/super-resolution-preferences.js"
+import type {
+  SuperResolutionPolicyDecision,
+  SuperResolutionPolicyInput,
+} from "../../ports/SuperResolutionPolicy.js"
 
-export type SuperResolutionPolicyTrigger = "automatic-current" | "preload" | "manual"
-
-export interface SuperResolutionPolicyInput {
-  trigger: SuperResolutionPolicyTrigger
-  width: number
-  height: number
-  bookPath: string
-  imagePath: string
-  innerPath?: string
-  createdAt?: number
-  modifiedAt?: number
-  metadata?: Readonly<Record<string, unknown>>
-}
-
-export type SuperResolutionPolicyDecision =
-  | {
-      kind: "disabled" | "skip"
-      reason: string
-      conditionId?: string
-      conditionName?: string
-    }
-  | {
-      kind: "run"
-      reason: string
-      conditionId?: string
-      conditionName?: string
-      modelId: string
-      scale: number
-      noise?: number
-      tileSize?: number
-      tta?: boolean
-      gpuId?: string
-      useCache: boolean
-    }
+export type {
+  SuperResolutionPolicyDecision,
+  SuperResolutionPolicyInput,
+  SuperResolutionPolicyTrigger,
+} from "../../ports/SuperResolutionPolicy.js"
 
 export interface SuperResolutionPolicyServiceOptions {
   regexCacheSize?: number

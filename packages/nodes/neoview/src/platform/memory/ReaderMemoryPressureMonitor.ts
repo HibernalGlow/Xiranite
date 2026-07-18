@@ -1,14 +1,6 @@
-export type ReaderMemoryPressureLevel = "normal" | "elevated" | "critical"
+import type { ReaderMemoryPressureLevel, ReaderMemoryPressureSnapshot } from "../../ports/ReaderMemoryPressure.js"
 
-export interface ReaderMemoryPressureSnapshot {
-  level: ReaderMemoryPressureLevel
-  availableBytes?: number
-  samples: number
-  elevatedReliefs: number
-  criticalReliefs: number
-  admissionRejections: number
-  lastReliefAtMs?: number
-}
+export type { ReaderMemoryPressureLevel, ReaderMemoryPressureSnapshot } from "../../ports/ReaderMemoryPressure.js"
 
 export interface ReaderMemoryPressureSample {
   level: ReaderMemoryPressureLevel

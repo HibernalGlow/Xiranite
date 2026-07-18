@@ -2,124 +2,41 @@ import pMap from "p-map"
 import { setTimeout as delay } from "node:timers/promises"
 import { LRUCache } from "lru-cache"
 
-import type { ReaderPage } from "../../domain/page/page.js"
 import type { SuperResolutionPreferences } from "../../domain/super-resolution/super-resolution-preferences.js"
+import type { ReaderPage } from "../../domain/page/page.js"
 import type { ResourcePriority } from "../../ports/ResourceScheduler.js"
-import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
+import type { ReaderPreloadPlan } from "../../ports/ReaderPreload.js"
+import type { SuperResolutionPageResult } from "../../ports/SuperResolutionPage.js"
 import type {
-  SuperResolutionPageInput,
-  SuperResolutionPageResult,
-} from "./SuperResolutionPageService.js"
-import type {
-  SuperResolutionArtifactDescriptor,
-  SuperResolutionArtifactPageInput,
-  SuperResolutionArtifactRunDecision,
   SuperResolutionArtifactWarmResult,
-} from "./SuperResolutionArtifactPageService.js"
+  SuperResolutionArtifactPageInput,
+} from "../../ports/SuperResolutionArtifact.js"
+import type {
+  SuperResolutionArtifactDestinationContext,
+  SuperResolutionPreloadBatchResult,
+  SuperResolutionPreloadLiveSnapshot,
+  SuperResolutionPreloadLiveState,
+  SuperResolutionPreloadPageOutcome,
+  SuperResolutionPreloadPageRunner,
+  SuperResolutionPreloadPlanInput,
+  SuperResolutionProgressiveInput,
+} from "../../ports/SuperResolutionPreload.js"
 
-export interface SuperResolutionPreloadPageRunner {
-  run(input: SuperResolutionPageInput, context?: { signal?: AbortSignal }): Promise<SuperResolutionPageResult>
-}
-
-export interface SuperResolutionArtifactDestinationContext {
-  contextId: string
-  generation: number
-  trigger: "preload"
-  signal: AbortSignal
-}
-
-export type SuperResolutionArtifactDestinationResolver = (
-  page: ReaderPage,
-  context: SuperResolutionArtifactDestinationContext,
-) => string | Promise<string>
-
-export type SuperResolutionArtifactDescriptorResolver = (
-  page: ReaderPage,
-  context: SuperResolutionArtifactDestinationContext & { decision: SuperResolutionArtifactRunDecision },
-) => SuperResolutionArtifactDescriptor | Promise<SuperResolutionArtifactDescriptor>
+export type {
+  SuperResolutionArtifactDestinationContext,
+  SuperResolutionArtifactDestinationResolver,
+  SuperResolutionArtifactDescriptorResolver,
+  SuperResolutionPreloadBatchResult,
+  SuperResolutionPreloadLiveSnapshot,
+  SuperResolutionPreloadPageOutcome,
+  SuperResolutionPreloadPlanInput,
+  SuperResolutionPreloadPageRunner,
+  SuperResolutionProgressiveInput,
+  SuperResolutionPreloadLiveState,
+} from "../../ports/SuperResolutionPreload.js"
 
 interface SuperResolutionArtifactPageWarmer {
   warm(input: SuperResolutionArtifactPageInput, context?: { signal?: AbortSignal }): Promise<SuperResolutionArtifactWarmResult>
-}
-
-export interface SuperResolutionPreloadPlanInput {
-  contextId: string
-  plan: ReaderPreloadPlan
-  pages: readonly ReaderPage[]
-  bookPath: string
-  destinationFor?: SuperResolutionArtifactDestinationResolver
-  artifactFor?: SuperResolutionArtifactDescriptorResolver
-  metadataFor?: (page: ReaderPage) => Readonly<Record<string, unknown>> | undefined
-  maxMaterializationBytes?: number
-  signal?: AbortSignal
-  onPageSettled?: (outcome: SuperResolutionPreloadPageOutcome) => void
-}
-
-export interface SuperResolutionProgressiveInput {
-  contextId: string
-  generation: number
-  currentPageIndex: number
-  pages: readonly ReaderPage[]
-  bookPath: string
-  destinationFor?: SuperResolutionArtifactDestinationResolver
-  artifactFor?: SuperResolutionArtifactDescriptorResolver
-  metadataFor?: (page: ReaderPage) => Readonly<Record<string, unknown>> | undefined
-  maxMaterializationBytes?: number
-  signal?: AbortSignal
-  onPageSettled?: (outcome: SuperResolutionPreloadPageOutcome) => void
-}
-
-export type SuperResolutionPreloadPageOutcome =
-  | {
-      pageId: string
-      pageIndex: number
-      status: "settled"
-      output: SuperResolutionPageResult | SuperResolutionArtifactWarmResult
-    }
-  | {
-      pageId: string
-      pageIndex: number
-      status: "failed" | "cancelled"
-      error: unknown
-    }
-
-export interface SuperResolutionPreloadBatchResult {
-  contextId: string
-  generation: number
-  mode: "nearby" | "progressive"
-  reason: "completed" | "disabled" | "empty"
-  planned: number
-  settled: number
-  failed: number
-  cancelled: number
-  outcomes: readonly SuperResolutionPreloadPageOutcome[]
-}
-
-export type SuperResolutionPreloadLiveState =
-  | "queued"
-  | "countdown"
-  | "running"
-  | "completed"
-  | "disabled"
-  | "empty"
-  | "paused"
-  | "cancelled"
-  | "failed"
-
-export interface SuperResolutionPreloadLiveSnapshot {
-  contextId: string
-  generation: number
-  mode: "nearby" | "progressive"
-  state: SuperResolutionPreloadLiveState
-  planned: number
-  settled: number
-  failed: number
-  cancelled: number
-  pending: number
-  progress: number
-  startedAt: number
-  updatedAt: number
-  completedAt?: number
 }
 
 interface ScheduledPage {

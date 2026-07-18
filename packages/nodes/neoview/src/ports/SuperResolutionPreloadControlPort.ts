@@ -2,7 +2,7 @@ import type {
   SuperResolutionPreloadLiveSnapshot,
   SuperResolutionPreloadPlanInput,
   SuperResolutionProgressiveInput,
-} from "../application/super-resolution/SuperResolutionPreloadService.js"
+} from "./SuperResolutionPreload.js"
 
 export interface SuperResolutionPreloadControlPort {
   startPlan(input: Omit<SuperResolutionPreloadPlanInput, "signal">, signal?: AbortSignal): Promise<readonly SuperResolutionPreloadLiveSnapshot[]>

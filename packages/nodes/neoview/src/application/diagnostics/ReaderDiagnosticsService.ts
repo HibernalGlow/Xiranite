@@ -1,11 +1,11 @@
 import type { ReaderCacheStatus } from "../cache/ReaderCacheService.js"
 import type { ReaderPresentationCacheSnapshot } from "../../ports/ReaderPresentationCache.js"
+import type { ReaderMemoryPressureSnapshot } from "../../ports/ReaderMemoryPressure.js"
 import type { ResourceClass, ResourcePriority } from "../../ports/ResourceScheduler.js"
-import type { ReaderMemoryPressureSnapshot } from "../../platform/memory/ReaderMemoryPressureMonitor.js"
 import type { ReaderPreloadDiagnostics } from "../preloading/PreloadTelemetry.js"
 import type { ReaderRuntimeResourceSnapshot } from "../../domain/book/book.js"
 import type { ReaderFileTreeMemorySnapshot } from "../browser/ReaderFileTreeService.js"
-import type { SolidArchiveCacheSnapshot } from "../../platform/archives/sevenzip/SolidArchiveCache.js"
+import type { SolidArchiveCacheSnapshot } from "../../ports/SolidArchiveCache.js"
 
 export interface ReaderSchedulerPoolDiagnostics {
   active: number

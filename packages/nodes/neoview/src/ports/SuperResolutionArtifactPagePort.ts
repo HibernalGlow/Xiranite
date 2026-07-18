@@ -1,7 +1,7 @@
 import type {
   SuperResolutionArtifactPageInput,
   SuperResolutionArtifactPageResult,
-} from "../application/super-resolution/SuperResolutionArtifactPageService.js"
+} from "./SuperResolutionArtifact.js"
 import type { SuperResolutionExecutionContext } from "./SuperResolutionProvider.js"
 
 export interface SuperResolutionArtifactPagePort extends AsyncDisposable {

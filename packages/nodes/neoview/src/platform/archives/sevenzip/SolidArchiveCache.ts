@@ -1,6 +1,9 @@
 import { LRUCache } from "lru-cache"
 import type { ArchivePreloadDemand } from "../../../ports/ArchiveProvider.js"
+import type { SolidArchiveCacheSnapshot } from "../../../ports/SolidArchiveCache.js"
 import { SevenZipArchiveIndexCache } from "./SevenZipArchiveIndexCache.js"
+
+export type { SolidArchiveCacheSnapshot } from "../../../ports/SolidArchiveCache.js"
 
 export interface CacheableSolidArchiveMaterializer extends AsyncDisposable {
   readonly isComplete: boolean
@@ -26,17 +29,6 @@ export interface SolidArchiveCacheLease extends AsyncDisposable {
 export interface SolidArchiveCacheOptions {
   maxBytes?: number
   /** In-process budget for small hot entries; disk materialization remains the source of truth. */
-  maxMemoryBytes?: number
-  maxMemoryEntryBytes?: number
-}
-
-export interface SolidArchiveCacheSnapshot {
-  entries: number
-  retainedBytes: number
-  maxBytes: number
-  activeEntries: number
-  activeLeases: number
-  memoryBytes?: number
   maxMemoryBytes?: number
   maxMemoryEntryBytes?: number
 }
