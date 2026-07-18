@@ -836,6 +836,46 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.thumbnail-refresh-ui] refreshes only visible thumbnails through the action handle", async () => {
+    const opened = page({
+      entries: [
+        { name: "folder", path: "C:/books/folder", kind: "directory", readerSupported: true },
+        { name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true },
+      ],
+      total: 2,
+    })
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string; path: string }[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({ id: item.id, thumbnailUrl: `http://thumb.test/${encodeURIComponent(item.path)}`, contentVersion: item.path })),
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      registerLibraryThumbnails,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        </VirtuosoGridMockContext.Provider>
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    await ui.findByTitle("C:/books/folder")
+    selectFolderViewMode(ui, "\u5c01\u9762\u7f51\u683c")
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledOnce())
+    const before = registerLibraryThumbnails.mock.calls.length
+
+    selectFolderHandleAction(ui, "\u91cd\u8f7d\u7f29\u7565\u56fe")
+    await waitFor(() => expect(registerLibraryThumbnails.mock.calls.length).toBe(before + 1))
+    expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: "C:/books/folder", refresh: true }),
+      expect.objectContaining({ path: "C:/books/book.cbz", refresh: true }),
+    ]))
+    view.unmount()
+  })
+
   it("[neoview.folder.selection-range-ui] [neoview.folder.selection-bulk-ui] [neoview.folder.selection-chain-ui] [neoview.folder.selection-click-behavior] shares selection controls across list and grid renderers", async () => {
     const opened = page({
       total: 4,
