@@ -19,6 +19,7 @@ export interface ReaderInputActionControls {
   setPresentation(next: ReaderPresentation): void
   navigate(direction: "next" | "previous", slideshowAction?: boolean): void | Promise<unknown>
   goTo(pageIndex: number, slideshowAction?: boolean): void | Promise<unknown>
+  switchBook?(direction: "next" | "previous"): void | Promise<unknown>
   updatePageMode(pageMode: "single" | "double"): void | Promise<unknown>
   updateReadingDirection(direction: "left-to-right" | "right-to-left"): void | Promise<unknown>
   toggleTemporaryFit(): void
@@ -48,6 +49,8 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     case "reader.last-page": if (session) void controls.goTo(Math.max(0, session.pageCount - 1)); return Boolean(session)
     case "reader.page-left": if (session) void controls.navigate(session.direction === "right-to-left" ? "next" : "previous"); return Boolean(session)
     case "reader.page-right": if (session) void controls.navigate(session.direction === "right-to-left" ? "previous" : "next"); return Boolean(session)
+    case "reader.next-book": if (session && controls.switchBook) void controls.switchBook("next"); return Boolean(session && controls.switchBook)
+    case "reader.previous-book": if (session && controls.switchBook) void controls.switchBook("previous"); return Boolean(session && controls.switchBook)
     case "reader.zoom-in": controls.setPresentation({ ...presentation, manualScale: stepReaderManualScale(presentation.manualScale, 1) }); return true
     case "reader.zoom-out": controls.setPresentation({ ...presentation, manualScale: stepReaderManualScale(presentation.manualScale, -1) }); return true
     case "reader.fit-window": controls.setPresentation({ ...presentation, fitMode: "fit", manualScale: 1 }); return true

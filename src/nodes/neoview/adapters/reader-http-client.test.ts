@@ -199,6 +199,18 @@ describe("reader-http-client", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/diagnostics?sessionId=reader%2Fone")
   })
 
+  it("[neoview.bindings.adjacent-book-client] opens an adjacent book through the encoded atomic endpoint", async () => {
+    const replacement = { sessionId: "reader-2", book: { id: "book-2", displayName: "Book 2", pageCount: 1 }, frame: {}, visiblePages: [] }
+    const fetchMock = vi.fn(async () => Response.json(replacement, { status: 201 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.openAdjacentBook!("reader/source", "previous")).resolves.toEqual(replacement)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2Fsource/adjacent-book")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ direction: "previous" })
+  })
+
   it("[neoview.folder.clipboard-client] prepares a sparse clipboard and pastes it into the current directory", async () => {
     const prepared = { available: true as const, mode: "copy" as const, generation: 4, total: 100_000, createdAt: 1 }
     const pasted = { id: "job-1", kind: "copy", status: "running", generation: 4, total: 100_000, processed: 0, succeeded: 0, failed: 0, cancelled: 0, failureSamples: [], failureSamplesTruncated: false, startedAt: 1 }

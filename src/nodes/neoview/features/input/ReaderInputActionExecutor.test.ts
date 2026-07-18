@@ -10,6 +10,8 @@ describe("ReaderInputActionExecutor", () => {
     expect(controls.navigate).toHaveBeenCalledWith("next")
     executeReaderInputAction("reader.last-page", controls)
     expect(controls.goTo).toHaveBeenCalledWith(99)
+    executeReaderInputAction("reader.next-book", controls)
+    expect(controls.switchBook).toHaveBeenCalledWith("next")
     executeReaderInputAction("reader.rotate-180", controls)
     expect(controls.setPresentation).toHaveBeenCalledWith(expect.objectContaining({ rotation: 180 }))
     executeReaderInputAction("shell.toggle-left-sidebar", controls)
@@ -25,7 +27,7 @@ describe("ReaderInputActionExecutor", () => {
   })
 })
 
-function fixture(): ReaderInputActionControls & Record<"navigate" | "goTo" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
+function fixture(): ReaderInputActionControls & Record<"navigate" | "goTo" | "switchBook" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
   const presentation = { ...DEFAULT_READER_PRESENTATION }
   return {
     session: () => ({ pageCount: 100, pageIndex: 10, direction: "right-to-left", pageMode: "single" }),
@@ -33,6 +35,7 @@ function fixture(): ReaderInputActionControls & Record<"navigate" | "goTo" | "se
     setPresentation: vi.fn(),
     navigate: vi.fn(),
     goTo: vi.fn(),
+    switchBook: vi.fn(),
     updatePageMode: vi.fn(),
     updateReadingDirection: vi.fn(),
     toggleTemporaryFit: vi.fn(),
