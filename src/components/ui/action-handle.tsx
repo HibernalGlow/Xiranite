@@ -178,13 +178,12 @@ export function ActionHandle({ items, disabled = false, label = "操作手柄", 
     }
     const placement = (Object.entries(spaces) as [keyof typeof spaces, number][])
       .toSorted((left, right) => right[1] - left[1])[0]?.[0] ?? "bottom"
-    const desired = placement === "bottom"
-      ? { left: triggerCenter.x - width / 2, top: (bounds?.bottom ?? triggerCenter.y) + gap }
-      : placement === "top"
-        ? { left: triggerCenter.x - width / 2, top: (bounds?.top ?? triggerCenter.y) - height - gap }
-        : placement === "right"
-          ? { left: (bounds?.right ?? triggerCenter.x) + gap, top: triggerCenter.y - height / 2 }
-          : { left: (bounds?.left ?? triggerCenter.x) - width - gap, top: triggerCenter.y - height / 2 }
+    // Keep the radial center over the trigger; only clamp when the viewport
+    // cannot contain the requested ring count.
+    const desired = {
+      left: triggerCenter.x - width / 2,
+      top: triggerCenter.y - height / 2,
+    }
     setPalette({
       left: Math.max(gap, Math.min(window.innerWidth - width - gap, desired.left)),
       top: Math.max(gap, Math.min(window.innerHeight - height - 52, desired.top)),

@@ -1346,13 +1346,18 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [],
+      "testIds": [
+        "neoview.folder.hover-preview-delay",
+        "neoview.folder.hover-preview-cancel"
+      ],
+      "plannedTestIds": [
+        "neoview.folder.hover-preview-e2e"
+      ],
       "notes": "不得为离屏项生成预览。"
     },
     {

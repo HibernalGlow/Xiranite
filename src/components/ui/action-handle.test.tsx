@@ -16,7 +16,9 @@ describe("ActionHandle", () => {
 
     fireEvent.click(handle)
     expect(screen.getAllByRole("menuitem")).toHaveLength(8)
-    expect(screen.getByRole("menu").getAttribute("data-action-placement")).toBe("left")
+    const menu = screen.getByRole("menu")
+    expect(menu.getAttribute("data-action-placement")).toBe("left")
+    expect(Number.parseFloat(menu.getAttribute("style")?.match(/left:\s*([\d.]+)px/)?.[1] ?? "0") + 72).toBeCloseTo(914)
     const action = screen.getByRole("menuitem", { name: "操作 4" })
     fireEvent.pointerEnter(action)
     expect(screen.getByRole("status").textContent).toContain("显示对应操作栏")

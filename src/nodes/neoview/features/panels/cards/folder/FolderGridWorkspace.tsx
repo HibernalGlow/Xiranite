@@ -12,8 +12,6 @@ import { FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 
-const GRID_HEIGHT = 288
-
 export default function FolderGridWorkspace({
   virtualKey,
   gridRef,
@@ -111,7 +109,7 @@ export default function FolderGridWorkspace({
       }}
       data-folder-navigation-entry-id={catalog.navigationEntryId}
       data-folder-restore-scroll-top={initialScrollTop}
-      style={{ height: GRID_HEIGHT }}
+      style={{ height: "100%" }}
       totalCount={catalog.total}
       components={showReturnFooter ? FOLDER_GRID_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
       context={showReturnFooter ? returnFooterContext : undefined}
