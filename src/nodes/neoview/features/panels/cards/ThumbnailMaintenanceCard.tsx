@@ -78,7 +78,7 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
     controllerRef.current?.abort()
     controllerRef.current = undefined
     setOperation(undefined)
-    setFeedback({ tone: "warning", text: "缁存姢鎿嶄綔宸插彇娑堝師" })
+    setFeedback({ tone: "warning", text: "已取消维护操作" })
   }
 
   async function refresh() {
