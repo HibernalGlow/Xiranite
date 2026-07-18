@@ -10,6 +10,7 @@ import type { ReaderSessionOptions } from "../reader/contracts.js"
 import { READER_CARD_MANIFEST, READER_PANEL_MANIFEST, readerCardCanMoveTo } from "./ReaderLayoutManifest.js"
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
+import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 import {
   parseSuperResolutionPreferences,
@@ -33,6 +34,7 @@ export interface NeoviewRuntimeConfig {
   superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
+  radialMenu: ReaderRadialMenuConfig
 }
 
 export interface NeoviewFileTreeConfig {
@@ -474,6 +476,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
+    radialMenu: parseReaderRadialMenuConfig(undefined),
   }
   const config = requireRecord(value, "[nodes.neoview]")
   const schemaVersion = config.schema_version ?? 1
@@ -548,6 +551,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
+    radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
   }
 }
 

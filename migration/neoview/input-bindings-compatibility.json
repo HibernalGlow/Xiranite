@@ -514,7 +514,7 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "not-applicable",
+        "transport": "complete",
         "gui": "pending",
         "cli": "not-applicable",
         "tui": "not-applicable",
@@ -524,10 +524,12 @@
         "neoview.bindings.radial-config",
         "neoview.bindings.radial-validation",
         "neoview.bindings.radial-legacy-shape",
-        "neoview.bindings.radial-persistence"
+        "neoview.bindings.radial-persistence",
+        "neoview.bindings.radial-http",
+        "neoview.bindings.radial-client"
       ],
       "plannedTestIds": [],
-      "notes": "The frozen framework-agnostic ray-menu Web Component is copied byte-for-byte and a strict shared DTO now covers up to 16 menus, three layers, bounded children, action slots, cross-menu jumps and canonical [nodes.neoview.bindings].radial_menus persistence. React editor/runtime wiring remains pending."
+      "notes": "The frozen framework-agnostic ray-menu Web Component is copied byte-for-byte. A strict shared DTO covers up to 16 menus, three layers, bounded children, action slots and cross-menu jumps; authenticated HTTP persists it independently at [nodes.neoview.bindings].radial_menus. React editor/runtime wiring remains pending."
     },
     {
       "id": "bindings.conflicts",
