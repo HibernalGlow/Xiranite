@@ -47,6 +47,41 @@ describe("ReaderApp", () => {
     await waitFor(() => expect(client.close).toHaveBeenCalledWith("reader-1"))
   })
 
+  it("[neoview.bindings.action-executor-react] routes configured actions through the shared Reader executor", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const goTo = vi.fn(async () => opened)
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({
+        ...runtimeConfig(),
+        inputBindings: { bindings: [{
+          id: "last-page",
+          action: "reader.last-page",
+          context: "reader",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyL" },
+        }] },
+      })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate: vi.fn(),
+      goTo,
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+    fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "l", code: "KeyL" })
+
+    await waitFor(() => expect(goTo).toHaveBeenCalledWith("reader-1", 1, expect.any(AbortSignal)))
+  })
+
   it("[neoview.react.lifecycle] aborts superseded work and reports backend errors", async () => {
     let rejectOpen!: (error: Error) => void
     const client: ReaderHttpClient = {

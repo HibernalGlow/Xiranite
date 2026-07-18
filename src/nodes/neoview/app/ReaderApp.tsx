@@ -7,8 +7,6 @@ import {
   READER_CARD_MANIFEST,
   READER_PANEL_MANIFEST,
   ReaderSlideshow,
-  rotateReaderPresentation,
-  stepReaderManualScale,
   type ReaderPresentation,
   type ReaderInputAction,
   type ReaderInputBindingsConfig,
@@ -55,6 +53,7 @@ import type { ReaderShellControlPort } from "../features/shell/ReaderShellContro
 import { ReaderWindowBar } from "../features/shell/ReaderWindowBar"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
+import { executeReaderInputAction } from "../features/input/ReaderInputActionExecutor"
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
 
@@ -204,6 +203,8 @@ export function ReaderApp({
   const folderViewGenerationRef = useRef(0)
   const inputBindingsRef = useRef<ReaderInputBindingsConfig>(structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const lastInputPointRef = useRef<{ x: number; y: number }>()
+  const temporaryFitPresentationRef = useRef<ReaderPresentation>()
+  const panoramaRestorePageModeRef = useRef<"single" | "double">("double")
   const shellControlWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const shellControlGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
@@ -545,39 +546,92 @@ export function ReaderApp({
   }
 
   function executeInputAction(action: ReaderInputAction): void {
-    switch (action) {
-      case "reader.previous-page":
-        void navigate("previous")
-        break
-      case "reader.next-page":
-        void navigate("next")
-        break
-      case "reader.zoom-in":
-        presentationTouchedRef.current = true
-        setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, 1) }))
-        break
-      case "reader.zoom-out":
-        presentationTouchedRef.current = true
-        setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, -1) }))
-        break
-      case "reader.reset-view":
-        presentationTouchedRef.current = true
-        setPresentation({ ...DEFAULT_READER_PRESENTATION })
-        break
-      case "reader.rotate-clockwise":
-        presentationTouchedRef.current = true
-        setPresentation((current) => ({ ...current, rotation: rotateReaderPresentation(current.rotation, 1) }))
-        break
-      case "reader.open-settings":
-        setSettingsOpen(true)
-        break
-      case "radial.open-default": {
-        if (!radialMenu.enabled || !radialMenu.menus.some((menu) => menu.layers.some((layer) => layer.length))) break
-        const point = lastInputPointRef.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-        setRadialMenuRequest((current) => ({ id: (current?.id ?? 0) + 1, ...point }))
-        break
-      }
+    executeReaderInputAction(action, {
+      session: () => session ? {
+        pageCount: session.book.pageCount,
+        pageIndex: session.frame.anchorPageIndex,
+        direction: session.frame.direction,
+        pageMode: session.frame.layout.pageMode,
+      } : undefined,
+      presentation: () => presentation,
+      setPresentation: applyInputPresentation,
+      navigate,
+      goTo,
+      updatePageMode,
+      updateReadingDirection: updateCurrentBookReadingDirection,
+      toggleTemporaryFit,
+      toggleSinglePanorama,
+      toggleFullscreen,
+      toggleShellEdge,
+      toggleShellPin,
+      toggleSidebarControl,
+      openFile: () => choose("file"),
+      closeFile: closeSession,
+      openSettings: () => setSettingsOpen(true),
+      openRadialMenu,
+      slideshow: {
+        toggle: () => slideshow.toggle(),
+        stop: () => slideshow.stop(),
+        skip: async () => { await navigate("next", true); slideshow.resetOnUserAction() },
+      },
+    })
+  }
+
+  function applyInputPresentation(next: ReaderPresentation): void {
+    temporaryFitPresentationRef.current = undefined
+    presentationTouchedRef.current = true
+    setPresentation(next)
+  }
+
+  function toggleTemporaryFit(): void {
+    const previous = temporaryFitPresentationRef.current
+    if (previous) {
+      temporaryFitPresentationRef.current = undefined
+      presentationTouchedRef.current = true
+      setPresentation(previous)
+      return
     }
+    temporaryFitPresentationRef.current = presentation
+    presentationTouchedRef.current = true
+    setPresentation({ ...presentation, fitMode: "fit", manualScale: 1 })
+  }
+
+  function toggleSinglePanorama(): void {
+    const current = session?.frame.layout.pageMode
+    if (!current) return
+    if (current === "single") void updatePageMode(panoramaRestorePageModeRef.current)
+    else {
+      panoramaRestorePageModeRef.current = current
+      void updatePageMode("single")
+    }
+  }
+
+  async function toggleFullscreen(): Promise<void> {
+    const element = surface.ref.current
+    if (!element) return
+    if (document.fullscreenElement) await document.exitFullscreen?.()
+    else await element.requestFullscreen?.()
+  }
+
+  function toggleShellEdge(edge: "left" | "right"): void {
+    const current = shellControlStore.getSnapshot().edges[edge]
+    setShellEdgePinned(edge, !current.open)
+  }
+
+  function toggleShellPin(edge: "top" | "bottom"): void {
+    const current = shellControlStore.getSnapshot().edges[edge]
+    setShellEdgePinned(edge, !current.pinned)
+  }
+
+  function toggleSidebarControl(): void {
+    const current = shellControlStore.getSnapshot().floating
+    setShellFloatingControl({ enabled: !current.enabled })
+  }
+
+  function openRadialMenu(): void {
+    if (!radialMenu.enabled || !radialMenu.menus.some((menu) => menu.layers.some((layer) => layer.length))) return
+    const point = lastInputPointRef.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    setRadialMenuRequest((current) => ({ id: (current?.id ?? 0) + 1, ...point }))
   }
 
   const inputRouter = useReaderInputRouter({ config: inputBindings, disabled: busy, execute: executeInputAction })

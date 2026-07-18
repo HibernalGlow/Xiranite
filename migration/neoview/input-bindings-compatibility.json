@@ -264,6 +264,7 @@
       "testIds": [
         "neoview.bindings.action-catalog",
         "neoview.bindings.action-executor",
+        "neoview.bindings.action-executor-react",
         "neoview.bindings.action-capability",
         "neoview.bindings.context-routing",
         "neoview.bindings.config"
