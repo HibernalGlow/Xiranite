@@ -449,7 +449,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             detailsScrollTop: undefined,
           }
         }
-        applyPage(result, preferredState)
+        applyPage(result, preferredState, false, { preserveThumbnailCache: navigation.action !== "refresh" })
       }
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
@@ -458,7 +458,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     }
   }
 
-  function applyPage(page: ReaderDirectoryPageDto, preferredState?: SavedDirectoryState, preserveViewport = false) {
+  function applyPage(
+    page: ReaderDirectoryPageDto,
+    preferredState?: SavedDirectoryState,
+    preserveViewport = false,
+    options: { preserveThumbnailCache?: boolean } = {},
+  ) {
     catalogRequestRef.current?.abort()
     catalogRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
@@ -501,10 +506,19 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     setViewMode(restored.viewMode)
     setPreviewCount(restored.previewCount)
     setMultiSelectMode(restored.multiSelectMode)
-    setRestoreState(restored)
-    const restoredThumbnailUrls = restored.thumbnailUrls ?? new Map()
+    const restoredThumbnailUrls = options.preserveThumbnailCache
+      ? mergeThumbnailUrls(thumbnailUrlsRef.current, restored.thumbnailUrls ? [...restored.thumbnailUrls] : [], MAX_THUMBNAILS)
+      : restored.thumbnailUrls ?? new Map()
+    const restoredThumbnailProfiles = options.preserveThumbnailCache
+      ? new Map([...restoredThumbnailUrls.keys()]
+        .flatMap((path) => {
+          const profile = restored.thumbnailProfiles?.get(path) ?? thumbnailProfilesRef.current.get(path)
+          return profile ? [[path, profile] as const] : []
+        }))
+      : restored.thumbnailProfiles ?? new Map()
     thumbnailUrlsRef.current = restoredThumbnailUrls
-    thumbnailProfilesRef.current = restored.thumbnailProfiles ?? new Map()
+    thumbnailProfilesRef.current = restoredThumbnailProfiles
+    setRestoreState({ ...restored, thumbnailUrls: restoredThumbnailUrls, thumbnailProfiles: restoredThumbnailProfiles })
     setThumbnailUrls(restoredThumbnailUrls)
     setSelection(restored.selection)
     setFocusedPath(restored.focusedPath)
@@ -536,7 +550,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         anchorIndex: suggested?.index ?? 0,
         thumbnailUrls,
         thumbnailProfiles: thumbnailProfilesRef.current,
-      })
+      }, false, { preserveThumbnailCache: true })
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
     } finally {
@@ -674,7 +688,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const preferredState = await captureRefreshState()
     const latest = catalogRef.current
     if (!latest || latest.sessionId !== page.sessionId || latest.generation >= page.generation) return
-    applyPage(page, preferredState ? { ...preferredState, thumbnailUrls: undefined, thumbnailProfiles: undefined } : undefined)
+    applyPage(page, preferredState ? { ...preferredState, thumbnailUrls: undefined, thumbnailProfiles: undefined } : undefined, false, { preserveThumbnailCache: false })
   }
 
   function switchView(next: FolderViewMode) {

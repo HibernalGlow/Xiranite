@@ -29,7 +29,7 @@ export default function FolderChromeLayout({ layout, tabBar, breadcrumb, childre
         {tabBar ? <div
           className="min-h-0 min-w-0 shrink-0"
           style={{ order: isTrailing(layout.layout) ? 2 : 0 }}
-          data-folder-layout-region={layout.layout === "none" ? "tab-layout-control" : "tabs"}
+          data-folder-layout-region={layout.layout === "none" && !tabBar ? "tab-layout-control" : "tabs"}
         >
           {tabBar}
         </div> : null}
