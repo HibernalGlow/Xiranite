@@ -2,7 +2,7 @@ import { render } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { File, FileArchive, FileImage, FileText, Film, Folder, Music } from "lucide-react"
 
-import { FolderEntryIcon, folderEntryExtension, getFolderEntryIcon } from "./FolderEntryPresentation"
+import { FolderEntryFileMetadata, FolderEntryIcon, folderEntryExtension, formatFolderDate, formatFolderSize, getFolderEntryIcon } from "./FolderEntryPresentation"
 
 describe("FolderEntryPresentation", () => {
   it("maps legacy file extension groups to semantic icons", () => {
@@ -19,6 +19,15 @@ describe("FolderEntryPresentation", () => {
     expect(folderEntryExtension("IMAGE.JpG")).toBe("jpg")
     expect(folderEntryExtension(".env")).toBe("")
     expect(folderEntryExtension("README")).toBe("")
+  })
+
+  it("formats the compact rich-view file metadata without inventing missing values", () => {
+    expect(formatFolderSize(1_048_576)).toBe("1.0 MiB")
+    expect(formatFolderSize(undefined)).toBe("")
+    expect(formatFolderDate(undefined)).toBe("")
+    const { container } = render(<FolderEntryFileMetadata entry={{ size: 1_048_576, modifiedAt: 0 }} />)
+    expect(container.textContent).toContain("1.0 MiB")
+    expect(container.textContent).not.toContain("undefined")
   })
 
   it("keeps the icon surface stable while applying semantic color", () => {

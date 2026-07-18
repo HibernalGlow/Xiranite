@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type R
 
 import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
-import { FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 
@@ -195,6 +195,7 @@ function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused
       <span className="grid min-w-0 content-center gap-1 px-2 py-1.5">
         <span className="truncate font-medium">{entry.name}</span>
         <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span>
+        <FolderEntryFileMetadata entry={entry} />
         <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
       </span>
     </button>

@@ -78,7 +78,7 @@ import {
   toggleDirectorySelection,
   type DirectorySelectionModel,
 } from "./folder/DirectorySelection"
-import { FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
+import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
 import { FolderHoverPreview } from "./folder/FolderHoverPreview"
 import { FolderClipboardProvider, useFolderClipboard } from "./folder/FolderClipboard"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
@@ -1588,6 +1588,7 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
         <span className="grid min-w-0 flex-1 gap-1">
           <span className="truncate">{entry.name}</span>
           {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
+          {rich ? <FolderEntryFileMetadata entry={entry} /> : null}
         </span>
         <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
       </button>

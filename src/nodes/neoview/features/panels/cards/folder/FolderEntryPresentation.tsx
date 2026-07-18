@@ -24,6 +24,26 @@ export function folderEntryExtension(name: string): string {
   return dot > 0 && dot < name.length - 1 ? name.slice(dot + 1).toLocaleLowerCase() : ""
 }
 
+export function formatFolderSize(value: number | undefined): string {
+  if (!Number.isFinite(value)) return ""
+  if (value! < 1024) return `${value} B`
+  if (value! < 1024 ** 2) return `${(value! / 1024).toFixed(1)} KiB`
+  if (value! < 1024 ** 3) return `${(value! / 1024 ** 2).toFixed(1)} MiB`
+  return `${(value! / 1024 ** 3).toFixed(2)} GiB`
+}
+
+export function formatFolderDate(value: number | undefined): string {
+  if (!Number.isFinite(value)) return ""
+  return new Date(value!).toLocaleDateString()
+}
+
+export function FolderEntryFileMetadata({ entry, className = "" }: { entry: Pick<ReaderDirectoryEntryDto, "size" | "modifiedAt">; className?: string }) {
+  const date = formatFolderDate(entry.modifiedAt)
+  const size = formatFolderSize(entry.size)
+  if (!date && !size) return null
+  return <span className={`truncate text-[9px] text-muted-foreground ${className}`} title={[date, size].filter(Boolean).join(" · ")}>{[date, size].filter(Boolean).join(" · ")}</span>
+}
+
 function folderEntryIconClass(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name">): string {
   if (entry.kind === "directory") return "text-amber-500"
   const extension = folderEntryExtension(entry.name)
