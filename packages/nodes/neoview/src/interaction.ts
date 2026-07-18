@@ -96,7 +96,7 @@ export interface NeoviewFileTreeTuiResult {
 }
 
 export type NeoviewLibraryTuiAction =
-  | "list-recents" | "cleanup-recents" | "delete-recent"
+  | "list-recents" | "cleanup-recents" | "cleanup-recents-oldest" | "cleanup-recents-folder" | "clear-recents" | "delete-recent"
   | "cleanup-invalid"
   | "list-bookmarks" | "add-bookmark" | "delete-bookmark"
   | "list-bookmark-lists" | "add-bookmark-list" | "delete-bookmark-list"
@@ -333,15 +333,30 @@ export function createNeoviewLibraryTuiDefinition(
   language: "zh" | "en" = "zh",
   createController: () => Promise<ReaderLibraryHeadlessController> = createReaderLibraryHeadlessController,
 ): TerminalInteractionDefinition<NeoviewLibraryTuiInput, NeoviewLibraryTuiResult> {
+  let activeAbort: AbortController | undefined
   return {
     schema: createNeoviewLibraryTuiSchema(language),
     async run(input) {
+      const abort = new AbortController()
+      activeAbort = abort
       const controller = await createController()
       try {
         const limit = input.limit ?? 100
         if (input.action === "list-recents") return itemsResult(await controller.listRecent(limit, 0, input.filter ?? "all"), "recent entries")
         if (input.action === "cleanup-recents") {
           const deleted = await controller.clearRecentBefore(input.before ?? 0, Math.min(limit, 500))
+          return { success: true, message: `${deleted} recent entries deleted.` }
+        }
+        if (input.action === "cleanup-recents-oldest") {
+          const result = await controller.removeOldestRecents(Math.min(limit, 500), abort.signal)
+          return { success: true, message: `${result.deleted} oldest recent entries deleted.`, lines: [JSON.stringify(result)] }
+        }
+        if (input.action === "cleanup-recents-folder") {
+          const deleted = await controller.clearByFolder("recents", input.path ?? "")
+          return { success: true, message: `${deleted} recent entries deleted from folder.` }
+        }
+        if (input.action === "clear-recents") {
+          const deleted = await controller.clearAll("recents")
           return { success: true, message: `${deleted} recent entries deleted.` }
         }
         if (input.action === "cleanup-invalid") {
@@ -374,9 +389,11 @@ export function createNeoviewLibraryTuiDefinition(
       } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : String(error) }
       } finally {
+        if (activeAbort === abort) activeAbort = undefined
         await controller[Symbol.asyncDispose]()
       }
     },
+    cancel: () => activeAbort?.abort(),
   }
 }
 
@@ -760,7 +777,7 @@ function createNeoviewFileTreeTuiSchema(language: "zh" | "en"): TerminalInteract
 function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewLibraryTuiInput, NeoviewLibraryTuiResult> {
   const zh = language === "zh"
   const actionIs = (...actions: NeoviewLibraryTuiAction[]) => (values: Readonly<InteractionValues>) => actions.includes(values.action as NeoviewLibraryTuiAction)
-  const destructive = new Set<NeoviewLibraryTuiAction>(["cleanup-recents", "cleanup-invalid", "delete-recent", "delete-bookmark", "delete-bookmark-list"])
+  const destructive = new Set<NeoviewLibraryTuiAction>(["cleanup-recents", "cleanup-recents-oldest", "cleanup-recents-folder", "clear-recents", "cleanup-invalid", "delete-recent", "delete-bookmark", "delete-bookmark-list"])
   return {
     id: "neoview-library",
     title: "NeoView Library",
@@ -768,7 +785,7 @@ function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteracti
     initialValues: { action: "list-recents", path: "", id: "", name: "", listId: "", filter: "all", before: Date.now(), limit: 100, starred: false, favorite: false },
     fields: [
       { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: LIBRARY_ACTIONS.map(([value, en, cn]) => ({ value, label: zh ? cn : en })) },
-      { id: "path", label: zh ? "路径" : "Path", kind: "text", visibleWhen: actionIs("add-bookmark") },
+      { id: "path", label: zh ? "路径" : "Path", kind: "text", visibleWhen: actionIs("add-bookmark", "cleanup-recents-folder") },
       { id: "id", label: "ID", kind: "text", visibleWhen: actionIs("delete-recent", "delete-bookmark", "add-bookmark-list", "delete-bookmark-list") },
       { id: "name", label: zh ? "名称" : "Name", kind: "text", visibleWhen: actionIs("add-bookmark", "add-bookmark-list") },
       { id: "listId", label: zh ? "书签列表 ID" : "Bookmark list ID", kind: "text", visibleWhen: actionIs("list-bookmarks", "add-bookmark") },
@@ -779,7 +796,7 @@ function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteracti
         { value: "recents", label: zh ? "历史" : "Recents" },
         { value: "bookmarks", label: zh ? "书签" : "Bookmarks" },
       ], visibleWhen: actionIs("cleanup-invalid") },
-      { id: "limit", label: zh ? "数量上限" : "Limit", kind: "number", min: 1, max: 500, step: 1, visibleWhen: actionIs("list-recents", "cleanup-recents", "cleanup-invalid", "list-bookmarks") },
+      { id: "limit", label: zh ? "数量上限" : "Limit", kind: "number", min: 1, max: 500, step: 1, visibleWhen: actionIs("list-recents", "cleanup-recents", "cleanup-recents-oldest", "cleanup-invalid", "list-bookmarks") },
       { id: "concurrency", label: zh ? "检查并发" : "Check concurrency", kind: "number", min: 1, max: 16, step: 1, visibleWhen: actionIs("cleanup-invalid") },
       { id: "starred", label: zh ? "收藏" : "Starred", kind: "boolean", visibleWhen: actionIs("add-bookmark") },
       { id: "favorite", label: zh ? "收藏列表" : "Favorite list", kind: "boolean", visibleWhen: actionIs("add-bookmark-list") },
@@ -798,7 +815,7 @@ function createNeoviewLibraryTuiSchema(language: "zh" | "en"): TerminalInteracti
       cleanupKind: values.cleanupKind === "recents" || values.cleanupKind === "bookmarks" ? values.cleanupKind : "both",
       concurrency: Number(values.concurrency ?? 8),
     }),
-    validate: (_values, input) => input.action === "add-bookmark" && !input.path
+    validate: (_values, input) => (input.action === "add-bookmark" || input.action === "cleanup-recents-folder") && !input.path
       ? (zh ? "请输入书签路径。" : "Enter a bookmark path.")
       : input.action === "add-bookmark-list" && !input.name
         ? (zh ? "请输入列表名称。" : "Enter a list name.")
@@ -960,7 +977,8 @@ function fileOperationFromInput(input: NeoviewFileOperationTuiInput): ReaderFile
 }
 
 const LIBRARY_ACTIONS: ReadonlyArray<readonly [NeoviewLibraryTuiAction, string, string]> = [
-  ["list-recents", "List recents", "最近阅读"], ["cleanup-recents", "Cleanup recents", "清理历史"], ["cleanup-invalid", "Cleanup invalid paths", "清理无效路径"], ["delete-recent", "Delete recent", "删除历史项"],
+  ["list-recents", "List recents", "最近阅读"], ["cleanup-recents", "Cleanup before timestamp", "按时间清理历史"], ["cleanup-recents-oldest", "Cleanup oldest recents", "清理最旧历史"],
+  ["cleanup-recents-folder", "Cleanup recents by folder", "按目录清理历史"], ["clear-recents", "Clear all recents", "清空全部历史"], ["cleanup-invalid", "Cleanup invalid paths", "清理无效路径"], ["delete-recent", "Delete recent", "删除历史项"],
   ["list-bookmarks", "List bookmarks", "书签"], ["add-bookmark", "Add bookmark", "添加书签"], ["delete-bookmark", "Delete bookmark", "删除书签"],
   ["list-bookmark-lists", "List bookmark lists", "书签列表"], ["add-bookmark-list", "Add bookmark list", "创建书签列表"], ["delete-bookmark-list", "Delete bookmark list", "删除书签列表"],
 ]
