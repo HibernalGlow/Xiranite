@@ -1,3 +1,0 @@
-[submodule "vendor/ocean-dataview"]
-	path = vendor/ocean-dataview
-	url = https://github.com/HibernalGlow/ocean-dataview-vite.git

@@ -63,20 +63,6 @@ beforeAll(async () => {
         { path: "pages/readme.txt", bytes: new TextEncoder().encode("not a page") },
       ],
     })
-    try {
-      solidRarFixture = await createRarFixture({
-        executablePath: rarExecutable,
-        solid: true,
-        entries: [
-          { path: "pages/2.png", bytes: ONE_PIXEL_PNG },
-          { path: "pages/10.png", bytes: ONE_PIXEL_PNG },
-          { path: "pages/readme.txt", bytes: new TextEncoder().encode("not a page") },
-        ],
-      })
-    } catch {
-      // Keep this capability-aware when the installed RAR CLI cannot write RAR5.
-      solidRarFixture = undefined
-    }
   }
   await execFileAsync(executable.path, [
     "a", "-t7z", "-mx=1", "-ms=on", "-bd", "-bb0", "--", solidArchivePath, "pages",
