@@ -2,6 +2,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, parse, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import type { ResourceTaskRequest } from "../../ports/ResourceScheduler.js"
 import { WritableLegacyThumbnailStore } from "./WritableLegacyThumbnailStore.js"
 
 describe("WritableLegacyThumbnailStore", () => {
@@ -243,6 +244,70 @@ describe("WritableLegacyThumbnailStore", () => {
     expect(await store.clearFailures({ reason: "decode-error", limit: 1 })).toBe(1)
     const after = await store.maintenanceSnapshot()
     expect(after).toMatchObject({ totalRows: 2, fileRows: 1, folderRows: 1, emptyBlobs: 0, failedRows: 1 })
+    await store.close()
+  })
+
+  it("[neoview.thumbnail.maintenance-cooperative-stats] scans exact Blob totals in bounded host I/O chunks", async () => {
+    const path = await createFixture(roots)
+    const requests: ResourceTaskRequest[] = []
+    let releases = 0
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      statisticsChunkSize: 2,
+      resourceScheduler: {
+        acquire: async (request) => {
+          requests.push({ ...request })
+          return { release: () => { releases += 1 } }
+        },
+      },
+    })
+    await Promise.all(Array.from({ length: 5 }, (_, index) => store.put({
+      key: `D:/page-${index}.jpg`,
+      category: index === 4 ? "folder" : "file",
+      bytes: fixtureWebp(index),
+    })))
+    const snapshot = await store.maintenanceSnapshot()
+    expect(snapshot).toMatchObject({
+      totalRows: 5,
+      fileRows: 4,
+      folderRows: 1,
+      blobBytes: fixtureWebp(0).byteLength * 5,
+      emptyBlobs: 0,
+    })
+    expect(requests).toEqual([
+      { resource: "io", kind: "neoview.thumbnail.database-statistics-index", priority: "view" },
+      { resource: "io", kind: "neoview.thumbnail.database-statistics-scan", priority: "view" },
+      { resource: "io", kind: "neoview.thumbnail.database-statistics-scan", priority: "view" },
+      { resource: "io", kind: "neoview.thumbnail.database-statistics-scan", priority: "view" },
+    ])
+    expect(releases).toBe(4)
+    await store.close()
+  })
+
+  it("[neoview.thumbnail.maintenance-statistics-cancellation] rolls back a cancelled cooperative scan", async () => {
+    const path = await createFixture(roots)
+    const controller = new AbortController()
+    let scanRequests = 0
+    let cancelled = false
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      statisticsChunkSize: 1,
+      resourceScheduler: {
+        acquire: async (request) => {
+          if (!cancelled && request.kind === "neoview.thumbnail.database-statistics-scan" && ++scanRequests === 2) {
+            cancelled = true
+            controller.abort(new DOMException("statistics superseded", "AbortError"))
+          }
+          return { release() {} }
+        },
+      },
+    })
+    await Promise.all([
+      store.put({ key: "D:/one.jpg", category: "file", bytes: fixtureWebp(1) }),
+      store.put({ key: "D:/two.jpg", category: "file", bytes: fixtureWebp(2) }),
+    ])
+    await expect(store.maintenanceSnapshot(controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+    await expect(store.maintenanceSnapshot()).resolves.toMatchObject({ totalRows: 2, blobBytes: fixtureWebp(0).byteLength * 2 })
     await store.close()
   })
 

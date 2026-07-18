@@ -898,6 +898,8 @@
         "neoview.thumbnail.store-close-idle",
         "neoview.thumbnail.store-composition-lazy",
         "neoview.thumbnail.maintenance.online",
+        "neoview.thumbnail.maintenance-cooperative-stats",
+        "neoview.thumbnail.maintenance-statistics-cancellation",
         "neoview.thumbnail.maintenance.invalid-paths",
         "neoview.thumbnail.maintenance.http",
         "neoview.thumbnail.maintenance.bounded",

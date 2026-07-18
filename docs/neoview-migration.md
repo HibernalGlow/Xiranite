@@ -2366,6 +2366,8 @@ library source 的 `realpath/stat` 与 folder representative 的 `readdir/stat` 
 
 SQLite `getMany()` 仍复用原 `ReaderThumbnailStore` 和现有 `bun:sqlite`/`node:sqlite` binding，不引入第二套数据库访问层。真实 834,531,328-byte 主库的只读聚合基准中，512 条一次查询平均 34.11 ms，64 条平均 4.78 ms；生产预热因此固定为最多 64 条一个同步块，每块取得 `neoview.thumbnail.database-read` I/O lease，并通过 Node 内建 `scheduler.yield()` 在块间归还事件循环。512 条合作式读取平均 37.31 ms，总开销约 9.4%，但不再形成一个约 34 ms 的连续同步窗口；当前证据不足以支持引入 Worker/Piscina 或新的 SQLite binding。
 
+维护统计已删除单条 `SUM(length(value))` 全表聚合；该查询在同一主库实测平均约 651 ms 连续阻塞。新实现复用现有只读 SQLite adapter，在独立 snapshot transaction 中通过旧 `idx_thumbs_category` 获取分类计数，再按 `rowid` 每 256 行读取 `length(value)`，块间使用 `scheduler.yield()`，每块取得 `neoview.thumbnail.database-statistics-scan` I/O lease。相同数据得到精确 815,671,164 Blob bytes，端到端约 65.28 ms、56 个扫描块，诊断运行单块最大约 1.46 ms；取消会回滚只读事务并关闭连接，不修改旧表、索引、journal、`metadata.version` 或 `user_version`。
+
 #### 18.5.7 失败、清理和维护
 
 生成失败写入 `failed_thumbnails`，按规范化原因分类，例如 `unsupported-format`、`decode-error`、`archive-error`、`password-required`、`source-missing`、`cancelled`。用户取消和 generation 过期不计为可重试失败。真正失败记录包含 retry count、上次尝试和有上限的脱敏错误信息，采用指数退避；用户显式“重新生成”可以绕过退避但仍受 scheduler 限制。
@@ -2630,7 +2632,7 @@ scripts/
 - 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。NeoView 已从 backend 宿主共享 CPU 池取得 lease，其他高负载节点仍需迁入同一 scheduler；
 - 已接入 transform singleflight、96 MiB/单条 24 MiB 的 L2 weighted LRU，以及惰性 `cacache` L3；冷请求保持边响应边有界收集，L3 使用 opaque typed key、SHA-256 完整性、原子发布、active lease、字节/年龄/低磁盘策略、proper-lockfile per-key 跨实例磁盘临界区和独立维护 API；request-bound 内存压力会定量收缩/清空 L2、释放 thumbnail L1、淘汰无 lease solid materialization、清空 tree metadata/目录大小后台批次并停止新 L2/L3/background admission。current/near presentation retention、archive/listing 逻辑字节核算、current listing 每 session 预算降级与统一 cache lease diagnostics 已接入；更多格式/尺寸/压力 corpus 仍待校准；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
-- ZIP/CBZ/EPUB entry stream 与压缩包页 presentation 已和 7-Zip 一样接入宿主 scheduler，并共享单个解压/变换 lease；library source stat、folder representative 扫描和 SQLite 批量预热也已按优先级进入宿主 I/O 池，SQLite 大批量使用 64 条合作式分块；继续审计数据库维护、超分和其他高负载节点，补 queue/cache 指标与 benchmark；
+- ZIP/CBZ/EPUB entry stream 与压缩包页 presentation 已和 7-Zip 一样接入宿主 scheduler，并共享单个解压/变换 lease；library source stat、folder representative、SQLite 批量预热与精确维护统计也已合作式分块并进入宿主 I/O 池；继续审计破坏性维护/失效路径扫描、超分和其他高负载节点，补 queue/cache 指标与 benchmark；
 - 已以原 `%APPDATA%\NeoView\thumbnails.db` 接入惰性单 writer、批量命中、受保护 HTTP URL、Page/file/folder/video/归档内视频生成、失败退避与有界在线维护；已完成 SQLite 原生一致性备份、XR writer/维护进程锁、显式离线 checkpoint/optimize/vacuum、验证备份恢复、`data_version` 外部写失效和 V1/V3/V4 调度行为收口；继续补真实大规模基准；
 - 已实现 loopback asset/control route、opaque token、ETag、文件 Range、ZIP 无伪 Range、背压与断开取消；
 - GUI、CLI 与 TUI 已使用共享 `openViewSource()` / `openPageStream()` contract；OpenTUI presentation adapter 复用宿主 `TerminalImageDecodeService`、`TerminalImagePreview`、字节 LRU、`p-queue` 和 `ResourceScheduler`，本地与 loopback remote controller 不维护第二套解码或页面 transport；

@@ -5,6 +5,7 @@ import { openReadonlySqlite } from "../packages/nodes/neoview/src/platform/sqlit
 import { ReadonlyLegacyThumbnailStore } from "../packages/nodes/neoview/src/platform/thumbnails/ReadonlyLegacyThumbnailStore.js"
 import { readThumbnailStoreBatch } from "../packages/nodes/neoview/src/platform/thumbnails/ThumbnailStoreBatchReader.js"
 import { ResourceSchedulerService } from "../packages/services/src/resourceScheduler.js"
+import { readLegacyThumbnailStatistics } from "../packages/nodes/neoview/src/platform/thumbnails/LegacyThumbnailStatistics.js"
 
 const parsed = parseArgs({
   options: {
@@ -50,6 +51,10 @@ if (!keys.length) throw new Error("Thumbnail benchmark requires at least one fil
 
 const store = await ReadonlyLegacyThumbnailStore.open(databasePath)
 try {
+  const statisticsScheduler = new ResourceSchedulerService()
+  const statisticsStarted = performance.now()
+  const statistics = await readLegacyThumbnailStatistics(databasePath, { resourceScheduler: statisticsScheduler })
+  const statisticsTotalMs = performance.now() - statisticsStarted
   await store.get(keys[0]!, "file")
   await store.getMany(keys, "file")
   let started = performance.now()
@@ -100,6 +105,11 @@ try {
       compressed: integer(aggregate.compressed_records),
       averageBlobBytes: numberValue(aggregate.average_blob_bytes),
       maximumBlobBytes: integer(aggregate.maximum_blob_bytes),
+    },
+    maintenanceStatistics: {
+      totalMs: statisticsTotalMs,
+      ...statistics,
+      scheduler: statisticsScheduler.snapshot().io,
     },
     sampledRecords: keys.length,
     compressedSamples,

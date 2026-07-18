@@ -302,7 +302,10 @@ export async function createReaderHttpController(
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
     const { LazyReaderThumbnailStore } = await import("./platform/thumbnails/LazyReaderThumbnailStore.js")
-    const loadThumbnailStore = options.loadLegacyThumbnailStore ?? createWritableLegacyThumbnailStore
+    const loadThumbnailStore = options.loadLegacyThumbnailStore ?? ((databasePath?: string) => createWritableLegacyThumbnailStore(
+      databasePath,
+      { resourceScheduler: options.resourceScheduler },
+    ))
     const ownedThumbnailStore = new LazyReaderThumbnailStore({
       load: () => loadThumbnailStore(options.legacyThumbnailDatabasePath || undefined),
       dispose: disposeLoadedThumbnailStore,
