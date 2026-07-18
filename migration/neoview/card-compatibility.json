@@ -511,12 +511,12 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
-        "cli": "not-applicable",
-        "tui": "not-applicable",
-        "evidence": "pending"
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
       },
       "sourceComponent": "src/lib/cards/info/PageTransitionCard.svelte",
       "sourceDisposition": "component"

@@ -8,11 +8,16 @@ import type {
   ReaderBookSettingsSnapshot,
   ReaderDirectoryFilter,
   ReaderDirectoryEmmEditCommand,
+  ReaderHeadlessController,
 } from "./core.js"
 import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
 import type { ReaderFileMutation, ReaderFileOperationService } from "./core.js"
+import type { ReaderInputBinding, ReaderInputBindingsConfig } from "./domain/input/ReaderInputBindings.js"
 import { createReaderFileOperationService, createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
+import { ReaderInputBindingsConfigService } from "./platform/config/ReaderInputBindingsConfigService.js"
+import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
+import { executeReaderHeadlessInputAction, type ReaderHeadlessInputActionResult } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
 
 export interface NeoviewTuiInput {
   path: string
@@ -111,6 +116,28 @@ export interface NeoviewFileOperationTuiResult {
   success: boolean
   message: string
   lines?: readonly string[]
+}
+
+export type NeoviewInputBindingsTuiAction = "inspect" | "apply" | "reset" | "dispatch"
+
+export interface NeoviewInputBindingsTuiInput {
+  action: NeoviewInputBindingsTuiAction
+  bindings?: readonly ReaderInputBinding[]
+  path?: string
+  inputAction?: ReaderInputAction
+}
+
+export interface NeoviewInputBindingsTuiResult {
+  success: boolean
+  message: string
+  config?: ReaderInputBindingsConfig
+  dispatch?: ReaderHeadlessInputActionResult
+}
+
+export interface NeoviewInputBindingsTuiPort {
+  inspect(): Promise<ReaderInputBindingsConfig>
+  apply(bindings: readonly ReaderInputBinding[], confirmed: boolean): Promise<{ config: ReaderInputBindingsConfig; changed: boolean }>
+  reset(confirmed: boolean): Promise<{ config: ReaderInputBindingsConfig; changed: boolean }>
 }
 
 export function createNeoviewTuiDefinition(
@@ -342,6 +369,42 @@ export function createNeoviewFileOperationTuiDefinition(
           message: item.status === "succeeded" ? `${operation.kind} completed.` : item.error ?? `${operation.kind} ${item.status}.`,
           lines: [JSON.stringify(item)],
         }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      }
+    },
+  }
+}
+
+export function createNeoviewInputBindingsTuiDefinition(
+  language: "zh" | "en" = "zh",
+  service: NeoviewInputBindingsTuiPort = new ReaderInputBindingsConfigService(),
+  createController: () => Promise<ReaderHeadlessController> = createReaderHeadlessController,
+): TerminalInteractionDefinition<NeoviewInputBindingsTuiInput, NeoviewInputBindingsTuiResult> {
+  return {
+    schema: createNeoviewInputBindingsTuiSchema(language),
+    async run(input) {
+      try {
+        if (input.action === "dispatch") {
+          const controller = await createController()
+          try {
+            await controller.open({ path: input.path ?? "" })
+            const dispatch = await executeReaderHeadlessInputAction(input.inputAction!, controller)
+            return { success: dispatch.handled, message: dispatch.handled ? `Input action handled: ${dispatch.action}.` : `Input action unsupported: ${dispatch.action} (${dispatch.reason}).`, dispatch }
+          } finally {
+            await controller[Symbol.asyncDispose]()
+          }
+        }
+        if (input.action === "inspect") {
+          const config = await service.inspect()
+          return { success: true, message: `${config.bindings.length} input binding(s).`, config }
+        }
+        if (input.action === "reset") {
+          const result = await service.reset(true)
+          return { success: true, message: result.changed ? "Input bindings reset." : "Input bindings already use defaults.", config: result.config }
+        }
+        const result = await service.apply(input.bindings ?? [], true)
+        return { success: true, message: result.changed ? "Input bindings updated." : "Input bindings unchanged.", config: result.config }
       } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : String(error) }
       }
@@ -694,6 +757,86 @@ function createNeoviewFileOperationTuiSchema(language: "zh" | "en"): TerminalInt
   }
 }
 
+function createNeoviewInputBindingsTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewInputBindingsTuiInput, NeoviewInputBindingsTuiResult> {
+  const zh = language === "zh"
+  const applying = (values: Readonly<InteractionValues>) => values.action === "apply"
+  const dispatching = (values: Readonly<InteractionValues>) => values.action === "dispatch"
+  return {
+    id: "neoview-input-bindings",
+    title: zh ? "NeoView 操作绑定" : "NeoView Input Bindings",
+    description: zh ? "查看、批量应用或恢复多设备操作绑定" : "Inspect, apply or reset multi-device operation bindings",
+    initialValues: { action: "inspect", bindingsJson: "[]", path: "", inputAction: "reader.next-page" },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
+        { value: "inspect", label: zh ? "查看绑定" : "Inspect bindings" },
+        { value: "apply", label: zh ? "应用完整绑定 JSON" : "Apply complete bindings JSON" },
+        { value: "reset", label: zh ? "恢复默认绑定" : "Reset defaults" },
+        { value: "dispatch", label: zh ? "派发动作" : "Dispatch action" },
+      ] },
+      { id: "bindingsJson", label: zh ? "绑定数组 JSON" : "Bindings array JSON", kind: "multiline", lines: 14, visibleWhen: applying },
+      { id: "path", label: zh ? "书籍路径" : "Book path", kind: "text", visibleWhen: dispatching },
+      { id: "inputAction", label: zh ? "动作 ID" : "Action ID", kind: "text", visibleWhen: dispatching },
+    ],
+    toInput: (values) => ({
+      action: values.action === "apply" || values.action === "reset" || values.action === "dispatch" ? values.action : "inspect",
+      bindings: values.action === "apply" ? parseBindingsJson(values.bindingsJson) : undefined,
+      path: values.action === "dispatch" ? String(values.path ?? "").trim() : undefined,
+      inputAction: values.action === "dispatch" ? inputActionValue(values.inputAction) : undefined,
+    }),
+    validate: (values, input) => input.action === "apply"
+      ? bindingJsonError(values.bindingsJson, zh)
+      : input.action === "dispatch" && !input.path
+        ? (zh ? "请输入书籍路径。" : "Enter a book path.")
+        : input.action === "dispatch" && !input.inputAction
+          ? (zh ? "请输入有效的 XR 或旧动作 ID。" : "Enter a valid XR or legacy action ID.")
+          : null,
+    preview: (input) => input.action === "apply"
+      ? [zh ? `绑定数：${input.bindings?.length ?? 0}` : `Bindings: ${input.bindings?.length ?? 0}`]
+      : input.action === "dispatch" ? [input.path ?? "", input.inputAction ?? ""] : [input.action],
+    isDangerous: (input) => input.action === "apply" || input.action === "reset",
+    dangerPrompt: (input) => ({
+      title: zh ? "确认修改操作绑定" : "Confirm input binding change",
+      body: input.action === "reset"
+        ? (zh ? "将用规范默认值替换全部操作绑定。" : "All input bindings will be replaced with canonical defaults.")
+        : (zh ? `将原子替换为 ${input.bindings?.length ?? 0} 条绑定。` : `The configuration will be atomically replaced with ${input.bindings?.length ?? 0} binding(s).`),
+      confirmLabel: zh ? "确认应用" : "Apply",
+    }),
+    result: (result) => ({
+      success: result.success,
+      message: result.message,
+      lines: result.config
+        ? JSON.stringify(result.config.bindings, null, 2).split("\n")
+        : result.dispatch ? [JSON.stringify(result.dispatch)] : [],
+    }),
+  }
+}
+
+function parseBindingsJson(value: unknown): ReaderInputBinding[] {
+  try {
+    const parsed = JSON.parse(String(value ?? "")) as unknown
+    const bindings = Array.isArray(parsed) ? parsed : isRecord(parsed) && Array.isArray(parsed.bindings) ? parsed.bindings : []
+    return bindings as ReaderInputBinding[]
+  } catch {
+    return []
+  }
+}
+
+function bindingJsonError(value: unknown, zh: boolean): string | null {
+  try {
+    const parsed = JSON.parse(String(value ?? "")) as unknown
+    if (Array.isArray(parsed) || isRecord(parsed) && Array.isArray(parsed.bindings)) return null
+    return zh ? "请输入绑定数组或 { bindings: [...] }。" : "Enter a bindings array or { bindings: [...] }."
+  } catch (error) {
+    return zh ? `绑定 JSON 无效：${error instanceof Error ? error.message : String(error)}` : `Invalid bindings JSON: ${error instanceof Error ? error.message : String(error)}`
+  }
+}
+
+function inputActionValue(value: unknown): ReaderInputAction | undefined {
+  if (typeof value !== "string") return undefined
+  if (READER_INPUT_ACTIONS.includes(value as ReaderInputAction)) return value as ReaderInputAction
+  return readerInputActionFromLegacyId(value)
+}
+
 const FILE_OPERATION_ACTIONS: ReadonlyArray<readonly [NeoviewFileOperationTuiAction, string, string]> = [
   ["copy", "Copy", "复制"], ["move", "Move", "移动"], ["rename", "Rename", "重命名"],
   ["trash", "Move to trash", "移到回收站"], ["delete", "Delete permanently", "永久删除"], ["create-directory", "Create directory", "新建目录"],
@@ -742,4 +885,8 @@ function isFileTreeAction(value: unknown): value is NeoviewFileTreeTuiAction {
 
 function isSearchHistoryScope(value: unknown): value is "folder" | "file" | "bookmark" | "history" {
   return value === "folder" || value === "file" || value === "bookmark" || value === "history"
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// [neoview.page-transition.chunk]
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 
