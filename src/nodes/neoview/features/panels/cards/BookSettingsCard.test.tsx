@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderBookSettingsSnapshotDto, ReaderHttpClient } from "../../../adapters/reader-http-client"
+import type { ReaderBookSettingsSnapshotDto, ReaderBookSettingsUpdateDto, ReaderHttpClient } from "../../../adapters/reader-http-client"
 import BookSettingsPanelCard, { BookSettingsCard, BOOK_SETTINGS_CAPABILITY_AUDIT } from "./BookSettingsCard"
 
 const inheritedSettings: ReaderBookSettingsSnapshotDto = {
@@ -27,6 +27,8 @@ describe("BookSettingsCard", () => {
     render(<BookSettingsCard bookName="example.cbz" settings={inheritedSettings} onUpdate={onUpdate} />)
 
     expect(screen.getByText("example.cbz")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "收藏本书" }).textContent).toBe("未收藏")
+    expect(screen.getByRole("button", { name: "评分 1 星" }).textContent).toBe("☆")
     fireEvent.click(screen.getByRole("button", { name: "收藏本书" }))
     fireEvent.click(screen.getByRole("button", { name: "评分 4 星" }))
     fireEvent.click(screen.getByRole("button", { name: "右→左" }))
@@ -92,10 +94,37 @@ describe("BookSettingsCard", () => {
     expect(update).toHaveBeenCalledWith("reader-1", 2, { favorite: true }, expect.any(AbortSignal))
     expect(onBookSettingsUpdated).toHaveBeenCalledWith("reader-1", expect.objectContaining({ settings: expect.objectContaining({ revision: 3 }) }))
 
-    fireEvent.click(screen.getByRole("button", { name: "评分 5 星" }))
+    const failedRating = screen.getByRole("button", { name: "评分 5 星" })
+    failedRating.focus()
+    fireEvent.click(failedRating)
     expect((await screen.findByRole("alert")).textContent).toContain("保存失败")
     expect(screen.getByRole("button", { name: "评分 5 星" }).getAttribute("aria-pressed")).toBe("false")
+    expect(document.activeElement).toBe(failedRating)
     expect(update).toHaveBeenLastCalledWith("reader-1", 3, { rating: 5 }, expect.any(AbortSignal))
+  })
+
+  it("[neoview.card.book-settings-reset-optimistic] marks a nullable reset inherited before the server responds", async () => {
+    const explicit: ReaderBookSettingsSnapshotDto = {
+      ...inheritedSettings,
+      overrides: { favorite: true },
+      effective: { ...inheritedSettings.effective, favorite: true },
+      inherited: inheritedSettings.inherited.filter((key) => key !== "favorite"),
+    }
+    let resolveUpdate: ((value: ReaderBookSettingsUpdateDto) => void) | undefined
+    const updateBookSettings = vi.fn(() => new Promise<ReaderBookSettingsUpdateDto>((resolve) => { resolveUpdate = resolve }))
+    const view = render(<BookSettingsPanelCard {...context(clientWith({
+      bookSettings: vi.fn(async () => explicit),
+      updateBookSettings,
+    }), vi.fn())} />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "恢复继承收藏" }))
+    const favoriteRow = view.container.querySelector('[data-book-setting="favorite"]')!
+    expect(favoriteRow.textContent).toContain("继承")
+    expect(screen.queryByRole("button", { name: "恢复继承收藏" })).toBeNull()
+    expect(updateBookSettings).toHaveBeenCalledWith("reader-1", 2, { favorite: null }, expect.any(AbortSignal))
+
+    resolveUpdate?.({ settings: { ...inheritedSettings, revision: 3 }, frame: frame("single"), visiblePages: [] })
+    await waitFor(() => expect(screen.getByRole("button", { name: "收藏本书" })).toBeTruthy())
   })
 
   it("[neoview.card.book-settings-lifecycle] aborts a pending read when the Card unmounts", async () => {

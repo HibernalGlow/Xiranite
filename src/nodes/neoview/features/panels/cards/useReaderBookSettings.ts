@@ -86,6 +86,8 @@ function optimisticSnapshot(
     ReaderBookSettingsPatchDto[keyof ReaderBookSettingsPatchDto],
   ]>) {
     if (value === null) {
+      delete overrides[key]
+      inherited.add(key)
       continue
     } else if (value !== undefined) {
       Object.assign(overrides, { [key]: value })

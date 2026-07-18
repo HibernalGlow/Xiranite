@@ -219,7 +219,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
@@ -227,7 +227,8 @@
       "testIds": [
         "neoview.book-settings.service",
         "neoview.book-settings.sqlite",
-        "neoview.book-settings.http"
+        "neoview.book-settings.http",
+        "neoview.book-settings.persistence-e2e"
       ],
       "plannedTestIds": [
         "neoview.card.book-settings-page-mode"
@@ -251,7 +252,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
         "evidence": "partial"
@@ -264,7 +265,9 @@
         "neoview.book-settings.http",
         "neoview.book-settings.metadata-stability",
         "neoview.book-settings.cli",
-        "neoview.book-settings.tui"
+        "neoview.book-settings.tui",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
       "notes": "The canonical nullable override and local/remote CLI/OpenTUI projections are implemented; the React Card now exposes optimistic favorite feedback through the same revisioned HTTP contract with rollback."
@@ -286,7 +289,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
         "evidence": "partial"
@@ -299,7 +302,9 @@
         "neoview.book-settings.http",
         "neoview.book-settings.metadata-stability",
         "neoview.book-settings.cli",
-        "neoview.book-settings.tui"
+        "neoview.book-settings.tui",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
       "notes": "The canonical unset/1..5 backend, CLI and OpenTUI contract is implemented without media rebuild; the React five-star control now uses the same revisioned route. Folder rating unification remains pending."
@@ -324,20 +329,19 @@
         "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.control.session",
-        "neoview.book-settings.direction-e2e",
         "neoview.book-settings.service",
         "neoview.book-settings.sqlite",
         "neoview.book-settings.http",
         "neoview.book-settings.cli",
-        "neoview.book-settings.tui"
+        "neoview.book-settings.tui",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
-      "plannedTestIds": [
-        "neoview.card.book-settings-direction"
-      ],
+      "plannedTestIds": [],
       "notes": "The persistent route and shared GUI/CLI/OpenTUI controls apply immediately, restore on reopen and support null reset-to-inherit through the canonical revisioned contract."
     },
     {
@@ -357,7 +361,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
         "evidence": "partial"
@@ -367,7 +371,9 @@
         "neoview.book-settings.sqlite",
         "neoview.book-settings.http",
         "neoview.book-settings.cli",
-        "neoview.book-settings.tui"
+        "neoview.book-settings.tui",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [
         "neoview.card.book-settings-page-mode"
@@ -391,7 +397,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
         "evidence": "partial"
@@ -402,7 +408,9 @@
         "neoview.book-settings.http",
         "neoview.book-settings.horizontal-policy",
         "neoview.book-settings.cli",
-        "neoview.book-settings.tui"
+        "neoview.book-settings.tui",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
       "notes": "The legacy value was storage-only; XR maps it to ReaderLayout.treatWidePageAsSingle and exposes it through shared GUI/CLI/OpenTUI controls."
@@ -425,17 +433,18 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.card.book-settings-persistence",
         "neoview.card.book-settings-lifecycle",
-        "neoview.book-settings.direction-e2e",
         "neoview.book-settings.revision",
         "neoview.book-settings.cas-rollback",
         "neoview.book-settings.rollback",
         "neoview.book-settings.http",
-        "neoview.book-settings.http-rollback"
+        "neoview.book-settings.http-rollback",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
       "notes": "Application updates serialize per canonical book; the React Card consumes the persistent DTO, publishes only same-session success, aborts obsolete work, rolls optimistic values back on failure and leaves frame rollback to the canonical service."
@@ -454,7 +463,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
         "evidence": "partial"
@@ -467,10 +476,13 @@
         "neoview.book-settings.service",
         "neoview.book-settings.revision",
         "neoview.book-settings.http",
-        "neoview.book-settings.legacy-http"
+        "neoview.book-settings.legacy-http",
+        "neoview.card.book-settings-reset-optimistic",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The React Card presents loading, saving, failure, retry, inherited/explicit and rollback states over the revisioned DTO; responsive evidence remains pending."
+      "notes": "The React Card presents loading, saving, failure, retry, inherited/explicit and rollback states over the revisioned DTO; desktop and 420x360 Chromium prove explicit values survive reopen and nullable resets immediately return every row to inherited state."
     },
     {
       "id": "book-settings.data-contract",
@@ -488,7 +500,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
         "evidence": "partial"
@@ -508,7 +520,9 @@
         "neoview.book-settings.tui-schema",
         "neoview.book-settings.legacy-codec",
         "neoview.book-settings.legacy-envelope",
-        "neoview.book-settings.legacy-http"
+        "neoview.book-settings.legacy-http",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
       "notes": "GUI HTTP, HeadlessController, local/loopback CLI and OpenTUI share the versioned Zod DTO, nullable inheritance, defaults, CAS queue and rollback without direct presentation-layer database access."
@@ -529,7 +543,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
         "evidence": "partial"
@@ -544,10 +558,12 @@
         "neoview.book-settings.legacy-codec",
         "neoview.book-settings.legacy-importer",
         "neoview.book-settings.legacy-transaction",
-        "neoview.book-settings.legacy-http"
+        "neoview.book-settings.legacy-http",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "GUI HTTP, headless, CLI and OpenTUI use the same non-destructive xr_reader_book_settings table in the original thumbnails.db; direct/localStorage backup envelopes import in one merge/overwrite transaction. React Card persistence wiring remains pending."
+      "notes": "GUI HTTP, headless, CLI and OpenTUI use the same non-destructive xr_reader_book_settings table in the original thumbnails.db; direct/localStorage backup envelopes import in one merge/overwrite transaction, and Chromium proves all five GUI overrides survive close/reopen before nullable reset removes them."
     },
     {
       "id": "book-settings.lifecycle",
@@ -566,7 +582,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
@@ -576,7 +592,9 @@
         "neoview.card.book-settings-persistence",
         "neoview.book-settings.service",
         "neoview.book-settings.http",
-        "neoview.book-settings.legacy-cancel"
+        "neoview.book-settings.legacy-cancel",
+        "neoview.book-settings.persistence-e2e",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [],
       "notes": "Reads and writes use AbortSignal; the independently lazy Card unmount cancels pending work, switch identity keys the hook by session, and ReaderApp ignores updates for a different current session."
@@ -624,18 +642,19 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.card.book-settings-controls",
         "neoview.card.book-settings-inheritance",
-        "neoview.card.book-settings-persistence"
+        "neoview.card.book-settings-persistence",
+        "neoview.book-settings.persistence-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "All five controls use named native/Radix controls with pressed/checked, pending disabled semantics and per-field reset-to-inherit; dedicated focus-after-rollback evidence remains pending."
+      "notes": "All five controls use named native/Radix controls with pressed/checked, pending disabled semantics and per-field reset-to-inherit; unit coverage proves focus remains on the failed rating control after rollback."
     },
     {
       "id": "book-settings.ui-parity",
@@ -654,15 +673,15 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.card.book-settings-controls",
         "neoview.card.book-settings-inheritance",
-        "neoview.book-settings.direction-e2e"
+        "neoview.book-settings.persistence-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Favorite, rating, direction, display-mode and horizontal-book rows preserve the legacy order and compact two-column geometry; final 420x360 browser evidence remains pending."
+      "notes": "Favorite, rating, direction, display-mode and horizontal-book rows preserve the legacy order, text/star controls and compact two-column geometry in desktop and 420x360 Chromium without horizontal overflow."
     },
     {
       "id": "book-settings.image-stability",
@@ -681,15 +700,15 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
-        "neoview.book-settings.direction-e2e",
         "neoview.book-settings.metadata-stability",
-        "neoview.book-settings.http"
+        "neoview.book-settings.http",
+        "neoview.book-settings.persistence-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The service skips frame updates for favorite/rating and the existing Chromium direction test preserves asset identity; final GUI favorite/rating request-count evidence remains pending."
+      "notes": "The service skips frame updates for favorite/rating; Chromium proves both metadata changes preserve the active image node and issue zero duplicate requests, while direction/page-mode only change the visible frame required by the selected policy."
     },
     {
       "id": "book-settings.performance",
@@ -711,17 +730,16 @@
         "gui": "complete",
         "cli": "partial",
         "tui": "partial",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.shell.registry-lazy",
         "neoview.card.book-settings-lifecycle",
-        "neoview.book-settings.direction-e2e"
-      ],
-      "plannedTestIds": [
+        "neoview.book-settings.persistence-e2e",
         "neoview.book-settings.chunk"
       ],
-      "notes": "The Card remains independently lazy, performs no polling or decode, aborts hidden work, and builds with its hook as a 6,904-byte deferred production chunk under the enforced 8 KiB budget."
+      "plannedTestIds": [],
+      "notes": "The Card remains independently lazy, performs no polling or decode, aborts hidden work, and builds with its hook as a 6,833-byte deferred production chunk under the enforced 8 KiB budget."
     },
     {
       "id": "book-settings.deviations",
@@ -740,19 +758,21 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.book-settings.horizontal-policy",
-        "neoview.book-settings.sqlite"
+        "neoview.book-settings.sqlite",
+        "neoview.card.book-settings-reset-optimistic",
+        "neoview.book-settings.inheritance-e2e"
       ],
       "plannedTestIds": [
         "neoview.card.book-settings-contract"
       ],
-      "notes": "XR documents nullable inheritance, thumbnails.db ownership and maps the legacy storage-only horizontalBook flag to the existing wide-page-single policy; legacy import and final GUI copy remain pending."
+      "notes": "XR documents nullable inheritance, thumbnails.db ownership and maps the legacy storage-only horizontalBook flag to the existing wide-page-single policy; the GUI keeps the five legacy controls while exposing explicit inherited/current-book state and reset actions."
     }
   ]
 }
