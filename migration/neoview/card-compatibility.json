@@ -858,7 +858,7 @@
         "core": "complete",
         "transport": "partial",
         "gui": "pending",
-        "cli": "pending",
+        "cli": "partial",
         "tui": "pending",
         "evidence": "partial"
       },

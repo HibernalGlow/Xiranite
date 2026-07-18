@@ -78,6 +78,46 @@ describe("NeoView CLI remote Reader", () => {
     expect(createDiagnosticsService).not.toHaveBeenCalled()
     expect(JSON.parse(output.join(""))).toMatchObject({ reader: { activeSessions: 3 }, process: { rssBytes: 8 } })
   })
+
+  it("[neoview.progressive-upscale.cli-connect] exposes structured remote preload start and text status", async () => {
+    const jsonOutput: unknown[] = []
+    const started = fakeRemoteReader()
+    await runProgram(
+      ["upscale-preload-start", "book.cbz", "--connect", "http://127.0.0.1:41000", "--mode", "progressive", "--json"],
+      host(jsonOutput, { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      { createController: async () => { throw new Error("local must stay lazy") }, createRemoteController: async () => started },
+    )
+    expect(started.startUpscalePreload).toHaveBeenCalledWith("progressive")
+    expect(JSON.parse(jsonOutput.join(""))).toMatchObject({ snapshots: [{ mode: "progressive", state: "running", progress: 0.25 }] })
+    expect(started[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+
+    const textOutput: unknown[] = []
+    const status = fakeRemoteReader()
+    await runProgram(
+      ["upscale-preload-status", "book.cbz", "--connect", "http://127.0.0.1:41000"],
+      host(textOutput, { XIRANITE_BACKEND_TOKEN: "runtime-token" }),
+      { createController: async () => { throw new Error("local must stay lazy") }, createRemoteController: async () => status },
+    )
+    expect(textOutput.join("")).toContain("nearby: running 1/4 (25%) failed=0 cancelled=0")
+    expect(status[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.progressive-upscale.cli-mode] validates explicit modes and transport capability", async () => {
+    const dependencies = { createController: vi.fn(async () => fakeRemoteReader()) }
+    await expect(runProgram(
+      ["upscale-preload-retry", "book.cbz", "--mode", "invalid"],
+      host([]),
+      dependencies,
+    )).rejects.toThrow("--mode must be nearby or progressive")
+    const local = fakeRemoteReader()
+    delete local.pauseUpscalePreload
+    await expect(runProgram(
+      ["upscale-preload-pause", "book.cbz"],
+      host([]),
+      { createController: async () => local },
+    )).rejects.toThrow("unavailable for this transport")
+    expect(local[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+  })
 })
 
 function fakeRemoteReader(): CliReaderController {
@@ -98,7 +138,28 @@ function fakeRemoteReader(): CliReaderController {
     open: vi.fn(async () => snapshot),
     listPages: vi.fn(async () => snapshot.visiblePages),
     openPageStream: vi.fn(async () => { throw new Error("not used") }),
+    getUpscalePreload: vi.fn(async () => [preloadSnapshot("nearby")]),
+    startUpscalePreload: vi.fn(async (mode) => [preloadSnapshot(mode)]),
+    pauseUpscalePreload: vi.fn(async () => [preloadSnapshot("nearby")]),
+    retryUpscalePreload: vi.fn(async (mode) => [preloadSnapshot(mode)]),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function preloadSnapshot(mode: "nearby" | "progressive") {
+  return {
+    contextId: "reader:1:upscale",
+    generation: 1,
+    mode,
+    state: "running" as const,
+    planned: 4,
+    settled: 1,
+    failed: 0,
+    cancelled: 0,
+    pending: 3,
+    progress: 0.25,
+    startedAt: 10,
+    updatedAt: 20,
   }
 }
 
