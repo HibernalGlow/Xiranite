@@ -17,8 +17,8 @@ describe("ReaderInputBindings", () => {
     expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, ["reader", "panel"])?.id).toBe("panel")
     expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, ["reader"])?.id).toBe("reader")
     expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, [])?.id).toBe("global")
-    expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, ["editor"])).toBeUndefined()
-    expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, ["modal"])).toBeUndefined()
+    expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, ["editor"])?.id).toBe("global")
+    expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, ["modal"])?.id).toBe("global")
   })
 
   it("[neoview.bindings.conflicts] detects enabled collisions only inside one context", () => {

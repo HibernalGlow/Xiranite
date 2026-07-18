@@ -14,17 +14,17 @@ export function ReaderGestureInputRuntime({ disabled = false, target, dispatch }
   dispatchRef.current = dispatch
 
   useGesture({
-    onWheel: ({ first, event, direction: [, y] }) => {
+    onWheel: ({ first, event, direction: [, y], ctrlKey, altKey, shiftKey, metaKey }) => {
       if (disabled || !first || y === 0) return
       const wheel = event as WheelEvent
       if (isReaderInputInteractive(wheel.target)) return
       if (dispatchRef.current({
         device: "wheel",
         direction: y > 0 ? "down" : "up",
-        ctrl: wheel.ctrlKey || undefined,
-        alt: wheel.altKey || undefined,
-        shift: wheel.shiftKey || undefined,
-        meta: wheel.metaKey || undefined,
+        ctrl: ctrlKey || undefined,
+        alt: altKey || undefined,
+        shift: shiftKey || undefined,
+        meta: metaKey || undefined,
       }, wheel.target)) wheel.preventDefault()
     },
     onDrag: ({ last, event, swipe: [x, y], touches, memo = 1 }) => {
