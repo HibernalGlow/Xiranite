@@ -34,7 +34,7 @@ function ImageInformationContent({ session, client, presentation }: ReaderPanelC
   const activePage = session.visiblePages.find((candidate) => candidate.index === session.frame.anchorPageIndex)
   const media = useReaderPageMediaInformation(client, session.sessionId, activePage)
 
-  if (metadata.loading) return <div className="h-12 animate-pulse rounded bg-muted" aria-label="正在加载图像信息" />
+  if (metadata.loading) return <div className="h-12 animate-pulse rounded bg-muted" role="status" aria-live="polite" aria-label="正在加载图像信息" />
   if (metadata.error) {
     return (
       <div className="grid gap-2 text-sm">

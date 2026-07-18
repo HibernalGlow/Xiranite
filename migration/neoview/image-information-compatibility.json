@@ -149,7 +149,8 @@
       "testIds": [
         "neoview.metadata.cards",
         "neoview.image-information.resident-empty",
-        "neoview.image-information.probe-degradation"
+        "neoview.image-information.probe-degradation",
+        "neoview.image-information.metadata-retry"
       ],
       "plannedTestIds": [],
       "notes": "Base and probe loading, empty, error and independently named retry states are covered."
@@ -406,7 +407,8 @@
         "neoview.image-information.navigation-cancel",
         "neoview.image-information.video-cancel",
         "neoview.image-information.session-release",
-        "neoview.image-information.ffprobe-abort"
+        "neoview.image-information.ffprobe-abort",
+        "neoview.image-information.card-hide"
       ],
       "plannedTestIds": [],
       "notes": "GUI, application, route and process cancellation are covered; CLI/TUI consumers remain pending."

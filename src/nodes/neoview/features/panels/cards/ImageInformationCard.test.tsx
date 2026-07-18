@@ -74,6 +74,27 @@ describe("ImageInformationCard", () => {
     expect(pageMediaInformation).toHaveBeenCalledTimes(2)
   })
 
+  it("[neoview.image-information.metadata-retry] retries a failed base metadata request without probing twice", async () => {
+    const metadataRequest = vi.fn()
+      .mockRejectedValueOnce(new Error("metadata unavailable"))
+      .mockResolvedValueOnce(metadata("image"))
+    const pageMediaInformation = vi.fn()
+    render(<ImageInformationCard
+      client={client(metadataRequest, pageMediaInformation)}
+      session={session(page("image"))}
+      disabled={false}
+      onGoTo={vi.fn()}
+    />)
+
+    expect((await screen.findByRole("alert")).textContent).toContain("metadata unavailable")
+    expect(screen.getByRole("button", { name: "重试图像信息" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "重试图像信息" }))
+
+    expect(await screen.findByText("001.png")).toBeTruthy()
+    expect(metadataRequest).toHaveBeenCalledTimes(2)
+    expect(pageMediaInformation).not.toHaveBeenCalled()
+  })
+
   it("[neoview.image-information.navigation-cancel] aborts stale page probes and ignores their result", async () => {
     const first = Promise.withResolvers<{ pageId: string; contentVersion: string; mediaKind: "video"; videoCodec: string }>()
     const second = Promise.withResolvers<{ pageId: string; contentVersion: string; mediaKind: "video"; videoCodec: string }>()
@@ -95,6 +116,37 @@ describe("ImageInformationCard", () => {
     second.resolve({ pageId: "page-2", contentVersion: "v2", mediaKind: "video", videoCodec: "fresh" })
     expect(await screen.findByText("fresh")).toBeTruthy()
     expect(screen.queryByText("stale")).toBeNull()
+  })
+
+  it("[neoview.image-information.card-hide] aborts active metadata and video probes when hidden", async () => {
+    const metadataDeferred = Promise.withResolvers<ReaderMetadataDto>()
+    const probeDeferred = Promise.withResolvers<{ pageId: string; contentVersion: string; mediaKind: "video"; videoCodec: string }>()
+    let metadataSignal: AbortSignal | undefined
+    let probeSignal: AbortSignal | undefined
+    const metadataRequest = vi.fn((_sessionId: string, signal?: AbortSignal) => {
+      metadataSignal = signal
+      return metadataDeferred.promise
+    })
+    const pageMediaInformation = vi.fn((_sessionId: string, signal?: AbortSignal) => {
+      probeSignal = signal
+      return probeDeferred.promise
+    })
+    const readerClient = client(metadataRequest, pageMediaInformation)
+    const view = render(<ImageInformationCard client={readerClient} session={session(page("video"))} disabled={false} onGoTo={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(metadataRequest).toHaveBeenCalledOnce()
+      expect(pageMediaInformation).toHaveBeenCalledOnce()
+    })
+    view.rerender(<ImageInformationCard client={readerClient} session={session(page("video"))} panelActive={false} disabled={false} onGoTo={vi.fn()} />)
+
+    expect(metadataSignal?.aborted).toBe(true)
+    expect(probeSignal?.aborted).toBe(true)
+    metadataDeferred.resolve(metadata("video"))
+    probeDeferred.resolve({ pageId: "page-1", contentVersion: "v1", mediaKind: "video", videoCodec: "late" })
+    await Promise.resolve()
+    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(view.container.textContent).not.toContain("late")
   })
 
   it("[neoview.image-information.resident-empty] keeps the legacy empty shell without a session", () => {
