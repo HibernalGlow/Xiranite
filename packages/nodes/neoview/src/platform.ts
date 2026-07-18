@@ -163,7 +163,7 @@ export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & Neoview
 }
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
-  sourceRevision: "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  sourceRevision: "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
   featureCount: 30,
   pendingFeatures: 30,
   readerCoreReady: true,

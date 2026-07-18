@@ -1,6 +1,6 @@
 # NeoView 最新功能迁移清单
 
-> 由 `migration/neoview/feature-compatibility.json` 生成。功能证据只取冻结的最新源码 `a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45`，不再逐提交追踪。不要手工编辑本文件。
+> 由 `migration/neoview/feature-compatibility.json` 生成。功能证据只取冻结的最新源码 `f4f8f02d88acdf4f639749f185c83abb91a1aa86`，不再逐提交追踪。不要手工编辑本文件。
 
 ## 六维图例
 
@@ -142,7 +142,7 @@
 - 设置：`book.doublePageView`、`view.pageLayout`、`image.longImageScrollMode`、`view.autoRotate`
 - 数据：view state、per-book layout
 - 行为：封面和末页单页；宽页拆分或成对；不同尺寸双页对齐；全景组合；连续长图虚拟窗口；旋转后重排
-- 测试：`neoview.frame.layout`、`neoview.image.probe-layout`、`neoview.image.probe-orientation`、`neoview.book-settings.service`、`neoview.book-settings.defaults`、`neoview.book-settings.revision`、`neoview.book-settings.cas-rollback`、`neoview.book-settings.rollback`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.http-rollback`、`neoview.book-settings.horizontal-policy`、`neoview.book-settings.headless`、`neoview.book-settings.headless-rollback`、`neoview.book-settings.headless-composition`、`neoview.book-settings.cli`、`neoview.book-settings.cli-validation`、`neoview.book-settings.cli-connect`、`neoview.book-settings.wire-schema`、`neoview.book-settings.tui`、`neoview.book-settings.tui-schema`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-envelope`、`neoview.book-settings.legacy-importer`、`neoview.book-settings.legacy-cancel`、`neoview.book-settings.legacy-transaction`、`neoview.book-settings.legacy-http`
+- 测试：`neoview.frame.layout`、`neoview.image.probe-layout`、`neoview.image.probe-orientation`、`neoview.book-settings.service`、`neoview.book-settings.defaults`、`neoview.book-settings.revision`、`neoview.book-settings.cas-rollback`、`neoview.book-settings.rollback`、`neoview.book-settings.metadata-stability`、`neoview.book-settings.sqlite`、`neoview.book-settings.http`、`neoview.book-settings.http-rollback`、`neoview.book-settings.horizontal-policy`、`neoview.book-settings.headless`、`neoview.book-settings.headless-rollback`、`neoview.book-settings.headless-composition`、`neoview.book-settings.cli`、`neoview.book-settings.cli-validation`、`neoview.book-settings.cli-connect`、`neoview.book-settings.wire-schema`、`neoview.book-settings.tui`、`neoview.book-settings.tui-schema`、`neoview.book-settings.legacy-codec`、`neoview.book-settings.legacy-envelope`、`neoview.book-settings.legacy-importer`、`neoview.book-settings.legacy-cancel`、`neoview.book-settings.legacy-transaction`、`neoview.book-settings.legacy-http`、`neoview.book-settings.legacy-cli`、`neoview.book-settings.legacy-cli-integration`、`neoview.book-settings.legacy-service-lifecycle`、`neoview.book-settings.legacy-file-controller`、`neoview.book-settings.legacy-file-validation`、`neoview.book-settings.legacy-tui`
 - 计划测试：无
 - 性能基准：`layout-switch`、`continuous-scroll`
 - 已知差异：旧 horizontalBook 只有 localStorage 写入而无布局消费者；XR 映射到现有 ReaderLayout.treatWidePageAsSingle，继续复用唯一 frame builder；GUI HTTP、HeadlessController、本地/loopback CLI 与 OpenTUI 表单已复用同一 defaults、Zod、CAS、串行队列和 rollback
