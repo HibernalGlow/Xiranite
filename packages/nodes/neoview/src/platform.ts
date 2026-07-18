@@ -37,13 +37,18 @@ import type { ReaderSettingsPortableService } from "./application/migration/Read
 import type { ReaderBackupBundleService } from "./platform/backup/ReaderBackupBundleService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
-import type { ReaderHeadlessSuperResolutionPort } from "./application/headless/ReaderHeadlessController.js"
+import type {
+  ReaderHeadlessSuperResolutionArtifactFactory,
+  ReaderHeadlessSuperResolutionPort,
+} from "./application/headless/ReaderHeadlessController.js"
 import type { ReaderFileTreeHeadlessController } from "./application/headless/ReaderFileTreeHeadlessController.js"
 import type { ReaderLibraryHeadlessController } from "./application/headless/ReaderLibraryHeadlessController.js"
 import type { ReaderFileTreeServiceOptions } from "./application/browser/ReaderFileTreeService.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
 import type { NeoviewPresentationDiskCacheConfig } from "./application/config/ReaderRuntimeConfig.js"
+import { buildSuperResolutionArtifactKey } from "./platform/super-resolution/SuperResolutionArtifactKey.js"
+import { SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION } from "./platform/asset-route/SuperResolutionArtifactRoute.js"
 import type {
   ReadonlyLegacyThumbnailStore,
   ReadonlyLegacyThumbnailStoreOptions,
@@ -143,6 +148,7 @@ export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & Neoview
   bookSettingsStore?: ReaderBookSettingsStore | false
   legacyThumbnailDatabasePath?: string | false
   superResolution?: ReaderHeadlessSuperResolutionPort | false
+  superResolutionArtifactCacheRoot?: string
 }
 export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
   ReaderFileTreeServiceOptions,
@@ -846,27 +852,83 @@ export async function createReaderHeadlessController(
     new PlatformDirectoryMetadataProvider(isReaderDirectoryEmmRecordStore(progressStore) ? progressStore : undefined),
     (entry) => platformReaderBookCandidate(entry, mediaFormats),
   )
-  const superResolution = options.superResolution === false
-    ? undefined
-    : options.superResolution ?? new (await import("./platform/super-resolution/LazySuperResolutionPagePort.js")).LazySuperResolutionPagePort(
-      async () => {
-        const { createOpenComicAiSystemCapability } = await import(
-          "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
-        )
-        const capability = await createOpenComicAiSystemCapability({
-          ...options,
-          runtimeConfig: runtimeConfig.superResolution,
-          resourceScheduler: options.resourceScheduler,
-        })
-        return capability && {
-          pages: capability.pages,
-          preload: capability.preload,
-          listModels: () => capability.service.listModels(),
-          capabilities: (capabilityOptions?: { refresh?: boolean; signal?: AbortSignal }) => capability.service.capabilities(capabilityOptions),
-          dispose: () => capability.dispose(),
+  let superResolution: ReaderHeadlessSuperResolutionPort | undefined
+  let disposeSuperResolutionArtifacts: (() => Promise<void>) | undefined
+  if (options.superResolution !== false) {
+    if (options.superResolution) {
+      superResolution = options.superResolution
+    } else {
+      const { join } = await import("node:path")
+      const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+      const { CacacheSuperResolutionArtifactStore } = await import(
+        "./platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
+      )
+      const { LazySuperResolutionPagePort } = await import("./platform/super-resolution/LazySuperResolutionPagePort.js")
+      const artifactStore = new CacacheSuperResolutionArtifactStore({
+        root: options.superResolutionArtifactCacheRoot
+          ?? join(new LegacyNeoViewDataLocator().locate().appDataDirectory, "upscale-artifacts"),
+      })
+      const artifactFor: ReaderHeadlessSuperResolutionArtifactFactory = (bookPath, page, context) => ({
+        key: buildSuperResolutionArtifactKey({
+          sourceIdentity: bookPath,
+          sourceRevision: page.contentVersion,
+          pageIdentity: page.entryPath ?? page.sourcePath,
+          modelId: context.decision.modelId,
+          scale: context.decision.scale,
+          noise: context.decision.noise,
+          tileSize: context.decision.tileSize,
+          tta: context.decision.tta,
+          producerVersion: SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION,
+        }),
+        metadata: { bookKey: bookPath, contentType: "image/png", extension: "png" },
+      })
+      const ownedPages = new LazySuperResolutionPagePort(
+        async () => {
+          const { createOpenComicAiSystemCapability } = await import(
+            "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
+          )
+          const capability = await createOpenComicAiSystemCapability({
+            ...options,
+            runtimeConfig: runtimeConfig.superResolution,
+            resourceScheduler: options.resourceScheduler,
+            artifactStore,
+          })
+          return capability && {
+            pages: capability.pages,
+            artifactPages: capability.artifactPages,
+            preload: capability.preload,
+            listModels: () => capability.service.listModels(),
+            capabilities: (capabilityOptions?: { refresh?: boolean; signal?: AbortSignal }) => capability.service.capabilities(capabilityOptions),
+            dispose: () => capability.dispose(),
+          }
+        },
+        { artifactFor },
+      )
+      superResolution = ownedPages
+      disposeSuperResolutionArtifacts = async () => {
+        const results = await Promise.allSettled([ownedPages[Symbol.asyncDispose](), artifactStore.close()])
+        const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+        if (errors.length) throw new AggregateError(errors, "Failed to close headless super-resolution artifacts.")
+      }
+    }
+  }
+  const disposeDependencies = ownsCache || disposeSuperResolutionArtifacts
+    ? async () => {
+        const errors: unknown[] = []
+        for (const dispose of [
+          ownsCache ? () => solidArchiveCache.close() : undefined,
+          disposeSuperResolutionArtifacts,
+        ]) {
+          if (!dispose) continue
+          try {
+            await dispose()
+          } catch (error) {
+            errors.push(error)
+          }
         }
-      },
-    )
+        if (errors.length) throw new AggregateError(errors, "Failed to close headless reader resources.")
+      }
+    : undefined
   return new ReaderHeadlessController(
     new CoreReaderService(
       createPlatformReaderBookLoader({ ...options, solidArchiveCache, mediaFormats }),
@@ -875,7 +937,7 @@ export async function createReaderHeadlessController(
       progressStore,
       bookSettingsStore,
     ),
-    ownsCache ? () => solidArchiveCache.close() : undefined,
+    disposeDependencies,
     mediaProgress,
     bookMetadata,
     bookSettings && bookSettingsModule ? {
