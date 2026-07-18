@@ -205,6 +205,10 @@ export type {
 } from "./migration/LegacyBookSettingsImporter.js"
 export { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "./application/reader/ReaderMediaProgressService.js"
 export {
+  executeReaderHeadlessInputBinding,
+  type ReaderHeadlessInputBindingResult,
+} from "./application/headless/ReaderHeadlessInputBindingExecutor.js"
+export {
   ReaderClipboardMaterializationService,
   type ReaderClipboardMaterialization,
   type ReaderClipboardMaterializationServiceOptions,
