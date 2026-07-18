@@ -113,6 +113,8 @@
     "neoview.animated-video.patch",
     "neoview.animated-video.match",
     "neoview.animated-video.resident",
+    "neoview.animated-video.inactive-zero-work",
+    "neoview.animated-video.navigation-independence",
     "neoview.animated-video.settings",
     "neoview.animated-video.ffmpeg",
     "neoview.animated-video.ui-1920x1080",

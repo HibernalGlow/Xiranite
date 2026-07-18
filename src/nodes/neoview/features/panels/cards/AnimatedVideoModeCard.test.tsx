@@ -7,6 +7,21 @@ import AnimatedVideoModeCard from "./AnimatedVideoModeCard"
 afterEach(cleanup)
 
 describe("AnimatedVideoModeCard", () => {
+  it("[neoview.animated-video.inactive-zero-work] keeps a resident shell while the panel is inactive", () => {
+    render(<AnimatedVideoModeCard media={media()} onMediaChange={vi.fn(async () => media())} panelActive={false} />)
+
+    expect(document.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(screen.queryByRole("switch")).toBeNull()
+  })
+
+  it("[neoview.animated-video.navigation-independence] disables controls only while navigation is busy", () => {
+    render(<AnimatedVideoModeCard media={media()} onMediaChange={vi.fn(async () => media())} disabled />)
+
+    expect((screen.getByRole("switch") as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(true)
+    expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it("[neoview.animated-video.resident] renders the source control hierarchy without a book session", () => {
     render(<AnimatedVideoModeCard media={media()} onMediaChange={vi.fn(async () => media())} />)
 
