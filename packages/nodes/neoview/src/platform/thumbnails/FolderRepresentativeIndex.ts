@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
+import type { ResourcePriority, ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 interface DirectoryEntryLike {
   name: string
@@ -20,6 +21,7 @@ export interface FolderRepresentativeIndexOptions {
   readDirectory?: (path: string) => Promise<readonly DirectoryEntryLike[]>
   statPath?: (path: string) => Promise<FileStatsLike>
   mediaFormats?: ReaderMediaTypeResolver
+  resourceScheduler?: ResourceScheduler
 }
 
 interface RepresentativeEntry {
@@ -47,6 +49,7 @@ export class FolderRepresentativeIndex {
   readonly #flights = new Map<string, RepresentativeFlight>()
   readonly #revisions = new Map<string, number>()
   readonly #mediaFormats?: ReaderMediaTypeResolver
+  readonly #resourceScheduler?: ResourceScheduler
 
   constructor(options: FolderRepresentativeIndexOptions = {}) {
     this.#maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
@@ -56,9 +59,16 @@ export class FolderRepresentativeIndex {
     this.#readDirectory = options.readDirectory ?? defaultReadDirectory
     this.#statPath = options.statPath ?? stat
     this.#mediaFormats = options.mediaFormats
+    this.#resourceScheduler = options.resourceScheduler
   }
 
-  describe(path: string, directoryModifiedAtMs: number, signal?: AbortSignal, count = 1): Promise<string | undefined> {
+  describe(
+    path: string,
+    directoryModifiedAtMs: number,
+    signal?: AbortSignal,
+    count = 1,
+    priority: ResourcePriority = "view",
+  ): Promise<string | undefined> {
     if (!path) return Promise.reject(new Error("Folder representative path cannot be empty."))
     if (!Number.isSafeInteger(directoryModifiedAtMs) || directoryModifiedAtMs < 0) {
       return Promise.reject(new RangeError("Folder representative directory mtime must be a non-negative integer."))
@@ -80,7 +90,7 @@ export class FolderRepresentativeIndex {
         settled: false,
         promise: Promise.resolve(undefined),
       }
-      created.promise = this.#resolve(path, cacheKey, directoryModifiedAtMs, count, controller.signal)
+      created.promise = this.#resolve(path, cacheKey, directoryModifiedAtMs, count, priority, controller.signal)
         .then((entry) => {
           if (this.#revisions.get(cacheKey) === revision) this.#setCache(cacheKey, entry)
           return entry.version
@@ -107,30 +117,46 @@ export class FolderRepresentativeIndex {
     this.#revisions.clear()
   }
 
-  async #resolve(path: string, cacheKey: string, directoryModifiedAtMs: number, count: number, signal: AbortSignal): Promise<RepresentativeEntry> {
+  async #resolve(
+    path: string,
+    cacheKey: string,
+    directoryModifiedAtMs: number,
+    count: number,
+    priority: ResourcePriority,
+    signal: AbortSignal,
+  ): Promise<RepresentativeEntry> {
     signal.throwIfAborted()
-    const cached = this.#cache.get(cacheKey)
-    if (cached?.directoryModifiedAtMs === directoryModifiedAtMs) {
-      if (!cached.sources?.length) {
-        this.#touch(cacheKey, cached)
-        return cached
-      }
-      try {
-        const sources = await Promise.all(cached.sources.map(async (source) => {
-          const sourceStats = await this.#statPath(join(path, source.name))
-          return sourceStats.isFile() ? representativeSource(source.name, sourceStats) : undefined
-        }))
-        signal.throwIfAborted()
-        if (sources.every((source): source is RepresentativeSource => Boolean(source))) {
-          const entry = representativeEntry(directoryModifiedAtMs, sources)
-          this.#touch(cacheKey, entry)
-          return entry
+    const lease = await this.#resourceScheduler?.acquire({
+      resource: "io",
+      kind: "neoview.thumbnail.folder-representative",
+      priority,
+    }, signal)
+    try {
+      const cached = this.#cache.get(cacheKey)
+      if (cached?.directoryModifiedAtMs === directoryModifiedAtMs) {
+        if (!cached.sources?.length) {
+          this.#touch(cacheKey, cached)
+          return cached
         }
-      } catch (error) {
-        if (!isMissingFile(error)) throw error
+        try {
+          const sources = await Promise.all(cached.sources.map(async (source) => {
+            const sourceStats = await this.#statPath(join(path, source.name))
+            return sourceStats.isFile() ? representativeSource(source.name, sourceStats) : undefined
+          }))
+          signal.throwIfAborted()
+          if (sources.every((source): source is RepresentativeSource => Boolean(source))) {
+            const entry = representativeEntry(directoryModifiedAtMs, sources)
+            this.#touch(cacheKey, entry)
+            return entry
+          }
+        } catch (error) {
+          if (!isMissingFile(error)) throw error
+        }
       }
+      return this.#scan(path, directoryModifiedAtMs, count, signal, true)
+    } finally {
+      lease?.release()
     }
-    return this.#scan(path, directoryModifiedAtMs, count, signal, true)
   }
 
   async #scan(

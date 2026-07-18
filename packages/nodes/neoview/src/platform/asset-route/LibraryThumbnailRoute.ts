@@ -91,7 +91,7 @@ export class LibraryThumbnailRoute {
     try {
       described = await pMap(parsed.items, async (item) => ({
         item,
-        source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount),
+        source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount, "view"),
       }), { concurrency: 16, stopOnError: true })
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -133,7 +133,7 @@ export class LibraryThumbnailRoute {
     else request.signal.addEventListener("abort", abort, { once: true })
     const service = new ReaderLibraryThumbnailWarmupService({
       warm: async (item, options) => {
-        const source = await this.#pipeline.describeLibrarySource(item.path, item.kind, options.signal, item.previewCount)
+        const source = await this.#pipeline.describeLibrarySource(item.path, item.kind, options.signal, item.previewCount, "background")
         if (options.mode === "refresh") {
           await this.#pipeline.refreshLibrary(source, {
             contextId: options.contextId,
