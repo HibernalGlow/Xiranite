@@ -26,21 +26,20 @@ bun run benchmark:neoview-thumbnails -- `
   --batch 512
 ```
 
-On 2026-07-18 the current 2.4 main database was 834,531,328 bytes with 14,202 thumbnail rows. All rows contained non-empty direct image Blobs; no sampled or aggregate row used the old `LZ4\0` wrapper. The benchmark does not retain paths or image bytes.
+On 2026-07-18 the current 2.4 main database was 835,448,832 bytes with 14,258 thumbnail rows. The streamed database SHA-256 was `2d53dc58e4a02d378af0d5da15f8c7eff952ace1feb7fb26495a5638fcaa6ede`; the database reported WAL mode with no WAL sidecar bytes and a 32 KiB SHM sidecar. Bun 1.4.0 on Windows x64 was used with 5,000 single reads and 50 batches of 512 records. Cache state is explicitly recorded as unspecified. All rows contained non-empty direct image Blobs; no sampled or aggregate row used the old `LZ4\0` wrapper. The benchmark does not retain paths or image bytes.
 
 | Read shape | Result |
 | --- | ---: |
-| Single record average | 0.097 ms |
-| Raw 512-record batch average | 34.11 ms |
-| Cooperative 512-record batch average | 37.31 ms |
-| Raw 64-record chunk average | 4.78 ms |
-| Cooperative overhead at 512 records | 9.4% |
+| Single record average | 0.1248 ms |
+| Raw 512-record batch average | 56.91 ms |
+| Cooperative 512-record batch average | 60.11 ms |
+| Cooperative overhead at 512 records | 5.6% |
 | Host I/O leases after 50 cooperative batches | 400 granted / 400 released / 0 active / 0 queued |
-| Exact maintenance statistics | 65.28 ms / 57 I/O leases released |
+| Exact maintenance statistics | 107.12 ms / 57 I/O leases released |
 
 The production prewarm path therefore keeps the existing SQLite binding and `ReaderThumbnailStore`, but reads at most 64 records per synchronous chunk, acquires a host I/O lease for each chunk, and uses Node's built-in `scheduler.yield()` between chunks. This trades a small amount of total throughput for an approximately 4–5 ms average blocking window instead of one approximately 34 ms window. The current evidence does not justify adding a Worker/Piscina layer or a second SQLite implementation; revisit that decision only if compressed legacy Blobs or slower storage fail the retained performance budgets.
 
-The old maintenance aggregate (`SUM(length(value))` plus category expressions in one full-table query) was measured separately at about 651 ms average and blocked the backend event loop for the whole query. The replacement opens an existing query-only SQLite connection, starts a read snapshot, obtains file/folder counts from the legacy category index, and walks `rowid + length(value)` in 256-row pages. On the same database it returned the exact 815,671,164 Blob bytes and failure counts in 65.28 ms end to end; the underlying 56 scan chunks measured at no more than about 1.46 ms in the retained diagnostic run. No old table, index, journal setting, `metadata.version`, or `user_version` is changed.
+The old maintenance aggregate (`SUM(length(value))` plus category expressions in one full-table query) was measured separately at about 651 ms average and blocked the backend event loop for the whole query. The replacement opens an existing query-only SQLite connection, starts a read snapshot, obtains file/folder counts from the legacy category index, and walks `rowid + length(value)` in 256-row pages. On this database it returned the exact 816,513,264 Blob bytes and 16 failure rows (1 decode error, 15 unsupported-format) in 107.12 ms end to end; the underlying 56 scan chunks remain bounded by the existing cooperative reader. No old table, index, journal setting, `metadata.version`, or `user_version` is changed.
 
 Cold and warm generation measure the same page. The pipeline evicts its encoded L1 entry between samples, so the warm result still performs archive/file access, decode, resize, and WebP encode while allowing operating-system and archive-source caches to remain warm.
 
