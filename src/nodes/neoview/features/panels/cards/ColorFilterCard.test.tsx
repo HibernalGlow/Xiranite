@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createReaderColorFilterStore } from "../../color-filter/ReaderColorFilterStore"
-import { ColorFilterCard } from "./ColorFilterCard"
+import DockedColorFilterCard, { ColorFilterCard } from "./ColorFilterCard"
 
 afterEach(cleanup)
 
@@ -30,5 +30,12 @@ describe("ColorFilterCard", () => {
     expect(persist).not.toHaveBeenCalled()
     fireEvent.pointerUp(brightness, { pointerId: 1 })
     await waitFor(() => expect(persist).toHaveBeenCalledOnce())
+  })
+
+  it("[neoview.color-filter.navigation-independence] stays interactive while Reader navigation is busy", () => {
+    const store = createReaderColorFilterStore({ persist: async (settings) => settings })
+    render(<DockedColorFilterCard colorFilter={store} disabled client={{} as never} onGoTo={() => undefined} />)
+    expect(screen.getByRole("slider", { name: "亮度" }).hasAttribute("disabled")).toBe(false)
+    expect(screen.getByRole("checkbox", { name: "上色" }).getAttribute("data-disabled")).toBeNull()
   })
 })

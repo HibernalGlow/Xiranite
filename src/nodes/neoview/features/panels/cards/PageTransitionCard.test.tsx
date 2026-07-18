@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createReaderPageTransitionStore } from "../../page-transition/ReaderPageTransitionStore"
-import { PageTransitionCard } from "./PageTransitionCard"
+import DockedPageTransitionCard, { PageTransitionCard } from "./PageTransitionCard"
 
 afterEach(cleanup)
 
@@ -46,5 +46,11 @@ describe("PageTransitionCard", () => {
     expect(preview.style.transform).toBe("scale(0.95)")
     expect(preview.style.opacity).toBe("0.7")
     expect(persist).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.page-transition.navigation-independence] stays interactive while Reader navigation is busy", () => {
+    const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
+    render(<DockedPageTransitionCard pageTransition={store} disabled client={{} as never} onGoTo={() => undefined} />)
+    expect(screen.getByRole("checkbox", { name: "启用翻页动画" }).getAttribute("data-disabled")).toBeNull()
   })
 })

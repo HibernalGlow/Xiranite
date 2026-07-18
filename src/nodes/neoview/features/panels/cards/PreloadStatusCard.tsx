@@ -12,6 +12,7 @@ import {
   type ReaderPreloadStatusStore,
 } from "../../reader/ReaderPreloadStatusStore"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { useReaderPreloadDiagnostics } from "./useReaderPreloadDiagnostics"
 
 const LazyPreloadActionControls = lazy(() => import("./PreloadActionControls").then((module) => ({ default: module.PreloadActionControls })))
@@ -20,7 +21,7 @@ const PAGES_BEHIND = 3
 const PAGES_AHEAD = 5
 
 export default function PreloadStatusCard({ session, client, disabled, onPreloadAction }: ReaderPanelContext) {
-  if (!session) return null
+  if (!session) return <ReaderCardEmptyState>打开书本后显示预加载状态</ReaderCardEmptyState>
   return (
     <PreloadStatusContent
       client={client}

@@ -1,0 +1,322 @@
+{
+  "schemaVersion": 2,
+  "featureId": "sidebar-height",
+  "legacyCardId": "sidebarHeight",
+  "title": "侧边栏高度",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "15f3501470781184d6eace6c8d488ba6b953df6a",
+  "visualBaseline": "output/playwright/legacy-neoview-sidebar-height-1920x1080.png",
+  "completionRule": "Complete only when every left/right geometry control, trigger-area control, blank-area mode, drag-handle state, legacy persistence field, runtime geometry rule, Card-shell lifecycle, accessibility equivalent, responsive layout and bounded-write/performance requirement has automated evidence against the canonical Reader Shell configuration.",
+  "sourceUiInventory": [
+    {
+      "id": "sidebar-height-ui.introduction",
+      "title": "说明、拖拽手柄开关与顶部层级",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
+      "acceptanceItems": [
+        "Card 顶部说明为自由调整侧边栏的尺寸与位置。高度 100% 时位置控制禁用。",
+        "显示拖拽手柄 Label 与 Switch 位于说明右侧",
+        "showDragHandle 默认 false",
+        "拖拽手柄仅在对应侧边栏非 full 时渲染",
+        "左右侧边栏拖拽手柄共享同一全局开关",
+        "Switch 具有稳定 id show-drag-handle 与关联 Label"
+      ],
+      "mappedChecklistIds": ["sidebar-height.drag-handle", "sidebar-height.ui-parity", "sidebar-height.accessibility"]
+    },
+    {
+      "id": "sidebar-height-ui.blank-area",
+      "title": "空白区收回开关、单击/双击模式与说明",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
+      "acceptanceItems": [
+        "空白区点击收回侧边栏 Switch 默认开启",
+        "single / 单击为默认模式",
+        "double / 双击为第二个互斥模式",
+        "当前模式按钮使用 default variant，另一项使用 outline",
+        "关闭总开关时两个模式按钮 disabled 且整行 opacity-40",
+        "说明明确仅空白区域生效，图标和按钮不触发收回",
+        "interactive element 判定覆盖 button、input、select、textarea、a 与可交互后代",
+        "单击模式不响应 dblclick 路径，双击模式不响应 click 路径",
+        "左右侧边栏遵循相同规则"
+      ],
+      "mappedChecklistIds": ["sidebar-height.blank-collapse", "sidebar-height.blank-mode", "sidebar-height.runtime", "sidebar-height.accessibility"]
+    },
+    {
+      "id": "sidebar-height-ui.left-geometry",
+      "title": "左侧边栏高度、Y 轴和 X 轴控件",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts", "src/lib/components/layout/MainLayout.svelte"],
+      "acceptanceItems": [
+        "PanelLeft 蓝色图标与左侧边栏标题",
+        "高度 range 10..100、step 1、默认 100%，值标签四舍五入并显示百分比",
+        "高度 100 写入 preset=full 且 customHeight=100",
+        "高度 10..99 写入 preset=custom 与对应 customHeight",
+        "导入 full、2/3、half、1/3、custom 五个 preset 时分别投影 100、66.67、50、33.33、customHeight",
+        "Y 轴 range 0..100、step 1、默认 0%，值标签为百分比",
+        "full 高度时 Y 轴分组 opacity-30、pointer-events-none",
+        "X 轴 range 0..100、step 1、默认 0%，值标签为百分比",
+        "X 轴端点文字为贴边与居中",
+        "左 X 偏移公式为 left = horizontalPos * 0.5%"
+      ],
+      "mappedChecklistIds": ["sidebar-height.left-height", "sidebar-height.left-y", "sidebar-height.left-x", "sidebar-height.presets", "sidebar-height.runtime"]
+    },
+    {
+      "id": "sidebar-height-ui.right-geometry",
+      "title": "右侧边栏高度、Y 轴和 X 轴控件",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts", "src/lib/components/layout/MainLayout.svelte"],
+      "acceptanceItems": [
+        "PanelRight 绿色图标与右侧边栏标题",
+        "高度 range 10..100、step 1、默认 100%，值标签四舍五入并显示百分比",
+        "高度 100 写入 preset=full 且 customHeight=100",
+        "高度 10..99 写入 preset=custom 与对应 customHeight",
+        "Y 轴 range 0..100、step 1、默认 0%，值标签为百分比",
+        "full 高度时 Y 轴分组 opacity-30、pointer-events-none",
+        "X 轴 range 0..100、step 1、默认 0%，值标签为百分比",
+        "X 轴端点文字为贴边与居中",
+        "右 X 偏移公式为 right = horizontalPos * 0.5%",
+        "左右控件状态完全独立，修改一侧不覆盖另一侧"
+      ],
+      "mappedChecklistIds": ["sidebar-height.right-height", "sidebar-height.right-y", "sidebar-height.right-x", "sidebar-height.presets", "sidebar-height.runtime"]
+    },
+    {
+      "id": "sidebar-height-ui.vertical-projection",
+      "title": "高度与垂直对齐运行时投影",
+      "sourceEvidence": ["src/lib/stores/sidebarConfig.svelte.ts", "src/lib/components/layout/MainLayout.svelte"],
+      "acceptanceItems": [
+        "高度百分比大于等于 100 时运行时样式为 top:0 与 bottom:0",
+        "非全高 top 百分比公式为 (100-heightPercent)*(align/100)",
+        "align 0 为顶部、50 为居中、100 为底部",
+        "外层侧栏高度使用规范百分比且内部占满",
+        "几何变化不改变 panel/card 顺序、可见性、pin 或 open 状态",
+        "规范化层将高度限制 10..100、位置限制 0..100，拒绝 NaN/Infinity"
+      ],
+      "mappedChecklistIds": ["sidebar-height.runtime", "sidebar-height.bounds", "sidebar-height.data-contract"]
+    },
+    {
+      "id": "sidebar-height-ui.trigger-areas",
+      "title": "四边触控区域滑杆",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/types.ts", "src/lib/settings/defaults.ts", "src/lib/components/layout/MainLayout.svelte"],
+      "acceptanceItems": [
+        "MousePointer2 图标与触控区域 (px) 标题",
+        "左边缘 range 4..64、step 1、规范默认 32px",
+        "右边缘 range 4..64、step 1、规范默认 32px",
+        "顶边缘 range 2..48、step 1、规范默认 32px",
+        "底边缘 range 2..48、step 1、规范默认 32px",
+        "每个滑杆显示实时整数值",
+        "局部更新合并其他三个 hoverAreas 字段",
+        "侧边栏关闭时左右 trigger width 成为实际边缘命中宽度",
+        "旧 Card 在 panels 缺失时上下边缘回退 4px 与 settings defaults 32px 冲突，目标只采用规范 32px 默认并保留显式旧值导入"
+      ],
+      "mappedChecklistIds": ["sidebar-height.trigger-left", "sidebar-height.trigger-right", "sidebar-height.trigger-top", "sidebar-height.trigger-bottom", "sidebar-height.deviations"]
+    },
+    {
+      "id": "sidebar-height-ui.visual-hierarchy",
+      "title": "双栏层级、图标、密度与响应式几何",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
+      "acceptanceItems": [
+        "Card 根为 text-xs、muted foreground 与 space-y-5",
+        "左右控制使用 grid-cols-2、gap-x-6、gap-y-4",
+        "左侧使用 blue-500/blue-400，右侧使用 green-500/green-400 作为区分色",
+        "Maximize2、MoveVertical、MoveHorizontal 图标语义保持",
+        "数值使用 font-mono 与 tabular-nums",
+        "触控区域为独立有边框背景分组和 2x2 网格",
+        "分隔线位于几何控制与触控区域之间",
+        "1920x1080 基线保持旧版层级和信息密度",
+        "窄 Card 必须响应式转为单列或收紧间距，控件不得重叠或横向溢出"
+      ],
+      "mappedChecklistIds": ["sidebar-height.ui-parity", "sidebar-height.responsive", "sidebar-height.accessibility"]
+    },
+    {
+      "id": "sidebar-height-ui.persistence",
+      "title": "旧双存储来源与唯一规范 TOML",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts", "src/lib/settings/settingsManager.ts", "src/lib/settings/defaults.ts"],
+      "acceptanceItems": [
+        "旧几何、手柄和空白区字段来自 localStorage key neoview-sidebar-config",
+        "旧 store 初始化时以 initialState 补缺字段并合并已知 panel",
+        "旧 store 每次状态变化立即写 localStorage",
+        "旧 hoverAreas 独立通过 settingsManager panels.hoverAreas 写入",
+        "旧 JSON 解析或写入失败时稳定回退且不使 Reader 崩溃",
+        "XR 一次性导入两个旧来源后写入唯一 [nodes.neoview] Shell 契约",
+        "规范字段使用 snake_case、严格范围和枚举校验",
+        "局部 PATCH 保留未知未来 Shell、Panel 与 Card 字段",
+        "拖动中仅本地/DOM 预览，interaction end 至多一次原子 PATCH",
+        "失败回滚到最近确认值，迟到 hydrate/PATCH 不覆盖更新交互"
+      ],
+      "mappedChecklistIds": ["sidebar-height.persistence", "sidebar-height.legacy-import", "sidebar-height.data-contract", "sidebar-height.performance", "sidebar-height.lifecycle"]
+    },
+    {
+      "id": "sidebar-height-ui.shell-lifecycle",
+      "title": "Registry、共享 Card 外壳、生命周期与性能",
+      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte", "src/lib/cards/info/SidebarHeightCard.svelte"],
+      "acceptanceItems": [
+        "Card ID sidebarHeight、标题侧边栏高度、默认 control Panel、canHide=true",
+        "CardRenderer 动态 import 且缓存组件",
+        "共享外壳支持折叠、隐藏、排序、移动、高度与独立窗口",
+        "Card 隐藏或折叠时内容订阅零挂载",
+        "settingsManager listener、pointer listener 与 pending timer 在卸载时释放",
+        "所有控件为 O(1) DOM 与 O(1) 状态",
+        "滑杆 pointermove 不触发 ReaderApp/活动图像重挂",
+        "配置变化保留活动 img DOM 身份与 asset URL",
+        "Card 保持独立延迟 chunk，不进入 Reader entry 或基础 Sidebar chunk",
+        "生产 chunk 有显式字节预算且 Windows 重验证严格串行"
+      ],
+      "mappedChecklistIds": ["sidebar-height.shell", "sidebar-height.lifecycle", "sidebar-height.image-stability", "sidebar-height.performance"]
+    },
+    {
+      "id": "sidebar-height-ui.accessibility-states",
+      "title": "键盘可访问性与完整交互状态",
+      "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],
+      "acceptanceItems": [
+        "Switch 和 Label 通过 id/for 关联并暴露 checked 状态",
+        "所有 range 具有可访问名称、min/max/now 与键盘步进",
+        "单击/双击模式为互斥选择并暴露 pressed/selected 状态",
+        "full 高度下 Y 轴使用真正 disabled 而非仅 pointer-events-none",
+        "颜色不是区分左右或当前模式的唯一手段",
+        "键盘和触摸用户可完成所有 Card 设置",
+        "拖拽手柄提供非拖拽的键盘移动等价操作",
+        "覆盖默认、hover、focus-visible、active、disabled、pending、error、rollback 与 disposed 状态",
+        "prefers-reduced-motion 不影响几何控制可用性"
+      ],
+      "mappedChecklistIds": ["sidebar-height.accessibility", "sidebar-height.states", "sidebar-height.drag-handle", "sidebar-height.deviations"]
+    }
+  ],
+  "items": [
+    {
+      "id": "sidebar-height.left-height", "category": "capabilities", "title": "左侧边栏高度 10..100%", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
+      "targetContract": "Expose the legacy 10..100 integer range, project 100 to full and lower values to custom, and apply it immediately to the left Reader sidebar.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.left-height"], "notes": "Must preserve active Reader image identity."
+    },
+    {
+      "id": "sidebar-height.right-height", "category": "capabilities", "title": "右侧边栏高度 10..100%", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
+      "targetContract": "Expose the legacy 10..100 integer range, project 100 to full and lower values to custom, and apply it immediately to the right Reader sidebar.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.right-height"], "notes": "Left and right updates are independent."
+    },
+    {
+      "id": "sidebar-height.presets", "category": "data-contract", "title": "保留五个旧高度预设", "sourceEvidence": ["src/lib/stores/sidebarConfig.svelte.ts"],
+      "targetContract": "The shared schema imports full, 2/3, half, 1/3 and custom with exact percent projection while the slider writes only full or custom.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.presets"], "notes": "Do not discard legacy 2/3, half or 1/3 during import."
+    },
+    {
+      "id": "sidebar-height.left-y", "category": "capabilities", "title": "左侧 Y 轴 0..100%", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/MainLayout.svelte"],
+      "targetContract": "Position the non-full left sidebar from top through center to bottom using the legacy bounded formula; disable the control at full height.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.left-y"], "notes": "Target uses semantic disabled, not pointer-events alone."
+    },
+    {
+      "id": "sidebar-height.right-y", "category": "capabilities", "title": "右侧 Y 轴 0..100%", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/MainLayout.svelte"],
+      "targetContract": "Position the non-full right sidebar from top through center to bottom using the legacy bounded formula; disable the control at full height.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.right-y"], "notes": "Target uses semantic disabled, not pointer-events alone."
+    },
+    {
+      "id": "sidebar-height.left-x", "category": "capabilities", "title": "左侧 X 轴贴边到居中", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/MainLayout.svelte"],
+      "targetContract": "Expose 0..100 with the legacy left offset projection of value times 0.5 percent.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.left-x"], "notes": "0 means edge and 100 means center."
+    },
+    {
+      "id": "sidebar-height.right-x", "category": "capabilities", "title": "右侧 X 轴贴边到居中", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/MainLayout.svelte"],
+      "targetContract": "Expose 0..100 with the legacy right offset projection of value times 0.5 percent.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.right-x"], "notes": "0 means edge and 100 means center."
+    },
+    {
+      "id": "sidebar-height.drag-handle", "category": "capabilities", "title": "显示并操作侧边栏拖拽手柄", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],
+      "targetContract": "One shared switch controls non-full left/right drag handles; pointer movement is bounded and keyboard/touch equivalents persist once at completion.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.drag-handle"], "notes": "Default is false and full-height sidebars render no handle."
+    },
+    {
+      "id": "sidebar-height.blank-collapse", "category": "capabilities", "title": "空白区点击收回侧边栏", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],
+      "targetContract": "A default-on shared toggle collapses either sidebar only from genuine blank-area activation and never from interactive descendants.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.blank-collapse"], "notes": "Interactive-element exclusion needs dedicated coverage."
+    },
+    {
+      "id": "sidebar-height.blank-mode", "category": "capabilities", "title": "单击/双击收回模式", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
+      "targetContract": "Expose mutually exclusive single and double modes, default single, and disable mode controls while blank-area collapse is off.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.blank-mode"], "notes": "The GUI needs selected-state semantics."
+    },
+    {
+      "id": "sidebar-height.trigger-left", "category": "settings", "title": "左边缘触发宽度 4..64px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Persist and apply an integer 4..64 left trigger width with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-left"], "notes": "Partial updates preserve the other edges."
+    },
+    {
+      "id": "sidebar-height.trigger-right", "category": "settings", "title": "右边缘触发宽度 4..64px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Persist and apply an integer 4..64 right trigger width with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-right"], "notes": "Partial updates preserve the other edges."
+    },
+    {
+      "id": "sidebar-height.trigger-top", "category": "settings", "title": "顶边缘触发高度 2..48px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Persist and apply an integer 2..48 top trigger height with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-top"], "notes": "The Card-only fallback of 4 is not a second target default."
+    },
+    {
+      "id": "sidebar-height.trigger-bottom", "category": "settings", "title": "底边缘触发高度 2..48px", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/defaults.ts"],
+      "targetContract": "Persist and apply an integer 2..48 bottom trigger height with canonical default 32.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.trigger-bottom"], "notes": "The Card-only fallback of 4 is not a second target default."
+    },
+    {
+      "id": "sidebar-height.bounds", "category": "data-contract", "title": "严格规范化几何边界", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts"],
+      "targetContract": "The shared contract rejects non-finite values and bounds heights to 10..100, align/offset to 0..100, side triggers to 4..64 and top/bottom triggers to 2..48.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.bounds"], "notes": "Target closes the old unbounded vertical-align setter gap."
+    },
+    {
+      "id": "sidebar-height.runtime", "category": "data-contract", "title": "统一 Reader Shell 几何投影", "sourceEvidence": ["src/lib/stores/sidebarConfig.svelte.ts", "src/lib/components/layout/MainLayout.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],
+      "targetContract": "GUI, CLI and TUI share one geometry DTO; the controlled Reader Shell applies height, vertical alignment, horizontal offset, trigger and blank-collapse semantics without a parallel UI store.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.runtime"], "notes": "Must compose with existing open/pin/width state."
+    },
+    {
+      "id": "sidebar-height.persistence", "category": "settings", "title": "原子持久化规范 Shell 配置", "sourceEvidence": ["src/lib/stores/sidebarConfig.svelte.ts", "src/lib/settings/settingsManager.ts"],
+      "targetContract": "Canonical state lives under [nodes.neoview]; transient slider movement is local and interaction completion produces at most one serialized atomic PATCH with rollback and unknown-field preservation.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.persistence"], "notes": "No new database or localStorage runtime truth source."
+    },
+    {
+      "id": "sidebar-height.legacy-import", "category": "settings", "title": "导入两个旧设置来源", "sourceEvidence": ["src/lib/stores/sidebarConfig.svelte.ts", "src/lib/settings/defaults.ts", "src/lib/settings/settingsManager.ts"],
+      "targetContract": "Import geometry/blank/handle values from neoview-sidebar-config and hoverAreas from legacy settings once, normalize them, and never let stale legacy storage override canonical TOML afterward.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.legacy-import"], "notes": "Explicit imported values win over defaults; canonical settings default for all four triggers is 32."
+    },
+    {
+      "id": "sidebar-height.data-contract", "category": "data-contract", "title": "版本化共享配置与竞态语义", "sourceEvidence": ["src/lib/stores/sidebarConfig.svelte.ts", "src/lib/settings/settingsManager.ts"],
+      "targetContract": "Use the existing revisioned serialized mutation boundary for optimistic updates, stale response rejection, failure rollback and partial merge preservation across GUI, CLI and TUI.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.data-contract"], "notes": "Do not add another ReaderApp Promise queue."
+    },
+    {
+      "id": "sidebar-height.states", "category": "interaction-states", "title": "完整控件与持久化状态", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
+      "targetContract": "Cover default, hover, focus-visible, selected, disabled-at-full, pending, error, rollback, collapsed, hidden and disposed states without ambiguous values.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.states"], "notes": "Legacy has no explicit error UI; XR must provide coherent rollback/error feedback."
+    },
+    {
+      "id": "sidebar-height.accessibility", "category": "keyboard-accessibility", "title": "键盘、触摸与语义等价操作", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/components/layout/LeftSidebar.svelte", "src/lib/components/layout/RightSidebar.svelte"],
+      "targetContract": "All switches, ranges and mode controls have names/state and keyboard operation; disabled controls are semantic, and drag handles have keyboard/touch equivalents with focus preserved.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.accessibility"], "notes": "Labels, not color alone, distinguish sides and modes."
+    },
+    {
+      "id": "sidebar-height.ui-parity", "category": "ui-parity", "title": "旧版层级、控件、图标与密度", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
+      "targetContract": "Preserve the compact top controls, colored left/right geometry groups, icon semantics, live monospaced values, trigger-area group and explanatory text at the 1920x1080 baseline.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.visual-1920"], "notes": "Baseline: output/playwright/legacy-neoview-sidebar-height-1920x1080.png."
+    },
+    {
+      "id": "sidebar-height.responsive", "category": "ui-parity", "title": "约束 Card 响应式几何", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
+      "targetContract": "At constrained Card widths, reflow the two geometry columns without overlap, clipped labels, unusable ranges or horizontal page overflow while retaining all controls.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.visual-constrained"], "notes": "Intentional responsive adaptation may use one column below a stable container breakpoint."
+    },
+    {
+      "id": "sidebar-height.shell", "category": "ui-parity", "title": "共享 Card 外壳与独立窗口", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
+      "targetContract": "Sidebar Height remains an independently lazy, hideable, collapsible, movable, resizable and window-capable control-panel Card.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.shell"], "notes": "Shared Card shell behavior is required, not duplicated in the Card."
+    },
+    {
+      "id": "sidebar-height.lifecycle", "category": "lifecycle", "title": "懒加载、监听释放与迟到响应", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/settingsManager.ts", "src/lib/stores/sidebarConfig.svelte.ts"],
+      "targetContract": "Hidden/collapsed Card content is zero mounted work, listeners and pointer work are released on close, and stale hydrate/PATCH responses cannot overwrite a newer interaction or session.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.lifecycle"], "notes": "The legacy settingsManager listener must not leak across Card remounts."
+    },
+    {
+      "id": "sidebar-height.image-stability", "category": "performance", "title": "几何变化不重挂阅读图像", "sourceEvidence": ["src/lib/components/layout/MainLayout.svelte", "src/lib/cards/info/SidebarHeightCard.svelte"],
+      "targetContract": "Every height, align, offset, trigger, blank-mode and drag-handle update preserves the active img DOM node, asset URL and decode path.", "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.image-stability"], "notes": "No ReaderFrame remount for shell-only geometry."
+    },
+    {
+      "id": "sidebar-height.performance", "category": "performance", "title": "DOM、渲染、写入与 chunk 预算", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/cards/CardRenderer.svelte", "src/lib/components/layout/MainLayout.svelte"],
+      "targetContract": "Keep O(1) DOM/state, DOM-only slider/drag preview, one completion PATCH, no navigation hot-path regression, and independent deferred Card code under an explicit production budget.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.performance", "neoview.sidebar-height.chunk"], "notes": "Heavy verification must run strictly serial on Windows."
+    },
+    {
+      "id": "sidebar-height.deviations", "category": "deviations", "title": "记录规范化、写入和可访问性改进", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/stores/sidebarConfig.svelte.ts", "src/lib/settings/defaults.ts"],
+      "targetContract": "Document canonical 32px trigger defaults, strict numeric clamping, semantic disabled controls, accessible drag alternatives, serialized completion writes and canonical TOML as deliberate improvements without removing legacy options.", "surfaces": ["GUI", "CLI", "TUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.deviations"], "notes": "The legacy Card fallback 4px versus settings default 32px conflict must not survive as dual defaults."
+    }
+  ]
+}

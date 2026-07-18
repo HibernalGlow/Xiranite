@@ -2,10 +2,11 @@ import { RefreshCw } from "lucide-react"
 import { projectReaderTimeInformation } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { useReaderMetadata } from "./useReaderMetadata"
 
 export default function TimeInformationCard({ session, client }: ReaderPanelContext) {
-  if (!session) return null
+  if (!session) return <ReaderCardEmptyState>打开书本后显示时间信息</ReaderCardEmptyState>
   return <TimeInformationContent session={session} client={client} />
 }
 

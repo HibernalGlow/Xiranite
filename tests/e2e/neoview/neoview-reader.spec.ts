@@ -1636,8 +1636,8 @@ test("[neoview.folder.context-actions-e2e] keeps Explorer item context actions c
     await folderCard.getByRole("radio", { name: "详细信息" }).click()
     const detailsRow = folderCard.locator('tr[data-context-menu="neoview-folder-entry"]').filter({ hasText: "nested" })
     await expect(detailsRow).toBeVisible()
-    await detailsRow.click()
-    await folderCard.locator('[data-neoview-folder-list="true"]').press("Shift+F10")
+    await detailsRow.click({ modifiers: ["Control"] })
+    await detailsRow.press("Shift+F10")
     await expect(page.getByRole("menuitem", { name: "作为书籍打开" })).toBeVisible()
     await page.keyboard.press("Escape")
 
@@ -1646,6 +1646,23 @@ test("[neoview.folder.context-actions-e2e] keeps Explorer item context actions c
     page.on("request", (request) => {
       if (request.url().includes("/reader/browser/s/") && request.url().endsWith("/navigate")) directoryRefreshes += 1
     })
+    await folderCard.evaluate((element) => element.setAttribute("data-emm-file-card-instance", "stable"))
+    const bookRow = folderCard.locator('tr[data-context-menu="neoview-folder-entry"]').filter({ hasText: "book.cbz" })
+    await bookRow.click({ button: "right" })
+    await page.getByRole("menuitem", { name: "编辑标签与评分" }).click()
+    const editor = page.locator('[data-neoview-folder-emm-editor="true"]')
+    await expect(editor).toBeVisible()
+    await editor.getByRole("radio", { name: "5 星" }).click()
+    const emmUpdate = page.waitForResponse((response) => response.url().endsWith("/emm-metadata")
+      && response.request().method() === "PATCH")
+    await editor.getByRole("button", { name: "保存" }).click()
+    expect((await emmUpdate).status()).toBe(200)
+    await expect(editor).toHaveCount(0)
+    await expect(bookRow.getByText("5.0", { exact: true })).toBeVisible()
+    await expect(folderCard).toHaveAttribute("data-emm-file-card-instance", "stable")
+    expect(directoryRefreshes).toBe(0)
+    expect(await image.getAttribute("data-context-actions-image")).toBe("stable")
+
     await page.route("**/reader/library/bookmarks", async (route) => {
       if (route.request().method() !== "POST") {
         await route.continue()
@@ -1666,7 +1683,7 @@ test("[neoview.folder.context-actions-e2e] keeps Explorer item context actions c
     })
     const refreshesBeforeBookmark = directoryRefreshes
     await detailsRow.click({ button: "right" })
-    await page.getByRole("menuitem", { name: "添加到书签" }).click()
+    await page.getByRole("menuitem", { name: "添加/移除书签" }).click()
     await expect.poll(() => bookmarkRequests).toEqual([{
       source: { kind: "path", path: childDirectory },
       name: "nested",
@@ -2195,9 +2212,30 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+
+  const sessionlessLeft = page.locator('[data-reader-sidebar="left"]')
+  await expect(sessionlessLeft).toBeVisible()
+  for (const panel of ["文件夹", "历史记录", "书签", "页面列表"] as const) {
+    await expect(sessionlessLeft.getByRole("button", { name: panel, exact: true })).toBeVisible()
+  }
+  await sessionlessLeft.getByRole("button", { name: "页面列表", exact: true }).click()
+  await expect(sessionlessLeft.getByText("打开书本后显示页面导航")).toBeVisible()
+
+  const sessionlessViewport = page.viewportSize()!
+  await page.mouse.move(sessionlessViewport.width - 1, sessionlessViewport.height / 2)
+  const sessionlessRight = page.locator('[data-reader-sidebar="right"]')
+  await expect(sessionlessRight).toBeVisible()
+  for (const panel of ["信息", "属性", "控制"] as const) {
+    await expect(sessionlessRight.getByRole("button", { name: panel, exact: true })).toBeVisible()
+  }
+  await page.screenshot({ path: testInfo.outputPath("neoview-resident-panels-sessionless-1920x1080.png") })
+
   await page.getByRole("button", { name: "打开书籍" }).click()
   const image = page.locator("img[data-reader-page-image]").first()
   await expect(image).toBeVisible()
+  await sessionlessLeft.getByRole("button", { name: "页面列表", exact: true }).click()
+  await expect(sessionlessLeft.locator('[data-reader-card="页面导航"]')).toBeVisible()
+  await expect(sessionlessLeft.getByText("打开书本后显示页面导航")).toHaveCount(0)
   const assetUrl = await image.getAttribute("src")
   await image.evaluate((element) => element.setAttribute("data-sidebar-control-image-instance", "stable"))
 
@@ -2208,6 +2246,38 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   await rightSidebar.getByRole("button", { name: "控制", exact: true }).click()
   const card = rightSidebar.locator('[data-neoview-card="sidebar-control"]')
   await expect(card).toBeVisible()
+
+  const pageTransitionCard = rightSidebar.locator('[data-neoview-card="page-transition"]')
+  await pageTransitionCard.scrollIntoViewIfNeeded()
+  const pageTransitionToggle = pageTransitionCard.getByRole("checkbox", { name: "启用翻页动画" })
+  await expect(pageTransitionToggle).toBeEnabled()
+  const transitionResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"pageTransition"') === true)
+  await pageTransitionToggle.click()
+  expect((await transitionResponse).status()).toBe(200)
+
+  const colorFilterCard = rightSidebar.locator('[data-neoview-card="color-filter"]')
+  await colorFilterCard.scrollIntoViewIfNeeded()
+  const brightness = colorFilterCard.getByRole("slider", { name: "亮度" })
+  await expect(brightness).toBeEnabled()
+  let colorFilterPatches = 0
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/config` && request.method() === "PATCH" && request.postData()?.includes('"colorFilter"')) colorFilterPatches += 1
+  })
+  const filterResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"colorFilter"') === true)
+  const brightnessBox = await brightness.boundingBox()
+  expect(brightnessBox).not.toBeNull()
+  await page.mouse.move(brightnessBox!.x + brightnessBox!.width / 2, brightnessBox!.y + brightnessBox!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(brightnessBox!.x + brightnessBox!.width * 0.7, brightnessBox!.y + brightnessBox!.height / 2, { steps: 12 })
+  expect(colorFilterPatches).toBe(0)
+  await page.mouse.up()
+  expect((await filterResponse).status()).toBe(200)
+  expect(colorFilterPatches).toBe(1)
+  expect(await image.getAttribute("data-sidebar-control-image-instance")).toBe("stable")
 
   const keepOpenResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"
@@ -2254,6 +2324,34 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   await topChrome.getByRole("button", { name: "展开旋转设置" }).click()
   await expect(topChrome.locator('[data-reader-toolbar-panel="zoom"]')).toHaveCount(0)
   await expect(topChrome.locator('[data-reader-toolbar-panel="rotate"]')).toBeVisible()
+
+  let materialPatches = 0
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/config` && request.method() === "PATCH" && request.postData()?.includes('"material"')) materialPatches += 1
+  })
+  await windowBar.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  const settingsDialog = page.getByRole("dialog")
+  await settingsDialog.getByRole("button", { name: "外观" }).click()
+  await expect(settingsDialog.getByRole("heading", { name: "界面材质" })).toBeVisible()
+  const blurSlider = settingsDialog.getByRole("slider", { name: "顶栏背景模糊" })
+  await blurSlider.evaluate((element: HTMLInputElement) => {
+    element.value = "6"
+    element.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+  await expect(settingsDialog.getByText("6px", { exact: true })).toBeVisible()
+  expect(materialPatches).toBe(0)
+  await expect(topChrome).toHaveCSS("backdrop-filter", /blur\(6px\)/)
+  const materialResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"material"') === true)
+  await blurSlider.dispatchEvent("pointerup")
+  expect((await materialResponse).status()).toBe(200)
+  expect(materialPatches).toBe(1)
+  const materialConfig = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+  expect(materialConfig).toContain("top_toolbar_blur = 6")
+  expect(materialConfig).toContain("[nodes.neoview.panels.material]")
+  await page.keyboard.press("Escape")
+  await expect(settingsDialog).toHaveCount(0)
 
   const bottomChrome = page.locator('[data-reader-edge-chrome="bottom"]')
   const bottomControls = bottomChrome.locator('[data-reader-bottom-controls="true"]')
