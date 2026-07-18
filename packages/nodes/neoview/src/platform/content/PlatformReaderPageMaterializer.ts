@@ -10,7 +10,7 @@ import { defaultImageTransformScheduler } from "../scheduler/PriorityResourceSch
 export interface PlatformReaderPageMaterializerOptions {
   tempDirectory?: string
   resourceScheduler?: ResourceScheduler
-  purpose?: "clipboard" | "seekable-media"
+  purpose?: "clipboard" | "seekable-media" | "super-resolution"
 }
 
 export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
@@ -30,9 +30,7 @@ export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
 
     const scheduler = this.options.resourceScheduler ?? defaultImageTransformScheduler
     const purpose = this.options.purpose ?? "clipboard"
-    const profile = purpose === "clipboard"
-      ? { kind: "neoview.clipboard-materialize", ownerId: "neoview:clipboard-materialize", prefix: "xiranite-neoview-clipboard-" }
-      : { kind: "neoview.media-materialize", ownerId: "neoview:media-materialize", prefix: "xiranite-neoview-media-" }
+    const profile = materializationProfile(purpose)
     const resourceLease = await scheduler.acquire({
       resource: "io",
       kind: profile.kind,
@@ -86,6 +84,17 @@ export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
   }
 }
 
+function materializationProfile(purpose: NonNullable<PlatformReaderPageMaterializerOptions["purpose"]>) {
+  switch (purpose) {
+    case "clipboard":
+      return { kind: "neoview.clipboard-materialize", ownerId: "neoview:clipboard-materialize", prefix: "xiranite-neoview-clipboard-" }
+    case "seekable-media":
+      return { kind: "neoview.media-materialize", ownerId: "neoview:media-materialize", prefix: "xiranite-neoview-media-" }
+    case "super-resolution":
+      return { kind: "neoview.super-resolution-materialize", ownerId: "neoview:super-resolution-materialize", prefix: "xiranite-neoview-upscale-" }
+  }
+}
+
 function temporaryLease(path: string, root: string, byteLength: number): ReaderPageMaterializationLease {
   let releasing: Promise<void> | undefined
   const release = (): Promise<void> => releasing ??= rm(root, { recursive: true, force: true })
@@ -93,9 +102,13 @@ function temporaryLease(path: string, root: string, byteLength: number): ReaderP
 }
 
 function safeFileName(value: string): string {
-  let name = basename(value).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[ .]+$/g, "")
+  let name = stripControlCharacters(basename(value)).replace(/[<>:"/\\|?*]/g, "_").replace(/[ .]+$/g, "")
   if (!name || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(name)) name = `page-${name || "content"}`
   return name.slice(0, 240)
+}
+
+function stripControlCharacters(value: string): string {
+  return [...value].map((character) => (character.codePointAt(0) ?? 0) < 32 ? "_" : character).join("")
 }
 
 async function writeAll(handle: FileHandle, bytes: Uint8Array): Promise<void> {

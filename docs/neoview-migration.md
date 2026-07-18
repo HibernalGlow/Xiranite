@@ -186,7 +186,7 @@ EPUB 与 PDF 仍是两个独立 capability；EPUB provider 落地不改变 PDF d
 | Probe/transform/cache/scheduler | 部分完成 | 有界尺寸探测、惰性 sharp、singleflight、weighted LRU、`cacache` 内容寻址 L3、request-bound 内存压力 admission/回收、宿主 CPU lease；non-solid 归档流与 sharp/WIC 复用单一 CPU lease | frame pin、方向权重、所有重节点共享配额 |
 | 旧缩略图数据库 | 主运行纵切可用、迁移未完成 | 沿用 `%APPDATA%/NeoView/thumbnails.db`；惰性单 writer、批量命中、Page/file/folder/video/归档内视频生成与持久化、失败退避、统计与有界在线清理；SQLite 原生一致性备份、显式离线 checkpoint/optimize/vacuum、验证备份恢复与原 DB/WAL/SHM 隔离；XR writer/维护进程锁；`data_version` 外部 writer epoch；V1/V3/V4 行为收口到单一有界优先 Coordinator | 真实大规模基准 |
 | 设置与数据迁移 | 部分完成 | LegacySettingsCodec、共享 ReaderSettingsMigrationService、CLI 与鉴权 HTTP legacy inspect/import；当前 `[nodes.neoview]` 的 Xiranite/NeoViewConfig v1 portable 导出/回读；Xiranite/NeoViewBackup v1 配置+原 thumbnails.db 在线一致目录 bundle；bundle manifest/哈希/portable/SQLite 只读检查；带配置回滚与旧数据库隔离的 offline restore；确认/备份/跨进程锁/原子写入 | GUI/TUI 确认界面、自动备份调度、Gist transport |
-| 超分 | 后端契约与 system runtime 链可用，真实集成未完成 | 共享 service、GPU lease、TOML composition、系统 CLI 探测、薄 Provider、惰性 runtime loader、输出校验、daemon/短进程清理及可注册模型；不嵌入 Python/exe | fork 推送/锁版本、Windows 三 CLI 实测、显存与派生进程树、custom manifest 旧设置导入和 GUI/Card |
+| 超分 | 后端契约、Page workflow 与 system runtime 链可用，真实 CLI 集成未完成 | 共享 policy/service、文件页零复制与归档页受 lease materialize、GPU lease、TOML composition、旧 preferences/conditions 导入、系统 CLI 探测、薄 Provider、惰性 runtime loader、输出校验、daemon/短进程清理及可注册模型；不嵌入 Python/exe | fork 推送/锁版本、Windows 三 CLI 实测、显存与派生进程树、MangaJaNai 旧目录 manifest 补全和 GUI/Card |
 
 前端当前真实状态：
 
@@ -1713,6 +1713,8 @@ Xiranite 侧的共享边界已经由 `f4d58552`、`19d31807`、`8e42df71`、`95c
 旧 `image.enableSuperResolution`、`image.superResolutionModel`、`image.currentImageUpscaleEnabled`、`extended.upscalePanelSettings` 和 `rawLocalStorage.pyo3_upscale_settings` 现在统一交给 `LegacySuperResolutionSettingsCodec`。该 codec 使用与运行时相同的 Zod wire schema，将 UI/当前页/自动超分偏好写入 `[nodes.neoview.super_resolution.preferences]`，不会把 `enableSuperResolution=false` 错译成 `provider=disabled`。条件转换保留宽高、百万像素范围、and/or、时间范围、书籍/图片正则、inner-path、preload 排除、metadata 表达式、优先级、skip/cache/tile/noise/GPU/TTA；正则和范围在写 TOML 前验证。只有能证明等价的 RealESRGAN AnimeVideo/X4Plus、RealCUGAN SE 与 Waifu2x CUnet 枚举会映射到 runtime model ID；RealCUGAN Pro、Waifu2x Photo/Anime、MangaJaNai 等未证明等价的模型保留在 inspect/import report，并从可执行 conditions 中排除，禁止静默换模型。现有鉴权 inspect/import、确认、备份、原子写入与回读链路不变。
 
 `SuperResolutionPolicyService` 现在是 preferences 的共享 application 消费边界：构造时固定 enabled 条件的优先级顺序，使用已有 `lru-cache` 对正则做有界惰性缓存，按宽高、百万像素、时间、book/image/inner path 和 metadata 表达式生成 `run/skip/disabled` 决策。自动当前页、预加载和显式手动触发具有独立语义；provider capability 开关不参与 UI 偏好判断，手动触发不会被 auto/preload 开关误禁用，preload exclusion、粗粒度最小宽高与 condition skip 在进入 Provider 前完成。决策只携带现有 `SuperResolutionService.run()` 所需的 model/scale/noise/tile/TTA/GPU 参数和 cache hint，不另建队列、GPU 调度或模型表。`createOpenComicAiSystemCapability()` 从同一份 runtime config 组合 `{ service, policy }`，原 `createOpenComicAiSystemService()` 保持兼容并继续惰性加载 runtime。
+
+`SuperResolutionPageService` 继续把该决策接到 Reader 的真实页面边界，而不复制内容层：普通目录页直接使用 `ReaderPage.sourcePath`，不会为了系统 CLI 再复制一次文件；带 `entryPath` 的 ZIP/7z/RAR/EPUB 页面只在 policy 返回 `run` 后调用既有 `ReaderPageMaterializer`，沿用 byte budget、宿主 I/O lease、背压与取消。materialized input 在 Provider 成功、失败和取消后都释放，cleanup 失败不会覆盖原 Provider 错误；policy 返回 skip/disabled 时不会打开归档或创建临时文件。OpenComic composition 现在统一返回 `{ service, policy, pages }`，其中 pages 仍调用相同 `SuperResolutionService`，所以输出互斥、GPU scheduler、模型校验、取消和进程回收契约保持唯一。
 
 预发布依赖示例：
 
