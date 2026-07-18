@@ -197,6 +197,11 @@ export const ReaderDiagnosticsWireSchema = loose({
       evictions: count,
     }).optional(),
   }),
+  videoProcess: loose({
+    active: count,
+    queued: count,
+    maxConcurrent: count,
+  }).optional(),
   scheduler: loose({ cpu: schedulerPool, io: schedulerPool, gpu: schedulerPool }).nullable(),
 })
 

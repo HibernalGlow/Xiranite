@@ -100,6 +100,7 @@ describe("ReaderHttpController", () => {
         },
         presentationDiskCache: { enabled: false },
         solidArchiveCache: { entries: 0, retainedBytes: 0 },
+        videoProcess: { active: 0, queued: 0, maxConcurrent: 1 },
         scheduler: { cpu: { active: 0, queued: 0 }, io: { active: 0, queued: 0 }, gpu: { active: 0, queued: 0 } },
       })
       expect(JSON.stringify(snapshot)).not.toContain("D:/")
