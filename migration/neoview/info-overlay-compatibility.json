@@ -295,7 +295,7 @@
     {
       "id": "info-overlay.persistence", "category": "settings", "title": "唯一规范 TOML 与原子更新", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/settings/settingsManager.ts"],
       "targetContract": "Persist only [nodes.neoview.view.info_overlay] through strict serialized partial PATCH, preserving unknown fields, coalescing interactions and rolling back failures.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.persistence"], "notes": "No GUI-only runtime settings or per-input disk writes."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.info-overlay.persistence"], "plannedTestIds": [], "notes": "No GUI-only runtime settings or per-input disk writes."
     },
     {
       "id": "info-overlay.legacy-import", "category": "settings", "title": "一次导入旧 view.infoOverlay", "sourceEvidence": ["src/lib/settings/types.ts", "src/lib/settings/defaults.ts"],
@@ -310,12 +310,12 @@
     {
       "id": "info-overlay.states", "category": "interaction-states", "title": "Card、媒体、诊断与持久化状态", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],
       "targetContract": "Cover disabled, enabled-no-session, enabled-no-info, image, video, partial metadata, latency, auto/custom size, dragging, pending, error, rollback, stale and disposed states.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.states"], "notes": "Missing optional fields produce zero DOM rather than placeholders."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.info-overlay.loading", "neoview.info-overlay.navigation-independence", "neoview.info-overlay.persistence"], "plannedTestIds": ["neoview.info-overlay.states"], "notes": "Missing optional fields produce zero DOM rather than placeholders."
     },
     {
       "id": "info-overlay.lifecycle", "category": "lifecycle", "title": "Card、layer、session、listener 与 pointer 释放", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte", "src/lib/stores/infoPanel.svelte.ts"],
       "targetContract": "Hidden editors do no work, disabled/no-info layer is zero DOM, session generations reject stale data and every settings/store/pointer/timer subscription is released on unmount.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.info-overlay.lifecycle"], "notes": "Pointer cleanup must also run if unmounted mid-drag."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"}, "testIds": ["neoview.info-overlay.lifecycle"], "plannedTestIds": [], "notes": "Pointer cleanup must also run if unmounted mid-drag."
     },
     {
       "id": "info-overlay.accessibility", "category": "keyboard-accessibility", "title": "命名控件、值语义与移动等价操作", "sourceEvidence": ["src/lib/cards/info/InfoOverlayCard.svelte", "src/lib/stackview/layers/ImageInfoLayer.svelte"],

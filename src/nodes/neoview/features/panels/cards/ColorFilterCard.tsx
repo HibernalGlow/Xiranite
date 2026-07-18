@@ -12,7 +12,7 @@ import {
   type ReaderColorFilterSettings,
 } from "@xiranite/node-neoview/color-filter"
 import { RotateCcw } from "lucide-react"
-import { useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -37,7 +37,43 @@ export default function DockedColorFilterCard({ colorFilter, panelActive = true 
 
 export function ColorFilterCard({ store, disabled = false }: { store: ReaderColorFilterPort; disabled?: boolean }) {
   const settings = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
-  const commit = () => { void store.commit() }
+  const [saveState, setSaveState] = useState<SaveState>({ phase: "idle" })
+  const mountedRef = useRef(true)
+  const retryRef = useRef<(() => Promise<void>)>()
+  useEffect(() => () => { mountedRef.current = false }, [])
+
+  const runMutation = useCallback((operation: () => Promise<void>, retry = operation) => {
+    retryRef.current = retry
+    setSaveState({ phase: "saving" })
+    void operation().then(() => {
+      if (!mountedRef.current) return
+      retryRef.current = undefined
+      setSaveState({ phase: "saved" })
+    }).catch((cause) => {
+      if (!mountedRef.current) return
+      setSaveState({ phase: "error", message: errorMessage(cause) })
+    })
+  }, [])
+  const update = useCallback((patch: ReaderColorFilterPatch) => {
+    runMutation(() => store.update(patch), () => store.update(patch))
+  }, [runMutation, store])
+  const preview = useCallback((patch: ReaderColorFilterPatch) => {
+    store.preview(patch)
+    retryRef.current = undefined
+    setSaveState((current) => current.phase === "saving" ? current : { phase: "idle" })
+  }, [store])
+  const commit = useCallback(() => {
+    const target = store.getSnapshot()
+    runMutation(() => store.commit(), () => store.update(target))
+  }, [runMutation, store])
+  const reset = useCallback(() => {
+    runMutation(() => store.reset(), () => store.reset())
+  }, [runMutation, store])
+  const retry = useCallback(() => {
+    const operation = retryRef.current
+    if (operation) runMutation(operation, operation)
+  }, [runMutation])
+  const controlsDisabled = disabled || saveState.phase === "saving"
 
   return (
     <section className="space-y-3 text-sm" data-neoview-card="color-filter">
@@ -45,18 +81,18 @@ export function ColorFilterCard({ store, disabled = false }: { store: ReaderColo
         <CheckboxRow
           label="上色"
           checked={settings.colorizeEnabled}
-          disabled={disabled}
-          onCheckedChange={(checked) => void store.update({ colorizeEnabled: checked })}
+          disabled={controlsDisabled}
+          onCheckedChange={(checked) => update({ colorizeEnabled: checked })}
         />
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="size-7 shrink-0"
-          disabled={disabled}
+          disabled={controlsDisabled}
           title="重置所有滤镜"
           aria-label="重置所有滤镜"
-          onClick={() => void store.reset()}
+          onClick={reset}
         >
           <RotateCcw className="size-3.5" />
         </Button>
@@ -68,8 +104,8 @@ export function ColorFilterCard({ store, disabled = false }: { store: ReaderColo
             className="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground"
             aria-label="上色预设"
             value={settings.colorizePreset}
-            disabled={disabled}
-            onChange={(event) => void store.update({ colorizePreset: event.currentTarget.value as ReaderColorFilterSettings["colorizePreset"] })}
+            disabled={controlsDisabled}
+            onChange={(event) => update({ colorizePreset: event.currentTarget.value as ReaderColorFilterSettings["colorizePreset"] })}
           >
             {READER_COLOR_FILTER_PRESET_IDS.map((preset) => (
               <option key={preset} value={preset}>{READER_COLOR_FILTER_PRESET_LABELS[preset]}</option>
@@ -78,8 +114,8 @@ export function ColorFilterCard({ store, disabled = false }: { store: ReaderColo
           <CheckboxRow
             label="仅黑白图像"
             checked={settings.onlyBlackAndWhite}
-            disabled={disabled}
-            onCheckedChange={(checked) => void store.update({ onlyBlackAndWhite: checked })}
+            disabled={controlsDisabled}
+            onCheckedChange={(checked) => update({ onlyBlackAndWhite: checked })}
           />
         </div>
       ) : null}
@@ -93,20 +129,30 @@ export function ColorFilterCard({ store, disabled = false }: { store: ReaderColo
             min={slider.min}
             max={slider.max}
             suffix={slider.suffix}
-            disabled={disabled}
-            onPreview={(value) => store.preview({ [slider.key]: value } as ReaderColorFilterPatch)}
+            disabled={controlsDisabled}
+            onPreview={(value) => preview({ [slider.key]: value } as ReaderColorFilterPatch)}
             onCommit={commit}
           />
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <CheckboxRow label="反色" checked={settings.invert} disabled={disabled} onCheckedChange={(checked) => void store.update({ invert: checked })} />
-        <CheckboxRow label="负片" checked={settings.negative} disabled={disabled} onCheckedChange={(checked) => void store.update({ negative: checked })} />
+        <CheckboxRow label="反色" checked={settings.invert} disabled={controlsDisabled} onCheckedChange={(checked) => update({ invert: checked })} />
+        <CheckboxRow label="负片" checked={settings.negative} disabled={controlsDisabled} onCheckedChange={(checked) => update({ negative: checked })} />
       </div>
+      {saveState.phase === "saving" ? <p role="status" aria-live="polite" className="text-xs text-muted-foreground">正在保存...</p> : null}
+      {saveState.phase === "saved" ? <p role="status" aria-live="polite" className="text-xs text-muted-foreground">已保存</p> : null}
+      {saveState.phase === "error" ? (
+        <div role="alert" className="flex items-center justify-between gap-2 rounded border border-destructive/50 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+          <span>保存失败：{saveState.message}</span>
+          <Button type="button" size="sm" variant="outline" onClick={retry} disabled={disabled}><RotateCcw />重试</Button>
+        </div>
+      ) : null}
     </section>
   )
 }
+
+type SaveState = { phase: "idle" | "saving" | "saved" } | { phase: "error"; message: string }
 
 function CheckboxRow({ label, checked, disabled, onCheckedChange }: {
   label: string
@@ -160,4 +206,8 @@ function FilterSlider({ label, value, min, max, suffix, disabled, onPreview, onC
       <output className="tabular-nums text-right text-muted-foreground">{value}{suffix}</output>
     </label>
   )
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }

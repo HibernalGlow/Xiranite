@@ -421,8 +421,8 @@
       "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/stores/filterStore.svelte.ts", "src/lib/cards/CardRenderer.svelte"],
       "targetContract": "The Card covers lazy loading, loaded defaults, colorize-disabled conditional content, active edits, pending persistence, validation failure, write failure with rollback, retry, reset and disposed states without stale visual state.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.hydration-race", "neoview.color-filter.persistence", "neoview.color-filter.ui"], "plannedTestIds": ["neoview.color-filter.states", "neoview.color-filter.rollback", "neoview.color-filter.retry"], "notes": "Conditional, rollback and stale hydration states are covered; explicit retry UI remains pending."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.color-filter.hydration-race", "neoview.color-filter.persistence", "neoview.color-filter.ui", "neoview.color-filter.states", "neoview.color-filter.rollback", "neoview.color-filter.retry"], "plannedTestIds": [], "notes": "Conditional, rollback, pending-save, stale hydration and explicit retry states are covered by the Card and Store tests."
     },
     {
       "id": "color-filter.shell",
@@ -472,7 +472,7 @@
       "targetContract": "The Card and SVG definitions load only when needed, subscriptions dispose on collapse/hide/window close, current-node sampling is cancelled or made stale on page/session changes, and all owned DOM/cache state is released without affecting the active reader image.",
       "surfaces": ["GUI"],
       "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.black-white-detection", "neoview.color-filter.registry"], "plannedTestIds": ["neoview.color-filter.lifecycle", "neoview.color-filter.sample-cancel", "neoview.color-filter.dispose"], "notes": "Card loading, bounded sampling and cleanup are implemented; a dedicated stale-sample lifecycle test remains pending."
+      "testIds": ["neoview.color-filter.black-white-detection", "neoview.color-filter.registry", "neoview.color-filter.lifecycle"], "plannedTestIds": ["neoview.color-filter.sample-cancel", "neoview.color-filter.dispose"], "notes": "Card visibility and subscription cleanup are covered; current-node stale-sample cancellation and full owned-resource disposal remain pending outside this Card-only change."
     },
     {
       "id": "color-filter.image-stability",

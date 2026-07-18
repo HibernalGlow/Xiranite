@@ -54,18 +54,34 @@ describe("SidebarManagementSettingsCard", () => {
     view.rerender(<SidebarManagementSettingsCard shell={updated} onSave={vi.fn()} />)
     await waitFor(() => expect((screen.getByRole("combobox", { name: "历史记录位置" }) as HTMLSelectElement).value).toBe("right"))
   })
-  it("surfaces save failures and retries with the preserved panel draft", async () => {
+  it("surfaces save failures, disables controls while saving, and retries after a draft edit", async () => {
+    let rejectFirst!: (reason?: unknown) => void
+    const firstSave = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject
+    })
     const save = vi.fn()
-      .mockRejectedValueOnce(new Error("sidebar write failed"))
+      .mockImplementationOnce(() => firstSave)
       .mockResolvedValueOnce(undefined)
     render(<SidebarManagementSettingsCard shell={shell()} onSave={save} />)
 
-    const saveButton = screen.getAllByRole("button").find((button) => button.querySelector("svg.lucide-save")) as HTMLButtonElement
-    expect(saveButton).toBeTruthy()
+    const saveButton = screen.getByRole("button", { name: "保存边栏布局" }) as HTMLButtonElement
+    const resetButton = screen.getByRole("button", { name: "重置" }) as HTMLButtonElement
+    const position = screen.getByRole("combobox", { name: "历史记录位置" }) as HTMLSelectElement
+    fireEvent.change(position, { target: { value: "right" } })
     fireEvent.click(saveButton)
+
+    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    expect(saveButton.disabled).toBe(true)
+    expect(resetButton.disabled).toBe(true)
+    expect(position.disabled).toBe(true)
+
+    rejectFirst(new Error("sidebar write failed"))
     expect((await screen.findByRole("alert")).textContent).toContain("sidebar write failed")
     await waitFor(() => expect(saveButton.disabled).toBe(false))
+    expect(position.value).toBe("right")
 
+    fireEvent.change(position, { target: { value: "left" } })
+    expect(screen.queryByRole("alert")).toBeNull()
     fireEvent.click(saveButton)
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
     expect(screen.queryByRole("alert")).toBeNull()
