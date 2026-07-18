@@ -24,6 +24,15 @@ describe("InfoOverlayCard", () => {
     expect(screen.getByText("调节悬浮信息窗的背景透明度（0% - 100%，0% 为仅文字无底色）。")).toBeTruthy()
   })
 
+  it("[neoview.info-overlay.alias] treats infoOverlay as the active port", () => {
+    const infoOverlay = memoryPort()
+    const view = render(<InfoOverlayCard infoOverlay={infoOverlay} />)
+
+    expect(view.container.querySelector('[data-info-overlay-state="ready"]')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole("switch")[0])
+    expect(infoOverlay.update).toHaveBeenCalledWith({ enabled: true })
+  })
+
   it("[neoview.info-overlay.number-commit] keeps opacity edits local until blur and clamps once", () => {
     const port = memoryPort()
     render(<InfoOverlayCard port={port} />)

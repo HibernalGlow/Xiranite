@@ -45,7 +45,7 @@ export function InfoOverlayCard({ port, infoOverlay }: InfoOverlayCardProps) {
     activePort?.getSnapshot ?? getUndefinedSnapshot,
   )
 
-  if (!settings || !port) {
+  if (!settings || !activePort) {
     return (
       <section
         className="grid min-h-20 place-items-center text-xs text-muted-foreground"
