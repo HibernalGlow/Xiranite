@@ -282,10 +282,12 @@ export class ReaderAssetRoute {
     let lease: ThumbnailLease | undefined
     let thumbnail: ThumbnailAsset
     try {
+      const session = this.#readerService.getSession(sessionId)
+      const generation = session?.preloadPlan()?.generation ?? 0
       lease = this.#thumbnailPipeline.acquirePage(page, {
         lane: "reader-visible",
         contextId: `reader:${sessionId}`,
-        generation: 0,
+        generation,
         signal: request.signal,
       })
       thumbnail = await lease.ready
