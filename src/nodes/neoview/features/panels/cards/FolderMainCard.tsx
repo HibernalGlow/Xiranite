@@ -335,7 +335,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       ? [...current.pages].flatMap(([cursor, entries]) => entries.map((entry, offset) => ({ index: cursor + offset, entry })))
       : directoryLoadedEntries(current, range.startIndex, range.endIndex, MAX_THUMBNAILS)
     const visible = candidates
-      .filter(({ entry }) => entry.kind === "directory" || entry.kind === "file")
+      .filter(({ entry }) => entry.kind === "directory" || (entry.kind === "file" && entry.readerSupported))
       .filter(({ entry }) => !targetPaths || targetPaths.has(entry.path))
       .filter(({ entry }) => refresh || thumbnailProfilesRef.current.get(entry.path) !== thumbnailProfile(entry, viewMode, previewCount))
       .slice(0, MAX_THUMBNAILS)
