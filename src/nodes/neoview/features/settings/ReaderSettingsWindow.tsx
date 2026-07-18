@@ -2,7 +2,7 @@ import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Mon
 import { lazy, Suspense, useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRadialMenuPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderShellMaterialPatch, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
+import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRadialMenuPatch, ReaderRuntimeConfigDto, ReaderSettingsMigrationImportResult, ReaderSettingsMigrationInspection, ReaderShellConfigDto, ReaderShellMaterialPatch, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
 
 const LazyReaderMaterialSettingsCard = lazy(() => import("./cards/ReaderMaterialSettingsCard"))
@@ -17,6 +17,8 @@ export function ReaderSettingsWindow({
   onInputBindings,
   radialMenu,
   onRadialMenu,
+  onLegacySettingsInspect,
+  onLegacySettingsImport,
   onMaterial,
 }: {
   shell: ReaderShellConfigDto
@@ -28,6 +30,8 @@ export function ReaderSettingsWindow({
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
+  onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
 }) {
   const [active, setActive] = useState<SettingsSectionId>("sidebar")
@@ -59,7 +63,7 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} onMaterial={onMaterial} />
+            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} onLegacySettingsInspect={onLegacySettingsInspect} onLegacySettingsImport={onLegacySettingsImport} onMaterial={onMaterial} />
           </div>
         </div>
       </DialogContent>
@@ -77,6 +81,8 @@ function SettingsSection({
   onInputBindings,
   radialMenu,
   onRadialMenu,
+  onLegacySettingsInspect,
+  onLegacySettingsImport,
   onMaterial,
 }: {
   sectionId: SettingsSectionId
@@ -88,6 +94,8 @@ function SettingsSection({
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
+  onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
 }) {
   if (sectionId === "appearance") {
@@ -99,7 +107,7 @@ function SettingsSection({
     const Card = lazyReaderSettingsCard(definition.id)
     return Card ? (
       <Suspense key={definition.id} fallback={<div className="h-24 animate-pulse rounded-md bg-muted/35" aria-label={`正在加载${definition.title}`} />}>
-        <Card shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onSave} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} />
+        <Card shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onSave} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} onLegacySettingsInspect={onLegacySettingsInspect} onLegacySettingsImport={onLegacySettingsImport} />
       </Suspense>
     ) : null
   })

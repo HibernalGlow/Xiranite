@@ -694,6 +694,31 @@ export interface ReaderRadialMenuPatch {
   radialMenu: { config?: ReaderRadialMenuConfig; reset?: "defaults" }
 }
 
+export interface ReaderSettingsMigrationReport {
+  codecVersion: number
+  sourceKind: string
+  sourceVersion?: string
+  entries: readonly {
+    sourcePath: string
+    targetPath?: string
+    disposition: string
+    message?: string
+  }[]
+  summary: Readonly<Record<string, number>>
+  fullyRecognized: boolean
+}
+
+export interface ReaderSettingsMigrationInspection {
+  report: ReaderSettingsMigrationReport
+  configPatch: Record<string, unknown>
+}
+
+export interface ReaderSettingsMigrationImportResult extends ReaderSettingsMigrationInspection {
+  strategy: "merge" | "overwrite"
+  changed: boolean
+  backupCreated: boolean
+}
+
 export interface ReaderColorFilterConfigPatch {
   colorFilter: ReaderColorFilterPatch | { reset: "defaults" }
 }
@@ -884,6 +909,8 @@ export interface ReaderHttpClient {
   updateMedia?(patch: ReaderMediaPatchDto, signal?: AbortSignal): Promise<ReaderMediaConfigDto>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
+  inspectLegacySettings?(content: string, modules?: readonly string[], signal?: AbortSignal): Promise<ReaderSettingsMigrationInspection>
+  importLegacySettings?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[], signal?: AbortSignal): Promise<ReaderSettingsMigrationImportResult>
   updateColorFilter?(patch: ReaderColorFilterConfigPatch, signal?: AbortSignal): Promise<ReaderColorFilterSettings>
   updatePageTransition?(patch: ReaderPageTransitionConfigPatch, signal?: AbortSignal): Promise<ReaderPageTransitionSettings>
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
@@ -1095,6 +1122,18 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.radialMenu),
+    inspectLegacySettings: (content, modules, signal) => request<ReaderSettingsMigrationInspection>("/reader/settings/migration/inspect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content, ...(modules ? { modules } : {}) }),
+        signal,
+    }),
+    importLegacySettings: (content, strategy = "merge", modules, signal) => request<ReaderSettingsMigrationImportResult>("/reader/settings/migration/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content, strategy, confirmed: true, ...(modules ? { modules } : {}) }),
+        signal,
+    }),
     updateColorFilter: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },

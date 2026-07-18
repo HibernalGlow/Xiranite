@@ -105,6 +105,31 @@ describe("InputBindingsSettingsCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "恢复默认" }))
     await waitFor(() => expect(save).toHaveBeenCalledWith({ reset: "defaults" }))
   })
+
+  it("[neoview.bindings.legacy-import-ui] inspects before importing and refreshes the canonical runtime", async () => {
+    const inspect = vi.fn(async () => ({
+      report: {
+        codecVersion: 1,
+        sourceKind: "app-settings",
+        entries: [{ sourcePath: "keybindings[0]", disposition: "converted" }],
+        summary: { converted: 1 },
+        fullyRecognized: true,
+      },
+      configPatch: { bindings: { items: [] } },
+    }))
+    const importLegacy = vi.fn(async () => ({
+      report: { codecVersion: 1, sourceKind: "app-settings", entries: [], summary: {}, fullyRecognized: true },
+      configPatch: {}, strategy: "merge" as const, changed: true, backupCreated: true,
+    }))
+    render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} onLegacySettingsInspect={inspect} onLegacySettingsImport={importLegacy} />)
+    fireEvent.change(screen.getByRole("textbox", { name: "Legacy settings JSON" }), { target: { value: '{"keybindings":[]}' } })
+    fireEvent.click(screen.getByRole("button", { name: "Inspect" }))
+    await waitFor(() => expect(inspect).toHaveBeenCalledWith('{"keybindings":[]}'))
+    expect(screen.getByText("Recognized legacy settings")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Import" }))
+    await waitFor(() => expect(importLegacy).toHaveBeenCalledWith('{"keybindings":[]}', "merge"))
+    expect(screen.getByText(/Imported successfully/)).toBeTruthy()
+  })
 })
 
 function binding(id: string, device: "keyboard" | "mouse" | "mouse-gesture" | "wheel" | "touch" | "gamepad") {

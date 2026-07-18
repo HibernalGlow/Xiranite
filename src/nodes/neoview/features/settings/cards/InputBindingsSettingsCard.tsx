@@ -21,11 +21,13 @@ import {
   type ReaderInputBindingsConfig,
   type ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Keyboard, Plus, Radio, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react"
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckCircle2, FileUp, Keyboard, Plus, Radio, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import type { ReaderSettingsMigrationImportResult, ReaderSettingsMigrationInspection } from "../../../adapters/reader-http-client"
 import { Switch } from "@/components/ui/switch"
 import type { ReaderSettingsCardContext } from "../../panels/registry"
 import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder"
@@ -39,10 +41,10 @@ const LazyRadialMenuSettingsEditor = lazy(async () => ({
 
 type RecordableReaderDevice = Extract<ReaderInputDescriptor["device"], "mouse" | "mouse-gesture" | "wheel" | "touch" | "gamepad">
 
-export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radialMenu, onRadialMenu }: ReaderSettingsCardContext) {
+export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radialMenu, onRadialMenu, onLegacySettingsInspect, onLegacySettingsImport }: ReaderSettingsCardContext) {
   if (!inputBindings || !onInputBindings) return null
   return <div className="grid gap-6">
-    <InputBindingsEditor value={inputBindings} onSave={onInputBindings} />
+    <InputBindingsEditor value={inputBindings} onSave={onInputBindings} onLegacySettingsInspect={onLegacySettingsInspect} onLegacySettingsImport={onLegacySettingsImport} />
     {radialMenu && onRadialMenu ? <Suspense fallback={<div className="h-32 animate-pulse rounded bg-muted/30" />}><LazyRadialMenuSettingsEditor value={radialMenu} onSave={onRadialMenu} /></Suspense> : null}
   </div>
 }
@@ -50,9 +52,13 @@ export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radi
 export function InputBindingsEditor({
   value,
   onSave,
+  onLegacySettingsInspect,
+  onLegacySettingsImport,
 }: {
   value: ReaderInputBindingsConfig
   onSave(patch: { bindings?: ReaderInputBinding[]; reset?: "defaults" }): Promise<ReaderInputBindingsConfig>
+  onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
+  onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
 }) {
   const [draft, setDraft] = useState(() => cloneReaderInputBindings(value))
   const [query, setQuery] = useState("")
@@ -164,6 +170,67 @@ export function InputBindingsEditor({
         {!visible.length ? <p className="py-8 text-center text-sm text-muted-foreground">没有匹配的操作绑定</p> : null}
       </div>
       {feedback ? <p role={feedback.kind} className={feedback.kind === "alert" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{feedback.text}</p> : null}
+      {onLegacySettingsInspect && onLegacySettingsImport ? <LegacySettingsImportSection onInspect={onLegacySettingsInspect} onImport={onLegacySettingsImport} /> : null}
+    </section>
+  )
+}
+
+function LegacySettingsImportSection({
+  onInspect,
+  onImport,
+}: {
+  onInspect(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
+  onImport(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
+}) {
+  const [content, setContent] = useState("")
+  const [strategy, setStrategy] = useState<"merge" | "overwrite">("merge")
+  const [inspection, setInspection] = useState<ReaderSettingsMigrationInspection>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const [result, setResult] = useState<ReaderSettingsMigrationImportResult>()
+
+  async function inspect() {
+    if (!content.trim() || busy) return
+    setBusy(true)
+    setError(undefined)
+    setResult(undefined)
+    try {
+      setInspection(await onInspect(content))
+    } catch (cause) {
+      setInspection(undefined)
+      setError(errorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function commit() {
+    if (!inspection || busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      setResult(await onImport(content, strategy))
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="grid gap-3 rounded-md border border-dashed p-3" data-neoview-settings-import="legacy-bindings">
+      <div className="flex items-center gap-2"><FileUp className="size-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Legacy settings import</h3></div>
+      <p className="text-xs text-muted-foreground">Inspect an exported legacy settings JSON before changing canonical bindings.</p>
+      <label className="grid gap-1 text-xs"><span>Settings JSON</span><Textarea value={content} onChange={(event) => { setContent(event.currentTarget.value); setInspection(undefined); setResult(undefined) }} placeholder='{"keybindings": [...]}' aria-label="Legacy settings JSON" className="min-h-24 font-mono text-xs" /></label>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs hover:bg-muted"><FileUp className="size-3.5" />Choose JSON<input type="file" accept="application/json,.json" className="sr-only" onChange={async (event) => { const file = event.currentTarget.files?.[0]; if (!file) return; setContent(await file.text()); setInspection(undefined); setResult(undefined); event.currentTarget.value = "" }} /></label>
+        <Button type="button" variant="outline" size="sm" disabled={busy || !content.trim()} onClick={() => void inspect()}>Inspect</Button>
+        <select className="h-8 rounded border border-input bg-background px-2 text-xs" value={strategy} disabled={busy} onChange={(event) => setStrategy(event.currentTarget.value as typeof strategy)} aria-label="Import strategy"><option value="merge">Merge</option><option value="overwrite">Overwrite</option></select>
+        <Button type="button" size="sm" disabled={busy || !inspection} onClick={() => void commit()}><CheckCircle2 />Import</Button>
+      </div>
+      {inspection ? <div role="status" className="grid gap-1 rounded bg-muted/35 p-2 text-xs"><strong>{inspection.report.fullyRecognized ? "Recognized legacy settings" : "Legacy settings need review"}</strong><span>{Object.entries(inspection.report.summary).map(([key, count]) => `${key}: ${count}`).join(" | ") || "No entries"}</span><span>{inspection.report.entries.length} report entries</span></div> : null}
+      {result ? <p role="status" className="text-xs text-emerald-600">Imported successfully ({result.strategy}); runtime bindings were refreshed.</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
     </section>
   )
 }

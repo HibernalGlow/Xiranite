@@ -669,6 +669,25 @@ describe("reader-http-client", () => {
       expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
     }
   })
+
+  it("[neoview.bindings.legacy-import-client] uses authenticated inspect and confirmed import endpoints", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith("/inspect")) return Response.json({ report: { codecVersion: 1, sourceKind: "app-settings", entries: [], summary: {}, fullyRecognized: true }, configPatch: {} })
+      return Response.json({ report: { codecVersion: 1, sourceKind: "app-settings", entries: [], summary: {}, fullyRecognized: true }, configPatch: {}, strategy: "merge", changed: true, backupCreated: true })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await client.inspectLegacySettings!("{}", ["keybindings"])
+    await client.importLegacySettings!("{}", "merge", ["keybindings"])
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/settings/migration/inspect")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ content: "{}", modules: ["keybindings"] })
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ content: "{}", strategy: "merge", confirmed: true, modules: ["keybindings"] })
+    for (const call of fetchMock.mock.calls) expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
 })
 
 function deferred<T>() {
