@@ -1037,8 +1037,8 @@
       "featureId": "file-browser-navigation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
+        "core": "complete",
+        "transport": "complete",
         "gui": "partial",
         "cli": "partial",
         "tui": "partial",

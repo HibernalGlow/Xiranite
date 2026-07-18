@@ -208,6 +208,47 @@ describe("NeoView CLI", () => {
     expect(dispose).toHaveBeenCalledTimes(2)
   })
 
+  it("[neoview.folder.emm-edit-cli] applies a JSON batch through the shared generation-bound editor", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-emm-edit-cli-"))
+    const inputPath = join(root, "updates.json")
+    const invalidPath = join(root, "invalid.json")
+    const databasePath = join(root, "thumbnails.db")
+    const targetPath = join(root, "A.cbz")
+    await writeFile(inputPath, JSON.stringify({
+      updates: [{ path: targetPath, expectedRevision: 0, patch: { rating: 5, translatedTitle: "Translated" } }],
+      concurrency: 1,
+    }))
+    await writeFile(invalidPath, "{")
+    const dispose = vi.fn(async () => undefined)
+    const editEmm = vi.fn(async () => ({ generation: 8, refreshRequired: false, results: [], succeeded: 1, conflicts: 0, failed: 0 }))
+    const controller = {
+      open: vi.fn(async () => ({ sessionId: "browser-1", generation: 7 })),
+      editEmm,
+      [Symbol.asyncDispose]: dispose,
+    } as unknown as ReaderFileTreeHeadlessController
+    const createFileTreeController = vi.fn(async () => controller)
+    const dependencies = { createController: async () => fakeReader(), createFileTreeController }
+    try {
+      const output: unknown[] = []
+      await runProgram([
+        "folder-emm-edit", root, "--input", inputPath, "--database", databasePath,
+        "--concurrency", "2", "--json",
+      ], host(output), dependencies)
+      expect(editEmm).toHaveBeenCalledWith({
+        generation: 7,
+        updates: [{ path: targetPath, expectedRevision: 0, patch: { rating: 5, translatedTitle: "Translated" } }],
+        concurrency: 2,
+      })
+      expect(JSON.parse(output.join(""))).toMatchObject({ succeeded: 1, conflicts: 0, failed: 0 })
+      expect(createFileTreeController).toHaveBeenCalledWith(expect.objectContaining({ legacyThumbnailDatabasePath: databasePath }))
+      await expect(runProgram(["folder-emm-edit", root, "--input", invalidPath], host([]), dependencies))
+        .rejects.toThrow("must be valid JSON")
+      expect(dispose).toHaveBeenCalledTimes(2)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.folder.search-history-import-cli] inspects and imports legacy history through the dedicated importer", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-search-history-cli-"))
     const inputPath = join(directory, "settings.json")

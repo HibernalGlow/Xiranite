@@ -4,11 +4,11 @@ import type { ReaderFileTreeHeadlessController } from "../core.js"
 import { createNeoviewFileTreeTuiDefinition } from "../interaction.js"
 
 describe("NeoView file-tree terminal interaction", () => {
-  it("[neoview.folder.tui] [neoview.folder.filter-tui] [neoview.folder.emm-search-tui] [neoview.folder.emm-tags-tui] [neoview.folder.search-history-tui] [neoview.folder.search-path-tui] uses the shared headless controller", async () => {
+  it("[neoview.folder.tui] [neoview.folder.filter-tui] [neoview.folder.emm-search-tui] [neoview.folder.emm-tags-tui] [neoview.folder.emm-edit-tui] [neoview.folder.search-history-tui] [neoview.folder.search-path-tui] uses the shared headless controller", async () => {
     const closeSearch = vi.fn(async () => undefined)
     const dispose = vi.fn(async () => undefined)
     const controller = {
-      open: vi.fn(async () => ({ sessionId: "browser-1" })),
+      open: vi.fn(async () => ({ sessionId: "browser-1", generation: 7 })),
       setFilter: vi.fn(async () => ({ sessionId: "browser-1", filter: "video" })),
       search: vi.fn(() => ({
         events: {
@@ -29,6 +29,14 @@ describe("NeoView file-tree terminal interaction", () => {
         { category: "artist", tag: "Alice", favorite: true, translatedTag: "爱丽丝" },
         { category: "genre", tag: "Comedy", favorite: false },
       ]),
+      editEmm: vi.fn(async () => ({
+        generation: 8,
+        refreshRequired: false,
+        results: [{ index: 0, status: "succeeded", metadata: { revision: 1, overrides: { rating: 5 }, inherited: ["manualTags", "translatedTitle"] } }],
+        succeeded: 1,
+        conflicts: 0,
+        failed: 0,
+      })),
       [Symbol.asyncDispose]: dispose,
     } as unknown as ReaderFileTreeHeadlessController
     const definition = createNeoviewFileTreeTuiDefinition("en", async () => controller)
@@ -76,6 +84,23 @@ describe("NeoView file-tree terminal interaction", () => {
     expect(controller.suggestEmmTags).toHaveBeenCalledWith(2)
     expect(controller.open).toHaveBeenCalledTimes(1)
     expect(dispose).toHaveBeenCalledTimes(3)
+
+    const edit = await definition.run({
+      action: "emm-edit",
+      path: "/library",
+      emmUpdatesJson: JSON.stringify({
+        updates: [{ path: "/library/book.cbz", expectedRevision: 0, patch: { rating: 5 } }],
+      }),
+      emmConcurrency: 2,
+    }, () => undefined)
+    expect(edit).toMatchObject({ success: true, message: "EMM metadata: 1 succeeded, 0 conflicts, 0 failed." })
+    expect(controller.editEmm).toHaveBeenCalledWith({
+      generation: 7,
+      updates: [{ path: "/library/book.cbz", expectedRevision: 0, patch: { rating: 5 } }],
+      concurrency: 2,
+    })
+    expect(definition.schema.isDangerous({ action: "emm-edit", path: "/library", emmUpdatesJson: "{}" })).toBe(true)
+    expect(dispose).toHaveBeenCalledTimes(4)
 
     const tagOnly = definition.schema.toInput({
       action: "search",

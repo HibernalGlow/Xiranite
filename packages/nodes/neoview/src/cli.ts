@@ -21,6 +21,7 @@ import type {
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
   ReaderDirectoryFilter,
+  ReaderDirectoryEmmEditCommand,
 } from "./core.js"
 import type {
   ReaderThumbnailMaintenanceSnapshot,
@@ -54,7 +55,7 @@ const COMMANDS = new Set([
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "diagnostics",
-  "folder-tree", "folder-search", "folder-emm-tags", "folder-exclude", "folder-include", "folder-tree-cache-clear",
+  "folder-tree", "folder-search", "folder-emm-tags", "folder-emm-edit", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
   "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-open", "file-reveal", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
 ])
@@ -100,10 +101,12 @@ const VALUE_FLAGS = new Set([
   "--direction",
   "--page-mode",
   "--horizontal-book",
+  "--input",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
+const MAX_EMM_EDIT_INPUT_BYTES = 1024 * 1024
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -503,6 +506,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--config", "--database", "--limit"]))
     return
   }
+  if (command === "folder-emm-edit") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--database", "--input", "--concurrency"]))
+    return
+  }
   if (command === "folder-search-history") {
     rejectOptions(parsed, new Set(["--json", "--config", "--database", "--scope", "--limit"]))
     return
@@ -539,10 +546,20 @@ async function runFolderCommand(
     throw usage(`${command} requires --yes because it changes persistent settings or cache state.`)
   }
   const createController = dependencies.createFileTreeController ?? createReaderFileTreeController
-  const controller = await createController({ configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env })
+  const databasePath = oneValue(parsed, "--database")
+  const controller = await createController({
+    configPath: oneValue(parsed, "--config"),
+    cwd: host.cwd,
+    env: host.env,
+    ...(databasePath ? { legacyThumbnailDatabasePath: resolve(host.cwd, databasePath) } : {}),
+  })
   try {
     const openPath = command === "folder-exclude" || command === "folder-include" ? dirname(path) : path
-    await controller.open({ path: openPath })
+    const opened = await controller.open({ path: openPath })
+    if (command === "folder-emm-edit") {
+      await runFolderEmmEdit(controller, opened.generation, parsed, host)
+      return
+    }
     if (command === "folder-tree") {
       const node = oneValue(parsed, "--node")
       const result = await controller.tree(node ? resolve(host.cwd, node) : undefined, parsed.booleans.has("--refresh"))
@@ -624,6 +641,39 @@ async function runFolderSearch(
   }
   if (json) writeJson(host, output)
   await controller.recordSearchHistory("folder", query).catch(() => undefined)
+}
+
+async function runFolderEmmEdit(
+  controller: ReaderFileTreeHeadlessController,
+  generation: number,
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const inputPath = resolve(host.cwd, requiredValue(parsed, "--input", "folder-emm-edit"))
+  const inputStat = await stat(inputPath)
+  if (!inputStat.isFile()) throw usage(`folder-emm-edit input is not a file: ${inputPath}`)
+  if (inputStat.size > MAX_EMM_EDIT_INPUT_BYTES) throw usage(`folder-emm-edit input exceeds ${MAX_EMM_EDIT_INPUT_BYTES} bytes.`)
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(await readFile(inputPath, "utf8"))
+  } catch {
+    throw usage("folder-emm-edit input must be valid JSON.")
+  }
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+    throw usage("folder-emm-edit input must be an object containing updates.")
+  }
+  const record = decoded as Record<string, unknown>
+  const concurrency = parsed.values.has("--concurrency")
+    ? integerOption(parsed, "--concurrency", 1, 8, 4)
+    : record.concurrency
+  const command = {
+    generation,
+    updates: record.updates,
+    ...(concurrency === undefined ? {} : { concurrency }),
+  } as ReaderDirectoryEmmEditCommand
+  const result = await controller.editEmm(command)
+  if (parsed.booleans.has("--json")) writeJson(host, result)
+  else writeLine(host, `EMM metadata: succeeded=${result.succeeded} conflicts=${result.conflicts} failed=${result.failed} generation=${result.generation ?? "refresh"}`)
 }
 
 async function runFolderEmmTags(
@@ -2011,6 +2061,7 @@ function formatCliHelp(): string {
     "  folder-tree <path>              List one lazily loaded directory-tree node",
     "  folder-search <path>            Stream a bounded recursive directory search",
     "  folder-emm-tags                 Suggest EMM catalog and favorite tags",
+    "  folder-emm-edit <path>          Apply a bounded EMM edit JSON batch to the current directory",
     "  folder-search-history            List persisted scoped search history",
     "  folder-search-history-delete     Delete one persisted search query (--yes)",
     "  folder-search-history-clear      Clear one persisted search scope (--yes)",
@@ -2047,6 +2098,7 @@ function formatCliHelp(): string {
     "  --tag TAG            Repeatable required EMM tag; search text may be omitted",
     "  --exclude-tag TAG    Repeatable excluded EMM tag",
     "  --tag-mode MODE      Required-tag mode: all or any",
+    "  --input PATH         JSON input for folder-emm-edit: { updates, concurrency? }",
     "  --node PATH          Explicit tree node for tree/cache commands",
     "  --depth N            Recursive search depth (0..4096)",
     "  --exclude PATTERN    Repeatable request-scoped gitignore pattern",

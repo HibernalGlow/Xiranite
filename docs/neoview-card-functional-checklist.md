@@ -937,12 +937,12 @@
   - 计划测试：无
   - 备注：compact 与 cover-grid 已显示评分和收藏标签数，details 已接入完整 EMM + manual tag 文本；默认评分 4.2 同时参与显示/排序。cover/mosaic list/grid 的完整标签、tooltip 详情与可配置默认评分仍待完成。
 - [ ] `folder.emm.edit` 编辑 EMM 标签与评分
-  - 六维：`core=P transport=P gui=- cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=- cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：单项/批量编辑标签与评分，乐观更新、失败回滚并让搜索/排序立即一致。
   - 源码：`components/FolderContextMenu.svelte`、`components/FavoriteTagPanel.svelte`
-  - 测试：`neoview.folder.emm-edit-service`、`neoview.folder.emm-edit-conflict`、`neoview.folder.emm-edit-validation`、`neoview.folder.emm-edit-http`、`neoview.folder.emm-edit-boundary`
+  - 测试：`neoview.folder.emm-edit-service`、`neoview.folder.emm-edit-conflict`、`neoview.folder.emm-edit-validation`、`neoview.folder.emm-edit-http`、`neoview.folder.emm-edit-boundary`、`neoview.folder.emm-edit-headless`、`neoview.folder.emm-edit-headless-composition`、`neoview.folder.emm-headless-disabled`、`neoview.folder.emm-edit-cli`、`neoview.folder.emm-edit-tui`、`neoview.folder.tui`
   - 计划测试：无
-  - 备注：后端已通过共享 ReaderEmmMetadataService 提供 generation-bound 单项/最多 64 项批量 rating/manualTags/translatedTitle 编辑、逐项 CAS 和一次目录 metadata 回填重排；仍保持 pending，直到 FolderMain/独立 EMM Card GUI、乐观回滚、收藏标签快捷应用和 CLI/TUI 命令完成。
+  - 备注：后端通过共享 ReaderEmmMetadataService 与 ReaderDirectoryEmmEditService 提供 generation-bound 单项/最多 64 项批量 rating/manualTags/translatedTitle 编辑、逐项 CAS、p-map 有界并发和一次目录 metadata 回填重排。HTTP、惰性 Headless composition、folder-emm-edit JSON CLI 与 OpenTUI 均直接复用同一 Zod command；写入仍位于原 NeoView thumbnails.db 的 xr_reader_emm_overrides，禁用旧库时普通浏览保留而编辑明确 unavailable。FolderMain/独立 EMM Card GUI、乐观回滚和收藏标签快捷应用仍待完成。
 
 ### penetration（3）
 
@@ -4343,7 +4343,7 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `folderMain` | 文件夹 | core | partial | `core=P transport=P gui=P cli=P tui=P evidence=P` | `src/lib/cards/folder/FolderMainCard.svelte` | 文件与文件夹浏览、标签页和树导航；XR `folder-main` |
+| `folderMain` | 文件夹 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/folder/FolderMainCard.svelte` | 文件与文件夹浏览、标签页和树导航；XR `folder-main` |
 
 #### `folderMain` 文件夹
 
