@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { ReaderDiagnosticsService } from "./ReaderDiagnosticsService.js"
+import { exportReaderDiagnosticsHistory } from "./ReaderDiagnosticsHistoryExport.js"
 import { parseReaderDiagnosticsHistory, parseReaderDiagnosticsSnapshot } from "./ReaderDiagnosticsWireSchema.js"
 
 describe("ReaderDiagnosticsService", () => {
@@ -86,6 +87,17 @@ describe("ReaderDiagnosticsService", () => {
     const sampled = await service.sample()
     expect(service.history({ limit: 1 })).toMatchObject({ schemaVersion: 1, samples: [sampled], droppedSamples: 0 })
     expect(parseReaderDiagnosticsHistory(service.history())).toEqual(service.history())
+    const exportedJson = exportReaderDiagnosticsHistory(service.history({ limit: 1 }), "json")
+    expect(exportedJson.contentType).toBe("application/json; charset=utf-8")
+    expect(JSON.parse(exportedJson.body)).toMatchObject({
+      schemaVersion: 1,
+      samples: [expect.objectContaining({ sampledAtMs: sampled.sampledAtMs, schemaVersion: sampled.schemaVersion })],
+    })
+    const exportedCsv = exportReaderDiagnosticsHistory(service.history({ limit: 1 }), "csv")
+    expect(exportedCsv.body.split("\n")).toEqual(expect.arrayContaining([
+      expect.stringContaining("sampledAtMs"),
+      expect.stringContaining("123"),
+    ]))
     expect(service.resetHistory()).toBe(1)
     expect(service.history().samples).toHaveLength(0)
     await service.close()

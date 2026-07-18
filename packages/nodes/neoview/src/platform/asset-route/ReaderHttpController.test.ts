@@ -135,6 +135,38 @@ describe("ReaderHttpController", () => {
     }
   })
 
+  it("[neoview.diagnostics.history-export-http] exports bounded history as no-store JSON or CSV", async () => {
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+    })
+    try {
+      expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/diagnostics/history/export")))?.status).toBe(401)
+      await controller.handle(authorizedRequest("/reader/diagnostics/history/sample", { method: "POST" }))
+
+      const json = (await controller.handle(authorizedRequest("/reader/diagnostics/history/export?format=json&limit=1")))!
+      expect(json.status).toBe(200)
+      expect(json.headers.get("cache-control")).toBe("no-store")
+      expect(json.headers.get("content-disposition")).toBe('attachment; filename="neoview-diagnostics-history.json"')
+      await expect(json.json()).resolves.toMatchObject({ schemaVersion: 1, samples: [expect.any(Object)] })
+
+      const csv = (await controller.handle(authorizedRequest("/reader/diagnostics/history/export?format=csv&limit=1")))!
+      expect(csv.status).toBe(200)
+      expect(csv.headers.get("content-type")).toContain("text/csv")
+      expect(csv.headers.get("content-disposition")).toBe('attachment; filename="neoview-diagnostics-history.csv"')
+      const csvBody = await csv.text()
+      expect(csvBody.split("\n")[0]).toContain("sampledAtMs")
+      expect(csvBody).toContain("0")
+
+      const invalidFormat = (await controller.handle(authorizedRequest("/reader/diagnostics/history/export?format=xml")))!
+      expect(invalidFormat.status).toBe(400)
+      const invalidQuery = (await controller.handle(authorizedRequest("/reader/diagnostics/history/export?format=csv&sinceMs=bad")))!
+      expect(invalidQuery.status).toBe(400)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.cache.l3-maintenance-http] exposes authenticated stats, cleanup and clear operations", async () => {
     const base = {
       entries: 3, bytes: 30, maxBytes: 100, maxEntryBytes: 20, activeLeases: 0,

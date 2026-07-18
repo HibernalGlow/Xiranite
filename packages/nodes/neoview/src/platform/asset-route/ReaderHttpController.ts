@@ -53,6 +53,7 @@ import { ReaderClipboardMaterializationService } from "../../application/reader/
 import { ReaderSeekableMediaCache } from "../../application/reader/ReaderSeekableMediaCache.js"
 import { ReaderSubtitleService } from "../../application/reader/ReaderSubtitleService.js"
 import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics, type ReaderVideoProcessDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
+import { exportReaderDiagnosticsHistory, type ReaderDiagnosticsHistoryExportFormat } from "../../application/diagnostics/ReaderDiagnosticsHistoryExport.js"
 import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../application/metadata/ReaderBookMetadataService.js"
 import { ReaderPageMediaInformationService } from "../../application/metadata/ReaderPageMediaInformationService.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
@@ -634,6 +635,24 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: "sinceMs and limit must be finite integers." }, 400)
       }
       return jsonResponse(await this.#diagnostics.history({ sinceMs, limit }))
+    }
+    if (url.pathname === "/reader/diagnostics/history/export" && request.method === "GET") {
+      const sinceMs = parseOptionalDiagnosticsInteger(url.searchParams.get("sinceMs"))
+      const limit = parseOptionalDiagnosticsInteger(url.searchParams.get("limit"))
+      const format = diagnosticsHistoryExportFormat(url.searchParams.get("format"))
+      if (sinceMs === "invalid" || limit === "invalid") {
+        return jsonResponse({ error: "sinceMs and limit must be finite integers." }, 400)
+      }
+      if (!format) return jsonResponse({ error: "format must be json or csv." }, 400)
+      const exported = exportReaderDiagnosticsHistory(await this.#diagnostics.history({ sinceMs, limit }), format)
+      return new Response(exported.body, {
+        headers: {
+          "cache-control": "no-store",
+          "content-disposition": `attachment; filename="${exported.filename}"`,
+          "content-type": exported.contentType,
+          "x-content-type-options": "nosniff",
+        },
+      })
     }
     if (url.pathname === "/reader/diagnostics/history/sample") {
       if (request.method !== "POST") return methodNotAllowed("POST")
@@ -2160,6 +2179,12 @@ function parseOptionalDiagnosticsInteger(value: string | null): number | undefin
   if (!/^\d+$/.test(value)) return "invalid"
   const parsed = Number(value)
   return Number.isSafeInteger(parsed) ? parsed : "invalid"
+}
+
+function diagnosticsHistoryExportFormat(value: string | null): ReaderDiagnosticsHistoryExportFormat | undefined {
+  if (value === null || value === "json") return "json"
+  if (value === "csv") return "csv"
+  return undefined
 }
 
 async function safeStat(path: string, signal?: AbortSignal): Promise<Stats | undefined> {
