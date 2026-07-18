@@ -208,6 +208,7 @@ describe("reader-http-client", () => {
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST" })
     expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ limit: 10 })
+    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
   it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {
