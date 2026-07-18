@@ -74,7 +74,8 @@ async function isReaderSupported(
       const resolved = await resolveReaderShortcutChain(candidatePath, shortcutResolver, signal)
       if (resolved.kind === "directory") return true
       candidatePath = resolved.path
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason ?? error
       return false
     }
   }
