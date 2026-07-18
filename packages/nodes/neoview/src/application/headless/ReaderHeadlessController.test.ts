@@ -46,6 +46,7 @@ describe("ReaderHeadlessController", () => {
     try {
       const opened = await controller.open({ path: "D:/book.cbz" })
       expect(opened.preload).toMatchObject({ generation: 1, direction: "forward" })
+      expect(opened.visiblePages[0]?.timestamps).toEqual({ source: "archive-entry", createdAtMs: 1_700_000_000_000, modifiedAtMs: 1_700_000_100_000, accessedAtMs: 1_700_000_200_000 })
       expect(controller.listPages(1, 2).map((page) => page.name)).toEqual(["002.png", "003.png"])
       expect(await controller.next()).toMatchObject({ frame: { anchorPageIndex: 1 }, preload: { generation: 2, direction: "forward" } })
       expect((await controller.goTo(2)).visiblePages[0]?.index).toBe(2)
@@ -313,6 +314,7 @@ function book(path: string, closed: string[], onSourceClose = vi.fn(async () => 
       mimeType: "image/png",
       byteLength: 3,
       contentVersion: `v${index}`,
+      timestamps: { source: "archive-entry" as const, createdAtMs: 1_700_000_000_000, modifiedAtMs: 1_700_000_100_000, accessedAtMs: 1_700_000_200_000 },
       content: {
         load: async (): Promise<PageSource> => ({
           byteLength: 3,

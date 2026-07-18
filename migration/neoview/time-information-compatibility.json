@@ -142,8 +142,8 @@
         "core": "complete",
         "transport": "complete",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
@@ -151,10 +151,14 @@
         "neoview.book.archive",
         "neoview.metadata.http",
         "neoview.metadata.cards",
+        "neoview.headless.navigation",
+        "neoview.time-information.projection",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.time-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Filesystem and archive page timestamps are verified through the shared loader, HTTP and GUI contracts."
+      "notes": "Filesystem and archive page timestamps are captured during book load, copied into bounded headless page snapshots and projected consistently by React, CLI and TUI without additional stat work."
     },
     {
       "id": "time.access-source",
@@ -174,17 +178,21 @@
         "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.time-information.archive-source",
         "neoview.time-information.archive-invalid",
+        "neoview.headless.navigation",
+        "neoview.time-information.projection",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader",
         "neoview.time-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Intentional XR extension required by the frozen functional scope."
+      "notes": "The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English; this remains an intentional XR extension required by the frozen functional scope."
     },
     {
       "id": "time.format",
@@ -200,18 +208,22 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
+        "core": "complete",
         "transport": "not-applicable",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.time-information.format"
+        "neoview.time-information.format",
+        "neoview.time-information.projection",
+        "neoview.time-information.projection-invalid",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader"
       ],
       "plannedTestIds": [],
-      "notes": "The target rejects invalid numeric timestamps instead of exposing Invalid Date."
+      "notes": "One browser-safe formatter uses local zh-CN/en-US time and rejects missing, non-finite or invalid values as an em dash across React, CLI and TUI without exposing Invalid Date."
     },
     {
       "id": "time.states",
@@ -293,8 +305,8 @@
         "core": "complete",
         "transport": "complete",
         "gui": "complete",
-        "cli": "partial",
-        "tui": "partial",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
@@ -303,10 +315,14 @@
         "neoview.metadata.http",
         "neoview.metadata.client",
         "neoview.metadata.cards",
-        "neoview.metadata.cancel"
+        "neoview.metadata.cancel",
+        "neoview.headless.navigation",
+        "neoview.time-information.projection",
+        "neoview.time-information.cli-projection",
+        "neoview.tui.reader"
       ],
       "plannedTestIds": [],
-      "notes": "Page timestamps are captured during book load, avoiding a second content decode path."
+      "notes": "Page timestamps are captured during book load and copied into the existing headless page DTO, avoiding a second endpoint, file stat, content decode path or persistence store."
     },
     {
       "id": "time.lifecycle",
@@ -454,7 +470,7 @@
       "plannedTestIds": [
         "neoview.time-information.lazy-chunk"
       ],
-      "notes": "The production Time Card chunk is 1679 bytes and browser evidence confirms one request per generation."
+      "notes": "The production Time Card chunk is 1816 bytes; its shared projection remains in the deferred 10602-byte ui-core host chunk, and browser evidence confirms one request per generation."
     },
     {
       "id": "time.deviations",
