@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
 import type { OpenComicSystemRuntime } from "./OpenComicAiSystemProvider.js"
 import { createOpenComicAiSystemService, runtimeModels } from "./OpenComicAiSystemComposition.js"
+import { OpenComicSystemRuntimeUnavailableError } from "./OpenComicSystemRuntimeLoader.js"
 
 const enabledConfig: NeoviewSuperResolutionConfig = {
   provider: "opencomic-system",
@@ -23,7 +24,10 @@ describe("OpenComic AI system composition", () => {
   })
 
   it("[neoview.super-resolution.composition-uninstalled] remains unavailable without a runtime loader", async () => {
-    await expect(createOpenComicAiSystemService({ runtimeConfig: enabledConfig })).resolves.toBeUndefined()
+    await expect(createOpenComicAiSystemService({
+      runtimeConfig: enabledConfig,
+      loadRuntime: async () => { throw new OpenComicSystemRuntimeUnavailableError("not installed") },
+    })).resolves.toBeUndefined()
   })
 
   it("[neoview.super-resolution.composition] derives manifests from the runtime instead of duplicating its model table", async () => {

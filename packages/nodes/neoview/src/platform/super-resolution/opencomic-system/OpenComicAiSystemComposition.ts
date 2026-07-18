@@ -10,6 +10,10 @@ import {
   type OpenComicSystemCapabilityResolver,
   type OpenComicSystemRuntime,
 } from "./OpenComicAiSystemProvider.js"
+import {
+  loadOpenComicSystemRuntime,
+  OpenComicSystemRuntimeUnavailableError,
+} from "./OpenComicSystemRuntimeLoader.js"
 
 export interface OpenComicAiSystemCompositionOptions extends NeoviewRuntimeLoadOptions {
   loadRuntime?: () => Promise<OpenComicSystemRuntime>
@@ -26,9 +30,15 @@ export async function createOpenComicAiSystemService(
   options: OpenComicAiSystemCompositionOptions = {},
 ): Promise<SuperResolutionService | undefined> {
   const config = options.runtimeConfig ?? (await loadRuntimeConfig(options))
-  if (config.provider === "disabled" || !options.loadRuntime) return undefined
+  if (config.provider === "disabled") return undefined
 
-  const runtime = await options.loadRuntime()
+  let runtime: OpenComicSystemRuntime
+  try {
+    runtime = await (options.loadRuntime ?? loadOpenComicSystemRuntime)()
+  } catch (error) {
+    if (error instanceof OpenComicSystemRuntimeUnavailableError) return undefined
+    throw error
+  }
   const models = runtimeModels(runtime)
   if (!models.length) throw new Error("OpenComic system runtime did not expose any super-resolution models.")
   const modelsDirectory = options.modelsDirectory
