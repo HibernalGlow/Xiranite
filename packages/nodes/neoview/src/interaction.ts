@@ -530,8 +530,8 @@ export function createNeoviewInputBindingsTuiDefinition(
             const dispatch = input.action === "dispatch-binding"
               ? await executeReaderHeadlessInputBinding(await service.inspect(), input.input!, input.contexts ?? ["reader"], controller)
               : await executeReaderHeadlessInputAction(input.inputAction!, controller)
-            const handled = "result" in dispatch ? dispatch.result.handled : dispatch.handled
-            const action = "action" in dispatch ? dispatch.action : input.inputAction!
+            const handled = "result" in dispatch ? dispatch.result.handled : "handled" in dispatch ? dispatch.handled : false
+            const action = "result" in dispatch ? dispatch.result.action : "action" in dispatch ? dispatch.action : input.inputAction ?? "configured input"
             const reason = "result" in dispatch && !dispatch.result.handled
               ? dispatch.result.reason
               : !handled && "reason" in dispatch ? dispatch.reason : undefined
