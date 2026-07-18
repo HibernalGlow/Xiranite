@@ -28,6 +28,17 @@ describe("NeoView super-resolution TOML config", () => {
       "max_daemons_per_gpu = 1",
       "daemon_idle_timeout_ms = 180000",
       "task_timeout_ms = 720000",
+      "[[nodes.neoview.super_resolution.custom_models]]",
+      'id = "illustration-janai"',
+      'name = "IllustrationJaNai"',
+      'engine = "upscayl"',
+      "scales = [2]",
+      'directory = "illustration-janai"',
+      'files = ["model.param", "model.bin"]',
+      'license = "MIT"',
+      `checksums = { "model.param" = "${"a".repeat(64)}", "model.bin" = "${"b".repeat(64)}" }`,
+      'input_blob = "in0"',
+      'output_blob = "out0"',
       "",
     ].join("\n"), "utf8")
 
@@ -41,6 +52,14 @@ describe("NeoView super-resolution TOML config", () => {
         maxDaemonsPerGpu: 1,
         daemonIdleTimeoutMs: 180_000,
         taskTimeoutMs: 720_000,
+        customModels: [{
+          id: "illustration-janai",
+          displayName: "IllustrationJaNai",
+          engine: "upscayl",
+          scales: [2],
+          modelDirectory: "illustration-janai",
+          modelFiles: ["model.param", "model.bin"],
+        }],
       },
     })
   })

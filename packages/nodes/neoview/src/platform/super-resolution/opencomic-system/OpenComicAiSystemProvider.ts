@@ -8,6 +8,7 @@ import type {
   SuperResolutionProvider,
   SuperResolutionRequest,
   SuperResolutionResult,
+  SuperResolutionModelType,
 } from "../../../ports/SuperResolutionProvider.js"
 import { FilePageContent } from "../../content/FilePageContent.js"
 import { StreamingImageMetadataProbe } from "../../images/StreamingImageMetadataProbe.js"
@@ -39,10 +40,28 @@ export interface OpenComicSystemModelInfo {
   outputBlob?: string
 }
 
+export interface OpenComicSystemCustomModelManifest {
+  id: string
+  type: SuperResolutionModelType
+  name: string
+  upscaler: SuperResolutionEngine
+  scales: number[]
+  noise?: number[]
+  latency?: number
+  folder: string
+  files: string[]
+  scaleFiles?: Record<number, string>
+  license: string
+  checksums: Record<string, string>
+  inputBlob: string
+  outputBlob: string
+  downloadBaseUrl?: string
+}
+
 export interface OpenComicSystemRuntime {
   readonly modelsList: readonly string[]
   model(modelId: string): OpenComicSystemModelInfo
-  registerModels(manifests: readonly unknown[]): readonly OpenComicSystemModelInfo[]
+  registerModels(manifests: readonly OpenComicSystemCustomModelManifest[]): readonly OpenComicSystemModelInfo[]
   unregisterModel(modelId: string): boolean
   setBinaryResolver(resolver?: (request: OpenComicSystemBinaryRequest) => string): void
   setModelsPath(path: string): void

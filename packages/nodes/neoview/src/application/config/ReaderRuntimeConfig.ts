@@ -10,6 +10,7 @@ import type { ReaderSessionOptions } from "../reader/contracts.js"
 import { READER_CARD_MANIFEST, READER_PANEL_MANIFEST, readerCardCanMoveTo } from "./ReaderLayoutManifest.js"
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
+import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -142,6 +143,7 @@ export interface NeoviewSuperResolutionConfig {
   maxDaemonsPerGpu: number
   daemonIdleTimeoutMs: number
   taskTimeoutMs: number
+  customModels: readonly SuperResolutionCustomModelManifest[]
 }
 
 export interface NeoviewHistoryListConfig {
@@ -418,6 +420,7 @@ export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConf
   maxDaemonsPerGpu: 1,
   daemonIdleTimeoutMs: 300_000,
   taskTimeoutMs: 10 * 60_000,
+  customModels: Object.freeze([]),
 }
 
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
@@ -575,7 +578,51 @@ function parseSuperResolutionConfig(value: Record<string, unknown> | undefined):
       DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.taskTimeoutMs,
       "[nodes.neoview.super_resolution].task_timeout_ms",
     ),
+    customModels: parseSuperResolutionCustomModels(value.custom_models),
   }
+}
+
+function parseSuperResolutionCustomModels(value: unknown): readonly SuperResolutionCustomModelManifest[] {
+  if (value === undefined) return DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.customModels
+  if (!Array.isArray(value) || value.length > 64) {
+    throw new Error("[nodes.neoview.super_resolution].custom_models must be an array of at most 64 tables.")
+  }
+  const ids = new Set<string>()
+  return value.map((entry, index) => {
+    const path = `[nodes.neoview.super_resolution].custom_models[${index}]`
+    const model = requireRecord(entry, path)
+    const id = requiredManifestIdentifier(model.id, `${path}.id`)
+    if (ids.has(id)) throw new Error(`${path}.id duplicates custom model ${id}.`)
+    ids.add(id)
+    const files = requiredManifestPaths(model.files, `${path}.files`)
+    const checksums = requiredStringRecord(model.checksums, `${path}.checksums`)
+    if (Object.keys(checksums).some((file) => !files.includes(file))) throw new Error(`${path}.checksums contains an unknown model file.`)
+    for (const file of files) {
+      if (!/^[a-f0-9]{64}$/iu.test(checksums[file] ?? "")) throw new Error(`${path}.checksums must contain SHA-256 for ${file}.`)
+    }
+    const scales = requiredManifestScales(model.scales, `${path}.scales`)
+    const scaleFiles = model.scale_files === undefined
+      ? undefined
+      : requiredManifestScaleFiles(model.scale_files, scales, `${path}.scale_files`)
+    const downloadBaseUrl = optionalHttpsUrl(model.download_base_url, `${path}.download_base_url`)
+    return {
+      id,
+      type: optionalEnum(model.type, `${path}.type`, ["upscale", "descreen", "artifact-removal"] as const) ?? "upscale",
+      displayName: requiredManifestText(model.name, `${path}.name`),
+      engine: requiredManifestEngine(model.engine, `${path}.engine`),
+      scales,
+      noise: model.noise === undefined ? undefined : requiredManifestNoise(model.noise, `${path}.noise`),
+      latency: model.latency === undefined ? undefined : boundedNumber(model.latency, 0, 3600, 1, `${path}.latency`),
+      modelDirectory: requiredManifestPath(model.directory, `${path}.directory`),
+      modelFiles: files,
+      scaleFiles,
+      license: requiredManifestText(model.license, `${path}.license`),
+      checksums: Object.fromEntries(Object.entries(checksums).map(([file, checksum]) => [file, checksum.toLowerCase()])),
+      inputBlob: requiredManifestIdentifier(model.input_blob, `${path}.input_blob`),
+      outputBlob: requiredManifestIdentifier(model.output_blob, `${path}.output_blob`),
+      downloadBaseUrl,
+    }
+  })
 }
 
 function parseMediaConfig(
@@ -1776,6 +1823,84 @@ function optionalConfigPath(value: unknown, path: string): string | undefined {
     throw new Error(`${path} must be an empty string or a non-empty path without NUL.`)
   }
   return value.trim()
+}
+
+function requiredManifestIdentifier(value: unknown, path: string): string {
+  if (typeof value !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/u.test(value)) {
+    throw new Error(`${path} must be a valid identifier.`)
+  }
+  return value
+}
+
+function requiredManifestText(value: unknown, path: string): string {
+  if (typeof value !== "string" || !value.trim() || value.length > 256 || value.includes("\0")) {
+    throw new Error(`${path} must be a non-empty string of at most 256 characters without NUL.`)
+  }
+  return value.trim()
+}
+
+function requiredManifestPath(value: unknown, path: string): string {
+  if (typeof value !== "string" || !value.trim() || value.length > 512 || value.includes("\0")) {
+    throw new Error(`${path} must be a non-empty relative path without NUL.`)
+  }
+  const normalized = value.trim().replace(/\\/gu, "/")
+  if (normalized.startsWith("/") || /^[a-zA-Z]:\//u.test(normalized) || normalized.split("/").includes("..")) {
+    throw new Error(`${path} must be a safe relative path.`)
+  }
+  return normalized
+}
+
+function requiredManifestPaths(value: unknown, path: string): string[] {
+  if (!Array.isArray(value) || !value.length || value.length > 64) throw new Error(`${path} must contain between 1 and 64 paths.`)
+  const paths = value.map((entry, index) => requiredManifestPath(entry, `${path}[${index}]`))
+  if (new Set(paths).size !== paths.length) throw new Error(`${path} must not contain duplicates.`)
+  return paths
+}
+
+function requiredManifestScales(value: unknown, path: string): number[] {
+  if (!Array.isArray(value) || !value.length || value.length > 8) throw new Error(`${path} must contain between 1 and 8 scales.`)
+  const scales = value.map((scale) => boundedInteger(scale, 1, 8, path))
+  return [...new Set(scales)].sort((left, right) => left - right)
+}
+
+function requiredManifestNoise(value: unknown, path: string): number[] {
+  if (!Array.isArray(value) || value.length > 5) throw new Error(`${path} must contain at most 5 noise levels.`)
+  const noise = value.map((level) => boundedInteger(level, -1, 3, path))
+  return [...new Set(noise)].sort((left, right) => left - right)
+}
+
+function requiredManifestScaleFiles(
+  value: unknown,
+  scales: readonly number[],
+  path: string,
+): Readonly<Record<number, string>> {
+  const record = requireRecord(value, path)
+  const result: Record<number, string> = {}
+  for (const [scale, alias] of Object.entries(record)) {
+    const numericScale = Number(scale)
+    if (!Number.isInteger(numericScale) || !scales.includes(numericScale)) throw new Error(`${path}.${scale} is not a declared scale.`)
+    result[numericScale] = requiredManifestIdentifier(alias, `${path}.${scale}`)
+  }
+  return result
+}
+
+function requiredManifestEngine(value: unknown, path: string): "upscayl" | "waifu2x" | "realcugan" {
+  const engine = optionalEnum(value, path, ["upscayl", "waifu2x", "realcugan"] as const)
+  if (!engine) throw new Error(`${path} is required.`)
+  return engine
+}
+
+function optionalHttpsUrl(value: unknown, path: string): string | undefined {
+  if (value === undefined || value === "") return undefined
+  if (typeof value !== "string") throw new Error(`${path} must be an HTTPS URL.`)
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error(`${path} must be an HTTPS URL.`)
+  }
+  if (url.protocol !== "https:") throw new Error(`${path} must be an HTTPS URL.`)
+  return url.href.endsWith("/") ? url.href : `${url.href}/`
 }
 
 function requiredStringArray(value: unknown, path: string): string[] {

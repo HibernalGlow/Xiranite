@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
-import type { OpenComicSystemRuntime } from "./OpenComicAiSystemProvider.js"
-import { createOpenComicAiSystemService, runtimeModels } from "./OpenComicAiSystemComposition.js"
+import type { OpenComicSystemModelInfo, OpenComicSystemRuntime } from "./OpenComicAiSystemProvider.js"
+import { createOpenComicAiSystemService, registerRuntimeCustomModels, runtimeModels } from "./OpenComicAiSystemComposition.js"
 import { OpenComicSystemRuntimeUnavailableError } from "./OpenComicSystemRuntimeLoader.js"
 
 const enabledConfig: NeoviewSuperResolutionConfig = {
@@ -11,6 +11,21 @@ const enabledConfig: NeoviewSuperResolutionConfig = {
   maxDaemonsPerGpu: 1,
   daemonIdleTimeoutMs: 300_000,
   taskTimeoutMs: 600_000,
+  customModels: [],
+}
+
+const customModel = {
+  id: "illustration-janai",
+  type: "upscale" as const,
+  displayName: "IllustrationJaNai",
+  engine: "upscayl" as const,
+  scales: [2],
+  modelDirectory: "illustration-janai",
+  modelFiles: ["model.param", "model.bin"],
+  license: "MIT",
+  checksums: { "model.param": "a".repeat(64), "model.bin": "b".repeat(64) },
+  inputBlob: "in0",
+  outputBlob: "out0",
 }
 
 describe("OpenComic AI system composition", () => {
@@ -83,24 +98,63 @@ describe("OpenComic AI system composition", () => {
       checksums: undefined,
     }])
   })
+
+  it("[neoview.super-resolution.custom-model-registration] registers TOML manifests once per shared runtime", () => {
+    const runtime = fakeRuntime()
+    registerRuntimeCustomModels(runtime, [customModel])
+    registerRuntimeCustomModels(runtime, [customModel])
+    expect(runtime.registerModels).toHaveBeenCalledOnce()
+    expect(runtime.registerModels).toHaveBeenCalledWith([{
+      id: customModel.id,
+      type: "upscale",
+      name: customModel.displayName,
+      upscaler: "upscayl",
+      scales: [2],
+      noise: undefined,
+      latency: undefined,
+      folder: customModel.modelDirectory,
+      files: ["model.param", "model.bin"],
+      scaleFiles: undefined,
+      license: "MIT",
+      checksums: customModel.checksums,
+      inputBlob: "in0",
+      outputBlob: "out0",
+      downloadBaseUrl: undefined,
+    }])
+  })
+
+  it("[neoview.super-resolution.custom-model-collision] rejects built-in or differently owned IDs", () => {
+    const runtime = fakeRuntime()
+    runtime.modelsList.push(customModel.id)
+    expect(() => registerRuntimeCustomModels(runtime, [customModel])).toThrow("collides")
+    expect(runtime.registerModels).not.toHaveBeenCalled()
+  })
 })
 
 function fakeRuntime() {
-  return {
+  const records = new Map<string, OpenComicSystemModelInfo>([
+    ["realesr-animevideov3", builtInModel("realesr-animevideov3")],
+    ["realcugan-pro", builtInModel("realcugan-pro")],
+  ])
+  const runtime = {
     modelsList: ["realesr-animevideov3", "realcugan-pro"],
-    model: vi.fn((id: string) => id === "realesr-animevideov3"
-      ? {
-          name: "AnimeVideoV3",
-          upscaler: "upscayl",
-          scales: [4, 2, 2],
-          files: ["model.param", "model.bin"],
-          inputBlob: "in0",
-          outputBlob: "out0",
-          license: "MIT",
-          checksums: { "model.param": "a".repeat(64), "model.bin": "b".repeat(64) },
-        }
-      : { upscaler: "realcugan", scales: [2] }),
-    registerModels: vi.fn(() => []),
+    model: vi.fn((id: string) => records.get(id) ?? { upscaler: "upscayl" as const, scales: [2] }),
+    registerModels: vi.fn((manifests) => {
+      for (const manifest of manifests) {
+        runtime.modelsList.push(manifest.id)
+        records.set(manifest.id, {
+          name: manifest.name,
+          upscaler: manifest.upscaler,
+          scales: manifest.scales,
+          files: manifest.files,
+          inputBlob: manifest.inputBlob,
+          outputBlob: manifest.outputBlob,
+          license: manifest.license,
+          checksums: manifest.checksums,
+        })
+      }
+      return manifests.map((manifest) => records.get(manifest.id)!)
+    }),
     unregisterModel: vi.fn(() => false),
     setBinaryResolver: vi.fn(),
     setModelsPath: vi.fn(),
@@ -109,6 +163,22 @@ function fakeRuntime() {
     pipeline: vi.fn(async (_source: string, destination: string) => destination),
     closeAllProcesses: vi.fn(),
   } satisfies OpenComicSystemRuntime
+  return runtime
+}
+
+function builtInModel(id: string) {
+  return id === "realesr-animevideov3"
+    ? {
+        name: "AnimeVideoV3",
+        upscaler: "upscayl" as const,
+        scales: [4, 2, 2],
+        files: ["model.param", "model.bin"],
+        inputBlob: "in0",
+        outputBlob: "out0",
+        license: "MIT",
+        checksums: { "model.param": "a".repeat(64), "model.bin": "b".repeat(64) },
+      }
+    : { upscaler: "realcugan" as const, scales: [2] }
 }
 
 function fakeResolver() {

@@ -1056,13 +1056,50 @@
         "AVIF/JXL 无损输入",
         "取消和保存"
       ],
-      "testIds": [],
+      "testIds": [
+        "neoview.super-resolution.abort",
+        "neoview.super-resolution.acquire-failure",
+        "neoview.super-resolution.capability-abort",
+        "neoview.super-resolution.capability-cache",
+        "neoview.super-resolution.composition",
+        "neoview.super-resolution.composition-disabled",
+        "neoview.super-resolution.composition-uninstalled",
+        "neoview.super-resolution.config",
+        "neoview.super-resolution.config-defaults",
+        "neoview.super-resolution.config-validation",
+        "neoview.super-resolution.custom-model-collision",
+        "neoview.super-resolution.custom-model-config",
+        "neoview.super-resolution.custom-model-registration",
+        "neoview.super-resolution.explicit-path",
+        "neoview.super-resolution.gpu-lease",
+        "neoview.super-resolution.lazy",
+        "neoview.super-resolution.no-overwrite",
+        "neoview.super-resolution.output-lock",
+        "neoview.super-resolution.path-probe",
+        "neoview.super-resolution.probe-cache",
+        "neoview.super-resolution.provider-abort",
+        "neoview.super-resolution.provider-capability",
+        "neoview.super-resolution.provider-dispose",
+        "neoview.super-resolution.provider-lazy",
+        "neoview.super-resolution.provider-output",
+        "neoview.super-resolution.provider-run",
+        "neoview.super-resolution.runtime-loader",
+        "neoview.super-resolution.runtime-loader-contract",
+        "neoview.super-resolution.runtime-loader-missing",
+        "neoview.super-resolution.runtime-model-filter",
+        "neoview.super-resolution.toml",
+        "neoview.super-resolution.trusted-fallback",
+        "neoview.super-resolution.validation"
+      ],
       "plannedTestIds": [],
       "benchmarkIds": [
         "upscale-cold",
         "upscale-warm"
       ],
-      "knownDifferences": []
+      "knownDifferences": [
+        "TOML custom model manifests and runtime registration are implemented; legacy custom-model settings import remains pending.",
+        "The system-only fork is not yet available through a remote immutable dependency, and real GPU benchmark evidence remains pending."
+      ]
     },
     {
       "id": "metadata-dimensions-properties",
