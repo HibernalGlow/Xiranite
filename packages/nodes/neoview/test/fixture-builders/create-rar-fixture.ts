@@ -13,7 +13,7 @@ export interface RarFixtureEntry {
 
 export interface RarFixtureOptions {
   entries: readonly RarFixtureEntry[]
-  password: string
+  password?: string
   format?: 4 | 5
   solid?: boolean
   encryptHeaders?: boolean
@@ -47,13 +47,16 @@ export async function createRarFixture(options: RarFixtureOptions): Promise<RarF
       await mkdir(dirname(entryPath), { recursive: true })
       await writeFile(entryPath, entry.bytes)
     }
+    const passwordArgument = options.password === undefined
+      ? undefined
+      : `${options.encryptHeaders ? "-hp" : "-p"}${options.password}`
     await execFileAsync(executablePath, [
       "a",
       "-idq",
       "-m1",
       `-ma${options.format ?? 5}`,
       options.solid ? "-s" : "-s-",
-      `${options.encryptHeaders ? "-hp" : "-p"}${options.password}`,
+      ...(passwordArgument ? [passwordArgument] : []),
       "--",
       path,
       ...options.entries.map((entry) => process.platform === "win32" ? entry.path.replaceAll("/", "\\") : entry.path),
