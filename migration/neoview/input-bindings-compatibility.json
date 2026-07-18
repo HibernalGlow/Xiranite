@@ -470,6 +470,7 @@
         "neoview.bindings.devices",
         "neoview.bindings.editor",
         "neoview.bindings.device-recording",
+        "neoview.bindings.touch-recording",
         "neoview.bindings.touch-hold-runtime"
       ],
       "plannedTestIds": [],
