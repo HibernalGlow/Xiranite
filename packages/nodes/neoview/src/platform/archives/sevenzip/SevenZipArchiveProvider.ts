@@ -271,6 +271,14 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   async #openSolidEntry(entry: ArchiveEntry, signal?: AbortSignal, password?: Uint8Array): Promise<ReadableStream<Uint8Array>> {
     const combinedSignal = combineSignals(signal, this.#lifecycle.signal)
     const materializer = await this.#solidMaterializerInstance(password)
+    if (materializer.streamFor) {
+      try {
+        return await materializer.streamFor(entry.id, combinedSignal)
+      } catch (error) {
+        if (!combinedSignal.aborted && !this.#lifecycle.signal.aborted) await this.#invalidateSolidMaterializer()
+        throw error
+      }
+    }
     const path = await this.#pathForSolidEntry(materializer, entry.id, combinedSignal)
     combinedSignal.throwIfAborted()
     const file = createReadStream(path, { highWaterMark: 64 * 1024, signal: combinedSignal })
@@ -291,6 +299,8 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
         resourceScheduler: this.#resourceScheduler,
         tempDirectory: this.#tempDirectory,
         maxMaterializedBytes: this.#maxMaterializedBytes,
+        memoryCacheBytes: this.#solidArchiveCache?.maxMemoryBytes,
+        maxMemoryEntryBytes: this.#solidArchiveCache?.maxMemoryEntryBytes,
         rawPassword: password,
       })
       const encrypted = this.#entries.some((entry) => entry.encrypted)

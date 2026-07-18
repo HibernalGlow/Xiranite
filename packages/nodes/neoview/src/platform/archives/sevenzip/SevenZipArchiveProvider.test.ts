@@ -168,6 +168,37 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     expect(await readdir(tempDirectory)).toEqual([])
   })
 
+  it("[neoview.sevenzip.solid-memory-tier] reuses small verified entries without rereading the temp file", async () => {
+    const scheduler = new RecordingScheduler()
+    const provider = createProvider(solidPath, scheduler)
+    const tempDirectory = join(directory, "solid-memory-tier")
+    await mkdir(tempDirectory)
+    try {
+      const entries = await provider.list()
+      const first = entries.find((entry) => entry.path === "pages/001.jpg")!
+      const materializer = new SolidArchiveMaterializer({
+        sourcePath: solidPath,
+        executable: executable!,
+        entries,
+        resourceScheduler: scheduler,
+        tempDirectory,
+        memoryCacheBytes: first.uncompressedSize,
+        maxMemoryEntryBytes: first.uncompressedSize,
+      })
+      try {
+        const path = await materializer.pathFor(first.id)
+        expect(await collect(await materializer.streamFor(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+        await rm(path)
+        expect(await collect(await materializer.streamFor(first.id))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      } finally {
+        await materializer.close()
+      }
+    } finally {
+      await provider.close()
+    }
+    expect(await readdir(tempDirectory)).toEqual([])
+  })
+
   it("[neoview.sevenzip.solid-budget] rejects oversized solid materialization before spawning extraction", async () => {
     const scheduler = new RecordingScheduler()
     const provider = createProvider(solidPath, scheduler, { maxSolidMaterializedBytes: 4 })

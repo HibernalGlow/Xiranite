@@ -1,8 +1,10 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process"
-import { mkdir, open, mkdtemp, rm, type FileHandle } from "node:fs/promises"
+import { createReadStream } from "node:fs"
+import { mkdir, open, mkdtemp, readFile, rm, type FileHandle } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Readable, type Writable } from "node:stream"
+import { LRUCache } from "lru-cache"
 
 import type { ArchiveEntry } from "../../../ports/ArchiveProvider.js"
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
@@ -27,16 +29,26 @@ export interface SolidArchiveMaterializerOptions {
   resourceScheduler: ResourceScheduler
   tempDirectory?: string
   maxMaterializedBytes?: number
+  memoryCacheBytes?: number
+  maxMemoryEntryBytes?: number
   rawPassword?: Uint8Array
 }
+
+const DEFAULT_MEMORY_CACHE_BYTES = 0
+const DEFAULT_MAX_MEMORY_ENTRY_BYTES = 8 * 1024 * 1024
 
 export class SolidArchiveMaterializer implements AsyncDisposable {
   readonly #sourcePath: string
   readonly #executable: SevenZipExecutable
   readonly #entries: readonly ArchiveEntry[]
+  readonly #entriesById: ReadonlyMap<string, ArchiveEntry>
   readonly #resourceScheduler: ResourceScheduler
   readonly #tempDirectory?: string
   readonly #rawPassword?: Uint8Array
+  readonly #maxMemoryEntryBytes: number
+  readonly #memoryEnabled: boolean
+  readonly #memory: LRUCache<string, Uint8Array>
+  readonly #memoryLoads = new Map<string, Promise<Uint8Array>>()
   readonly #lifecycle = new AbortController()
   readonly #paths = new Map<string, DeferredPath>()
   readonly #awaitingProcessVerification: Array<{ entryId: string; path: string }> = []
@@ -50,8 +62,30 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     this.#sourcePath = options.sourcePath
     this.#executable = options.executable
     this.#entries = options.entries.filter((entry) => entry.kind === "file")
+    this.#entriesById = new Map(this.#entries.map((entry) => [entry.id, entry]))
     this.#resourceScheduler = options.resourceScheduler
     this.#tempDirectory = options.tempDirectory
+    const memoryCacheBytes = options.memoryCacheBytes ?? DEFAULT_MEMORY_CACHE_BYTES
+    if (!Number.isSafeInteger(memoryCacheBytes) || memoryCacheBytes < 0) {
+      throw new RangeError(`Invalid solid archive memory cache byte budget: ${memoryCacheBytes}`)
+    }
+    const maxMemoryEntryBytes = options.maxMemoryEntryBytes
+      ?? Math.min(DEFAULT_MAX_MEMORY_ENTRY_BYTES, memoryCacheBytes)
+    if (!Number.isSafeInteger(maxMemoryEntryBytes) || maxMemoryEntryBytes < 0) {
+      throw new RangeError(`Invalid solid archive memory entry byte budget: ${maxMemoryEntryBytes}`)
+    }
+    if (maxMemoryEntryBytes > memoryCacheBytes) {
+      throw new RangeError("Solid archive memory entry budget must not exceed the memory budget.")
+    }
+    this.#maxMemoryEntryBytes = maxMemoryEntryBytes
+    this.#memoryEnabled = memoryCacheBytes > 0 && maxMemoryEntryBytes > 0
+    this.#memory = this.#memoryEnabled
+      ? new LRUCache({
+          maxSize: memoryCacheBytes,
+          maxEntrySize: maxMemoryEntryBytes,
+          sizeCalculation: (bytes) => bytes.byteLength,
+        })
+      : new LRUCache({ max: 1 })
     if (options.rawPassword) {
       assertSevenZipPassword(options.rawPassword)
       this.#rawPassword = options.rawPassword.slice()
@@ -71,6 +105,32 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     return this.#complete
   }
 
+  async streamFor(entryId: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    const entry = this.#entriesById.get(entryId)
+    if (!entry) throw new Error(`Solid archive entry was not indexed: ${entryId}`)
+    const cached = this.#memory.get(entryId)
+    if (cached) return byteStream(cached)
+    const path = await this.pathFor(entryId, signal)
+    signal?.throwIfAborted()
+    if (entry.uncompressedSize > this.#maxMemoryEntryBytes || !this.#memoryEnabled) {
+      return fileStream(path, signal, this.#lifecycle.signal)
+    }
+    let loading = this.#memoryLoads.get(entryId)
+    if (!loading) {
+      loading = this.#loadMemoryEntry(entryId, path, entry.uncompressedSize)
+      this.#memoryLoads.set(entryId, loading)
+      void loading.then(
+        () => { if (this.#memoryLoads.get(entryId) === loading) this.#memoryLoads.delete(entryId) },
+        () => { if (this.#memoryLoads.get(entryId) === loading) this.#memoryLoads.delete(entryId) },
+      )
+    }
+    const bytes = await waitWithSignal(loading, signal)
+    signal?.throwIfAborted()
+    return byteStream(bytes)
+  }
+
   async pathFor(entryId: string, signal?: AbortSignal): Promise<string> {
     this.#assertOpen()
     signal?.throwIfAborted()
@@ -87,6 +147,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     this.#lifecycle.abort(reason)
     this.#child?.kill()
     this.#rawPassword?.fill(0)
+    this.#memory.clear()
     await this.#run?.catch(() => undefined)
     this.#rejectPending(reason)
     if (this.#root) await rm(this.#root, { recursive: true, force: true })
@@ -242,6 +303,16 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   #assertOpen(): void {
     if (this.#closed) throw new Error(`Solid archive materializer is closed: ${this.#sourcePath}`)
   }
+
+  async #loadMemoryEntry(entryId: string, path: string, expectedBytes: number): Promise<Uint8Array> {
+    const bytes = new Uint8Array(await readFile(path, { signal: this.#lifecycle.signal }))
+    if (bytes.byteLength !== expectedBytes) {
+      throw new Error(`Solid archive entry ${entryId} changed after materialization.`)
+    }
+    this.#assertOpen()
+    this.#memory.set(entryId, bytes)
+    return bytes
+  }
 }
 
 function deferredPath(): DeferredPath {
@@ -303,4 +374,19 @@ function waitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T
       (error) => { cleanup(); reject(error) },
     )
   })
+}
+
+function byteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes)
+      controller.close()
+    },
+  })
+}
+
+function fileStream(path: string, signal: AbortSignal | undefined, lifecycle: AbortSignal): ReadableStream<Uint8Array> {
+  const combinedSignal = signal ? AbortSignal.any([signal, lifecycle]) : lifecycle
+  const file = createReadStream(path, { highWaterMark: 64 * 1024, signal: combinedSignal })
+  return Readable.toWeb(file) as ReadableStream<Uint8Array>
 }

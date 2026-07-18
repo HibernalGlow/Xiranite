@@ -4,6 +4,13 @@ import type { CacheableSolidArchiveMaterializer } from "./SolidArchiveCache.js"
 import { SolidArchiveCache } from "./SolidArchiveCache.js"
 
 describe("SolidArchiveCache", () => {
+  it("[neoview.sevenzip.solid-memory-budget] exposes bounded in-process memory settings", () => {
+    const cache = new SolidArchiveCache({ maxBytes: 100, maxMemoryBytes: 32, maxMemoryEntryBytes: 8 })
+    expect(cache.maxMemoryBytes).toBe(32)
+    expect(cache.maxMemoryEntryBytes).toBe(8)
+    expect(() => new SolidArchiveCache({ maxBytes: 100, maxMemoryBytes: 4, maxMemoryEntryBytes: 5 })).toThrow("must not exceed")
+  })
+
   it("[neoview.sevenzip.solid-cache-singleflight] shares a complete materializer across sequential sessions", async () => {
     const cache = new SolidArchiveCache({ maxBytes: 100 })
     const create = vi.fn(() => new FakeMaterializer())

@@ -1,6 +1,7 @@
 export interface CacheableSolidArchiveMaterializer extends AsyncDisposable {
   readonly isComplete: boolean
   pathFor(entryId: string, signal?: AbortSignal): Promise<string>
+  streamFor?(entryId: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   close(): Promise<void>
 }
 
@@ -19,6 +20,9 @@ export interface SolidArchiveCacheLease extends AsyncDisposable {
 
 export interface SolidArchiveCacheOptions {
   maxBytes?: number
+  /** In-process budget for small hot entries; disk materialization remains the source of truth. */
+  maxMemoryBytes?: number
+  maxMemoryEntryBytes?: number
 }
 
 export interface SolidArchiveCacheSnapshot {
@@ -41,10 +45,14 @@ interface CacheEntry {
 }
 
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024
+const DEFAULT_MAX_MEMORY_BYTES = 32 * 1024 * 1024
+const DEFAULT_MAX_MEMORY_ENTRY_BYTES = 8 * 1024 * 1024
 
 /** Host-lifetime cache for fully verified solid archive materializations. */
 export class SolidArchiveCache implements AsyncDisposable {
   readonly #maxBytes: number
+  readonly #maxMemoryBytes: number
+  readonly #maxMemoryEntryBytes: number
   readonly #entries = new Map<string, CacheEntry>()
   #clock = 0
   #closed = false
@@ -56,6 +64,27 @@ export class SolidArchiveCache implements AsyncDisposable {
       throw new RangeError(`Invalid solid archive cache byte budget: ${maxBytes}`)
     }
     this.#maxBytes = maxBytes
+    const maxMemoryBytes = options.maxMemoryBytes ?? DEFAULT_MAX_MEMORY_BYTES
+    if (!Number.isSafeInteger(maxMemoryBytes) || maxMemoryBytes < 0) {
+      throw new RangeError(`Invalid solid archive cache memory byte budget: ${maxMemoryBytes}`)
+    }
+    const maxMemoryEntryBytes = options.maxMemoryEntryBytes ?? Math.min(DEFAULT_MAX_MEMORY_ENTRY_BYTES, maxMemoryBytes)
+    if (!Number.isSafeInteger(maxMemoryEntryBytes) || maxMemoryEntryBytes < 0) {
+      throw new RangeError(`Invalid solid archive cache memory entry byte budget: ${maxMemoryEntryBytes}`)
+    }
+    if (maxMemoryEntryBytes > maxMemoryBytes) {
+      throw new RangeError("Solid archive cache memory entry budget must not exceed the memory budget.")
+    }
+    this.#maxMemoryBytes = maxMemoryBytes
+    this.#maxMemoryEntryBytes = maxMemoryEntryBytes
+  }
+
+  get maxMemoryBytes(): number {
+    return this.#maxMemoryBytes
+  }
+
+  get maxMemoryEntryBytes(): number {
+    return this.#maxMemoryEntryBytes
   }
 
   get entryCount(): number {
