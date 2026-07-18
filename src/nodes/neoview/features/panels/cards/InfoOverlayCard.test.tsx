@@ -6,6 +6,24 @@ import InfoOverlayCard, { type InfoOverlayPatch, type InfoOverlayPort, type Info
 afterEach(cleanup)
 
 describe("InfoOverlayCard", () => {
+  it("[neoview.info-overlay.inactive-zero-subscription] keeps an empty shell while hidden", () => {
+    const port = memoryPort()
+    const subscribe = vi.spyOn(port, "subscribe")
+    render(<InfoOverlayCard port={port} panelActive={false} />)
+
+    expect(document.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(subscribe).not.toHaveBeenCalled()
+    expect(screen.queryByRole("switch")).toBeNull()
+  })
+
+  it("[neoview.info-overlay.navigation-independence] disables native controls while navigation is busy", () => {
+    render(<InfoOverlayCard port={memoryPort()} disabled />)
+
+    expect((screen.getAllByRole("switch")[0] as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole("spinbutton") as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getAllByRole("slider")[0] as HTMLInputElement).hasAttribute("data-disabled")).toBe(true)
+  })
+
   it("[neoview.info-overlay.loading] remains mounted while configuration is unavailable", () => {
     const view = render(<InfoOverlayCard />)
     expect(view.container.querySelector('[data-neoview-card="info-overlay"]')).toBeTruthy()

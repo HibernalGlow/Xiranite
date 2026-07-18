@@ -1,6 +1,7 @@
 /**
  * @migrated-from src/lib/cards/info/InfoOverlayCard.svelte
  * @source-hash sha256:47bbb9b8824b6effc99211d400b5ad1520315cb91e2a6559e6dc3aaae4e844f1
+ * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/InfoOverlayCard.tsx
  * @features info-overlay
  * @migration-status adapted
  */
@@ -10,6 +11,7 @@ import { RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 export interface InfoOverlaySettings {
   enabled: boolean
@@ -35,15 +37,21 @@ export interface InfoOverlayPort {
 export interface InfoOverlayCardProps {
   port?: InfoOverlayPort
   infoOverlay?: InfoOverlayPort
+  panelActive?: boolean
+  disabled?: boolean
 }
 
-export function InfoOverlayCard({ port, infoOverlay }: InfoOverlayCardProps) {
+export function InfoOverlayCard({ port, infoOverlay, panelActive = true, disabled = false }: InfoOverlayCardProps) {
   const activePort = port ?? infoOverlay
+  const subscribe = panelActive ? activePort?.subscribe ?? subscribeNoop : subscribeNoop
+  const getSnapshot = panelActive ? activePort?.getSnapshot ?? getUndefinedSnapshot : getUndefinedSnapshot
   const settings = useSyncExternalStore(
-    activePort?.subscribe ?? subscribeNoop,
-    activePort?.getSnapshot ?? getUndefinedSnapshot,
-    activePort?.getSnapshot ?? getUndefinedSnapshot,
+    subscribe,
+    getSnapshot,
+    getSnapshot,
   )
+
+  if (!panelActive) return <ReaderCardEmptyState />
 
   if (!settings || !activePort) {
     return (
@@ -63,12 +71,12 @@ export function InfoOverlayCard({ port, infoOverlay }: InfoOverlayCardProps) {
       data-neoview-card="info-overlay"
       data-info-overlay-state="ready"
     >
-      <SwitchRow label="启用悬浮窗" checked={settings.enabled} onCheckedChange={(enabled) => void activePort!.update({ enabled })} />
+      <SwitchRow label="启用悬浮窗" checked={settings.enabled} disabled={disabled} onCheckedChange={(enabled) => void activePort!.update({ enabled })} />
 
       <div className="flex items-center justify-between gap-2">
         <span>透明度</span>
         <div className="flex items-center gap-2">
-          <OpacityInput value={settings.opacity} onCommit={(opacity) => void activePort!.update({ opacity })} />
+          <OpacityInput value={settings.opacity} disabled={disabled} onCommit={(opacity) => void activePort!.update({ opacity })} />
           <span className="text-[11px] tabular-nums">{Math.round(settings.opacity * 100)}%</span>
         </div>
       </div>
@@ -82,6 +90,7 @@ export function InfoOverlayCard({ port, infoOverlay }: InfoOverlayCardProps) {
         step={20}
         onPreview={(width) => activePort!.preview({ width })}
         onCommit={() => void activePort!.commit()}
+        disabled={disabled}
         onReset={() => { activePort!.preview({ width: null }); void activePort!.commit() }}
       />
 
@@ -94,10 +103,11 @@ export function InfoOverlayCard({ port, infoOverlay }: InfoOverlayCardProps) {
         step={8}
         onPreview={(height) => activePort!.preview({ height })}
         onCommit={() => void activePort!.commit()}
+        disabled={disabled}
         onReset={() => { activePort!.preview({ height: null }); void activePort!.commit() }}
       />
 
-      <SwitchRow label="显示边框" checked={settings.showBorder} onCheckedChange={(showBorder) => void activePort!.update({ showBorder })} />
+      <SwitchRow label="显示边框" checked={settings.showBorder} disabled={disabled} onCheckedChange={(showBorder) => void activePort!.update({ showBorder })} />
       <p className="text-[10px]">调节悬浮信息窗的背景透明度（0% - 100%，0% 为仅文字无底色）。</p>
     </section>
   )
@@ -105,20 +115,21 @@ export function InfoOverlayCard({ port, infoOverlay }: InfoOverlayCardProps) {
 
 export default InfoOverlayCard
 
-function SwitchRow({ label, checked, onCheckedChange }: {
+function SwitchRow({ label, checked, disabled, onCheckedChange }: {
   label: string
   checked: boolean
+  disabled: boolean
   onCheckedChange(checked: boolean): void
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span>{label}</span>
-      <Switch size="sm" checked={checked} aria-label={label} onCheckedChange={onCheckedChange} />
+      <Switch size="sm" checked={checked} disabled={disabled} aria-label={label} onCheckedChange={onCheckedChange} />
     </div>
   )
 }
 
-function OpacityInput({ value, onCommit }: { value: number; onCommit(value: number): void }) {
+function OpacityInput({ value, disabled, onCommit }: { value: number; disabled: boolean; onCommit(value: number): void }) {
   const percentage = Math.round(value * 100)
   const [draft, setDraft] = useState(String(percentage))
   const editingRef = useRef(false)
@@ -150,6 +161,7 @@ function OpacityInput({ value, onCommit }: { value: number; onCommit(value: numb
       step={5}
       className="h-7 w-20 rounded-md border border-input bg-background px-2 text-xs shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
       value={draft}
+      disabled={disabled}
       aria-label="透明度百分比"
       onFocus={() => { editingRef.current = true }}
       onChange={(event) => setDraft(event.currentTarget.value)}
@@ -165,13 +177,14 @@ function OpacityInput({ value, onCommit }: { value: number; onCommit(value: numb
   )
 }
 
-function DimensionSlider({ label, value, automaticValue, min, max, step, onPreview, onCommit, onReset }: {
+function DimensionSlider({ label, value, automaticValue, min, max, step, disabled, onPreview, onCommit, onReset }: {
   label: string
   value?: number
   automaticValue: number
   min: number
   max: number
   step: number
+  disabled: boolean
   onPreview(value: number): void
   onCommit(): void
   onReset?(): void
@@ -183,7 +196,7 @@ function DimensionSlider({ label, value, automaticValue, min, max, step, onPrevi
         <div className="flex items-center gap-1">
           <output className="text-[11px] text-muted-foreground">{value === undefined ? "自动" : `${value} px`}</output>
           {value !== undefined && onReset ? (
-            <Button type="button" variant="ghost" size="icon" className="size-5" aria-label={`${label}恢复自动`} title={`${label}恢复自动`} onClick={onReset}>
+            <Button type="button" variant="ghost" size="icon" className="size-5" disabled={disabled} aria-label={`${label}恢复自动`} title={`${label}恢复自动`} onClick={onReset}>
               <RotateCcw className="size-3" aria-hidden="true" />
             </Button>
           ) : null}
@@ -195,6 +208,7 @@ function DimensionSlider({ label, value, automaticValue, min, max, step, onPrevi
         max={max}
         step={step}
         value={[value ?? automaticValue]}
+        disabled={disabled}
         onValueChange={([next]) => onPreview(next ?? automaticValue)}
         onValueCommit={onCommit}
       />
