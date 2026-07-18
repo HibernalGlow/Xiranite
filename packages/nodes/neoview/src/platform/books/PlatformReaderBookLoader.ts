@@ -23,7 +23,10 @@ export function createPlatformReaderBookLoader(options: PlatformReaderBookLoader
     switch (source.kind) {
       case "path": {
         const { detectViewSource } = await import("../filesystem/detectViewSource.js")
-        return load(await detectViewSource(source.path, signal, options.mediaFormats, options.shortcutResolver), loadOptions)
+        const shortcutResolver = options.shortcutResolver ?? new (await import("../windows/WindowsReaderShortcutResolver.js")).WindowsReaderShortcutResolver({
+          resourceScheduler: options.resourceScheduler,
+        })
+        return load(await detectViewSource(source.path, signal, options.mediaFormats, shortcutResolver), loadOptions)
       }
       case "directory": {
         const { loadDirectoryBook } = await import("../filesystem/DirectoryBookLoader.js")

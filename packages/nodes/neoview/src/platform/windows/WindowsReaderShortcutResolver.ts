@@ -4,6 +4,7 @@ import { dirname, isAbsolute, resolve } from "node:path"
 import { promisify } from "node:util"
 
 import type { ReaderShortcutResolution, ReaderShortcutResolver } from "../../ports/ReaderShortcutResolver.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 const execFileAsync = promisify(execFile)
 const MAX_OUTPUT_BYTES = 64 * 1024
@@ -13,17 +14,23 @@ const SHORTCUT_EXTENSION = ".lnk"
 export interface WindowsReaderShortcutResolverOptions {
   platform?: NodeJS.Platform
   timeoutMs?: number
+  resourceScheduler?: ResourceScheduler
+  ownerId?: string
   runPowerShell?: (encodedCommand: string, options: { shortcutPath: string; signal?: AbortSignal; timeoutMs: number; maxOutputBytes: number }) => Promise<string>
 }
 
 export class WindowsReaderShortcutResolver implements ReaderShortcutResolver {
   readonly #platform: NodeJS.Platform
   readonly #timeoutMs: number
+  readonly #resourceScheduler?: ResourceScheduler
+  readonly #ownerId: string
   readonly #runPowerShell: NonNullable<WindowsReaderShortcutResolverOptions["runPowerShell"]>
 
   constructor(options: WindowsReaderShortcutResolverOptions = {}) {
     this.#platform = options.platform ?? process.platform
     this.#timeoutMs = boundedTimeout(options.timeoutMs)
+    this.#resourceScheduler = options.resourceScheduler
+    this.#ownerId = options.ownerId ?? "neoview:shortcut-resolver"
     this.#runPowerShell = options.runPowerShell ?? runPowerShell
   }
 
@@ -34,6 +41,12 @@ export class WindowsReaderShortcutResolver implements ReaderShortcutResolver {
       return invalid(normalizedPath, "Reader shortcut resolver only accepts .lnk files.")
     }
     signal?.throwIfAborted()
+    const lease = await this.#resourceScheduler?.acquire({
+      resource: "io",
+      kind: "reader.shortcut.resolve",
+      priority: "view",
+      ownerId: this.#ownerId,
+    }, signal)
     try {
       const shortcutStats = await stat(normalizedPath)
       if (!shortcutStats.isFile()) return invalid(normalizedPath, "Shortcut path is not a file.")
@@ -63,6 +76,8 @@ export class WindowsReaderShortcutResolver implements ReaderShortcutResolver {
     } catch (error) {
       if (signal?.aborted) throw signal.reason
       return invalid(normalizedPath, error instanceof Error ? error.message : String(error))
+    } finally {
+      lease?.release()
     }
   }
 }
