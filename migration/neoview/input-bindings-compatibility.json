@@ -1,45 +1,849 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "featureId": "input-bindings-radial-voice",
   "legacyCardId": "settingsBindings",
   "title": "操作绑定",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
-  "statusValues": ["pending", "partial", "complete"],
   "completionRule": "Complete only when the source keyboard, mouse button/wheel/area/gesture, touch gesture and radial-menu controls are inventoried and migrated; context priority, search, conflicts, disable/reset, canonical persistence, legacy import and accessible equivalents are shared by GUI/CLI/TUI; gamepad is documented as an XR extension; inactive settings and devices perform zero work; and desktop/constrained-card/performance gates pass.",
   "sourceUiInventory": [
-    { "id": "bindings-ui.shell", "title": "设置 Card 与统一面板", "sourceEvidence": ["src/lib/cards/settings/BindingsSettingsCard.svelte", "src/lib/components/dialogs/UnifiedBindingPanel.svelte"], "acceptanceItems": ["操作绑定标题", "统一面板", "搜索", "类别/上下文筛选", "恢复默认", "保存反馈", "空结果"], "mappedChecklistIds": ["bindings.shell", "bindings.states", "bindings.ui-parity"] },
-    { "id": "bindings-ui.keyboard", "title": "键盘绑定与录制", "sourceEvidence": ["src/lib/components/dialogs/KeyBindingPanel.svelte", "src/lib/stores/keybindings/core.svelte.ts", "src/lib/stores/keybindings/keyHandlers.svelte.ts"], "acceptanceItems": ["键盘标签", "组合键", "修饰键", "录制开始/取消/完成", "禁用", "删除", "恢复默认", "IME 与输入框隔离"], "mappedChecklistIds": ["bindings.keyboard", "bindings.recording", "bindings.accessibility", "bindings.context-routing"] },
-    { "id": "bindings-ui.mouse", "title": "鼠标按键、滚轮与区域", "sourceEvidence": ["src/lib/components/dialogs/MouseSettingsPanel.svelte", "src/lib/components/dialogs/MouseKeyRecorder.svelte", "src/lib/components/dialogs/MouseRecordingArea.svelte"], "acceptanceItems": ["左/中/右/侧键", "单击/双击/按住", "滚轮上下", "修饰键", "九宫格区域", "录制", "启停", "删除", "恢复默认"], "mappedChecklistIds": ["bindings.mouse", "bindings.wheel", "bindings.area-click", "bindings.recording"] },
-    { "id": "bindings-ui.gesture", "title": "鼠标与触控手势", "sourceEvidence": ["src/lib/components/dialogs/GestureSettingsPanel.svelte", "src/lib/components/dialogs/GestureVisualizer.svelte", "src/lib/components/dialogs/MouseGestureRecorder.svelte", "src/lib/stackview/layers/GestureLayer.svelte"], "acceptanceItems": ["手势启停", "方向序列", "触控滑动", "鼠标轨迹", "画布预览", "最小距离", "录制取消/完成", "冲突", "释放 pointer capture"], "mappedChecklistIds": ["bindings.touch", "bindings.mouse-gesture", "bindings.recording", "bindings.lifecycle"] },
-    { "id": "bindings-ui.context", "title": "动作与上下文优先级", "sourceEvidence": ["src/lib/stores/keybindings/constants.ts", "src/lib/stores/keybindings/core.svelte.ts", "src/lib/stores/keybindings/keyMappings.svelte.ts"], "acceptanceItems": ["动作 registry", "BindingContext", "CONTEXT_PRIORITY", "同输入按活动上下文解析", "global fallback", "面板/阅读器/编辑器/对话框模式", "同上下文冲突"], "mappedChecklistIds": ["bindings.actions", "bindings.context-routing", "bindings.conflicts", "bindings.data-contract"] },
-    { "id": "bindings-ui.radial", "title": "径向菜单", "sourceEvidence": ["src/lib/components/dialogs/RadialMenuSettingsPanel.svelte", "src/lib/components/radial/RadialInputLayer.svelte", "src/lib/components/radial/RadialMenuOverlay.svelte", "src/lib/stores/radialMenu/core.svelte.ts"], "acceptanceItems": ["菜单组", "槽位", "动作选择", "排序", "触发输入", "按住/切换模式", "扇区命中", "恢复默认", "关闭释放"], "mappedChecklistIds": ["bindings.radial-menu", "bindings.lifecycle", "bindings.accessibility"] },
-    { "id": "bindings-ui.persistence", "title": "旧设置与规范持久化", "sourceEvidence": ["src/lib/stores/keybindings/core.svelte.ts", "src/lib/stores/radialMenu/core.svelte.ts", "src/lib/cards/settings/BindingsSettingsCard.svelte"], "acceptanceItems": ["旧 dynamic storage key", "appSettings.keybindings", "appSettings.radialMenus", "bindings.keybindings", "bindings.radial_menus", "一次导入", "canonical TOML", "不得双写 localStorage", "严格校验", "原子保存", "恢复默认"], "mappedChecklistIds": ["bindings.persistence", "bindings.legacy-import", "bindings.data-contract", "bindings.deviations"] },
-    { "id": "bindings-ui.gamepad", "title": "XR 标准手柄扩展", "sourceEvidence": ["src/lib/stores/keybindings/types.ts", "src/lib/components/dialogs/UnifiedBindingPanel.svelte"], "acceptanceItems": ["旧版无手柄控件", "标准 Gamepad 按钮", "连接/断开", "只在存在绑定时轮询", "页面不可见暂停", "录制", "可禁用", "与其他设备共享动作/上下文"], "mappedChecklistIds": ["bindings.gamepad", "bindings.deviations", "bindings.performance"] },
-    { "id": "bindings-ui.states", "title": "状态、无障碍与响应式", "sourceEvidence": ["src/lib/components/dialogs/UnifiedBindingPanel.svelte", "src/lib/components/dialogs/KeyBindingPanel.svelte"], "acceptanceItems": ["默认", "hover", "focus", "enabled", "disabled", "recording", "conflict", "saving", "success", "error", "empty", "键盘等价操作", "可访问名称", "桌面/420x360 无溢出"], "mappedChecklistIds": ["bindings.states", "bindings.accessibility", "bindings.ui-parity"] }
+    {
+      "id": "bindings-ui.shell",
+      "title": "设置 Card 与统一面板",
+      "sourceEvidence": [
+        "src/lib/cards/settings/BindingsSettingsCard.svelte",
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "操作绑定标题",
+        "统一面板",
+        "搜索",
+        "类别/上下文筛选",
+        "恢复默认",
+        "保存反馈",
+        "空结果"
+      ],
+      "mappedChecklistIds": [
+        "bindings.shell",
+        "bindings.states",
+        "bindings.ui-parity"
+      ]
+    },
+    {
+      "id": "bindings-ui.keyboard",
+      "title": "键盘绑定与录制",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/KeyBindingPanel.svelte",
+        "src/lib/stores/keybindings/core.svelte.ts",
+        "src/lib/stores/keybindings/keyHandlers.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "键盘标签",
+        "组合键",
+        "修饰键",
+        "录制开始/取消/完成",
+        "禁用",
+        "删除",
+        "恢复默认",
+        "IME 与输入框隔离"
+      ],
+      "mappedChecklistIds": [
+        "bindings.keyboard",
+        "bindings.recording",
+        "bindings.accessibility",
+        "bindings.context-routing"
+      ]
+    },
+    {
+      "id": "bindings-ui.mouse",
+      "title": "鼠标按键、滚轮与区域",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/MouseSettingsPanel.svelte",
+        "src/lib/components/dialogs/MouseKeyRecorder.svelte",
+        "src/lib/components/dialogs/MouseRecordingArea.svelte"
+      ],
+      "acceptanceItems": [
+        "左/中/右/侧键",
+        "单击/双击/按住",
+        "滚轮上下",
+        "修饰键",
+        "九宫格区域",
+        "录制",
+        "启停",
+        "删除",
+        "恢复默认"
+      ],
+      "mappedChecklistIds": [
+        "bindings.mouse",
+        "bindings.wheel",
+        "bindings.area-click",
+        "bindings.recording"
+      ]
+    },
+    {
+      "id": "bindings-ui.gesture",
+      "title": "鼠标与触控手势",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/GestureSettingsPanel.svelte",
+        "src/lib/components/dialogs/GestureVisualizer.svelte",
+        "src/lib/components/dialogs/MouseGestureRecorder.svelte",
+        "src/lib/stackview/layers/GestureLayer.svelte"
+      ],
+      "acceptanceItems": [
+        "手势启停",
+        "方向序列",
+        "触控滑动",
+        "鼠标轨迹",
+        "画布预览",
+        "最小距离",
+        "录制取消/完成",
+        "冲突",
+        "释放 pointer capture"
+      ],
+      "mappedChecklistIds": [
+        "bindings.touch",
+        "bindings.mouse-gesture",
+        "bindings.recording",
+        "bindings.lifecycle"
+      ]
+    },
+    {
+      "id": "bindings-ui.context",
+      "title": "动作与上下文优先级",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/constants.ts",
+        "src/lib/stores/keybindings/core.svelte.ts",
+        "src/lib/stores/keybindings/keyMappings.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "动作 registry",
+        "BindingContext",
+        "CONTEXT_PRIORITY",
+        "同输入按活动上下文解析",
+        "global fallback",
+        "面板/阅读器/编辑器/对话框模式",
+        "同上下文冲突"
+      ],
+      "mappedChecklistIds": [
+        "bindings.actions",
+        "bindings.context-routing",
+        "bindings.conflicts",
+        "bindings.data-contract"
+      ]
+    },
+    {
+      "id": "bindings-ui.radial",
+      "title": "径向菜单",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/RadialMenuSettingsPanel.svelte",
+        "src/lib/components/radial/RadialInputLayer.svelte",
+        "src/lib/components/radial/RadialMenuOverlay.svelte",
+        "src/lib/stores/radialMenu/core.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "菜单组",
+        "槽位",
+        "动作选择",
+        "排序",
+        "触发输入",
+        "按住/切换模式",
+        "扇区命中",
+        "恢复默认",
+        "关闭释放"
+      ],
+      "mappedChecklistIds": [
+        "bindings.radial-menu",
+        "bindings.lifecycle",
+        "bindings.accessibility"
+      ]
+    },
+    {
+      "id": "bindings-ui.persistence",
+      "title": "旧设置与规范持久化",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/core.svelte.ts",
+        "src/lib/stores/radialMenu/core.svelte.ts",
+        "src/lib/cards/settings/BindingsSettingsCard.svelte"
+      ],
+      "acceptanceItems": [
+        "旧 dynamic storage key",
+        "appSettings.keybindings",
+        "appSettings.radialMenus",
+        "bindings.keybindings",
+        "bindings.radial_menus",
+        "一次导入",
+        "canonical TOML",
+        "不得双写 localStorage",
+        "严格校验",
+        "原子保存",
+        "恢复默认"
+      ],
+      "mappedChecklistIds": [
+        "bindings.persistence",
+        "bindings.legacy-import",
+        "bindings.data-contract",
+        "bindings.deviations"
+      ]
+    },
+    {
+      "id": "bindings-ui.gamepad",
+      "title": "XR 标准手柄扩展",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/types.ts",
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "旧版无手柄控件",
+        "标准 Gamepad 按钮",
+        "连接/断开",
+        "只在存在绑定时轮询",
+        "页面不可见暂停",
+        "录制",
+        "可禁用",
+        "与其他设备共享动作/上下文"
+      ],
+      "mappedChecklistIds": [
+        "bindings.gamepad",
+        "bindings.deviations",
+        "bindings.performance"
+      ]
+    },
+    {
+      "id": "bindings-ui.states",
+      "title": "状态、无障碍与响应式",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte",
+        "src/lib/components/dialogs/KeyBindingPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "默认",
+        "hover",
+        "focus",
+        "enabled",
+        "disabled",
+        "recording",
+        "conflict",
+        "saving",
+        "success",
+        "error",
+        "empty",
+        "键盘等价操作",
+        "可访问名称",
+        "桌面/420x360 无溢出"
+      ],
+      "mappedChecklistIds": [
+        "bindings.states",
+        "bindings.accessibility",
+        "bindings.ui-parity"
+      ]
+    }
   ],
   "items": [
-    { "id": "bindings.actions", "category": "capabilities", "title": "共享动作 registry", "sourceEvidence": ["src/lib/actions/actionRegistry.ts", "src/lib/stores/keybindings/keyMappings.svelte.ts"], "targetContract": "All devices target stable action IDs; the initial Reader set covers previous/next, zoom in/out/reset, clockwise rotation and opening settings without embedding callbacks in persisted data.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bindings.context-routing", "neoview.bindings.config"], "notes": "Seven Reader actions use stable IDs. The full legacy action registry and explicit CLI/TUI dispatch commands remain pending." },
-    { "id": "bindings.context-routing", "category": "data-contract", "title": "按活动操作上下文解析绑定", "sourceEvidence": ["src/lib/stores/keybindings/constants.ts", "src/lib/stores/keybindings/core.svelte.ts", "src/lib/stores/keybindings/keyHandlers.svelte.ts"], "targetContract": "Global, reader, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bindings.context-routing", "neoview.bindings.dom-context"], "notes": "The browser route derives editor/modal/panel/reader mode and falls back to global. CLI/TUI context-stack projection remains pending." },
-    { "id": "bindings.keyboard", "category": "capabilities", "title": "键盘与修饰键绑定", "sourceEvidence": ["src/lib/components/dialogs/KeyBindingPanel.svelte", "src/lib/stores/keybindings/keyHandlers.svelte.ts"], "targetContract": "Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore repeat/composition and remain disabled in incompatible contexts.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.devices", "neoview.bindings.editor"], "notes": "react-hotkeys-hook owns the global listener and dynamic key set. Interactive recording and full modifier editor remain pending." },
-    { "id": "bindings.mouse", "category": "capabilities", "title": "鼠标按键绑定", "sourceEvidence": ["src/lib/components/dialogs/MouseSettingsPanel.svelte", "src/lib/components/dialogs/MouseKeyRecorder.svelte"], "targetContract": "Left/middle/right/side buttons and single/double variants resolve through the same action/context route without stealing unbound pointer input.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.devices", "neoview.bindings.editor"], "notes": "Buttons 0..7 and single/double descriptors are editable and routed. Press/hold and recorder feedback remain pending." },
-    { "id": "bindings.wheel", "category": "capabilities", "title": "滚轮方向绑定", "sourceEvidence": ["src/lib/components/dialogs/MouseSettingsPanel.svelte", "src/lib/components/dialogs/MouseKeyRecorder.svelte"], "targetContract": "Up/down wheel gestures and modifiers use the maintained gesture engine and prevent default only when a binding handles the event.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.devices", "neoview.bindings.editor"], "notes": "@use-gesture/react owns wheel recognition; modifier editing and browser E2E remain pending." },
-    { "id": "bindings.area-click", "category": "capabilities", "title": "九宫格区域点击", "sourceEvidence": ["src/lib/components/dialogs/MouseRecordingArea.svelte", "src/lib/stores/keybindings/keyHandlers.svelte.ts"], "targetContract": "Configurable viewport areas resolve clicks without coupling bindings to pixel coordinates.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "Not included in the first route." },
-    { "id": "bindings.touch", "category": "capabilities", "title": "触控滑动绑定", "sourceEvidence": ["src/lib/components/dialogs/GestureSettingsPanel.svelte", "src/lib/components/dialogs/GestureVisualizer.svelte"], "targetContract": "One-to-three-finger directional swipes use the maintained gesture engine, respect active context and release all pointer work on unmount.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.devices", "neoview.bindings.editor"], "notes": "Directional swipe descriptors and runtime routing use @use-gesture/react; multi-finger recording and real touch E2E remain pending." },
-    { "id": "bindings.mouse-gesture", "category": "capabilities", "title": "鼠标轨迹手势", "sourceEvidence": ["src/lib/components/dialogs/MouseGestureRecorder.svelte", "src/lib/stackview/layers/GestureLayer.svelte"], "targetContract": "Recorded direction sequences match with a bounded gesture engine and visual preview.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "Not included in the first route." },
-    { "id": "bindings.gamepad", "category": "capabilities", "title": "标准手柄按钮绑定", "sourceEvidence": ["src/lib/stores/keybindings/types.ts"], "targetContract": "XR adds standard Gamepad buttons through a maintained listener, starts polling only when an enabled gamepad binding exists and routes through the same action/context map.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.devices", "neoview.bindings.editor"], "notes": "gamepad.js owns connection and button events; visual recording, connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity." },
-    { "id": "bindings.radial-menu", "category": "capabilities", "title": "径向菜单配置与运行时", "sourceEvidence": ["src/lib/components/dialogs/RadialMenuSettingsPanel.svelte", "src/lib/components/radial/RadialInputLayer.svelte", "src/lib/stores/radialMenu/core.svelte.ts"], "targetContract": "Menu definitions, slots, trigger binding, hold/toggle mode and hit testing share the action registry and canonical persistence.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "Legacy opaque data remains importable but no XR editor/runtime exists yet." },
-    { "id": "bindings.conflicts", "category": "interaction-states", "title": "冲突检测、禁用与删除", "sourceEvidence": ["src/lib/components/dialogs/UnifiedBindingPanel.svelte", "src/lib/stores/keybindings/core.svelte.ts"], "targetContract": "Enabled bindings with the same normalized input in one context are blocked; disabled collisions remain editable and every row can be enabled, disabled or deleted.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.bindings.conflicts", "neoview.bindings.validation", "neoview.bindings.conflict-ui"], "notes": "Pure domain, backend validation and GUI share the same normalized conflict key." },
-    { "id": "bindings.recording", "category": "capabilities", "title": "交互式输入录制", "sourceEvidence": ["src/lib/components/dialogs/KeyBindingPanel.svelte", "src/lib/components/dialogs/MouseKeyRecorder.svelte", "src/lib/components/dialogs/GestureVisualizer.svelte"], "targetContract": "Keyboard, pointer, touch and gamepad recorders capture one bounded input with cancel/clear and no action leakage.", "surfaces": ["GUI"], "status": "pending", "testIds": [], "notes": "The first Card exposes explicit descriptor editors; framework-backed recorders remain pending." },
-    { "id": "bindings.data-contract", "category": "data-contract", "title": "严格有界多设备 DTO", "sourceEvidence": ["src/lib/stores/keybindings/types.ts", "src/lib/stores/keybindings/core.svelte.ts"], "targetContract": "A versioned bounded DTO accepts only known actions, contexts and device descriptors, rejects executable fields, duplicate IDs and ambiguous enabled bindings.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.bindings.config", "neoview.bindings.validation", "neoview.bindings.devices"], "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP." },
-    { "id": "bindings.persistence", "category": "settings", "title": "写入唯一 TOML 规范", "sourceEvidence": ["src/lib/stores/keybindings/core.svelte.ts", "src/lib/stores/radialMenu/core.svelte.ts"], "targetContract": "Runtime writes only [nodes.neoview.bindings].items through the atomic config store and restores defaults with one command.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bindings.config", "neoview.bindings.reset", "neoview.bindings.reset-ui"], "notes": "GUI HTTP persists canonical items atomically. Explicit CLI/TUI edit commands and a real TOML roundtrip test remain pending." },
-    { "id": "bindings.legacy-import", "category": "settings", "title": "一次性导入旧绑定与径向菜单", "sourceEvidence": ["src/lib/stores/keybindings/core.svelte.ts", "src/lib/stores/radialMenu/core.svelte.ts", "src/lib/cards/settings/BindingsSettingsCard.svelte"], "targetContract": "Legacy appSettings.keybindings/radialMenus and bindings.keybindings/radial_menus import once with a report and never remain a second runtime store.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.settings.codec", "neoview.bindings.reset"], "notes": "LegacySettingsCodec preserves the opaque source and canonical reads tolerate it; action-level conversion/reporting remains pending." },
-    { "id": "bindings.states", "category": "interaction-states", "title": "搜索、空、冲突、保存与错误状态", "sourceEvidence": ["src/lib/components/dialogs/UnifiedBindingPanel.svelte"], "targetContract": "The editor exposes search/filter, empty, enabled/disabled, conflict, saving, success, failure and reset states without replacing the confirmed runtime configuration on failure.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.editor", "neoview.bindings.conflict-ui", "neoview.bindings.reset-ui", "neoview.bindings.e2e"], "notes": "Core states and real PATCH success are covered in Chromium; interactive recording states and failed HTTP rollback E2E remain pending." },
-    { "id": "bindings.accessibility", "category": "keyboard-accessibility", "title": "输入保护与无障碍等价操作", "sourceEvidence": ["src/lib/components/dialogs/UnifiedBindingPanel.svelte", "src/lib/components/dialogs/KeyBindingPanel.svelte"], "targetContract": "Every row/control is named and keyboard operable; editor, IME and recording contexts suppress Reader actions; touch/mouse-only operations have accessible equivalents.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.dom-context", "neoview.bindings.editor"], "notes": "Native controls and DOM context suppression are covered; focus restoration, recorder capture and screen-reader E2E remain pending." },
-    { "id": "bindings.lifecycle", "category": "lifecycle", "title": "按需监听并完整释放", "sourceEvidence": ["src/lib/stores/keybindings/core.svelte.ts", "src/lib/stackview/layers/GestureLayer.svelte", "src/lib/components/radial/RadialInputLayer.svelte"], "targetContract": "One keyboard listener and one gesture route are stable; gamepad polling exists only with enabled bindings and all listener/gesture/recording work stops on unmount or hidden document.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.dom-context"], "notes": "Framework adapters clean up on unmount and gamepad is conditionally loaded; focused listener-count and visibility E2E remain pending." },
-    { "id": "bindings.shell", "category": "ui-parity", "title": "延迟设置 Card 与旧层级", "sourceEvidence": ["src/lib/cards/settings/BindingsSettingsCard.svelte", "src/lib/components/dialogs/UnifiedBindingPanel.svelte", "src/lib/cards/registry.ts"], "targetContract": "Operations Binding remains a deferred Settings Card with the legacy search/filter/list hierarchy and no Reader-entry editor code.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.settings.window", "neoview.bindings.editor", "neoview.bindings.e2e", "neoview.bindings.chunk"], "notes": "The Card is registered under Settings > Operations Binding, preserves the search/filter/list hierarchy and ships as a 7.6 KiB second-level deferred production chunk." },
-    { "id": "bindings.ui-parity", "category": "ui-parity", "title": "保持紧凑绑定表与响应式布局", "sourceEvidence": ["src/lib/components/dialogs/UnifiedBindingPanel.svelte"], "targetContract": "Search, context filter, action/context/device editors, enable switch, conflict state and commands remain scan-friendly at desktop and 420x360.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.bindings.editor", "neoview.bindings.conflict-ui", "neoview.bindings.e2e"], "notes": "Desktop and 420x360 Chromium cover editing, saving, immediate runtime replacement and zero horizontal overflow with captured screenshots." },
-    { "id": "bindings.performance", "category": "performance", "title": "稳定监听、条件手柄轮询与独立 chunk", "sourceEvidence": ["src/lib/cards/settings/BindingsSettingsCard.svelte", "src/lib/stores/keybindings/core.svelte.ts"], "targetContract": "Runtime adapters do not rerender Reader on raw input, settings editor is deferred, gamepad polling is conditional and explicit chunk/listener latency budgets pass.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bindings.chunk"], "notes": "Ref-backed adapters avoid raw-input state updates; the 7.6 KiB editor, 29.1 KiB gesture runtime and 10.4 KiB conditional gamepad runtime are independent production chunks. Listener-count and input-dispatch latency benchmarks remain pending." },
-    { "id": "bindings.deviations", "category": "deviations", "title": "记录框架替代与手柄扩展", "sourceEvidence": ["src/lib/stores/keybindings/types.ts", "src/lib/components/dialogs/UnifiedBindingPanel.svelte"], "targetContract": "Document react-hotkeys-hook, @use-gesture/react and gamepad.js as maintained replacements for legacy custom listeners, and gamepad as an XR extension without removing legacy devices.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.bindings.devices", "neoview.bindings.dom-context"], "notes": "The runtime delegates recognition to mature libraries; project code owns only action/context DTOs, persistence and conflict keys." }
+    {
+      "id": "bindings.actions",
+      "category": "capabilities",
+      "title": "共享动作 registry",
+      "sourceEvidence": [
+        "src/lib/actions/actionRegistry.ts",
+        "src/lib/stores/keybindings/keyMappings.svelte.ts"
+      ],
+      "targetContract": "All devices target stable action IDs; the initial Reader set covers previous/next, zoom in/out/reset, clockwise rotation and opening settings without embedding callbacks in persisted data.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.context-routing",
+        "neoview.bindings.config"
+      ],
+      "plannedTestIds": [],
+      "notes": "Seven Reader actions use stable IDs. The full legacy action registry and explicit CLI/TUI dispatch commands remain pending."
+    },
+    {
+      "id": "bindings.context-routing",
+      "category": "data-contract",
+      "title": "按活动操作上下文解析绑定",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/constants.ts",
+        "src/lib/stores/keybindings/core.svelte.ts",
+        "src/lib/stores/keybindings/keyHandlers.svelte.ts"
+      ],
+      "targetContract": "Global, reader, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.context-routing",
+        "neoview.bindings.dom-context"
+      ],
+      "plannedTestIds": [],
+      "notes": "The browser route derives editor/modal/panel/reader mode, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. CLI/TUI context-stack projection remains pending."
+    },
+    {
+      "id": "bindings.keyboard",
+      "category": "capabilities",
+      "title": "键盘与修饰键绑定",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/KeyBindingPanel.svelte",
+        "src/lib/stores/keybindings/keyHandlers.svelte.ts"
+      ],
+      "targetContract": "Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore repeat/composition and remain disabled in incompatible contexts.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.devices",
+        "neoview.bindings.editor",
+        "neoview.bindings.recording"
+      ],
+      "plannedTestIds": [],
+      "notes": "react-hotkeys-hook owns the global listener and dynamic key set. The editor exposes physical codes and all modifiers; one-shot chord recording captures without leaking an action and Escape cancels."
+    },
+    {
+      "id": "bindings.mouse",
+      "category": "capabilities",
+      "title": "鼠标按键绑定",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/MouseSettingsPanel.svelte",
+        "src/lib/components/dialogs/MouseKeyRecorder.svelte"
+      ],
+      "targetContract": "Left/middle/right/side buttons and single/double variants resolve through the same action/context route without stealing unbound pointer input.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.devices",
+        "neoview.bindings.editor"
+      ],
+      "plannedTestIds": [],
+      "notes": "Buttons 0..7 and single/double descriptors are editable and routed outside interactive controls. Press/hold and pointer recording remain pending."
+    },
+    {
+      "id": "bindings.wheel",
+      "category": "capabilities",
+      "title": "滚轮方向绑定",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/MouseSettingsPanel.svelte",
+        "src/lib/components/dialogs/MouseKeyRecorder.svelte"
+      ],
+      "targetContract": "Up/down wheel gestures and modifiers use the maintained gesture engine and prevent default only when a binding handles the event.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.devices",
+        "neoview.bindings.editor"
+      ],
+      "plannedTestIds": [],
+      "notes": "@use-gesture/react owns wheel recognition; direction and all four modifiers are editable, and interactive controls are excluded. Browser E2E remains pending."
+    },
+    {
+      "id": "bindings.area-click",
+      "category": "capabilities",
+      "title": "九宫格区域点击",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/MouseRecordingArea.svelte",
+        "src/lib/stores/keybindings/keyHandlers.svelte.ts"
+      ],
+      "targetContract": "Configurable viewport areas resolve clicks without coupling bindings to pixel coordinates.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [],
+      "notes": "Not included in the first route."
+    },
+    {
+      "id": "bindings.touch",
+      "category": "capabilities",
+      "title": "触控滑动绑定",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/GestureSettingsPanel.svelte",
+        "src/lib/components/dialogs/GestureVisualizer.svelte"
+      ],
+      "targetContract": "One-to-three-finger directional swipes use the maintained gesture engine, respect active context and release all pointer work on unmount.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.devices",
+        "neoview.bindings.editor"
+      ],
+      "plannedTestIds": [],
+      "notes": "Directional swipe and one-to-three-finger descriptors are editable and routed through @use-gesture/react outside interactive controls; touch recording and real-device E2E remain pending."
+    },
+    {
+      "id": "bindings.mouse-gesture",
+      "category": "capabilities",
+      "title": "鼠标轨迹手势",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/MouseGestureRecorder.svelte",
+        "src/lib/stackview/layers/GestureLayer.svelte"
+      ],
+      "targetContract": "Recorded direction sequences match with a bounded gesture engine and visual preview.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [],
+      "notes": "Not included in the first route."
+    },
+    {
+      "id": "bindings.gamepad",
+      "category": "capabilities",
+      "title": "标准手柄按钮绑定",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/types.ts"
+      ],
+      "targetContract": "XR adds standard Gamepad buttons through a maintained listener, starts polling only when an enabled gamepad binding exists and routes through the same action/context map.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.devices",
+        "neoview.bindings.editor"
+      ],
+      "plannedTestIds": [],
+      "notes": "gamepad.js owns connection and button events; visual recording, connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity."
+    },
+    {
+      "id": "bindings.radial-menu",
+      "category": "capabilities",
+      "title": "径向菜单配置与运行时",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/RadialMenuSettingsPanel.svelte",
+        "src/lib/components/radial/RadialInputLayer.svelte",
+        "src/lib/stores/radialMenu/core.svelte.ts"
+      ],
+      "targetContract": "Menu definitions, slots, trigger binding, hold/toggle mode and hit testing share the action registry and canonical persistence.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [],
+      "notes": "Legacy opaque data remains importable but no XR editor/runtime exists yet."
+    },
+    {
+      "id": "bindings.conflicts",
+      "category": "interaction-states",
+      "title": "冲突检测、禁用与删除",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte",
+        "src/lib/stores/keybindings/core.svelte.ts"
+      ],
+      "targetContract": "Enabled bindings with the same normalized input in one context are blocked; disabled collisions remain editable and every row can be enabled, disabled or deleted.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.conflicts",
+        "neoview.bindings.validation",
+        "neoview.bindings.conflict-ui"
+      ],
+      "plannedTestIds": [],
+      "notes": "Pure domain, backend validation and GUI share the same normalized conflict key."
+    },
+    {
+      "id": "bindings.recording",
+      "category": "capabilities",
+      "title": "交互式输入录制",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/KeyBindingPanel.svelte",
+        "src/lib/components/dialogs/MouseKeyRecorder.svelte",
+        "src/lib/components/dialogs/GestureVisualizer.svelte"
+      ],
+      "targetContract": "Keyboard, pointer, touch and gamepad recorders capture one bounded input with cancel/clear and no action leakage.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [],
+      "notes": "The first Card exposes explicit descriptor editors; framework-backed recorders remain pending."
+    },
+    {
+      "id": "bindings.data-contract",
+      "category": "data-contract",
+      "title": "严格有界多设备 DTO",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/types.ts",
+        "src/lib/stores/keybindings/core.svelte.ts"
+      ],
+      "targetContract": "A versioned bounded DTO accepts only known actions, contexts and device descriptors, rejects executable fields, duplicate IDs and ambiguous enabled bindings.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.config",
+        "neoview.bindings.validation",
+        "neoview.bindings.devices"
+      ],
+      "plannedTestIds": [],
+      "notes": "The canonical DTO is browser-safe, capped at 256 entries and shared by runtime config and HTTP."
+    },
+    {
+      "id": "bindings.persistence",
+      "category": "settings",
+      "title": "写入唯一 TOML 规范",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/core.svelte.ts",
+        "src/lib/stores/radialMenu/core.svelte.ts"
+      ],
+      "targetContract": "Runtime writes only [nodes.neoview.bindings].items through the atomic config store and restores defaults with one command.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.config",
+        "neoview.bindings.reset",
+        "neoview.bindings.reset-ui"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI HTTP persists canonical items atomically. Explicit CLI/TUI edit commands and a real TOML roundtrip test remain pending."
+    },
+    {
+      "id": "bindings.legacy-import",
+      "category": "settings",
+      "title": "一次性导入旧绑定与径向菜单",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/core.svelte.ts",
+        "src/lib/stores/radialMenu/core.svelte.ts",
+        "src/lib/cards/settings/BindingsSettingsCard.svelte"
+      ],
+      "targetContract": "Legacy appSettings.keybindings/radialMenus and bindings.keybindings/radial_menus import once with a report and never remain a second runtime store.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.settings.codec",
+        "neoview.bindings.reset"
+      ],
+      "plannedTestIds": [],
+      "notes": "LegacySettingsCodec preserves the opaque source and canonical reads tolerate it; action-level conversion/reporting remains pending."
+    },
+    {
+      "id": "bindings.states",
+      "category": "interaction-states",
+      "title": "搜索、空、冲突、保存与错误状态",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte"
+      ],
+      "targetContract": "The editor exposes search/filter, empty, enabled/disabled, conflict, saving, success, failure and reset states without replacing the confirmed runtime configuration on failure.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.editor",
+        "neoview.bindings.conflict-ui",
+        "neoview.bindings.reset-ui",
+        "neoview.bindings.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Core states and real PATCH success are covered in Chromium; interactive recording states and failed HTTP rollback E2E remain pending."
+    },
+    {
+      "id": "bindings.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "输入保护与无障碍等价操作",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte",
+        "src/lib/components/dialogs/KeyBindingPanel.svelte"
+      ],
+      "targetContract": "Every row/control is named and keyboard operable; editor, IME and recording contexts suppress Reader actions; touch/mouse-only operations have accessible equivalents.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.dom-context",
+        "neoview.bindings.editor"
+      ],
+      "plannedTestIds": [],
+      "notes": "Native controls and DOM context suppression are covered; focus restoration, recorder capture and screen-reader E2E remain pending."
+    },
+    {
+      "id": "bindings.lifecycle",
+      "category": "lifecycle",
+      "title": "按需监听并完整释放",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/core.svelte.ts",
+        "src/lib/stackview/layers/GestureLayer.svelte",
+        "src/lib/components/radial/RadialInputLayer.svelte"
+      ],
+      "targetContract": "One keyboard listener and one gesture route are stable; gamepad polling exists only with enabled bindings and all listener/gesture/recording work stops on unmount or hidden document.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.dom-context"
+      ],
+      "plannedTestIds": [],
+      "notes": "Framework adapters clean up on unmount and gamepad is conditionally loaded; focused listener-count and visibility E2E remain pending."
+    },
+    {
+      "id": "bindings.shell",
+      "category": "ui-parity",
+      "title": "延迟设置 Card 与旧层级",
+      "sourceEvidence": [
+        "src/lib/cards/settings/BindingsSettingsCard.svelte",
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte",
+        "src/lib/cards/registry.ts"
+      ],
+      "targetContract": "Operations Binding remains a deferred Settings Card with the legacy search/filter/list hierarchy and no Reader-entry editor code.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.settings.window",
+        "neoview.bindings.editor",
+        "neoview.bindings.e2e",
+        "neoview.bindings.chunk"
+      ],
+      "plannedTestIds": [],
+      "notes": "The Card is registered under Settings > Operations Binding, preserves the search/filter/list hierarchy and ships as a 7.6 KiB second-level deferred production chunk."
+    },
+    {
+      "id": "bindings.ui-parity",
+      "category": "ui-parity",
+      "title": "保持紧凑绑定表与响应式布局",
+      "sourceEvidence": [
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte"
+      ],
+      "targetContract": "Search, context filter, action/context/device editors, enable switch, conflict state and commands remain scan-friendly at desktop and 420x360.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.bindings.editor",
+        "neoview.bindings.conflict-ui",
+        "neoview.bindings.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Chromium cover editing, saving, immediate runtime replacement and zero horizontal overflow with captured screenshots."
+    },
+    {
+      "id": "bindings.performance",
+      "category": "performance",
+      "title": "稳定监听、条件手柄轮询与独立 chunk",
+      "sourceEvidence": [
+        "src/lib/cards/settings/BindingsSettingsCard.svelte",
+        "src/lib/stores/keybindings/core.svelte.ts"
+      ],
+      "targetContract": "Runtime adapters do not rerender Reader on raw input, settings editor is deferred, gamepad polling is conditional and explicit chunk/listener latency budgets pass.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.chunk"
+      ],
+      "plannedTestIds": [],
+      "notes": "Ref-backed adapters avoid raw-input state updates; the 7.6 KiB editor, 29.1 KiB gesture runtime and 10.4 KiB conditional gamepad runtime are independent production chunks. Listener-count and input-dispatch latency benchmarks remain pending."
+    },
+    {
+      "id": "bindings.deviations",
+      "category": "deviations",
+      "title": "记录框架替代与手柄扩展",
+      "sourceEvidence": [
+        "src/lib/stores/keybindings/types.ts",
+        "src/lib/components/dialogs/UnifiedBindingPanel.svelte"
+      ],
+      "targetContract": "Document react-hotkeys-hook, @use-gesture/react and gamepad.js as maintained replacements for legacy custom listeners, and gamepad as an XR extension without removing legacy devices.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bindings.devices",
+        "neoview.bindings.dom-context"
+      ],
+      "plannedTestIds": [],
+      "notes": "The runtime delegates recognition to mature libraries; project code owns only action/context DTOs, persistence and conflict keys."
+    }
   ]
 }

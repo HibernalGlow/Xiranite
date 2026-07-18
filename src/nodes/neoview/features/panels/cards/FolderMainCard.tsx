@@ -1,6 +1,5 @@
 import {
   Virtuoso,
-  VirtuosoGrid,
   type GridStateSnapshot,
   type ListRange,
   type StateSnapshot,
@@ -65,6 +64,7 @@ import {
 import {
   chainDirectorySelection,
   createDirectorySelection,
+  directorySelectionDescriptor,
   directorySelectionCount,
   extendDirectorySelection,
   invertDirectorySelection,
@@ -79,7 +79,6 @@ import {
 import { FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
 import {
   EMPTY_VIRTUOSO_COMPONENTS,
-  FOLDER_GRID_COMPONENTS,
   FOLDER_LIST_COMPONENTS,
   FolderNavigationSettingsControl,
   runFolderNavigation,
@@ -138,6 +137,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
 }
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
+const FolderGridWorkspace = lazy(() => import("./folder/FolderGridWorkspace"))
 const FolderBreadcrumb = lazy(() => import("./folder/FolderBreadcrumb"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
@@ -357,7 +357,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     applyPage(snapshot.clonedPage!, snapshot.currentState)
   }
 
-  async function navigate(navigation: ReaderDirectoryNavigationDto, options: { keepTree?: boolean; focusPath?: string; selectFocus?: boolean } = {}) {
+  async function navigate(navigation: ReaderDirectoryNavigationDto, options: { keepTree?: boolean; focusPath?: string; selectFocus?: boolean; clearSelection?: boolean } = {}) {
     const sessionId = sessionIdRef.current
     if (!sessionId) {
       if (navigation.action === "path") await openBrowser(navigation.path)
@@ -379,6 +379,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       )
       if (generation === navigationGenerationRef.current) {
         let preferredState = navigation.action === "refresh" ? capturedState : undefined
+        if (preferredState && options.clearSelection) {
+          preferredState = { ...preferredState, selection: createDirectorySelection(result.generation) }
+        }
         if (preferredState && options.selectFocus && result.suggestedSelection) {
           const suggested = result.suggestedSelection
           preferredState = {
@@ -741,7 +744,14 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     else if (event.key === "PageDown") targetIndex = currentIndex + pageStep
     else if (event.key === "Home") targetIndex = 0
     else if (event.key === "End") targetIndex = currentCatalog.total - 1
-    else if (event.key === "Enter") {
+    else if (event.key === "Delete") {
+      const entry = directoryEntryAt(currentCatalog, currentIndex)
+      if (!entry || (entry.kind !== "file" && entry.kind !== "directory") || !client.executeFileOperations) return
+      event.currentTarget.dispatchEvent(new CustomEvent("neoview-folder-trash-request", {
+        bubbles: true,
+        detail: { index: currentIndex, ...entry },
+      }))
+    } else if (event.key === "Enter") {
       const entry = directoryEntryAt(currentCatalog, currentIndex)
       if (entry) activate(entry)
     } else if (event.key === " ") {
@@ -909,6 +919,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onRenamed={(destinationPath) => navigate(
               { action: "refresh" },
               { keepTree: true, focusPath: destinationPath, selectFocus: true },
+            )}
+            onTrashed={(entry) => navigate(
+              { action: "refresh" },
+              { keepTree: true, focusPath: entry.path },
             )}
           />
         </Suspense>
@@ -1104,8 +1118,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       {catalog && multiSelectMode ? (
         <Suspense fallback={<div className="h-9 border-y" aria-label="正在加载选择操作" />}>
           <FolderSelectionBar
+            client={client}
+            sessionId={catalog.sessionId}
+            selection={directorySelectionDescriptor(selection)}
             selectedCount={selectedCount}
             total={catalog.total}
+            disabled={disabled || loading}
             chainSelectMode={chainSelectMode}
             clickBehavior={checkModeClickBehavior}
             onSelectAll={() => setSelection(selectAllDirectoryEntries(catalog.generation))}
@@ -1122,6 +1140,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               setChainSelectMode(false)
               setMultiSelectMode(false)
             }}
+            onTrashCompleted={() => navigate(
+              { action: "refresh" },
+              { keepTree: true, clearSelection: true },
+            )}
           />
         </Suspense>
       ) : null}
@@ -1237,62 +1259,27 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           </Suspense>
         ) : null}
         {!searchOpen && catalog && viewUsesGrid(viewMode) ? (
-          <VirtuosoGrid
-            key={virtualKey}
-            ref={gridRef}
-            style={{ height: LIST_HEIGHT }}
-            totalCount={catalog.total}
-            components={showReturnFooter ? FOLDER_GRID_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
-            context={showReturnFooter ? returnFooterContext : undefined}
-            listClassName={viewUsesBanner(viewMode)
-              ? "grid gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
-              : "grid gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),5.5rem),1fr))]"}
-            itemClassName="min-w-0"
-            increaseViewportBy={{ top: 144, bottom: 288 }}
-            computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-            rangeChanged={requestRange}
-            restoreStateFrom={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
-            initialTopMostItemIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.gridSnapshot && restoreIndex !== undefined
-              ? { index: restoreIndex, align: "center" }
-              : undefined}
-            stateChanged={(snapshot) => { gridSnapshotRef.current = snapshot }}
-            itemContent={(index) => {
-              const entry = directoryEntryAt(catalog, index)
-              return (
-                viewUsesBanner(viewMode) ? (
-                  <DirectoryBannerItem
-                    itemId={`${itemIdPrefix}-item-${index}`}
-                    entry={entry}
-                    index={index}
-                    disabled={disabled}
-                    selected={Boolean(entry && selectedPaths.has(entry.path))}
-                    focused={index === focusedIndex}
-                    showRating={catalog.metadataFields.includes("rating")}
-                    showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
-                    visualMode={viewMode}
-                    thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
-                    onSelect={selectEntry}
-                    onActivate={activate}
-                  />
-                ) : (
-                  <DirectoryGridItem
-                    itemId={`${itemIdPrefix}-item-${index}`}
-                    entry={entry}
-                    index={index}
-                    disabled={disabled}
-                    selected={Boolean(entry && selectedPaths.has(entry.path))}
-                    focused={index === focusedIndex}
-                    showRating={catalog.metadataFields.includes("rating")}
-                    showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
-                    visualMode={viewMode}
-                    thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
-                    onSelect={selectEntry}
-                    onActivate={activate}
-                  />
-                )
-              )
-            }}
-          />
+          <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
+            <FolderGridWorkspace
+              virtualKey={virtualKey}
+              gridRef={gridRef}
+              catalog={catalog}
+              viewMode={viewMode}
+              disabled={disabled}
+              selectedPaths={selectedPaths}
+              focusedIndex={focusedIndex}
+              itemIdPrefix={itemIdPrefix}
+              thumbnailUrls={thumbnailUrls}
+              showReturnFooter={showReturnFooter}
+              returnFooterContext={returnFooterContext}
+              restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
+              initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.gridSnapshot ? restoreIndex : undefined}
+              onRangeChange={requestRange}
+              onStateChange={(snapshot) => { gridSnapshotRef.current = snapshot }}
+              onSelect={selectEntry}
+              onActivate={activate}
+            />
+          </Suspense>
         ) : null}
         {!catalog ? <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div> : null}
         </div>
@@ -1338,81 +1325,6 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
         {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
       </span>
       <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
-    </button>
-  )
-}
-
-function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
-  if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
-  return (
-    <button
-      id={itemId}
-      type="button"
-      className="grid h-24 w-full grid-cols-[5rem_minmax(0,1fr)] overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary"
-      aria-selected={selected}
-      data-focused={focused || undefined}
-      disabled={disabled}
-      title={entry.path}
-      onClick={(event) => onSelect(entry, index, event)}
-      onDoubleClick={() => onActivate(entry)}
-      tabIndex={-1}
-      data-preview-mode={visualMode}
-      data-folder-entry="true"
-      data-context-menu="neoview-folder-entry"
-      data-folder-index={index}
-      data-folder-path={entry.path}
-      data-folder-name={entry.name}
-      data-folder-kind={entry.kind}
-      data-folder-reader-supported={entry.readerSupported}
-    >
-      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
-        {thumbnailUrl
-          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
-          : <FolderEntryIcon entry={entry} className="size-8" />}
-      </span>
-      <span className="grid min-w-0 content-center gap-1 px-2 py-1.5">
-        <span className="truncate font-medium">{entry.name}</span>
-        <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span>
-        <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
-      </span>
-    </button>
-  )
-}
-
-function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string }) {
-  if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
-  const showMetadata = showRating || showCollectTagCount
-  return (
-    <button
-      id={itemId}
-      type="button"
-      className={`grid h-36 w-full overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary ${showMetadata ? "grid-rows-[1fr_auto_auto]" : "grid-rows-[1fr_auto]"}`}
-      aria-selected={selected}
-      data-focused={focused || undefined}
-      disabled={disabled}
-      title={entry.path}
-      onClick={(event) => onSelect(entry, index, event)}
-      onDoubleClick={() => onActivate(entry)}
-      tabIndex={-1}
-      data-preview-mode={visualMode}
-      data-folder-entry="true"
-      data-context-menu="neoview-folder-entry"
-      data-folder-index={index}
-      data-folder-path={entry.path}
-      data-folder-name={entry.name}
-      data-folder-kind={entry.kind}
-      data-folder-reader-supported={entry.readerSupported}
-    >
-      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
-        {thumbnailUrl
-          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
-          : <FolderEntryIcon entry={entry} className="size-8" />}
-      </span>
-      <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
-        <FolderEntryIcon entry={entry} className="size-3.5" />
-        <span className="truncate">{entry.name}</span>
-      </span>
-      {showMetadata ? <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
     </button>
   )
 }

@@ -2,7 +2,7 @@ import type {
   ReaderDirectoryPage,
   ReaderFileTreeService,
 } from "../browser/ReaderFileTreeService.js"
-import type { ReaderDirectoryFilter } from "../browser/ReaderDirectoryFilter.js"
+import type { ReaderDirectoryFilter } from "../../domain/browser/ReaderDirectoryFilter.js"
 import type {
   ReaderFileTreeExclusionCommand,
   ReaderFileTreeNodePage,
@@ -19,6 +19,11 @@ import type {
   ReaderEmmTagSuggestion,
   ReaderEmmTagSuggestionService,
 } from "../metadata/ReaderEmmTagSuggestionService.js"
+import type {
+  ReaderDirectoryEmmEditCommand,
+  ReaderDirectoryEmmEditResult,
+  ReaderDirectoryEmmEditService,
+} from "../metadata/ReaderDirectoryEmmEditService.js"
 
 export interface ReaderSearchHistoryResource {
   service: ReaderSearchHistoryService
@@ -28,6 +33,7 @@ export interface ReaderSearchHistoryResource {
 export interface ReaderFileTreeHeadlessControllerOptions {
   loadSearchHistory?: () => Promise<ReaderSearchHistoryResource>
   loadEmmTagSuggestions?: () => Promise<ReaderEmmTagSuggestionService>
+  loadEmmEditor?: () => Promise<ReaderDirectoryEmmEditService>
   closeResources?: () => void | Promise<void>
 }
 
@@ -45,6 +51,7 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
   #disposing: Promise<void> | undefined
   #searchHistory?: Promise<ReaderSearchHistoryResource>
   #emmTagSuggestions?: Promise<ReaderEmmTagSuggestionService>
+  #emmEditor?: Promise<ReaderDirectoryEmmEditService>
 
   constructor(service: ReaderFileTreeService, private readonly options: ReaderFileTreeHeadlessControllerOptions = {}) {
     this.#service = service
@@ -109,6 +116,11 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
     return (await this.#requireEmmTagSuggestions()).suggest(count, signal)
   }
 
+  async editEmm(command: ReaderDirectoryEmmEditCommand, signal?: AbortSignal): Promise<ReaderDirectoryEmmEditResult> {
+    const sessionId = this.#requireSession()
+    return (await this.#requireEmmEditor()).update(sessionId, command, signal)
+  }
+
   async close(): Promise<void> {
     const sessionId = this.#sessionId
     this.#sessionId = undefined
@@ -124,6 +136,7 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
       try { await this.#service[Symbol.asyncDispose]() } catch (error) { errors.push(error) }
       try { await (await this.#searchHistory)?.close() } catch (error) { errors.push(error) }
       try { await this.#emmTagSuggestions } catch { /* failed lazy loads remain retryable until disposal */ }
+      try { await this.#emmEditor } catch { /* failed lazy loads remain retryable until disposal */ }
       try { await this.options.closeResources?.() } catch (error) { errors.push(error) }
       if (errors.length) throw new AggregateError(errors, "Failed to dispose Reader file tree controller.")
     })
@@ -163,6 +176,19 @@ export class ReaderFileTreeHeadlessController implements AsyncDisposable {
       throw error
     })
     this.#emmTagSuggestions = guarded
+    return guarded
+  }
+
+  #requireEmmEditor(): Promise<ReaderDirectoryEmmEditService> {
+    this.#assertOpen()
+    if (!this.options.loadEmmEditor) throw new Error("Reader EMM metadata editing is unavailable.")
+    if (this.#emmEditor) return this.#emmEditor
+    const pending = this.options.loadEmmEditor()
+    const guarded = pending.catch((error) => {
+      if (this.#emmEditor === guarded) this.#emmEditor = undefined
+      throw error
+    })
+    this.#emmEditor = guarded
     return guarded
   }
 }

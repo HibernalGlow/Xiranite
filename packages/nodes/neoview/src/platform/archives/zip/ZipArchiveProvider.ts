@@ -8,12 +8,15 @@ import type {
   ArchiveProviderSnapshot,
   OpenArchiveEntryOptions,
 } from "../../../ports/ArchiveProvider.js"
+import type { ResourceLease, ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { NodeFileReader, type NodeFileReaderOptions } from "./NodeFileReader.js"
 import { archiveIndexPayloadBytes } from "../ArchiveIndexMetrics.js"
+import { defaultImageTransformScheduler } from "../../scheduler/PriorityResourceScheduler.js"
 
 export interface ZipArchiveProviderOptions extends NodeFileReaderOptions {
   checkSignature?: boolean
   useCompressionStream?: boolean
+  resourceScheduler?: ResourceScheduler
 }
 
 interface StoredZipEntry {
@@ -36,9 +39,12 @@ export class ZipArchiveProvider implements ArchiveProvider {
     materialization: "never",
   }
 
+  readonly entryStreamResource = "cpu" as const
+
   readonly #fileReader: NodeFileReader
   readonly #checkSignature: boolean
   readonly #useCompressionStream: boolean
+  readonly #resourceScheduler: ResourceScheduler
   #zipReader: ZipReader<string> | null = null
   #entries: StoredZipEntry[] = []
   #entriesById = new Map<string, StoredZipEntry>()
@@ -51,6 +57,7 @@ export class ZipArchiveProvider implements ArchiveProvider {
     this.sourcePath = sourcePath
     this.#checkSignature = options.checkSignature ?? true
     this.#useCompressionStream = options.useCompressionStream ?? true
+    this.#resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
     this.#fileReader = new NodeFileReader(sourcePath, { onRead: options.onRead })
   }
 
@@ -73,7 +80,18 @@ export class ZipArchiveProvider implements ArchiveProvider {
     const stored = this.#entriesById.get(entryId)
     if (!stored) throw new Error(`Archive entry not found: ${entryId}`)
     if (stored.entry.directory) throw new Error(`Archive entry is not a file: ${stored.descriptor.path}`)
-    return this.#streamEntry(stored.entry, options)
+    const ownsLease = !options.resourceLease
+    const lease = options.resourceLease ?? await this.#resourceScheduler.acquire({
+      resource: "cpu",
+      kind: "neoview.archive-extract",
+      priority: "interactive",
+    }, options.signal)
+    try {
+      return this.#streamEntry(stored.entry, options, lease, ownsLease)
+    } catch (error) {
+      if (ownsLease) lease.release()
+      throw error
+    }
   }
 
   snapshot(): ArchiveProviderSnapshot {
@@ -153,7 +171,12 @@ export class ZipArchiveProvider implements ArchiveProvider {
     }
   }
 
-  #streamEntry(entry: FileEntry, options: OpenArchiveEntryOptions): ReadableStream<Uint8Array> {
+  #streamEntry(
+    entry: FileEntry,
+    options: OpenArchiveEntryOptions,
+    lease: ResourceLease,
+    ownsLease: boolean,
+  ): ReadableStream<Uint8Array> {
     const externalSignal = options.signal
     const controller = new AbortController()
     const transform = new TransformStream<Uint8Array, Uint8Array>()
@@ -180,6 +203,7 @@ export class ZipArchiveProvider implements ArchiveProvider {
     }).finally(() => {
       externalSignal?.removeEventListener("abort", onAbort)
       this.#active.delete(extractionId)
+      if (ownsLease) lease.release()
     })
     this.#active.set(extractionId, {
       controller,

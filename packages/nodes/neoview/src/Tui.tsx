@@ -30,6 +30,8 @@ import type {
 } from "./core.js"
 import type { NeoviewTuiInput, NeoviewTuiResult } from "./interaction.js"
 import { createReaderHeadlessController } from "./platform.js"
+import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
+import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
 
 export interface ReaderTuiPort extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
@@ -114,7 +116,11 @@ function ReaderWorkbench({
     setPageInput(value.frame.anchorPageIndex + 1)
     setPageCursor(cursor)
     setPages(nextPages)
-    setStatus(`${value.book.displayName} · ${value.book.pageCount} ${language === "zh" ? "页" : "pages"}`)
+    const book = projectReaderBookInformation({
+      ...value.book,
+      currentPage: value.book.pageCount > 0 ? value.frame.anchorPageIndex + 1 : 0,
+    }, language)
+    setStatus(`${book.displayTitle} · ${book.typeLabel} · ${book.pageText} · ${book.progressText}`)
     setPhase("ready")
     setFocused("viewer")
   }, [language])
@@ -213,10 +219,15 @@ function ReaderWorkbench({
 
   const activePages = new Set(snapshot?.frame.pages.map((page) => page.pageIndex) ?? [])
   const currentPage = snapshot?.visiblePages[0]
+  const bookInformation = snapshot ? projectReaderBookInformation({
+    ...snapshot.book,
+    currentPage: snapshot.book.pageCount > 0 ? snapshot.frame.anchorPageIndex + 1 : 0,
+  }, language) : undefined
+  const timeInformation = projectReaderTimeInformation(currentPage?.timestamps, language)
   const busy = phase === "opening" || phase === "navigating"
   const pagePaneWidth = Math.max(24, Math.min(42, Math.floor(dimensions.width * 0.3)))
   const framePaneWidth = Math.max(20, dimensions.width - pagePaneWidth - 8)
-  const previewHeight = Math.max(6, dimensions.height - 21)
+  const previewHeight = Math.max(6, dimensions.height - 23)
   const visiblePageCount = Math.max(1, snapshot?.visiblePages.length ?? 1)
   const previewWidth = Math.max(8, Math.floor((framePaneWidth - visiblePageCount + 1) / visiblePageCount))
   const openPage = useCallback(async (pageIndex: number, signal: AbortSignal) => {
@@ -280,11 +291,13 @@ function ReaderWorkbench({
                   />
                 ))}
               </box>
-              <box height={3} flexShrink={0} marginTop={1} paddingLeft={1} paddingRight={1} flexDirection="column">
+              <box height={5} flexShrink={0} marginTop={1} paddingLeft={1} paddingRight={1} flexDirection="column">
                 <text fg={theme.colors.primary}><b>{snapshot.visiblePages.map((page) => page.name).join("  |  ")}</b></text>
-                <text fg={theme.colors.mutedForeground}>{`${snapshot.frame.anchorPageIndex + 1} / ${snapshot.book.pageCount} · ${currentPage?.dimensions ? `${currentPage.dimensions.width} x ${currentPage.dimensions.height}` : currentPage?.mimeType ?? currentPage?.mediaKind ?? "-"}`}</text>
+                <text fg={theme.colors.mutedForeground}>{`${bookInformation?.pageText} · ${currentPage?.dimensions ? `${currentPage.dimensions.width} x ${currentPage.dimensions.height}` : currentPage?.mimeType ?? currentPage?.mediaKind ?? "-"}`}</text>
+                <text fg={theme.colors.mutedForeground}>{`${language === "zh" ? "创建" : "Created"}: ${timeInformation.createdText} · ${language === "zh" ? "修改" : "Modified"}: ${timeInformation.modifiedText}`}</text>
+                <text fg={theme.colors.mutedForeground}>{`${language === "zh" ? "访问" : "Accessed"}: ${timeInformation.accessedText} · ${timeInformation.sourceLabel}`}</text>
               </box>
-              <ProgressBar value={snapshot.book.pageCount ? ((snapshot.frame.anchorPageIndex + 1) / snapshot.book.pageCount) * 100 : 0} label={status} />
+              <ProgressBar value={bookInformation?.progressPercent ?? 0} label={status} />
             </box>
           ) : (
             <box flexGrow={1} alignItems="center" justifyContent="center"><text fg={theme.colors.mutedForeground}>{language === "zh" ? "未打开书籍" : "No book open"}</text></box>

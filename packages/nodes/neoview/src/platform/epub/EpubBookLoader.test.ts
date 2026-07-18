@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
+import type { ResourceTaskRequest } from "../../ports/ResourceScheduler.js"
 import { ReaderAssetRoute } from "../asset-route/ReaderAssetRoute.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 
@@ -64,6 +65,43 @@ describe("EpubBookLoader", () => {
       { kind: "document", path: fixture.path, format: "epub" },
       { signal: abort.signal },
     )).rejects.toThrow("EPUB navigation cancelled")
+  })
+
+  it("[neoview.epub.scheduler-host-injection] streams EPUB resources through the host archive pool", async () => {
+    const fixture = await epubFixture()
+    fixtures.push(fixture)
+    const requests: ResourceTaskRequest[] = []
+    let activeLeases = 0
+    const book = await createPlatformReaderBookLoader({
+      resourceScheduler: {
+        acquire: async (request) => {
+          requests.push({ ...request })
+          activeLeases += 1
+          let released = false
+          return {
+            release() {
+              if (released) return
+              released = true
+              activeLeases -= 1
+            },
+          }
+        },
+      },
+    })({ kind: "document", path: fixture.path, format: "epub" })
+    try {
+      requests.length = 0
+      const source = await book.pages[1]!.content.load()
+      expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(2, 2))
+      await source.close()
+      expect(requests).toEqual([{
+        resource: "cpu",
+        kind: "neoview.archive-extract",
+        priority: "interactive",
+      }])
+      expect(activeLeases).toBe(0)
+    } finally {
+      await book.close()
+    }
   })
 
   it("[neoview.epub.reader-e2e] auto-detects EPUB and streams its pages through the shared asset route", async () => {

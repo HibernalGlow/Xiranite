@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Navigation, Search } from "lucide-react"
-import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from "react"
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,13 +11,12 @@ import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../registry"
 import {
   createSparsePageCatalog,
-  mergeSparsePageBatch,
   mergeSparsePagePositions,
-  sparseBatchLoaded,
   sparsePageAt,
   sparsePageMap,
   type SparsePageCatalog,
 } from "./page-list/SparsePageCatalog"
+import type { CatalogBatchRequest } from "./page-list/requestPageCatalogBatch"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 
 const BATCH_SIZE = 64
@@ -28,6 +27,7 @@ const THUMBNAIL_ROW_HEIGHT = 148
 type PageListViewMode = "list" | "details" | "thumbnails"
 const PageListToolbar = lazy(() => import("./page-list/PageListToolbar"))
 const PageListContextActions = lazy(() => import("./page-list/PageListContextActions"))
+const catalogBatchModule = import("./page-list/requestPageCatalogBatch")
 
 export default function PageNavigationCard(context: ReaderPanelContext) {
   if (!context.session) return null
@@ -39,6 +39,8 @@ export default function PageNavigationCard(context: ReaderPanelContext) {
       currentPages={context.session.visiblePages}
       client={context.client}
       disabled={context.disabled}
+      preferences={context.pageListPreferences}
+      onPreferencesChange={context.onPageListPreferences}
       onGoTo={context.onGoTo}
       systemActions={context.systemActions}
     />
@@ -52,6 +54,8 @@ function PageListCard({
   currentPages,
   client,
   disabled,
+  preferences,
+  onPreferencesChange,
   onGoTo,
   systemActions,
 }: {
@@ -61,6 +65,8 @@ function PageListCard({
   currentPages: readonly ReaderPageDto[]
   client: ReaderHttpClient
   disabled: boolean
+  preferences?: ReaderPanelContext["pageListPreferences"]
+  onPreferencesChange?: ReaderPanelContext["onPageListPreferences"]
   onGoTo(pageIndex: number): void | Promise<void>
   systemActions?: ReaderPanelContext["systemActions"]
 }) {
@@ -78,8 +84,10 @@ function PageListCard({
   const [resultCount, setResultCount] = useState(totalPages)
   const [searchQuery, setSearchQuery] = useState("")
   const deferredQuery = useDeferredValue(searchQuery.trim())
-  const [viewMode, setViewMode] = useState<PageListViewMode>("list")
-  const [followProgress, setFollowProgress] = useState(true)
+  const [viewMode, setViewMode] = useState<PageListViewMode>(preferences?.viewMode ?? "list")
+  const [followProgress, setFollowProgress] = useState(preferences?.followProgress ?? true)
+  const [preferencesError, setPreferencesError] = useState<string>()
+  const preferencesGenerationRef = useRef(0)
   const [catalogReady, setCatalogReady] = useState(false)
   const [catalogError, setCatalogError] = useState<string | undefined>(undefined)
   const [navigationError, setNavigationError] = useState<string | undefined>(undefined)
@@ -103,6 +111,12 @@ function PageListCard({
     ((virtualItems.at(-1)?.index ?? 0) + 1) * (viewMode === "thumbnails" ? THUMB_COLUMNS : 1),
   )
   const sliderIndex = followProgress ? pendingNavigationIndex ?? activePageIndex : previewIndex ?? activePageIndex
+  useEffect(() => {
+    if (!preferences) return
+    setViewMode(preferences.viewMode)
+    setFollowProgress(preferences.followProgress)
+  }, [preferences])
+
   useEffect(() => {
     goToRef.current = onGoTo
   }, [onGoTo])
@@ -215,6 +229,23 @@ function PageListCard({
     if (followProgress || previewIndex === undefined || deferredQuery) return
     centerPosition(previewIndex)
   }, [deferredQuery, followProgress, previewIndex, viewMode])
+
+  async function commitPreference(patch: Partial<NonNullable<ReaderPanelContext["pageListPreferences"]>>) {
+    const previous = { viewMode, followProgress }
+    if (patch.viewMode) setViewMode(patch.viewMode)
+    if (patch.followProgress !== undefined) setFollowProgress(patch.followProgress)
+    setPreferencesError(undefined)
+    if (!onPreferencesChange) return
+    const generation = ++preferencesGenerationRef.current
+    try {
+      await onPreferencesChange(patch)
+    } catch (error) {
+      if (generation !== preferencesGenerationRef.current) return
+      setViewMode(previous.viewMode)
+      setFollowProgress(previous.followProgress)
+      setPreferencesError(errorMessage(error))
+    }
+  }
 
   function centerPosition(position: number) {
     virtualizer.scrollToIndex(viewMode === "thumbnails" ? Math.floor(position / THUMB_COLUMNS) : position, { align: "center" })
@@ -344,7 +375,7 @@ function PageListCard({
         <IconToggle
           label="跟随阅读进度"
           pressed={followProgress}
-          onClick={() => setFollowProgress((value) => !value)}
+          onClick={() => void commitPreference({ followProgress: !followProgress })}
         ><Navigation /></IconToggle>
       </div>
       <Suspense fallback={<div className="h-8" aria-hidden="true" />}>
@@ -356,9 +387,10 @@ function PageListCard({
           filtered={Boolean(deferredQuery)}
           viewMode={viewMode}
           disabled={disabled}
-          onViewModeChange={setViewMode}
+          onViewModeChange={(mode) => void commitPreference({ viewMode: mode })}
         />
       </Suspense>
+      {preferencesError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{preferencesError}</div> : null}
       {navigationError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{navigationError}</div> : null}
       <Suspense fallback={null}>
         <PageListContextActions client={client} sessionId={sessionId} disabled={disabled} copyFiles={systemActions?.copyFiles} onGoTo={navigateTo} />
@@ -578,48 +610,8 @@ function IconToggle({ label, pressed, onClick, children }: { label: string; pres
   return <Button type="button" size="icon-sm" variant={pressed ? "default" : "ghost"} title={label} aria-label={label} aria-pressed={pressed} onClick={onClick}>{children}</Button>
 }
 
-interface CatalogBatchRequest {
-  client: ReaderHttpClient
-  sessionId: string
-  query: string
-  cursor: number
-  limit: number
-  catalogKey: string
-  catalogKeyRef: RefObject<string>
-  catalogRef: RefObject<SparsePageCatalog<ReaderPageDto>>
-  retentionPositionsRef: RefObject<readonly number[]>
-  requestsRef: RefObject<Map<number, AbortController>>
-  setCatalog: Dispatch<SetStateAction<SparsePageCatalog<ReaderPageDto>>>
-  setResultCount: Dispatch<SetStateAction<number>>
-  setCatalogReady: Dispatch<SetStateAction<boolean>>
-  setCatalogError: Dispatch<SetStateAction<string | undefined>>
-}
-
 function requestCatalogBatch(request: CatalogBatchRequest): void {
-  if (request.limit < 1 || request.requestsRef.current.has(request.cursor) || sparseBatchLoaded(request.catalogRef.current, request.cursor, request.limit)) return
-  const controller = new AbortController()
-  request.requestsRef.current.set(request.cursor, controller)
-  const operation = request.client.listPageCatalog
-    ? request.client.listPageCatalog(request.sessionId, request.cursor, request.limit, { query: request.query, thumbnails: false }, controller.signal)
-    : request.client.listPages(request.sessionId, request.cursor, request.limit, controller.signal)
-  void operation.then((result) => {
-    if (controller.signal.aborted || request.catalogKeyRef.current !== request.catalogKey) return
-    request.setResultCount(result.total)
-    request.setCatalogReady(true)
-    request.setCatalogError(undefined)
-    request.setCatalog((existing) => {
-      const next = mergeSparsePageBatch(existing, request.cursor, result.pages, result.total, request.retentionPositionsRef.current)
-      request.catalogRef.current = next
-      return next
-    })
-  }).catch((error) => {
-    if (!controller.signal.aborted && request.catalogKeyRef.current === request.catalogKey) {
-      request.setCatalogReady(true)
-      request.setCatalogError(errorMessage(error))
-    }
-  }).finally(() => {
-    if (request.requestsRef.current.get(request.cursor) === controller) request.requestsRef.current.delete(request.cursor)
-  })
+  void catalogBatchModule.then((module) => module.requestPageCatalogBatch(request))
 }
 
 function errorMessage(error: unknown): string {

@@ -26,6 +26,31 @@ export interface ReaderNavigationDto {
   visiblePages: ReaderPageDto[]
 }
 
+export interface ReaderBookSettingsSnapshotDto {
+  schemaVersion: 1
+  bookId: string
+  revision: number
+  updatedAt?: number
+  overrides: Partial<ReaderBookSettingsValuesDto>
+  effective: ReaderBookSettingsValuesDto
+  inherited: ReaderBookSettingsKeyDto[]
+}
+
+export interface ReaderBookSettingsValuesDto {
+  favorite: boolean
+  rating: number
+  direction: "left-to-right" | "right-to-left"
+  pageMode: "single" | "double"
+  horizontalBook: boolean
+}
+
+export type ReaderBookSettingsKeyDto = keyof ReaderBookSettingsValuesDto
+export type ReaderBookSettingsPatchDto = Partial<{ [Key in ReaderBookSettingsKeyDto]: ReaderBookSettingsValuesDto[Key] | null }>
+
+export interface ReaderBookSettingsUpdateDto extends ReaderNavigationDto {
+  settings: ReaderBookSettingsSnapshotDto
+}
+
 export interface ReaderPageListDto {
   pages: ReaderPageDto[]
   nextCursor?: number
@@ -59,6 +84,30 @@ export interface ReaderFileOperationBatchResultDto {
   undoable: number
   undoId?: string
   undoPersisted?: boolean
+}
+
+export interface ReaderDirectorySelectionDescriptorDto {
+  generation: number
+  allSelected: boolean
+  ranges: readonly { start: number; end: number }[]
+  explicit: readonly { path: string; index?: number }[]
+}
+
+export interface ReaderDirectorySelectionOperationSnapshotDto {
+  id: string
+  kind: "delete" | "trash"
+  status: "running" | "completed" | "cancelled" | "failed"
+  generation: number
+  total: number
+  processed: number
+  succeeded: number
+  failed: number
+  cancelled: number
+  failureSamples: readonly ReaderFileOperationResultDto[]
+  failureSamplesTruncated: boolean
+  startedAt: number
+  completedAt?: number
+  error?: string
 }
 
 export interface ReaderMetadataDto {
@@ -118,6 +167,13 @@ export interface ReaderStorageDiagnosticsDto {
       cancelled: number
       evicted: number
     }
+    sessionPreload?: {
+      generation?: number
+      pages: readonly {
+        pageIndex: number
+        outcome: "started" | "ready" | "failed" | "cancelled" | "evicted"
+      }[]
+    }
   }
   assets: {
     presentation: {
@@ -144,6 +200,27 @@ export interface ReaderRecentDto {
 export interface ReaderRecentBatchRemoveResultDto {
   deleted: number
   missingIds: readonly string[]
+}
+
+export type ReaderRecentCleanupRequestDto =
+  | { kind: "oldest"; limit: number }
+  | { kind: "before"; before: number; limit?: number }
+  | { kind: "folder"; path: string }
+  | { kind: "all"; confirmed: true }
+
+export interface ReaderRecentCleanupResultDto {
+  deleted: number
+  selectedIds?: readonly string[]
+  missingIds?: readonly string[]
+}
+
+export interface ReaderInvalidLibraryCleanupResultDto {
+  kind: "recents" | "bookmarks" | "both"
+  scanned: number
+  missing: number
+  unknown: number
+  deleted: number
+  truncated: boolean
 }
 
 export interface ReaderBookmarkDto {
@@ -336,6 +413,7 @@ export interface ReaderLibraryThumbnailRegistrationDto {
   path: string
   kind: "file" | "folder"
   previewCount?: 1 | 4 | 9 | 16
+  refresh?: boolean
 }
 
 export type ReaderDirectoryNavigationDto =
@@ -358,9 +436,37 @@ export interface ReaderShellConfigDto {
 export type ReaderShellEdge = "top" | "right" | "bottom" | "left"
 export type ReaderShellLockMode = "auto" | "locked-open" | "locked-hidden"
 
+export interface ReaderHistoryListPreferencesDto {
+  viewMode: "compact" | "content" | "banner" | "thumbnail"
+}
+
+export interface ReaderHistoryListPreferencesPatch {
+  historyList: Partial<ReaderHistoryListPreferencesDto>
+}
+
+export interface ReaderBookmarkListPreferencesDto {
+  activeListId: string
+}
+
+export interface ReaderBookmarkListPreferencesPatch {
+  bookmarkList: Partial<ReaderBookmarkListPreferencesDto>
+}
+
+export interface ReaderPageListPreferencesDto {
+  viewMode: "list" | "details" | "thumbnails"
+  followProgress: boolean
+}
+
+export interface ReaderPageListPreferencesPatch {
+  pageList: Partial<ReaderPageListPreferencesDto>
+}
+
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
   viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode }
+  pageList: ReaderPageListPreferencesDto
+  bookmarkList: ReaderBookmarkListPreferencesDto
+  historyList: ReaderHistoryListPreferencesDto
   folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
   inputBindings: ReaderInputBindingsConfig
@@ -539,6 +645,9 @@ export interface ReaderHttpClient {
   updateBoardLayout(patch: ReaderBoardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateShellControl?(patch: ReaderShellControlPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
+  updatePageList?(patch: ReaderPageListPreferencesPatch, signal?: AbortSignal): Promise<ReaderPageListPreferencesDto>
+  updateBookmarkList?(patch: ReaderBookmarkListPreferencesPatch, signal?: AbortSignal): Promise<ReaderBookmarkListPreferencesDto>
+  updateHistoryList?(patch: ReaderHistoryListPreferencesPatch, signal?: AbortSignal): Promise<ReaderHistoryListPreferencesDto>
   updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
@@ -584,19 +693,33 @@ export interface ReaderHttpClient {
   ): Promise<ReaderLibraryThumbnailBatchDto>
   releaseLibraryThumbnailContext?(contextId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
+  bookSettings?(sessionId: string, signal?: AbortSignal): Promise<ReaderBookSettingsSnapshotDto>
+  updateBookSettings?(sessionId: string, expectedRevision: number, patch: ReaderBookSettingsPatchDto, signal?: AbortSignal): Promise<ReaderBookSettingsUpdateDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
   pageAction?(sessionId: string, pageId: string, action: "copy" | "reveal" | "open", signal?: AbortSignal): Promise<ReaderPageCopyActionDto | void>
   releasePageActionLease?(sessionId: string, leaseToken: string): Promise<void>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
+  preloadDiagnostics?(sessionId: string, signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   executeFileOperations?(operations: readonly ReaderFileMutationDto[], confirmed?: boolean, signal?: AbortSignal): Promise<ReaderFileOperationBatchResultDto>
+  startDirectorySelectionOperation?(
+    sessionId: string,
+    selection: ReaderDirectorySelectionDescriptorDto,
+    kind: "delete" | "trash",
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectorySelectionOperationSnapshotDto>
+  directorySelectionOperation?(id: string, signal?: AbortSignal): Promise<ReaderDirectorySelectionOperationSnapshotDto>
+  cancelDirectorySelectionOperation?(id: string, signal?: AbortSignal): Promise<ReaderDirectorySelectionOperationSnapshotDto & { cancelRequested: boolean }>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
+  cleanupRecents?(request: ReaderRecentCleanupRequestDto, signal?: AbortSignal): Promise<ReaderRecentCleanupResultDto>
+  cleanupInvalidLibrary?(kind: "recents" | "bookmarks" | "both", signal?: AbortSignal): Promise<ReaderInvalidLibraryCleanupResultDto>
   listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
+  findBookmarkByPath?(path: string, signal?: AbortSignal): Promise<ReaderBookmarkDto | undefined>
   saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
   updateBookmark?(id: string, patch: UpdateReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
   updateBookmarks?(updates: readonly ReaderBookmarkBatchUpdateDto[], signal?: AbortSignal): Promise<ReaderBookmarkBatchResultDto>
@@ -664,6 +787,24 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.viewDefaults),
+    updateHistoryList: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.historyList),
+    updateBookmarkList: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.bookmarkList),
+    updatePageList: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.pageList),
     updateFolderView: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -818,6 +959,19 @@ export function createReaderHttpClient(
       `/reader/s/${encodeURIComponent(sessionId)}/pages?cursor=${cursor}&limit=${limit}`,
       { signal },
     ),
+    bookSettings: (sessionId, signal) => request<{ settings: ReaderBookSettingsSnapshotDto }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/book-settings`,
+      { signal },
+    ).then((value) => value.settings),
+    updateBookSettings: (sessionId, expectedRevision, patch, signal) => request<ReaderBookSettingsUpdateDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/book-settings`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedRevision, patch }),
+        signal,
+      },
+    ),
     listPageCatalog: (sessionId, cursor, limit, options, signal) => {
       const search = new URLSearchParams({ cursor: String(cursor), limit: String(limit) })
       if (options.query) search.set("query", options.query)
@@ -840,6 +994,7 @@ export function createReaderHttpClient(
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
     pageMediaInformation: (sessionId, signal) => request<ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
+    preloadDiagnostics: (sessionId, signal) => request<ReaderStorageDiagnosticsDto>(`/reader/diagnostics?sessionId=${encodeURIComponent(sessionId)}`, { signal }),
     openSystemPath: (path, signal) => request<void>("/reader/files/open", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -858,6 +1013,23 @@ export function createReaderHttpClient(
       body: JSON.stringify({ operations, ...(confirmed ? { confirmed: true } : {}) }),
       signal,
     }),
+    startDirectorySelectionOperation: (sessionId, selection, kind, signal) => request<ReaderDirectorySelectionOperationSnapshotDto>(
+      "/reader/files/selection-operations",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, selection, kind, confirmed: true }),
+        signal,
+      },
+    ),
+    directorySelectionOperation: (id, signal) => request<ReaderDirectorySelectionOperationSnapshotDto>(
+      `/reader/files/selection-operations/${encodeURIComponent(id)}`,
+      { signal },
+    ),
+    cancelDirectorySelectionOperation: (id, signal) => request<ReaderDirectorySelectionOperationSnapshotDto & { cancelRequested: boolean }>(
+      `/reader/files/selection-operations/${encodeURIComponent(id)}`,
+      { method: "DELETE", signal },
+    ),
     listRecent: (offset, limit, signal) => request<{ items: ReaderRecentDto[] }>(
       `/reader/library/recents?offset=${offset}&limit=${limit}`,
       { signal },
@@ -872,11 +1044,29 @@ export function createReaderHttpClient(
       body: JSON.stringify({ ids }),
       signal,
     }),
+    cleanupRecents: (cleanup, signal) => request<ReaderRecentCleanupResultDto>("/reader/library/recents/cleanup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(cleanup.kind === "before"
+        ? { before: cleanup.before, ...(cleanup.limit === undefined ? {} : { limit: cleanup.limit }) }
+        : cleanup),
+      signal,
+    }),
+    cleanupInvalidLibrary: (kind, signal) => request<ReaderInvalidLibraryCleanupResultDto>("/reader/library/cleanup-invalid", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind }),
+      signal,
+    }),
     listBookmarks: (offset, limit, listId, signal) => {
       const search = new URLSearchParams({ offset: String(offset), limit: String(limit) })
       if (listId) search.set("listId", listId)
       return request<{ items: ReaderBookmarkDto[] }>(`/reader/library/bookmarks?${search}`, { signal }).then((value) => value.items)
     },
+    findBookmarkByPath: (path, signal) => request<{ item: ReaderBookmarkDto | null }>(
+      `/reader/library/bookmarks/by-path?${new URLSearchParams({ path })}`,
+      { signal },
+    ).then((value) => value.item ?? undefined),
     saveBookmark: (bookmark, signal) => request<ReaderBookmarkDto>("/reader/library/bookmarks", {
       method: "POST",
       headers: { "content-type": "application/json" },

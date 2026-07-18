@@ -5,7 +5,7 @@ import {
   readerDirectoryEntryMatchesFilter,
   type ReaderDirectoryEntryType,
   type ReaderDirectoryFilter,
-} from "./ReaderDirectoryFilter.js"
+} from "../../domain/browser/ReaderDirectoryFilter.js"
 
 export type ReaderFileTreeSearchMode = "text" | "glob"
 export type ReaderFileTreeSearchKind = "all" | "file" | "directory"

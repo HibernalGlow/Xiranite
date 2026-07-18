@@ -18,10 +18,14 @@ export interface NeoviewRuntimeConfig {
   sessionOptions: Partial<ReaderSessionOptions>
   shellOptions: NeoviewShellConfig
   viewDefaults: NeoviewViewDefaults
+  pageList: NeoviewPageListConfig
+  bookmarkList: NeoviewBookmarkListConfig
+  historyList: NeoviewHistoryListConfig
   folderView: NeoviewFolderViewConfig
   fileTree: NeoviewFileTreeConfig
   slideshow: NeoviewSlideshowConfig
   media: NeoviewMediaConfig
+  superResolution: NeoviewSuperResolutionConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
 }
@@ -125,6 +129,44 @@ export interface NeoviewPresentationDiskCacheConfig {
   maxAgeMs: number
   trimRatio: number
   minFreeBytes: number
+}
+
+export type NeoviewSuperResolutionProvider = "opencomic-system" | "disabled"
+
+export interface NeoviewSuperResolutionConfig {
+  provider: NeoviewSuperResolutionProvider
+  upscaylPath?: string
+  waifu2xPath?: string
+  realcuganPath?: string
+  modelsDirectory?: string
+  maxDaemonsPerGpu: number
+  daemonIdleTimeoutMs: number
+  taskTimeoutMs: number
+}
+
+export interface NeoviewHistoryListConfig {
+  viewMode: "compact" | "content" | "banner" | "thumbnail"
+}
+
+export interface NeoviewHistoryListPatch {
+  historyList: Partial<NeoviewHistoryListConfig>
+}
+
+export interface NeoviewBookmarkListConfig {
+  activeListId: string
+}
+
+export interface NeoviewBookmarkListPatch {
+  bookmarkList: Partial<NeoviewBookmarkListConfig>
+}
+
+export interface NeoviewPageListConfig {
+  viewMode: "list" | "details" | "thumbnails"
+  followProgress: boolean
+}
+
+export interface NeoviewPageListPatch {
+  pageList: Partial<NeoviewPageListConfig>
 }
 
 export interface NeoviewViewDefaults {
@@ -268,6 +310,19 @@ export interface NeoviewShellControlPatch {
 
 export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLayoutPatch | NeoviewBoardLayoutPatch | NeoviewShellControlPatch
 
+export const DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG: NeoviewHistoryListConfig = {
+  viewMode: "compact",
+}
+
+export const DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG: NeoviewBookmarkListConfig = {
+  activeListId: "all",
+}
+
+export const DEFAULT_NEOVIEW_PAGE_LIST_CONFIG: NeoviewPageListConfig = {
+  viewMode: "list",
+  followProgress: true,
+}
+
 export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: DEFAULT_READER_LAYOUT.pageMode,
@@ -358,6 +413,13 @@ export const DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG: NeoviewPresentation
   minFreeBytes: 512 * 1024 * 1024,
 }
 
+export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConfig = {
+  provider: "opencomic-system",
+  maxDaemonsPerGpu: 1,
+  daemonIdleTimeoutMs: 300_000,
+  taskTimeoutMs: 10 * 60_000,
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -393,10 +455,14 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     sessionOptions: {},
     shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
     viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
+    pageList: DEFAULT_NEOVIEW_PAGE_LIST_CONFIG,
+    bookmarkList: DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG,
+    historyList: DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG,
     folderView: DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
     fileTree: DEFAULT_NEOVIEW_FILE_TREE_CONFIG,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
+    superResolution: DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
   }
@@ -406,12 +472,16 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const reader = optionalRecord(config.reader, "[nodes.neoview.reader]")
   const panels = optionalRecord(config.panels, "[nodes.neoview.panels]")
   const slideshow = optionalRecord(config.slideshow, "[nodes.neoview.slideshow]")
+  const pageList = optionalRecord(config.page_list, "[nodes.neoview.page_list]")
+  const bookmarkList = optionalRecord(config.bookmark_list, "[nodes.neoview.bookmark_list]")
+  const historyList = optionalRecord(config.history_list, "[nodes.neoview.history_list]")
   const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
   const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
+  const superResolution = optionalRecord(config.super_resolution, "[nodes.neoview.super_resolution]")
   const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
   const presentationDiskCache = optionalRecord(
     performance?.presentation_disk_cache,
@@ -447,12 +517,64 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     },
     shellOptions: parseShellOptions(panels, reader),
     viewDefaults: { fitMode, pageMode },
+    pageList: {
+      viewMode: optionalEnum(pageList?.view_mode, "[nodes.neoview.page_list].view_mode", ["list", "details", "thumbnails"] as const)
+        ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG.viewMode,
+      followProgress: optionalBoolean(pageList?.follow_progress, "[nodes.neoview.page_list].follow_progress")
+        ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG.followProgress,
+    },
+    bookmarkList: {
+      activeListId: bookmarkList?.active_list_id === undefined
+        ? DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG.activeListId
+        : normalizedBookmarkListId(bookmarkList.active_list_id, "[nodes.neoview.bookmark_list].active_list_id"),
+    },
+    historyList: {
+      viewMode: optionalEnum(historyList?.view_mode, "[nodes.neoview.history_list].view_mode", ["compact", "content", "banner", "thumbnail"] as const)
+        ?? DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG.viewMode,
+    },
     folderView: parseFolderViewConfig(folder),
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     media: parseMediaConfig(image, subtitle),
+    superResolution: parseSuperResolutionConfig(superResolution),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
+  }
+}
+
+function parseSuperResolutionConfig(value: Record<string, unknown> | undefined): NeoviewSuperResolutionConfig {
+  if (!value) return DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
+  return {
+    provider: optionalEnum(
+      value.provider,
+      "[nodes.neoview.super_resolution].provider",
+      ["opencomic-system", "disabled"] as const,
+    ) ?? DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.provider,
+    upscaylPath: optionalConfigPath(value.upscayl_path, "[nodes.neoview.super_resolution].upscayl_path"),
+    waifu2xPath: optionalConfigPath(value.waifu2x_path, "[nodes.neoview.super_resolution].waifu2x_path"),
+    realcuganPath: optionalConfigPath(value.realcugan_path, "[nodes.neoview.super_resolution].realcugan_path"),
+    modelsDirectory: optionalConfigPath(value.models_directory, "[nodes.neoview.super_resolution].models_directory"),
+    maxDaemonsPerGpu: boundedIntegerWithFallback(
+      value.max_daemons_per_gpu,
+      0,
+      8,
+      DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.maxDaemonsPerGpu,
+      "[nodes.neoview.super_resolution].max_daemons_per_gpu",
+    ),
+    daemonIdleTimeoutMs: boundedIntegerWithFallback(
+      value.daemon_idle_timeout_ms,
+      1_000,
+      3_600_000,
+      DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.daemonIdleTimeoutMs,
+      "[nodes.neoview.super_resolution].daemon_idle_timeout_ms",
+    ),
+    taskTimeoutMs: boundedIntegerWithFallback(
+      value.task_timeout_ms,
+      1_000,
+      24 * 60 * 60_000,
+      DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.taskTimeoutMs,
+      "[nodes.neoview.super_resolution].task_timeout_ms",
+    ),
   }
 }
 
@@ -916,6 +1038,15 @@ function normalizedPinnedTabs(value: unknown, path: string): NeoviewFolderPinned
   })
 }
 
+function normalizedBookmarkListId(value: unknown, path: string): string {
+  if (typeof value !== "string") throw new Error(`${path} must be a string.`)
+  const normalized = value.trim()
+  if (!normalized || normalized.length > 256 || normalized.includes("\0")) {
+    throw new Error(`${path} must be 1 to 256 characters without NUL.`)
+  }
+  return normalized
+}
+
 function normalizedFolderHomePath(value: unknown, path: string): string {
   if (typeof value !== "string") throw new Error(`${path} must be a string.`)
   const normalized = value.trim()
@@ -1061,6 +1192,62 @@ export function parseNeoviewSlideshowPatch(value: unknown): {
   }
   if (!Object.keys(patch.slideshow).length) throw new Error("reader slideshow patch must change at least one field.")
   return { patch, tomlPatch: { slideshow: tomlPatch } }
+}
+
+export function parseNeoviewHistoryListPatch(value: unknown): {
+  patch: NeoviewHistoryListPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader history list patch")
+  if (Object.keys(record).some((key) => key !== "historyList")) throw new Error("reader history list patch contains unsupported fields.")
+  const preferences = requireRecord(record.historyList, "reader history list patch.historyList")
+  if (Object.keys(preferences).some((key) => key !== "viewMode")) throw new Error("reader history list patch contains unsupported fields.")
+  if (preferences.viewMode === undefined) throw new Error("reader history list patch must change viewMode.")
+  const viewMode = optionalEnum(preferences.viewMode, "reader history list patch.viewMode", ["compact", "content", "banner", "thumbnail"] as const)
+  return {
+    patch: { historyList: { viewMode } },
+    tomlPatch: { history_list: { view_mode: viewMode } },
+  }
+}
+
+export function parseNeoviewBookmarkListPatch(value: unknown): {
+  patch: NeoviewBookmarkListPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader bookmark list patch")
+  if (Object.keys(record).some((key) => key !== "bookmarkList")) throw new Error("reader bookmark list patch contains unsupported fields.")
+  const preferences = requireRecord(record.bookmarkList, "reader bookmark list patch.bookmarkList")
+  if (Object.keys(preferences).some((key) => key !== "activeListId")) throw new Error("reader bookmark list patch contains unsupported fields.")
+  if (preferences.activeListId === undefined) throw new Error("reader bookmark list patch must change activeListId.")
+  const activeListId = normalizedBookmarkListId(preferences.activeListId, "reader bookmark list patch.activeListId")
+  return {
+    patch: { bookmarkList: { activeListId } },
+    tomlPatch: { bookmark_list: { active_list_id: activeListId } },
+  }
+}
+
+export function parseNeoviewPageListPatch(value: unknown): {
+  patch: NeoviewPageListPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader page list patch")
+  if (Object.keys(record).some((key) => key !== "pageList")) throw new Error("reader page list patch contains unsupported fields.")
+  const preferences = requireRecord(record.pageList, "reader page list patch.pageList")
+  const allowed = new Set(["viewMode", "followProgress"])
+  const unknown = Object.keys(preferences).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader page list patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: NeoviewPageListPatch = { pageList: {} }
+  const tomlPatch: Record<string, unknown> = {}
+  if (preferences.viewMode !== undefined) {
+    patch.pageList.viewMode = optionalEnum(preferences.viewMode, "reader page list patch.viewMode", ["list", "details", "thumbnails"] as const)
+    tomlPatch.view_mode = patch.pageList.viewMode
+  }
+  if (preferences.followProgress !== undefined) {
+    patch.pageList.followProgress = requiredBoolean(preferences.followProgress, "reader page list patch.followProgress")
+    tomlPatch.follow_progress = patch.pageList.followProgress
+  }
+  if (!Object.keys(patch.pageList).length) throw new Error("reader page list patch must change at least one field.")
+  return { patch, tomlPatch: { page_list: tomlPatch } }
 }
 
 export function parseNeoviewViewDefaultsPatch(value: unknown): {
@@ -1581,6 +1768,14 @@ function nestedValue(record: Record<string, unknown> | undefined, section: strin
 
 function optionalStringArray(value: unknown, fallback: readonly string[], path: string): readonly string[] {
   return value === undefined ? fallback : requiredStringArray(value, path)
+}
+
+function optionalConfigPath(value: unknown, path: string): string | undefined {
+  if (value === undefined || value === "") return undefined
+  if (typeof value !== "string" || !value.trim() || value.includes("\0")) {
+    throw new Error(`${path} must be an empty string or a non-empty path without NUL.`)
+  }
+  return value.trim()
 }
 
 function requiredStringArray(value: unknown, path: string): string[] {

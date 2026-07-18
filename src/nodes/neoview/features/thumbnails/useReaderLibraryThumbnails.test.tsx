@@ -82,4 +82,31 @@ describe("useReaderLibraryThumbnails", () => {
     expect(view.result.current.urls.has("one")).toBe(false)
     expect(view.result.current.urls.get("two")).toBe("/thumbnail/two")
   })
+
+  it("[neoview.bookmark.thumbnail-refresh-client] marks one registration as refresh and resolves after the new URL is published", async () => {
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly ReaderLibraryThumbnailItem[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({
+        id: item.id,
+        thumbnailUrl: `/thumbnail/${item.id}/${items.some((candidate) => candidate.id === item.id && candidate.refresh) ? "refreshed" : "cached"}`,
+        contentVersion: "v1",
+      })),
+    }))
+    const client = {
+      registerLibraryThumbnails,
+      releaseLibraryThumbnailContext: vi.fn(async () => undefined),
+    } as ReaderHttpClient
+    const items = [firstItem] as readonly ReaderLibraryThumbnailItem[]
+    const view = renderHook(() => useReaderLibraryThumbnails(client, "bookmark:all", items))
+
+    await waitFor(() => expect(view.result.current.urls.get("one")).toBe("/thumbnail/one/cached"))
+    let refreshPromise: Promise<void> | undefined
+    act(() => { refreshPromise = view.result.current.refresh("one") })
+    await refreshPromise
+    await waitFor(() => expect(view.result.current.urls.get("one")).toBe("/thumbnail/one/refreshed"))
+
+    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2)
+    expect(registerLibraryThumbnails.mock.calls[1]?.[2]).toEqual([{ ...firstItem, refresh: true }])
+  })
 })

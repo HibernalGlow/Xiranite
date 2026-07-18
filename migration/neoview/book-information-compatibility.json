@@ -1,87 +1,749 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "featureId": "book-information",
   "legacyCardId": "bookInfo",
   "title": "书籍信息",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "29f7489a66667bc7b5dec64584511b2b9c038909b045b024bc072ebb46910755",
-  "statusValues": ["pending", "partial", "complete"],
   "completionRule": "Complete only when every legacy field, translated-title rule, shared Info Panel action, lifecycle state, responsive geometry and bounded shared metadata contract has automated evidence.",
   "sourceUiInventory": [
     {
       "id": "book-ui.titles",
       "title": "名称、译名与条件原名",
-      "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
-      "acceptanceItems": ["名称行", "优先显示非空 EMM translated_title", "译名与原名不同才使用强调 chip", "译名与原名不同才显示原名行", "相同译名不重复原名", "完整值 title", "长文本换行"],
-      "mappedChecklistIds": ["book.primary-title", "book.translated-title", "book.original-title", "book.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "名称行",
+        "优先显示非空 EMM translated_title",
+        "译名与原名不同才使用强调 chip",
+        "译名与原名不同才显示原名行",
+        "相同译名不重复原名",
+        "完整值 title",
+        "长文本换行"
+      ],
+      "mappedChecklistIds": [
+        "book.primary-title",
+        "book.translated-title",
+        "book.original-title",
+        "book.ui-parity"
+      ]
     },
     {
       "id": "book-ui.identity",
       "title": "书源路径与类型",
-      "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
-      "acceptanceItems": ["路径行", "等宽小字号", "完整路径 tooltip", "folder 映射文件夹", "archive 映射压缩包", "pdf 映射 PDF", "media 映射媒体", "缺失类型映射未知", "其他类型稳定显示"],
-      "mappedChecklistIds": ["book.path", "book.type", "book.data-contract"]
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "路径行",
+        "等宽小字号",
+        "完整路径 tooltip",
+        "folder 映射文件夹",
+        "archive 映射压缩包",
+        "pdf 映射 PDF",
+        "media 映射媒体",
+        "缺失类型映射未知",
+        "其他类型稳定显示"
+      ],
+      "mappedChecklistIds": [
+        "book.path",
+        "book.type",
+        "book.data-contract"
+      ]
     },
     {
       "id": "book-ui.progress",
       "title": "页码与阅读进度",
-      "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
-      "acceptanceItems": ["当前页使用 1-based 页码", "显示总页数", "进度保留一位小数", "进度不超过 100%", "零页显示 em dash", "翻页同步更新"],
-      "mappedChecklistIds": ["book.pagination", "book.progress", "book.lifecycle"]
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "当前页使用 1-based 页码",
+        "显示总页数",
+        "进度保留一位小数",
+        "进度不超过 100%",
+        "零页显示 em dash",
+        "翻页同步更新"
+      ],
+      "mappedChecklistIds": [
+        "book.pagination",
+        "book.progress",
+        "book.lifecycle"
+      ]
     },
     {
       "id": "book-ui.states",
       "title": "空数据与共享元数据生命周期",
-      "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts", "src/lib/services/metadataService.ts"],
-      "acceptanceItems": ["无书籍信息时字段零 DOM", "显示暂无书籍信息", "关闭书籍清空", "Card 卸载取消订阅", "翻页拒绝迟到结果", "相同元数据请求去重", "加载状态", "错误状态", "重试入口"],
-      "mappedChecklistIds": ["book.states", "book.lifecycle", "book.performance", "book.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "acceptanceItems": [
+        "无书籍信息时字段零 DOM",
+        "显示暂无书籍信息",
+        "关闭书籍清空",
+        "Card 卸载取消订阅",
+        "翻页拒绝迟到结果",
+        "相同元数据请求去重",
+        "加载状态",
+        "错误状态",
+        "重试入口"
+      ],
+      "mappedChecklistIds": [
+        "book.states",
+        "book.lifecycle",
+        "book.performance",
+        "book.deviations"
+      ]
     },
     {
       "id": "book-ui.panel-actions",
       "title": "Info Panel 共享路径动作",
-      "sourceEvidence": ["src/lib/components/panels/InfoPanel.svelte"],
-      "acceptanceItems": ["信息 Panel 任意空白处右键", "复制路径", "菜单分隔线", "在资源管理器中打开", "优先书籍路径并回退当前图像路径", "无路径时定位动作禁用", "ContextMenu 键与 Shift+F10 几何定位", "点击外部或 Escape 关闭"],
-      "mappedChecklistIds": ["book.panel-actions", "book.accessibility", "book.deviations"]
+      "sourceEvidence": [
+        "src/lib/components/panels/InfoPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "信息 Panel 任意空白处右键",
+        "复制路径",
+        "菜单分隔线",
+        "在资源管理器中打开",
+        "优先书籍路径并回退当前图像路径",
+        "无路径时定位动作禁用",
+        "ContextMenu 键与 Shift+F10 几何定位",
+        "点击外部或 Escape 关闭"
+      ],
+      "mappedChecklistIds": [
+        "book.panel-actions",
+        "book.accessibility",
+        "book.deviations"
+      ]
     },
     {
       "id": "book-ui.shell",
       "title": "通用 Card 外壳与布局状态",
-      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte", "src/lib/stores/cardConfig.svelte.ts"],
-      "acceptanceItems": ["BookOpen 图标与书籍信息标题", "默认 info Panel", "默认显示并展开", "不可隐藏", "标题折叠", "上下移动", "独立窗口", "高度拖动与恢复自动", "折叠内容零挂载", "动态 import 加载与失败状态", "expanded/order/height 持久化"],
-      "mappedChecklistIds": ["book.shell", "book.persistence", "book.accessibility", "book.performance"]
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte",
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "BookOpen 图标与书籍信息标题",
+        "默认 info Panel",
+        "默认显示并展开",
+        "不可隐藏",
+        "标题折叠",
+        "上下移动",
+        "独立窗口",
+        "高度拖动与恢复自动",
+        "折叠内容零挂载",
+        "动态 import 加载与失败状态",
+        "expanded/order/height 持久化"
+      ],
+      "mappedChecklistIds": [
+        "book.shell",
+        "book.persistence",
+        "book.accessibility",
+        "book.performance"
+      ]
     },
     {
       "id": "book-ui.data-flow",
       "title": "EMM 与共享三端数据契约",
-      "sourceEvidence": ["src/lib/stores/infoPanel.svelte.ts", "src/lib/stores/emmMetadata.svelte.ts", "src/lib/services/metadataService.ts", "src/lib/utils/pathHash.ts"],
-      "acceptanceItems": ["按规范书源路径精确读取旧 EMM 记录", "只暴露有界 translated_title", "坏 JSON 稳定降级", "不读取缩略图 blob", "GUI/CLI/TUI 共用字段语义", "翻页不重复读取静态 EMM", "取消与 session 关闭释放"],
-      "mappedChecklistIds": ["book.translated-title", "book.data-contract", "book.lifecycle", "book.performance"]
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/stores/emmMetadata.svelte.ts",
+        "src/lib/services/metadataService.ts",
+        "src/lib/utils/pathHash.ts"
+      ],
+      "acceptanceItems": [
+        "按规范书源路径精确读取旧 EMM 记录",
+        "只暴露有界 translated_title",
+        "坏 JSON 稳定降级",
+        "不读取缩略图 blob",
+        "GUI/CLI/TUI 共用字段语义",
+        "翻页不重复读取静态 EMM",
+        "取消与 session 关闭释放"
+      ],
+      "mappedChecklistIds": [
+        "book.translated-title",
+        "book.data-contract",
+        "book.lifecycle",
+        "book.performance"
+      ]
     },
     {
       "id": "book-ui.deviations",
       "title": "XR 所有权与可访问性扩展",
-      "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/components/panels/InfoPanel.svelte"],
-      "acceptanceItems": ["源大小归 Storage Card 而非 Book Card", "复制使用宿主 clipboard capability", "系统定位通过受鉴权后端而非浏览器 shell", "动作成功失败 live region", "语义 description list", "加载错误重试为显式扩展"],
-      "mappedChecklistIds": ["book.panel-actions", "book.accessibility", "book.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/components/panels/InfoPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "源大小归 Storage Card 而非 Book Card",
+        "复制使用宿主 clipboard capability",
+        "系统定位通过受鉴权后端而非浏览器 shell",
+        "动作成功失败 live region",
+        "语义 description list",
+        "加载错误重试为显式扩展"
+      ],
+      "mappedChecklistIds": [
+        "book.panel-actions",
+        "book.accessibility",
+        "book.deviations"
+      ]
     }
   ],
   "items": [
-    { "id": "book.primary-title", "category": "capabilities", "title": "显示规范书籍名称", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte"], "targetContract": "The Card displays the current book display name with full-value tooltip and bounded wrapping.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.book-information.legacy-fields", "neoview.book-information.headless-contract", "neoview.book-information.e2e"], "notes": "Original displayName remains the canonical fallback." },
-    { "id": "book.translated-title", "category": "capabilities", "title": "优先显示有效 EMM 译名", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/stores/emmMetadata.svelte.ts"], "targetContract": "A bounded non-empty translated_title from the exact legacy EMM book record becomes the emphasized primary title.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.book-information.emm-codec", "neoview.book-information.emm-sqlite", "neoview.book-information.shared-contract", "neoview.book-information.headless-contract", "neoview.book-information.legacy-fields", "neoview.book-information.e2e"], "notes": "Only a trimmed title up to 4096 characters crosses the shared DTO; raw emm_json and tags never do." },
-    { "id": "book.original-title", "category": "capabilities", "title": "条件显示原名", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte"], "targetContract": "The original-name row appears only when the normalized translated title differs from displayName.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.book-information.legacy-fields", "neoview.book-information.zero-pages", "neoview.book-information.e2e"], "notes": "Equal, empty or malformed translations do not duplicate the name." },
-    { "id": "book.path", "category": "capabilities", "title": "显示规范书源路径", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts"], "targetContract": "The Card exposes the canonical opened book source path, not an uncommitted input value or archive entry path.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.metadata.http", "neoview.book-information.panel-actions", "neoview.book-information.e2e"], "notes": "GUI wraps the full canonical path; headless surfaces intentionally redact local absolute paths while sharing source kind and title." },
-    { "id": "book.type", "category": "capabilities", "title": "保留完整书源类型语义", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte"], "targetContract": "folder, archive, PDF, EPUB, media, image and unknown sources have stable shared type semantics and legacy labels.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.book-information.shared-contract", "neoview.book-information.headless-contract", "neoview.book-information.legacy-fields", "neoview.book-information.e2e"], "notes": "The shared contract preserves document format instead of collapsing PDF and EPUB." },
-    { "id": "book.pagination", "category": "capabilities", "title": "显示 1-based 当前页与总页数", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte"], "targetContract": "Current page and page count derive from the active frame and update after navigation.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.metadata.http", "neoview.book-information.zero-pages", "neoview.book-information.e2e"], "notes": "Zero-page books remain representable and navigation updates the frame-derived value." },
-    { "id": "book.progress", "category": "capabilities", "title": "计算有界一位小数进度", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte"], "targetContract": "Progress clamps current to total, renders one decimal for non-empty books and an em dash for zero pages.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.metadata.http", "neoview.book-information.zero-pages", "neoview.book-information.e2e"], "notes": "The backend omits progress for zero pages and clamps the numerator before the GUI formats one decimal." },
-    { "id": "book.states", "category": "interaction-states", "title": "加载、空、错误与重试", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/services/metadataService.ts"], "targetContract": "The Card has stable loading, empty, error and retry states and never presents stale book metadata as current.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.book-information.states", "neoview.book-information.retry", "neoview.book-information.generation-stale"], "notes": "Loading/error/retry are intentional accessible target extensions; no session mounts zero Card DOM." },
-    { "id": "book.panel-actions", "category": "capabilities", "title": "Info Panel 共享复制与系统定位", "sourceEvidence": ["src/lib/components/panels/InfoPanel.svelte"], "targetContract": "The whole Info Panel exposes copy-path and reveal-in-file-manager through host/backend capabilities with disabled, pending and feedback states.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.book-information.host-clipboard", "neoview.book-information.reveal-client", "neoview.book-information.panel-actions", "neoview.book-information.panel-actions-disabled", "neoview.book-information.e2e"], "notes": "The actions belong to the shared Info Panel, use host/authenticated capabilities and expose live feedback." },
-    { "id": "book.data-contract", "category": "data-contract", "title": "共享有界静态书籍元数据契约", "sourceEvidence": ["src/lib/stores/infoPanel.svelte.ts", "src/lib/stores/emmMetadata.svelte.ts", "src/lib/services/metadataService.ts"], "targetContract": "GUI, CLI and TUI share source identity, source format, page count and a bounded translated title loaded once per session book identity.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.book-information.emm-codec", "neoview.book-information.emm-path", "neoview.book-information.emm-sqlite", "neoview.book-information.shared-contract", "neoview.metadata.http", "neoview.book-information.headless-contract"], "notes": "One application service serves HTTP and local headless surfaces without a second database, raw EMM JSON or image decode path." },
-    { "id": "book.lifecycle", "category": "lifecycle", "title": "会话切换、去重、取消与释放", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/stores/infoPanel.svelte.ts", "src/lib/services/metadataService.ts"], "targetContract": "Hidden/unmounted Cards do no work; static book metadata is deduplicated; generation and session changes cannot publish stale values; close releases pending work.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.metadata.cards", "neoview.metadata.cancel", "neoview.book-information.generation-stale", "neoview.book-information.session-close", "neoview.book-information.headless-contract"], "notes": "Page progress changes per frame without rereading EMM; session close aborts an unfinished static load." },
-    { "id": "book.shell", "category": "ui-parity", "title": "共享 Card 外壳行为", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"], "targetContract": "The Book Card remains independently lazy, collapsible, movable, resizable and window-capable while retaining its non-hideable legacy rule.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.card.collapse", "neoview.card.resize-patch", "neoview.settings.card-layout", "neoview.book-information.lazy-chunk"], "notes": "Book remains non-hideable in the manifest and builds as an independent 2655-byte deferred chunk." },
-    { "id": "book.persistence", "category": "settings", "title": "仅持久化共享 Card 布局", "sourceEvidence": ["src/lib/stores/cardConfig.svelte.ts"], "targetContract": "Book content has no settings; order, expanded state and height persist only through canonical [nodes.neoview] layout.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.settings.card-layout", "neoview.card.persist-react", "neoview.card.resize-patch"], "notes": "Only canonical [nodes.neoview] layout persists; Reader business data remains in the legacy NeoView database." },
-    { "id": "book.accessibility", "category": "keyboard-accessibility", "title": "语义字段与键盘等价动作", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/components/panels/InfoPanel.svelte", "src/lib/components/cards/CollapsibleCard.svelte"], "targetContract": "Description fields, shell controls, retry and Info Panel actions have accessible names, keyboard operation, focus restoration and live feedback.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.book-information.retry", "neoview.book-information.panel-actions", "neoview.book-information.panel-actions-disabled", "neoview.context-menu.keyboard-position", "neoview.book-information.e2e"], "notes": "Semantic dl, named controls and live regions are present; keyboard context menus anchor at the target center." },
-    { "id": "book.ui-parity", "category": "ui-parity", "title": "桌面与窄 Card 视觉几何", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/components/panels/InfoPanel.svelte"], "targetContract": "Legacy labels, two-column density, conditional title chip and long values remain readable at desktop and 420x360 Card widths.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.book-information.legacy-fields", "neoview.book-information.e2e"], "notes": "Desktop and 420x360 Chromium assert bounded values and capture the rendered Card." },
-    { "id": "book.performance", "category": "performance", "title": "常量 DOM、静态请求去重与独立 chunk", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/services/metadataService.ts", "src/lib/cards/CardRenderer.svelte"], "targetContract": "O(1) DOM, zero hidden work, one bounded static EMM read per session book, shared frame metadata and an independent deferred Book Card chunk under 8 KiB.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.metadata.cards", "neoview.metadata.cancel", "neoview.metadata.http", "neoview.book-information.headless-contract", "neoview.book-information.e2e", "neoview.book-information.lazy-chunk"], "notes": "Book chunk is 2655 bytes; entry is 24667 bytes; session EMM reads are O(1), cached and blob-free." },
-    { "id": "book.deviations", "category": "deviations", "title": "记录所有权与可访问性扩展", "sourceEvidence": ["src/lib/cards/info/BookInfoCard.svelte", "src/lib/components/panels/InfoPanel.svelte"], "targetContract": "Document that source size remains Storage-owned and that host clipboard, authenticated reveal, loading/error/retry, semantic dl and action feedback replace weaker legacy behavior.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.book-information.legacy-fields", "neoview.book-information.host-clipboard", "neoview.book-information.reveal-client", "neoview.book-information.retry", "neoview.book-information.e2e"], "notes": "Source size stays in Storage; host/authenticated actions, semantic dl and accessible failure states are explicit target improvements." }
+    {
+      "id": "book.primary-title",
+      "category": "capabilities",
+      "title": "显示规范书籍名称",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte"
+      ],
+      "targetContract": "The Card displays the current book display name with full-value tooltip and bounded wrapping.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.headless-contract",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Original displayName remains the canonical fallback through the shared browser-safe projection used by React, CLI and TUI."
+    },
+    {
+      "id": "book.translated-title",
+      "category": "capabilities",
+      "title": "优先显示有效 EMM 译名",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/stores/emmMetadata.svelte.ts"
+      ],
+      "targetContract": "A bounded non-empty translated_title from the exact legacy EMM book record becomes the emphasized primary title.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book-information.emm-codec",
+        "neoview.book-information.emm-sqlite",
+        "neoview.book-information.shared-contract",
+        "neoview.book-information.headless-contract",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Only a trimmed title up to 4096 characters crosses the shared DTO; React, CLI and TUI use it as the same preferred title while raw emm_json and tags never cross the boundary."
+    },
+    {
+      "id": "book.original-title",
+      "category": "capabilities",
+      "title": "条件显示原名",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte"
+      ],
+      "targetContract": "The original-name row appears only when the normalized translated title differs from displayName.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.book-information.zero-pages",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Equal, empty or malformed translations do not duplicate the name; CLI emits Original title only for a distinct translation and TUI keeps the translated primary title compact."
+    },
+    {
+      "id": "book.path",
+      "category": "capabilities",
+      "title": "显示规范书源路径",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts"
+      ],
+      "targetContract": "The Card exposes the canonical opened book source path, not an uncommitted input value or archive entry path.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.http",
+        "neoview.book-information.panel-actions",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI wraps the full canonical path; headless surfaces intentionally redact local absolute paths while sharing source kind and title."
+    },
+    {
+      "id": "book.type",
+      "category": "capabilities",
+      "title": "保留完整书源类型语义",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte"
+      ],
+      "targetContract": "folder, archive, PDF, EPUB, media, image and unknown sources have stable shared type semantics and legacy labels.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book-information.shared-contract",
+        "neoview.book-information.headless-contract",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The shared projection preserves folder, archive, path/file, PDF, EPUB, media, image, document and unknown labels across React, CLI and TUI."
+    },
+    {
+      "id": "book.pagination",
+      "category": "capabilities",
+      "title": "显示 1-based 当前页与总页数",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte"
+      ],
+      "targetContract": "Current page and page count derive from the active frame and update after navigation.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.http",
+        "neoview.book-information.projection",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.book-information.zero-pages",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The shared projection clamps a 1-based current page, preserves 0 / 0 for empty books and updates CLI/TUI from the same active frame used by React."
+    },
+    {
+      "id": "book.progress",
+      "category": "capabilities",
+      "title": "计算有界一位小数进度",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte"
+      ],
+      "targetContract": "Progress clamps current to total, renders one decimal for non-empty books and an em dash for zero pages.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.http",
+        "neoview.book-information.projection",
+        "neoview.book-information.projection-zero",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader",
+        "neoview.book-information.zero-pages",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "React, CLI and TUI share the same clamped one-decimal percentage and em dash for zero-page books; the TUI ProgressBar consumes the projected percentage rather than recomputing it."
+    },
+    {
+      "id": "book.states",
+      "category": "interaction-states",
+      "title": "加载、空、错误与重试",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "The Card has stable loading, empty, error and retry states and never presents stale book metadata as current.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book-information.states",
+        "neoview.book-information.retry",
+        "neoview.book-information.generation-stale"
+      ],
+      "plannedTestIds": [],
+      "notes": "Loading/error/retry are intentional accessible target extensions; no session mounts zero Card DOM."
+    },
+    {
+      "id": "book.panel-actions",
+      "category": "capabilities",
+      "title": "Info Panel 共享复制与系统定位",
+      "sourceEvidence": [
+        "src/lib/components/panels/InfoPanel.svelte"
+      ],
+      "targetContract": "The whole Info Panel exposes copy-path and reveal-in-file-manager through host/backend capabilities with disabled, pending and feedback states.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.book-information.host-clipboard",
+        "neoview.book-information.reveal-client",
+        "neoview.book-information.panel-actions",
+        "neoview.book-information.panel-actions-disabled",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The actions belong to the shared Info Panel, use host/authenticated capabilities and expose live feedback."
+    },
+    {
+      "id": "book.data-contract",
+      "category": "data-contract",
+      "title": "共享有界静态书籍元数据契约",
+      "sourceEvidence": [
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/stores/emmMetadata.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "GUI, CLI and TUI share source identity, source format, page count and a bounded translated title loaded once per session book identity.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book-information.emm-codec",
+        "neoview.book-information.emm-path",
+        "neoview.book-information.emm-sqlite",
+        "neoview.book-information.shared-contract",
+        "neoview.metadata.http",
+        "neoview.book-information.headless-contract",
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.projection",
+        "neoview.book-information.projection-zero",
+        "neoview.book-information.cli-projection",
+        "neoview.tui.reader"
+      ],
+      "plannedTestIds": [],
+      "notes": "One application service serves HTTP and local headless snapshots without a second database, raw EMM JSON or image decode path; a browser-safe pure projection now provides identical title, original-title, type, page and progress semantics to React, CLI and TUI."
+    },
+    {
+      "id": "book.lifecycle",
+      "category": "lifecycle",
+      "title": "会话切换、去重、取消与释放",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/stores/infoPanel.svelte.ts",
+        "src/lib/services/metadataService.ts"
+      ],
+      "targetContract": "Hidden/unmounted Cards do no work; static book metadata is deduplicated; generation and session changes cannot publish stale values; close releases pending work.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cards",
+        "neoview.metadata.cancel",
+        "neoview.book-information.generation-stale",
+        "neoview.book-information.session-close",
+        "neoview.book-information.headless-contract"
+      ],
+      "plannedTestIds": [],
+      "notes": "Page progress changes per frame without rereading EMM; session close aborts an unfinished static load."
+    },
+    {
+      "id": "book.shell",
+      "category": "ui-parity",
+      "title": "共享 Card 外壳行为",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte",
+        "src/lib/components/cardwindow/CardWindowContent.svelte"
+      ],
+      "targetContract": "The Book Card remains independently lazy, collapsible, movable, resizable and window-capable while retaining its non-hideable legacy rule.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.card.collapse",
+        "neoview.card.resize-patch",
+        "neoview.settings.card-layout"
+      ],
+      "plannedTestIds": [
+        "neoview.book-information.lazy-chunk"
+      ],
+      "notes": "Book remains non-hideable in the manifest and builds as an independent 2,480-byte deferred chunk."
+    },
+    {
+      "id": "book.persistence",
+      "category": "settings",
+      "title": "仅持久化共享 Card 布局",
+      "sourceEvidence": [
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "targetContract": "Book content has no settings; order, expanded state and height persist only through canonical [nodes.neoview] layout.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.settings.card-layout",
+        "neoview.card.persist-react",
+        "neoview.card.resize-patch"
+      ],
+      "plannedTestIds": [],
+      "notes": "Only canonical [nodes.neoview] layout persists; Reader business data remains in the legacy NeoView database."
+    },
+    {
+      "id": "book.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "语义字段与键盘等价动作",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/components/panels/InfoPanel.svelte",
+        "src/lib/components/cards/CollapsibleCard.svelte"
+      ],
+      "targetContract": "Description fields, shell controls, retry and Info Panel actions have accessible names, keyboard operation, focus restoration and live feedback.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.book-information.retry",
+        "neoview.book-information.panel-actions",
+        "neoview.book-information.panel-actions-disabled",
+        "neoview.context-menu.keyboard-position",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Semantic dl, named controls and live regions are present; keyboard context menus anchor at the target center."
+    },
+    {
+      "id": "book.ui-parity",
+      "category": "ui-parity",
+      "title": "桌面与窄 Card 视觉几何",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/components/panels/InfoPanel.svelte"
+      ],
+      "targetContract": "Legacy labels, two-column density, conditional title chip and long values remain readable at desktop and 420x360 Card widths.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Chromium assert bounded values and capture the rendered Card."
+    },
+    {
+      "id": "book.performance",
+      "category": "performance",
+      "title": "常量 DOM、静态请求去重与独立 chunk",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/services/metadataService.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "O(1) DOM, zero hidden work, one bounded static EMM read per session book, shared frame metadata and an independent deferred Book Card chunk under 8 KiB.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.metadata.cards",
+        "neoview.metadata.cancel",
+        "neoview.metadata.http",
+        "neoview.book-information.headless-contract",
+        "neoview.book-information.projection-chunk",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.book-information.lazy-chunk"
+      ],
+      "notes": "Book Card is 2,480 bytes and the shared projection remains in the deferred 10,356-byte ui-core host chunk; the initial build contains zero NeoView modules, session EMM reads are O(1), cached and blob-free, and no extra request or subscription was introduced."
+    },
+    {
+      "id": "book.deviations",
+      "category": "deviations",
+      "title": "记录所有权与可访问性扩展",
+      "sourceEvidence": [
+        "src/lib/cards/info/BookInfoCard.svelte",
+        "src/lib/components/panels/InfoPanel.svelte"
+      ],
+      "targetContract": "Document that source size remains Storage-owned and that host clipboard, authenticated reveal, loading/error/retry, semantic dl and action feedback replace weaker legacy behavior.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.book-information.legacy-fields",
+        "neoview.book-information.host-clipboard",
+        "neoview.book-information.reveal-client",
+        "neoview.book-information.retry",
+        "neoview.book-information.e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Source size stays in Storage; host/authenticated actions, semantic dl and accessible failure states are explicit target improvements."
+    }
   ]
 }

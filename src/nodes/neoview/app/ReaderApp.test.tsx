@@ -417,6 +417,9 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
   return {
     shell: shellConfig(),
     viewDefaults: { fitMode: "fit", pageMode: "single" },
+    pageList: { viewMode: "list", followProgress: true },
+    bookmarkList: { activeListId: "all" },
+    historyList: { viewMode: "compact" },
     folderView: {
       homePath: "",
       viewMode: "compact",
@@ -432,5 +435,6 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
     },
     slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
+    inputBindings: { bindings: [] },
   }
 }

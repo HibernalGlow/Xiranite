@@ -18,7 +18,11 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react"
 
 import type {
   ReaderBoardLayoutPatch,
+  ReaderBookmarkListPreferencesDto,
+  ReaderBookSettingsUpdateDto,
+  ReaderHistoryListPreferencesDto,
   ReaderHttpClient,
+  ReaderPageListPreferencesDto,
   ReaderRuntimeConfigDto,
   ReaderSessionDto,
   ReaderShellConfigDto,
@@ -36,10 +40,18 @@ export interface ReaderPanelContext {
   disabled: boolean
   panelActive?: boolean
   onGoTo(pageIndex: number): void | Promise<void>
+  onBookSettingsUpdated?(sessionId: string, update: ReaderBookSettingsUpdateDto): void
+  bookmarkListPreferences?: ReaderBookmarkListPreferencesDto
+  onBookmarkListPreferences?(patch: Partial<ReaderBookmarkListPreferencesDto>): Promise<ReaderBookmarkListPreferencesDto>
+  historyListPreferences?: ReaderHistoryListPreferencesDto
+  onHistoryListPreferences?(patch: Partial<ReaderHistoryListPreferencesDto>): Promise<ReaderHistoryListPreferencesDto>
+  pageListPreferences?: ReaderPageListPreferencesDto
+  onPageListPreferences?(patch: Partial<ReaderPageListPreferencesDto>): Promise<void>
   onPageModeChange?(pageMode: "single" | "double"): void | Promise<void>
   onReadingDirectionChange?(direction: FrameSnapshot["direction"]): void | Promise<void>
   sourcePath?: string
   onOpen?(path: string): void | Promise<void>
+  pickDirectory?: () => Promise<string | undefined>
   systemActions?: {
     copyText?(text: string): Promise<void>
     copyFiles?(paths: string[]): Promise<void>

@@ -25,6 +25,30 @@ describe("InputBindingsSettingsCard", () => {
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
   })
 
+  it("[neoview.bindings.editor] edits modifiers, extended mouse buttons and touch fingers", () => {
+    render(<InputBindingsEditor value={{ bindings: [
+      binding("key", "keyboard"), binding("mouse", "mouse"), binding("wheel", "wheel"), binding("touch", "touch"),
+    ] }} onSave={vi.fn()} />)
+    fireEvent.click(screen.getAllByLabelText("Ctrl")[0]!)
+    fireEvent.change(screen.getByRole("combobox", { name: "鼠标按钮" }), { target: { value: "7" } })
+    fireEvent.click(screen.getAllByLabelText("Shift")[1]!)
+    fireEvent.change(screen.getByRole("combobox", { name: "触控手指数" }), { target: { value: "3" } })
+    expect((screen.getByRole("combobox", { name: "鼠标按钮" }) as HTMLSelectElement).value).toBe("7")
+    expect((screen.getByRole("combobox", { name: "触控手指数" }) as HTMLSelectElement).value).toBe("3")
+  })
+
+  it("[neoview.bindings.recording] records one keyboard chord and supports cancellation", () => {
+    render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
+    fireEvent.keyDown(window, { code: "KeyK", key: "k", ctrlKey: true, shiftKey: true })
+    expect((screen.getByRole("textbox", { name: "键盘代码" }) as HTMLInputElement).value).toBe("KeyK")
+    expect((screen.getByLabelText("Ctrl") as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByLabelText("Shift") as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(screen.getByRole("button", { name: "录制键盘输入" }))
+    fireEvent.keyDown(window, { code: "Escape", key: "Escape" })
+    expect(screen.queryByText("请按下组合键；按 Escape 取消录制。")).toBeNull()
+  })
+
   it("[neoview.bindings.reset-ui] restores canonical defaults through one command", async () => {
     const save = vi.fn(async () => ({ bindings: [] }))
     render(<InputBindingsEditor value={{ bindings: [] }} onSave={save} />)

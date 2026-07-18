@@ -5,7 +5,7 @@ import {
   type ReaderDirectorySortPreferenceCommand,
   type ReaderFileTreeServiceOptions,
 } from "../../application/browser/ReaderFileTreeService.js"
-import { READER_DIRECTORY_FILTERS } from "../../application/browser/ReaderDirectoryFilter.js"
+import { READER_DIRECTORY_FILTERS } from "../../domain/browser/ReaderDirectoryFilter.js"
 import {
   isReaderDirectorySortField,
   type ReaderDirectorySortRule,
@@ -49,6 +49,10 @@ import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.
 import { z } from "zod"
 import { ReaderEmmTagSuggestionService } from "../../application/metadata/ReaderEmmTagSuggestionService.js"
 import type { ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
+import {
+  ReaderDirectorySelectionStaleError,
+  type ReaderDirectorySelectionDescriptor,
+} from "../../application/browser/ReaderDirectorySelection.js"
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_EMM_TAG_SUGGESTIONS_PATH = "/reader/browser/emm-tags/suggestions"
@@ -66,6 +70,7 @@ const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
 const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
 const BROWSER_FILTER_PATH = /^\/reader\/browser\/s\/([^/]+)\/filter$/
+const BROWSER_SELECTION_PATH = /^\/reader\/browser\/s\/([^/]+)\/selection$/
 const BROWSER_CLONE_PATH = /^\/reader\/browser\/s\/([^/]+)\/clone$/
 const BROWSER_REOPEN_PATH = /^\/reader\/browser\/s\/([^/]+)\/reopen$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
@@ -156,6 +161,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (sortMatch && request.method === "PATCH") return this.#sort(sortMatch[1]!, request)
     const filterMatch = BROWSER_FILTER_PATH.exec(url.pathname)
     if (filterMatch && request.method === "PATCH") return this.#filter(filterMatch[1]!, request)
+    const selectionMatch = BROWSER_SELECTION_PATH.exec(url.pathname)
+    if (selectionMatch && request.method === "POST") return this.#selection(selectionMatch[1]!, request)
     const cloneMatch = BROWSER_CLONE_PATH.exec(url.pathname)
     if (cloneMatch && request.method === "POST") return this.#clone(cloneMatch[1]!, request)
     const reopenMatch = BROWSER_REOPEN_PATH.exec(url.pathname)
@@ -222,6 +229,36 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     }
   }
 
+  async #selection(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Invalid browser session id", 400)
+    const body = await request.json().catch(() => undefined) as {
+      selection?: ReaderDirectorySelectionDescriptor
+      previewLimit?: unknown
+    } | undefined
+    if (!body?.selection || typeof body.selection !== "object") return errorResponse("selection must be an object", 400)
+    let previewLimit: number
+    try {
+      previewLimit = body.previewLimit === undefined ? 0 : bodyInteger(body.previewLimit, "previewLimit", 0, 128)
+      const source = await this.#browser.resolveSelection(sessionId, body.selection, request.signal)
+      if (!source) return errorResponse("Browser session not found", 404)
+      const preview = previewLimit > 0
+        ? [...source.batches(previewLimit, request.signal)][0]?.map((entry) => entry.path) ?? []
+        : []
+      return Response.json({
+        sessionId,
+        generation: source.generation,
+        total: source.total,
+        selectedCount: source.selectedCount,
+        preview,
+        truncated: source.selectedCount > preview.length,
+      }, responseInit())
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return errorResponse(errorMessage(error), error instanceof ReaderDirectorySelectionStaleError ? 409 : 400)
+    }
+  }
+
   releaseMemoryPressure(): {
     clearedTreeEntries: number
     cancelledDirectorySizes: number
@@ -235,6 +272,14 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
 
   memorySnapshot(): ReaderFileTreeMemorySnapshot {
     return this.#browser.memorySnapshot()
+  }
+
+  resolveSelection(
+    sessionId: string,
+    descriptor: ReaderDirectorySelectionDescriptor,
+    signal?: AbortSignal,
+  ) {
+    return this.#browser.resolveSelection(sessionId, descriptor, signal)
   }
 
   async #open(request: Request): Promise<Response> {
@@ -591,6 +636,13 @@ function optionalInteger(value: string | null, name: string, minimum: number, ma
     throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`)
   }
   return parsed
+}
+
+function bodyInteger(value: unknown, name: string, minimum: number, maximum: number): number {
+  if (!Number.isSafeInteger(value) || (value as number) < minimum || (value as number) > maximum) {
+    throw new RangeError(`${name} must be an integer from ${minimum} to ${maximum}`)
+  }
+  return value as number
 }
 
 function searchHistoryScope(value: string | null): ReaderSearchHistoryScope {

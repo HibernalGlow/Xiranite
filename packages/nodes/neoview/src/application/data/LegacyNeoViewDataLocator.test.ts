@@ -10,6 +10,7 @@ describe("LegacyNeoViewDataLocator", () => {
       env: { APPDATA: "D:\\Users\\reader\\AppData\\Roaming" },
       homeDir: "D:\\Users\\reader",
     })
+    expect(location.modelsDirectory).toBe("D:\\Users\\reader\\AppData\\Roaming\\NeoView\\models")
     expect(location.thumbnailDatabasePath).toBe("D:\\Users\\reader\\AppData\\Roaming\\NeoView\\thumbnails.db")
     expect(location.walPath).toBe(`${location.thumbnailDatabasePath}-wal`)
     expect(location.shmPath).toBe(`${location.thumbnailDatabasePath}-shm`)

@@ -126,6 +126,12 @@ interface OpenMenu {
   x: number
   y: number
   items: ContextMenuItemDef[]
+  returnFocus?: HTMLElement
+}
+
+interface PendingConfirmation {
+  item: ContextMenuItemDef
+  returnFocus?: HTMLElement
 }
 
 export function ContextMenuProvider({ children }: { children: ReactNode }) {
@@ -133,7 +139,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
   const [openMenu, setOpenMenu] = useState<OpenMenu | null>(null)
   // Confirm state lives at the provider level so the dialog persists even after
   // the menu unmounts (Radix may close the menu on item select in some envs).
-  const [confirm, setConfirm] = useState<ContextMenuItemDef | null>(null)
+  const [confirm, setConfirm] = useState<PendingConfirmation | null>(null)
 
   const show = useCallback((x: number, y: number, items: ContextMenuItemDef[]) => {
     if (items.length === 0) return
@@ -199,6 +205,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
         x: targetRect ? targetRect.left + targetRect.width / 2 : e.clientX,
         y: targetRect ? targetRect.top + targetRect.height / 2 : e.clientY,
         items,
+        returnFocus: document.activeElement instanceof HTMLElement ? document.activeElement : undefined,
       })
     }
     window.addEventListener("contextmenu", handler)
@@ -222,7 +229,13 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", handler)
   }, [])
 
-  const api = useMemo<ContextMenuAPI>(() => ({ register, show }), [register, show])
+  const requestConfirmation = useCallback((item: ContextMenuItemDef, returnFocus?: HTMLElement) => {
+    if (!item.confirm || item.disabled) return
+    setConfirm({ item, returnFocus })
+    setOpenMenu(null)
+  }, [])
+
+  const api = useMemo<ContextMenuAPI>(() => ({ register, show, confirm: requestConfirmation }), [register, requestConfirmation, show])
 
   return (
     <ContextMenuBuilderContext.Provider value={api}>
@@ -232,20 +245,18 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
           coords={{ x: openMenu.x, y: openMenu.y }}
           items={openMenu.items}
           onClose={() => setOpenMenu(null)}
-          onRequestConfirm={(item) => {
-            setConfirm(item)
-            setOpenMenu(null)
-          }}
+          onRequestConfirm={(item) => requestConfirmation(item, openMenu.returnFocus)}
         />
       )}
       {confirm && (
         <ConfirmDialog
-          item={confirm}
-          onCancel={() => setConfirm(null)}
-          onConfirm={() => {
-            void confirm.onSelect?.()
+          item={confirm.item}
+          onClose={() => {
+            const returnFocus = confirm.returnFocus
             setConfirm(null)
+            queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus())
           }}
+          onConfirm={() => { void confirm.item.onSelect?.() }}
         />
       )}
     </ContextMenuBuilderContext.Provider>
@@ -338,17 +349,17 @@ function MenuController({
 
 function ConfirmDialog({
   item,
-  onCancel,
+  onClose,
   onConfirm,
 }: {
   item: ContextMenuItemDef
-  onCancel: () => void
+  onClose: () => void
   onConfirm: () => void
 }) {
   const cfg = item.confirm!
   const destructive = cfg.destructive ?? item.destructive ?? false
   return (
-    <AlertDialog open onOpenChange={(next) => { if (!next) onCancel() }}>
+    <AlertDialog open onOpenChange={(next) => { if (!next) onClose() }}>
       <AlertDialogContent className="z-[2001]">
         <AlertDialogTitle>{cfg.title}</AlertDialogTitle>
         {cfg.description && <AlertDialogDescription>{cfg.description}</AlertDialogDescription>}

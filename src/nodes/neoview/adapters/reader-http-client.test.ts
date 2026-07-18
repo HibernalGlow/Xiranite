@@ -172,6 +172,16 @@ describe("reader-http-client", () => {
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.preload.cache-state-client] scopes preload diagnostics to the active Reader session", async () => {
+    const snapshot = { schemaVersion: 1, reader: { sessionPreload: { generation: 4, pages: [] } }, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
+    const fetchMock = vi.fn(async () => Response.json(snapshot))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.preloadDiagnostics!("reader/one")).resolves.toEqual(snapshot)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/diagnostics?sessionId=reader%2Fone")
+  })
+
   it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
       const url = String(request)

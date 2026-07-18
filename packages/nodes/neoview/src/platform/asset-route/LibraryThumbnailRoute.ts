@@ -91,14 +91,28 @@ export class LibraryThumbnailRoute {
     try {
       described = await pMap(parsed.items, async (item) => ({
         item,
-        source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount),
+        source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount, "view"),
       }), { concurrency: 16, stopOnError: true })
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: "One or more thumbnail sources are unavailable or have the wrong kind" }, 400)
     }
+    const refreshContextId = `${pipelineContextId(parsed.contextId)}:refresh`
     try {
-      await this.#pipeline.prewarmLibrary(described.map(({ source }) => source), { signal: request.signal })
+      await pMap(described.filter(({ item }) => item.refresh), ({ source }) => this.#pipeline.refreshLibrary(source, {
+        contextId: refreshContextId,
+        generation: parsed.generation,
+        lane: "reader-visible",
+        signal: request.signal,
+      }), { concurrency: 4, stopOnError: true })
+    } catch (error) {
+      if (request.signal.aborted || isAbortError(error)) throw error
+      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500)
+    } finally {
+      this.#pipeline.releaseContext(refreshContextId)
+    }
+    try {
+      await this.#pipeline.prewarmLibrary(described.filter(({ item }) => !item.refresh).map(({ source }) => source), { signal: request.signal })
     } catch (error) {
       if (request.signal.aborted || isAbortError(error)) throw error
     }
@@ -133,7 +147,7 @@ export class LibraryThumbnailRoute {
     else request.signal.addEventListener("abort", abort, { once: true })
     const service = new ReaderLibraryThumbnailWarmupService({
       warm: async (item, options) => {
-        const source = await this.#pipeline.describeLibrarySource(item.path, item.kind, options.signal, item.previewCount)
+        const source = await this.#pipeline.describeLibrarySource(item.path, item.kind, options.signal, item.previewCount, "background")
         if (options.mode === "refresh") {
           await this.#pipeline.refreshLibrary(source, {
             contextId: options.contextId,
@@ -294,7 +308,7 @@ export class LibraryThumbnailRoute {
   }
 }
 
-interface RegistrationItem { id: string; path: string; kind: LibraryThumbnailKind; previewCount: LibraryThumbnailPreviewCount }
+interface RegistrationItem { id: string; path: string; kind: LibraryThumbnailKind; previewCount: LibraryThumbnailPreviewCount; refresh: boolean }
 
 function parseRegistration(body: Record<string, unknown> | undefined): { contextId: string; generation: number; items: RegistrationItem[] } | undefined {
   if (!body || typeof body.contextId !== "string" || !body.contextId || body.contextId.length > 1024) return undefined
@@ -311,8 +325,9 @@ function parseRegistration(body: Record<string, unknown> | undefined): { context
     const previewCount = item.previewCount ?? 1
     if (previewCount !== 1 && previewCount !== 4 && previewCount !== 9 && previewCount !== 16) return undefined
     if (item.kind !== "folder" && previewCount !== 1) return undefined
+    if (item.refresh !== undefined && typeof item.refresh !== "boolean") return undefined
     ids.add(item.id)
-    items.push({ id: item.id, path: item.path, kind: item.kind, previewCount })
+    items.push({ id: item.id, path: item.path, kind: item.kind, previewCount, refresh: item.refresh === true })
   }
   return { contextId: body.contextId, generation: body.generation as number, items }
 }

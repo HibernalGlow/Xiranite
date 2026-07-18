@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -109,6 +109,45 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewSlideshowPatch({ slideshow: {} })).toThrow("at least one")
     expect(() => parseNeoviewSlideshowPatch({ slideshow: { intervalSeconds: 61 } })).toThrow("between 1 and 60")
     expect(() => parseNeoviewSlideshowPatch({ slideshow: { autoplay: true } })).toThrow("unsupported fields")
+  })
+
+  it("[neoview.history.view-settings-config] persists a bounded History-specific view mode", () => {
+    expect(parseNeoviewRuntimeConfig({ history_list: { view_mode: "thumbnail" } }).historyList).toEqual({ viewMode: "thumbnail" })
+    expect(parseNeoviewRuntimeConfig(undefined).historyList).toEqual({ viewMode: "compact" })
+    expect(parseNeoviewHistoryListPatch({ historyList: { viewMode: "banner" } })).toEqual({
+      patch: { historyList: { viewMode: "banner" } },
+      tomlPatch: { history_list: { view_mode: "banner" } },
+    })
+    expect(() => parseNeoviewHistoryListPatch({ historyList: {} })).toThrow("viewMode")
+    expect(() => parseNeoviewHistoryListPatch({ historyList: { viewMode: "grid" } })).toThrow("viewMode")
+    expect(() => parseNeoviewHistoryListPatch({ historyList: { viewMode: "compact", future: true } })).toThrow("unsupported")
+  })
+
+  it("[neoview.bookmark.active-list-config] persists a bounded active Bookmark List identity", () => {
+    expect(parseNeoviewRuntimeConfig({ bookmark_list: { active_list_id: "reading" } }).bookmarkList).toEqual({ activeListId: "reading" })
+    expect(parseNeoviewRuntimeConfig(undefined).bookmarkList).toEqual({ activeListId: "all" })
+    expect(parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: " reading " } })).toEqual({
+      patch: { bookmarkList: { activeListId: "reading" } },
+      tomlPatch: { bookmark_list: { active_list_id: "reading" } },
+    })
+    expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: {} })).toThrow("activeListId")
+    expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: "" } })).toThrow("1 to 256")
+    expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: "x".repeat(257) } })).toThrow("1 to 256")
+    expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: "all", future: true } })).toThrow("unsupported")
+  })
+
+  it("[neoview.page-list.settings-config] persists bounded page-list preferences in one canonical TOML shape", () => {
+    expect(parseNeoviewRuntimeConfig({ page_list: { view_mode: "thumbnails", follow_progress: false } }).pageList).toEqual({
+      viewMode: "thumbnails",
+      followProgress: false,
+    })
+    expect(parseNeoviewRuntimeConfig(undefined).pageList).toEqual({ viewMode: "list", followProgress: true })
+    expect(parseNeoviewPageListPatch({ pageList: { viewMode: "details", followProgress: false } })).toEqual({
+      patch: { pageList: { viewMode: "details", followProgress: false } },
+      tomlPatch: { page_list: { view_mode: "details", follow_progress: false } },
+    })
+    expect(() => parseNeoviewPageListPatch({ pageList: {} })).toThrow("at least one")
+    expect(() => parseNeoviewPageListPatch({ pageList: { viewMode: "tiles" } })).toThrow("viewMode")
   })
 
   it("[neoview.settings.view-defaults] normalizes legacy zoom aliases and writes canonical TOML", () => {

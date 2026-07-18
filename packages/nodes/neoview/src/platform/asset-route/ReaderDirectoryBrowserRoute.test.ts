@@ -14,6 +14,56 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.selection-http] previews a bounded current-generation selection", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-selection-"))
+    directories.push(directory)
+    for (let index = 0; index < 5; index += 1) await writeFile(join(directory, `item-${index}.cbz`), "book")
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const page = await opened.json() as { sessionId: string; generation: number; entries: Array<{ path: string }> }
+      const endpoint = `http://localhost/reader/browser/s/${page.sessionId}/selection`
+      const previewed = (await route.handle(new Request(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          selection: {
+            generation: page.generation,
+            allSelected: true,
+            ranges: [],
+            explicit: [{ path: page.entries[1]!.path, index: 1 }],
+          },
+          previewLimit: 2,
+        }),
+      })))!
+      expect(previewed.status).toBe(200)
+      await expect(previewed.json()).resolves.toMatchObject({
+        sessionId: page.sessionId,
+        generation: page.generation,
+        total: 5,
+        selectedCount: 4,
+        preview: [page.entries[0]!.path, page.entries[2]!.path],
+        truncated: true,
+      })
+
+      const stale = (await route.handle(new Request(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          selection: { generation: page.generation - 1, allSelected: false, ranges: [], explicit: [] },
+        }),
+      })))!
+      expect(stale.status).toBe(409)
+      await expect(stale.json()).resolves.toMatchObject({ error: expect.stringContaining("stale") })
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.emm-tag-suggestions-http] exposes bounded opaque tag suggestions without opening a browser session", async () => {
     const sampleEmmTags = vi.fn(async () => [
       { category: "artist", tag: "Alice" },

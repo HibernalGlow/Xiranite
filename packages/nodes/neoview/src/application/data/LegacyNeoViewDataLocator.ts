@@ -3,6 +3,7 @@ import { posix, win32 } from "node:path"
 
 export interface LegacyNeoViewDataLocation {
   appDataDirectory: string
+  modelsDirectory: string
   thumbnailDatabasePath: string
   walPath: string
   shmPath: string
@@ -28,6 +29,7 @@ export class LegacyNeoViewDataLocator {
     const thumbnailDatabasePath = join(appDataDirectory, "thumbnails.db")
     return {
       appDataDirectory,
+      modelsDirectory: join(appDataDirectory, "models"),
       thumbnailDatabasePath,
       walPath: `${thumbnailDatabasePath}-wal`,
       shmPath: `${thumbnailDatabasePath}-shm`,

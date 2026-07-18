@@ -1,151 +1,1081 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "featureId": "bookmark-list",
   "legacyCardId": "bookmarkList",
   "title": "书签列表",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
-  "statusValues": ["pending", "partial", "complete"],
   "completionRule": "Complete only when the bookmark virtual source uses the same source-evidenced file item renderers and thumbnail semantics as the folder Card, preserves list management and file actions, and has bounded GUI/CLI/TUI lifecycle and performance evidence.",
   "sourceUiInventory": [
     {
       "id": "bookmark-ui.shared-folder-surface",
       "title": "共享文件浏览器外观与条目 renderer",
-      "sourceEvidence": ["src/lib/cards/bookmark/BookmarkListCard.svelte", "src/lib/cards/shared/FileListPanel.svelte", "src/lib/cards/folder/cards/FileListCard.svelte"],
-      "acceptanceItems": ["virtual://bookmark 初始源", "复用 FileListPanel", "复用 FileListCard", "列表/内容/横幅/缩略图视觉语义", "文件与文件夹图标", "可见条目缩略图", "名称与路径层级", "选中背景", "键盘焦点 ring", "hover 状态", "缩略图失败占位", "窄 Card 响应式密度"],
-      "mappedChecklistIds": ["bookmark.shared-renderer", "bookmark.thumbnails", "bookmark.selection", "bookmark.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/cards/bookmark/BookmarkListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "acceptanceItems": [
+        "virtual://bookmark 初始源",
+        "复用 FileListPanel",
+        "复用 FileListCard",
+        "列表/内容/横幅/缩略图视觉语义",
+        "文件与文件夹图标",
+        "可见条目缩略图",
+        "名称与路径层级",
+        "选中背景",
+        "键盘焦点 ring",
+        "hover 状态",
+        "缩略图失败占位",
+        "窄 Card 响应式密度"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.shared-renderer",
+        "bookmark.thumbnails",
+        "bookmark.selection",
+        "bookmark.ui-parity"
+      ]
     },
     {
       "id": "bookmark-ui.lists",
       "title": "书签列表切换与管理",
-      "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/stores/bookmark.svelte.ts"],
-      "acceptanceItems": ["全部列表 chip", "默认列表", "收藏列表", "自定义列表 chip", "活动列表强调", "横向滚动", "+ 新建列表", "列表名称输入", "收藏夹列表标记", "重命名自定义列表", "删除自定义列表", "删除列表后移除成员关系", "持久化活动列表"],
-      "mappedChecklistIds": ["bookmark.lists", "bookmark.list-management", "bookmark.persistence", "bookmark.accessibility"]
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/stores/bookmark.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "全部列表 chip",
+        "默认列表",
+        "收藏列表",
+        "自定义列表 chip",
+        "活动列表强调",
+        "横向滚动",
+        "+ 新建列表",
+        "列表名称输入",
+        "收藏夹列表标记",
+        "重命名自定义列表",
+        "删除自定义列表",
+        "删除列表后移除成员关系",
+        "持久化活动列表"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.lists",
+        "bookmark.list-management",
+        "bookmark.persistence",
+        "bookmark.accessibility"
+      ]
     },
     {
       "id": "bookmark-ui.navigation-selection",
       "title": "虚拟浏览、选择与键盘",
-      "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts", "src/lib/cards/folder/cards/FileListCard.svelte"],
-      "acceptanceItems": ["虚拟列表分页", "单选", "Ctrl/Meta 切换", "Shift 范围选择", "全选", "取消选择", "Enter 打开", "双击打开", "方向键移动焦点", "Home/End", "Delete", "Ctrl/Cmd+F", "右键菜单", "Shift+F10", "打开文件夹/书籍"],
-      "mappedChecklistIds": ["bookmark.virtualization", "bookmark.selection", "bookmark.actions", "bookmark.accessibility"]
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "acceptanceItems": [
+        "虚拟列表分页",
+        "单选",
+        "Ctrl/Meta 切换",
+        "Shift 范围选择",
+        "全选",
+        "取消选择",
+        "Enter 打开",
+        "双击打开",
+        "方向键移动焦点",
+        "Home/End",
+        "Delete",
+        "Ctrl/Cmd+F",
+        "右键菜单",
+        "Shift+F10",
+        "打开文件夹/书籍"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.virtualization",
+        "bookmark.selection",
+        "bookmark.actions",
+        "bookmark.accessibility"
+      ]
     },
     {
       "id": "bookmark-ui.actions",
       "title": "书签与文件操作",
-      "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/cards/shared/useFileActions.ts", "src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte"],
-      "acceptanceItems": ["添加当前书籍", "添加单项到列表", "批量添加到多个列表", "收藏/取消收藏", "移除书签", "复制路径", "复制名称", "系统定位", "系统打开", "重命名", "删除与确认", "撤销删除", "重载缩略图", "编辑标签", "打开新标签页"],
-      "mappedChecklistIds": ["bookmark.actions", "bookmark.batch-edit", "bookmark.thumbnails", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/shared/useFileActions.ts",
+        "src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte"
+      ],
+      "acceptanceItems": [
+        "添加当前书籍",
+        "添加单项到列表",
+        "批量添加到多个列表",
+        "收藏/取消收藏",
+        "移除书签",
+        "复制路径",
+        "复制名称",
+        "系统定位",
+        "系统打开",
+        "重命名",
+        "删除与确认",
+        "撤销删除",
+        "重载缩略图",
+        "编辑标签",
+        "打开新标签页"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.actions",
+        "bookmark.batch-edit",
+        "bookmark.thumbnails",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.states-lifecycle",
       "title": "状态、持久化与生命周期",
-      "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/stores/bookmark.svelte.ts", "src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte"],
-      "acceptanceItems": ["加载状态", "空列表状态", "分页错误", "操作错误", "刷新", "路径失效降级", "Card 折叠零缩略图工作", "切列表取消旧请求", "卸载释放 thumbnail context", "书签去重", "旧 localStorage 导入", "NeoView 主数据库持久化", "独立 lazy chunk", "大列表有界 DOM"],
-      "mappedChecklistIds": ["bookmark.states", "bookmark.data-contract", "bookmark.lifecycle", "bookmark.shell", "bookmark.performance", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/stores/bookmark.svelte.ts",
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "acceptanceItems": [
+        "加载状态",
+        "空列表状态",
+        "分页错误",
+        "操作错误",
+        "刷新",
+        "路径失效降级",
+        "Card 折叠零缩略图工作",
+        "切列表取消旧请求",
+        "卸载释放 thumbnail context",
+        "书签去重",
+        "旧 localStorage 导入",
+        "NeoView 主数据库持久化",
+        "独立 lazy chunk",
+        "大列表有界 DOM"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.states",
+        "bookmark.data-contract",
+        "bookmark.lifecycle",
+        "bookmark.shell",
+        "bookmark.performance",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.shell",
       "title": "Bookmark Panel 与无标题 full-height Card shell",
-      "sourceEvidence": ["src/lib/components/panels/BookmarkPanel.svelte", "src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte"],
-      "acceptanceItems": ["Bookmark 图标", "书签列表标题", "bookmark Panel", "defaultVisible", "defaultExpanded", "canHide=false", "fullHeight=true", "hideHeader=true", "动态 loader", "Panel 折叠", "Card Window", "失败边界"],
-      "mappedChecklistIds": ["bookmark.shell", "bookmark.ui-parity", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/components/panels/BookmarkPanel.svelte",
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "acceptanceItems": [
+        "Bookmark 图标",
+        "书签列表标题",
+        "bookmark Panel",
+        "defaultVisible",
+        "defaultExpanded",
+        "canHide=false",
+        "fullHeight=true",
+        "hideHeader=true",
+        "动态 loader",
+        "Panel 折叠",
+        "Card Window",
+        "失败边界"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.shell",
+        "bookmark.ui-parity",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.virtual-toolbar",
       "title": "书签虚拟源工具栏与清理",
-      "sourceEvidence": ["src/lib/cards/folder/cards/ToolbarCard.svelte", "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte", "src/lib/components/panels/folderPanel/components/FolderToolbar/ActionButtons.svelte"],
-      "acceptanceItems": ["重新加载书签", "同步文件夹开关", "清理下拉菜单", "清理失效书签", "最近清理数量", "高级清理", "清空全部确认", "操作 pending", "disabled 状态", "成功/错误反馈"],
-      "mappedChecklistIds": ["bookmark.actions", "bookmark.states", "bookmark.lifecycle", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/ToolbarCard.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/ActionButtons.svelte"
+      ],
+      "acceptanceItems": [
+        "重新加载书签",
+        "同步文件夹开关",
+        "清理下拉菜单",
+        "清理失效书签",
+        "最近清理数量",
+        "高级清理",
+        "清空全部确认",
+        "操作 pending",
+        "disabled 状态",
+        "成功/错误反馈"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.actions",
+        "bookmark.states",
+        "bookmark.lifecycle",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.search-sort-filter",
       "title": "搜索、八字段排序与类型筛选",
-      "sourceEvidence": ["src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte", "src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte", "src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte"],
-      "acceptanceItems": ["搜索书签", "名称排序", "路径排序", "添加时间排序", "大小排序", "类型排序", "随机排序", "评分排序", "收藏标签数排序", "升序", "降序", "全部类型", "压缩包", "文件夹", "视频", "独立书签设置"],
-      "mappedChecklistIds": ["bookmark.shared-renderer", "bookmark.virtualization", "bookmark.persistence", "bookmark.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte"
+      ],
+      "acceptanceItems": [
+        "搜索书签",
+        "名称排序",
+        "路径排序",
+        "添加时间排序",
+        "大小排序",
+        "类型排序",
+        "随机排序",
+        "评分排序",
+        "收藏标签数排序",
+        "升序",
+        "降序",
+        "全部类型",
+        "压缩包",
+        "文件夹",
+        "视频",
+        "独立书签设置"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.shared-renderer",
+        "bookmark.virtualization",
+        "bookmark.persistence",
+        "bookmark.ui-parity"
+      ]
     },
     {
       "id": "bookmark-ui.views",
       "title": "四种文件视图与尺寸设置",
-      "sourceEvidence": ["src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte", "src/lib/cards/folder/cards/FileListCard.svelte"],
-      "acceptanceItems": ["list", "content", "banner", "thumbnail", "活动视图图标", "紧凑网格", "缩略图宽度 10..90", "响应式列数", "列表尺寸 Slider", "书签视图独立持久化"],
-      "mappedChecklistIds": ["bookmark.shared-renderer", "bookmark.thumbnails", "bookmark.persistence", "bookmark.ui-parity"]
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "acceptanceItems": [
+        "list",
+        "content",
+        "banner",
+        "thumbnail",
+        "活动视图图标",
+        "紧凑网格",
+        "缩略图宽度 10..90",
+        "响应式列数",
+        "列表尺寸 Slider",
+        "书签视图独立持久化"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.shared-renderer",
+        "bookmark.thumbnails",
+        "bookmark.persistence",
+        "bookmark.ui-parity"
+      ]
     },
     {
       "id": "bookmark-ui.thumbnail-detail",
       "title": "可见缩略图与文件夹多图预览",
-      "sourceEvidence": ["src/lib/utils/thumbnail/VisibleThumbnailLoader.ts", "src/lib/components/panels/file/components/FolderPreviewGrid.svelte", "src/lib/components/panels/file/components/folderPreviewLoader.ts"],
-      "acceptanceItems": ["32ms 可见范围 debounce", "中心优先", "有限预取", "鉴权 opaque URL", "稳定 bookmark id", "folder 1/4/9/16 preview", "单图", "多格", "skeleton", "失败 fallback", "lazy", "async decode", "切换取消", "context release"],
-      "mappedChecklistIds": ["bookmark.thumbnails", "bookmark.lifecycle", "bookmark.performance", "bookmark.image-stability"]
+      "sourceEvidence": [
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts",
+        "src/lib/components/panels/file/components/FolderPreviewGrid.svelte",
+        "src/lib/components/panels/file/components/folderPreviewLoader.ts"
+      ],
+      "acceptanceItems": [
+        "32ms 可见范围 debounce",
+        "中心优先",
+        "有限预取",
+        "鉴权 opaque URL",
+        "稳定 bookmark id",
+        "folder 1/4/9/16 preview",
+        "单图",
+        "多格",
+        "skeleton",
+        "失败 fallback",
+        "lazy",
+        "async decode",
+        "切换取消",
+        "context release"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.thumbnails",
+        "bookmark.lifecycle",
+        "bookmark.performance",
+        "bookmark.image-stability"
+      ]
     },
     {
       "id": "bookmark-ui.item-renderer",
       "title": "文件条目字段、徽章与状态",
-      "sourceEvidence": ["src/lib/components/panels/file/components/FileItemCard.svelte", "src/lib/components/panels/file/components/FileItemListView.svelte", "src/lib/components/panels/file/components/FileItemGridView.svelte"],
-      "acceptanceItems": ["名称", "完整路径", "文件/文件夹图标", "译名", "评分", "收藏标签", "手工标签", "EMM 标签", "书签标记", "已读标记", "创建时间", "大小", "进度", "视频元数据", "selected", "focused", "delete", "check"],
-      "mappedChecklistIds": ["bookmark.shared-renderer", "bookmark.selection", "bookmark.ui-parity", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/components/panels/file/components/FileItemCard.svelte",
+        "src/lib/components/panels/file/components/FileItemListView.svelte",
+        "src/lib/components/panels/file/components/FileItemGridView.svelte"
+      ],
+      "acceptanceItems": [
+        "名称",
+        "完整路径",
+        "文件/文件夹图标",
+        "译名",
+        "评分",
+        "收藏标签",
+        "手工标签",
+        "EMM 标签",
+        "书签标记",
+        "已读标记",
+        "创建时间",
+        "大小",
+        "进度",
+        "视频元数据",
+        "selected",
+        "focused",
+        "delete",
+        "check"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.shared-renderer",
+        "bookmark.selection",
+        "bookmark.ui-parity",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.selection-toolbar",
       "title": "多选、链选与批量操作栏",
-      "sourceEvidence": ["src/lib/components/panels/folderPanel/components/SelectionBar.svelte", "src/lib/cards/shared/FileListPanel.svelte"],
-      "acceptanceItems": ["checkbox", "点选", "点开", "Ctrl/Meta 切换", "Shift 链选", "全选", "反选", "取消", "选择计数", "批量删除", "批量添加到列表", "焦点与选择分离"],
-      "mappedChecklistIds": ["bookmark.selection", "bookmark.batch-edit", "bookmark.accessibility", "bookmark.performance"]
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/SelectionBar.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "checkbox",
+        "点选",
+        "点开",
+        "Ctrl/Meta 切换",
+        "Shift 链选",
+        "全选",
+        "反选",
+        "取消",
+        "选择计数",
+        "批量删除",
+        "批量添加到列表",
+        "焦点与选择分离"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.selection",
+        "bookmark.batch-edit",
+        "bookmark.accessibility",
+        "bookmark.performance"
+      ]
     },
     {
       "id": "bookmark-ui.context-actions",
       "title": "文件上下文菜单",
-      "sourceEvidence": ["src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte", "src/lib/cards/shared/useFileActions.ts"],
-      "acceptanceItems": ["打开为书籍", "浏览", "新标签页", "系统打开", "资源管理器定位", "复制", "剪切", "粘贴", "复制路径", "复制名称", "重命名", "删除", "撤销", "重载缩略图", "编辑标签", "添加到列表", "按类型禁用"],
-      "mappedChecklistIds": ["bookmark.actions", "bookmark.batch-edit", "bookmark.accessibility", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte",
+        "src/lib/cards/shared/useFileActions.ts"
+      ],
+      "acceptanceItems": [
+        "打开为书籍",
+        "浏览",
+        "新标签页",
+        "系统打开",
+        "资源管理器定位",
+        "复制",
+        "剪切",
+        "粘贴",
+        "复制路径",
+        "复制名称",
+        "重命名",
+        "删除",
+        "撤销",
+        "重载缩略图",
+        "编辑标签",
+        "添加到列表",
+        "按类型禁用"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.actions",
+        "bookmark.batch-edit",
+        "bookmark.accessibility",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.add-dialog",
       "title": "批量添加到书签列表对话框",
-      "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte"],
-      "acceptanceItems": ["目标项目清单", "多列表 checkbox", "内嵌新列表名称", "收藏夹 toggle", "新建并选中", "无目标状态", "未选列表校验", "取消", "确认", "成功反馈", "错误反馈"],
-      "mappedChecklistIds": ["bookmark.list-management", "bookmark.batch-edit", "bookmark.states", "bookmark.accessibility"]
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "目标项目清单",
+        "多列表 checkbox",
+        "内嵌新列表名称",
+        "收藏夹 toggle",
+        "新建并选中",
+        "无目标状态",
+        "未选列表校验",
+        "取消",
+        "确认",
+        "成功反馈",
+        "错误反馈"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.list-management",
+        "bookmark.batch-edit",
+        "bookmark.states",
+        "bookmark.accessibility"
+      ]
     },
     {
       "id": "bookmark-ui.keyboard",
       "title": "键盘命令与输入保护",
-      "sourceEvidence": ["src/lib/components/panels/folderPanel/utils/keyboardHandler.ts", "src/lib/cards/shared/FileListPanel.svelte"],
-      "acceptanceItems": ["input/contenteditable guard", "Enter", "Backspace", "F5", "Delete", "Ctrl/Cmd+A", "Ctrl/Cmd+F", "Escape", "Arrow", "Home/End", "context menu keyboard equivalent", "焦点恢复"],
-      "mappedChecklistIds": ["bookmark.selection", "bookmark.actions", "bookmark.accessibility", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts",
+        "src/lib/cards/shared/FileListPanel.svelte"
+      ],
+      "acceptanceItems": [
+        "input/contenteditable guard",
+        "Enter",
+        "Backspace",
+        "F5",
+        "Delete",
+        "Ctrl/Cmd+A",
+        "Ctrl/Cmd+F",
+        "Escape",
+        "Arrow",
+        "Home/End",
+        "context menu keyboard equivalent",
+        "焦点恢复"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.selection",
+        "bookmark.actions",
+        "bookmark.accessibility",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.persistence",
       "title": "书签业务数据与视图设置持久化",
-      "sourceEvidence": ["src/lib/stores/bookmark.svelte.ts", "src/lib/stores/virtualPanelSettings.svelte.ts"],
-      "acceptanceItems": ["legacy bookmarks key", "legacy lists key", "legacy active-list key", "bookmark panel settings", "createdAt", "path normalize", "dedupe", "最大数量", "list membership", "旧数据导入", "xr_ 业务表", "[nodes.neoview] UI 设置"],
-      "mappedChecklistIds": ["bookmark.data-contract", "bookmark.persistence", "bookmark.lifecycle", "bookmark.deviations"]
+      "sourceEvidence": [
+        "src/lib/stores/bookmark.svelte.ts",
+        "src/lib/stores/virtualPanelSettings.svelte.ts"
+      ],
+      "acceptanceItems": [
+        "legacy bookmarks key",
+        "legacy lists key",
+        "legacy active-list key",
+        "bookmark panel settings",
+        "createdAt",
+        "path normalize",
+        "dedupe",
+        "最大数量",
+        "list membership",
+        "旧数据导入",
+        "xr_ 业务表",
+        "[nodes.neoview] UI 设置"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.data-contract",
+        "bookmark.persistence",
+        "bookmark.lifecycle",
+        "bookmark.deviations"
+      ]
     },
     {
       "id": "bookmark-ui.accessibility-parity",
       "title": "可访问性、响应式与视觉 characterization",
-      "sourceEvidence": ["src/lib/cards/bookmark/BookmarkListCard.svelte", "src/lib/cards/shared/FileListPanel.svelte", "src/lib/cards/folder/cards/FileListCard.svelte"],
-      "acceptanceItems": ["命名 icon button", "pressed 状态", "destructive confirmation", "live feedback", "焦点可见", "触摸可达操作", "desktop screenshot", "420x360 screenshot", "无重叠", "旧信息密度", "缩略图不重挂 Reader 图像"],
-      "mappedChecklistIds": ["bookmark.accessibility", "bookmark.ui-parity", "bookmark.image-stability", "bookmark.performance"]
+      "sourceEvidence": [
+        "src/lib/cards/bookmark/BookmarkListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "acceptanceItems": [
+        "命名 icon button",
+        "pressed 状态",
+        "destructive confirmation",
+        "live feedback",
+        "焦点可见",
+        "触摸可达操作",
+        "desktop screenshot",
+        "420x360 screenshot",
+        "无重叠",
+        "旧信息密度",
+        "缩略图不重挂 Reader 图像"
+      ],
+      "mappedChecklistIds": [
+        "bookmark.accessibility",
+        "bookmark.ui-parity",
+        "bookmark.image-stability",
+        "bookmark.performance"
+      ]
     }
   ],
   "items": [
-    { "id": "bookmark.shared-renderer", "category": "ui-parity", "title": "复用文件浏览器条目视觉契约", "sourceEvidence": ["src/lib/cards/bookmark/BookmarkListCard.svelte", "src/lib/cards/shared/FileListPanel.svelte", "src/lib/cards/folder/cards/FileListCard.svelte"], "targetContract": "Bookmark rows use a shared folder-entry visual primitive for compact/rich list and thumbnail surfaces instead of a divergent icon-only list.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.shared-entry.variants", "neoview.shared-entry.interaction", "neoview.bookmark.thumbnail-visible", "neoview.bookmark.view-modes", "neoview.bookmark.thumbnail-e2e"], "notes": "Bookmark exposes the legacy 列表/内容/横幅/缩略图 controls and renders every mode through ReaderEntrySurface rather than a Bookmark-only item renderer; Folder migration remains owned by its separate checklist." },
-    { "id": "bookmark.thumbnails", "category": "capabilities", "title": "显示可见书签缩略图", "sourceEvidence": ["src/lib/cards/folder/cards/FileListCard.svelte", "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts"], "targetContract": "Only the virtual visible bookmark window registers authenticated file/folder thumbnails; stale batches cancel and contexts release on list change or unmount.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bookmark.thumbnail-visible", "neoview.bookmark.view-modes", "neoview.bookmark.thumbnail-lease", "neoview.bookmark.thumbnail-e2e", "neoview.bookmark.thumbnail-lease-e2e", "neoview.shared-thumbnail.fit"], "notes": "Content, banner and thumbnail modes reuse the Folder entry surface and register authenticated cover thumbnails only for the scoped virtual visible window; compact or empty modes release the active context immediately, folder entries request four-image preview semantics, and invalid-path parity remains pending." },
-    { "id": "bookmark.lists", "category": "capabilities", "title": "切换系统与自定义书签列表", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/stores/bookmark.svelte.ts"], "targetContract": "All, default, favorites and custom lists remain distinguishable and the active list filters the virtual source.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bookmark.card", "neoview.bookmark.thumbnail-e2e"], "notes": "React now preserves the legacy horizontal chip hierarchy; active-list persistence and the full management surface remain incomplete." },
-    { "id": "bookmark.list-management", "category": "capabilities", "title": "创建、重命名、收藏与删除列表", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/stores/bookmark.svelte.ts"], "targetContract": "Custom lists support create, rename, favorite and delete with protected system lists and membership cleanup.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.library.bookmarks", "neoview.bookmark.list-management", "neoview.bookmark.thumbnail-e2e"], "notes": "GUI uses controlled dialogs for create/rename/favorite/delete, system lists stay protected, and all mutations reuse the shared service used by CLI/TUI." },
-    { "id": "bookmark.virtualization", "category": "performance", "title": "虚拟化大书签列表", "sourceEvidence": ["src/lib/cards/folder/cards/FileListCard.svelte"], "targetContract": "List rendering, pagination and thumbnail demand remain bounded by the visible window at 10K items.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.library.lifecycle", "neoview.bookmark.thumbnail-visible"], "notes": "Rows and thumbnail registration are bounded by the virtual window; the dedicated 10K Chromium request-count corpus remains pending." },
-    { "id": "bookmark.selection", "category": "interaction-states", "title": "共享选择与焦点语义", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts"], "targetContract": "Single, toggle, range and keyboard focus selection match the folder Card without materializing unbounded DOM.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.bookmark.selection", "neoview.bookmark.thumbnail-e2e"], "notes": "Stable bookmark IDs back single, Ctrl/Meta toggle and Shift range selection; Arrow/Home/End move visible focus, Space selects and Enter opens without adding DOM rows." },
-    { "id": "bookmark.actions", "category": "capabilities", "title": "打开、定位、收藏与移除书签", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/cards/shared/useFileActions.ts"], "targetContract": "Single bookmark actions preserve legacy file commands and authenticated host capabilities.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bookmark.card", "neoview.library.bookmarks", "neoview.bookmark.thumbnail-e2e"], "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; copy, reveal, system-open, rename, tags and new-tab actions remain pending." },
-    { "id": "bookmark.batch-edit", "category": "capabilities", "title": "批量编辑书签与列表成员关系", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/stores/bookmark.svelte.ts"], "targetContract": "Selected bookmarks can be added to multiple lists or removed through one bounded operation.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bookmark.batch-contract", "neoview.bookmark.batch-delete", "neoview.bookmark.batch-edit", "neoview.bookmark.thumbnail-e2e"], "notes": "GUI sends one bounded authenticated request for multi-list membership and one for confirmed delete; explicit CLI/TUI batch commands remain pending." },
-    { "id": "bookmark.data-contract", "category": "data-contract", "title": "GUI/CLI/TUI 共用书签契约", "sourceEvidence": ["src/lib/stores/bookmark.svelte.ts"], "targetContract": "All surfaces share canonical source identity, list membership, favorite state and timestamps without a second bookmark store.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.library.contract", "neoview.library.bookmarks", "neoview.library.cli", "neoview.library.tui"], "notes": "Core persistence is shared; remaining UI commands must use it." },
-    { "id": "bookmark.states", "category": "interaction-states", "title": "加载、空、错误、刷新与失效路径", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte"], "targetContract": "Stable loading, empty, request error, action error, retry and invalid-path states retain existing rows when optional thumbnails fail.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.library.lifecycle"], "notes": "Thumbnail failure must degrade independently." },
-    { "id": "bookmark.persistence", "category": "settings", "title": "持久化列表、活动筛选与 Card 布局", "sourceEvidence": ["src/lib/stores/bookmark.svelte.ts", "src/lib/stores/cardConfig.svelte.ts"], "targetContract": "Bookmark business data remains in the compatible NeoView database while Card layout uses canonical [nodes.neoview].", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.library.bookmarks", "neoview.settings.card-layout"], "notes": "Active-list persistence and legacy import still require evidence." },
-    { "id": "bookmark.lifecycle", "category": "lifecycle", "title": "取消分页和缩略图并释放上下文", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts"], "targetContract": "List switches, collapse, unmount and backend disposal abort stale loads and release thumbnail contexts.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.library.lifecycle", "neoview.bookmark.thumbnail-visible", "neoview.bookmark.thumbnail-lease", "neoview.bookmark.thumbnail-stale", "neoview.bookmark.thumbnail-e2e", "neoview.bookmark.thumbnail-lease-e2e"], "notes": "Visible batches abort and use list-scoped rotating context IDs; compact/empty transitions and unmount release the active lease without allowing a late DELETE or registration response to affect the next scope. Backend disposal and a dedicated 10K corpus remain pending." },
-    { "id": "bookmark.shell", "category": "ui-parity", "title": "保持共享 Card shell 行为", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte"], "targetContract": "Bookmark remains independently lazy, hideable, collapsible, movable, resizable and window-capable.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.shell.registry-lazy", "neoview.bookmark.chunk", "neoview.shared-entry.chunk", "neoview.bookmark.thumbnail-e2e"], "notes": "The shared shell and independent 11,399-byte Bookmark plus 1,969-byte entry-surface deferred production chunks are gated in desktop and constrained Card flows." },
-    { "id": "bookmark.accessibility", "category": "keyboard-accessibility", "title": "键盘选择、命名动作与焦点恢复", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts"], "targetContract": "List tabs, rows, selection, menus and destructive confirmations are keyboard/touch operable with stable accessible names.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bookmark.card"], "notes": "Row actions are named; selection and context actions remain incomplete." },
-    { "id": "bookmark.ui-parity", "category": "ui-parity", "title": "保持旧版文件条目信息密度", "sourceEvidence": ["src/lib/cards/shared/FileListPanel.svelte", "src/lib/cards/folder/cards/FileListCard.svelte"], "targetContract": "Folder-style thumbnails, title/path hierarchy, action density and selection states fit desktop and 420x360 Cards without overlap.", "surfaces": ["GUI"], "status": "complete", "testIds": ["neoview.bookmark.view-modes", "neoview.bookmark.thumbnail-e2e", "neoview.bookmark.selection"], "notes": "Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, stable Reader media and zero horizontal overflow." },
-    { "id": "bookmark.performance", "category": "performance", "title": "有界 DOM、可见缩略图与独立 chunk", "sourceEvidence": ["src/lib/cards/folder/cards/FileListCard.svelte", "src/lib/cards/CardRenderer.svelte"], "targetContract": "The Card renders a bounded virtual window, registers only visible thumbnails, performs zero hidden work and stays in an independent deferred chunk.", "surfaces": ["GUI", "CLI", "TUI"], "status": "partial", "testIds": ["neoview.bookmark.thumbnail-visible", "neoview.bookmark.view-modes", "neoview.bookmark.thumbnail-lease", "neoview.bookmark.thumbnail-e2e", "neoview.bookmark.thumbnail-lease-e2e", "neoview.bookmark.chunk"], "notes": "Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, and the 13.71 KiB Card remains deferred; a 10K Chromium request-count run and visited-page metadata eviction remain pending." },
-    { "id": "bookmark.image-stability", "category": "performance", "title": "缩略图工作不重挂活动阅读图像", "sourceEvidence": ["src/lib/utils/thumbnail/VisibleThumbnailLoader.ts", "src/lib/cards/shared/FileListPanel.svelte"], "targetContract": "Opening the Card, scrolling thumbnails and switching lists preserve the active Reader media node and asset URL.", "surfaces": ["GUI"], "status": "partial", "testIds": ["neoview.bookmark.thumbnail-e2e"], "notes": "Real Chromium proves opening and thumbnail mutation preserve the active image; scrolling and list-switch identity checks remain pending." },
-    { "id": "bookmark.deviations", "category": "deviations", "title": "记录共享后端与视觉 primitive 扩展", "sourceEvidence": ["src/lib/cards/bookmark/BookmarkListCard.svelte", "src/lib/cards/shared/FileListPanel.svelte"], "targetContract": "Document authenticated thumbnail batching and the shared React entry visual as XR implementations of the legacy FileListPanel reuse contract.", "surfaces": ["GUI", "CLI", "TUI"], "status": "complete", "testIds": ["neoview.shared-entry.variants", "neoview.bookmark.thumbnail-visible", "neoview.bookmark.batch-contract", "neoview.bookmark.thumbnail-e2e"], "notes": "Authenticated visible-window thumbnails, stable ID selection, bounded batch routes and the shared slot-based entry surface replace the legacy in-process FileListPanel wiring without removing bookmark fields or creating a second business store." }
+    {
+      "id": "bookmark.shared-renderer",
+      "category": "ui-parity",
+      "title": "复用文件浏览器条目视觉契约",
+      "sourceEvidence": [
+        "src/lib/cards/bookmark/BookmarkListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "targetContract": "Bookmark rows use a shared folder-entry visual primitive for compact/rich list and thumbnail surfaces instead of a divergent icon-only list.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.shared-entry.variants",
+        "neoview.shared-entry.interaction",
+        "neoview.bookmark.thumbnail-visible",
+        "neoview.bookmark.view-modes",
+        "neoview.bookmark.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Bookmark exposes the legacy 列表/内容/横幅/缩略图 controls and renders every mode through ReaderEntrySurface rather than a Bookmark-only item renderer; Folder migration remains owned by its separate checklist."
+    },
+    {
+      "id": "bookmark.thumbnails",
+      "category": "capabilities",
+      "title": "显示可见书签缩略图",
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/FileListCard.svelte",
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts"
+      ],
+      "targetContract": "Only the virtual visible bookmark window registers authenticated file/folder thumbnails; stale batches cancel and contexts release on list change or unmount.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bookmark.thumbnail-visible",
+        "neoview.bookmark.view-modes",
+        "neoview.bookmark.thumbnail-lease",
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.thumbnail-lease-e2e",
+        "neoview.bookmark.thumbnail-refresh-client",
+        "neoview.thumbnail.library-register-refresh",
+        "neoview.bookmark.thumbnail-reload-e2e",
+        "neoview.shared-thumbnail.fit"
+      ],
+      "plannedTestIds": [],
+      "notes": "Content, banner and thumbnail modes reuse the Folder entry surface and register authenticated cover thumbnails only for the scoped virtual visible window; compact or empty modes release the active context immediately, folder entries request four-image preview semantics, and one-shot reload refreshes only the requested source before publishing a new capability URL. Invalid-path parity remains pending."
+    },
+    {
+      "id": "bookmark.lists",
+      "category": "capabilities",
+      "title": "切换系统与自定义书签列表",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/stores/bookmark.svelte.ts"
+      ],
+      "targetContract": "All, default, favorites and custom lists remain distinguishable and the active list filters the virtual source.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bookmark.card",
+        "neoview.bookmark.active-list-config",
+        "neoview.settings.shell-http",
+        "neoview.bookmark.active-list-settings",
+        "neoview.bookmark.active-list-fallback",
+        "neoview.bookmark.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "React preserves the legacy horizontal chip hierarchy, restores the last confirmed list through the bounded runtime config DTO, repairs deleted list IDs to all before issuing a bookmark query, and persists switches through the authenticated config route. Explicit CLI/TUI preference controls remain pending."
+    },
+    {
+      "id": "bookmark.list-management",
+      "category": "capabilities",
+      "title": "创建、重命名、收藏与删除列表",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/stores/bookmark.svelte.ts"
+      ],
+      "targetContract": "Custom lists support create, rename, favorite and delete with protected system lists and membership cleanup.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.bookmarks",
+        "neoview.bookmark.list-management",
+        "neoview.bookmark.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI uses controlled dialogs for create/rename/favorite/delete, system lists stay protected, and all mutations reuse the shared service used by CLI/TUI."
+    },
+    {
+      "id": "bookmark.virtualization",
+      "category": "performance",
+      "title": "虚拟化大书签列表",
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "targetContract": "List rendering, pagination and thumbnail demand remain bounded by the visible window at 10K items.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.lifecycle",
+        "neoview.bookmark.thumbnail-visible"
+      ],
+      "plannedTestIds": [],
+      "notes": "Rows and thumbnail registration are bounded by the virtual window; the dedicated 10K Chromium request-count corpus remains pending."
+    },
+    {
+      "id": "bookmark.selection",
+      "category": "interaction-states",
+      "title": "共享选择与焦点语义",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts"
+      ],
+      "targetContract": "Single, toggle, range and keyboard focus selection match the folder Card without materializing unbounded DOM.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.bookmark.selection",
+        "neoview.bookmark.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Stable bookmark IDs back single, Ctrl/Meta toggle and Shift range selection; Arrow/Home/End move visible focus, Space selects and Enter opens without adding DOM rows."
+    },
+    {
+      "id": "bookmark.actions",
+      "category": "capabilities",
+      "title": "打开、定位、收藏与移除书签",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/shared/useFileActions.ts"
+      ],
+      "targetContract": "Single bookmark actions preserve legacy file commands and authenticated host capabilities.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bookmark.card",
+        "neoview.library.bookmarks",
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.context-actions",
+        "neoview.bookmark.context-capabilities",
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.thumbnail-refresh-client",
+        "neoview.thumbnail.library-register-refresh",
+        "neoview.bookmark.thumbnail-reload-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Rename, tags and new-tab actions remain pending."
+    },
+    {
+      "id": "bookmark.batch-edit",
+      "category": "capabilities",
+      "title": "批量编辑书签与列表成员关系",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/stores/bookmark.svelte.ts"
+      ],
+      "targetContract": "Selected bookmarks can be added to multiple lists or removed through one bounded operation.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bookmark.batch-contract",
+        "neoview.bookmark.batch-delete",
+        "neoview.bookmark.batch-edit",
+        "neoview.bookmark.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "GUI sends one bounded authenticated request for multi-list membership and one for confirmed delete; explicit CLI/TUI batch commands remain pending."
+    },
+    {
+      "id": "bookmark.data-contract",
+      "category": "data-contract",
+      "title": "GUI/CLI/TUI 共用书签契约",
+      "sourceEvidence": [
+        "src/lib/stores/bookmark.svelte.ts"
+      ],
+      "targetContract": "All surfaces share canonical source identity, list membership, favorite state and timestamps without a second bookmark store.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.contract",
+        "neoview.library.bookmarks",
+        "neoview.library.cli",
+        "neoview.library.tui"
+      ],
+      "plannedTestIds": [],
+      "notes": "Core persistence is shared; remaining UI commands must use it."
+    },
+    {
+      "id": "bookmark.states",
+      "category": "interaction-states",
+      "title": "加载、空、错误、刷新与失效路径",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte"
+      ],
+      "targetContract": "Stable loading, empty, request error, action error, retry and invalid-path states retain existing rows when optional thumbnails fail.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.lifecycle",
+        "neoview.bookmark.active-list-fallback",
+        "neoview.bookmark.active-list-rollback"
+      ],
+      "plannedTestIds": [],
+      "notes": "Initial list-directory loading has a bounded skeleton, invalid persisted list IDs fall back before any bookmark query, and a failed preference write restores the confirmed list with an alert. Invalid source-path presentation and independent thumbnail failure remain partial."
+    },
+    {
+      "id": "bookmark.persistence",
+      "category": "settings",
+      "title": "持久化列表、活动筛选与 Card 布局",
+      "sourceEvidence": [
+        "src/lib/stores/bookmark.svelte.ts",
+        "src/lib/stores/cardConfig.svelte.ts"
+      ],
+      "targetContract": "Bookmark business data remains in the compatible NeoView database while Card layout uses canonical [nodes.neoview].",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.bookmarks",
+        "neoview.settings.card-layout",
+        "neoview.bookmark.active-list-config",
+        "neoview.settings.shell-http",
+        "neoview.bookmark.active-list-settings",
+        "neoview.bookmark.active-list-fallback",
+        "neoview.bookmark.active-list-rollback"
+      ],
+      "plannedTestIds": [],
+      "notes": "Bookmark business data remains in the shared NeoView SQLite owner, while the active list now round-trips through canonical [nodes.neoview.bookmark_list], authenticated config PATCH, deleted-list repair and GUI rollback. Legacy bookmark import and explicit CLI/TUI preference controls remain pending."
+    },
+    {
+      "id": "bookmark.lifecycle",
+      "category": "lifecycle",
+      "title": "取消分页和缩略图并释放上下文",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts"
+      ],
+      "targetContract": "List switches, collapse, unmount and backend disposal abort stale loads and release thumbnail contexts.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.library.lifecycle",
+        "neoview.bookmark.thumbnail-visible",
+        "neoview.bookmark.thumbnail-lease",
+        "neoview.bookmark.thumbnail-stale",
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.thumbnail-lease-e2e",
+        "neoview.bookmark.thumbnail-refresh-client",
+        "neoview.bookmark.thumbnail-reload-e2e",
+        "neoview.bookmark.active-list-settings",
+        "neoview.bookmark.active-list-fallback",
+        "neoview.bookmark.active-list-rollback"
+      ],
+      "plannedTestIds": [],
+      "notes": "Visible batches abort and use list-scoped rotating context IDs; compact/empty transitions and unmount release the active lease without allowing a late DELETE or registration response to affect the next scope. One-shot refresh promises settle only after the replacement URL is published and reject on stale/unmounted work. Persisted list restoration waits for the list directory, invalid IDs never reach listBookmarks, and failed switches restore the confirmed query key. Backend disposal and a dedicated 10K corpus remain pending."
+    },
+    {
+      "id": "bookmark.shell",
+      "category": "ui-parity",
+      "title": "保持共享 Card shell 行为",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "Bookmark remains independently lazy, hideable, collapsible, movable, resizable and window-capable.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.shell.registry-lazy",
+        "neoview.bookmark.chunk",
+        "neoview.shared-entry.chunk",
+        "neoview.bookmark.thumbnail-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "The shared shell and independent 11,399-byte Bookmark plus 1,969-byte entry-surface deferred production chunks are gated in desktop and constrained Card flows."
+    },
+    {
+      "id": "bookmark.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "键盘选择、命名动作与焦点恢复",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/components/panels/folderPanel/utils/keyboardHandler.ts"
+      ],
+      "targetContract": "List tabs, rows, selection, menus and destructive confirmations are keyboard/touch operable with stable accessible names.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bookmark.card",
+        "neoview.bookmark.context-actions",
+        "neoview.bookmark.context-capabilities",
+        "neoview.bookmark.context-actions-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Rows and context actions have stable accessible names, destructive removal uses the shared confirmation contract, and desktop/card Chromium exercise the real pointer menu. Shift+F10 and post-confirm focus restoration remain pending."
+    },
+    {
+      "id": "bookmark.ui-parity",
+      "category": "ui-parity",
+      "title": "保持旧版文件条目信息密度",
+      "sourceEvidence": [
+        "src/lib/cards/shared/FileListPanel.svelte",
+        "src/lib/cards/folder/cards/FileListCard.svelte"
+      ],
+      "targetContract": "Folder-style thumbnails, title/path hierarchy, action density and selection states fit desktop and 420x360 Cards without overlap.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.bookmark.view-modes",
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.selection",
+        "neoview.bookmark.context-actions-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, host context actions, stable Reader media and zero horizontal overflow."
+    },
+    {
+      "id": "bookmark.performance",
+      "category": "performance",
+      "title": "有界 DOM、可见缩略图与独立 chunk",
+      "sourceEvidence": [
+        "src/lib/cards/folder/cards/FileListCard.svelte",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "The Card renders a bounded virtual window, registers only visible thumbnails, performs zero hidden work and stays in an independent deferred chunk.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bookmark.thumbnail-visible",
+        "neoview.bookmark.view-modes",
+        "neoview.bookmark.thumbnail-lease",
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.thumbnail-lease-e2e",
+        "neoview.bookmark.chunk",
+        "neoview.bookmark.context-actions-chunk"
+      ],
+      "plannedTestIds": [],
+      "notes": "Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, the 14,466-byte Card remains deferred, and the 3,487-byte context-action module stays in a second-level chunk; a 10K Chromium request-count run and visited-page metadata eviction remain pending."
+    },
+    {
+      "id": "bookmark.image-stability",
+      "category": "performance",
+      "title": "缩略图工作不重挂活动阅读图像",
+      "sourceEvidence": [
+        "src/lib/utils/thumbnail/VisibleThumbnailLoader.ts",
+        "src/lib/cards/shared/FileListPanel.svelte"
+      ],
+      "targetContract": "Opening the Card, scrolling thumbnails and switching lists preserve the active Reader media node and asset URL.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.thumbnail-reload-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Real Chromium proves opening, thumbnail mutation, single-source reload and copy/system-open/reveal context actions preserve the active image; scrolling and list-switch identity checks remain pending."
+    },
+    {
+      "id": "bookmark.deviations",
+      "category": "deviations",
+      "title": "记录共享后端与视觉 primitive 扩展",
+      "sourceEvidence": [
+        "src/lib/cards/bookmark/BookmarkListCard.svelte",
+        "src/lib/cards/shared/FileListPanel.svelte"
+      ],
+      "targetContract": "Document authenticated thumbnail batching and the shared React entry visual as XR implementations of the legacy FileListPanel reuse contract.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.shared-entry.variants",
+        "neoview.bookmark.thumbnail-visible",
+        "neoview.bookmark.batch-contract",
+        "neoview.bookmark.thumbnail-e2e",
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.thumbnail-reload-e2e"
+      ],
+      "plannedTestIds": [],
+      "notes": "Authenticated visible-window thumbnails, stable ID selection, bounded batch routes and the shared slot-based entry surface replace the legacy in-process FileListPanel wiring without removing bookmark fields or creating a second business store."
+    }
   ]
 }
