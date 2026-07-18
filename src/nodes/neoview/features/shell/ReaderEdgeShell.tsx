@@ -227,7 +227,7 @@ function ReaderEdgeSurface({
             edge === "top"
               ? "z-[80]"
               : edge === "left" || edge === "right"
-                ? "z-[70] hover:z-[75] focus-within:z-[75]"
+                ? "z-[85]"
                 : "z-[60]",
             surfaceClass(edge),
             slot.className,

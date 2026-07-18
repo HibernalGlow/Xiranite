@@ -51,7 +51,8 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
     if (rootRef.current) rootRef.current.style.width = isVertical(layout.layout) ? `${layout.width}px` : ""
   }, [layout.layout, layout.width])
   const unpinnedCount = tabs.reduce((count, tab) => count + (tab.pinned ? 0 : 1), 0)
-  const vertical = isVertical(layout.layout)
+  const effectiveLayout = layout.layout === "none" && tabs.length > 1 ? "top" : layout.layout
+  const vertical = isVertical(effectiveLayout)
 
   function beginWidthResize(event: ReactPointerEvent<HTMLButtonElement>) {
     const root = rootRef.current
@@ -88,7 +89,7 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
     if (rootRef.current) rootRef.current.style.width = `${layout.width}px`
   }
 
-  if (layout.layout === "none") {
+  if (effectiveLayout === "none") {
     return (
       <div className="flex h-8 items-center" data-folder-tab-bar="false" data-folder-tab-layout="none">
         <LayoutSettingsButton disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
@@ -104,7 +105,7 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
         : "flex h-8 min-w-0 items-center gap-1 overflow-x-auto rounded-md border bg-muted/30 p-0.5"}
       style={vertical ? { width: layout.width } : undefined}
       data-folder-tab-bar="true"
-      data-folder-tab-layout={layout.layout}
+      data-folder-tab-layout={effectiveLayout}
     >
       <div className={vertical ? "flex min-h-0 min-w-0 flex-1 flex-col items-stretch gap-1" : "flex min-w-0 flex-1 items-center gap-1"} role="tablist" aria-label="文件夹标签">
         {tabs.map((tab, tabIndex) => {
