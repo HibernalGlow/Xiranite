@@ -24,6 +24,7 @@ const DEFAULT_MAX_ENTRIES = 32
 export class SevenZipArchiveIndexCache implements AsyncDisposable {
   readonly #entries: LRUCache<string, SevenZipArchiveIndex>
   readonly #loads = new Map<string, Promise<SevenZipArchiveIndex>>()
+  readonly #sourceRevisions = new Map<string, string>()
   readonly #enabled: boolean
   #closed = false
 
@@ -43,9 +44,11 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
     this.#assertOpen()
     options.signal?.throwIfAborted()
     if (!this.#enabled) return waitWithSignal(options.load(), options.signal)
-    const key = await revisionKey(options).catch(() => undefined)
+    const revision = await revisionKey(options).catch(() => undefined)
     options.signal?.throwIfAborted()
-    if (!key) return waitWithSignal(options.load(), options.signal)
+    if (!revision) return waitWithSignal(options.load(), options.signal)
+    const { key } = revision
+    this.#replaceSourceRevision(revision.sourceIdentity, key)
     const cached = this.#entries.get(key)
     if (cached) return cloneIndex(cached)
     let loading = this.#loads.get(key)
@@ -53,7 +56,7 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
       loading = options.load().then((index) => {
         this.#assertOpen()
         const normalized = cloneIndex(index)
-        this.#entries.set(key, normalized)
+        if (this.#sourceRevisions.get(revision.sourceIdentity) === key) this.#entries.set(key, normalized)
         return normalized
       })
       this.#loads.set(key, loading)
@@ -67,12 +70,14 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
 
   clear(): void {
     this.#entries.clear()
+    this.#sourceRevisions.clear()
   }
 
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
     this.#entries.clear()
+    this.#sourceRevisions.clear()
     this.#loads.clear()
   }
 
@@ -83,9 +88,20 @@ export class SevenZipArchiveIndexCache implements AsyncDisposable {
   #assertOpen(): void {
     if (this.#closed) throw new Error("SevenZip archive index cache is closed.")
   }
+
+  #replaceSourceRevision(sourceIdentity: string, key: string): void {
+    const previous = this.#sourceRevisions.get(sourceIdentity)
+    if (previous && previous !== key) this.#entries.delete(previous)
+    this.#sourceRevisions.set(sourceIdentity, key)
+  }
 }
 
-async function revisionKey(options: SevenZipArchiveIndexLoadOptions): Promise<string> {
+interface ArchiveRevisionKey {
+  key: string
+  sourceIdentity: string
+}
+
+async function revisionKey(options: SevenZipArchiveIndexLoadOptions): Promise<ArchiveRevisionKey> {
   const identity = await realpath(options.sourcePath)
   const source = await stat(identity, { bigint: true })
   const hash = createHash("sha256")
@@ -102,7 +118,7 @@ async function revisionKey(options: SevenZipArchiveIndexLoadOptions): Promise<st
     hash.update(String(value))
     hash.update("\0")
   }
-  return hash.digest("hex")
+  return { key: hash.digest("hex"), sourceIdentity: identity }
 }
 
 function cloneIndex(index: SevenZipArchiveIndex): SevenZipArchiveIndex {

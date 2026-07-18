@@ -63,6 +63,42 @@ describe("SevenZipArchiveIndexCache", () => {
     expect(load).toHaveBeenCalledTimes(2)
     expect(first.entries[0]?.id).toBe("entry-1")
     expect(second.entries[0]?.id).toBe("entry-2")
+    expect(cache.size).toBe(1)
+    await cache.close()
+  })
+
+  it("[neoview.sevenzip.index-cache-revision-flight] does not republish an older concurrent load", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-index-cache-flight-"))
+    cleanup.push(root)
+    const sourcePath = join(root, "book.7z")
+    await writeFile(sourcePath, Uint8Array.of(1, 2, 3))
+    const cache = new SevenZipArchiveIndexCache(2)
+    let releaseOld!: (index: { solid: false; entries: readonly [] }) => void
+    let oldStarted!: () => void
+    const started = new Promise<void>((resolve) => { oldStarted = resolve })
+    const load = vi.fn(() => {
+      if (load.mock.calls.length === 1) {
+        oldStarted()
+        return new Promise<{ solid: false; entries: readonly [] }>((resolve) => { releaseOld = resolve })
+      }
+      return Promise.resolve({ solid: false, entries: [] as const })
+    })
+    const options = {
+      sourcePath,
+      executablePath: "C:/tools/7zz.exe",
+      executableVersion: "26.02",
+      maxListingBytes: 1024,
+      load,
+    }
+
+    const oldPending = cache.getOrLoad(options)
+    await started
+    await writeFile(sourcePath, Uint8Array.of(4, 5, 6, 7))
+    await expect(cache.getOrLoad(options)).resolves.toEqual({ solid: false, entries: [] })
+    releaseOld({ solid: false, entries: [] })
+    await oldPending
+    expect(cache.size).toBe(1)
+    expect(load).toHaveBeenCalledTimes(2)
     await cache.close()
   })
 
