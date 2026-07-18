@@ -557,6 +557,7 @@ export function ReaderApp({
       setPresentation: applyInputPresentation,
       navigate,
       goTo,
+      switchBook: switchAdjacentBook,
       updatePageMode,
       updateReadingDirection: updateCurrentBookReadingDirection,
       toggleTemporaryFit,
@@ -581,6 +582,38 @@ export function ReaderApp({
     temporaryFitPresentationRef.current = undefined
     presentationTouchedRef.current = true
     setPresentation(next)
+  }
+
+  async function switchAdjacentBook(direction: "next" | "previous"): Promise<boolean> {
+    const sessionId = sessionRef.current
+    const openAdjacentBook = clientRef.current.openAdjacentBook
+    if (!sessionId || !openAdjacentBook || busy) return false
+    slideshow.stop()
+    operationRef.current?.abort()
+    const controller = new AbortController()
+    operationRef.current = controller
+    setBusy(true)
+    setError(undefined)
+    try {
+      const replacement = await openAdjacentBook(sessionId, direction, controller.signal)
+      if (!replacement || controller.signal.aborted) return false
+      sessionRef.current = replacement.sessionId
+      setSession(replacement)
+      setPresentation({ ...DEFAULT_READER_PRESENTATION, fitMode: viewDefaultsRef.current.fitMode })
+      presentationTouchedRef.current = false
+      void clientRef.current.metadata?.(replacement.sessionId, controller.signal).then((metadata) => {
+        if (sessionRef.current !== replacement.sessionId) return
+        setPath(metadata.book.sourcePath)
+        onPathCommitted?.(metadata.book.sourcePath)
+      }).catch(() => undefined)
+      return true
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(errorMessage(cause))
+      return false
+    } finally {
+      if (operationRef.current === controller) operationRef.current = undefined
+      if (!controller.signal.aborted) setBusy(false)
+    }
   }
 
   function toggleTemporaryFit(): void {

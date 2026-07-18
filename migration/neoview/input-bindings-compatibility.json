@@ -265,12 +265,15 @@
         "neoview.bindings.action-catalog",
         "neoview.bindings.action-executor",
         "neoview.bindings.action-executor-react",
+        "neoview.bindings.adjacent-book-client",
+        "neoview.control.adjacent-book",
+        "neoview.control.adjacent-book-rollback",
         "neoview.bindings.action-capability",
         "neoview.bindings.context-routing",
         "neoview.bindings.config"
       ],
       "plannedTestIds": [],
-      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The shared executor currently closes navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial and slideshow surfaces; video, next/previous book, destructive file, upscale, remaining viewer toggles, dynamic Card actions and CLI/TUI dispatch remain pending."
+      "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The shared executor currently closes page and adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial and slideshow surfaces; adjacent books reuse the atomic backend resolver and update the adopted path from canonical metadata. Video, destructive file, upscale, remaining viewer toggles, dynamic Card actions and CLI/TUI dispatch remain pending."
     },
     {
       "id": "bindings.context-routing",

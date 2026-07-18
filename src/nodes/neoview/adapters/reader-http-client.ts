@@ -718,6 +718,7 @@ export interface ReaderHttpClient {
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
   updateColorFilter?(patch: ReaderColorFilterConfigPatch, signal?: AbortSignal): Promise<ReaderColorFilterSettings>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
+  openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
   cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   reopenDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
@@ -920,6 +921,15 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path }),
       signal,
     }),
+    openAdjacentBook: (sessionId, direction, signal) => request<ReaderSessionDto | undefined>(
+      `/reader/s/${encodeURIComponent(sessionId)}/adjacent-book`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ direction }),
+        signal,
+      },
+    ),
     openDirectoryBrowser: (path, signal, scopeId, watch = false) => request<ReaderDirectoryPageDto>("/reader/browser/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
