@@ -305,7 +305,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
   }
 
   async #loadMemoryEntry(entryId: string, path: string, expectedBytes: number): Promise<Uint8Array> {
-    const bytes = new Uint8Array(await readFile(path, { signal: this.#lifecycle.signal }))
+    const bytes = await readFile(path, { signal: this.#lifecycle.signal })
     if (bytes.byteLength !== expectedBytes) {
       throw new Error(`Solid archive entry ${entryId} changed after materialization.`)
     }
