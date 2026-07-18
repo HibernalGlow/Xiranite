@@ -262,6 +262,7 @@ export default function BookmarkListCard({ client, disabled, onOpen, session, so
           copyText={systemActions?.copyText}
           onOpen={onOpen ? (item) => onOpen(item.source.path) : undefined}
           onToggleStar={toggleStar}
+          onReloadThumbnail={(item) => thumbnails.refresh(item.id)}
           onRemove={remove}
         />
       </Suspense>

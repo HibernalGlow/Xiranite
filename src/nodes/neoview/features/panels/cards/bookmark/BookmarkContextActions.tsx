@@ -1,10 +1,10 @@
-import { BookOpen, Copy, ExternalLink, FileText, FolderOpen, Star, Trash2 } from "lucide-react"
+import { BookOpen, Copy, ExternalLink, FileText, FolderOpen, RefreshCw, Star, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
 import type { ReaderBookmarkDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 
-export type BookmarkContextAction = "open" | "system-open" | "reveal" | "copy-path" | "copy-name" | "toggle-star" | "remove"
+export type BookmarkContextAction = "open" | "system-open" | "reveal" | "copy-path" | "copy-name" | "reload-thumbnail" | "toggle-star" | "remove"
 
 export default function BookmarkContextActions({
   client,
@@ -13,6 +13,7 @@ export default function BookmarkContextActions({
   copyText,
   onOpen,
   onToggleStar,
+  onReloadThumbnail,
   onRemove,
 }: {
   client: ReaderHttpClient
@@ -21,6 +22,7 @@ export default function BookmarkContextActions({
   copyText?: (text: string) => Promise<void>
   onOpen?(item: ReaderBookmarkDto): void | Promise<void>
   onToggleStar(item: ReaderBookmarkDto): void | Promise<void>
+  onReloadThumbnail(item: ReaderBookmarkDto): void | Promise<void>
   onRemove(item: ReaderBookmarkDto): void | Promise<void>
 }) {
   const operationRef = useRef<AbortController>()
@@ -50,7 +52,8 @@ export default function BookmarkContextActions({
       } else if (action === "copy-path" || action === "copy-name") {
         if (!copyText) throw new Error("当前宿主不支持复制文本。")
         await copyText(action === "copy-path" ? item.source.path : item.name)
-      } else if (action === "toggle-star") await onToggleStar(item)
+      } else if (action === "reload-thumbnail") await onReloadThumbnail(item)
+      else if (action === "toggle-star") await onToggleStar(item)
       else await onRemove(item)
       operation.signal.throwIfAborted()
       setFeedback({ kind: "status", text: feedbackText(action, item) })
@@ -104,6 +107,7 @@ export function buildBookmarkContextMenuItems(
     { type: "separator" },
     { id: "neoview-bookmark-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", item) },
     { id: "neoview-bookmark-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", item) },
+    { id: "neoview-bookmark-reload-thumbnail", label: "重新加载缩略图", icon: <RefreshCw />, disabled: unavailable, onSelect: () => options.onAction("reload-thumbnail", item) },
     { type: "separator" },
     { id: "neoview-bookmark-toggle-star", label: item.starred ? "取消收藏" : "收藏", icon: <Star />, disabled: unavailable, onSelect: () => options.onAction("toggle-star", item) },
     {
@@ -129,6 +133,7 @@ function feedbackText(action: BookmarkContextAction, item: ReaderBookmarkDto): s
   if (action === "copy-path") return `已复制 ${item.name} 的路径`
   if (action === "copy-name") return `已复制名称 ${item.name}`
   if (action === "reveal") return `已在资源管理器中定位 ${item.name}`
+  if (action === "reload-thumbnail") return `已重新加载 ${item.name} 的缩略图`
   if (action === "toggle-star") return item.starred ? `已取消收藏 ${item.name}` : `已收藏 ${item.name}`
   if (action === "remove") return `已删除书签 ${item.name}`
   return `已打开 ${item.name}`

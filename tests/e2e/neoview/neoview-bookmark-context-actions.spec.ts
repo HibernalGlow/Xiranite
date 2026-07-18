@@ -58,7 +58,7 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
-test("[neoview.bookmark.context-actions-e2e] keeps folder-style thumbnails while running host file actions", async ({ page }) => {
+test("[neoview.bookmark.context-actions-e2e] [neoview.bookmark.thumbnail-reload-e2e] keeps folder-style thumbnails while running host file actions", async ({ page }) => {
   const systemOpenPaths: string[] = []
   const revealedPaths: string[] = []
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
@@ -85,7 +85,9 @@ test("[neoview.bookmark.context-actions-e2e] keeps folder-style thumbnails while
   await expect(row).toBeVisible()
   await expect(row).toHaveAttribute("data-context-menu", "neoview-bookmark-entry")
   await expect(row).toHaveAttribute("data-entry-variant", "content")
-  await expect(row.locator('[data-reader-thumbnail-surface="true"]')).toHaveAttribute("data-thumbnail-state", "ready", { timeout: 30_000 })
+  const thumbnail = row.locator('[data-reader-thumbnail-surface="true"]')
+  await expect(thumbnail).toHaveAttribute("data-thumbnail-state", "ready", { timeout: 30_000 })
+  const originalThumbnailUrl = await thumbnail.locator("img").getAttribute("src")
 
   await row.click({ button: "right" })
   await page.getByRole("menuitem", { name: "复制路径" }).click()
@@ -96,6 +98,15 @@ test("[neoview.bookmark.context-actions-e2e] keeps folder-style thumbnails while
   await row.click({ button: "right" })
   await page.getByRole("menuitem", { name: "在资源管理器中显示" }).click()
   await expect.poll(() => revealedPaths).toEqual([fixture.path])
+  await row.click({ button: "right" })
+  const refreshResponse = page.waitForResponse((response) => {
+    if (!response.url().endsWith("/reader/library/thumbnails") || response.request().method() !== "POST") return false
+    const body = response.request().postDataJSON() as { items?: Array<{ id: string; refresh?: boolean }> }
+    return body.items?.some((item) => item.refresh === true) === true
+  })
+  await page.getByRole("menuitem", { name: "重新加载缩略图" }).click()
+  expect((await refreshResponse).status()).toBe(201)
+  await expect.poll(() => thumbnail.locator("img").getAttribute("src")).not.toBe(originalThumbnailUrl)
 
   expect(await readerImage.getAttribute("data-bookmark-context-image")).toBe("stable")
   expect(await card.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)

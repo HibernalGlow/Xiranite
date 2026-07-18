@@ -3803,9 +3803,9 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Only the virtual visible bookmark window registers authenticated file/folder thumbnails; stale batches cancel and contexts release on list change or unmount.
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.shared-thumbnail.fit`
+  - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.bookmark.thumbnail-refresh-client`、`neoview.thumbnail.library-register-refresh`、`neoview.bookmark.thumbnail-reload-e2e`、`neoview.shared-thumbnail.fit`
   - 计划测试：无
-  - 备注：Content, banner and thumbnail modes reuse the Folder entry surface and register authenticated cover thumbnails only for the scoped virtual visible window; compact or empty modes release the active context immediately, folder entries request four-image preview semantics, and invalid-path parity remains pending.
+  - 备注：Content, banner and thumbnail modes reuse the Folder entry surface and register authenticated cover thumbnails only for the scoped virtual visible window; compact or empty modes release the active context immediately, folder entries request four-image preview semantics, and one-shot reload refreshes only the requested source before publishing a new capability URL. Invalid-path parity remains pending.
 - [ ] `bookmark.lists` 切换系统与自定义书签列表
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：All, default, favorites and custom lists remain distinguishable and the active list filters the virtual source.
@@ -3838,9 +3838,9 @@
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Single bookmark actions preserve legacy file commands and authenticated host capabilities.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`
-  - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`
+  - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`、`neoview.bookmark.thumbnail-refresh-client`、`neoview.thumbnail.library-register-refresh`、`neoview.bookmark.thumbnail-reload-e2e`
   - 计划测试：无
-  - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open and Explorer reveal with capability-aware disabled states. Rename, tags, thumbnail reload and new-tab actions remain pending.
+  - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Rename, tags and new-tab actions remain pending.
 - [ ] `bookmark.batch-edit` 批量编辑书签与列表成员关系
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Selected bookmarks can be added to multiple lists or removed through one bounded operation.
@@ -3873,9 +3873,9 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：List switches, collapse, unmount and backend disposal abort stale loads and release thumbnail contexts.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
-  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-stale`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.bookmark.active-list-settings`、`neoview.bookmark.active-list-fallback`、`neoview.bookmark.active-list-rollback`
+  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-stale`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.bookmark.thumbnail-refresh-client`、`neoview.bookmark.thumbnail-reload-e2e`、`neoview.bookmark.active-list-settings`、`neoview.bookmark.active-list-fallback`、`neoview.bookmark.active-list-rollback`
   - 计划测试：无
-  - 备注：Visible batches abort and use list-scoped rotating context IDs; compact/empty transitions and unmount release the active lease without allowing a late DELETE or registration response to affect the next scope. Persisted list restoration waits for the list directory, invalid IDs never reach listBookmarks, and failed switches restore the confirmed query key. Backend disposal and a dedicated 10K corpus remain pending.
+  - 备注：Visible batches abort and use list-scoped rotating context IDs; compact/empty transitions and unmount release the active lease without allowing a late DELETE or registration response to affect the next scope. One-shot refresh promises settle only after the replacement URL is published and reject on stale/unmounted work. Persisted list restoration waits for the list directory, invalid IDs never reach listBookmarks, and failed switches restore the confirmed query key. Backend disposal and a dedicated 10K corpus remain pending.
 - [x] `bookmark.shell` 保持共享 Card shell 行为
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Bookmark remains independently lazy, hideable, collapsible, movable, resizable and window-capable.
@@ -3903,19 +3903,19 @@
   - 源码：`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/cards/CardRenderer.svelte`
   - 测试：`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-lease`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.thumbnail-lease-e2e`、`neoview.bookmark.chunk`、`neoview.bookmark.context-actions-chunk`
   - 计划测试：无
-  - 备注：Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, the 14,429-byte Card remains deferred, and the 3,244-byte context-action module stays in a second-level chunk; a 10K Chromium request-count run and visited-page metadata eviction remain pending.
+  - 备注：Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, the 14,466-byte Card remains deferred, and the 3,487-byte context-action module stays in a second-level chunk; a 10K Chromium request-count run and visited-page metadata eviction remain pending.
 - [ ] `bookmark.image-stability` 缩略图工作不重挂活动阅读图像
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Opening the Card, scrolling thumbnails and switching lists preserve the active Reader media node and asset URL.
   - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/cards/shared/FileListPanel.svelte`
-  - 测试：`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions-e2e`
+  - 测试：`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions-e2e`、`neoview.bookmark.thumbnail-reload-e2e`
   - 计划测试：无
-  - 备注：Real Chromium proves opening, thumbnail mutation and copy/system-open/reveal context actions preserve the active image; scrolling and list-switch identity checks remain pending.
+  - 备注：Real Chromium proves opening, thumbnail mutation, single-source reload and copy/system-open/reveal context actions preserve the active image; scrolling and list-switch identity checks remain pending.
 - [ ] `bookmark.deviations` 记录共享后端与视觉 primitive 扩展
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document authenticated thumbnail batching and the shared React entry visual as XR implementations of the legacy FileListPanel reuse contract.
   - 源码：`src/lib/cards/bookmark/BookmarkListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`
-  - 测试：`neoview.shared-entry.variants`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.batch-contract`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions-e2e`
+  - 测试：`neoview.shared-entry.variants`、`neoview.bookmark.thumbnail-visible`、`neoview.bookmark.batch-contract`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions-e2e`、`neoview.bookmark.thumbnail-reload-e2e`
   - 计划测试：无
   - 备注：Authenticated visible-window thumbnails, stable ID selection, bounded batch routes and the shared slot-based entry surface replace the legacy in-process FileListPanel wiring without removing bookmark fields or creating a second business store.
 

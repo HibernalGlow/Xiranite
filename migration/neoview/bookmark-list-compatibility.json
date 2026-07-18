@@ -575,10 +575,13 @@
         "neoview.bookmark.thumbnail-lease",
         "neoview.bookmark.thumbnail-e2e",
         "neoview.bookmark.thumbnail-lease-e2e",
+        "neoview.bookmark.thumbnail-refresh-client",
+        "neoview.thumbnail.library-register-refresh",
+        "neoview.bookmark.thumbnail-reload-e2e",
         "neoview.shared-thumbnail.fit"
       ],
       "plannedTestIds": [],
-      "notes": "Content, banner and thumbnail modes reuse the Folder entry surface and register authenticated cover thumbnails only for the scoped virtual visible window; compact or empty modes release the active context immediately, folder entries request four-image preview semantics, and invalid-path parity remains pending."
+      "notes": "Content, banner and thumbnail modes reuse the Folder entry surface and register authenticated cover thumbnails only for the scoped virtual visible window; compact or empty modes release the active context immediately, folder entries request four-image preview semantics, and one-shot reload refreshes only the requested source before publishing a new capability URL. Invalid-path parity remains pending."
     },
     {
       "id": "bookmark.lists",
@@ -724,10 +727,13 @@
         "neoview.bookmark.thumbnail-e2e",
         "neoview.bookmark.context-actions",
         "neoview.bookmark.context-capabilities",
-        "neoview.bookmark.context-actions-e2e"
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.thumbnail-refresh-client",
+        "neoview.thumbnail.library-register-refresh",
+        "neoview.bookmark.thumbnail-reload-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open and Explorer reveal with capability-aware disabled states. Rename, tags, thumbnail reload and new-tab actions remain pending."
+      "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Rename, tags and new-tab actions remain pending."
     },
     {
       "id": "bookmark.batch-edit",
@@ -880,12 +886,14 @@
         "neoview.bookmark.thumbnail-stale",
         "neoview.bookmark.thumbnail-e2e",
         "neoview.bookmark.thumbnail-lease-e2e",
+        "neoview.bookmark.thumbnail-refresh-client",
+        "neoview.bookmark.thumbnail-reload-e2e",
         "neoview.bookmark.active-list-settings",
         "neoview.bookmark.active-list-fallback",
         "neoview.bookmark.active-list-rollback"
       ],
       "plannedTestIds": [],
-      "notes": "Visible batches abort and use list-scoped rotating context IDs; compact/empty transitions and unmount release the active lease without allowing a late DELETE or registration response to affect the next scope. Persisted list restoration waits for the list directory, invalid IDs never reach listBookmarks, and failed switches restore the confirmed query key. Backend disposal and a dedicated 10K corpus remain pending."
+      "notes": "Visible batches abort and use list-scoped rotating context IDs; compact/empty transitions and unmount release the active lease without allowing a late DELETE or registration response to affect the next scope. One-shot refresh promises settle only after the replacement URL is published and reject on stale/unmounted work. Persisted list restoration waits for the list directory, invalid IDs never reach listBookmarks, and failed switches restore the confirmed query key. Backend disposal and a dedicated 10K corpus remain pending."
     },
     {
       "id": "bookmark.shell",
@@ -1006,7 +1014,7 @@
         "neoview.bookmark.context-actions-chunk"
       ],
       "plannedTestIds": [],
-      "notes": "Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, the 14,429-byte Card remains deferred, and the 3,244-byte context-action module stays in a second-level chunk; a 10K Chromium request-count run and visited-page metadata eviction remain pending."
+      "notes": "Single- and multi-column modes share a bounded virtual row engine, compact mode releases thumbnail work, the 14,466-byte Card remains deferred, and the 3,487-byte context-action module stays in a second-level chunk; a 10K Chromium request-count run and visited-page metadata eviction remain pending."
     },
     {
       "id": "bookmark.image-stability",
@@ -1030,10 +1038,11 @@
       },
       "testIds": [
         "neoview.bookmark.thumbnail-e2e",
-        "neoview.bookmark.context-actions-e2e"
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.thumbnail-reload-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Real Chromium proves opening, thumbnail mutation and copy/system-open/reveal context actions preserve the active image; scrolling and list-switch identity checks remain pending."
+      "notes": "Real Chromium proves opening, thumbnail mutation, single-source reload and copy/system-open/reveal context actions preserve the active image; scrolling and list-switch identity checks remain pending."
     },
     {
       "id": "bookmark.deviations",
@@ -1062,7 +1071,8 @@
         "neoview.bookmark.thumbnail-visible",
         "neoview.bookmark.batch-contract",
         "neoview.bookmark.thumbnail-e2e",
-        "neoview.bookmark.context-actions-e2e"
+        "neoview.bookmark.context-actions-e2e",
+        "neoview.bookmark.thumbnail-reload-e2e"
       ],
       "plannedTestIds": [],
       "notes": "Authenticated visible-window thumbnails, stable ID selection, bounded batch routes and the shared slot-based entry surface replace the legacy in-process FileListPanel wiring without removing bookmark fields or creating a second business store."
