@@ -38,7 +38,11 @@ export function inspectNeoviewConfigFormat(text: string): NeoviewConfigFormatRep
     format: "legacy",
     message: "NeoView uses deep nested tables. It remains readable and will be compacted on the next config write.",
   }
-  return { format: "optimized", message: "NeoView uses first-level sections with deeper values represented inline." }
+  if (hasCollapsedNeoviewCollections(text)) return {
+    format: "legacy",
+    message: "NeoView collapses related objects into a single long line. It will be split into second-level groups on the next config write.",
+  }
+  return { format: "optimized", message: "NeoView uses readable second-level groups with one related object per inline row." }
 }
 
 function hasDeepNeoviewHeaders(text: string): boolean {
@@ -48,7 +52,23 @@ function hasDeepNeoviewHeaders(text: string): boolean {
     if (!match || match[2] === "nodes.neoview") continue
     if (match[1] === "[") return true
     const tail = match[2].slice("nodes.neoview.".length)
-    if (tail.includes(".")) return true
+    if (tail.split(".").length > 2) return true
+  }
+  return false
+}
+
+function hasCollapsedNeoviewCollections(text: string): boolean {
+  let sectionDepth = -1
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    const header = /^\[(\[?)(nodes\.neoview(?:\..+)?)\]\]?$/.exec(trimmed)
+    if (header) {
+      const path = header[2]
+      sectionDepth = path === "nodes.neoview" ? 0 : path.slice("nodes.neoview.".length).split(".").length
+      continue
+    }
+    if (sectionDepth <= 1 && /^[^#=]+\s*=\s*\{/.test(trimmed)) return true
+    if (sectionDepth <= 1 && /^[^#=]+\s*=\s*\[\s*\{/.test(trimmed)) return true
   }
   return false
 }

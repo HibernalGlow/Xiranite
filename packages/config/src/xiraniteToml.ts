@@ -29,7 +29,17 @@ function stringifyNeoviewSections(config: Record<string, unknown>): string {
 
   const blocks = [stringifySection("nodes.neoview", rootEntries)]
   for (const [key, value] of sections) {
-    blocks.push(stringifySection(`nodes.neoview.${formatKey(key)}`, Object.entries(value)))
+    const sectionPath = `nodes.neoview.${formatKey(key)}`
+    const sectionEntries: Array<[string, unknown]> = []
+    const childSections: Array<[string, Record<string, unknown>]> = []
+    for (const [childKey, childValue] of Object.entries(value)) {
+      if (isRecord(childValue)) childSections.push([childKey, childValue])
+      else sectionEntries.push([childKey, childValue])
+    }
+    blocks.push(stringifySection(sectionPath, sectionEntries))
+    for (const [childKey, childValue] of childSections) {
+      blocks.push(stringifySection(`${sectionPath}.${formatKey(childKey)}`, Object.entries(childValue)))
+    }
   }
   return `${blocks.join("\n\n")}\n`
 }
@@ -38,9 +48,17 @@ function stringifySection(path: string, entries: Array<[string, unknown]>): stri
   const lines = [`[${path}]`]
   for (const [key, value] of entries) {
     if (value === null || value === undefined) continue
-    lines.push(`${formatKey(key)} = ${stringifyInlineValue(value, 1000)}`)
+    lines.push(stringifySectionEntry(key, value))
   }
   return lines.join("\n")
+}
+
+function stringifySectionEntry(key: string, value: unknown): string {
+  if (Array.isArray(value) && value.length > 0 && value.every(isRecord)) {
+    const items = value.map((item) => `  ${stringifyInlineValue(item, 999)},`)
+    return `${formatKey(key)} = [\n${items.join("\n")}\n]`
+  }
+  return `${formatKey(key)} = ${stringifyInlineValue(value, 1000)}`
 }
 
 function stringifyInlineValue(value: unknown, depth: number): string {

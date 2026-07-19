@@ -124,7 +124,7 @@ describe("Reader media runtime config", () => {
       expect(toml).toContain("future_image_option = \"keep\"")
       expect(toml).toContain("video_min_playback_rate = 8")
       expect(toml).toContain("video_max_playback_rate = 12")
-      expect(toml).not.toContain("[nodes.neoview.reader.subtitle]")
+      expect(toml).toContain("[nodes.neoview.reader.subtitle]")
       expect(toml).toContain("future_subtitle_option = \"keep\"")
       expect(toml).toContain("font_size = 1.5")
       expect((await loadNeoviewRuntimeConfig({ configPath })).media).toMatchObject({

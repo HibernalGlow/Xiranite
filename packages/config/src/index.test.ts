@@ -221,11 +221,11 @@ describe("saveXiraniteConfig", () => {
     const text = await readFile(path, "utf8")
     expect(text).toContain("[nodes.neoview]\nschema_version = 1")
     expect(text).toContain("[nodes.neoview.reader]")
-    expect(text).toContain('subtitle = { font_size = 24, color = "#fff" }')
+    expect(text).toContain("[nodes.neoview.reader.subtitle]\nfont_size = 24\ncolor = \"#fff\"")
     expect(text).toContain("[nodes.neoview.bindings]")
-    expect(text).toContain('items = [ { action = "next", input = { key = "ArrowRight" } } ]')
+    expect(text).toContain('items = [\n  { action = "next", input = { key = "ArrowRight" } },\n]')
     expect(text).not.toContain("nodes.neoview.config")
-    expect(text).not.toContain("[nodes.neoview.reader.subtitle]")
+    expect(text).not.toContain("[nodes.neoview.bindings.items]")
 
     const { config } = await loadXiraniteConfig({ configPath: path })
     expect(config.nodes?.neoview).toMatchObject({
