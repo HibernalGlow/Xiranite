@@ -637,6 +637,11 @@ describe("NeoView CLI", () => {
     await expect(runProgram([
       "media-progress-set", "clip.mp4", "--position", "12", "--duration", "30", "--completed", "false", "--connect", "http://127.0.0.1:41000",
     ], host([], { XIRANITE_BACKEND_TOKEN: "media-progress-token" }), { createController: async () => reader })).rejects.toThrow("remote media-progress transport")
+    await expect(runProgram(["media-progress-ui"], {
+      ...host([]),
+      stdin: { isTTY: false },
+      stdout: { isTTY: false, write: () => true },
+    } as CliHost, { createController: async () => reader })).rejects.toThrow("requires an interactive terminal")
   })
 
   it("[neoview.super-resolution.cli] delegates one manual page to the shared headless workflow", async () => {

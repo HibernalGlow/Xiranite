@@ -291,6 +291,10 @@ export async function runProgram(
     await runBookSettingsUi(args.slice(1), host, dependencies)
     return
   }
+  if (command === "media-progress-ui") {
+    await runMediaProgressUi(args.slice(1), host, dependencies)
+    return
+  }
   if (command === "book-settings-migration-ui") {
     await runBookSettingsMigrationUi(args.slice(1), host)
     return
@@ -3064,6 +3068,49 @@ async function runBookSettingsUi(
   }
 }
 
+async function runMediaProgressUi(
+  args: readonly string[],
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView media-progress-ui requires an interactive terminal.")
+  const connection = parseReaderUiConnectionArgs(args)
+  if (connection.baseUrl) throw usage("NeoView media-progress-ui currently requires a local Reader composition; remote media-progress transport is not yet available.")
+  const credentials = credentialsFromEnvironment(parseArguments(connection.credentialArgs), host)
+  try {
+    const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+    const flags = resolveTerminalUiFlags(connection.terminalArgs, { language: "zh", renderer: "opentui", theme: "nord" })
+    if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+      throw usage(flags.error ?? `Unknown media-progress-ui argument: ${flags.args[0]}`)
+    }
+    const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+    if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+      throw usage(`Unknown terminal theme: ${flags.theme}.`)
+    }
+    const { createNeoviewMediaProgressTuiDefinition } = await import("./interaction.js")
+    await runTerminalUi(createNeoviewMediaProgressTuiDefinition(
+      flags.language,
+      async () => {
+        const controller = await dependencies.createController({ cwd: host.cwd, env: host.env })
+        if (!controller.getMediaProgress || !controller.updateMediaProgress) {
+          await controller[Symbol.asyncDispose]()
+          throw new Error("Reader media progress is unavailable for this local composition.")
+        }
+        return controller as import("./interaction.js").NeoviewMediaProgressTuiPort
+      },
+      credentials.inputs,
+    ), {
+      host,
+      language: flags.language,
+      renderer: flags.renderer,
+      theme: flags.theme,
+      reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["media-progress-ui", ...args] } : undefined,
+    })
+  } finally {
+    credentials.clear()
+  }
+}
+
 async function runInputBindingsDispatchCommand(parsed: ParsedArguments, host: CliHost): Promise<void> {
   if (parsed.positionals.length !== 1) throw usage("input-bindings-dispatch requires exactly one book path.")
   const inputJson = oneValue(parsed, "--input-json")
@@ -3358,6 +3405,7 @@ function formatCliHelp(): string {
     "  library-ui                       Open recent/bookmark terminal management",
     "  file-ui                          Open shared file-operation terminal controls",
     "  book-settings-ui                 Open shared per-book settings terminal controls",
+    "  media-progress-ui                Open local video-progress terminal controls",
     "  book-settings-migration-ui       Inspect/import legacy per-book settings in OpenTUI",
     "  ui                   Open the persistent terminal reader",
     "",
