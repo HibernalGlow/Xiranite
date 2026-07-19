@@ -289,6 +289,24 @@ describe("WritableLegacyThumbnailStore", () => {
     await store.close()
   })
 
+  it("[neoview.thumbnail.maintenance.path-prefix-windows] matches legacy Windows separators and casing without crossing sibling paths", async () => {
+    const path = await createFixture(roots)
+    const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await Promise.all([
+      store.put({ key: "D:\\Library", category: "folder", bytes: fixtureWebp(1) }),
+      store.put({ key: "d:/LIBRARY/one.jpg", category: "file", bytes: fixtureWebp(2) }),
+      store.put({ key: "D:\\library\\nested/two.jpg", category: "file", bytes: fixtureWebp(3) }),
+      store.put({ key: "D:\\Library::entry/three.jpg", category: "file", bytes: fixtureWebp(4) }),
+      store.put({ key: "D:\\Library2/four.jpg", category: "file", bytes: fixtureWebp(5) }),
+      store.put({ key: "D:\\Libraries/five.jpg", category: "file", bytes: fixtureWebp(6) }),
+    ])
+
+    expect(await store.cleanup({ kind: "path-prefix", prefix: " d:/library/ ", limit: 10 })).toBe(4)
+    expect(await store.get("D:\\Library2/four.jpg", "file")).toBeDefined()
+    expect(await store.get("D:\\Libraries/five.jpg", "file")).toBeDefined()
+    await store.close()
+  })
+
   it("[neoview.thumbnail.maintenance-cooperative-stats] scans exact Blob totals in bounded host I/O chunks", async () => {
     const path = await createFixture(roots)
     const requests: ResourceTaskRequest[] = []
