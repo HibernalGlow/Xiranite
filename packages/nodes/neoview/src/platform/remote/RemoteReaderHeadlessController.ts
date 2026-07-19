@@ -16,8 +16,8 @@ import {
   type ReaderBookSettingsPatch,
   type ReaderBookSettingsSnapshot,
 } from "../../application/reader/ReaderBookSettingsService.js"
-import type { ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
-import { parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
+import type { ReaderDiagnosticsHistory, ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
+import { parseReaderDiagnosticsHistory, parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
 import type { ReaderAdjacentBookDirection } from "../../application/reader/ReaderAdjacentBookService.js"
 import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
@@ -136,6 +136,11 @@ export interface RemoteReaderHeadlessOptions {
   fetch?: typeof fetch
 }
 
+export interface RemoteReaderDiagnosticsHistoryOptions extends RemoteReaderHeadlessOptions {
+  sinceMs?: number
+  limit?: number
+}
+
 export async function fetchRemoteReaderDiagnostics(options: RemoteReaderHeadlessOptions): Promise<ReaderDiagnosticsSnapshot> {
   const baseUrl = normalizeLoopbackBaseUrl(options.baseUrl)
   const token = normalizeToken(options.token)
@@ -144,6 +149,27 @@ export async function fetchRemoteReaderDiagnostics(options: RemoteReaderHeadless
   })
   if (!response.ok) throw await responseError(response, "Reader diagnostics")
   return parseReaderDiagnosticsSnapshot(await response.json())
+}
+
+/** Reads bounded diagnostics history from the running loopback Reader without opening a session. */
+export async function fetchRemoteReaderDiagnosticsHistory(
+  options: RemoteReaderDiagnosticsHistoryOptions,
+): Promise<ReaderDiagnosticsHistory> {
+  const baseUrl = normalizeLoopbackBaseUrl(options.baseUrl)
+  const token = normalizeToken(options.token)
+  const query = new URLSearchParams()
+  if (options.sinceMs !== undefined) query.set("sinceMs", String(diagnosticsHistoryInteger(options.sinceMs, "sinceMs")))
+  if (options.limit !== undefined) query.set("limit", String(diagnosticsHistoryLimit(options.limit)))
+  const path = query.size ? `/reader/diagnostics/history?${query}` : "/reader/diagnostics/history"
+  const response = await (options.fetch ?? globalThis.fetch)(new URL(path, baseUrl), {
+    headers: { "x-xiranite-token": token },
+  })
+  if (!response.ok) throw await responseError(response, "Reader diagnostics history")
+  try {
+    return parseReaderDiagnosticsHistory(await response.json())
+  } catch {
+    throw new Error("Xiranite Reader returned an invalid diagnostics history response.")
+  }
 }
 
 /** Headless adapter over the running XR Reader controller. It owns only sessions it creates. */
@@ -612,6 +638,17 @@ function normalizeToken(value: string): string {
   const token = value.trim()
   if (!token) throw new Error("Xiranite backend token must be non-empty.")
   return token
+}
+
+function diagnosticsHistoryInteger(value: number, name: string): number {
+  if (!Number.isSafeInteger(value)) throw new Error(`Reader diagnostics history ${name} must be a safe integer.`)
+  return value
+}
+
+function diagnosticsHistoryLimit(value: number): number {
+  const limit = diagnosticsHistoryInteger(value, "limit")
+  if (limit < 1 || limit > 1_000) throw new Error("Reader diagnostics history limit must be between 1 and 1000.")
+  return limit
 }
 
 function isLoopback(hostname: string): boolean {
