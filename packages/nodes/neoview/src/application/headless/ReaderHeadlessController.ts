@@ -9,6 +9,7 @@ import type { ReaderMediaProgressService, ReaderMediaProgressUpdate } from "../r
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderService, ReaderSession } from "../reader/contracts.js"
 import type { ReaderPageOrder, ReaderPageOrderPatch } from "../reader/ReaderPageOrder.js"
+import type { ReaderSlideshowConfig } from "../slideshow/ReaderSlideshow.js"
 import type { ReaderSubtitleService, ReaderSubtitleTrack } from "../reader/ReaderSubtitleService.js"
 import type { ReaderBookMetadataService, ReaderBookStaticMetadata } from "../metadata/ReaderBookMetadataService.js"
 import type {
@@ -101,6 +102,11 @@ export interface ReaderHeadlessBookSettingsOptions {
   defaults: ReaderBookSettingsDefaults
 }
 
+export interface ReaderHeadlessSlideshowConfigPort {
+  get(): ReaderSlideshowConfig | Promise<ReaderSlideshowConfig>
+  update(patch: Partial<ReaderSlideshowConfig>): Promise<ReaderSlideshowConfig>
+}
+
 export type ReaderHeadlessSuperResolutionArtifactFactory = (
   bookPath: string,
   page: ReaderPage,
@@ -174,6 +180,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     private readonly emmMetadata?: ReaderEmmMetadataService,
     private readonly superResolution?: ReaderHeadlessSuperResolutionPort,
     private readonly subtitles?: ReaderSubtitleService,
+    private readonly slideshowConfig?: ReaderHeadlessSlideshowConfigPort,
   ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
@@ -267,6 +274,18 @@ export class ReaderHeadlessController implements AsyncDisposable {
     const session = this.#requireSession()
     await session.goTo(pageIndex, signal)
     return snapshotOf(session, this.#bookMetadata)
+  }
+
+  async getSlideshowConfig(): Promise<ReaderSlideshowConfig> {
+    this.#assertOpen()
+    if (!this.slideshowConfig) throw new Error("Reader slideshow configuration is unavailable.")
+    return await this.slideshowConfig.get()
+  }
+
+  async updateSlideshowConfig(patch: Partial<ReaderSlideshowConfig>): Promise<ReaderSlideshowConfig> {
+    this.#assertOpen()
+    if (!this.slideshowConfig) throw new Error("Reader slideshow configuration is unavailable.")
+    return await this.slideshowConfig.update(patch)
   }
 
   async updatePageOrder(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {

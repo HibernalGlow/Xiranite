@@ -568,6 +568,39 @@ describe("ReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.slideshow.headless-config] exposes the shared slideshow config port without requiring an open book", async () => {
+    let config = { intervalSeconds: 5, loop: false, random: false }
+    const get = vi.fn(async () => ({ ...config }))
+    const update = vi.fn(async (patch: Partial<typeof config>) => {
+      config = { ...config, ...patch }
+      return { ...config }
+    })
+    const controller = new ReaderHeadlessController(
+      new CoreReaderService(async () => book("D:/book.cbz", [])),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { get, update },
+    )
+    try {
+      await expect(controller.getSlideshowConfig()).resolves.toEqual(config)
+      await expect(controller.updateSlideshowConfig({ intervalSeconds: 9, loop: true })).resolves.toEqual({
+        intervalSeconds: 9,
+        loop: true,
+        random: false,
+      })
+      expect(update).toHaveBeenCalledWith({ intervalSeconds: 9, loop: true })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+    await expect(controller.getSlideshowConfig()).rejects.toThrow("closed")
+  })
+
   it("rejects use after disposal and invalid archive stacks", async () => {
     const controller = controllerFor("D:/book.cbz")
     await expect(controller.open({ path: "D:/book.cbz", entryPaths: [] })).rejects.toThrow("entry paths")

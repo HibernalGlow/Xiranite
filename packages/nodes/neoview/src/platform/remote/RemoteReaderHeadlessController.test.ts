@@ -216,6 +216,41 @@ describe("RemoteReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.slideshow.remote-config] reads and patches the authenticated shared Reader config before a session opens", async () => {
+    const requests: Request[] = []
+    let slideshow = { intervalSeconds: 7, loop: false, random: true, fadeTransition: false }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      if (request.method === "PATCH") {
+        const body = await request.clone().json() as { slideshow: Partial<typeof slideshow> }
+        slideshow = { ...slideshow, ...body.slideshow }
+      }
+      return Response.json({ slideshow, compatibleFutureField: true })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      fetch: fetchMock,
+    })
+    try {
+      await expect(remote.getSlideshowConfig()).resolves.toEqual({ intervalSeconds: 7, loop: false, random: true })
+      await expect(remote.updateSlideshowConfig({ intervalSeconds: 11, loop: true })).resolves.toEqual({
+        intervalSeconds: 11,
+        loop: true,
+        random: true,
+      })
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+    expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
+      ["GET", "/reader/config"],
+      ["PATCH", "/reader/config"],
+    ])
+    expect(requests.every((request) => request.headers.get("x-xiranite-token") === "remote-token")).toBe(true)
+    await expect(requests[1]!.json()).resolves.toEqual({ slideshow: { intervalSeconds: 11, loop: true } })
+  })
+
   it("[neoview.book-settings.cli-connect] reuses authenticated HTTP, wire validation and frame projection", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-remote-settings-"))
     cleanup.push(directory)
