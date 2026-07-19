@@ -120,6 +120,7 @@ bun run benchmark:neoview-thumbnail-system -- `
   --page-source E:\benchmark\real-1000-page-book `
   --directory-source E:\benchmark\real-10000-entry-directory `
   --storage-label "NVMe Samsung 990 PRO" `
+  --report E:\benchmark-reports\thumbnail-system-nvme-20260719.json `
   --pages 1000 `
   --files 10000 `
   --window 32 `
@@ -128,7 +129,7 @@ bun run benchmark:neoview-thumbnail-system -- `
 
 `--page-source` may be a supported directory or archive. `--directory-source` may be a directory or a file inside the target directory. `--assert` refuses to run unless both sources are explicitly supplied, the requested counts are at least 1,000/10,000, and `--storage-label` is not `unspecified`.
 
-Run the same corpus separately on HDD, SATA SSD, and NVMe. Do not combine their samples or label an OS-cache-warm run as cold storage. The JSON report intentionally records the supplied storage label but not corpus paths.
+Run the same corpus separately on HDD, SATA SSD, and NVMe. Do not combine their samples or label an OS-cache-warm run as cold storage. The JSON report intentionally records the supplied storage label but not corpus paths. `--report` writes the JSON through a same-directory staging file and atomic rename; it refuses an existing target before the benchmark starts, so retained acceptance evidence cannot be silently overwritten.
 
 ## Default budgets
 

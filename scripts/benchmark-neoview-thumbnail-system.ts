@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, link, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, link, rename, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 import pMap from "p-map"
 
@@ -21,6 +21,7 @@ const parsed = parseArgs({
     "directory-source": { type: "string" },
     "storage-label": { type: "string" },
     "work-root": { type: "string" },
+    report: { type: "string" },
     pages: { type: "string" },
     files: { type: "string" },
     window: { type: "string", default: "32" },
@@ -36,6 +37,7 @@ const directoryCount = positiveInteger(parsed.values.files ?? (quick ? "1000" : 
 const windowSize = positiveInteger(parsed.values.window, "window", 512)
 const assertBudgets = parsed.values.assert
 const storageLabel = parsed.values["storage-label"]?.trim() || "unspecified"
+const reportPath = parsed.values.report ? await assertReportDestinationAvailable(parsed.values.report) : undefined
 const hasRealPageCorpus = Boolean(parsed.values["page-source"])
 const hasRealDirectoryCorpus = Boolean(parsed.values["directory-source"])
 const realCorpus = hasRealPageCorpus && hasRealDirectoryCorpus
@@ -133,7 +135,9 @@ try {
     budgets,
   }
   if (assertBudgets) assertReport(report)
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
+  const serializedReport = `${JSON.stringify(report, null, 2)}\n`
+  if (reportPath) await writeReport(reportPath, serializedReport)
+  process.stdout.write(serializedReport)
 } finally {
   await pipeline?.dispose().catch(() => undefined)
   await book?.close().catch(() => undefined)
@@ -286,6 +290,40 @@ async function createSyntheticFixture(pages: number, files: number, workRoot?: s
     await rm(root, { recursive: true, force: true })
     throw error
   }
+}
+
+/** Publishes an immutable evidence report without leaving a partial target on failure. */
+async function writeReport(destination: string, contents: string): Promise<void> {
+  const path = resolve(destination)
+  await mkdir(dirname(path), { recursive: true })
+  try {
+    await stat(path)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== "ENOENT" && code !== "ENOTDIR") throw error
+    const staging = `${path}.tmp-${process.pid}-${Date.now()}`
+    try {
+      await writeFile(staging, contents, { encoding: "utf8", flag: "wx" })
+      await rename(staging, path)
+      return
+    } catch (writeError) {
+      await rm(staging, { force: true }).catch(() => undefined)
+      throw writeError
+    }
+  }
+  throw new Error(`Thumbnail benchmark report already exists: ${path}`)
+}
+
+async function assertReportDestinationAvailable(destination: string): Promise<string> {
+  const path = resolve(destination)
+  try {
+    await stat(path)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ENOENT" || code === "ENOTDIR") return path
+    throw error
+  }
+  throw new Error(`Thumbnail benchmark report already exists: ${path}`)
 }
 
 interface SyntheticFixture {
