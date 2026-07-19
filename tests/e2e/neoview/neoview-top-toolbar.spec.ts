@@ -33,4 +33,10 @@ test("[neoview.toolbar.ui-1920x1080] preserves legacy toolbar hierarchy, icons a
   await expect(toolbar.getByRole("button", { name: "横屏右旋" })).toHaveAttribute("aria-pressed", "true")
   await expect(toolbar.getByRole("button", { name: "切换横向或纵向布局" })).toHaveAttribute("aria-pressed", "true")
   await page.screenshot({ path: testInfo.outputPath("neoview-top-toolbar-rotate-1920x1080.png"), fullPage: false })
+
+  const hoverScroll = toolbar.getByRole("button", { name: "悬停滚动" })
+  await hoverScroll.click({ button: "right" })
+  await expect(toolbar.locator('[data-reader-toolbar-panel="hover-scroll"]')).toBeVisible()
+  await expect(toolbar.getByRole("slider", { name: "悬停滚动倍率" })).toHaveValue("2")
+  await page.screenshot({ path: testInfo.outputPath("neoview-top-toolbar-hover-scroll-1920x1080.png"), fullPage: false })
 })

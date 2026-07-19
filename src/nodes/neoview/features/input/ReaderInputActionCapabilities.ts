@@ -35,6 +35,7 @@ export const GUI_READER_INPUT_ACTIONS = [
   "viewer.toggle-book-switch-toast",
   "viewer.toggle-boundary-toast",
   "viewer.toggle-info-overlay",
+  "viewer.toggle-hover-scroll",
   "file.open",
   "file.close",
   "reader.open-settings",

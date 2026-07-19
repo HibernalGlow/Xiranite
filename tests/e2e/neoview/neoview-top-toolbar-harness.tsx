@@ -24,6 +24,7 @@ function Harness() {
   const [layout, setLayout] = useState<ReaderLayout>({ ...DEFAULT_READER_LAYOUT, pageMode: "double" })
   const [direction, setDirection] = useState<ReadingDirection>("left-to-right")
   const [presentation, setPresentation] = useState<ReaderPresentation>(DEFAULT_READER_PRESENTATION)
+  const [hoverScroll, setHoverScroll] = useState({ enabled: true, speed: 2 })
   return <main className="h-screen overflow-hidden bg-neutral-950 text-foreground">
     <div className="h-14 bg-[linear-gradient(90deg,#171717,#0a0a0a)]" />
     <section className="border-y border-border/60 bg-background/95 shadow-xl" data-toolbar-harness="true">
@@ -39,6 +40,9 @@ function Harness() {
         onChange={setPresentation}
         onLayoutChange={(patch) => setLayout((current) => ({ ...current, ...patch }))}
         onDirectionChange={setDirection}
+        hoverScrollEnabled={hoverScroll.enabled}
+        hoverScrollSpeed={hoverScroll.speed}
+        onHoverScrollChange={(patch) => setHoverScroll((current) => ({ ...current, ...patch }))}
         slideshow={slideshow}
         onSlideshowChange={() => undefined}
       />

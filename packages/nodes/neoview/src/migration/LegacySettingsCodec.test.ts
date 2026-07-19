@@ -26,6 +26,7 @@ describe("LegacySettingsCodec", () => {
         cacheMemorySize: 1024,
         progressiveLoad: { enabled: true, dwellTime: 2, batchSize: 4, maxPages: 30 },
       },
+      image: { hoverScrollEnabled: false, hoverScrollSpeed: 4.5 },
       view: {
         defaultZoomMode: "fitWidth",
         pageLayout: { splitHorizontalPages: true, widePageStretch: "uniformHeight" },
@@ -54,6 +55,8 @@ describe("LegacySettingsCodec", () => {
         reading_direction: "right-to-left",
         double_page_view: true,
         tail_overflow_behavior: "seamless-loop",
+        hover_scroll_enabled: false,
+        hover_scroll_speed: 4.5,
         view: { page_layout: { wide_page_stretch: "uniformHeight" } },
         subtitle: { font_size: 1.2 },
       },

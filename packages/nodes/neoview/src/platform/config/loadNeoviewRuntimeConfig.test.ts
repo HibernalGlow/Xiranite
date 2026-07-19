@@ -44,6 +44,8 @@ describe("loadNeoviewSessionOptions", () => {
       fitMode: "fit-width",
       pageMode: "double",
       splitWidePages: true,
+      hoverScrollEnabled: true,
+      hoverScrollSpeed: 2,
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
@@ -227,11 +229,13 @@ describe("loadNeoviewSessionOptions", () => {
       const viewPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
-        body: JSON.stringify({ viewDefaults: { fitMode: "original", pageMode: "single" } }),
+        body: JSON.stringify({ viewDefaults: { fitMode: "original", pageMode: "single", hoverScrollEnabled: false, hoverScrollSpeed: 4.5 } }),
       }))
-      expect(await viewPatched?.json()).toMatchObject({ viewDefaults: { fitMode: "original", pageMode: "single" } })
+      expect(await viewPatched?.json()).toMatchObject({ viewDefaults: { fitMode: "original", pageMode: "single", hoverScrollEnabled: false, hoverScrollSpeed: 4.5 } })
       expect(await readFile(configPath, "utf8")).toContain("default_zoom_mode = \"original\"")
       expect(await readFile(configPath, "utf8")).toContain("double_page_view = false")
+      expect(await readFile(configPath, "utf8")).toContain("hover_scroll_enabled = false")
+      expect(await readFile(configPath, "utf8")).toContain("hover_scroll_speed = 4.5")
       const slideshowPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },

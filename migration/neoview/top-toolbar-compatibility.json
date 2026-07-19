@@ -31,7 +31,8 @@
     "current": [
       "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-main-1920x1080.png",
       "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-zoom-1920x1080.png",
-      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-rotate-1920x1080.png"
+      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-rotate-1920x1080.png",
+      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-hover-scroll-1920x1080.png"
     ],
     "status": "current-captured-legacy-pending-runtime-capture"
   },
@@ -98,6 +99,7 @@
     "hiddenPanelWork": "zero",
     "panorama": "sparse range loading with visible-window virtualization",
     "mediaIdentity": "layout and CSS rotation do not regenerate asset URLs",
+    "hoverScroll": "native viewport offsets driven by one demand-only requestAnimationFrame; pointer and velocity never enter React state",
     "bundle": "panorama renderer remains a secondary lazy chunk"
   }
 }

@@ -62,6 +62,26 @@ describe("ReaderViewToolbar", () => {
     expect(changed).toHaveBeenLastCalledWith({ ...DEFAULT_READER_PRESENTATION, rotation: 90 })
     slideshow.dispose()
   })
+
+  it("[neoview.viewer.hover-scroll-toolbar] preserves left-click toggle, right-click settings and bounded speed", () => {
+    const hoverChanged = vi.fn()
+    const slideshow = createSlideshow()
+    const view = render(<ReaderViewToolbar layout={DEFAULT_READER_LAYOUT} direction="left-to-right" presentation={DEFAULT_READER_PRESENTATION} onChange={vi.fn()} onLayoutChange={vi.fn()} onDirectionChange={vi.fn()} hoverScrollEnabled hoverScrollSpeed={2} onHoverScrollChange={hoverChanged} slideshow={slideshow} onSlideshowChange={vi.fn()} />)
+
+    const toggle = screen.getByRole("button", { name: "悬停滚动" })
+    expect(toggle.getAttribute("aria-pressed")).toBe("true")
+    fireEvent.click(toggle)
+    expect(hoverChanged).toHaveBeenLastCalledWith({ enabled: false })
+    fireEvent.contextMenu(toggle)
+    expect(view.container.querySelector('[data-reader-toolbar-panel="hover-scroll"]')).not.toBeNull()
+    expect(screen.getByText("2.0x")).toBeTruthy()
+    fireEvent.change(screen.getByRole("slider", { name: "悬停滚动倍率" }), { target: { value: "4.5" } })
+    fireEvent.pointerUp(screen.getByRole("slider", { name: "悬停滚动倍率" }))
+    fireEvent.blur(screen.getByRole("slider", { name: "悬停滚动倍率" }))
+    expect(hoverChanged).toHaveBeenLastCalledWith({ speed: 4.5 })
+    expect(hoverChanged).toHaveBeenCalledTimes(2)
+    slideshow.dispose()
+  })
 })
 
 function expectIcon(buttonName: string, iconClass: string) {
