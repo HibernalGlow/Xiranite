@@ -40,7 +40,7 @@ describe("ImageTrimCard", () => {
     expect(port.unsubscribe).toHaveBeenCalledTimes(2)
   })
 
-  it("[neoview.image-trim.ui] preserves the legacy control hierarchy and icon actions", () => {
+  it("[neoview.image-trim.ui] [neoview.image-trim.enable] preserves the legacy control hierarchy and icon actions", () => {
     render(<ImageTrimCard port={memoryPort({ ...defaults(), enabled: true, top: 5, linkVertical: true, linkHorizontal: true })} />)
     expect(screen.getByRole("switch", { name: "启用图像裁剪" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "重置所有裁剪" })).toBeTruthy()
@@ -55,7 +55,7 @@ describe("ImageTrimCard", () => {
     expect(screen.getByRole("combobox", { name: "目标颜色" })).toBeTruthy()
   })
 
-  it("[neoview.image-trim.slider-commit] previews range movement and commits once at pointer/key end", () => {
+  it("[neoview.image-trim.slider-commit] [neoview.image-trim.threshold] previews range movement and commits once at pointer/key end", () => {
     const port = memoryPort({ ...defaults(), enabled: true })
     render(<ImageTrimCard port={port} />)
     const top = screen.getByRole("slider", { name: "上" })
@@ -72,7 +72,7 @@ describe("ImageTrimCard", () => {
     expect(port.commit).toHaveBeenCalledTimes(2)
   })
 
-  it("[neoview.image-trim.actions] exposes testable reset, link, preset and target actions", () => {
+  it("[neoview.image-trim.actions] [neoview.image-trim.reset] [neoview.image-trim.target] exposes testable reset, link, preset and target actions", () => {
     const port = memoryPort({ ...defaults(), enabled: true, top: 7, linkVertical: true, linkHorizontal: true })
     render(<ImageTrimCard port={port} />)
     fireEvent.click(screen.getByRole("button", { name: "上取消联动" }))

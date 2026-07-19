@@ -343,21 +343,17 @@
       ],
       "capabilityStatus": {
         "core": "not-applicable",
-        "transport": "pending",
-        "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
       },
       "testIds": [
-        "neoview.image-trim.resident",
-        "neoview.image-trim.resident"
-      ],
-      "plannedTestIds": [
-        "neoview.image-trim.enable",
         "neoview.image-trim.enable"
       ],
-      "notes": "Verified by the 1920x1080 harness: the ready Card and enable switch are interactive before opening, and remain mounted after opening."
+      "plannedTestIds": [],
+      "notes": "The 1920x1080 Chromium harness toggles the resident pre-session switch through one write, exposes the editor only while enabled and preserves the active image identity."
     },
     {
       "id": "image-trim.reset",
@@ -376,7 +372,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "partial",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "complete",
         "tui": "pending",
         "evidence": "partial"
@@ -387,10 +383,9 @@
       ],
       "plannedTestIds": [
         "neoview.image-trim.reset-http",
-        "neoview.image-trim.reset-gui",
         "neoview.image-trim.reset-tui"
       ],
-      "notes": "The shared codec and CLI restore every canonical field in one config mutation. HTTP-specific reset, GUI command evidence and TUI wiring remain incomplete."
+      "notes": "The shared codec, CLI and real Chromium Card restore every canonical field in one mutation, hide the disabled editor, clear crop CSS and preserve the active image identity. HTTP-specific reset and TUI wiring remain incomplete."
     },
     {
       "id": "image-trim.edges",
@@ -662,20 +657,22 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "pending",
         "evidence": "partial"
       },
       "testIds": [
+        "neoview.image-trim.threshold",
         "neoview.image-trim.cli"
       ],
       "plannedTestIds": [
-        "neoview.image-trim.threshold"
+        "neoview.image-trim.threshold-http",
+        "neoview.image-trim.threshold-tui"
       ],
-      "notes": "CLI set/get uses the shared 5..100 step-5 codec and canonical TOML. Dedicated core, HTTP, GUI and TUI evidence remains pending."
+      "notes": "The shared codec, CLI and real Chromium range preserve 5..100 in step-5 increments; keyboard completion persists once and does not start detection. Dedicated HTTP and TUI evidence remains pending."
     },
     {
       "id": "image-trim.target",
@@ -692,20 +689,22 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "pending",
         "evidence": "partial"
       },
       "testIds": [
+        "neoview.image-trim.target",
         "neoview.image-trim.cli"
       ],
       "plannedTestIds": [
-        "neoview.image-trim.target"
+        "neoview.image-trim.target-http",
+        "neoview.image-trim.target-tui"
       ],
-      "notes": "CLI set/get preserves auto/black/white through the shared enum validator and canonical TOML. Other surfaces and legacy-import fallback evidence remain pending."
+      "notes": "The shared enum validator, CLI and real Chromium select preserve auto/black/white and reject unknown values without starting detection. Dedicated HTTP/TUI and legacy-import fallback evidence remains pending."
     },
     {
       "id": "image-trim.auto-message",
