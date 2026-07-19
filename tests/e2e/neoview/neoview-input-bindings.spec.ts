@@ -132,7 +132,7 @@ test("[neoview.bindings.e2e] edits a contextual keyboard binding without leaking
   await expect(page.locator('img[alt="002.png"]')).toBeVisible()
 
   await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
-  await page.getByRole("button", { name: "操作绑定" }).click()
+  await page.getByRole("button", { name: "操作绑定", exact: true }).click()
   const card = page.locator('[data-neoview-settings-card="input-bindings"]')
   await expect(card.getByRole("heading", { name: "操作绑定" })).toBeVisible()
   await expect(card.getByRole("option", { name: "键盘" }).first()).toBeAttached()
@@ -208,20 +208,20 @@ test("[neoview.bindings.rollback-e2e] keeps the edited binding when persistence 
   await page.unroute(`${backend.url}/reader/config`)
 })
 
-test("[neoview.bindings.legacy-import-e2e] inspects and imports legacy bindings in the GUI", async ({ page }) => {
+test("[neoview.bindings.legacy-import-ui][neoview.bindings.legacy-import-e2e] inspects and imports legacy bindings in the GUI", async ({ page }) => {
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: "打开书籍" }).click()
   await expect(page.locator('img[alt="001.png"]')).toBeVisible()
   await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
-  await page.getByRole("button", { name: "操作绑定" }).click()
-  const card = page.locator('[data-neoview-settings-card="input-bindings"]')
-  const settingsJson = card.getByRole("textbox", { name: "Legacy settings JSON" })
+  await page.getByRole("button", { name: "数据", exact: true }).click()
+  const card = page.locator('[data-neoview-settings-card="data-migration-settings"]')
+  const settingsJson = card.getByRole("textbox", { name: "旧设置 JSON" })
   await settingsJson.fill('{"keybindings":[]}')
-  await card.getByRole("button", { name: "Inspect" }).click()
-  await expect(card.getByRole("status")).toContainText("Recognized legacy settings")
-  await card.getByRole("button", { name: "Import" }).click()
-  await expect(card.getByText("Imported successfully", { exact: false })).toBeVisible()
+  await card.getByRole("button", { name: "检查" }).click()
+  await expect(card.getByRole("status")).toContainText("已识别旧设置")
+  await card.getByRole("button", { name: "导入" }).click()
+  await expect(card.getByText("导入成功", { exact: false })).toBeVisible()
 })
 
 test("[neoview.bindings.devices-e2e] routes mouse, hold, modified wheel and area input", async ({ page }) => {

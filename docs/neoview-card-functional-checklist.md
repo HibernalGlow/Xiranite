@@ -5242,18 +5242,18 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `settingsGeneral` | 通用设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/GeneralSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+| `settingsGeneral` | 通用设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/GeneralSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `slideshow-settings` |
 | `settingsSystem` | 系统设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/SystemSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 | `settingsView` | 视图设置 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/ViewSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `view-defaults-settings` |
-| `settingsImage` | 影像设置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/ImageSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+| `settingsImage` | 影像设置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/ImageSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `media-settings` |
 | `settingsBook` | 书籍设置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 | `settingsPerformance` | 性能设置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/PerformanceSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
-| `settingsTheme` | 外观设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/ThemeSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+| `settingsTheme` | 外观设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/ThemeSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `reader-material-settings` |
 | `settingsNotification` | 通知设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/NotificationSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
-| `settingsPanels` | 边栏管理 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/PanelManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `sidebar-management-settings` |
-| `settingsCards` | 卡片管理 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/CardManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `panel-layout-settings` |
+| `settingsPanels` | 边栏管理 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/PanelManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `board-layout-settings` |
+| `settingsCards` | 卡片管理 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/CardManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `board-layout-settings` |
 | `settingsBindings` | 操作绑定 | deferred | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/settings/BindingsSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `input-bindings-settings` |
-| `settingsData` | 数据设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/DataSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+| `settingsData` | 数据设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/DataSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `data-migration-settings` |
 
 #### `settingsGeneral` 通用设置
 

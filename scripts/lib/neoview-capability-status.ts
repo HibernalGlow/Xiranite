@@ -51,6 +51,11 @@ export const cardMatrixSchema = z.object({
   schemaVersion: z.literal(2),
   source: z.object({ file: z.string(), hash: z.string(), cardCount: z.number().int().nonnegative() }).strict(),
   priorities: z.array(z.enum(["core", "integration", "deferred"])),
+  hostOnlyCurrentCards: z.array(z.object({
+    id: z.string().min(1),
+    rationale: z.string().min(1),
+    testIds: z.array(z.string().min(1)).min(1),
+  }).strict()).default([]),
   cards: z.array(z.object({
     legacyId: z.string().min(1),
     title: z.string().min(1),

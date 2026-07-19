@@ -30,6 +30,12 @@ const mappedCurrentIds = new Set<string>()
 const featureIds = new Set(featureMatrix.features.map((feature) => feature.id))
 const allowedPriorities = new Set<CardPriority>(matrix.priorities)
 
+for (const card of matrix.hostOnlyCurrentCards) {
+  if (!currentIds.has(card.id)) errors.push(`host-only current card ${card.id} is not registered`)
+  if (mappedCurrentIds.has(card.id)) errors.push(`duplicate host-only current card ${card.id}`)
+  mappedCurrentIds.add(card.id)
+}
+
 for (const card of matrix.cards) {
   if (legacyIds.has(card.legacyId)) errors.push(`duplicate legacy card ${card.legacyId}`)
   legacyIds.add(card.legacyId)
@@ -37,6 +43,9 @@ for (const card of matrix.cards) {
   if (!featureIds.has(card.featureId)) errors.push(`legacy card ${card.legacyId} references unknown feature ${card.featureId}`)
   if (card.currentCardId) {
     if (!currentIds.has(card.currentCardId)) errors.push(`legacy card ${card.legacyId} maps to unknown current card ${card.currentCardId}`)
+    if (matrix.hostOnlyCurrentCards.some((hostOnly) => hostOnly.id === card.currentCardId)) {
+      errors.push(`legacy card ${card.legacyId} maps to host-only current card ${card.currentCardId}`)
+    }
     mappedCurrentIds.add(card.currentCardId)
   }
   const overall = deriveOverallStatus(card.capabilityStatus)
