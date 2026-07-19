@@ -12,6 +12,7 @@ import { createPlatformReaderBookLoader } from "../packages/nodes/neoview/src/pl
 import { PlatformDirectoryListingProvider } from "../packages/nodes/neoview/src/platform/filesystem/PlatformDirectoryListingProvider.js"
 import { SharpImageTransformer } from "../packages/nodes/neoview/src/platform/images/sharp/SharpImageTransformer.js"
 import { PlatformThumbnailPipeline } from "../packages/nodes/neoview/src/platform/thumbnails/PlatformThumbnailPipeline.js"
+import type { ReaderDirectoryEntry } from "../packages/nodes/neoview/src/ports/ReaderDirectoryListingProvider.js"
 import { deterministicBytes } from "../packages/nodes/neoview/test/fixture-builders/create-zip-fixture.js"
 
 const MIB = 1024 * 1024
@@ -24,6 +25,7 @@ const parsed = parseArgs({
     report: { type: "string" },
     pages: { type: "string" },
     files: { type: "string" },
+    "library-samples": { type: "string" },
     window: { type: "string", default: "32" },
     quick: { type: "boolean", default: false },
     assert: { type: "boolean", default: false },
@@ -43,8 +45,13 @@ const hasRealDirectoryCorpus = Boolean(parsed.values["directory-source"])
 const realCorpus = hasRealPageCorpus && hasRealDirectoryCorpus
 const corpusKind = realCorpus ? "real" : hasRealPageCorpus || hasRealDirectoryCorpus ? "mixed-smoke" : "synthetic-smoke"
 const acceptanceEligible = realCorpus && pageCount >= 1_000 && directoryCount >= 10_000 && storageLabel !== "unspecified"
-if (assertBudgets && !acceptanceEligible) {
-  throw new Error("--assert requires real --page-source and --directory-source corpora, at least 1000 pages/10000 entries, and --storage-label.")
+const librarySampleCount = nonNegativeInteger(
+  parsed.values["library-samples"] ?? (realCorpus ? "16" : "0"),
+  "library-samples",
+  64,
+)
+if (assertBudgets && (!acceptanceEligible || !librarySampleCount)) {
+  throw new Error("--assert requires real --page-source and --directory-source corpora, at least 1000 pages/10000 entries, --storage-label, and at least one --library-samples demand.")
 }
 
 const budgets = {
@@ -76,14 +83,16 @@ try {
   const directorySource = resolve(parsed.values["directory-source"] ?? fixture!.browserDirectory)
   const setupMs = performance.now() - setupStarted
 
-  const directory = await benchmarkDirectory(directorySource, directoryCount)
+  const { listingEntries: directoryEntries, ...directory } = await benchmarkDirectory(directorySource, directoryCount)
+  const loadBook = createPlatformReaderBookLoader()
   const openStarted = performance.now()
-  book = await createPlatformReaderBookLoader()({ kind: "path", path: pageSource })
+  book = await loadBook({ kind: "path", path: pageSource })
   const openBookMs = performance.now() - openStarted
   const pages = book.pages.filter((page) => page.mediaKind === "image" || page.mediaKind === "animated-image")
   if (pages.length < pageCount) throw new Error(`Page corpus contains ${pages.length} image pages; ${pageCount} required.`)
 
   pipeline = new PlatformThumbnailPipeline({
+    bookLoader: loadBook,
     loadImageTransformer: async () => new SharpImageTransformer(resourceScheduler),
     resourceScheduler,
     maxMemoryBytes: 64 * MIB,
@@ -112,6 +121,11 @@ try {
   const scroll = await benchmarkScroll(pipeline, sample, windowSize, flightEvents, () => {
     peakRss = Math.max(peakRss, process.memoryUsage().rss)
   })
+  const library = librarySampleCount
+    ? await benchmarkLibrary(pipeline, directoryEntries, librarySampleCount, () => {
+        peakRss = Math.max(peakRss, process.memoryUsage().rss)
+      })
+    : undefined
   const beforeDispose = pipeline.snapshot()
   await pipeline.dispose()
   const afterDispose = pipeline.snapshot()
@@ -132,6 +146,7 @@ try {
       syntheticSetupMs: realCorpus ? undefined : round(setupMs),
     },
     directory,
+    library,
     pages: {
       available: pages.length,
       openBookMs: round(openBookMs),
@@ -179,6 +194,7 @@ async function benchmarkDirectory(path: string, requiredEntries: number) {
     }
     const paginationMs = performance.now() - paginationStarted
     return {
+      listingEntries: listing.entries,
       entries: listing.entries.length,
       supportedEntries: listing.entries.filter((entry) => entry.readerSupported).length,
       providerReadMs: round(readMs),
@@ -188,6 +204,84 @@ async function benchmarkDirectory(path: string, requiredEntries: number) {
     }
   } finally {
     await browser[Symbol.asyncDispose]()
+  }
+}
+
+async function benchmarkLibrary(
+  pipeline: PlatformThumbnailPipeline,
+  entries: readonly ReaderDirectoryEntry[],
+  sampleCount: number,
+  sampleMemory: () => void,
+) {
+  const candidates = entries.filter((entry) => entry.kind === "directory"
+    || (entry.kind === "file" && entry.readerSupported && !entry.name.toLowerCase().endsWith(".pdf")))
+  const candidateLimit = Math.min(candidates.length, sampleCount * 8)
+  const contextId = "benchmark:library"
+  const sources = [] as Awaited<ReturnType<PlatformThumbnailPipeline["describeLibrarySource"]>>[]
+  const generationMs: number[] = []
+  let failed = 0
+  let unavailable = 0
+  let candidatesScanned = 0
+  let files = 0
+  let folders = 0
+  try {
+    for (const entry of candidates.slice(0, candidateLimit)) {
+      if (sources.length + failed >= sampleCount) break
+      candidatesScanned += 1
+      const kind = entry.kind === "directory" ? "folder" as const : "file" as const
+      const started = performance.now()
+      let lease: ReturnType<PlatformThumbnailPipeline["acquireLibrary"]> | undefined
+      try {
+        const source = await pipeline.describeLibrarySource(entry.path, kind)
+        if (source.kind === "folder" && !source.representativeVersion) {
+          unavailable += 1
+        } else {
+          lease = pipeline.acquireLibrary(source, { contextId })
+          await lease.ready
+          generationMs.push(performance.now() - started)
+          sources.push(source)
+          if (kind === "file") files += 1
+          else folders += 1
+        }
+      } catch {
+        failed += 1
+      } finally {
+        lease?.release()
+      }
+      sampleMemory()
+    }
+    await pipeline.whenIdle()
+    const l1HitMs: number[] = []
+    for (const source of sources) {
+      const started = performance.now()
+      const lease = pipeline.acquireLibrary(source, { contextId: "benchmark:library-l1" })
+      try {
+        await lease.ready
+        l1HitMs.push(performance.now() - started)
+      } finally {
+        lease.release()
+      }
+      sampleMemory()
+    }
+    await pipeline.whenIdle()
+    pipeline.releaseContext(contextId)
+    pipeline.releaseContext("benchmark:library-l1")
+    return {
+      requested: sampleCount,
+      candidatesScanned,
+      attempted: sources.length + failed,
+      unavailable,
+      skipped: Math.max(0, sampleCount - sources.length - failed),
+      ready: sources.length,
+      failed,
+      sourceKinds: { file: files, folder: folders },
+      generationMs: generationMs.length ? summarize(generationMs) : undefined,
+      l1HitMs: l1HitMs.length ? summarize(l1HitMs) : undefined,
+      afterRelease: pipeline.snapshot(),
+    }
+  } finally {
+    pipeline.releaseContext(contextId)
+    pipeline.releaseContext("benchmark:library-l1")
   }
 }
 
@@ -434,6 +528,12 @@ function percentile(sorted: readonly number[], percentileValue: number): number 
 function assertReport(report: {
   corpus: { acceptanceEligible: boolean }
   directory: { providerReadMs: number; browserOpenAndSortMs: number }
+  library?: {
+    ready: number
+    failed: number
+    l1HitMs?: Summary
+    afterRelease: { demands: number; activeFlights: number; queuedFlights: number; runningFlights: number }
+  }
   pages: { coldGenerationMs: number; warmGenerationMs: number }
   scroll: {
     ready: number
@@ -460,6 +560,14 @@ function assertReport(report: {
   if (!report.corpus.acceptanceEligible) failures.push("corpus is not acceptance eligible")
   if (report.directory.providerReadMs > budgets.directoryReadMs) failures.push(`directory read ${report.directory.providerReadMs}ms > ${budgets.directoryReadMs}ms`)
   if (report.directory.browserOpenAndSortMs > budgets.browserOpenMs) failures.push(`browser open ${report.directory.browserOpenAndSortMs}ms > ${budgets.browserOpenMs}ms`)
+  if (report.library) {
+    if (!report.library.ready) failures.push("no usable library thumbnail source was generated")
+    if (report.library.failed) failures.push(`${report.library.failed} library thumbnail demand(s) failed`)
+    if (report.library.l1HitMs && report.library.l1HitMs.p95 > budgets.l1HitP95Ms) {
+      failures.push(`library L1 hit p95 ${report.library.l1HitMs.p95}ms > ${budgets.l1HitP95Ms}ms`)
+    }
+    if (!workStateIsZero(report.library.afterRelease)) failures.push("library thumbnail demands/flights did not return to zero")
+  }
   if (report.pages.coldGenerationMs > budgets.coldGenerationMs) failures.push(`cold generation ${report.pages.coldGenerationMs}ms > ${budgets.coldGenerationMs}ms`)
   if (report.pages.warmGenerationMs > budgets.warmGenerationMs) failures.push(`warm generation ${report.pages.warmGenerationMs}ms > ${budgets.warmGenerationMs}ms`)
   if (report.scroll.finalVisibleReadyMs.p95 > budgets.visibleReadyP95Ms) failures.push(`visible ready p95 ${report.scroll.finalVisibleReadyMs.p95}ms > ${budgets.visibleReadyP95Ms}ms`)
