@@ -8,6 +8,8 @@ import type {
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
 import type { ReaderLibraryStatistics, ReaderLibraryStatisticsStore } from "../../ports/ReaderLibraryStatisticsStore.js"
+import type { ReaderPlaylistStore } from "../../ports/ReaderPlaylistStore.js"
+import { ReaderPlaylistService } from "./ReaderPlaylistService.js"
 import { assertReaderDirectoryFilter } from "../../domain/browser/ReaderDirectoryFilter.js"
 
 export const READER_SYSTEM_BOOKMARK_LIST_IDS = ["all", "default", "favorites"] as const
@@ -69,6 +71,7 @@ export class ReaderLibraryService implements AsyncDisposable {
   #drainPromise?: Promise<void>
   #resolveDrain?: () => void
   #closePromise?: Promise<void>
+  #playlists?: ReaderPlaylistService
 
   constructor(
     private readonly store: ReaderLibraryStore,
@@ -87,6 +90,13 @@ export class ReaderLibraryService implements AsyncDisposable {
     const store = this.store
     if (!isStatisticsStore(store)) throw new Error("Reader library statistics are unavailable.")
     return this.#track(() => store.getLibraryStatistics())
+  }
+
+  playlists(): ReaderPlaylistService {
+    this.#assertOpen()
+    const store = this.store
+    if (!isPlaylistStore(store)) throw new Error("Reader playlists are unavailable.")
+    return this.#playlists ??= new ReaderPlaylistService(store, this.clock, this.createId)
   }
 
   async removeRecent(bookId: string, signal?: AbortSignal): Promise<boolean> {
@@ -482,4 +492,23 @@ function assertTimestamp(timestamp: number, name: string): void {
 
 function isStatisticsStore(store: ReaderLibraryStore): store is ReaderLibraryStore & ReaderLibraryStatisticsStore {
   return "getLibraryStatistics" in store && typeof store.getLibraryStatistics === "function"
+}
+
+function isPlaylistStore(store: ReaderLibraryStore): store is ReaderLibraryStore & ReaderPlaylistStore {
+  return "listPlaylists" in store
+    && typeof store.listPlaylists === "function"
+    && "getPlaylist" in store
+    && typeof store.getPlaylist === "function"
+    && "upsertPlaylist" in store
+    && typeof store.upsertPlaylist === "function"
+    && "deletePlaylist" in store
+    && typeof store.deletePlaylist === "function"
+    && "listPlaylistEntries" in store
+    && typeof store.listPlaylistEntries === "function"
+    && "appendPlaylistEntries" in store
+    && typeof store.appendPlaylistEntries === "function"
+    && "deletePlaylistEntries" in store
+    && typeof store.deletePlaylistEntries === "function"
+    && "replacePlaylistEntryOrder" in store
+    && typeof store.replacePlaylistEntryOrder === "function"
 }

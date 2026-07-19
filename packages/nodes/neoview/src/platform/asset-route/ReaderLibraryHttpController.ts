@@ -1,4 +1,5 @@
 import type { ReaderBookmarkBatchUpdate, SaveReaderBookmarkInput, SaveReaderBookmarkListInput, UpdateReaderBookmarkInput } from "../../application/library/ReaderLibraryService.js"
+import type { AppendReaderPlaylistEntryInput, SaveReaderPlaylistInput } from "../../application/library/ReaderPlaylistService.js"
 import { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
@@ -6,6 +7,9 @@ import type { ReaderLibraryCleanupService } from "../../application/library/Read
 const RECENT_ITEM_PATH = /^\/reader\/library\/recents\/([^/]+)$/
 const BOOKMARK_ITEM_PATH = /^\/reader\/library\/bookmarks\/([^/]+)$/
 const BOOKMARK_LIST_ITEM_PATH = /^\/reader\/library\/bookmark-lists\/([^/]+)$/
+const PLAYLIST_ITEM_PATH = /^\/reader\/library\/playlists\/([^/]+)$/
+const PLAYLIST_ENTRIES_PATH = /^\/reader\/library\/playlists\/([^/]+)\/items$/
+const PLAYLIST_ORDER_PATH = /^\/reader\/library\/playlists\/([^/]+)\/items\/order$/
 const MAX_BODY_BYTES = 64 * 1024
 
 export class ReaderLibraryHttpController {
@@ -22,6 +26,55 @@ export class ReaderLibraryHttpController {
         return jsonResponse({
           items: await this.library.listRecent(libraryQuery(url)),
         })
+      }
+      if (url.pathname === "/reader/library/statistics" && request.method === "GET") {
+        return jsonResponse(await this.library.statistics())
+      }
+      if (url.pathname === "/reader/library/playlists" && request.method === "GET") {
+        return jsonResponse({ items: await this.library.playlists().list() })
+      }
+      if (url.pathname === "/reader/library/playlists" && request.method === "POST") {
+        const body = await readJson(request)
+        const input = body && parsePlaylist(body)
+        if (!input) return jsonResponse({ error: "Invalid reader playlist" }, 400)
+        return jsonResponse(await this.library.playlists().save(input), 201)
+      }
+      const playlistEntriesMatch = PLAYLIST_ENTRIES_PATH.exec(url.pathname)
+      if (playlistEntriesMatch && request.method === "GET") {
+        const id = safeDecode(playlistEntriesMatch[1]!)
+        if (!id) return jsonResponse({ error: "Invalid playlist id" }, 400)
+        return jsonResponse({ items: await this.library.playlists().entries(id) })
+      }
+      if (playlistEntriesMatch && request.method === "POST") {
+        const id = safeDecode(playlistEntriesMatch[1]!)
+        const body = await readJson(request)
+        const entries = body && parsePlaylistEntries(body)
+        if (!id || !entries) return jsonResponse({ error: "Invalid reader playlist entries" }, 400)
+        return jsonResponse({ items: await this.library.playlists().append(id, entries) }, 201)
+      }
+      if (playlistEntriesMatch && request.method === "DELETE") {
+        const id = safeDecode(playlistEntriesMatch[1]!)
+        const body = await readJson(request)
+        const ids = body && parseBatchIds(body.ids)
+        if (!id || !ids) return jsonResponse({ error: "Invalid reader playlist entry delete" }, 400)
+        return jsonResponse({ deleted: await this.library.playlists().removeEntries(id, ids) })
+      }
+      const playlistOrderMatch = PLAYLIST_ORDER_PATH.exec(url.pathname)
+      if (playlistOrderMatch && request.method === "PUT") {
+        const id = safeDecode(playlistOrderMatch[1]!)
+        const body = await readJson(request)
+        const ids = body && parsePlaylistOrder(body)
+        if (!id || !ids) return jsonResponse({ error: "Invalid reader playlist order" }, 400)
+        await this.library.playlists().reorder(id, ids)
+        return new Response(null, { status: 204 })
+      }
+      const playlistMatch = PLAYLIST_ITEM_PATH.exec(url.pathname)
+      if (playlistMatch && request.method === "DELETE") {
+        const id = safeDecode(playlistMatch[1]!)
+        if (!id) return jsonResponse({ error: "Invalid playlist id" }, 400)
+        return await this.library.playlists().remove(id)
+          ? new Response(null, { status: 204 })
+          : jsonResponse({ error: "Playlist not found" }, 404)
       }
       if (url.pathname === "/reader/library/recents/cleanup" && request.method === "POST") {
         const body = await readJson(request)
@@ -266,6 +319,38 @@ function parseBookmarkList(body: Record<string, unknown>): SaveReaderBookmarkLis
     isFavorite: body.isFavorite as boolean | undefined,
     createdAt: body.createdAt as number | undefined,
   }
+}
+
+function parsePlaylist(body: Record<string, unknown>): SaveReaderPlaylistInput | undefined {
+  if (typeof body.name !== "string" || Object.keys(body).some((key) => key !== "id" && key !== "name" && key !== "createdAt")) return undefined
+  if (body.id !== undefined && typeof body.id !== "string") return undefined
+  if (body.createdAt !== undefined && !isTimestamp(body.createdAt)) return undefined
+  return { name: body.name, ...(body.id !== undefined ? { id: body.id as string } : {}), ...(body.createdAt !== undefined ? { createdAt: body.createdAt as number } : {}) }
+}
+
+function parsePlaylistEntries(body: Record<string, unknown>): AppendReaderPlaylistEntryInput[] | undefined {
+  if (Object.keys(body).length !== 1 || !Array.isArray(body.entries) || !body.entries.length || body.entries.length > 500) return undefined
+  const entries: AppendReaderPlaylistEntryInput[] = []
+  for (const value of body.entries) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+    const entry = value as Record<string, unknown>
+    if (Object.keys(entry).some((key) => key !== "id" && key !== "source" && key !== "name" && key !== "createdAt")) return undefined
+    const source = parseSource(entry.source)
+    if (!source || typeof entry.name !== "string") return undefined
+    if (entry.id !== undefined && typeof entry.id !== "string") return undefined
+    if (entry.createdAt !== undefined && !isTimestamp(entry.createdAt)) return undefined
+    entries.push({
+      source,
+      name: entry.name,
+      ...(entry.id !== undefined ? { id: entry.id as string } : {}),
+      ...(entry.createdAt !== undefined ? { createdAt: entry.createdAt as number } : {}),
+    })
+  }
+  return entries
+}
+
+function parsePlaylistOrder(body: Record<string, unknown>): string[] | undefined {
+  return Object.keys(body).length === 1 && parseBatchIds(body.ids) ? body.ids as string[] : undefined
 }
 
 function parseSource(value: unknown): ViewSource | undefined {

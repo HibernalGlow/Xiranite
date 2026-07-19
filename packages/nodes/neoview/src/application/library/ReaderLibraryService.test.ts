@@ -58,6 +58,14 @@ describe("ReaderLibraryService", () => {
     expect(() => new ReaderLibraryService(createStore()).statistics()).toThrow("unavailable")
   })
 
+  it("[neoview.library.playlists] exposes one shared playlist service only when its store supports the port", () => {
+    const store = Object.assign(createStore(), playlistStore())
+    const library = new ReaderLibraryService(store, () => 20, () => "generated")
+
+    expect(library.playlists()).toBe(library.playlists())
+    expect(() => new ReaderLibraryService(createStore()).playlists()).toThrow("unavailable")
+  })
+
   it("[neoview.library.bookmark] creates canonical bookmarks and rejects persisted system lists", async () => {
     const store = createStore()
     const service = new ReaderLibraryService(store, () => 2000, () => "bookmark-1")
@@ -319,6 +327,19 @@ function createStore() {
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(),
     close: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function playlistStore() {
+  return {
+    listPlaylists: vi.fn(),
+    getPlaylist: vi.fn(),
+    upsertPlaylist: vi.fn(),
+    deletePlaylist: vi.fn(),
+    listPlaylistEntries: vi.fn(),
+    appendPlaylistEntries: vi.fn(),
+    deletePlaylistEntries: vi.fn(),
+    replacePlaylistEntryOrder: vi.fn(),
   }
 }
 
