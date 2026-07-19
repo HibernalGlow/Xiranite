@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
+  parseNeoviewSuperResolutionPreferencesPatch,
   parseNeoviewRuntimeConfig,
 } from "./ReaderRuntimeConfig.js"
 
@@ -64,6 +65,16 @@ describe("NeoView super-resolution runtime config", () => {
         action: { modelId: "realcugan", scale: 3, skip: false },
       }],
     })
+  })
+
+  it("[neoview.super-resolution.progressive-settings-http] validates the GUI preference patch and emits canonical TOML", () => {
+    expect(parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { preferences: { progressiveEnabled: true, progressiveDwellTimeMs: 5_000, progressiveMaxPages: 999 } },
+    })).toEqual({
+      patch: { superResolution: { preferences: { progressiveEnabled: true, progressiveDwellTimeMs: 5_000, progressiveMaxPages: 999 } } },
+      tomlPatch: { super_resolution: { preferences: { progressive_enabled: true, progressive_dwell_time_ms: 5_000, progressive_max_pages: 999 } } },
+    })
+    expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { preferences: { backgroundConcurrency: 0 } } })).toThrow("between 1 and 32")
   })
 
   it("[neoview.super-resolution.custom-model-config] validates portable NCNN manifests", () => {

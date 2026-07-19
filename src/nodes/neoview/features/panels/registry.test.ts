@@ -13,7 +13,7 @@ describe("NeoView panel and card registries", () => {
   it("[neoview.shell.registry-lazy] reads metadata without invoking any card loader", () => {
     const loaders = CARD_DEFINITIONS.map((card) => vi.spyOn(card, "load"))
     expect(availablePanels("left").map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
-    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties", "control"])
+    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "control"])
     for (const loader of loaders) expect(loader).not.toHaveBeenCalled()
     for (const loader of loaders) loader.mockRestore()
   })
@@ -44,7 +44,7 @@ describe("NeoView panel and card registries", () => {
         info: { visible: true, order: 10, position: "right" },
         properties: { visible: true, order: 1, position: "right" },
       },
-    } as never).map((panel) => panel.id)).toEqual(["properties", "control", "info"])
+    } as never).map((panel) => panel.id)).toEqual(["properties", "upscale", "control", "info"])
     expect(availablePanels("left", {
       panelLayout: {
         pageList: { visible: false, order: 20, position: "left" },
@@ -68,10 +68,10 @@ describe("NeoView panel and card registries", () => {
       requiresSession: false,
       canHide: true,
     })
-    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim"])
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "animated-video-mode"])
     expect(cardsForPanel("control", {
       cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
-    } as never, false).map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "thumbnail-maintenance"])
+    } as never, false).map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "animated-video-mode", "thumbnail-maintenance"])
   })
 
   it("[neoview.switch-toast.registry] exposes the legacy Card first, resident and lazy", () => {
@@ -113,6 +113,19 @@ describe("NeoView panel and card registries", () => {
     expect(cardsForPanel("control", undefined, false).map((card) => card.id)).toContain("page-transition")
   })
 
+  it("[neoview.progressive-upscale.registry] keeps the upscale settings Card resident without a book", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "progressive-upscale")
+    expect(definition).toMatchObject({
+      title: "递进超分",
+      defaultPanel: "upscale",
+      defaultSidebarVisible: true,
+      requiresSession: false,
+      canHide: true,
+    })
+    expect(definition?.icon).toBeTruthy()
+    expect(cardsForPanel("upscale", undefined, false).map((card) => card.id)).toEqual(["progressive-upscale"])
+  })
+
   it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {
     expect(availablePanels("left").map((panel) => panel.id)).not.toContain("settings")
     expect(availablePanels("left", {
@@ -137,7 +150,7 @@ describe("NeoView panel and card registries", () => {
 
   it("[neoview.shell.resident-cards] keeps configured panels and session-dependent Card shells resident before opening a book", () => {
     expect(availablePanels("left", undefined, false).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
-    expect(availablePanels("right", undefined, false).map((panel) => panel.id)).toEqual(["info", "properties", "control"])
+    expect(availablePanels("right", undefined, false).map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "control"])
     expect(cardsForPanel("info", undefined, false).map((card) => card.id)).toEqual([
       "book-information", "image-information", "storage-information", "time-information", "preload-status", "info-overlay",
     ])

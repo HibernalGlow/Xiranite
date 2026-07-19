@@ -203,6 +203,16 @@ export interface NeoviewSuperResolutionConfig {
   preferences: SuperResolutionPreferences
 }
 
+export interface NeoviewSuperResolutionPreferencesPatch {
+  autoUpscaleEnabled?: boolean
+  preUpscaleEnabled?: boolean
+  preloadPages?: number
+  backgroundConcurrency?: number
+  progressiveEnabled?: boolean
+  progressiveDwellTimeMs?: number
+  progressiveMaxPages?: number
+}
+
 export interface NeoviewHistoryListConfig {
   viewMode: "compact" | "content" | "banner" | "thumbnail"
 }
@@ -1076,6 +1086,66 @@ export function parseNeoviewColorFilterPatch(value: unknown): {
   return {
     patch: { colorFilter: settings },
     tomlPatch: { image: { color_filter: colorFilterToml(settings) } },
+  }
+}
+
+export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
+  patch: { superResolution: { preferences: NeoviewSuperResolutionPreferencesPatch } }
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader super-resolution patch")
+  if (Object.keys(record).some((key) => key !== "superResolution")) {
+    throw new Error("reader super-resolution patch contains unsupported fields.")
+  }
+  const root = requireRecord(record.superResolution, "reader super-resolution patch.superResolution")
+  if (Object.keys(root).some((key) => key !== "preferences")) {
+    throw new Error("reader super-resolution patch.superResolution contains unsupported fields.")
+  }
+  const preferences = requireRecord(root.preferences, "reader super-resolution patch.superResolution.preferences")
+  const allowed = new Set([
+    "autoUpscaleEnabled",
+    "preUpscaleEnabled",
+    "preloadPages",
+    "backgroundConcurrency",
+    "progressiveEnabled",
+    "progressiveDwellTimeMs",
+    "progressiveMaxPages",
+  ])
+  if (Object.keys(preferences).some((key) => !allowed.has(key))) {
+    throw new Error("reader super-resolution preferences patch contains unsupported fields.")
+  }
+  const patch: NeoviewSuperResolutionPreferencesPatch = {}
+  const toml: Record<string, unknown> = {}
+  const booleanFields = [
+    ["autoUpscaleEnabled", "auto_upscale_enabled"],
+    ["preUpscaleEnabled", "pre_upscale_enabled"],
+    ["progressiveEnabled", "progressive_enabled"],
+  ] as const
+  for (const [field, tomlField] of booleanFields) {
+    if (preferences[field] !== undefined) {
+      const parsed = optionalBoolean(preferences[field], `reader super-resolution preferences.${field}`)
+      if (parsed === undefined) throw new Error(`reader super-resolution preferences.${field} must be a boolean.`)
+      patch[field] = parsed
+      toml[tomlField] = parsed
+    }
+  }
+  const integerFields = [
+    ["preloadPages", "preload_pages", 0, 1_000],
+    ["backgroundConcurrency", "background_concurrency", 1, 32],
+    ["progressiveDwellTimeMs", "progressive_dwell_time_ms", 0, 3_600_000],
+    ["progressiveMaxPages", "progressive_max_pages", 0, 10_000],
+  ] as const
+  for (const [field, tomlField, min, max] of integerFields) {
+    if (preferences[field] !== undefined) {
+      const parsed = boundedInteger(preferences[field], min, max, `reader super-resolution preferences.${field}`)
+      patch[field] = parsed
+      toml[tomlField] = parsed
+    }
+  }
+  if (!Object.keys(patch).length) throw new Error("reader super-resolution preferences patch must change at least one field.")
+  return {
+    patch: { superResolution: { preferences: patch } },
+    tomlPatch: { super_resolution: { preferences: toml } },
   }
 }
 

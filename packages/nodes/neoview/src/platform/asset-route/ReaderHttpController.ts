@@ -120,6 +120,7 @@ import {
   DEFAULT_NEOVIEW_MEDIA_CONFIG,
   DEFAULT_NEOVIEW_PAGE_LIST_CONFIG,
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
+  DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewShellControlPatch,
@@ -131,6 +132,7 @@ import {
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
   parseNeoviewImageTrimPatch,
+  parseNeoviewSuperResolutionPreferencesPatch,
   parseNeoviewBookmarkListPatch,
   parseNeoviewHistoryListPatch,
   parseNeoviewPageListPatch,
@@ -144,6 +146,8 @@ import {
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
   type NeoviewImageTrimPatch,
+  type NeoviewSuperResolutionConfig,
+  type NeoviewSuperResolutionPreferencesPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -277,6 +281,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
   imageTrim?: ReaderImageTrimSettings
   updateImageTrim?: (patch: NeoviewImageTrimPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderImageTrimSettings>
+  superResolution?: NeoviewSuperResolutionConfig
+  updateSuperResolution?: (patch: NeoviewSuperResolutionPreferencesPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSuperResolutionConfig>
   inputBindings?: ReaderInputBindingsConfig
   updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
   radialMenu?: ReaderRadialMenuConfig
@@ -345,6 +351,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
   #imageTrim: ReaderImageTrimSettings
+  #superResolution: NeoviewSuperResolutionConfig
   #inputBindings: ReaderInputBindingsConfig
   #radialMenu: ReaderRadialMenuConfig
   #sessionOptions: Partial<ReaderSessionOptions>
@@ -361,6 +368,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
   readonly #updateImageTrim?: ReaderHttpControllerOptions["updateImageTrim"]
+  readonly #updateSuperResolution?: ReaderHttpControllerOptions["updateSuperResolution"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
@@ -589,6 +597,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
     this.#imageTrim = options.imageTrim ?? DEFAULT_READER_IMAGE_TRIM
+    this.#superResolution = options.superResolution ?? DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
     this.#sessionOptions = options.sessionOptions ?? {}
@@ -605,6 +614,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
     this.#updateImageTrim = options.updateImageTrim
+    this.#updateSuperResolution = options.updateSuperResolution
     this.#updateInputBindings = options.updateInputBindings
     this.#updateRadialMenu = options.updateRadialMenu
   }
@@ -920,6 +930,27 @@ export class ReaderHttpController implements AsyncDisposable {
   async #patchShellConfig(request: Request): Promise<Response> {
     const body = await readControlJson(request)
     if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    if (Object.hasOwn(body, "superResolution")) {
+      if (!this.#updateSuperResolution) return jsonResponse({ error: "Reader super-resolution preferences are read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewSuperResolutionPreferencesPatch>
+      try {
+        parsed = parseNeoviewSuperResolutionPreferencesPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewSuperResolutionConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateSuperResolution!(parsed.patch.superResolution.preferences, parsed.tomlPatch)
+        this.#superResolution = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "inputBindings")) {
       if (!this.#updateInputBindings) return jsonResponse({ error: "Reader input bindings are read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewInputBindingsPatch>
@@ -1275,6 +1306,10 @@ export class ReaderHttpController implements AsyncDisposable {
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
       imageTrim: this.#imageTrim,
+      superResolution: {
+        provider: this.#superResolution.provider,
+        preferences: this.#superResolution.preferences,
+      },
       inputBindings: this.#inputBindings,
       radialMenu: this.#radialMenu,
     }
