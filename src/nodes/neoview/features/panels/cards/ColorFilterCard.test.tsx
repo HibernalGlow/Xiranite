@@ -27,9 +27,10 @@ describe("ColorFilterCard", () => {
     await waitFor(() => expect(persist).toHaveBeenCalledOnce())
   })
 
-  it("stays interactive while a Reader navigation is busy", () => {
+  it("keeps the resident Card mounted while its panel is inactive", () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
-    render(<DockedColorFilterCard colorFilter={store} disabled client={{} as never} onGoTo={() => undefined} />)
+    render(<DockedColorFilterCard colorFilter={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)
     expect(screen.getByRole("slider", { name: "亮度" }).hasAttribute("disabled")).toBe(false)
+    expect(document.querySelector('[data-neoview-card="color-filter"]')?.getAttribute("data-panel-active")).toBe("false")
   })
 })

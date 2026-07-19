@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { ReaderColorFilterPort } from "../../color-filter/ReaderColorFilterStore"
 import type { ReaderPanelContext } from "../registry"
-import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 const SLIDERS = [
   { key: "brightness", label: "亮度", min: 50, max: 150, suffix: "%" },
@@ -23,12 +22,11 @@ const SLIDERS = [
 ] as const
 
 export default function DockedColorFilterCard({ colorFilter, panelActive = true }: ReaderPanelContext) {
-  if (!panelActive) return <ReaderCardEmptyState />
   if (!colorFilter) return <p className="text-xs text-muted-foreground">颜色滤镜尚未就绪。</p>
-  return <ColorFilterCard store={colorFilter} />
+  return <ColorFilterCard store={colorFilter} dataPanelActive={panelActive} />
 }
 
-export function ColorFilterCard({ store, disabled = false }: { store: ReaderColorFilterPort; disabled?: boolean }) {
+export function ColorFilterCard({ store, disabled = false, dataPanelActive = true }: { store: ReaderColorFilterPort; disabled?: boolean; dataPanelActive?: boolean }) {
   const settings = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const [saveState, setSaveState] = useState<SaveState>({ phase: "idle" })
   const mountedRef = useRef(true)
@@ -45,7 +43,7 @@ export function ColorFilterCard({ store, disabled = false }: { store: ReaderColo
   const reset = useCallback(() => runMutation(() => store.reset(), () => store.reset()), [runMutation, store])
   const retry = useCallback(() => { const operation = retryRef.current; if (operation) runMutation(operation, operation) }, [runMutation])
   const controlsDisabled = disabled || saveState.phase === "saving"
-  return <section className="space-y-3 text-sm" data-neoview-card="color-filter">
+  return <section className="space-y-3 text-sm" data-neoview-card="color-filter" data-panel-active={dataPanelActive ? "true" : "false"}>
     <div className="flex items-center justify-between gap-2"><CheckboxRow label="着色" checked={settings.colorizeEnabled} disabled={controlsDisabled} onCheckedChange={(checked) => update({ colorizeEnabled: checked })} /><Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" disabled={controlsDisabled} title="重置全部滤镜" aria-label="重置全部滤镜" onClick={reset}><RotateCcw className="size-3.5" /></Button></div>
     {settings.colorizeEnabled ? <div className="space-y-2"><select className="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground" aria-label="着色预设" value={settings.colorizePreset} disabled={controlsDisabled} onChange={(event) => update({ colorizePreset: event.currentTarget.value as ReaderColorFilterSettings["colorizePreset"] })}>{READER_COLOR_FILTER_PRESET_IDS.map((preset) => <option key={preset} value={preset}>{READER_COLOR_FILTER_PRESET_LABELS[preset]}</option>)}</select><CheckboxRow label="仅黑白图像" checked={settings.onlyBlackAndWhite} disabled={controlsDisabled} onCheckedChange={(checked) => update({ onlyBlackAndWhite: checked })} /></div> : null}
     <div className="space-y-2.5">{SLIDERS.map((slider) => <FilterSlider key={slider.key} label={slider.label} value={settings[slider.key]} min={slider.min} max={slider.max} suffix={slider.suffix} disabled={controlsDisabled} onPreview={(value) => preview({ [slider.key]: value } as ReaderColorFilterPatch)} onCommit={commit} />)}</div>

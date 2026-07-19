@@ -12,21 +12,19 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { ReaderPageTransitionPort } from "../../page-transition/ReaderPageTransitionStore"
 import type { ReaderPanelContext } from "../registry"
-import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 export default function DockedPageTransitionCard({ pageTransition, panelActive = true }: ReaderPanelContext) {
-  if (!panelActive) return <ReaderCardEmptyState />
   if (!pageTransition) return <p className="text-xs text-muted-foreground">翻页动画尚未就绪。</p>
-  return <PageTransitionCard store={pageTransition} />
+  return <PageTransitionCard store={pageTransition} dataPanelActive={panelActive} />
 }
 
-export function PageTransitionCard({ store, disabled = false }: { store: ReaderPageTransitionPort; disabled?: boolean }) {
+export function PageTransitionCard({ store, disabled = false, dataPanelActive = true }: { store: ReaderPageTransitionPort; disabled?: boolean; dataPanelActive?: boolean }) {
   const settings = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const [previewing, setPreviewing] = useState(false)
   const preview = projectReaderPageTransitionCss(settings, "next")
   const commitDuration = () => { void store.commit() }
   return (
-    <section className="space-y-3 text-sm" data-neoview-card="page-transition">
+    <section className="space-y-3 text-sm" data-neoview-card="page-transition" data-panel-active={dataPanelActive ? "true" : "false"}>
       <div className="flex items-center justify-between gap-2">
         <label className="flex min-w-0 items-center gap-2 text-xs"><Checkbox checked={settings.enabled} disabled={disabled} onCheckedChange={(value) => void store.update({ enabled: value === true })} /><span className="truncate">启用翻页动画</span></label>
         <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" disabled={disabled} title="重置设置" aria-label="重置设置" onClick={() => void store.reset()}><RotateCcw className="size-3.5" /></Button>
