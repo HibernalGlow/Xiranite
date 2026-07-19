@@ -457,6 +457,72 @@ describe("RemoteReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.media-progress.remote] validates and forwards media progress through the current remote session", async () => {
+    const requests: Request[] = []
+    const progress = { bookId: "video-book", position: 12.5, duration: 30, completed: false, updatedAt: 123 }
+    let getPayload: unknown = { progress: null }
+    let patchPayload: unknown = { progress, durable: true }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      const url = new URL(request.url)
+      if (request.method === "DELETE") return new Response(null, { status: 204 })
+      if (url.pathname.endsWith("/media-progress")) {
+        return Response.json(request.method === "GET" ? getPayload : patchPayload)
+      }
+      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1", {
+        mediaKind: "video",
+        name: "clip.mp4",
+      }), { status: 201 })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/clip.mp4" })
+      await expect(remote.getMediaProgress()).resolves.toBeUndefined()
+      await expect(remote.updateMediaProgress({ position: 12.5, duration: 30, completed: false }, { flush: true })).resolves.toEqual(progress)
+      const updateRequest = requests.find((request) => request.method === "PATCH")!
+      expect(updateRequest.headers.get("x-xiranite-token")).toBe("token")
+      expect(await updateRequest.json()).toEqual({ position: 12.5, duration: 30, completed: false, flush: true })
+
+      getPayload = { progress: { ...progress, position: 31 } }
+      await expect(remote.getMediaProgress()).rejects.toThrow("invalid media progress response")
+      patchPayload = { progress, durable: "yes" }
+      await expect(remote.updateMediaProgress({ position: 1, duration: 30, completed: false })).rejects.toThrow("invalid media progress update response")
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.media-progress.remote-errors] preserves HTTP failures and request cancellation", async () => {
+    let mode: "open" | "conflict" | "pending" = "open"
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (request.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }))
+      if (url.pathname.endsWith("/media-progress")) {
+        if (mode === "conflict") return Promise.resolve(Response.json({ error: "Reader session does not contain video media" }, { status: 409 }))
+        if (mode === "pending") return pendingUntilAborted(init?.signal)
+      }
+      return Promise.resolve(Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1", {
+        mediaKind: "video",
+        name: "clip.mp4",
+      }), { status: 201 }))
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/clip.mp4" })
+      mode = "conflict"
+      await expect(remote.getMediaProgress()).rejects.toThrow("Reader session does not contain video media")
+      mode = "pending"
+      const abort = new AbortController()
+      const pending = remote.updateMediaProgress({ position: 1, duration: 30, completed: false }, {}, abort.signal)
+      abort.abort(new Error("cancel media progress"))
+      await expect(pending).rejects.toThrow("cancel media progress")
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.cli.connect-security] requires a token, loopback URL and valid authenticated responses", async () => {
     expect(() => new RemoteReaderHeadlessController({ baseUrl: "https://reader.example.com", token: "secret" })).toThrow("loopback")
     expect(() => new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "" })).toThrow("non-empty")

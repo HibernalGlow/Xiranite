@@ -634,9 +634,20 @@ describe("NeoView CLI", () => {
     await expect(runProgram([
       "media-progress-set", "clip.mp4", "--position", "12", "--duration", "30", "--completed", "invalid",
     ], host([]), { createController: async () => reader })).rejects.toThrow("--completed must be true or false")
-    await expect(runProgram([
-      "media-progress-set", "clip.mp4", "--position", "12", "--duration", "30", "--completed", "false", "--connect", "http://127.0.0.1:41000",
-    ], host([], { XIRANITE_BACKEND_TOKEN: "media-progress-token" }), { createController: async () => reader })).rejects.toThrow("remote media-progress transport")
+    const remoteUpdateMediaProgress = vi.fn(async (update, options) => ({ bookId: "remote-video", ...update, updatedAt: 12, flush: options?.flush }))
+    const remote = fakeReader({
+      getMediaProgress: vi.fn(async () => undefined),
+      updateMediaProgress: remoteUpdateMediaProgress,
+    })
+    const remoteOutput: unknown[] = []
+    await runProgram([
+      "media-progress-set", "clip.mp4", "--position", "12", "--duration", "30", "--completed", "false", "--flush", "--connect", "http://127.0.0.1:41000", "--json",
+    ], host(remoteOutput, { XIRANITE_BACKEND_TOKEN: "media-progress-token" }), {
+      createController: async () => { throw new Error("local controller must stay lazy") },
+      createRemoteController: async () => remote,
+    })
+    expect(remoteUpdateMediaProgress).toHaveBeenCalledWith({ position: 12, duration: 30, completed: false }, { flush: true })
+    expect(JSON.parse(remoteOutput.join(""))).toMatchObject({ progress: { bookId: "remote-video", position: 12 } })
     await expect(runProgram(["media-progress-ui"], {
       ...host([]),
       stdin: { isTTY: false },

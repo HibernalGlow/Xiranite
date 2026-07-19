@@ -468,7 +468,6 @@ export async function runProgram(
     const connect = oneValue(parsed, "--connect")
     const tokenVariable = oneValue(parsed, "--token-env")
     if (!connect && tokenVariable) throw usage("--token-env requires --connect.")
-    if (connect && command.startsWith("media-progress-")) throw usage(`${command} currently requires a local Reader composition; remote media-progress transport is not yet available.`)
     if (command.startsWith("upscale-cache-") && !connect) throw usage(`${command} requires --connect to the running Reader backend.`)
     if (connect && parsed.values.has("--config")) throw usage("--config cannot be combined with --connect because the running backend owns configuration.")
     controller = connect
@@ -3075,7 +3074,6 @@ async function runMediaProgressUi(
 ): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView media-progress-ui requires an interactive terminal.")
   const connection = parseReaderUiConnectionArgs(args)
-  if (connection.baseUrl) throw usage("NeoView media-progress-ui currently requires a local Reader composition; remote media-progress transport is not yet available.")
   const credentials = credentialsFromEnvironment(parseArguments(connection.credentialArgs), host)
   try {
     const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
@@ -3091,10 +3089,15 @@ async function runMediaProgressUi(
     await runTerminalUi(createNeoviewMediaProgressTuiDefinition(
       flags.language,
       async () => {
-        const controller = await dependencies.createController({ cwd: host.cwd, env: host.env })
+        const controller = connection.baseUrl
+          ? await (dependencies.createRemoteController ?? DEFAULT_DEPENDENCIES.createRemoteController!)({
+              baseUrl: connection.baseUrl,
+              token: connectionToken(connection.tokenVariable, host),
+            })
+          : await dependencies.createController({ cwd: host.cwd, env: host.env })
         if (!controller.getMediaProgress || !controller.updateMediaProgress) {
           await controller[Symbol.asyncDispose]()
-          throw new Error("Reader media progress is unavailable for this local composition.")
+          throw new Error("Reader media progress is unavailable for this composition.")
         }
         return controller as import("./interaction.js").NeoviewMediaProgressTuiPort
       },

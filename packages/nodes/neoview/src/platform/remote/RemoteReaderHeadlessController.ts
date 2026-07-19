@@ -17,6 +17,8 @@ import {
   type ReaderBookSettingsSnapshot,
 } from "../../application/reader/ReaderBookSettingsService.js"
 import type { ReaderSubtitleTrack } from "../../application/reader/ReaderSubtitleService.js"
+import type { ReaderMediaProgressUpdate } from "../../application/reader/ReaderMediaProgressService.js"
+import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderDiagnosticsHistory, ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { parseReaderDiagnosticsHistory, parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
 import type { ReaderThumbnailMaintenanceSnapshot } from "../../ports/ReaderThumbnailStore.js"
@@ -109,6 +111,26 @@ const remoteSubtitleEnvelopeSchema = z.object({
 }).strict()
 
 type RemoteSubtitleTrack = z.infer<typeof remoteSubtitleTrackSchema>
+
+const mediaProgressRecordSchema = z.object({
+  bookId: z.string().min(1).max(512),
+  position: z.number().finite().nonnegative(),
+  duration: z.number().finite().nonnegative(),
+  completed: z.boolean(),
+  updatedAt: z.number().finite(),
+}).strict().refine((value) => value.position <= value.duration, {
+  message: "Media progress position cannot exceed duration.",
+  path: ["position"],
+})
+
+const mediaProgressGetEnvelopeSchema = z.object({
+  progress: mediaProgressRecordSchema.nullable(),
+}).strict()
+
+const mediaProgressUpdateEnvelopeSchema = z.object({
+  progress: mediaProgressRecordSchema,
+  durable: z.boolean(),
+}).strict()
 
 const artifactCacheSnapshotSchema = z.object({
   entries: z.number().int().nonnegative(),
@@ -515,6 +537,32 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     }
     const bytes = await readRemoteResponseBytes(response, MAX_REMOTE_SUBTITLE_BYTES, signal)
     return { bytes, contentVersion: track.contentVersion }
+  }
+
+  async getMediaProgress(signal?: AbortSignal): Promise<ReaderMediaProgressRecord | undefined> {
+    const session = this.#requireSession()
+    const parsed = mediaProgressGetEnvelopeSchema.safeParse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/media-progress`,
+      { signal },
+    ))
+    this.#assertCurrentSession(session)
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid media progress response.")
+    return parsed.data.progress ?? undefined
+  }
+
+  async updateMediaProgress(
+    update: ReaderMediaProgressUpdate,
+    options: { flush?: boolean } = {},
+    signal?: AbortSignal,
+  ): Promise<ReaderMediaProgressRecord> {
+    const session = this.#requireSession()
+    const parsed = mediaProgressUpdateEnvelopeSchema.safeParse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/media-progress`,
+      { method: "PATCH", body: JSON.stringify({ ...update, flush: options.flush === true }), signal },
+    ))
+    this.#assertCurrentSession(session)
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid media progress update response.")
+    return parsed.data.progress
   }
 
   async getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot> {
