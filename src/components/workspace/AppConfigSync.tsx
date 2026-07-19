@@ -63,6 +63,7 @@ const CHROME_STYLES = new Set<WorkspaceUiPreferences["chromeStyle"]>(["default",
 const ALPHABET_INDEX_STYLES = new Set<WorkspaceUiPreferences["alphabetIndexStyle"]>(["glass", "solid", "minimal"])
 const MODULE_TITLE_STYLES = new Set<WorkspaceUiPreferences["moduleTitleStyle"]>(["legend", "inline", "bar", "minimal"])
 const MODULE_PANEL_STYLES = new Set<WorkspaceUiPreferences["modulePanelStyle"]>(["soft", "solid", "outline", "flat"])
+const MODULE_CARD_EFFECTS = new Set<WorkspaceUiPreferences["moduleCardEffect"]>(["magic", "plain"])
 const RESIZABLE_HANDLE_STYLES = new Set<WorkspaceUiPreferences["resizableHandleStyle"]>(["grip", "dots", "line", "minimal"])
 const CHOICE_CONTROL_STYLES = new Set<WorkspaceUiPreferences["choiceControlStyle"]>(["segmented", "pills", "tabs", "tiles"])
 const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["stacked", "legend", "inline", "hidden"])
@@ -436,6 +437,7 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     switchDisplayStyle: state.switchDisplayStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
+    moduleCardEffect: state.moduleCardEffect,
     resizableHandleStyle: state.resizableHandleStyle,
     choiceControlStyle: state.choiceControlStyle,
     fieldTitleStyle: state.fieldTitleStyle,
@@ -541,6 +543,7 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (isOneOf(value.switchDisplayStyle, SWITCH_DISPLAY_STYLES)) next.switchDisplayStyle = value.switchDisplayStyle
   if (isOneOf(value.moduleTitleStyle, MODULE_TITLE_STYLES)) next.moduleTitleStyle = value.moduleTitleStyle
   if (isOneOf(value.modulePanelStyle, MODULE_PANEL_STYLES)) next.modulePanelStyle = value.modulePanelStyle
+  if (isOneOf(value.moduleCardEffect, MODULE_CARD_EFFECTS)) next.moduleCardEffect = value.moduleCardEffect
   if (isOneOf(value.resizableHandleStyle, RESIZABLE_HANDLE_STYLES)) next.resizableHandleStyle = value.resizableHandleStyle
   if (isOneOf(value.choiceControlStyle, CHOICE_CONTROL_STYLES)) next.choiceControlStyle = value.choiceControlStyle
   const fieldTitleStyle = value.fieldTitleStyle ?? value.choiceControlLabelStyle

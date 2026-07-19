@@ -89,6 +89,7 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setFieldTitleStyle: (fieldTitleStyle) => set({ fieldTitleStyle }, false, "SET_FIELD_TITLE_STYLE"),
     setModuleTitleStyle: (moduleTitleStyle) => set({ moduleTitleStyle }, false, "SET_MODULE_TITLE_STYLE"),
     setModulePanelStyle: (modulePanelStyle) => set({ modulePanelStyle }, false, "SET_MODULE_PANEL_STYLE"),
+    setModuleCardEffect: (moduleCardEffect) => set({ moduleCardEffect }, false, "SET_MODULE_CARD_EFFECT"),
     setResizableHandleStyle: (resizableHandleStyle) => set({ resizableHandleStyle }, false, "SET_RESIZABLE_HANDLE_STYLE"),
     setHazardMode: (hazardMode) => set({ hazardMode }, false, "SET_HAZARD_MODE"),
   }

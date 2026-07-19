@@ -22,7 +22,7 @@ import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
 import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice-control-variants"
-import type { ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
+import type { ModuleCardEffect, ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 
 export interface WSState {
   theme: AppTheme
@@ -78,6 +78,7 @@ export interface WSState {
   fieldTitleStyle: FieldTitleStyle
   moduleTitleStyle: ModuleTitleStyle
   modulePanelStyle: ModulePanelStyle
+  moduleCardEffect: ModuleCardEffect
   resizableHandleStyle: ResizableHandleStyle
   hazardMode: boolean
 }
@@ -142,6 +143,7 @@ export interface WorkspaceUiActions {
   setFieldTitleStyle(style: FieldTitleStyle): void
   setModuleTitleStyle(style: ModuleTitleStyle): void
   setModulePanelStyle(style: ModulePanelStyle): void
+  setModuleCardEffect(effect: ModuleCardEffect): void
   setResizableHandleStyle(style: ResizableHandleStyle): void
   setHazardMode(enabled: boolean): void
 }
@@ -261,6 +263,7 @@ export type WorkspaceUiPreferences = Pick<
   | "fieldTitleStyle"
   | "moduleTitleStyle"
   | "modulePanelStyle"
+  | "moduleCardEffect"
   | "resizableHandleStyle"
   | "hazardMode"
 >

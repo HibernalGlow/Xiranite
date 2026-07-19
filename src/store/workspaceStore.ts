@@ -53,6 +53,7 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     fieldTitleStyle: state.fieldTitleStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
+    moduleCardEffect: state.moduleCardEffect,
     resizableHandleStyle: state.resizableHandleStyle,
     hazardMode: state.hazardMode,
   }
@@ -167,6 +168,7 @@ function selectWorkspaceState(store: WSStore): WSState {
     fieldTitleStyle: store.fieldTitleStyle,
     moduleTitleStyle: store.moduleTitleStyle,
     modulePanelStyle: store.modulePanelStyle,
+    moduleCardEffect: store.moduleCardEffect,
     resizableHandleStyle: store.resizableHandleStyle,
     hazardMode: store.hazardMode,
   }
@@ -253,6 +255,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setFieldTitleStyle: store.setFieldTitleStyle,
     setModuleTitleStyle: store.setModuleTitleStyle,
     setModulePanelStyle: store.setModulePanelStyle,
+    setModuleCardEffect: store.setModuleCardEffect,
     setResizableHandleStyle: store.setResizableHandleStyle,
     setHazardMode: store.setHazardMode,
     addLane: store.addLane,

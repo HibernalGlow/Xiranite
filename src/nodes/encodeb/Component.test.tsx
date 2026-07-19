@@ -38,6 +38,16 @@ afterEach(() => {
 })
 
 describe("app-owned encodeb Component", () => {
+  test("uses shared module panels for full-view sections", () => {
+    setSurface("expanded")
+    render(<Component compId="comp-encodeb" host={createHost({ pathText: "D:/gallery" })} />)
+
+    expect(document.querySelectorAll('[data-slot="module-panel"]')).toHaveLength(3)
+    expect(screen.getByText("输入路径")).toBeTruthy()
+    expect(screen.getByText("编码设置")).toBeTruthy()
+    expect(screen.getByText("结果与日志")).toBeTruthy()
+  })
+
   test.each(NODE_SURFACE_TEST_MODES)(
     "renders the %s surface with Encodeb-specific UI",
     (mode) => {

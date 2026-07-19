@@ -74,6 +74,7 @@ export const INITIAL_STATE: WSState = {
   fieldTitleStyle: "legend",
   moduleTitleStyle: "legend",
   modulePanelStyle: "soft",
+  moduleCardEffect: "magic",
   resizableHandleStyle: "grip",
   hazardMode: false,
 }

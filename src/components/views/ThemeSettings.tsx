@@ -21,7 +21,7 @@ import { TAB_DISPLAY_STYLES, type TabDisplayStyle } from "@/components/ui/tabs-v
 import { SWITCH_DISPLAY_STYLES, type SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import { CHOICE_CONTROL_STYLES, FIELD_TITLE_STYLES, type ChoiceControlStyle, type FieldTitleStyle } from "@/components/ui/choice-control-variants"
 import { ChoiceControlField } from "@/components/ui/choice-control"
-import { MODULE_PANEL_STYLES, MODULE_TITLE_STYLES, RESIZABLE_HANDLE_STYLES, type ModulePanelStyle, type ModuleTitleStyle, type ResizableHandleStyle } from "@/components/ui/module-panel-variants"
+import { MODULE_CARD_EFFECTS, MODULE_PANEL_STYLES, MODULE_TITLE_STYLES, RESIZABLE_HANDLE_STYLES, type ModuleCardEffect, type ModulePanelStyle, type ModuleTitleStyle, type ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 import { Webview2ExperimentsPanel } from "@/components/views/Webview2ExperimentsPanel"
@@ -231,6 +231,7 @@ export function ThemeSettings() {
     fieldTitleStyle: workspace.fieldTitleStyle,
     moduleTitleStyle: workspace.moduleTitleStyle,
     modulePanelStyle: workspace.modulePanelStyle,
+    moduleCardEffect: workspace.moduleCardEffect,
     resizableHandleStyle: workspace.resizableHandleStyle,
   }))
   const workspaceActions = useWorkspaceActions()
@@ -1357,10 +1358,11 @@ export function ThemeSettings() {
               <div className="flex flex-col gap-3">
                 <div>
                   <p className="text-xs font-medium">模块面板</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">统一节点内分区的标题、面板表面与拖拽手柄；已接入公共组件的节点会立即同步。</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">统一节点内分区的标题、面板表面、魔法效果与拖拽手柄；已接入公共组件的节点会立即同步。</p>
                 </div>
                 <PreferenceToggle label="标题样式" value={state.moduleTitleStyle} values={MODULE_TITLE_STYLES} labels={{ legend: "悬浮角标", inline: "内嵌", bar: "顶部栏", minimal: "极简" }} onChange={(value) => workspaceActions.setModuleTitleStyle(value as ModuleTitleStyle)} />
                 <PreferenceToggle label="面板样式" value={state.modulePanelStyle} values={MODULE_PANEL_STYLES} labels={{ soft: "柔和", solid: "实色", outline: "描边", flat: "无框" }} onChange={(value) => workspaceActions.setModulePanelStyle(value as ModulePanelStyle)} />
+                <PreferenceToggle label="卡片效果" value={state.moduleCardEffect} values={MODULE_CARD_EFFECTS} labels={{ magic: "魔法", plain: "静态" }} onChange={(value) => workspaceActions.setModuleCardEffect(value as ModuleCardEffect)} />
                 <PreferenceToggle label="拖拽手柄" value={state.resizableHandleStyle} values={RESIZABLE_HANDLE_STYLES} labels={{ grip: "握把", dots: "点阵", line: "强调线", minimal: "极简" }} onChange={(value) => workspaceActions.setResizableHandleStyle(value as ResizableHandleStyle)} />
                 <ModulePanel title="预览模块" badge="12 项" icon={Box}><p className="text-xs text-muted-foreground">标题和面板会使用全局样式；分隔线由公共 ResizableHandle 同步。</p></ModulePanel>
               </div>
