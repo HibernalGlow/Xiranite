@@ -617,6 +617,28 @@ describe("NeoView CLI", () => {
     expect(remoteGetEmmMetadata).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.media-progress.cli] delegates video progress validation and durable flush to the current Reader controller", async () => {
+    const getMediaProgress = vi.fn(async () => undefined)
+    const updateMediaProgress = vi.fn(async (update, options) => ({ bookId: "video-book", ...update, updatedAt: 10, flush: options?.flush }))
+    const reader = fakeReader({ getMediaProgress, updateMediaProgress })
+    const getOutput: unknown[] = []
+    await runProgram(["media-progress-get", "clip.mp4", "--json"], host(getOutput), { createController: async () => reader })
+    expect(JSON.parse(getOutput.join(""))).toEqual({ progress: null })
+
+    const setOutput: unknown[] = []
+    await runProgram([
+      "media-progress-set", "clip.mp4", "--position", "12.5", "--duration", "30", "--completed", "false", "--flush", "--json",
+    ], host(setOutput), { createController: async () => reader })
+    expect(updateMediaProgress).toHaveBeenCalledWith({ position: 12.5, duration: 30, completed: false }, { flush: true })
+    expect(JSON.parse(setOutput.join(""))).toMatchObject({ progress: { bookId: "video-book", position: 12.5, completed: false } })
+    await expect(runProgram([
+      "media-progress-set", "clip.mp4", "--position", "12", "--duration", "30", "--completed", "invalid",
+    ], host([]), { createController: async () => reader })).rejects.toThrow("--completed must be true or false")
+    await expect(runProgram([
+      "media-progress-set", "clip.mp4", "--position", "12", "--duration", "30", "--completed", "false", "--connect", "http://127.0.0.1:41000",
+    ], host([], { XIRANITE_BACKEND_TOKEN: "media-progress-token" }), { createController: async () => reader })).rejects.toThrow("remote media-progress transport")
+  })
+
   it("[neoview.super-resolution.cli] delegates one manual page to the shared headless workflow", async () => {
     const output: unknown[] = []
     const upscalePage = vi.fn(async () => ({
@@ -1778,6 +1800,8 @@ function fakeReader(overrides: Partial<{
   inspectSuperResolution: ReaderHeadlessController["inspectSuperResolution"]
   listSubtitles: ReaderHeadlessController["listSubtitles"]
   renderSubtitle: ReaderHeadlessController["renderSubtitle"]
+  getMediaProgress: ReaderHeadlessController["getMediaProgress"]
+  updateMediaProgress: ReaderHeadlessController["updateMediaProgress"]
   getEmmMetadata: ReaderHeadlessController["getEmmMetadata"]
   updateEmmMetadata: ReaderHeadlessController["updateEmmMetadata"]
 }> = {}): ReaderHeadlessController {
@@ -1806,6 +1830,8 @@ function fakeReader(overrides: Partial<{
     }))),
     listSubtitles: vi.fn(overrides.listSubtitles ?? (() => [])),
     renderSubtitle: vi.fn(overrides.renderSubtitle ?? (async () => { throw new Error("not configured") })),
+    getMediaProgress: vi.fn(overrides.getMediaProgress ?? (async () => undefined)),
+    updateMediaProgress: vi.fn(overrides.updateMediaProgress ?? (async () => { throw new Error("not configured") })),
     getEmmMetadata: vi.fn(overrides.getEmmMetadata ?? (async () => ({ revision: 0, overrides: {}, inherited: ["rating", "manualTags", "translatedTitle"] }))),
     updateEmmMetadata: vi.fn(overrides.updateEmmMetadata ?? (async () => { throw new Error("not configured") })),
     closeBook: vi.fn(async () => undefined),
