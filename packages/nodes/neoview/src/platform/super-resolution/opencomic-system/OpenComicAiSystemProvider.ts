@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises"
+import { mkdir, stat } from "node:fs/promises"
 import { resolve } from "node:path"
 
 import type {
@@ -96,6 +96,7 @@ export interface OpenComicAiSystemProviderOptions {
   maxDaemons?: number
   daemonIdleTimeoutMs?: number
   taskTimeoutMs?: number
+  ensureModelsDirectory?: (path: string) => Promise<void>
   inspectImage?: (path: string, signal?: AbortSignal) => Promise<SuperResolutionImageInspection>
   now?: () => number
 }
@@ -107,6 +108,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
   readonly #maxDaemons: number
   readonly #daemonIdleTimeoutMs: number
   readonly #taskTimeoutMs: number
+  readonly #ensureModelsDirectory: NonNullable<OpenComicAiSystemProviderOptions["ensureModelsDirectory"]>
   readonly #inspectImage: NonNullable<OpenComicAiSystemProviderOptions["inspectImage"]>
   readonly #now: () => number
   readonly #binaryPaths = new Map<SuperResolutionEngine, string>()
@@ -122,6 +124,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#maxDaemons = boundedInteger(options.maxDaemons ?? 1, "max daemons", 0, 8)
     this.#daemonIdleTimeoutMs = boundedInteger(options.daemonIdleTimeoutMs ?? 300_000, "daemon idle timeout", 1_000, 3_600_000)
     this.#taskTimeoutMs = boundedInteger(options.taskTimeoutMs ?? 10 * 60_000, "task timeout", 1_000, 24 * 60 * 60_000)
+    this.#ensureModelsDirectory = options.ensureModelsDirectory ?? ensureDirectory
     this.#inspectImage = options.inspectImage ?? inspectImageFile
     this.#now = options.now ?? Date.now
   }
@@ -223,6 +226,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     const runtime = await request
     this.#assertActive()
     if (this.#configuredRuntime !== runtime) {
+      await this.#ensureModelsDirectory(this.#modelsDirectory)
       runtime.setModelsPath(this.#modelsDirectory)
       runtime.setConcurrentDaemons(0)
       this.#configuredDaemonCount = 0
@@ -240,6 +244,10 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
   #assertActive(): void {
     if (this.#disposed) throw new Error("OpenComic system provider is disposed.")
   }
+}
+
+async function ensureDirectory(path: string): Promise<void> {
+  await mkdir(path, { recursive: true })
 }
 
 async function inspectImageFile(path: string, signal?: AbortSignal): Promise<SuperResolutionImageInspection> {
