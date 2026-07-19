@@ -20,18 +20,18 @@ export function SettingsCardShell({
   className?: string
 }) {
   return (
-    <section className={cn("grid gap-4 rounded-md border bg-card/50 p-4", className)} data-neoview-settings-card={id}>
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
+    <section className={cn("flex flex-col gap-3 rounded-md border bg-card/50 p-3", className)} data-neoview-settings-card={id}>
+      <header className="flex flex-wrap items-start justify-between gap-2 border-b pb-2">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <h2 className="flex items-center gap-2 text-base font-semibold leading-none">
             {Icon ? <Icon className="size-4 shrink-0 text-muted-foreground" /> : null}
             {title}
           </h2>
-          {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+          {description ? <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{description}</p> : null}
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
-      <div className="grid gap-4">{children}</div>
+      <div className="flex flex-col gap-3">{children}</div>
     </section>
   )
 }
@@ -80,9 +80,9 @@ export function SettingsToggleRow({
 
 export function SettingsUnavailableNote({ title, reason }: { title: string; reason: string }) {
   return (
-    <section className="grid gap-2 rounded-md border border-dashed bg-card/40 p-4" data-neoview-settings-card="unavailable">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="text-xs text-muted-foreground">{reason}</p>
+    <section className="grid gap-1.5 rounded-md border border-dashed bg-muted/10 px-3 py-3" data-neoview-settings-card="unavailable">
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <p className="text-xs leading-relaxed text-muted-foreground">{reason}</p>
     </section>
   )
 }

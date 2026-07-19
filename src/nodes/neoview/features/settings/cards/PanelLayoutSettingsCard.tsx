@@ -16,7 +16,7 @@ export function PanelLayoutSettingsCard({
 }) {
   return (
     <SettingsCardShell id="panel-layout" title="面板布局" description="拖放调整卡片所属面板、顺序与显隐。" icon={LayoutPanelTop}>
-      <Suspense fallback={<div className="h-72 animate-pulse rounded-md bg-muted/35" aria-label="正在加载面板布局编辑器" />}>
+      <Suspense fallback={null}>
         <PanelLayoutEditor key={shell.revision ?? 0} shell={shell} onSave={onSave} />
       </Suspense>
     </SettingsCardShell>
