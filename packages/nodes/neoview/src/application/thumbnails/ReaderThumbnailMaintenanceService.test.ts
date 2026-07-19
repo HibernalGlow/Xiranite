@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderThumbnailMaintenanceSnapshot } from "../../ports/ReaderThumbnailStore.js"
-import { ReaderThumbnailMaintenanceService, type ReaderThumbnailMaintenancePort } from "./ReaderThumbnailMaintenanceService.js"
+import { ReaderThumbnailMaintenanceService } from "./ReaderThumbnailMaintenanceService.js"
 
 describe("ReaderThumbnailMaintenanceService", () => {
   it("[neoview.thumbnail.maintenance-service] centralizes bounded maintenance policy", async () => {
@@ -80,7 +80,27 @@ describe("ReaderThumbnailMaintenanceService", () => {
       .rejects.toMatchObject({ name: "AbortError" })
     expect(cleanupInvalid).toHaveBeenCalledOnce()
   })
+
+  it("does not report a store operation as successful when cancellation arrives before it settles", async () => {
+    const pending = deferred<number>()
+    const cleanup = vi.fn(async () => pending.promise)
+    const service = new ReaderThumbnailMaintenanceService({ cleanup })
+    const controller = new AbortController()
+    const operation = service.cleanup({ kind: "empty", limit: 1 }, controller.signal)
+
+    controller.abort(new DOMException("cancelled", "AbortError"))
+    pending.resolve(1)
+
+    await expect(operation).rejects.toMatchObject({ name: "AbortError" })
+    expect(cleanup).toHaveBeenCalledOnce()
+  })
 })
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
+  return { promise, resolve }
+}
 
 function fixtureSnapshot(): ReaderThumbnailMaintenanceSnapshot {
   return {
