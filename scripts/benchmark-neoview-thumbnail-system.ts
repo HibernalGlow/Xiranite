@@ -54,6 +54,8 @@ const budgets = {
   warmGenerationMs: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_WARM_GENERATION_MS ?? "250", "NEOVIEW_THUMBNAIL_MAX_WARM_GENERATION_MS"),
   visibleReadyP95Ms: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_VISIBLE_READY_P95_MS ?? "4000", "NEOVIEW_THUMBNAIL_MAX_VISIBLE_READY_P95_MS"),
   l1HitP95Ms: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_L1_HIT_P95_MS ?? "15", "NEOVIEW_THUMBNAIL_MAX_L1_HIT_P95_MS"),
+  staleCancelP95Ms: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_P95_MS ?? "1000", "NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_P95_MS"),
+  staleCancelMaxMs: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_MAX_MS ?? "2000", "NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_MAX_MS"),
   rssDeltaMiB: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_RSS_DELTA_MIB ?? "256", "NEOVIEW_THUMBNAIL_MAX_RSS_DELTA_MIB"),
 }
 
@@ -198,25 +200,28 @@ async function benchmarkScroll(
 ) {
   const contextId = "benchmark:scroll"
   let generation = 0
-  let active: Array<ReturnType<PlatformThumbnailPipeline["acquirePage"]>> = []
+  let active: ScrollDemand[] = []
   let finalPages: readonly ReaderPage[] = []
   let finalRequestedAt = 0
-  const settlements: Array<Promise<"ready" | "cancelled" | "failed">> = []
+  const demands: ScrollDemand[] = []
   let peakActiveFlights = 0
   let peakQueuedFlights = 0
   let peakRunningFlights = 0
   const dispatchStarted = performance.now()
   const windowStarts = scrollWindowStarts(pages.length, windowSize)
   for (const cursor of windowStarts) {
+    const supersededAt = performance.now()
+    for (const demand of active) demand.supersededAt = supersededAt
     generation += 1
     pipeline.advanceContext(contextId, generation)
-    for (const lease of active) lease.release()
+    for (const demand of active) demand.lease.release()
     finalPages = pages.slice(cursor, Math.min(pages.length, cursor + windowSize))
     finalRequestedAt = performance.now()
-    active = finalPages.map((page) => pipeline.acquirePage(page, { contextId, generation }))
-    for (const lease of active) {
-      settlements.push(lease.ready.then(() => "ready", (error) => isAbortError(error) ? "cancelled" : "failed"))
-    }
+    active = finalPages.map((page) => trackScrollDemand(
+      pipeline.acquirePage(page, { contextId, generation }),
+      generation,
+    ))
+    demands.push(...active)
     await yieldToRuntime()
     const snapshot = pipeline.snapshot()
     peakActiveFlights = Math.max(peakActiveFlights, snapshot.activeFlights)
@@ -225,12 +230,20 @@ async function benchmarkScroll(
     sampleMemory()
   }
   const dispatchMs = performance.now() - dispatchStarted
-  const visibleReadyMs = await Promise.all(active.map(async (lease) => {
-    await lease.ready
+  const visibleReadyMs = await Promise.all(active.map(async (demand) => {
+    await demand.lease.ready
     return performance.now() - finalRequestedAt
   }))
-  const settled = await Promise.all(settlements)
-  for (const lease of active) lease.release()
+  const staleFlightsAfterFinalVisible = demands.filter((demand) => demand.generation < generation && demand.settledAt === undefined).length
+  const settled = await Promise.all(demands.map((demand) => demand.settlement))
+  for (const demand of active) demand.lease.release()
+
+  const staleSettledAfterSupersession = settled.filter((settlement) => (
+    settlement.supersededAt !== undefined && settlement.settledAt > settlement.supersededAt
+  ))
+  const staleCancelLatencyMs = staleSettledAfterSupersession
+    .filter((settlement) => settlement.outcome === "cancelled")
+    .map((settlement) => settlement.settledAt - settlement.supersededAt!)
 
   const l1HitMs: number[] = []
   for (const page of finalPages) {
@@ -245,12 +258,20 @@ async function benchmarkScroll(
   sampleMemory()
   return {
     generations: generation,
-    demands: settlements.length,
+    demands: demands.length,
     finalVisible: finalPages.length,
     dispatchMs: round(dispatchMs),
-    ready: settled.filter((value) => value === "ready").length,
-    cancelled: settled.filter((value) => value === "cancelled").length,
-    failed: settled.filter((value) => value === "failed").length,
+    ready: settled.filter((settlement) => settlement.outcome === "ready").length,
+    cancelled: settled.filter((settlement) => settlement.outcome === "cancelled").length,
+    failed: settled.filter((settlement) => settlement.outcome === "failed").length,
+    stale: {
+      demands: demands.filter((demand) => demand.generation < generation).length,
+      settledAfterSupersession: staleSettledAfterSupersession.length,
+      completedAfterSupersession: staleSettledAfterSupersession.filter((settlement) => settlement.outcome === "ready").length,
+      failedAfterSupersession: staleSettledAfterSupersession.filter((settlement) => settlement.outcome === "failed").length,
+      flightsAfterFinalVisible: staleFlightsAfterFinalVisible,
+      cancelLatencyMs: staleCancelLatencyMs.length ? summarize(staleCancelLatencyMs) : undefined,
+    },
     peakActiveFlights,
     peakQueuedFlights,
     peakRunningFlights,
@@ -258,6 +279,42 @@ async function benchmarkScroll(
     l1HitMs: summarize(l1HitMs),
     afterRelease: pipeline.snapshot(),
   }
+}
+
+interface ScrollSettlement {
+  outcome: "ready" | "cancelled" | "failed"
+  settledAt: number
+  supersededAt?: number
+}
+
+interface ScrollDemand {
+  readonly lease: ReturnType<PlatformThumbnailPipeline["acquirePage"]>
+  readonly generation: number
+  supersededAt?: number
+  settledAt?: number
+  settlement: Promise<ScrollSettlement>
+}
+
+function trackScrollDemand(
+  lease: ReturnType<PlatformThumbnailPipeline["acquirePage"]>,
+  generation: number,
+): ScrollDemand {
+  const demand = {
+    lease,
+    generation,
+    settlement: undefined as unknown as Promise<ScrollSettlement>,
+  } satisfies Omit<ScrollDemand, "settledAt" | "supersededAt">
+  demand.settlement = lease.ready.then(
+    () => settleScrollDemand(demand, "ready"),
+    (error) => settleScrollDemand(demand, isAbortError(error) ? "cancelled" : "failed"),
+  )
+  return demand
+}
+
+function settleScrollDemand(demand: ScrollDemand, outcome: ScrollSettlement["outcome"]): ScrollSettlement {
+  const settledAt = performance.now()
+  demand.settledAt = settledAt
+  return { outcome, settledAt, supersededAt: demand.supersededAt }
 }
 
 async function createSyntheticFixture(pages: number, files: number, workRoot?: string): Promise<SyntheticFixture> {
@@ -368,6 +425,11 @@ function assertReport(report: {
     peakRunningFlights: number
     finalVisibleReadyMs: Summary
     l1HitMs: Summary
+    stale: {
+      completedAfterSupersession: number
+      flightsAfterFinalVisible: number
+      cancelLatencyMs?: Summary
+    }
     afterRelease: { demands: number; activeFlights: number; queuedFlights: number; runningFlights: number }
   }
   lifecycle: {
@@ -388,6 +450,18 @@ function assertReport(report: {
   if (report.scroll.ready < report.scroll.finalVisible) failures.push(`only ${report.scroll.ready}/${report.scroll.finalVisible} final visible demands completed`)
   if (report.scroll.peakActiveFlights > windowSize) failures.push(`peak active flights ${report.scroll.peakActiveFlights} > window ${windowSize}`)
   if (report.scroll.peakRunningFlights > 8) failures.push(`peak running flights ${report.scroll.peakRunningFlights} > 8`)
+  if (report.scroll.stale.completedAfterSupersession) {
+    failures.push(`${report.scroll.stale.completedAfterSupersession} stale thumbnail demand(s) completed after supersession`)
+  }
+  if (report.scroll.stale.flightsAfterFinalVisible) {
+    failures.push(`${report.scroll.stale.flightsAfterFinalVisible} stale thumbnail flight(s) remained after the final visible window was ready`)
+  }
+  if (report.scroll.stale.cancelLatencyMs?.p95 && report.scroll.stale.cancelLatencyMs.p95 > budgets.staleCancelP95Ms) {
+    failures.push(`stale cancellation p95 ${report.scroll.stale.cancelLatencyMs.p95}ms > ${budgets.staleCancelP95Ms}ms`)
+  }
+  if (report.scroll.stale.cancelLatencyMs?.max && report.scroll.stale.cancelLatencyMs.max > budgets.staleCancelMaxMs) {
+    failures.push(`stale cancellation max ${report.scroll.stale.cancelLatencyMs.max}ms > ${budgets.staleCancelMaxMs}ms`)
+  }
   if (!workStateIsZero(report.scroll.afterRelease)) failures.push("scroll demands/flights did not return to zero")
   if (!disposedStateIsZero(report.lifecycle.afterDispose)) failures.push("coordinator state did not return to zero after dispose")
   for (const [resource, state] of Object.entries(report.lifecycle.resourcesAfterDispose)) {
