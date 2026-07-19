@@ -3,11 +3,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { CoreReaderService } from "./application/reader/ReaderService.js"
-import type { ResourceTaskRequest } from "./ports/ResourceScheduler.js"
-import { VideoProcessScheduler } from "./platform/video/VideoProcessScheduler.js"
-import { createZipFixture, type ZipFixture } from "../test/fixture-builders/create-zip-fixture.js"
-import { createReaderAssetRoute, createReaderBookLoader, createReaderHttpController } from "./platform.js"
+import { CoreReaderService } from "../application/reader/ReaderService.js"
+import type { ResourceTaskRequest } from "../ports/ResourceScheduler.js"
+import { VideoProcessScheduler } from "../platform/video/VideoProcessScheduler.js"
+import { createZipFixture, type ZipFixture } from "../../test/fixture-builders/create-zip-fixture.js"
+import { createReaderAssetRoute, createReaderBookLoader, createReaderHttpController } from "../platform.js"
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
