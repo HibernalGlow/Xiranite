@@ -744,12 +744,14 @@ export interface ReaderSuperResolutionConditionDto {
 export interface ReaderSuperResolutionConfigDto {
   provider: "opencomic-system" | "disabled"
   modelsDirectory?: string
+  modelSources?: readonly string[]
   preferences: ReaderSuperResolutionPreferencesDto
 }
 
 export interface ReaderSuperResolutionPatchDto {
   superResolution: {
     modelsDirectory?: string
+    modelSources?: readonly string[]
     preferences?: ReaderSuperResolutionPreferencesDto
   }
 }
@@ -773,7 +775,14 @@ export interface ReaderUpscaleModelDto {
   displayName: string
   engine: "upscayl" | "waifu2x" | "realcugan"
   scales: readonly number[]
+  modelType?: "upscale" | "descreen" | "artifact-removal"
+  family?: string
+  category?: string
+  sizeBytes?: number
+  installed?: boolean
+  sourceDirectories?: readonly string[]
   noise?: readonly number[]
+  noiseByScale?: Readonly<Record<number, readonly number[]>>
 }
 
 export type ReaderUpscaleCapabilityDto =

@@ -22,9 +22,18 @@ describe("NeoView upscale Cards", () => {
   it("[neoview.super-resolution.model-card] persists model controls through the root config callback", async () => {
     const onChange = vi.fn(async () => CONFIG)
     render(<UpscaleModelCard {...context()} onSuperResolutionConfigChange={onChange} />)
-    await screen.findByRole("option", { name: "Anime" })
-    fireEvent.change(screen.getByLabelText("模型"), { target: { value: "anime" } })
+    await screen.findByRole("option", { name: /Anime/ })
+    fireEvent.change(screen.getByLabelText("默认模型"), { target: { value: "anime" } })
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ preferences: expect.objectContaining({ defaultModelId: "anime", defaultScale: 2 }) }))
+  })
+
+  it("[neoview.super-resolution.model-sources-card] adds model source directories", async () => {
+    const onChange = vi.fn(async () => CONFIG)
+    render(<UpscaleModelCard {...context()} onSuperResolutionConfigChange={onChange} />)
+    const inputs = await screen.findAllByPlaceholderText("添加包含 models 的目录")
+    fireEvent.change(inputs.at(-1)!, { target: { value: "D:/Python/realesrgan" } })
+    fireEvent.click(screen.getAllByRole("button", { name: "添加来源" }).at(-1)!)
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ modelSources: ["D:/Python/realesrgan"] }))
   })
 
   it("[neoview.super-resolution.cache-card] confirms destructive shared cache cleanup", async () => {
@@ -64,13 +73,13 @@ const SESSION: ReaderSessionDto = {
   frame: { anchorPageIndex: 0, visiblePageIndexes: [0], generation: 1, pageMode: "single", direction: "ltr", fitMode: "contain", rotation: 0, scale: 1, offset: { x: 0, y: 0 } },
   visiblePages: [{ id: "page-1", index: 0, name: "Page 1", mediaKind: "image", dimensions: { width: 1000, height: 1500 }, contentVersion: "v1", assetUrl: "http://reader/original.png" }],
 }
-const CONFIG: ReaderSuperResolutionConfigDto = { provider: "opencomic-system", modelsDirectory: "D:/Models", preferences: { autoUpscaleEnabled: true, showPanelPreview: true, defaultScale: 2, conditions: [{ id: "default", name: "默认条件", enabled: true, priority: 0, match: { dimensionMode: "and" }, action: { skip: false } }] } }
+const CONFIG: ReaderSuperResolutionConfigDto = { provider: "opencomic-system", modelsDirectory: "D:/Models", modelSources: [], preferences: { autoUpscaleEnabled: true, showPanelPreview: true, defaultScale: 2, conditions: [{ id: "default", name: "默认条件", enabled: true, priority: 0, match: { dimensionMode: "and" }, action: { skip: false } }] } }
 const CACHE = { entries: 2, bytes: 2048, maxBytes: 4096, maxEntryBytes: 2048, activeLeases: 0, hits: 3, misses: 1, writes: 2, rejectedWrites: 0, evictions: 0, integrityFailures: 0 }
 
 function context(overrides: Partial<ReaderHttpClient> | ReaderHttpClient = {}) {
   const client = overrides && "config" in overrides ? overrides as ReaderHttpClient : {
     config: vi.fn(async () => ({ superResolution: CONFIG } as never)),
-    upscaleCapabilities: vi.fn(async () => ({ available: true as const, models: [{ id: "anime", displayName: "Anime", engine: "upscayl" as const, scales: [2] }], engines: [], probedAt: 1 })),
+    upscaleCapabilities: vi.fn(async () => ({ available: true as const, models: [{ id: "anime", displayName: "Anime", engine: "upscayl" as const, scales: [2], family: "RealESRGAN", category: "anime", sizeBytes: 12_582_912, installed: true, sourceDirectories: ["D:/Python/realesrgan"] }], engines: [], probedAt: 1 })),
     upscaleCache: vi.fn(async () => CACHE),
     cleanupUpscaleCache: vi.fn(async () => ({ ...CACHE, reason: "explicit" as const, removedEntries: 0, removedBytes: 0 })),
     upscalePreloadSnapshots: vi.fn(async () => []),

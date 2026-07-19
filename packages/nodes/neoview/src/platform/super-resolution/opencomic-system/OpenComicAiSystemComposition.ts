@@ -1,3 +1,5 @@
+import { join } from "node:path"
+
 import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import type { SuperResolutionCustomModelManifest, SuperResolutionModelManifest } from "../../../ports/SuperResolutionProvider.js"
 import { SuperResolutionService } from "../../../application/super-resolution/SuperResolutionService.js"
@@ -12,6 +14,7 @@ import type { SuperResolutionPreferences } from "../../../domain/super-resolutio
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
 import type { NeoviewRuntimeLoadOptions } from "../../config/loadNeoviewRuntimeConfig.js"
 import { SystemSuperResolutionCliResolver } from "../SystemSuperResolutionCliResolver.js"
+import { aggregateModelSources, enrichModelManifests } from "../ModelSourceAggregator.js"
 import { PlatformReaderPageMaterializer } from "../../content/PlatformReaderPageMaterializer.js"
 import {
   OpenComicAiSystemProvider,
@@ -68,13 +71,16 @@ export async function createOpenComicAiSystemCapability(
     if (error instanceof OpenComicSystemRuntimeUnavailableError) return undefined
     throw error
   }
-  registerRuntimeCustomModels(runtime, config.customModels)
-  const models = runtimeModels(runtime)
-  if (!models.length) throw new Error("OpenComic system runtime did not expose any super-resolution models.")
-  const preferences = withRuntimeModelDefaults(config.preferences, models)
   const modelsDirectory = options.modelsDirectory
     ?? config.modelsDirectory
     ?? await (options.resolveDefaultModelsDirectory?.() ?? defaultModelsDirectory())
+  const aggregation = await aggregateModelSources(modelsDirectory, config.modelSources)
+  registerRuntimeCustomModels(runtime, config.customModels)
+  const configuredIds = new Set(config.customModels.map((model) => model.id))
+  registerRuntimeCustomModels(runtime, aggregation.customModels.filter((model) => !configuredIds.has(model.id)))
+  const models = await enrichModelManifests(runtimeModels(runtime), modelsDirectory, aggregation.metadata)
+  if (!models.length) throw new Error("OpenComic system runtime did not expose any super-resolution models.")
+  const preferences = withRuntimeModelDefaults(config.preferences, models)
   const cliResolver = options.cliResolver ?? new SystemSuperResolutionCliResolver({
     explicitPaths: {
       upscayl: config.upscaylPath,
@@ -202,6 +208,9 @@ export function runtimeModels(runtime: OpenComicSystemRuntime): readonly SuperRe
       engine: model.upscaler,
       scales,
       modelFiles: model.files ? [...model.files] : undefined,
+      modelType: model.type,
+      modelDirectory: model.folder ? join(model.type ?? "upscale", model.folder) : undefined,
+      noise: model.noise ? [...model.noise] : undefined,
       inputBlob: model.inputBlob,
       outputBlob: model.outputBlob,
       license: model.license,
