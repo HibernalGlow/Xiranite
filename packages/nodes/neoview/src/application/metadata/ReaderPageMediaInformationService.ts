@@ -108,8 +108,7 @@ export class ReaderPageMediaInformationService implements AsyncDisposable {
     identity: ReaderPageMediaInformation,
     signal: AbortSignal,
   ): Promise<ReaderPageMediaInformation> {
-    const provider = await this.#getProvider()
-    signal.throwIfAborted()
+    const provider = await waitForSignal(this.#getProvider(), signal)
     if (!page.entryPath) {
       const details = await provider.inspect({
         sourcePath: page.sourcePath,
@@ -206,7 +205,10 @@ function waitForSignal<T>(operation: Promise<T>, signal?: AbortSignal): Promise<
   if (!signal) return operation
   signal.throwIfAborted()
   return new Promise<T>((resolve, reject) => {
-    const abort = () => reject(signal.reason)
+    const abort = () => {
+      signal.removeEventListener("abort", abort)
+      reject(signal.reason)
+    }
     signal.addEventListener("abort", abort, { once: true })
     operation.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort))
   })
