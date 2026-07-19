@@ -65,6 +65,33 @@ describe("ReaderMediaProgressService", () => {
     await flushing
     await service.close()
   })
+
+  it("[neoview.media-progress.read-race] prefers a record recorded while the store read is pending", async () => {
+    const read = deferred<ReaderMediaProgressRecord | undefined>()
+    const saveMediaProgress = vi.fn(async () => undefined)
+    const store = fixtureStore({
+      bookId: "book-4",
+      position: 1,
+      duration: 10,
+      completed: false,
+      updatedAt: 1,
+    }, saveMediaProgress, vi.fn(() => read.promise))
+    const service = new ReaderMediaProgressService(store, () => 2, 60_000)
+
+    const reading = service.get("book-4")
+    expect(store.getMediaProgress).toHaveBeenCalledOnce()
+    const latest = service.record("book-4", { position: 8, duration: 10, completed: false })
+    read.resolve({
+      bookId: "book-4",
+      position: 1,
+      duration: 10,
+      completed: false,
+      updatedAt: 1,
+    })
+
+    await expect(reading).resolves.toEqual(latest)
+    await service.close()
+  })
 })
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T | PromiseLike<T>): void } {
@@ -76,9 +103,10 @@ function deferred<T>(): { promise: Promise<T>; resolve(value: T | PromiseLike<T>
 function fixtureStore(
   restored: ReaderMediaProgressRecord | undefined,
   saveMediaProgress: ReaderMediaProgressStore["saveMediaProgress"],
+  getMediaProgress: ReaderMediaProgressStore["getMediaProgress"] = vi.fn(async () => restored),
 ): ReaderMediaProgressStore & { close: ReturnType<typeof vi.fn> } {
   return {
-    getMediaProgress: vi.fn(async () => restored),
+    getMediaProgress,
     saveMediaProgress,
     close: vi.fn(),
   }

@@ -33,7 +33,10 @@ export class ReaderMediaProgressService {
   async get(bookId: string): Promise<ReaderMediaProgressRecord | undefined> {
     this.#assertOpen()
     assertBookId(bookId)
-    return this.#writes.latest(bookId) ?? await this.store.getMediaProgress(bookId)
+    const active = this.#writes.latest(bookId)
+    if (active) return active
+    const stored = await this.store.getMediaProgress(bookId)
+    return this.#writes.latest(bookId) ?? stored
   }
 
   record(bookId: string, update: ReaderMediaProgressUpdate): ReaderMediaProgressRecord {
