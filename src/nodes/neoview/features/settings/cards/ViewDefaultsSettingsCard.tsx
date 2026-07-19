@@ -11,6 +11,7 @@ import type { ReaderFitMode } from "@xiranite/node-neoview/ui-core"
 import { Button } from "@/components/ui/button"
 import type { ReaderRuntimeConfigDto, ReaderViewDefaultsPatch } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
+import { SettingsCardShell } from "../SettingsCardShell"
 
 const FIT_MODES: Array<{ value: ReaderFitMode; label: string }> = [
   { value: "fit", label: "适应窗口" },
@@ -44,11 +45,7 @@ export function ViewDefaultsSettingsCard({
   }
 
   return (
-    <section className="grid gap-4" data-neoview-settings-card="view-defaults">
-      <header className="flex items-center gap-2 border-b pb-3">
-        <Eye className="size-4 text-muted-foreground" />
-        <h2 className="text-lg font-semibold">视图默认值</h2>
-      </header>
+    <SettingsCardShell id="view-defaults" title="视图默认值" description="新开书籍时的默认缩放与页面模式。" icon={Eye}>
       <div className="grid gap-2">
         <label className="text-sm font-medium" htmlFor="neoview-default-fit-mode">默认缩放模式</label>
         <select
@@ -83,7 +80,7 @@ export function ViewDefaultsSettingsCard({
           ><Columns2 />双页</Button>
         </div>
       </div>
-    </section>
+    </SettingsCardShell>
   )
 }
 

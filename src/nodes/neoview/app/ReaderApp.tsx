@@ -296,6 +296,7 @@ export function ReaderApp({
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
   const [media, setMedia] = useState<ReaderMediaConfigDto>()
+  const [slideshowConfig, setSlideshowConfig] = useState<ReaderSlideshowConfig>(() => ({ ...INITIAL_SLIDESHOW_CONFIG }))
   const [superResolution, setSuperResolution] = useState<ReaderRuntimeConfigDto["superResolution"]>()
   const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -388,6 +389,7 @@ export function ReaderApp({
       if (slideshowGenerationRef.current === 0) {
         slideshowConfigRef.current = config.slideshow
         confirmedSlideshowConfigRef.current = config.slideshow
+        setSlideshowConfig(config.slideshow)
         slideshow.configure(config.slideshow)
       }
       inputBindingsRef.current = config.inputBindings
@@ -840,6 +842,7 @@ export function ReaderApp({
       : { ...patch, intervalSeconds: slideshow.getSnapshot().intervalSeconds }
     const next = { ...slideshowConfigRef.current, ...normalizedPatch }
     slideshowConfigRef.current = next
+    setSlideshowConfig(next)
     const generation = ++slideshowGenerationRef.current
     const write = slideshowWriteQueueRef.current.then(async () => {
       try {
@@ -847,12 +850,14 @@ export function ReaderApp({
         confirmedSlideshowConfigRef.current = updated
         if (generation === slideshowGenerationRef.current) {
           slideshowConfigRef.current = updated
+          setSlideshowConfig(updated)
           slideshow.configure(updated)
         }
       } catch (cause) {
         if (generation === slideshowGenerationRef.current) {
           const confirmed = confirmedSlideshowConfigRef.current
           slideshowConfigRef.current = confirmed
+          setSlideshowConfig(confirmed)
           slideshow.configure(confirmed)
         }
         setError(errorMessage(cause))
@@ -1249,6 +1254,15 @@ export function ReaderApp({
     imageTrim,
     media,
     onMediaChange: persistAnimatedVideoMode,
+    slideshow: slideshowConfig,
+    onSlideshow: persistSlideshow,
+    inputBindings,
+    onInputBindings: persistInputBindings,
+    radialMenu,
+    onRadialMenu: persistRadialMenu,
+    onMaterial: commitShellMaterial,
+    onLegacySettingsInspect: inspectLegacySettings,
+    onLegacySettingsImport: importLegacySettings,
     superResolution,
     onSuperResolutionChange: persistSuperResolution,
     onSuperResolutionConfigChange: persistSuperResolutionConfig,
@@ -1343,11 +1357,15 @@ export function ReaderApp({
           <LazyReaderSettingsWindow
             shell={shell}
             viewDefaults={viewDefaults}
+            slideshow={slideshowConfig}
+            media={media}
             inputBindings={inputBindings}
             radialMenu={radialMenu}
             onClose={() => setSettingsOpen(false)}
             onBoardLayout={commitBoardLayout}
             onViewDefaults={applyConfiguredViewDefaults}
+            onSlideshow={persistSlideshow}
+            onMedia={persistAnimatedVideoMode}
             onInputBindings={persistInputBindings}
             onRadialMenu={persistRadialMenu}
             onLegacySettingsInspect={inspectLegacySettings}

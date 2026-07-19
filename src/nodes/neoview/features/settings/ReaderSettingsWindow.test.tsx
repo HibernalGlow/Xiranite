@@ -18,13 +18,19 @@ describe("ReaderSettingsWindow", () => {
       <ReaderSettingsWindow
         shell={shell()}
         viewDefaults={{ fitMode: "fit", pageMode: "single" }}
+        slideshow={{ intervalSeconds: 5, loop: false, random: false, fadeTransition: true }}
+        media={media()}
         inputBindings={{ bindings: [] }}
         radialMenu={DEFAULT_READER_RADIAL_MENU_CONFIG}
         onClose={vi.fn()}
         onBoardLayout={save}
         onViewDefaults={saveViewDefaults}
+        onSlideshow={vi.fn(async () => undefined)}
+        onMedia={vi.fn(async () => media())}
         onInputBindings={vi.fn(async () => ({ bindings: [] }))}
         onRadialMenu={vi.fn(async () => DEFAULT_READER_RADIAL_MENU_CONFIG)}
+        onLegacySettingsInspect={vi.fn(async () => ({ report: { fullyRecognized: true, summary: {}, entries: [] } }))}
+        onLegacySettingsImport={vi.fn(async () => ({ report: { fullyRecognized: true, summary: {}, entries: [] }, strategy: "merge" as const }))}
         onMaterial={vi.fn(async () => shell())}
       />,
     )
@@ -46,8 +52,39 @@ describe("ReaderSettingsWindow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "外观" }))
     expect(await screen.findByRole("heading", { name: "界面材质" })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "通用" }))
+    expect(await screen.findByRole("heading", { name: "幻灯片" })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "影像" }))
+    expect(await screen.findByRole("heading", { name: "影像" })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "数据" }))
+    expect(await screen.findByRole("heading", { name: "数据迁移" })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "关于" }))
+    expect(await screen.findByRole("heading", { name: "关于 NeoView" })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "系统" }))
+    expect(await screen.findByRole("heading", { name: "系统" })).toBeTruthy()
+    expect(screen.getByText(/排除路径/)).toBeTruthy()
   })
 })
+
+function media() {
+  return {
+    supportedImageFormats: ["jpg", "png", "webp"],
+    videoFormats: ["mp4", "webm"],
+    mediaMimeTypes: {},
+    autoPlayAnimatedImages: true,
+    animatedVideoEnabled: false,
+    animatedVideoKeywords: ["[#dyna]"],
+    videoMinPlaybackRate: 0.25,
+    videoMaxPlaybackRate: 16,
+    videoPlaybackRateStep: 0.25,
+    subtitle: { fontSize: 18, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 },
+  }
+}
 
 function shell(): ReaderShellConfigDto {
   return {

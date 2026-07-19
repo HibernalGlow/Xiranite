@@ -3,6 +3,9 @@
  * @migrated-from src/lib/components/dialogs/UnifiedBindingPanel.svelte
  * @source-hash sha256:669d0667f096ad915f38fe239e4e330039daf99242256c4bab6bcf5d63a658dc
  * @migration-status adapted
+ *
+ * Action-centered binding editor: the catalog is the primary axis; each action
+ * owns N flat bindings (context + input). Domain model stays a flat bindings[].
  */
 import {
   cloneReaderInputBindings,
@@ -14,23 +17,62 @@ import {
   READER_INPUT_CONTEXTS,
   READER_VIEW_AREAS,
   readerInputConflicts,
-  readerInputDescriptorKey,
+  type ReaderInputAction,
   type ReaderInputActionCategory,
   type ReaderInputBinding,
   type ReaderInputBindingsConfig,
+  type ReaderInputContext,
   type ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckCircle2, FileUp, Keyboard, Plus, Radio, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react"
+import {
+  AlertTriangle,
+  AppWindow,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  CircleDot,
+  Copy,
+  Eye,
+  Film,
+  FolderOpen,
+  Gamepad2,
+  Grid3X3,
+  Hand,
+  ImageUpscale,
+  Keyboard,
+  Layers,
+  Mouse,
+  Move,
+  PanelRight,
+  Pencil,
+  Play,
+  Plus,
+  Radio,
+  RotateCcw,
+  Search,
+  Settings2,
+  Sparkles,
+  ToggleLeft,
+  Trash2,
+  Undo2,
+  Video,
+  X,
+  ZoomIn,
+  type LucideIcon,
+} from "lucide-react"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import type { ReaderSettingsMigrationImportResult, ReaderSettingsMigrationInspection } from "../../../adapters/reader-http-client"
 import { Switch } from "@/components/ui/switch"
 import type { ReaderSettingsCardContext } from "../../panels/registry"
 import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder"
-import { GUI_READER_INPUT_ACTIONS } from "../../input/ReaderInputActionCapabilities"
+import { GUI_READER_INPUT_ACTIONS, GUI_READER_INPUT_ACTION_SET } from "../../input/ReaderInputActionCapabilities"
 
 const LazyReaderDeviceInputRecorder = lazy(async () => ({
   default: (await import("../../input/ReaderDeviceInputRecorder")).ReaderDeviceInputRecorder,
@@ -40,38 +82,102 @@ const LazyRadialMenuSettingsEditor = lazy(async () => ({
 }))
 
 type RecordableReaderDevice = Extract<ReaderInputDescriptor["device"], "mouse" | "mouse-gesture" | "wheel" | "touch" | "gamepad">
+type DeviceKind = ReaderInputDescriptor["device"]
 
-export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radialMenu, onRadialMenu, onLegacySettingsInspect, onLegacySettingsImport }: ReaderSettingsCardContext) {
+const DEVICE_OPTIONS: ReadonlyArray<{ value: DeviceKind; label: string; icon: LucideIcon }> = [
+  { value: "keyboard", label: "键盘", icon: Keyboard },
+  { value: "mouse", label: "鼠标", icon: Mouse },
+  { value: "mouse-gesture", label: "鼠标轨迹", icon: Move },
+  { value: "wheel", label: "滚轮", icon: CircleDot },
+  { value: "touch", label: "触控", icon: Hand },
+  { value: "gamepad", label: "手柄", icon: Gamepad2 },
+  { value: "area", label: "九宫格区域", icon: Grid3X3 },
+]
+
+const CATEGORY_ICONS: Readonly<Record<ReaderInputActionCategory, LucideIcon>> = {
+  navigation: BookOpen,
+  zoom: ZoomIn,
+  view: Eye,
+  radial: Sparkles,
+  file: FolderOpen,
+  video: Film,
+  upscale: ImageUpscale,
+  slideshow: Play,
+  "viewer-toggle": ToggleLeft,
+  session: Settings2,
+}
+
+const CONTEXT_VISUAL: Readonly<Record<ReaderInputContext, { label: string; icon: LucideIcon; className: string }>> = {
+  global: { label: "全局", icon: AppWindow, className: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300" },
+  reader: { label: "阅读器", icon: BookOpen, className: "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300" },
+  video: { label: "视频", icon: Video, className: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300" },
+  panel: { label: "面板", icon: PanelRight, className: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
+  editor: { label: "编辑器", icon: Pencil, className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+  modal: { label: "对话框", icon: Layers, className: "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" },
+}
+
+export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radialMenu, onRadialMenu }: ReaderSettingsCardContext) {
   if (!inputBindings || !onInputBindings) return null
   return <div className="grid gap-6">
-    <InputBindingsEditor value={inputBindings} onSave={onInputBindings} onLegacySettingsInspect={onLegacySettingsInspect} onLegacySettingsImport={onLegacySettingsImport} />
+    <InputBindingsEditor value={inputBindings} onSave={onInputBindings} />
     {radialMenu && onRadialMenu ? <Suspense fallback={<div className="h-32 animate-pulse rounded bg-muted/30" />}><LazyRadialMenuSettingsEditor value={radialMenu} onSave={onRadialMenu} /></Suspense> : null}
   </div>
 }
 
+const AUTOSAVE_DELAY_MS = 220
+
 export function InputBindingsEditor({
   value,
   onSave,
-  onLegacySettingsInspect,
-  onLegacySettingsImport,
 }: {
   value: ReaderInputBindingsConfig
   onSave(patch: { bindings?: ReaderInputBinding[]; reset?: "defaults" }): Promise<ReaderInputBindingsConfig>
-  onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
-  onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
 }) {
   const [draft, setDraft] = useState(() => cloneReaderInputBindings(value))
   const [query, setQuery] = useState("")
-  const [context, setContext] = useState("all")
+  const [contextFilter, setContextFilter] = useState("all")
   const [category, setCategory] = useState<"all" | ReaderInputActionCategory>("all")
+  const [selectedAction, setSelectedAction] = useState<ReaderInputAction | undefined>()
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
+  const [adding, setAdding] = useState(false)
   const [deviceRecording, setDeviceRecording] = useState<{ id: string; device: RecordableReaderDevice }>()
   const recordingFocusRef = useRef<HTMLElement>()
+  const addMenuRef = useRef<HTMLDivElement>(null)
   const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
-  useEffect(() => setDraft(cloneReaderInputBindings(value)), [value])
-  const recordKeyboard = useCallback((id: string, input: Extract<ReaderInputDescriptor, { device: "keyboard" }>) => {
-    replace(id, (binding) => ({ ...binding, input }))
+  const skipNextValueSync = useRef(false)
+  const saveQueueRef = useRef(Promise.resolve())
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+
+  useEffect(() => {
+    if (skipNextValueSync.current) {
+      skipNextValueSync.current = false
+      return
+    }
+    setDraft(cloneReaderInputBindings(value))
+    setDirty(false)
+  }, [value])
+
+  useEffect(() => {
+    if (!adding) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!addMenuRef.current?.contains(event.target as Node)) setAdding(false)
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [adding])
+
+  const applyDraft = useCallback((update: (current: ReaderInputBindingsConfig) => ReaderInputBindingsConfig) => {
+    setDraft((current) => update(current))
+    setDirty(true)
+    setFeedback(undefined)
   }, [])
+
+  const recordKeyboard = useCallback((id: string, input: Extract<ReaderInputDescriptor, { device: "keyboard" }>) => {
+    applyDraft((current) => ({ bindings: current.bindings.map((binding) => binding.id === id ? { ...binding, input } : binding) }))
+  }, [applyDraft])
   const { recordingId, toggleRecording, cancelRecording } = useReaderKeyboardRecorder(recordKeyboard)
   const activeRecordingId = recordingId ?? deviceRecording?.id
   const previousRecordingId = useRef<string>()
@@ -83,28 +189,145 @@ export function InputBindingsEditor({
       recordingFocusRef.current = undefined
     }
   }, [activeRecordingId])
+
   const conflicts = useMemo(() => readerInputConflicts(draft.bindings), [draft.bindings])
   const conflictIds = useMemo(() => new Set(conflicts.flatMap((current) => current.bindingIds)), [conflicts])
-  const visible = draft.bindings.filter((binding) => {
-    if (context !== "all" && binding.context !== context) return false
-    if (category !== "all" && READER_INPUT_ACTION_METADATA[binding.action].category !== category) return false
+
+  const bindingsByAction = useMemo(() => {
+    const map = new Map<ReaderInputAction, ReaderInputBinding[]>()
+    for (const binding of draft.bindings) {
+      const list = map.get(binding.action) ?? []
+      list.push(binding)
+      map.set(binding.action, list)
+    }
+    return map
+  }, [draft.bindings])
+
+  const catalogActions = useMemo(() => {
+    const known = new Set<ReaderInputAction>(GUI_READER_INPUT_ACTIONS)
+    for (const binding of draft.bindings) known.add(binding.action)
+    return [...known]
+  }, [draft.bindings])
+
+  const visibleActions = useMemo(() => {
     const search = query.trim().toLocaleLowerCase()
-    return !search || `${READER_INPUT_ACTION_LABELS[binding.action]} ${READER_INPUT_ACTION_CATEGORY_LABELS[READER_INPUT_ACTION_METADATA[binding.action].category]} ${READER_INPUT_CONTEXT_LABELS[binding.context]} ${formatInput(binding.input)}`.toLocaleLowerCase().includes(search)
-  })
+    return catalogActions.filter((action) => {
+      if (!GUI_READER_INPUT_ACTION_SET.has(action) && !(bindingsByAction.get(action)?.length)) return false
+      const meta = READER_INPUT_ACTION_METADATA[action]
+      if (!meta) return false
+      if (category !== "all" && meta.category !== category) return false
+      const actionBindings = bindingsByAction.get(action) ?? []
+      if (contextFilter !== "all" && !actionBindings.some((binding) => binding.context === contextFilter)) {
+        if (actionBindings.length > 0) return false
+        return false
+      }
+      if (!search) return true
+      const chipText = actionBindings.map((binding) => `${READER_INPUT_CONTEXT_LABELS[binding.context]} ${formatInputSummary(binding.input)}`).join(" ")
+      return `${READER_INPUT_ACTION_LABELS[action]} ${READER_INPUT_ACTION_CATEGORY_LABELS[meta.category]} ${action} ${chipText}`.toLocaleLowerCase().includes(search)
+    })
+  }, [bindingsByAction, catalogActions, category, contextFilter, query])
+
+  const actionsByCategory = useMemo(() => {
+    const groups: { category: ReaderInputActionCategory | "other"; label: string; actions: ReaderInputAction[] }[] = []
+    const seen = new Set<ReaderInputAction>()
+    for (const item of READER_INPUT_ACTION_CATEGORIES) {
+      const actions = visibleActions.filter((action) => READER_INPUT_ACTION_METADATA[action]?.category === item)
+      for (const action of actions) seen.add(action)
+      if (actions.length) groups.push({ category: item, label: READER_INPUT_ACTION_CATEGORY_LABELS[item], actions })
+    }
+    const missing = visibleActions.filter((action) => !seen.has(action))
+    if (missing.length) groups.push({ category: "other", label: "其他", actions: missing })
+    return groups
+  }, [visibleActions])
+
+  useEffect(() => {
+    setSelectedAction((current) => {
+      if (current && visibleActions.includes(current)) return current
+      return visibleActions.find((action) => (bindingsByAction.get(action)?.length ?? 0) > 0) ?? visibleActions[0]
+    })
+  }, [bindingsByAction, visibleActions])
+
+  const selectedBindings = useMemo(() => {
+    if (!selectedAction) return [] as ReaderInputBinding[]
+    const list = bindingsByAction.get(selectedAction) ?? []
+    if (contextFilter === "all") return list
+    return list.filter((binding) => binding.context === contextFilter)
+  }, [bindingsByAction, contextFilter, selectedAction])
+
+  const previousSelectedAction = useRef<ReaderInputAction | undefined>()
+  useEffect(() => {
+    if (!selectedAction) return
+    if (previousSelectedAction.current === selectedAction) return
+    previousSelectedAction.current = selectedAction
+    cancelRecording()
+    setDeviceRecording(undefined)
+    const ids = (bindingsByAction.get(selectedAction) ?? []).map((binding) => binding.id)
+    setExpandedIds(new Set(ids))
+    setAdding(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- expand on action switch only
+  }, [selectedAction])
+
+  // Live autosave: persist draft shortly after each edit when conflict-free.
+  useEffect(() => {
+    if (!dirty || conflicts.length || activeRecordingId) return
+    const timer = window.setTimeout(() => {
+      const bindings = draftRef.current.bindings
+      if (readerInputConflicts(bindings).length) return
+      setSaving(true)
+      saveQueueRef.current = saveQueueRef.current.then(async () => {
+        try {
+          const updated = await onSave({ bindings })
+          skipNextValueSync.current = true
+          setDraft(cloneReaderInputBindings(updated))
+          setDirty(false)
+          setFeedback({ kind: "status", text: "操作绑定已自动保存。" })
+        } catch (error) {
+          setFeedback({ kind: "alert", text: errorMessage(error) })
+        } finally {
+          setSaving(false)
+        }
+      })
+    }, AUTOSAVE_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [activeRecordingId, conflicts.length, dirty, draft.bindings, onSave])
 
   function replace(id: string, update: (current: ReaderInputBinding) => ReaderInputBinding) {
-    setDraft((current) => ({ bindings: current.bindings.map((binding) => binding.id === id ? update(binding) : binding) }))
-    setFeedback(undefined)
+    applyDraft((current) => ({ bindings: current.bindings.map((binding) => binding.id === id ? update(binding) : binding) }))
   }
 
-  async function commit(patch: { bindings?: ReaderInputBinding[]; reset?: "defaults" }) {
-    if (saving || conflicts.length) return
+  function toggleExpanded(id: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function addBinding(device: DeviceKind = "keyboard") {
+    if (!selectedAction) return
+    cancelRecording()
+    setDeviceRecording(undefined)
+    const created = newBinding(draftRef.current.bindings, selectedAction, device)
+    applyDraft((current) => ({ bindings: [...current.bindings, created] }))
+    setExpandedIds((current) => new Set(current).add(created.id))
+    setAdding(false)
+    // Only keyboard auto-starts capture; other devices keep the expanded editor so autosave is not blocked.
+    if (device === "keyboard") queueMicrotask(() => toggleRecording(created.id))
+  }
+
+  async function resetDefaults() {
+    if (saving) return
+    cancelRecording()
+    setDeviceRecording(undefined)
     setSaving(true)
     setFeedback(undefined)
     try {
-      const updated = await onSave(patch)
+      const updated = await onSave({ reset: "defaults" })
+      skipNextValueSync.current = true
       setDraft(cloneReaderInputBindings(updated))
-      setFeedback({ kind: "status", text: patch.reset ? "已恢复默认绑定。" : "操作绑定已保存并立即生效。" })
+      setDirty(false)
+      setFeedback({ kind: "status", text: "已恢复默认绑定。" })
     } catch (error) {
       setFeedback({ kind: "alert", text: errorMessage(error) })
     } finally {
@@ -112,16 +335,20 @@ export function InputBindingsEditor({
     }
   }
 
+  const selectedMeta = selectedAction ? READER_INPUT_ACTION_METADATA[selectedAction] : undefined
+  const selectedLabel = selectedAction ? READER_INPUT_ACTION_LABELS[selectedAction] : undefined
+  const saveLabel = conflicts.length ? "存在冲突" : saving ? "保存中…" : dirty ? "待保存" : "已自动保存"
+
   return (
     <section className="grid gap-4" data-neoview-settings-card="input-bindings" data-input-context="modal">
       <header className="flex flex-wrap items-center gap-2 border-b pb-3">
         <Keyboard className="size-4 text-muted-foreground" />
         <h2 className="mr-auto text-lg font-semibold">操作绑定</h2>
-        <Button type="button" size="sm" variant="outline" disabled={saving || Boolean(activeRecordingId)} onClick={() => void commit({ reset: "defaults" })}><RotateCcw />恢复默认</Button>
-        <Button type="button" size="sm" disabled={saving || conflicts.length > 0 || Boolean(activeRecordingId)} onClick={() => void commit({ bindings: draft.bindings })}><Save />保存</Button>
+        <span role="status" className={`text-xs ${conflicts.length ? "text-destructive" : "text-muted-foreground"}`}>{saveLabel}</span>
+        <Button type="button" size="sm" variant="outline" disabled={saving || Boolean(activeRecordingId)} onClick={() => void resetDefaults()}><RotateCcw />恢复默认</Button>
       </header>
 
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_auto]">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem]">
         <label className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-8" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="搜索动作、分类、上下文或输入" aria-label="搜索操作绑定" />
@@ -130,11 +357,10 @@ export function InputBindingsEditor({
           <option value="all">全部分类</option>
           {READER_INPUT_ACTION_CATEGORIES.map((item) => <option key={item} value={item}>{READER_INPUT_ACTION_CATEGORY_LABELS[item]}</option>)}
         </select>
-        <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={context} onChange={(event) => setContext(event.currentTarget.value)} aria-label="筛选上下文">
+        <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={contextFilter} onChange={(event) => setContextFilter(event.currentTarget.value)} aria-label="筛选上下文">
           <option value="all">全部上下文</option>
           {READER_INPUT_CONTEXTS.map((item) => <option key={item} value={item}>{READER_INPUT_CONTEXT_LABELS[item]}</option>)}
         </select>
-        <Button type="button" variant="outline" disabled={Boolean(activeRecordingId)} onClick={() => setDraft((current) => ({ bindings: [...current.bindings, newBinding(current.bindings)] }))}><Plus />添加绑定</Button>
       </div>
 
       {recordingId ? (
@@ -157,119 +383,309 @@ export function InputBindingsEditor({
       ) : null}
       {conflicts.length ? (
         <div role="alert" className="flex items-start gap-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />存在 {conflicts.length} 个同上下文输入冲突；禁用、删除或修改冲突项后才能保存。
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />存在 {conflicts.length} 个同上下文输入冲突；禁用、删除或修改冲突项后才会继续自动保存。
         </div>
       ) : null}
 
-      <div className="grid gap-2" role="list" aria-label="操作绑定列表">
-        {visible.map((binding) => (
-          <BindingRow
-            key={binding.id}
-            binding={binding}
-            conflicted={conflictIds.has(binding.id)}
-            disabled={saving || Boolean(activeRecordingId && activeRecordingId !== binding.id)}
-            recording={activeRecordingId === binding.id}
-            onRecord={(event) => {
-              recordingFocusRef.current = event.currentTarget
-              if (binding.input.device === "keyboard") toggleRecording(binding.id)
-              else if (binding.input.device !== "area") setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device })
-            }}
-            onChange={(next) => replace(binding.id, () => next)}
-            onRemove={() => setDraft((current) => ({ bindings: current.bindings.filter((item) => item.id !== binding.id) }))}
-          />
-        ))}
-        {!visible.length ? <p className="py-8 text-center text-sm text-muted-foreground">没有匹配的操作绑定</p> : null}
+      <div className="grid min-h-[28rem] gap-3 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+        <nav className="flex max-h-[36rem] flex-col overflow-hidden rounded-md border bg-muted/10" aria-label="动作目录">
+          <div className="flex items-center gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+            <Layers className="size-3.5" />
+            动作
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-1.5" role="listbox" aria-label="可选动作" aria-activedescendant={selectedAction ? actionOptionId(selectedAction) : undefined}>
+            {actionsByCategory.map((group) => {
+              const CategoryIcon = group.category === "other" ? Layers : CATEGORY_ICONS[group.category]
+              return (
+                <div key={group.category} className="mb-2">
+                  <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold tracking-wide text-muted-foreground">
+                    <CategoryIcon className="size-3.5 shrink-0 opacity-80" />
+                    {group.label}
+                  </div>
+                  <ul className="grid gap-0.5">
+                    {group.actions.map((action) => {
+                      const actionBindings = bindingsByAction.get(action) ?? []
+                      const selected = action === selectedAction
+                      const hasConflict = actionBindings.some((binding) => conflictIds.has(binding.id))
+                      const ActionIcon = CATEGORY_ICONS[READER_INPUT_ACTION_METADATA[action]?.category ?? "session"] ?? Layers
+                      return (
+                        <li key={action}>
+                          <button
+                            type="button"
+                            id={actionOptionId(action)}
+                            role="option"
+                            aria-selected={selected}
+                            data-action={action}
+                            className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${selected ? "bg-primary/15 text-primary shadow-sm ring-1 ring-primary/20" : "hover:bg-muted/70"} ${hasConflict ? "ring-1 ring-destructive/60" : ""}`}
+                            onClick={() => setSelectedAction(action)}
+                          >
+                            <span className={`grid size-7 place-items-center rounded-md ${selected ? "bg-primary/20" : "bg-muted/70"}`}>
+                              <ActionIcon className="size-3.5" />
+                            </span>
+                            <span className="min-w-0 truncate font-medium">{READER_INPUT_ACTION_LABELS[action] ?? action}</span>
+                            <ActionBindingChips bindings={actionBindings} />
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )
+            })}
+            {!visibleActions.length ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">没有匹配的动作</p> : null}
+          </div>
+        </nav>
+
+        <div className="grid content-start gap-3 rounded-md border bg-card/40 p-3">
+          {selectedAction && selectedMeta && selectedLabel ? (
+            <>
+              <div className="flex flex-wrap items-start gap-3 border-b pb-3">
+                <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+                  {(() => {
+                    const Icon = CATEGORY_ICONS[selectedMeta.category]
+                    return <Icon className="size-5" />
+                  })()}
+                </span>
+                <div className="mr-auto grid min-w-0 gap-1">
+                  <h3 className="text-base font-semibold">{selectedLabel}</h3>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="secondary" className="gap-1 font-normal">
+                      {(() => {
+                        const Icon = CATEGORY_ICONS[selectedMeta.category]
+                        return <Icon className="size-3" />
+                      })()}
+                      {READER_INPUT_ACTION_CATEGORY_LABELS[selectedMeta.category]}
+                    </Badge>
+                    <Badge variant="outline" className="font-mono text-[10px] font-normal text-muted-foreground">{selectedAction}</Badge>
+                    <Badge variant="outline" className="font-normal text-muted-foreground">
+                      {selectedBindings.length ? `${selectedBindings.length} 条绑定` : "尚未绑定"}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="relative" ref={addMenuRef}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (activeRecordingId) {
+                        cancelRecording()
+                        setDeviceRecording(undefined)
+                      }
+                      setAdding((current) => !current)
+                    }}
+                    aria-expanded={adding}
+                    aria-label="添加绑定"
+                  >
+                    <Plus />添加绑定
+                  </Button>
+                  {adding ? (
+                    <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border bg-popover p-1 shadow-md" role="menu" aria-label="选择输入设备">
+                      {DEVICE_OPTIONS.map((device) => {
+                        const Icon = device.icon
+                        return (
+                          <button
+                            key={device.value}
+                            type="button"
+                            role="menuitem"
+                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                            onClick={() => addBinding(device.value)}
+                          >
+                            <Icon className="size-3.5 text-muted-foreground" />
+                            {device.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-2" role="list" aria-label="操作绑定列表">
+                {selectedBindings.map((binding) => (
+                  <BindingRow
+                    key={binding.id}
+                    binding={binding}
+                    conflicted={conflictIds.has(binding.id)}
+                    disabled={saving || Boolean(activeRecordingId && activeRecordingId !== binding.id)}
+                    recording={activeRecordingId === binding.id}
+                    expanded={expandedIds.has(binding.id)}
+                    onToggleExpand={() => toggleExpanded(binding.id)}
+                    onRecord={(event) => {
+                      recordingFocusRef.current = event.currentTarget
+                      if (binding.input.device === "keyboard") toggleRecording(binding.id)
+                      else if (binding.input.device !== "area") setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device })
+                    }}
+                    onChange={(next) => replace(binding.id, () => next)}
+                    onRemove={() => applyDraft((current) => ({ bindings: current.bindings.filter((item) => item.id !== binding.id) }))}
+                    onDuplicateToContext={(context) => {
+                      const created = {
+                        ...binding,
+                        id: uniqueBindingId(draftRef.current.bindings, `${binding.id}-${context}`),
+                        context,
+                        enabled: binding.enabled,
+                        input: { ...binding.input },
+                      } satisfies ReaderInputBinding
+                      applyDraft((current) => ({ bindings: [...current.bindings, created] }))
+                      setExpandedIds((current) => new Set(current).add(created.id))
+                    }}
+                  />
+                ))}
+                {!selectedBindings.length ? (
+                  <div className="grid place-items-center gap-3 rounded-xl border border-dashed bg-muted/15 px-4 py-10 text-center">
+                    <span className="grid size-12 place-items-center rounded-2xl bg-muted/60 text-muted-foreground"><Keyboard className="size-5" /></span>
+                    <p className="text-sm text-muted-foreground">此动作还没有绑定。选择设备后开始录制。</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {DEVICE_OPTIONS.slice(0, 4).map((device) => {
+                        const Icon = device.icon
+                        return (
+                          <Button key={device.value} type="button" size="sm" variant="outline" onClick={() => addBinding(device.value)}>
+                            <Icon />{device.label}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <p className="py-16 text-center text-sm text-muted-foreground">选择左侧动作以查看或添加绑定</p>
+          )}
+        </div>
       </div>
+
       {feedback ? <p role={feedback.kind} className={feedback.kind === "alert" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{feedback.text}</p> : null}
-      {onLegacySettingsInspect && onLegacySettingsImport ? <LegacySettingsImportSection onInspect={onLegacySettingsInspect} onImport={onLegacySettingsImport} /> : null}
     </section>
   )
 }
 
-function LegacySettingsImportSection({
-  onInspect,
-  onImport,
-}: {
-  onInspect(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
-  onImport(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
-}) {
-  const [content, setContent] = useState("")
-  const [strategy, setStrategy] = useState<"merge" | "overwrite">("merge")
-  const [inspection, setInspection] = useState<ReaderSettingsMigrationInspection>()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string>()
-  const [result, setResult] = useState<ReaderSettingsMigrationImportResult>()
-
-  async function inspect() {
-    if (!content.trim() || busy) return
-    setBusy(true)
-    setError(undefined)
-    setResult(undefined)
-    try {
-      setInspection(await onInspect(content))
-    } catch (cause) {
-      setInspection(undefined)
-      setError(errorMessage(cause))
-    } finally {
-      setBusy(false)
-    }
+function ActionBindingChips({ bindings }: { bindings: readonly ReaderInputBinding[] }) {
+  if (!bindings.length) {
+    return <span className="text-[10px] text-muted-foreground/80">—</span>
   }
-
-  async function commit() {
-    if (!inspection || busy) return
-    setBusy(true)
-    setError(undefined)
-    try {
-      setResult(await onImport(content, strategy))
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
+  const enabled = bindings.filter((binding) => binding.enabled)
+  const preview = (enabled.length ? enabled : bindings).slice(0, 3)
+  const extra = bindings.length - preview.length
   return (
-    <section className="grid gap-3 rounded-md border border-dashed p-3" data-neoview-settings-import="legacy-bindings">
-      <div className="flex items-center gap-2"><FileUp className="size-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Legacy settings import</h3></div>
-      <p className="text-xs text-muted-foreground">Inspect an exported legacy settings JSON before changing canonical bindings.</p>
-      <label className="grid gap-1 text-xs"><span>Settings JSON</span><Textarea value={content} onChange={(event) => { setContent(event.currentTarget.value); setInspection(undefined); setResult(undefined) }} placeholder='{"keybindings": [...]}' aria-label="Legacy settings JSON" className="min-h-24 font-mono text-xs" /></label>
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs hover:bg-muted"><FileUp className="size-3.5" />Choose JSON<input type="file" accept="application/json,.json" className="sr-only" onChange={async (event) => { const file = event.currentTarget.files?.[0]; if (!file) return; setContent(await file.text()); setInspection(undefined); setResult(undefined); event.currentTarget.value = "" }} /></label>
-        <Button type="button" variant="outline" size="sm" disabled={busy || !content.trim()} onClick={() => void inspect()}>Inspect</Button>
-        <select className="h-8 rounded border border-input bg-background px-2 text-xs" value={strategy} disabled={busy} onChange={(event) => setStrategy(event.currentTarget.value as typeof strategy)} aria-label="Import strategy"><option value="merge">Merge</option><option value="overwrite">Overwrite</option></select>
-        <Button type="button" size="sm" disabled={busy || !inspection} onClick={() => void commit()}><CheckCircle2 />Import</Button>
-      </div>
-      {inspection ? <div role="status" className="grid gap-1 rounded bg-muted/35 p-2 text-xs"><strong>{inspection.report.fullyRecognized ? "Recognized legacy settings" : "Legacy settings need review"}</strong><span>{Object.entries(inspection.report.summary).map(([key, count]) => `${key}: ${count}`).join(" | ") || "No entries"}</span><span>{inspection.report.entries.length} report entries</span></div> : null}
-      {result ? <p role="status" className="text-xs text-emerald-600">Imported successfully ({result.strategy}); runtime bindings were refreshed.</p> : null}
-      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
-    </section>
+    <span className="flex max-w-[9.5rem] flex-wrap justify-end gap-1">
+      {preview.map((binding) => {
+        const DeviceIcon = deviceIcon(binding.input.device)
+        return (
+          <span
+            key={binding.id}
+            title={`${READER_INPUT_CONTEXT_LABELS[binding.context]} · ${formatInputSummary(binding.input)}`}
+            className={`inline-flex max-w-[4.75rem] items-center gap-0.5 truncate rounded-md border border-border/60 bg-background/80 px-1.5 py-0.5 text-[10px] leading-4 text-muted-foreground ${binding.enabled ? "" : "line-through opacity-50"}`}
+          >
+            <DeviceIcon className="size-2.5 shrink-0 opacity-70" />
+            <span className="truncate">{formatInputChip(binding.input)}</span>
+          </span>
+        )
+      })}
+      {extra > 0 ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">+{extra}</span> : null}
+    </span>
   )
 }
 
-function BindingRow({ binding, conflicted, disabled, recording, onRecord, onChange, onRemove }: {
+function BindingRow({
+  binding,
+  conflicted,
+  disabled,
+  recording,
+  expanded,
+  onToggleExpand,
+  onRecord,
+  onChange,
+  onRemove,
+  onDuplicateToContext,
+}: {
   binding: ReaderInputBinding
   conflicted: boolean
   disabled: boolean
   recording: boolean
+  expanded: boolean
+  onToggleExpand(): void
   onRecord(event: MouseEvent<HTMLButtonElement>): void
   onChange(binding: ReaderInputBinding): void
   onRemove(): void
+  onDuplicateToContext(context: ReaderInputContext): void
 }) {
+  const DeviceIcon = deviceIcon(binding.input.device)
+  const contextVisual = CONTEXT_VISUAL[binding.context]
+  const ContextIcon = contextVisual.icon
+  const summary = `${READER_INPUT_CONTEXT_LABELS[binding.context]} · ${formatInputSummary(binding.input)}`
   return (
-    <div role="listitem" className={`grid gap-2 rounded border px-3 py-2 lg:grid-cols-[auto_minmax(9rem,1fr)_7rem_minmax(15rem,1.5fr)_auto] lg:items-center ${conflicted ? "border-destructive/70 bg-destructive/5" : "border-border/70"}`}>
-      <Switch checked={binding.enabled} disabled={disabled} onCheckedChange={(enabled) => onChange({ ...binding, enabled })} aria-label={`${READER_INPUT_ACTION_LABELS[binding.action]}启用`} />
-      <select className="h-8 min-w-0 rounded border border-input bg-background px-2 text-xs" value={binding.action} disabled={disabled} onChange={(event) => onChange({ ...binding, action: event.currentTarget.value as ReaderInputBinding["action"] })} aria-label="动作">
-        {READER_INPUT_ACTION_CATEGORIES.map((category) => (
-          <optgroup key={category} label={READER_INPUT_ACTION_CATEGORY_LABELS[category]}>
-            {GUI_READER_INPUT_ACTIONS.filter((action) => READER_INPUT_ACTION_METADATA[action].category === category).map((action) => <option key={action} value={action}>{READER_INPUT_ACTION_LABELS[action]}</option>)}
-          </optgroup>
-        ))}
-      </select>
-      <select className="h-8 rounded border border-input bg-background px-2 text-xs" value={binding.context} disabled={disabled} onChange={(event) => onChange({ ...binding, context: event.currentTarget.value as ReaderInputBinding["context"] })} aria-label="上下文">
-        {READER_INPUT_CONTEXTS.map((item) => <option key={item} value={item}>{READER_INPUT_CONTEXT_LABELS[item]}</option>)}
-      </select>
-      <InputDescriptorEditor input={binding.input} disabled={disabled} recording={recording} onRecord={onRecord} onChange={(input) => onChange({ ...binding, input })} />
-      <Button type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={onRemove} title="删除绑定" aria-label={`删除${READER_INPUT_ACTION_LABELS[binding.action]}绑定`}><Trash2 /></Button>
+    <div
+      role="listitem"
+      className={`grid gap-2 rounded-xl border px-3 py-2.5 shadow-sm transition-colors ${conflicted ? "border-destructive/70 bg-destructive/5" : "border-border/70 bg-background/60"} ${recording ? "ring-2 ring-primary/40" : ""}`}
+      data-binding-id={binding.id}
+    >
+      <div className="grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto] sm:items-center">
+        <Switch checked={binding.enabled} disabled={disabled} onCheckedChange={(enabled) => onChange({ ...binding, enabled })} aria-label={`${READER_INPUT_ACTION_LABELS[binding.action]}启用`} />
+        <Button type="button" size="icon-sm" variant="ghost" disabled={disabled && !recording} onClick={onToggleExpand} aria-expanded={expanded} aria-label={expanded ? "收起绑定详情" : "展开绑定详情"}>
+          {expanded ? <ChevronDown /> : <ChevronRight />}
+        </Button>
+        <button type="button" className="flex min-w-0 items-center gap-2 text-left" onClick={onToggleExpand} title={summary}>
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted/70 text-foreground">
+            <DeviceIcon className="size-4" />
+          </span>
+          <span className="min-w-0 grid gap-1">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <kbd className="inline-flex max-w-full items-center truncate rounded-md border border-border/80 bg-muted/50 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide">
+                {formatInputSummary(binding.input)}
+              </kbd>
+              {conflicted ? <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">冲突</Badge> : null}
+              {recording ? <Badge className="h-5 gap-1 px-1.5 text-[10px]"><Radio className="size-2.5 animate-pulse" />录制中</Badge> : null}
+            </span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${contextVisual.className}`}>
+                <ContextIcon className="size-3" />
+                {contextVisual.label}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <DeviceIcon className="size-3 opacity-70" />
+                {deviceOptionLabel(binding.input.device)}
+              </span>
+            </span>
+          </span>
+        </button>
+        <div className="flex items-center justify-end gap-1">
+          <label className="sr-only" htmlFor={`binding-context-${binding.id}`}>上下文</label>
+          <div className="relative">
+            <ContextIcon className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <select
+              id={`binding-context-${binding.id}`}
+              className="h-8 appearance-none rounded-md border border-input bg-background py-0 pl-7 pr-6 text-xs"
+              value={binding.context}
+              disabled={disabled}
+              onChange={(event) => onChange({ ...binding, context: event.currentTarget.value as ReaderInputBinding["context"] })}
+              aria-label="上下文"
+            >
+              {READER_INPUT_CONTEXTS.map((item) => <option key={item} value={item}>{READER_INPUT_CONTEXT_LABELS[item]}</option>)}
+            </select>
+          </div>
+          <Button type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={onRemove} title="删除绑定" aria-label={`删除${READER_INPUT_ACTION_LABELS[binding.action]}绑定`}><Trash2 /></Button>
+        </div>
+      </div>
+
+      {expanded ? (
+        <div className="grid gap-3 rounded-lg border border-dashed bg-muted/20 p-3">
+          <InputDescriptorEditor input={binding.input} disabled={disabled} recording={recording} onRecord={onRecord} onChange={(input) => onChange({ ...binding, input })} />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Copy className="size-3" />复制到</span>
+            {READER_INPUT_CONTEXTS.filter((context) => context !== binding.context).map((context) => {
+              const visual = CONTEXT_VISUAL[context]
+              const Icon = visual.icon
+              return (
+                <Button key={context} type="button" size="xs" variant="outline" className="gap-1" disabled={disabled} onClick={() => onDuplicateToContext(context)}>
+                  <Icon className="size-3" />
+                  {visual.label}
+                </Button>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -281,11 +697,15 @@ function InputDescriptorEditor({ input, disabled, recording, onRecord, onChange 
   onRecord(event: MouseEvent<HTMLButtonElement>): void
   onChange(input: ReaderInputDescriptor): void
 }) {
+  const DeviceIcon = deviceIcon(input.device)
   return (
-    <div className="grid min-w-0 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)]">
-      <select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.device} disabled={disabled || recording} onChange={(event) => onChange(defaultInput(event.currentTarget.value as ReaderInputDescriptor["device"]))} aria-label="输入设备">
-        <option value="keyboard">键盘</option><option value="mouse">鼠标</option><option value="mouse-gesture">鼠标轨迹</option><option value="wheel">滚轮</option><option value="touch">触控</option><option value="gamepad">手柄</option><option value="area">九宫格区域</option>
-      </select>
+    <div className="grid min-w-0 gap-2 sm:grid-cols-[auto_minmax(0,1fr)]">
+      <div className="flex items-center gap-2">
+        <span className="grid size-8 place-items-center rounded-md bg-muted/70"><DeviceIcon className="size-3.5" /></span>
+        <select className="h-8 min-w-[7.5rem] rounded border border-input bg-background px-1 text-xs" value={input.device} disabled={disabled || recording} onChange={(event) => onChange(defaultInput(event.currentTarget.value as ReaderInputDescriptor["device"]))} aria-label="输入设备">
+          {DEVICE_OPTIONS.map((device) => <option key={device.value} value={device.value}>{device.label}</option>)}
+        </select>
+      </div>
       {input.device === "keyboard" ? <KeyboardInputEditor input={input} disabled={disabled} recording={recording} onRecord={onRecord} onChange={onChange} /> : null}
       {input.device !== "keyboard" ? <div className="grid gap-1">
         {input.device === "mouse" ? <MouseInputEditor input={input} disabled={disabled || recording} onChange={onChange} /> : null}
@@ -373,10 +793,37 @@ function ModifierEditor<T extends Extract<ReaderInputDescriptor, { device: "keyb
   return <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">{(["ctrl", "alt", "shift", "meta"] as const).map((key) => <label key={key} className="flex items-center gap-1"><input type="checkbox" checked={Boolean(input[key])} disabled={disabled} onChange={(event) => onChange({ ...input, [key]: event.currentTarget.checked || undefined })} />{modifierLabel(key)}</label>)}</div>
 }
 
-function newBinding(bindings: readonly ReaderInputBinding[]): ReaderInputBinding {
-  let sequence = bindings.length + 1
-  while (bindings.some((current) => current.id === `custom-${sequence}`)) sequence += 1
-  return { id: `custom-${sequence}`, action: "reader.next-page", context: "reader", enabled: false, input: { device: "keyboard", code: "KeyN" } }
+function AreaInputEditor({ input, disabled, onChange }: {
+  input: Extract<ReaderInputDescriptor, { device: "area" }>
+  disabled: boolean
+  onChange(input: ReaderInputDescriptor): void
+}) {
+  return <div className="grid gap-2"><div className="grid aspect-[3/2] grid-cols-3 gap-1" aria-label="九宫格区域">{READER_VIEW_AREAS.map((area) => <button key={area} type="button" className={`min-h-8 rounded border text-[10px] ${input.area === area ? "border-primary bg-primary/15 text-primary" : "border-border bg-muted/30"}`} disabled={disabled} onClick={() => onChange({ ...input, area })} aria-pressed={input.area === area}>{areaLabel(area)}</button>)}</div><div className="grid grid-cols-2 gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.button} disabled={disabled} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) as 0 | 1 | 2 })} aria-label="区域鼠标按钮"><option value={0}>左键</option><option value={1}>中键</option><option value={2}>右键</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.action} disabled={disabled} onChange={(event) => onChange({ ...input, action: event.currentTarget.value as typeof input.action })} aria-label="区域点击方式"><option value="click">单击</option><option value="double-click">双击</option><option value="press">按下</option></select></div></div>
+}
+
+function newBinding(bindings: readonly ReaderInputBinding[], action: ReaderInputAction, device: DeviceKind = "keyboard"): ReaderInputBinding {
+  return {
+    id: uniqueBindingId(bindings, `custom-${action}`),
+    action,
+    context: defaultContextForAction(action),
+    enabled: true,
+    input: defaultInput(device),
+  }
+}
+
+function uniqueBindingId(bindings: readonly ReaderInputBinding[], prefix: string): string {
+  const safe = prefix.replace(/[^a-zA-Z0-9._-]+/g, "-")
+  let sequence = 1
+  while (bindings.some((current) => current.id === `${safe}-${sequence}`)) sequence += 1
+  return `${safe}-${sequence}`
+}
+
+function defaultContextForAction(action: ReaderInputAction): ReaderInputContext {
+  if (action.startsWith("video.")) return "video"
+  if (action.startsWith("shell.") || action.startsWith("viewer.")) return "reader"
+  if (action.startsWith("file.") || action === "reader.open-settings") return "global"
+  if (action.startsWith("radial.")) return "reader"
+  return "reader"
 }
 
 function defaultInput(device: ReaderInputDescriptor["device"]): ReaderInputDescriptor {
@@ -404,12 +851,12 @@ function deviceLabel(device: RecordableReaderDevice): string {
   return device === "mouse" ? "鼠标输入" : device === "mouse-gesture" ? "鼠标轨迹" : device === "wheel" ? "滚轮输入" : device === "touch" ? "触控手势" : "手柄按钮"
 }
 
-function AreaInputEditor({ input, disabled, onChange }: {
-  input: Extract<ReaderInputDescriptor, { device: "area" }>
-  disabled: boolean
-  onChange(input: ReaderInputDescriptor): void
-}) {
-  return <div className="grid gap-2"><div className="grid aspect-[3/2] grid-cols-3 gap-1" aria-label="九宫格区域">{READER_VIEW_AREAS.map((area) => <button key={area} type="button" className={`min-h-8 rounded border text-[10px] ${input.area === area ? "border-primary bg-primary/15 text-primary" : "border-border bg-muted/30"}`} disabled={disabled} onClick={() => onChange({ ...input, area })} aria-pressed={input.area === area}>{areaLabel(area)}</button>)}</div><div className="grid grid-cols-2 gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.button} disabled={disabled} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) as 0 | 1 | 2 })} aria-label="区域鼠标按钮"><option value={0}>左键</option><option value={1}>中键</option><option value={2}>右键</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.action} disabled={disabled} onChange={(event) => onChange({ ...input, action: event.currentTarget.value as typeof input.action })} aria-label="区域点击方式"><option value="click">单击</option><option value="double-click">双击</option><option value="press">按下</option></select></div></div>
+function deviceOptionLabel(device: DeviceKind): string {
+  return DEVICE_OPTIONS.find((option) => option.value === device)?.label ?? device
+}
+
+function deviceIcon(device: DeviceKind): LucideIcon {
+  return DEVICE_OPTIONS.find((option) => option.value === device)?.icon ?? Keyboard
 }
 
 function areaLabel(area: typeof READER_VIEW_AREAS[number]): string {
@@ -417,10 +864,59 @@ function areaLabel(area: typeof READER_VIEW_AREAS[number]): string {
   return labels[area]
 }
 
-function formatInput(input: ReaderInputDescriptor): string {
-  return readerInputDescriptorKey(input)
+function formatInputSummary(input: ReaderInputDescriptor): string {
+  switch (input.device) {
+    case "keyboard": {
+      const mods = [input.ctrl ? "Ctrl" : "", input.alt ? "Alt" : "", input.shift ? "Shift" : "", input.meta ? "Meta" : ""].filter(Boolean)
+      const key = input.code.replace(/^Key/, "").replace(/^Digit/, "")
+      const trigger = input.trigger === "hold" ? " 长按" : ""
+      return `${[...mods, key].join("+")}${trigger}`
+    }
+    case "mouse":
+      return `${mouseButtonLabel(input.button)} ${input.action === "click" ? "单击" : input.action === "double-click" ? "双击" : input.action === "press" ? "按下" : "长按"}`
+    case "mouse-gesture":
+      return `轨迹 ${input.directions.map(directionShortLabel).join("")}`
+    case "wheel": {
+      const mods = [input.ctrl ? "Ctrl" : "", input.alt ? "Alt" : "", input.shift ? "Shift" : "", input.meta ? "Meta" : ""].filter(Boolean)
+      return `${mods.length ? `${mods.join("+")}+` : ""}滚轮${input.direction === "up" ? "上" : "下"}`
+    }
+    case "touch":
+      return `${input.fingers}指${input.gesture === "swipe-left" ? "左滑" : input.gesture === "swipe-right" ? "右滑" : input.gesture === "swipe-up" ? "上滑" : input.gesture === "swipe-down" ? "下滑" : input.gesture === "tap" ? "点击" : "长按"}`
+    case "gamepad":
+      return `手柄 ${input.button}`
+    case "area":
+      return `区域 ${areaLabel(input.area)}`
+  }
+}
+
+function formatInputChip(input: ReaderInputDescriptor): string {
+  switch (input.device) {
+    case "keyboard":
+      return formatInputSummary(input)
+    case "mouse":
+      return `M${input.button}`
+    case "mouse-gesture":
+      return input.directions.map(directionShortLabel).join("")
+    case "wheel":
+      return input.direction === "up" ? "W↑" : "W↓"
+    case "touch":
+      return `${input.fingers}👆`
+    case "gamepad":
+      return `G${input.button}`
+    case "area":
+      return "▣"
+  }
+}
+
+function actionOptionId(action: ReaderInputAction): string {
+  return `input-binding-action-${action.replace(/[^a-zA-Z0-9_-]+/g, "-")}`
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+
+export default function DockedInputBindingsSettingsCard(context: ReaderSettingsCardContext) {
+  return <InputBindingsSettingsCard {...context} />
 }

@@ -3,6 +3,7 @@ import { LayoutPanelTop } from "lucide-react"
 
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../panels/registry"
+import { SettingsCardShell } from "../SettingsCardShell"
 
 const PanelLayoutEditor = lazy(() => import("./PanelLayoutEditor"))
 
@@ -14,17 +15,11 @@ export function PanelLayoutSettingsCard({
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
 }) {
   return (
-    <section className="grid gap-4" data-neoview-settings-card="panel-layout">
-      <header className="flex items-center justify-between gap-3 border-b px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <LayoutPanelTop className="size-4 shrink-0 text-muted-foreground" />
-          <h2 className="truncate text-sm font-medium">面板布局</h2>
-        </div>
-      </header>
-      <Suspense fallback={<div className="h-72 animate-pulse bg-muted/35" aria-label="正在加载面板布局编辑器" />}>
+    <SettingsCardShell id="panel-layout" title="面板布局" description="拖放调整卡片所属面板、顺序与显隐。" icon={LayoutPanelTop}>
+      <Suspense fallback={<div className="h-72 animate-pulse rounded-md bg-muted/35" aria-label="正在加载面板布局编辑器" />}>
         <PanelLayoutEditor key={shell.revision ?? 0} shell={shell} onSave={onSave} />
       </Suspense>
-    </section>
+    </SettingsCardShell>
   )
 }
 
