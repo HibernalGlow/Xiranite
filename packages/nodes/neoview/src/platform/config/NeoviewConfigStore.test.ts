@@ -5,13 +5,27 @@ import { afterEach, describe, expect, it } from "vitest"
 import { parseToml } from "@xiranite/config"
 import { lock } from "proper-lockfile"
 import { commitNeoviewConfig } from "./NeoviewConfigStore.js"
-import { parseNeoviewRuntimeConfig, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewRuntimeConfig, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
 
 describe("commitNeoviewConfig", () => {
   const roots: string[] = []
 
   afterEach(async () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  })
+
+  it("[neoview.super-resolution.preferences-first-write] creates a versioned preferences table from a partial GUI patch", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, "[nodes.neoview]\nschema_version = 1\n", "utf8")
+    const { tomlPatch } = parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { preferences: { autoUpscaleEnabled: true } },
+    })
+
+    const committed = await commitNeoviewConfig(tomlPatch, { configPath, strategy: "merge" })
+
+    expect(committed.nodeConfig).toMatchObject({ super_resolution: { preferences: { schema_version: 1, auto_upscale_enabled: true } } })
+    expect(parseNeoviewRuntimeConfig(committed.nodeConfig).superResolution.preferences.autoUpscaleEnabled).toBe(true)
   })
 
   it("[neoview.settings.atomic-toml] deep-merges node settings, replaces arrays, backs up, and verifies TOML", async () => {

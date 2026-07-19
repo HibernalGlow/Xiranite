@@ -72,7 +72,7 @@ describe("NeoView super-resolution runtime config", () => {
       superResolution: { preferences: { progressiveEnabled: true, progressiveDwellTimeMs: 5_000, progressiveMaxPages: 999 } },
     })).toEqual({
       patch: { superResolution: { preferences: { progressiveEnabled: true, progressiveDwellTimeMs: 5_000, progressiveMaxPages: 999 } } },
-      tomlPatch: { super_resolution: { preferences: { progressive_enabled: true, progressive_dwell_time_ms: 5_000, progressive_max_pages: 999 } } },
+      tomlPatch: { super_resolution: { preferences: { schema_version: 1, progressive_enabled: true, progressive_dwell_time_ms: 5_000, progressive_max_pages: 999 } } },
     })
     expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { preferences: { backgroundConcurrency: 0 } } })).toThrow("between 1 and 32")
   })

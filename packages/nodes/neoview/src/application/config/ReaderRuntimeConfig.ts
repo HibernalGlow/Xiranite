@@ -1115,7 +1115,7 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
     throw new Error("reader super-resolution preferences patch contains unsupported fields.")
   }
   const patch: NeoviewSuperResolutionPreferencesPatch = {}
-  const toml: Record<string, unknown> = {}
+  const toml: Record<string, unknown> = { schema_version: 1 }
   const booleanFields = [
     ["autoUpscaleEnabled", "auto_upscale_enabled"],
     ["preUpscaleEnabled", "pre_upscale_enabled"],
