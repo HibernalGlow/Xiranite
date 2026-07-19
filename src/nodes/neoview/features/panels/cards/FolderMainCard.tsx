@@ -734,7 +734,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       gridSnapshot: viewUsesGrid(viewMode) ? gridSnapshotRef.current : undefined,
       gridScrollTop: viewUsesGrid(viewMode) ? gridScrollTopRef.current : undefined,
       detailsScrollTop: viewMode === "details" ? detailsScrollTopRef.current : undefined,
-      thumbnailUrls: viewUsesThumbnails(viewMode) ? thumbnailUrls : undefined,
+      // The ref is updated in the thumbnail response handler before React
+      // necessarily commits the corresponding state update. Navigation and
+      // tab snapshots must capture that latest cache to avoid a needless
+      // re-registration when the user immediately goes back.
+      thumbnailUrls: viewUsesThumbnails(viewMode) ? thumbnailUrlsRef.current : undefined,
       thumbnailProfiles: viewUsesThumbnails(viewMode) ? thumbnailProfilesRef.current : undefined,
     }
     return { current, state }
@@ -806,7 +810,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       focusedPath,
       focusedIndex: focusedIndexRef.current,
       anchorIndex,
-      thumbnailUrls,
+      thumbnailUrls: thumbnailUrlsRef.current,
       thumbnailProfiles: thumbnailProfilesRef.current,
     }
     if (current) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, nextState)
