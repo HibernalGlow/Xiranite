@@ -4,6 +4,7 @@ import {
   type ReaderSwitchToastPatch,
   type ReaderSwitchToastSettings,
 } from "@xiranite/node-neoview/switch-toast"
+import { persistReaderSettingsWithTimeout } from "../reader/reader-settings-save-timeout"
 
 export interface ReaderSwitchToastMessage {
   id: number
@@ -34,6 +35,7 @@ export interface ReaderSwitchToastStoreOptions {
     signal: AbortSignal,
   ): Promise<ReaderSwitchToastSettings>
   onError?(cause: unknown): void
+  saveTimeoutMs?: number
 }
 
 export function createReaderSwitchToastStore(options: ReaderSwitchToastStoreOptions): ReaderSwitchToastPort {
@@ -84,7 +86,11 @@ export function createReaderSwitchToastStore(options: ReaderSwitchToastStoreOpti
       resetRequested = false
       if (!reset && sameSettings(target, confirmed)) return
       try {
-        const updated = normalizeReaderSwitchToast(await options.persist(target, reset, controller.signal))
+        const updated = normalizeReaderSwitchToast(await persistReaderSettingsWithTimeout({
+          persist: (signal) => options.persist(target, reset, signal),
+          signal: controller.signal,
+          timeoutMs: options.saveTimeoutMs,
+        }))
         confirmed = updated
         if (revision === targetRevision) publish(updated)
       } catch (cause) {

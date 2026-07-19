@@ -6,6 +6,7 @@
  * @migration-status adapted
  */
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -14,6 +15,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react"
+import { RotateCcw } from "lucide-react"
 import type {
   ReaderSwitchToastPatch,
   ReaderSwitchToastSettings,
@@ -25,7 +27,6 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ReaderSwitchToastPort } from "../../switch-toast/ReaderSwitchToastStore"
 import type { ReaderPanelContext } from "../registry"
-import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 export type SwitchToastSettings = ReaderSwitchToastSettings
 export type SwitchToastPatch = ReaderSwitchToastPatch
@@ -34,6 +35,7 @@ export type SwitchToastPort = Pick<ReaderSwitchToastPort, "subscribe" | "getSnap
 export interface SwitchToastCardProps {
   port?: SwitchToastPort
   onShowTest?(settings: SwitchToastSettings): void
+  dataPanelActive?: boolean
 }
 
 const BOOK_VARIABLES = [
@@ -51,11 +53,10 @@ const PAGE_VARIABLES = [
 ] as const
 
 export default function DockedSwitchToastCard({ switchToast, panelActive = true }: ReaderPanelContext) {
-  if (!panelActive) return <ReaderCardEmptyState />
-
   return (
     <SwitchToastCard
       port={switchToast}
+      dataPanelActive={panelActive}
       onShowTest={(settings) => switchToast?.show({
         title: "切换提示测试",
         description: `X ${settings.positionX}px / Y ${settings.positionY}px / 透明度 ${Math.round(settings.opacity * 100)}%`,
@@ -65,12 +66,40 @@ export default function DockedSwitchToastCard({ switchToast, panelActive = true 
   )
 }
 
-export function SwitchToastCard({ port, onShowTest }: SwitchToastCardProps) {
+export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: SwitchToastCardProps) {
   const settings = useSyncExternalStore(
     port?.subscribe ?? subscribeNoop,
     port?.getSnapshot ?? getUndefinedSnapshot,
     port?.getSnapshot ?? getUndefinedSnapshot,
   )
+  const [saveState, setSaveState] = useState<SaveState>({ phase: "idle" })
+  const mountedRef = useRef(true)
+  const retryRef = useRef<(() => Promise<void>)>()
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  const runMutation = useCallback((operation: () => Promise<void>, retry = operation) => {
+    retryRef.current = retry
+    setSaveState({ phase: "saving" })
+    void operation().then(() => {
+      if (!mountedRef.current) return
+      retryRef.current = undefined
+      setSaveState({ phase: "saved" })
+    }).catch((cause) => {
+      if (mountedRef.current) setSaveState({ phase: "error", message: errorMessage(cause) })
+    })
+  }, [])
+  const update = useCallback((patch: SwitchToastPatch) => {
+    if (port) runMutation(() => port.update(patch), () => port.update(patch))
+  }, [port, runMutation])
+  const commit = useCallback(() => {
+    if (port) runMutation(() => port.commit(), () => port.commit())
+  }, [port, runMutation])
+  const retry = useCallback(() => {
+    const operation = retryRef.current
+    if (operation) runMutation(operation, operation)
+  }, [runMutation])
 
   if (!settings || !port) {
     return (
@@ -89,6 +118,7 @@ export function SwitchToastCard({ port, onShowTest }: SwitchToastCardProps) {
       className="space-y-3 text-xs text-muted-foreground"
       data-neoview-card="switch-toast"
       data-switch-toast-state="ready"
+      data-panel-active={dataPanelActive ? "true" : "false"}
     >
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
@@ -108,8 +138,8 @@ export function SwitchToastCard({ port, onShowTest }: SwitchToastCardProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <DraftNumberInput label="X 轴" value={settings.positionX} min={0} max={4096} fallback={20} onCommit={(positionX) => void port.update({ positionX })} />
-          <DraftNumberInput label="Y 轴" value={settings.positionY} min={0} max={4096} fallback={20} onCommit={(positionY) => void port.update({ positionY })} />
+          <DraftNumberInput label="X 轴" value={settings.positionX} min={0} max={4096} fallback={20} onCommit={(positionX) => update({ positionX })} />
+          <DraftNumberInput label="Y 轴" value={settings.positionY} min={0} max={4096} fallback={20} onCommit={(positionY) => update({ positionY })} />
         </div>
 
         <label className="block space-y-1">
@@ -126,27 +156,27 @@ export function SwitchToastCard({ port, onShowTest }: SwitchToastCardProps) {
             value={settings.opacity}
             aria-label="透明度"
             onChange={(event) => port.preview({ opacity: clampNumber(event.currentTarget.valueAsNumber, 0.1, 1, 0.92) })}
-            onPointerUp={(event) => finishPointer(event, () => port.commit())}
-            onPointerCancel={(event) => finishPointer(event, () => port.commit())}
-            onKeyUp={(event) => finishRangeKey(event, () => port.commit())}
+            onPointerUp={(event) => finishPointer(event, commit)}
+            onPointerCancel={(event) => finishPointer(event, commit)}
+            onKeyUp={(event) => finishRangeKey(event, commit)}
           />
         </label>
 
-        <SwitchRow label="液态玻璃效果" checked={settings.liquidGlass} onCheckedChange={(liquidGlass) => void port.update({ liquidGlass })} />
+        <SwitchRow label="液态玻璃效果" checked={settings.liquidGlass} onCheckedChange={(liquidGlass) => update({ liquidGlass })} />
       </div>
 
       <Separator className="my-1" />
-      <SwitchRow label="切换书籍时显示提示" checked={settings.enableBook} onCheckedChange={(enableBook) => void port.update({ enableBook })} />
+      <SwitchRow label="切换书籍时显示提示" checked={settings.enableBook} onCheckedChange={(enableBook) => update({ enableBook })} />
       <Separator className="my-1" />
-      <SwitchRow label="切换页面时显示提示" checked={settings.enablePage} onCheckedChange={(enablePage) => void port.update({ enablePage })} />
+      <SwitchRow label="切换页面时显示提示" checked={settings.enablePage} onCheckedChange={(enablePage) => update({ enablePage })} />
       <Separator className="my-1" />
       <div className="space-y-1">
-        <SwitchRow label="按键操作时显示提示" checked={settings.enableAction} onCheckedChange={(enableAction) => void port.update({ enableAction })} />
+        <SwitchRow label="按键操作时显示提示" checked={settings.enableAction} onCheckedChange={(enableAction) => update({ enableAction })} />
         <p className="text-[10px] text-muted-foreground/60">如“键盘: 下一页”、“滚轮: 放大”等</p>
       </div>
       <Separator className="my-1" />
       <div className="space-y-1">
-        <SwitchRow label="边界翻页时显示提示" checked={settings.enableBoundaryToast} onCheckedChange={(enableBoundaryToast) => void port.update({ enableBoundaryToast })} />
+        <SwitchRow label="边界翻页时显示提示" checked={settings.enableBoundaryToast} onCheckedChange={(enableBoundaryToast) => update({ enableBoundaryToast })} />
         <p className="text-[10px] text-muted-foreground/60">在最后一页继续后翻或第一页继续前翻时显示提示</p>
       </div>
       <Separator className="my-1" />
@@ -160,8 +190,8 @@ export function SwitchToastCard({ port, onShowTest }: SwitchToastCardProps) {
         descriptionValue={settings.bookDescriptionTemplate}
         descriptionPlaceholder="例如：路径：{{book.path}}"
         variables={BOOK_VARIABLES}
-        onTitleCommit={(bookTitleTemplate) => void port.update({ bookTitleTemplate })}
-        onDescriptionCommit={(bookDescriptionTemplate) => void port.update({ bookDescriptionTemplate })}
+        onTitleCommit={(bookTitleTemplate) => update({ bookTitleTemplate })}
+        onDescriptionCommit={(bookDescriptionTemplate) => update({ bookDescriptionTemplate })}
       />
 
       <TemplateSection
@@ -173,10 +203,13 @@ export function SwitchToastCard({ port, onShowTest }: SwitchToastCardProps) {
         descriptionValue={settings.pageDescriptionTemplate}
         descriptionPlaceholder="例如：{{page.dimensionsFormatted}}"
         variables={PAGE_VARIABLES}
-        onTitleCommit={(pageTitleTemplate) => void port.update({ pageTitleTemplate })}
-        onDescriptionCommit={(pageDescriptionTemplate) => void port.update({ pageDescriptionTemplate })}
+        onTitleCommit={(pageTitleTemplate) => update({ pageTitleTemplate })}
+        onDescriptionCommit={(pageDescriptionTemplate) => update({ pageDescriptionTemplate })}
         footer={<>页面模板同样可以使用 <span className="font-mono">{"{{book.*}}"}</span> 变量。</>}
       />
+      {saveState.phase === "saving" ? <p role="status" aria-live="polite" className="text-xs text-muted-foreground">正在保存...</p> : null}
+      {saveState.phase === "saved" ? <p role="status" aria-live="polite" className="text-xs text-muted-foreground">已保存</p> : null}
+      {saveState.phase === "error" ? <div role="alert" className="flex items-center justify-between gap-2 rounded border border-destructive/50 bg-destructive/10 px-2 py-1.5 text-xs text-destructive"><span>保存失败：{saveState.message}</span><Button type="button" size="sm" variant="outline" onClick={retry}><RotateCcw />重试</Button></div> : null}
     </section>
   )
 }
@@ -341,13 +374,13 @@ function VariableTable({ values }: { values: readonly (readonly [string, string]
   )
 }
 
-function finishPointer(event: PointerEvent<HTMLInputElement>, commit: () => Promise<void>): void {
+function finishPointer(event: PointerEvent<HTMLInputElement>, commit: () => void): void {
   if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-  void commit()
+  commit()
 }
 
-function finishRangeKey(event: KeyboardEvent<HTMLInputElement>, commit: () => Promise<void>): void {
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) void commit()
+function finishRangeKey(event: KeyboardEvent<HTMLInputElement>, commit: () => void): void {
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) commit()
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
@@ -365,4 +398,10 @@ function subscribeNoop(): () => void {
 
 function getUndefinedSnapshot(): undefined {
   return undefined
+}
+
+type SaveState = { phase: "idle" | "saving" | "saved" } | { phase: "error"; message: string }
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }

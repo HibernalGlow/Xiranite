@@ -44,4 +44,17 @@ describe("ReaderSwitchToastStore", () => {
     expect(store.getSnapshot()).toMatchObject({ enablePage: true, enableBook: false })
     store.dispose()
   })
+
+  it("[neoview.switch-toast.persistence-timeout] rejects a stalled settings write", async () => {
+    const onError = vi.fn()
+    const store = createReaderSwitchToastStore({
+      persist: async () => new Promise(() => undefined),
+      onError,
+      saveTimeoutMs: 5,
+    })
+
+    await expect(store.update({ enablePage: true })).rejects.toThrow("保存设置超时")
+    expect(onError).toHaveBeenCalledOnce()
+    store.dispose()
+  })
 })
