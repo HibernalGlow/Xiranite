@@ -19,13 +19,15 @@ describe("Czkawka workspace layout", () => {
       normalizeCzkawkaWorkspaceLayout({
         version: 1,
         toolRailWidth: 999,
-        sourcePanelWidth: 1,
+      sourcePanelWidth: 1,
+      resultPanelWidth: 2000,
         analysisPanelWidth: 410,
         sourcePanelMinimized: true,
       }),
     ).toMatchObject({
       toolRailWidth: 260,
       sourcePanelWidth: 220,
+      resultPanelWidth: 1200,
       analysisPanelWidth: 410,
       sourcePanelMinimized: true,
     });
@@ -35,5 +37,12 @@ describe("Czkawka workspace layout", () => {
         analysisPanelWidth: 480,
       }),
     ).toMatchObject({ analysisPanelMinimized: true, analysisPanelWidth: 480 });
+  });
+
+  test("normalizes and persists lane ordering", () => {
+    expect(normalizeCzkawkaWorkspaceLayout({ version: 1, laneOrder: ["analysis", "source"] })).toMatchObject({
+      laneOrder: ["analysis", "source", "results"],
+    });
+    expect(updateCzkawkaWorkspaceLayout(CZKAWKA_WORKSPACE_DEFAULTS, { laneOrder: ["results", "analysis", "source"] }).laneOrder).toEqual(["results", "analysis", "source"]);
   });
 });

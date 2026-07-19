@@ -6,9 +6,11 @@ interface Props {
   onResize?: (deltaRatio: number) => void
   onResizeEnd?: () => void
   className?: string
+  label?: string
+  onReset?: () => void
 }
 
-export function LaneResizer({ onResize, onResizeEnd, className }: Props) {
+export function LaneResizer({ onResize, onResizeEnd, className, label, onReset }: Props) {
   const { t } = useTranslation()
   const startXRef = useRef(0)
   const pointerIdRef = useRef<number | null>(null)
@@ -56,8 +58,19 @@ export function LaneResizer({ onResize, onResizeEnd, className }: Props) {
     <button
       ref={btnRef}
       type="button"
-      aria-label={t("common:resizeLane")}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label ?? t("common:resizeLane")}
       onPointerDown={handlePointerDown}
+      onDoubleClick={onReset}
+      onKeyDown={(event) => {
+        const direction = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0
+        if (!direction) return
+        event.preventDefault()
+        onResize?.(direction * (event.shiftKey ? 0.1 : 0.025))
+        onResizeEnd?.()
+      }}
+      tabIndex={0}
       className={cn(
         "lane-resizer w-1 cursor-ew-resize bg-transparent transition-colors hover:bg-primary/40",
         className,

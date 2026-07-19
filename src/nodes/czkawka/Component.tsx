@@ -3,7 +3,7 @@ import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/
 import { smartSelect, type CzkawkaAction, type CzkawkaData, type CzkawkaInput, type CzkawkaSelectionStrategy, type CzkawkaTool } from "@xiranite/node-czkawka/core"
 import { applyCzkawkaFilters, normalizeCzkawkaFilterState, type CzkawkaFilterResult, type CzkawkaFilterState, type CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import { applyCzkawkaDirectorySelection, applyCzkawkaGroupSelection, applyCzkawkaTextSelection, calculateCzkawkaSelectionStats, createCzkawkaSelectionHistory, createDefaultCzkawkaSelectionAssistantConfig, invertCzkawkaSelection, pushCzkawkaSelectionHistory, redoCzkawkaSelectionHistory, selectAllCzkawkaEntries, undoCzkawkaSelectionHistory, type CzkawkaSelectionAssistantConfig, type CzkawkaSelectionHistory, type CzkawkaSelectionResult, type CzkawkaSelectionStats } from "@xiranite/node-czkawka/selection-assistant"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, MoveRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, Save, Search, Settings2, Trash2, Video, X } from "lucide-react"
+import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderOpen, FolderSearch2, FolderX, GripVertical, HardDrive, Image, Link2Off, MoveRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, Save, Search, Settings2, Trash2, Video, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,10 +36,12 @@ import { buildCzkawkaGroupOrganizePlan } from "@xiranite/node-czkawka/operations
 import { czkawkaScanPresetFromValues, czkawkaScanPresetToValues, deleteCzkawkaScanPreset, exportCzkawkaScanPresets, importCzkawkaScanPresets } from "@xiranite/node-czkawka/scan-presets"
 import { parseCzkawkaList } from "@xiranite/node-czkawka/source-inputs"
 import { CzkawkaDirectoryEditor, CzkawkaTokenEditor } from "./source-inputs"
-import { CZKAWKA_WORKSPACE_DEFAULTS, normalizeCzkawkaWorkspaceLayout, updateCzkawkaWorkspaceLayout, type CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
+import { normalizeCzkawkaWorkspaceLayout, updateCzkawkaWorkspaceLayout, type CzkawkaLaneId, type CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
 import { czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
 import { CzkawkaSimilarFoldersView } from "./similar-folders-view"
 import { CzkawkaSimilarityReferenceDialog } from "./similarity-reference-dialog"
+import { LaneCollapseIcon } from "@/components/workspace/lane/LaneCollapseIcon"
+import { LaneResizer } from "@/components/workspace/lane/LaneResizer"
 
 const TOOLS: Array<{
   id: CzkawkaTool
@@ -509,48 +511,29 @@ type View = {
 function Full(props: View) {
   const floatingOpen = props.floatingAvailable && props.floatingAnalysisPanel.open
   const layout = props.workspaceLayout
-  const columns = [layout.sourcePanelMinimized ? "28px" : `${layout.sourcePanelWidth}px`, "8px", "minmax(360px, 1fr)", ...(floatingOpen ? [] : ["8px", layout.analysisPanelMinimized ? "28px" : `${layout.analysisPanelWidth}px`])].join(" ")
+  const [draggedLane, setDraggedLane] = useState<CzkawkaLaneId | null>(null)
+  const lanes: Record<CzkawkaLaneId, { collapsed: boolean; collapsedLabel: string; defaultWidth: number; label: string; resizeLabel: string; width: number; content: React.ReactNode }> = {
+    source: { collapsed: layout.sourcePanelMinimized, collapsedLabel: props.t("workspace.restoreConditions", "恢复扫描条件"), defaultWidth: 300, label: `${props.t("sections.conditions", "扫描条件")} / LANE`, resizeLabel: props.t("workspace.resizeConditions", "调整扫描条件宽度"), width: layout.sourcePanelWidth, content: <SourcePanel {...props} /> },
+    results: { collapsed: layout.resultPanelMinimized, collapsedLabel: props.t("workspace.restoreResults", "恢复扫描结果"), defaultWidth: 720, label: `${props.t("tabs.results", "扫描结果")} / LANE`, resizeLabel: props.t("workspace.resizeResults", "调整扫描结果宽度"), width: layout.resultPanelWidth, content: <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-card"><ResultTable {...props} /></section> },
+    analysis: { collapsed: layout.analysisPanelMinimized, collapsedLabel: props.t("workspace.restoreAnalysis", "恢复分析与操作"), defaultWidth: 300, label: `${props.t("sections.analysisOperations", "分析与操作")} / LANE`, resizeLabel: props.t("workspace.resizeAnalysis", "调整分析面板宽度"), width: layout.analysisPanelWidth, content: <AnalysisPanel {...props} /> },
+  }
+  function patchLane(id: CzkawkaLaneId, patch: { collapsed?: boolean; width?: number }) {
+    if (id === "source") props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { sourcePanelMinimized: patch.collapsed, sourcePanelWidth: patch.width }))
+    if (id === "results") props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { resultPanelMinimized: patch.collapsed, resultPanelWidth: patch.width }))
+    if (id === "analysis") props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { analysisPanelMinimized: patch.collapsed, analysisPanelWidth: patch.width }))
+  }
+  function moveLane(target: CzkawkaLaneId) {
+    if (!draggedLane || draggedLane === target) return
+    const laneOrder = layout.laneOrder.filter((id) => id !== draggedLane)
+    laneOrder.splice(laneOrder.indexOf(target), 0, draggedLane)
+    props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { laneOrder }))
+    setDraggedLane(null)
+  }
   return (
     <div data-testid="czkawka-full-view" className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
       <Header {...props} />
-      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: columns }}>
-        {layout.sourcePanelMinimized ? (
-          <MinimizedPanel
-            label={props.t("workspace.restoreConditions", "恢复扫描条件")}
-            side="left"
-            onRestore={() =>
-              props.setWorkspaceLayout(
-                updateCzkawkaWorkspaceLayout(layout, {
-                  sourcePanelMinimized: false
-                })
-              )
-            }
-          />
-        ) : (
-          <SourcePanel {...props} />
-        )}
-        <WorkspaceResizeHandle label={props.t("workspace.resizeConditions", "调整扫描条件宽度")} value={layout.sourcePanelWidth} defaultValue={CZKAWKA_WORKSPACE_DEFAULTS.sourcePanelWidth} disabled={layout.sourcePanelMinimized} onChange={(sourcePanelWidth) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { sourcePanelWidth }))} />
-        <ResultTable {...props} />
-        {floatingOpen ? null : (
-          <>
-            <WorkspaceResizeHandle label={props.t("workspace.resizeAnalysis", "调整分析面板宽度")} value={layout.analysisPanelWidth} defaultValue={CZKAWKA_WORKSPACE_DEFAULTS.analysisPanelWidth} disabled={layout.analysisPanelMinimized} invert onChange={(analysisPanelWidth) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { analysisPanelWidth }))} />
-            {layout.analysisPanelMinimized ? (
-              <MinimizedPanel
-                label={props.t("workspace.restoreAnalysis", "恢复分析与操作")}
-                side="right"
-                onRestore={() =>
-                  props.setWorkspaceLayout(
-                    updateCzkawkaWorkspaceLayout(layout, {
-                      analysisPanelMinimized: false
-                    })
-                  )
-                }
-              />
-            ) : (
-              <AnalysisPanel {...props} />
-            )}
-          </>
-        )}
+      <div data-testid="czkawka-lane-board" className="flex min-h-0 flex-1 items-stretch overflow-x-auto border-l border-border/40">
+        {layout.laneOrder.filter((id) => !(floatingOpen && id === "analysis")).map((id) => <CzkawkaSwimlane key={id} {...lanes[id]} testId={id} onCollapsedChange={(collapsed) => patchLane(id, { collapsed })} onWidthChange={(width) => patchLane(id, { width })} onDragStart={() => setDraggedLane(id)} onDrop={() => moveLane(id)}>{lanes[id].content}</CzkawkaSwimlane>)}
       </div>
       <StatusBar {...props} />
       {floatingOpen ? <CzkawkaFloatingAnalysisPanel state={props.floatingAnalysisPanel} viewport={props.floatingViewport} layout={props.cardLayout} onStateChange={props.setFloatingAnalysisPanel} onLayoutChange={props.setCardLayout} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} /> : null}
@@ -558,52 +541,26 @@ function Full(props: View) {
   )
 }
 
-function WorkspaceResizeHandle({ label, value, defaultValue, disabled, invert = false, onChange }: { label: string; value: number; defaultValue: number; disabled?: boolean; invert?: boolean; onChange: (value: number) => void }) {
-  const drag = useRef<{ x: number; value: number } | null>(null)
-  function move(event: React.PointerEvent<HTMLDivElement>) {
-    if (!drag.current) return
-    const delta = (event.clientX - drag.current.x) * (invert ? -1 : 1)
-    onChange(drag.current.value + delta)
-  }
-  return (
-    <div
-      role="separator"
-      aria-label={label}
-      aria-orientation="vertical"
-      aria-valuenow={value}
-      tabIndex={disabled ? -1 : 0}
-      data-testid={`czkawka-resizer-${label}`}
-      className={cn("group grid cursor-col-resize place-items-center outline-none", disabled && "pointer-events-none opacity-30")}
-      onDoubleClick={() => onChange(defaultValue)}
-      onPointerDown={(event) => {
-        drag.current = { x: event.clientX, value }
-        event.currentTarget.setPointerCapture(event.pointerId)
-      }}
-      onPointerMove={move}
-      onPointerUp={(event) => {
-        drag.current = null
-        event.currentTarget.releasePointerCapture(event.pointerId)
-      }}
-      onKeyDown={(event) => {
-        const direction = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0
-        if (!direction) return
-        event.preventDefault()
-        onChange(value + direction * (event.shiftKey ? 32 : 8) * (invert ? -1 : 1))
-      }}
-    >
-      <div className="h-full w-px bg-border transition-colors group-hover:bg-primary group-focus-visible:bg-primary" />
-    </div>
+function CzkawkaSwimlane({ children, collapsed, collapsedLabel, defaultWidth, label, onCollapsedChange, onDragStart, onDrop, onWidthChange, resizeLabel, testId, width }: { children: React.ReactNode; collapsed: boolean; collapsedLabel: string; defaultWidth: number; label: string; onCollapsedChange: (collapsed: boolean) => void; onDragStart: () => void; onDrop: () => void; onWidthChange: (width: number) => void; resizeLabel: string; testId: string; width: number }) {
+  const widthRef = useRef(width)
+  useEffect(() => { widthRef.current = width }, [width])
+  if (collapsed) return (
+    <section data-testid={`czkawka-lane-${testId}`} onDragOver={(event) => event.preventDefault()} onDrop={onDrop} className="flex h-full w-12 shrink-0 flex-col items-center gap-2 border-r border-border/40 bg-muted/20 px-1 py-3 hover:bg-muted/40">
+      <button type="button" aria-label={collapsedLabel} className="text-muted-foreground hover:text-foreground" onClick={() => onCollapsedChange(false)}><LaneCollapseIcon collapsed /></button>
+      <button type="button" draggable aria-label={`拖拽${label}`} className="cursor-grab text-muted-foreground/70 hover:text-foreground" onDragStart={onDragStart}><GripVertical className="size-3.5" /></button>
+      <span className="text-[10px] font-mono tracking-widest text-muted-foreground" style={{ writingMode: "vertical-rl" }}>{label}</span>
+    </section>
   )
-}
-
-function MinimizedPanel({ label, side, onRestore }: { label: string; side: "left" | "right"; onRestore: () => void }) {
-  const Icon = side === "left" ? PanelLeftOpen : PanelRightOpen
   return (
-    <div className="grid min-h-0 place-items-start rounded-md border bg-card py-1">
-      <Button aria-label={label} size="icon-xs" variant="ghost" onClick={onRestore}>
-        <Icon />
-      </Button>
-    </div>
+    <section data-testid={`czkawka-lane-${testId}`} onDragOver={(event) => event.preventDefault()} onDrop={onDrop} className="relative flex h-full min-w-60 shrink-0 flex-col border-r border-border/40 bg-card/40" style={{ width }}>
+        <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-border/40 bg-muted/30 px-2">
+        <button type="button" aria-label={collapsedLabel.replace("恢复", "折叠")} className="text-muted-foreground hover:text-foreground" onClick={() => onCollapsedChange(true)}><LaneCollapseIcon collapsed={false} /></button>
+        <span className="min-w-0 flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground" title={label}>{label}</span>
+        <button type="button" draggable aria-label={`拖拽${label}`} className="cursor-grab text-muted-foreground/70 hover:text-foreground" onDragStart={onDragStart}><GripVertical className="size-3.5" /></button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">{children}</div>
+      <LaneResizer label={resizeLabel} className="absolute inset-y-0 right-0 z-20 w-2 translate-x-1" onReset={() => onWidthChange(defaultWidth)} onResize={(deltaRatio) => { widthRef.current += deltaRatio * 320; onWidthChange(widthRef.current) }} />
+    </section>
   )
 }
 

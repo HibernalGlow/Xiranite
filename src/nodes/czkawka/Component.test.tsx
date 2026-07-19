@@ -103,7 +103,11 @@ describe("Czkawka node", () => {
     host.pickedDirectory = "F:/picked"
     const view = render(<Component compId="czkawka" host={host} />)
 
-    fireEvent.change(screen.getByRole("textbox", { name: "批量粘贴包含目录" }), { target: { value: '\u2068"G:/quoted"\u2069;D:/one,H:/comma' } })
+    expect(screen.queryByRole("textbox", { name: "批量粘贴包含目录" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "手动添加包含目录" }))
+    const manualInput = screen.getByRole("textbox", { name: "批量粘贴包含目录" })
+    expect(document.activeElement).toBe(manualInput)
+    fireEvent.change(manualInput, { target: { value: '\u2068"G:/quoted"\u2069;D:/one,H:/comma' } })
     fireEvent.click(screen.getByRole("button", { name: "添加粘贴的包含目录" }))
     expect(host.stateValue.includedDirectoriesText).toBe("G:/quoted\nD:/one\nH:/comma\nD:/two")
 
@@ -420,6 +424,21 @@ describe("Czkawka node", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "最小化分析与操作" }))
     expect(host.stateValue.workspaceLayout?.analysisPanelMinimized).toBe(true)
+  })
+
+  test("reorders the desktop swimlanes from the visible drag handles", () => {
+    Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    render(<Component compId="czkawka" host={host} />)
+
+    const sourceLane = screen.getByTestId("czkawka-lane-source")
+    const analysisLane = screen.getByTestId("czkawka-lane-analysis")
+    fireEvent.dragStart(within(sourceLane).getByRole("button", { name: /拖拽.*LANE/ }))
+    fireEvent.dragOver(analysisLane)
+    fireEvent.drop(analysisLane)
+
+    expect(host.stateValue.workspaceLayout?.laneOrder).toEqual(["results", "source", "analysis"])
+    expect([...screen.getByTestId("czkawka-lane-board").children].map((element) => element.getAttribute("data-testid"))).toEqual(["czkawka-lane-results", "czkawka-lane-source", "czkawka-lane-analysis"])
   })
 
   test("persists a movable and resizable analysis panel inside the node surface", () => {
