@@ -199,6 +199,7 @@ type KanbanProps<T> = Omit<DndContextProps, "collisionDetection"> &
     strategy?: SortableContextProps["strategy"];
     orientation?: "horizontal" | "vertical";
     flatCursor?: boolean;
+    collisionDetection?: DndContextProps["collisionDetection"];
   };
 
 function Kanban<T>(props: KanbanProps<T>) {
@@ -212,6 +213,7 @@ function Kanban<T>(props: KanbanProps<T>) {
     getItemValue: getItemValueProp,
     accessibility,
     flatCursor = false,
+    collisionDetection: collisionDetectionProp,
     ...kanbanProps
   } = props;
 
@@ -258,6 +260,7 @@ function Kanban<T>(props: KanbanProps<T>) {
 
   const collisionDetection: CollisionDetection = React.useCallback(
     (args) => {
+      if (collisionDetectionProp) return collisionDetectionProp(args);
       if (activeId && activeId in value) {
         return closestCenter({
           ...args,
@@ -304,7 +307,7 @@ function Kanban<T>(props: KanbanProps<T>) {
       lastOverIdRef.current = overId;
       return [{ id: overId }];
     },
-    [activeId, value, getItemValue],
+    [activeId, value, getItemValue, collisionDetectionProp],
   );
 
   const onDragStart = React.useCallback(
