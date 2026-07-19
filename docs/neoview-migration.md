@@ -2194,6 +2194,8 @@ bundle 检查与恢复也复用同一 application/platform 组合：`inspect()` 
 
 schema v1 的运行时读取也已接入共享 composition root：GUI backend 在第一次 `/reader/` 请求懒创建 `ReaderHttpController` 时读取同一 config path，CLI/TUI 在第一次创建 `ReaderHeadlessController` 时读取同一 `[nodes.neoview]`；两条路径最终都把默认值注入 `CoreReaderService`。当前 Core 已实际消费 `reader.reading_direction`、`reader.double_page_view` 和 `reader.tail_overflow_behavior`，显式 open/session 参数优先于 TOML，TOML 优先于 Core 默认值；真实目录 E2E 覆盖 RTL 双页视觉顺序。缩放、预读、面板等尚未完成的设置仍保留在 TOML 和兼容报告中，但在对应功能纵切完成前不标记为已生效。
 
+`xneoview subtitle-list <video> --index N` 与 `subtitle-render <video> --index N --subtitle-id ID --output path|-` 现已直接复用同一 local/remote headless controller：前者只返回有界轨道 DTO，后者只写已验证的 WebVTT 字节，不重新打开源文件、手写解析、跳过远程 asset URL 校验或把字幕内容写入数据库。
+
 ### 18.5 缩略图数据库沿用原版位置
 
 数据所有权是硬边界，三类数据不能混用：NeoView 节点设置沿用其他节点的配置机制，经 `NeoviewConfigStore` 原子合并到 `xiranite.config.toml` 的 `[nodes.neoview]`；`xiranite.db` 只属于 Xiranite 项目本身，用于工作区和 XR 运行数据，NeoView 迁移不得因为可以拿到 `databasePath` 就向其中追加 Reader 业务表；NeoView 的缩略图、阅读进度、历史、书签、评分、标签及兼容元数据统一沿用原 `%APPDATA%/NeoView/thumbnails.db`，以 `xr_` 命名空间独立表和带备份、可回滚的 schema migration 扩展。扩展必须是向后兼容且非破坏性的：不得修改旧 `thumbs`、`failed_thumbnails`、`metadata` 表及其索引，不得改写 `metadata.version`、`PRAGMA user_version` 或 journal 设置；旧 NeoView 应忽略新增表并可与 XR 同时读写，XR 遇到 busy/locked 只能有界退避或跳过本次进度写入，不能通过 checkpoint、vacuum 或强制迁移干扰旧进程。这里的“统一”表示一个 NeoView 主库，不表示把所有数据塞进旧 `thumbs` 表；同时禁止在 Xiranite 数据目录再创建第二个 NeoView SQLite 主库。
