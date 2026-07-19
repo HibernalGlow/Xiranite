@@ -446,6 +446,7 @@
       "testIds": [
         "neoview.card.sidebar-control.edges",
         "neoview.card.sidebar-control.context-pin",
+        "neoview.card.sidebar-control.disabled",
         "neoview.sidebar-control.e2e"
       ],
       "plannedTestIds": [

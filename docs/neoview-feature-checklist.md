@@ -505,4 +505,4 @@
 - 测试：`neoview.clipboard.materialization-service`、`neoview.clipboard.materialization-validation`、`neoview.clipboard.materialization-platform`、`neoview.clipboard.materialization-cleanup`、`neoview.clipboard.materialization-http`、`neoview.file-operations.system-platform`、`neoview.file-operations.system-scheduler`
 - 计划测试：无
 - 性能基准：无专项
-- 已知差异：文本、图片和普通文件复制复用 Xiranite host clipboard；不新增 Reader clipboard backend；归档页复制先创建有 TTL、数量和字节预算的临时文件租约，再由 GUI 调用 host clipboard.writeFiles；旧版 cut 标记仅为进程内状态，迁移为 Reader UI/session 状态；读取文件剪贴板、clear、快捷方式解析、Explorer 右键注册和 trash restore 仍待迁移
+- 已知差异：文本、图片和普通文件复制复用 Xiranite host clipboard；不新增 Reader clipboard backend；归档页复制先创建有 TTL、数量和字节预算的临时文件租约，再由 GUI 调用 host clipboard.writeFiles；旧版 cut 标记仅为进程内状态，迁移为 Reader UI/session 状态；文件剪贴板读取与 clear 已由 Windows 鉴权宿主路由接管；快捷方式解析、Explorer 右键注册和 trash restore 的 GUI/CLI/TUI transport 与跨平台语义仍待迁移

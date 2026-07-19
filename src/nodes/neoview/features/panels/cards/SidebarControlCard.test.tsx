@@ -46,6 +46,20 @@ describe("SidebarControlCard", () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
+  it("[neoview.card.sidebar-control.disabled] does not allow disabled edges to pin by right click", () => {
+    const onPinnedChange = vi.fn()
+    const edges = createEdges()
+    edges.left.enabled = false
+    renderCard({ edges, onPinnedChange })
+
+    const leftEdge = screen.getByRole("button", { name: "左边栏" })
+    expect((leftEdge as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.contextMenu(leftEdge)
+
+    expect(onPinnedChange).not.toHaveBeenCalled()
+  })
+
   it("[neoview.card.sidebar-control.accessibility] exposes lock, trigger and reset actions without a context menu", () => {
     const onLockModeChange = vi.fn()
     const onTriggerSizeChange = vi.fn()
@@ -127,21 +141,10 @@ function createDockedContext() {
 }
 
 function renderCard(overrides: Partial<SidebarControlCardProps> = {}) {
-  const edge = (pinned: boolean, open: boolean): SidebarControlCardProps["edges"]["left"] => ({
-    pinned,
-    open,
-    enabled: true,
-    triggerSize: 32,
-    lockMode: "auto",
-  })
+  const edges = createEdges()
   const props: SidebarControlCardProps = {
     floatingControl: { enabled: true, position: { x: 40, y: 60 } },
-    edges: {
-      top: edge(true, true),
-      bottom: edge(false, false),
-      left: edge(false, true),
-      right: edge(true, false),
-    },
+    edges,
     onFloatingControlChange: vi.fn(),
     onPinnedChange: vi.fn(),
     onOpenChange: vi.fn(),
@@ -151,4 +154,20 @@ function renderCard(overrides: Partial<SidebarControlCardProps> = {}) {
     ...overrides,
   }
   return render(<SidebarControlCard {...props} />)
+}
+
+function createEdges(): SidebarControlCardProps["edges"] {
+  const edge = (pinned: boolean, open: boolean): SidebarControlCardProps["edges"]["left"] => ({
+    pinned,
+    open,
+    enabled: true,
+    triggerSize: 32,
+    lockMode: "auto",
+  })
+  return {
+    top: edge(true, true),
+    bottom: edge(false, false),
+    left: edge(false, true),
+    right: edge(true, false),
+  }
 }

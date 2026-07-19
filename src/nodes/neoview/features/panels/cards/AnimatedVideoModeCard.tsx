@@ -28,9 +28,11 @@ export default function AnimatedVideoModeCard({ media, onMediaChange, disabled =
   const [keywordText, setKeywordText] = useState(() => DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS.join(", "))
   const [ffmpeg, setFfmpeg] = useState<FfmpegState>(DEFAULT_FFMPEG_STATE)
   const [saveError, setSaveError] = useState<string>()
+  const [pendingSaveCount, setPendingSaveCount] = useState(0)
 
   const enabled = enabledOverride ?? media?.animatedVideoEnabled ?? false
   const keywords = keywordsOverride ?? media?.animatedVideoKeywords ?? DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS
+  const saving = pendingSaveCount > 0
 
   useEffect(() => {
     if (media?.animatedVideoEnabled !== undefined) setEnabledOverride(undefined)
@@ -42,11 +44,14 @@ export default function AnimatedVideoModeCard({ media, onMediaChange, disabled =
 
   async function updateMedia(patch: ReaderMediaPatchDto["media"]) {
     if (!onMediaChange) return
+    setPendingSaveCount((current) => current + 1)
     try {
       setSaveError(undefined)
       await onMediaChange(patch)
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPendingSaveCount((current) => Math.max(0, current - 1))
     }
   }
 
@@ -67,7 +72,7 @@ export default function AnimatedVideoModeCard({ media, onMediaChange, disabled =
   if (!panelActive) return <ReaderCardEmptyState />
 
   return (
-    <div className="space-y-3 text-xs" data-neoview-card="animated-video-mode" data-animated-video-state="ready">
+    <div className="space-y-3 text-xs" aria-busy={saving || ffmpeg.checking} data-neoview-card="animated-video-mode" data-animated-video-state={saving || ffmpeg.checking ? "pending" : "ready"}>
       <div className="flex items-center justify-between gap-2">
         <div className="space-y-0.5">
           <p className="font-medium text-foreground">动图按视频模式播放</p>
@@ -77,7 +82,7 @@ export default function AnimatedVideoModeCard({ media, onMediaChange, disabled =
           size="sm"
           className="origin-right scale-75"
           checked={enabled}
-          disabled={disabled}
+          disabled={disabled || saving}
           aria-label="启用动图视频模式"
           onCheckedChange={(checked) => {
             setEnabledOverride(checked)
@@ -108,7 +113,7 @@ export default function AnimatedVideoModeCard({ media, onMediaChange, disabled =
         </div>
         {!ffmpeg.available && ffmpeg.checked ? <p className="mt-1 text-[10px] text-muted-foreground">{ffmpeg.error ?? "未检测到 FFmpeg，将使用前端解码播放动图。"}</p> : null}
         {saveError ? <p className="text-[10px] text-destructive" role="alert">设置保存失败：{saveError}</p> : null}
-        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px]" disabled={disabled || ffmpeg.checking} onClick={() => void refreshFfmpeg()}>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px]" disabled={disabled || saving || ffmpeg.checking} onClick={() => void refreshFfmpeg()}>
           {ffmpeg.checking ? "检测中…" : "重新检测 FFmpeg"}
         </Button>
       </div>

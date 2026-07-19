@@ -29,6 +29,16 @@ describe("ImageTrimCard", () => {
     expect(screen.getByRole("switch", { name: "启用图像裁剪" })).toBeTruthy()
   })
 
+  it("[neoview.image-trim.lifecycle] releases the port subscription when hidden or unmounted", () => {
+    const port = memoryPort({ ...defaults(), enabled: true })
+    const view = render(<ImageTrimCard port={port} />)
+    view.rerender(<ImageTrimCard port={port} panelActive={false} />)
+    expect(port.unsubscribe).toHaveBeenCalledOnce()
+    view.rerender(<ImageTrimCard port={port} />)
+    view.unmount()
+    expect(port.unsubscribe).toHaveBeenCalledTimes(2)
+  })
+
   it("[neoview.image-trim.ui] preserves the legacy control hierarchy and icon actions", () => {
     render(<ImageTrimCard port={memoryPort({ ...defaults(), enabled: true, top: 5, linkVertical: true, linkHorizontal: true })} />)
     expect(screen.getByRole("switch", { name: "启用图像裁剪" })).toBeTruthy()
@@ -99,9 +109,11 @@ function memoryPort(initial = defaults()): ImageTrimPort & {
   autoDetect: ReturnType<typeof vi.fn<() => Promise<void>>>
   presetBlack: ReturnType<typeof vi.fn<() => Promise<void>>>
   presetWhite: ReturnType<typeof vi.fn<() => Promise<void>>>
+  unsubscribe: ReturnType<typeof vi.fn<() => void>>
 } {
   let snapshot = initial
   const listeners = new Set<() => void>()
+  const unsubscribe = vi.fn<() => void>()
   const publish = (patch: ImageTrimPatch) => {
     snapshot = { ...snapshot, ...patch }
     for (const listener of listeners) listener()
@@ -109,7 +121,10 @@ function memoryPort(initial = defaults()): ImageTrimPort & {
   return {
     subscribe(listener) {
       listeners.add(listener)
-      return () => listeners.delete(listener)
+      return () => {
+        unsubscribe()
+        listeners.delete(listener)
+      }
     },
     getSnapshot: () => snapshot,
     preview: vi.fn((patch: ImageTrimPatch) => { publish(patch) }),
@@ -119,5 +134,6 @@ function memoryPort(initial = defaults()): ImageTrimPort & {
     autoDetect: vi.fn(async () => undefined),
     presetBlack: vi.fn(async () => undefined),
     presetWhite: vi.fn(async () => undefined),
+    unsubscribe,
   }
 }

@@ -35,6 +35,23 @@ describe("SidebarHeightCard", () => {
     expect(view.container.querySelectorAll('input[type="range"]')).toHaveLength(10)
   })
 
+  it("propagates the host disabled state to every interactive control", () => {
+    const context = {
+      client: {},
+      disabled: true,
+      onGoTo: () => undefined,
+      shell: shell(),
+      shellControl: { setTriggerSize: vi.fn(), persist: vi.fn() },
+      onSidebarLayout: vi.fn(),
+    } as unknown as Parameters<typeof SidebarHeightCard>[0]
+
+    render(<SidebarHeightCard {...context} />)
+
+    expect(screen.getAllByRole("slider").every((control) => (control as HTMLInputElement).disabled)).toBe(true)
+    expect(screen.getAllByRole("switch").every((control) => (control as HTMLButtonElement).disabled)).toBe(true)
+    expect(screen.getAllByRole("button").filter((button) => button.getAttribute("aria-pressed") !== null).every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
+  })
+
   it("[neoview.sidebar-height.ui] preserves the legacy hierarchy and responsive geometry controls", () => {
     render(<SidebarHeightEditor shell={shell()} onSidebarLayout={() => undefined} onTriggerSize={() => undefined} onInteraction={() => undefined} />)
     expect(screen.getByText("左侧边栏")).toBeTruthy()

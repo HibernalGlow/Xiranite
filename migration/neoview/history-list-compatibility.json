@@ -991,7 +991,8 @@
         "neoview.history.card",
         "neoview.library.lifecycle",
         "neoview.history.inactive-zero-work",
-        "neoview.history.empty"
+        "neoview.history.empty",
+        "neoview.history.focus-refresh"
       ],
       "plannedTestIds": [
         "neoview.history.states",
@@ -1132,6 +1133,7 @@
         "neoview.history.card",
         "neoview.history.selection",
         "neoview.history.selection-keyboard",
+        "neoview.history.focus-refresh",
         "neoview.history.thumbnail-e2e"
       ],
       "plannedTestIds": [],

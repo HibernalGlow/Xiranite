@@ -185,6 +185,7 @@
       "testIds": [
         "neoview.time-information.archive-source",
         "neoview.time-information.archive-invalid",
+        "neoview.time-information.book-source-fallback",
         "neoview.headless.navigation",
         "neoview.time-information.projection",
         "neoview.time-information.cli-projection",
@@ -192,7 +193,7 @@
         "neoview.time-information.e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English; this remains an intentional XR extension required by the frozen functional scope."
+      "notes": "The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English. An entirely empty page projection may use book-source timestamps; a page with an explicit source remains authoritative even when individual fields are unavailable."
     },
     {
       "id": "time.format",

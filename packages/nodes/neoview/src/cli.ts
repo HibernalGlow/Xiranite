@@ -47,6 +47,10 @@ import type { ReaderBackupBundleResult, ReaderBackupInspection, ReaderBackupRest
 import type { ReaderBookSettingsMigrationFilePort } from "./platform/migration/ReaderBookSettingsMigrationFileController.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
 import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
+import { commitNeoviewConfig } from "./platform/config/NeoviewConfigStore.js"
+import { loadNeoviewRuntimeConfig } from "./platform/config/loadNeoviewRuntimeConfig.js"
+import { parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
+import { formatReaderPageTransition, type ReaderPageTransitionPatch } from "./page-transition.js"
 import type { ReaderInputBinding, ReaderInputContext, ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
@@ -136,6 +140,7 @@ const VALUE_FLAGS = new Set([
   "--input-json",
   "--contexts-json",
   "--action",
+  "--enabled", "--type", "--duration", "--easing",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -485,6 +490,41 @@ export async function runProgram(
   }
 }
 
+async function runPageTransitionCommand(
+  command: "page-transition-get" | "page-transition-set" | "page-transition-reset",
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const options = { configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env }
+  let settings = (await loadNeoviewRuntimeConfig(options)).pageTransition
+  if (command !== "page-transition-get") {
+    const pageTransition = command === "page-transition-reset"
+      ? { reset: "defaults" as const }
+      : pageTransitionCliPatch(parsed)
+    const { tomlPatch } = parseNeoviewPageTransitionPatch({ pageTransition })
+    const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+    settings = parseNeoviewRuntimeConfig(committed.nodeConfig).pageTransition
+  }
+  if (parsed.booleans.has("--json")) writeJson(host, settings)
+  else writeLine(host, `Page transition: ${formatReaderPageTransition(settings)}`)
+}
+
+function pageTransitionCliPatch(parsed: ParsedArguments): ReaderPageTransitionPatch {
+  const patch: ReaderPageTransitionPatch = {}
+  const enabled = oneValue(parsed, "--enabled")
+  if (enabled !== undefined) {
+    if (enabled !== "true" && enabled !== "false") throw usage("--enabled must be true or false.")
+    patch.enabled = enabled === "true"
+  }
+  const type = oneValue(parsed, "--type")
+  if (type !== undefined) patch.type = type as ReaderPageTransitionPatch["type"]
+  const duration = oneValue(parsed, "--duration")
+  if (duration !== undefined) patch.duration = Number(duration)
+  const easing = oneValue(parsed, "--easing")
+  if (easing !== undefined) patch.easing = easing as ReaderPageTransitionPatch["easing"]
+  return patch
+}
+
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
   if (command === "input-action-dispatch") {
     rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--action"]))
@@ -571,6 +611,13 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "settings-inspect") {
     rejectOptions(parsed, new Set(["--json", "--modules"]))
+    return
+  }
+  if (command.startsWith("page-transition-")) {
+    const allowed = command === "page-transition-set"
+      ? new Set(["--json", "--config", "--enabled", "--type", "--duration", "--easing"])
+      : new Set(["--json", "--config"])
+    rejectOptions(parsed, allowed)
     return
   }
   if (command === "settings-import") {
@@ -2773,6 +2820,10 @@ function formatCliHelp(): string {
     "  --connect URL        Use the running loopback XR Reader backend",
     "  --token-env VAR      Read its token from VAR (default XIRANITE_BACKEND_TOKEN)",
     "  --expected-revision N  Required CAS revision for book-settings-set",
+    "  --enabled VALUE        Page transition enabled: true|false",
+    "  --type VALUE           Page transition type",
+    "  --duration N           Page transition duration in milliseconds (0..500)",
+    "  --easing VALUE         Page transition easing",
     "  --favorite VALUE      true|false|inherit for book-settings-set",
     "  --rating VALUE        1..5|inherit for book-settings-set",
     "  --direction VALUE     left-to-right|right-to-left|inherit",

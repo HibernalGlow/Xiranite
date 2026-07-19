@@ -42,9 +42,9 @@ import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterSto
 import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTransitionStore"
 import type { ReaderSwitchToastPort } from "../switch-toast/ReaderSwitchToastStore"
 import type { InfoOverlayPort } from "./cards/InfoOverlayCard"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 
 export type ReaderPanelSide = "left" | "right"
-import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 export type LegacyPanelId = ReaderPanelId
 
 export interface ReaderPanelContext {
@@ -80,15 +80,15 @@ export interface ReaderPanelContext {
   onFolderView?(patch: ReaderFolderViewPatch["folderView"]): Promise<void>
   presentation?: ReaderPresentation
   shellControl?: ReaderShellControlPort
-  media?: ReaderMediaConfigDto
-  onMediaChange?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   colorFilter?: ReaderColorFilterPort
   pageTransition?: ReaderPageTransitionPort
   switchToast?: ReaderSwitchToastPort
   infoOverlay?: InfoOverlayPort
+  imageTrim?: ReaderImageTrimPort
+  media?: ReaderMediaConfigDto
+  onMediaChange?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
 }
 
-  imageTrim?: ReaderImageTrimPort
 export interface ReaderPanelDefinition {
   id: LegacyPanelId
   title: string
@@ -166,14 +166,14 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "sidebar-height": () => import("./cards/SidebarHeightCard"),
   "color-filter": () => import("./cards/ColorFilterCard"),
   "page-transition": () => import("./cards/PageTransitionCard"),
-  "animated-video-mode": () => import("./cards/AnimatedVideoModeCard"),
   "switch-toast": () => import("./cards/SwitchToastCard"),
   "info-overlay": () => import("./cards/InfoOverlayCard"),
+  "image-trim": () => import("./cards/ImageTrimCard"),
+  "animated-video-mode": () => import("./cards/AnimatedVideoModeCard"),
   "thumbnail-maintenance": () => import("./cards/ThumbnailMaintenanceCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
-  "image-trim": () => import("./cards/ImageTrimCard"),
   "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
 }
 
@@ -181,14 +181,14 @@ const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
   "preload-status": Loader,
   "color-filter": Palette,
   "page-transition": Play,
-  "animated-video-mode": Video,
   "switch-toast": Bell,
   "info-overlay": Info,
+  "image-trim": Crop,
+  "animated-video-mode": Video,
 }
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
-  "image-trim": Crop,
   "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
   "sidebar-management-settings": async () => ({ default: (await import("../settings/cards/SidebarManagementSettingsCard")).SidebarManagementSettingsCard }),
   "input-bindings-settings": async () => ({ default: (await import("../settings/cards/InputBindingsSettingsCard")).InputBindingsSettingsCard }),

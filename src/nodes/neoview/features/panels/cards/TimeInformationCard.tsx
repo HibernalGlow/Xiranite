@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react"
-import { projectReaderTimeInformation } from "@xiranite/node-neoview/ui-core"
+import { projectReaderTimeInformation, resolveReaderTimeInformation } from "../../../../../../packages/nodes/neoview/src/domain/page/TimeInformationProjection"
 
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
@@ -28,15 +28,22 @@ function TimeInformationContent({ session, client }: { session: NonNullable<Read
   const page = state.value?.page
   const book = state.value?.book
   if (!page && !book) return <div className="py-2 text-center text-sm text-muted-foreground">暂无时间信息</div>
-  const source = page?.timeSource ?? (book ? "book-source" : undefined)
-  const projection = projectReaderTimeInformation({
-    source,
-    createdAtMs: page ? page.createdAtMs : book?.createdAtMs,
-    modifiedAtMs: page ? page.modifiedAtMs : book?.modifiedAtMs,
-    accessedAtMs: page ? page.accessedAtMs : book?.accessedAtMs,
-  }, "zh")
+  const timestamps = resolveReaderTimeInformation(
+    page && {
+      source: page.timeSource,
+      createdAtMs: page.createdAtMs,
+      modifiedAtMs: page.modifiedAtMs,
+      accessedAtMs: page.accessedAtMs,
+    },
+    book && {
+      createdAtMs: book.createdAtMs,
+      modifiedAtMs: book.modifiedAtMs,
+      accessedAtMs: book.accessedAtMs,
+    },
+  )
+  const projection = projectReaderTimeInformation(timestamps, "zh")
   return (
-    <dl className="space-y-2 text-sm" data-time-source={source}>
+    <dl className="space-y-2 text-sm" data-time-source={timestamps?.source}>
       <MetadataRow label="创建时间" value={projection.createdText} />
       <MetadataRow label="修改时间" value={projection.modifiedText} />
       <MetadataRow label="访问时间" value={projection.accessedText} />
