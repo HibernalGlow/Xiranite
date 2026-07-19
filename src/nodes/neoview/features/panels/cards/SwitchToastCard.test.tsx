@@ -27,7 +27,7 @@ describe("SwitchToastCard", () => {
   })
 
   it("[neoview.switch-toast.ui] preserves the legacy compact hierarchy and all controls", () => {
-    render(<SwitchToastCard port={memoryPort()} />)
+    const view = render(<SwitchToastCard port={memoryPort()} />)
     expect(screen.getByText("提示悬浮窗")).toBeTruthy()
     expect(screen.getAllByRole("switch")).toHaveLength(5)
     expect(screen.getByRole("slider", { name: "透明度" })).toBeTruthy()
@@ -40,6 +40,15 @@ describe("SwitchToastCard", () => {
     expect(screen.getAllByRole("table")).toHaveLength(2)
     expect(screen.getAllByRole("table").every((table) => table.className.includes("table-fixed"))).toBe(true)
     expect(screen.getAllByRole("table")[0]?.getAttribute("data-switch-toast-variable-table")).toBe("true")
+    const card = view.container.querySelector('[data-neoview-card="switch-toast"]')!
+    expect(Array.from(card.children)
+      .filter((child) => child.hasAttribute("data-reader-card-section"))
+      .map((child) => child.getAttribute("data-reader-card-section"))).toEqual([
+        "提示悬浮窗",
+        "触发条件",
+        "书籍提示模板",
+        "页面提示模板",
+      ])
   })
 
   it("[neoview.switch-toast.draft-commit] keeps numeric and text drafts local until blur", () => {

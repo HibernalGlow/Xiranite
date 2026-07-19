@@ -145,9 +145,11 @@ describe("PageNavigationCard", () => {
       "reader-1", 0, 3, { query: "", thumbnails: false }, expect.any(AbortSignal),
     ))
     const card = view.container.querySelector('[data-neoview-page-list="true"]')!
+    expect(card.className).toContain("flex-1")
+    expect(card.className).not.toContain("h-[clamp")
     expect(card.getAttribute("data-focused-position")).toBe("2")
     expect(screen.getByRole("slider", { name: "页面位置" }).getAttribute("aria-valuemax")).toBe("2")
-    expect(screen.getByRole("spinbutton", { name: "跳转页码" })).toHaveValue(3)
+    expect((screen.getByRole("spinbutton", { name: "跳转页码" }) as HTMLInputElement).value).toBe("3")
   })
 
   it("[neoview.page-list.follow-preview] previews without navigation and navigates every followed Slider change", async () => {

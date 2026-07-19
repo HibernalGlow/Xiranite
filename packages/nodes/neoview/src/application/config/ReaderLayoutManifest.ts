@@ -60,7 +60,7 @@ export const READER_CARD_MANIFEST = [
   exclusiveCard("folder-main", "文件浏览", "folder", true, true, 0, false, false),
   exclusiveCard("history-list", "历史记录", "history", true, true, 0, false, false),
   exclusiveCard("bookmark-list", "书签列表", "bookmark", true, true, 0, true, false),
-  card("page-navigation", "页面导航", "pageList", true, true, 0, false, true),
+  exclusiveCard("page-navigation", "页面导航", "pageList", true, true, 0, false, true),
   card("book-information", "书籍信息", "info", true, true, 0, false, true),
   card("image-information", "图像信息", "info", true, true, 1, true, true),
   card("storage-information", "存储信息", "info", true, true, 2, true, true),

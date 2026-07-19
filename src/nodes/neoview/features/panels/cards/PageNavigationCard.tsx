@@ -355,7 +355,7 @@ function PageListCard({
 
   return (
     <div
-      className="flex h-[clamp(20rem,60vh,36rem)] min-h-0 flex-col gap-2"
+      className="flex min-h-0 flex-1 flex-col gap-2"
       data-neoview-page-list="true"
       data-page-list-mode={viewMode}
       data-focused-position={focusedPosition}
