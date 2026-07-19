@@ -1,9 +1,10 @@
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderPage } from "../../domain/page/page.js"
+import type { PageSource } from "../../domain/page/page-content.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { PlatformReaderPageMaterializer } from "./PlatformReaderPageMaterializer.js"
 
@@ -46,6 +47,97 @@ describe("PlatformReaderPageMaterializer", () => {
       .rejects.toThrow("more than its declared")
     expect(await readdir(directory)).toEqual([])
   })
+
+  it("[neoview.clipboard.materialization-cancellation] returns promptly and closes a source that loads after cancellation", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-clipboard-test-"))
+    cleanupDirectories.push(directory)
+    const lateSource = Promise.withResolvers<PageSource>()
+    const close = vi.fn(async () => undefined)
+    const load = vi.fn(() => lateSource.promise)
+    const materializer = new PlatformReaderPageMaterializer({ tempDirectory: directory })
+    const controller = new AbortController()
+    const pending = materializer.materialize({ ...page("late.png", Uint8Array.of(1, 2, 3)), content: { load } }, {
+      signal: controller.signal,
+    })
+
+    await vi.waitFor(() => expect(load).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("page changed", "AbortError"))
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    lateSource.resolve({
+      byteLength: 3,
+      contentType: "image/png",
+      rangeSupported: false,
+      open: vi.fn(),
+      close,
+      [Symbol.asyncDispose]: close,
+    })
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it("[neoview.clipboard.materialization-cancellation] returns promptly and cancels a stream that opens after cancellation", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-clipboard-test-"))
+    cleanupDirectories.push(directory)
+    const lateStream = Promise.withResolvers<ReadableStream<Uint8Array>>()
+    const streamCancelled = vi.fn()
+    const sourceClosed = vi.fn(async () => undefined)
+    const open = vi.fn(() => lateStream.promise)
+    const materializer = new PlatformReaderPageMaterializer({ tempDirectory: directory })
+    const controller = new AbortController()
+    const pending = materializer.materialize({
+      ...page("late.png", Uint8Array.of(1, 2, 3)),
+      content: { load: vi.fn(async () => ({
+        byteLength: 3,
+        contentType: "image/png",
+        rangeSupported: false,
+        open,
+        close: sourceClosed,
+        [Symbol.asyncDispose]: sourceClosed,
+      })) },
+    }, { signal: controller.signal })
+
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("page changed", "AbortError"))
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    expect(sourceClosed).toHaveBeenCalledOnce()
+    lateStream.resolve(new ReadableStream<Uint8Array>({ cancel: streamCancelled }))
+    await vi.waitFor(() => expect(streamCancelled).toHaveBeenCalledOnce())
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it("[neoview.clipboard.materialization-cancellation] cancels a stalled reader and releases temporary resources", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-clipboard-test-"))
+    cleanupDirectories.push(directory)
+    const sourceClosed = vi.fn(async () => undefined)
+    const streamCancelled = vi.fn()
+    let markPullStarted!: () => void
+    const pullStarted = new Promise<void>((resolve) => { markPullStarted = resolve })
+    const materializer = new PlatformReaderPageMaterializer({ tempDirectory: directory })
+    const controller = new AbortController()
+    const pending = materializer.materialize({
+      ...page("stalled.png", Uint8Array.of(1, 2, 3)),
+      content: { load: vi.fn(async () => ({
+        byteLength: 3,
+        contentType: "image/png",
+        rangeSupported: false,
+        async open() {
+          return new ReadableStream<Uint8Array>({
+            pull() { markPullStarted() },
+            cancel: streamCancelled,
+          })
+        },
+        close: sourceClosed,
+        [Symbol.asyncDispose]: sourceClosed,
+      })) },
+    }, { signal: controller.signal })
+
+    await withTimeout(pullStarted, 500)
+    controller.abort(new DOMException("page changed", "AbortError"))
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    expect(streamCancelled).toHaveBeenCalledOnce()
+    expect(sourceClosed).toHaveBeenCalledOnce()
+    expect(await readdir(directory)).toEqual([])
+  })
 })
 
 function page(name: string, bytes: Uint8Array): ReaderPage {
@@ -75,5 +167,19 @@ function page(name: string, bytes: Uint8Array): ReaderPage {
         }
       },
     },
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Test promise timed out after ${timeoutMs} ms.`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
