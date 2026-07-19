@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import { createReaderColorFilterStore } from "../color-filter/ReaderColorFilterStore"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import { PageImage } from "./PageImage"
 
 describe("PageImage", () => {
@@ -27,6 +28,31 @@ describe("PageImage", () => {
     const box = view.container.querySelector<HTMLElement>('[data-reader-page-box="page-1"]')!
     expect(box.style.width).toBe("3000px")
     expect(box.style.height).toBe("2000px")
+  })
+
+  it("[neoview.image-trim.active-image] registers only the decoded committed image and unregisters it without remounting", async () => {
+    const unregister = vi.fn()
+    const registerImage = vi.fn(() => unregister)
+    const imageTrim = {
+      subscribe: () => () => undefined,
+      getSnapshot: () => undefined,
+      registerImage,
+    } as unknown as ReaderImageTrimPort
+    const source = page()
+    const view = render(<PageImage page={source} imageTrim={imageTrim} />)
+    const image = view.container.querySelector<HTMLImageElement>("img")!
+    image.decode = vi.fn(async () => undefined)
+
+    expect(registerImage).not.toHaveBeenCalled()
+    fireEvent.load(image)
+    await waitFor(() => expect(registerImage).toHaveBeenCalledWith(`${source.id}:${source.contentVersion}:${source.assetUrl}`, image))
+
+    view.rerender(<PageImage page={source} imageTrim={imageTrim} scale={0.5} rotation={90} />)
+    expect(view.container.querySelector("img")).toBe(image)
+    expect(registerImage).toHaveBeenCalledOnce()
+
+    view.unmount()
+    expect(unregister).toHaveBeenCalledOnce()
   })
 
   it("[neoview.viewer.seamless-page-swap] retains the committed bitmap until the next page decodes", async () => {

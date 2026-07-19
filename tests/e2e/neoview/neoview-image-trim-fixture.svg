@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#080b10"/>
+  <rect x="72" y="56" width="1056" height="688" fill="#f4efe2" stroke="#be2f3d" stroke-width="18"/>
+  <rect x="150" y="138" width="900" height="520" fill="#315b72"/>
+  <text x="600" y="420" text-anchor="middle" font-family="sans-serif" font-size="64" fill="#ffffff">NeoView image trim</text>
+</svg>

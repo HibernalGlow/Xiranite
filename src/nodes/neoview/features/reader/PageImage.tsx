@@ -37,6 +37,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, s
   const sourceIdentityRef = useRef(sourceIdentity)
   sourceIdentityRef.current = sourceIdentity
   const [decodedSourceIdentity, setDecodedSourceIdentity] = useState<string>()
+  const [decodedCommittedIdentity, setDecodedCommittedIdentity] = useState<string>()
   const upscaleTarget = useUpscaleTarget(
     page,
     sessionId,
@@ -70,6 +71,13 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, s
   const tables = projectReaderColorFilterTables(settings)
   const filter = projectReaderColorFilterCss(settings, { filterId, colorizeAllowed })
   const trimClipPath = trimSettings ? readerImageTrimClipPath(trimSettings) : undefined
+
+  useEffect(() => {
+    if (!imageTrim || decodedCommittedIdentity !== committedIdentity) return
+    const element = imageRef.current
+    if (!element) return
+    return imageTrim.registerImage(committedIdentity, element)
+  }, [committedIdentity, decodedCommittedIdentity, imageTrim])
 
   useEffect(() => {
     if (!settings.colorizeEnabled || !settings.onlyBlackAndWhite) {
@@ -130,15 +138,24 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, s
             className="max-h-full min-h-0 max-w-full select-none object-contain"
             data-reader-page-image={pending ? undefined : candidate.id}
             data-reader-page-image-pending={pending ? candidate.id : undefined}
+            data-reader-page-image-decoded={!pending && decodedCommittedIdentity === identity ? candidate.id : undefined}
             style={pending ? PENDING_IMAGE_STYLE : imageStyle}
             onLoad={(event) => {
               if (pending) {
                 void commitDecodedImage(event.currentTarget, candidate, identity, targetIdentityRef, setCommittedPage).then((committed) => {
-                  if (committed && identity === sourceIdentityRef.current) setDecodedSourceIdentity(identity)
+                  if (!committed) return
+                  setDecodedCommittedIdentity(identity)
+                  if (identity === sourceIdentityRef.current) setDecodedSourceIdentity(identity)
                 })
               } else if (identity === sourceIdentityRef.current) {
                 void decodeImage(event.currentTarget).then((decoded) => {
-                  if (decoded && identity === sourceIdentityRef.current) setDecodedSourceIdentity(identity)
+                  if (!decoded || identity !== sourceIdentityRef.current) return
+                  setDecodedSourceIdentity(identity)
+                  setDecodedCommittedIdentity(identity)
+                })
+              } else {
+                void decodeImage(event.currentTarget).then((decoded) => {
+                  if (decoded && identity === targetIdentityRef.current) setDecodedCommittedIdentity(identity)
                 })
               }
             }}

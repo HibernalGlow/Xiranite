@@ -559,19 +559,21 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.auto-detect",
-        "neoview.image-trim.sample-budget"
+        "neoview.image-trim.sample-budget",
+        "neoview.image-trim.auto-persist",
+        "neoview.image-trim.action-status"
       ],
-      "notes": "The target sampling algorithm must be bounded and cancellable."
+      "plannedTestIds": [],
+      "notes": "The current decoded img is registered by generation, sampled only after an explicit action, bounded to a 512px longest edge and 128 points per row or column, and committed through one serialized settings write."
     },
     {
       "id": "image-trim.black-border",
@@ -586,18 +588,20 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
+        "neoview.image-trim.detect-black-white",
+        "neoview.image-trim.presets",
         "neoview.image-trim.black-border"
       ],
-      "notes": "Preset semantics must stay separate from manual edge editing."
+      "plannedTestIds": [],
+      "notes": "The preset uses the legacy fixed threshold 40 and the current registered image. Unit coverage verifies the detector, store target and visible success state; a dedicated real-browser preset click remains optional evidence."
     },
     {
       "id": "image-trim.white-border",
@@ -612,18 +616,20 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
+        "neoview.image-trim.detect-black-white",
+        "neoview.image-trim.presets",
         "neoview.image-trim.white-border"
       ],
-      "notes": "Preset target is an explicit white mode, not a generic invert operation."
+      "plannedTestIds": [],
+      "notes": "The preset uses the legacy fixed threshold 40 and an explicit white target on the registered image. Unit coverage verifies the detector, store target and visible success state; a dedicated real-browser preset click remains optional evidence."
     },
     {
       "id": "image-trim.threshold",
@@ -695,16 +701,18 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.messages"
+      "testIds": [
+        "neoview.image-trim.action-status",
+        "neoview.image-trim.messages",
+        "neoview.image-trim.error-retry"
       ],
-      "notes": "Text remains inert content; no HTML template execution."
+      "plannedTestIds": [],
+      "notes": "One inert status node replaces the prior state and covers detecting, success, no-border, unavailable and retryable error messages; cancellation produces no stale success text."
     },
     {
       "id": "image-trim.media",
@@ -774,18 +782,21 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.generation"
+      "testIds": [
+        "neoview.image-trim.stale-detection",
+        "neoview.image-trim.active-image"
       ],
-      "notes": "Cancellation and stale rejection are separate from UI loading text."
+      "plannedTestIds": [
+        "neoview.image-trim.generation-trace"
+      ],
+      "notes": "Registration generations abort and reject stale results before preview or persistence. Bounded trace-id logging is not yet implemented, so core and evidence remain partial."
     },
     {
       "id": "image-trim.clip-path",
@@ -1185,18 +1196,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
       "testIds": [
-        "neoview.image-trim.ui-1920x1080"
-      ],
-      "plannedTestIds": [
+        "neoview.image-trim.ui-1920x1080",
         "neoview.image-trim.responsive"
       ],
-      "notes": "Use terminal screenshot scripts; do not use the in-app Browser."
+      "plannedTestIds": [],
+      "notes": "Terminal Playwright evidence covers 1920x1080 and an 860x720 constrained dock with visible automatic controls and no horizontal overflow."
     },
     {
       "id": "image-trim.accessibility",
@@ -1238,19 +1248,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-trim.image-stability",
-        "neoview.image-trim.image-stability"
-      ],
-      "plannedTestIds": [
         "neoview.image-trim.zero-duplicate-request"
       ],
-      "notes": "The 1920x1080 harness verifies the same img element and asset URL before and after trim interaction; zero-duplicate-request accounting remains a separate gate."
+      "plannedTestIds": [],
+      "notes": "The 1920x1080 harness counts the fixture request, performs real detection and manual edits, and verifies one request plus the exact same img object and asset URL throughout."
     },
     {
       "id": "image-trim.performance",
@@ -1268,19 +1276,23 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "pending",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.sample-budget",
-        "neoview.image-trim.performance"
+        "neoview.image-trim.slider-commit",
+        "neoview.image-trim.zero-duplicate-request"
       ],
-      "notes": "Build, typecheck, Vitest and Playwright run strictly serial on Windows."
+      "plannedTestIds": [
+        "neoview.image-trim.reader-navigation-performance",
+        "neoview.image-trim.cli-tui-performance"
+      ],
+      "notes": "Detection is explicit-only, dynamically imported, canvas-bounded to 512px and line-bounded to 128 samples; it creates no second image, cache or timer. Reader navigation and CLI/TUI performance gates remain pending."
     },
     {
       "id": "image-trim.chunk",
@@ -1297,16 +1309,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.chunk"
       ],
-      "notes": "The global entry gate is separate and must not be weakened for this Card."
+      "plannedTestIds": [],
+      "notes": "Production audit proves an independent 8,583-byte Card chunk and 1,893-byte action-only detector chunk with no Node browser external; the separate global entry gate is not weakened."
     },
     {
       "id": "image-trim.visual-evidence",
@@ -1349,18 +1361,22 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.deviations"
+      "testIds": [
+        "neoview.image-trim.sample-budget",
+        "neoview.image-trim.auto-persist",
+        "neoview.image-trim.zero-duplicate-request"
       ],
-      "notes": "No deviation is approved merely because it is easier to implement."
+      "plannedTestIds": [
+        "neoview.image-trim.media-deviations"
+      ],
+      "notes": "Intentional improvements replace global DOM lookup and a second Image load with decoded-img registration, remove the 200-entry URL cache, defer the detector chunk until explicit use, and replace per-input writes with preview plus end-only commit. Animated/video/media policy and CLI/TUI documentation remain pending."
     },
     {
       "id": "image-trim.error-retry",
@@ -1375,18 +1391,18 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.error-retry"
       ],
-      "notes": "A failed auto operation must not reset the user's four-edge values."
+      "plannedTestIds": [],
+      "notes": "Detector or persistence failure preserves or restores the last confirmed settings, shows a retryable alert and leaves all unrelated controls usable."
     },
     {
       "id": "image-trim.cancel",
@@ -1401,18 +1417,20 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.cancel"
+      "testIds": [
+        "neoview.image-trim.cancel",
+        "neoview.image-trim.stale-detection",
+        "neoview.image-trim.detect-dispose"
       ],
-      "notes": "Cancellation is not reported as a detection failure."
+      "plannedTestIds": [],
+      "notes": "Image replacement, navigation registration changes, Card hide/unmount and store disposal abort the active signal; cancelled work neither persists nor reports failure or stale success."
     },
     {
       "id": "image-trim.single-double-page",
