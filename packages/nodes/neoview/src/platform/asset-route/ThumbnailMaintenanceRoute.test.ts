@@ -96,6 +96,40 @@ describe("ThumbnailMaintenanceRoute", () => {
     expect(forwarded.aborted).toBe(true)
   })
 
+  it("[neoview.thumbnail.maintenance-body-limit] enforces the body limit without trusting Content-Length", async () => {
+    const cleanup = vi.fn(async () => 17)
+    const route = new ThumbnailMaintenanceRoute({ token: "secret", thumbnailStore: store({ cleanup }) })
+    const body = JSON.stringify({ kind: "empty", padding: "x".repeat(33 * 1024) })
+    const response = (await route.handle(new Request("http://127.0.0.1:41000/reader/thumbnails/maintenance/cleanup", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": "1", "x-xiranite-token": "secret" },
+      body,
+    })))!
+    expect(response.status).toBe(400)
+    expect(cleanup).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.thumbnail.maintenance-body-cancel] cancels a stalled request body", async () => {
+    const started = Promise.withResolvers<void>()
+    const cancelled = Promise.withResolvers<void>()
+    const route = new ThumbnailMaintenanceRoute({ token: "secret", thumbnailStore: store({}) })
+    const cancellation = new AbortController()
+    const operation = route.handle(new Request("http://127.0.0.1:41000/reader/thumbnails/maintenance/cleanup", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-xiranite-token": "secret" },
+      body: new ReadableStream<Uint8Array>({
+        start() { started.resolve() },
+        cancel() { cancelled.resolve() },
+      }),
+      signal: cancellation.signal,
+      duplex: "half",
+    }))
+    await started.promise
+    cancellation.abort(new DOMException("cancelled", "AbortError"))
+    await expect(operation).rejects.toMatchObject({ name: "AbortError" })
+    await expect(cancelled.promise).resolves.toBeUndefined()
+  })
+
   it("returns 501 when the active thumbnail store is read-only or disabled", async () => {
     const route = new ThumbnailMaintenanceRoute({ token: "secret", thumbnailStore: store({}) })
     expect((await route.handle(request("/reader/thumbnails/maintenance?token=secret")))?.status).toBe(501)
