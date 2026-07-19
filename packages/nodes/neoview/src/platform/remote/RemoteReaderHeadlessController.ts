@@ -16,8 +16,10 @@ import {
   type ReaderBookSettingsPatch,
   type ReaderBookSettingsSnapshot,
 } from "../../application/reader/ReaderBookSettingsService.js"
+import type { ReaderSubtitleTrack } from "../../application/reader/ReaderSubtitleService.js"
 import type { ReaderDiagnosticsHistory, ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { parseReaderDiagnosticsHistory, parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
+import type { ReaderThumbnailMaintenanceSnapshot } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
 import type { ReaderAdjacentBookDirection } from "../../application/reader/ReaderAdjacentBookService.js"
 import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
@@ -117,6 +119,55 @@ const artifactCacheCleanupKindSchema = z.enum(["age", "book", "all"])
 export type RemoteSuperResolutionArtifactCacheSnapshot = z.infer<typeof artifactCacheSnapshotSchema>
 export type RemoteSuperResolutionArtifactCacheCleanupResult = z.infer<typeof artifactCacheCleanupSchema>
 export type RemoteSuperResolutionArtifactCacheCleanupKind = z.infer<typeof artifactCacheCleanupKindSchema>
+
+const thumbnailWriterSnapshotSchema = z.object({
+  pendingWrites: z.number().int().nonnegative(),
+  flushing: z.boolean(),
+  committedBatches: z.number().int().nonnegative(),
+  committedWrites: z.number().int().nonnegative(),
+  busyRetries: z.number().int().nonnegative(),
+  failedBatches: z.number().int().nonnegative(),
+  lastError: z.string().optional(),
+}).strict()
+
+const thumbnailMaintenanceSnapshotSchema = z.object({
+  totalRows: z.number().int().nonnegative(),
+  fileRows: z.number().int().nonnegative(),
+  folderRows: z.number().int().nonnegative(),
+  blobBytes: z.number().int().nonnegative(),
+  emptyBlobs: z.number().int().nonnegative(),
+  failedRows: z.number().int().nonnegative(),
+  failuresByReason: z.record(z.string(), z.number().int().nonnegative()),
+  databaseBytes: z.number().int().nonnegative().optional(),
+  walBytes: z.number().int().nonnegative().optional(),
+  shmBytes: z.number().int().nonnegative().optional(),
+  writer: thumbnailWriterSnapshotSchema,
+}).strict()
+
+const thumbnailMaintenanceEnvelopeSchema = z.object({ snapshot: thumbnailMaintenanceSnapshotSchema }).strict()
+const thumbnailDeletedSchema = z.object({ deleted: z.number().int().nonnegative() }).strict()
+const thumbnailExpiredDeletedSchema = thumbnailDeletedSchema.extend({ cutoff: z.string().min(1) }).strict()
+const thumbnailPathPrefixDeletedSchema = thumbnailDeletedSchema.extend({ prefix: z.string().min(1).max(4_096) }).strict()
+const thumbnailInvalidCleanupSchema = z.object({
+  result: z.object({
+    scanned: z.number().int().nonnegative(),
+    deleted: z.number().int().nonnegative(),
+    unavailableVolumeRowsPreserved: z.number().int().nonnegative(),
+    wrapped: z.boolean(),
+  }).strict(),
+}).strict()
+
+export type RemoteReaderThumbnailCleanupCommand =
+  | { kind: "empty"; limit: number }
+  | { kind: "expired"; days: number; limit: number }
+  | { kind: "invalid"; scanLimit: number; deleteLimit: number }
+  | { kind: "path-prefix"; prefix: string; limit: number }
+
+export type RemoteReaderThumbnailCleanupResult =
+  | { kind: "empty"; deleted: number }
+  | { kind: "expired"; deleted: number; cutoff: string }
+  | { kind: "invalid"; scanned: number; deleted: number; unavailableVolumeRowsPreserved: number; wrapped: boolean }
+  | { kind: "path-prefix"; prefix: string; deleted: number }
 
 interface ReaderFrameDto {
   frame: ReaderSessionDto["frame"]
@@ -312,6 +363,43 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     return new RemoteHeadlessPageStream(pageSnapshot(page), response.body, optionalLength(response), response.headers.get("content-type") ?? page.mimeType)
   }
 
+  async listSubtitles(pageIndex: number, signal?: AbortSignal): Promise<readonly ReaderSubtitleTrack[]> {
+    const { session, page } = await this.#subtitlePageAt(pageIndex, signal)
+    const query = new URLSearchParams({ pageId: page.id })
+    const parsed = await this.#fetchSubtitleTracks(session, page, query, signal)
+    return parsed.map(({ assetUrl: _assetUrl, ...track }) => track)
+  }
+
+  async renderSubtitle(
+    pageIndex: number,
+    assetId: string,
+    signal?: AbortSignal,
+  ): Promise<{ bytes: Uint8Array; contentVersion: string }> {
+    assertRemoteSubtitleAssetId(assetId)
+    const { session, page } = await this.#subtitlePageAt(pageIndex, signal)
+    const query = new URLSearchParams({ pageId: page.id })
+    const tracks = await this.#fetchSubtitleTracks(session, page, query, signal)
+    const track = tracks.find((candidate) => candidate.id === assetId)
+    if (!track) throw new Error("Reader subtitle track was not found for this video page.")
+    signal?.throwIfAborted()
+    this.#assertCurrentSession(session)
+    this.#assertSubtitleAssetUrl(track, session.sessionId, page.id)
+    const response = await this.#fetch(new URL(track.assetUrl), {
+      headers: this.#headers,
+      signal,
+    })
+    this.#assertCurrentSession(session)
+    signal?.throwIfAborted()
+    if (!response.ok) throw await responseError(response, "Reader subtitle asset")
+    assertSubtitleEtag(response)
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase()
+    if (contentType !== "text/vtt") {
+      throw new Error("Xiranite Reader returned an invalid subtitle content type.")
+    }
+    const bytes = await readRemoteResponseBytes(response, MAX_REMOTE_SUBTITLE_BYTES, signal)
+    return { bytes, contentVersion: track.contentVersion }
+  }
+
   async getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot> {
     const session = this.#requireSession()
     const result = await this.#json<unknown>(
@@ -469,6 +557,7 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
 
   async #pageAt(pageIndex: number, signal?: AbortSignal): Promise<ReaderPageDto> {
     if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
+    signal?.throwIfAborted()
     let page = this.#pageAssets.get(pageIndex)
     if (!page) {
       await this.listPages(pageIndex, 1, signal)
@@ -476,6 +565,33 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     }
     if (!page) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
     return page
+  }
+
+  async #subtitlePageAt(pageIndex: number, signal?: AbortSignal): Promise<{ session: ReaderSessionDto; page: ReaderPageDto }> {
+    const session = this.#requireSession()
+    const page = await this.#pageAt(pageIndex, signal)
+    this.#assertCurrentSession(session)
+    if (page.mediaKind !== "video") throw new Error("Reader video page was not found.")
+    return { session, page }
+  }
+
+  async #fetchSubtitleTracks(
+    session: ReaderSessionDto,
+    page: ReaderPageDto,
+    query: URLSearchParams,
+    signal?: AbortSignal,
+  ): Promise<readonly RemoteSubtitleTrack[]> {
+    const parsed = remoteSubtitleEnvelopeSchema.safeParse(await this.#json<unknown>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/subtitles?${query}`,
+      { signal },
+    ))
+    signal?.throwIfAborted()
+    this.#assertCurrentSession(session)
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid subtitles response.")
+    for (const track of parsed.data.tracks) {
+      this.#assertSubtitleAssetUrl(track, session.sessionId, page.id)
+    }
+    return parsed.data.tracks
   }
 
   async #upscalePreloadRequest(
@@ -640,6 +756,22 @@ function normalizeToken(value: string): string {
   return token
 }
 
+async function remoteJson(
+  options: RemoteReaderHeadlessOptions,
+  path: string,
+  init: RequestInit,
+  operation: string,
+): Promise<unknown> {
+  const baseUrl = normalizeLoopbackBaseUrl(options.baseUrl)
+  const token = normalizeToken(options.token)
+  const headers = new Headers(init.headers)
+  headers.set("x-xiranite-token", token)
+  if (init.body !== undefined) headers.set("content-type", "application/json")
+  const response = await (options.fetch ?? globalThis.fetch)(new URL(path, baseUrl), { ...init, headers })
+  if (!response.ok) throw await responseError(response, operation)
+  return await response.json()
+}
+
 function diagnosticsHistoryInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value)) throw new Error(`Reader diagnostics history ${name} must be a safe integer.`)
   return value
@@ -697,6 +829,66 @@ async function responseError(response: Response, operation: string): Promise<Err
 function optionalLength(response: Response): number | undefined {
   const value = Number(response.headers.get("content-length"))
   return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+}
+
+function assertRemoteSubtitleAssetId(value: string): void {
+  if (typeof value !== "string" || value.length < 1 || value.length > 256) {
+    throw new Error("Reader subtitle asset id must be a bounded non-empty string.")
+  }
+}
+
+function assertSubtitleEtag(response: Response): string {
+  const etag = response.headers.get("etag")
+  if (!etag || etag.length > 512 || !/^(?:W\/)?"[^"\r\n]{1,480}"$/u.test(etag)) {
+    throw new Error("Xiranite Reader returned an invalid subtitle ETag.")
+  }
+  return etag
+}
+
+async function readRemoteResponseBytes(response: Response, maxBytes: number, signal?: AbortSignal): Promise<Uint8Array> {
+  const length = optionalLength(response)
+  if (length !== undefined && length > maxBytes) {
+    throw new Error(`Xiranite Reader subtitle exceeded the ${maxBytes} byte response budget.`)
+  }
+  if (!response.body) throw new Error("Xiranite Reader returned an empty subtitle response body.")
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    for (;;) {
+      signal?.throwIfAborted()
+      const result = await readRemoteChunk(reader, signal)
+      if (result.done) break
+      total += result.value.byteLength
+      if (total > maxBytes) {
+        throw new Error(`Xiranite Reader subtitle exceeded the ${maxBytes} byte response budget.`)
+      }
+      chunks.push(result.value)
+    }
+  } finally {
+    await reader.cancel("Remote subtitle response consumed.").catch(() => undefined)
+    reader.releaseLock()
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes
+}
+
+function readRemoteChunk<T>(reader: ReadableStreamDefaultReader<T>, signal?: AbortSignal): Promise<ReadableStreamReadResult<T>> {
+  if (!signal) return reader.read()
+  signal.throwIfAborted()
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      void reader.cancel(signal.reason).catch(() => undefined)
+      reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"))
+    }
+    signal.addEventListener("abort", abort, { once: true })
+    reader.read().then(resolve, reject).finally(() => signal.removeEventListener("abort", abort))
+  })
 }
 
 const remoteArchivePasswordSchema = z.object({

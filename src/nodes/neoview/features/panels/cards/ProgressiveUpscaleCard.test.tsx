@@ -16,6 +16,15 @@ describe("ProgressiveUpscaleCard", () => {
     expect(screen.getByText("0 / 0")).toBeTruthy()
   })
 
+  it("[neoview.progressive-upscale.panel-resident] keeps the full Card mounted when its panel is inactive", async () => {
+    const client = clientFixture()
+    render(<ProgressiveUpscaleCard client={client} disabled={false} panelActive={false} />)
+
+    await waitFor(() => expect(screen.getByRole("switch", { name: "自动超分" })).toBeTruthy())
+    expect(screen.getByRole("switch", { name: "预超分" }).hasAttribute("disabled")).toBe(true)
+    expect(document.querySelector("[data-neoview-progressive-upscale]")?.getAttribute("data-panel-active")).toBe("false")
+  })
+
   it("[neoview.progressive-upscale.settings] persists the source switches and bounded select values", async () => {
     const client = clientFixture(true)
     render(<ProgressiveUpscaleCard client={client} disabled={false} />)
