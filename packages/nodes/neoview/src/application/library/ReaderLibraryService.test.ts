@@ -47,6 +47,17 @@ describe("ReaderLibraryService", () => {
     expect(store.close).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.library.statistics] delegates the bounded aggregate to a capable shared store", async () => {
+    const store = Object.assign(createStore(), {
+      getLibraryStatistics: vi.fn(async () => ({ recentCount: 4, bookmarkCount: 3, bookmarkListCount: 2, mediaProgressCount: 1 })),
+    })
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.statistics()).resolves.toEqual({ recentCount: 4, bookmarkCount: 3, bookmarkListCount: 2, mediaProgressCount: 1 })
+    expect(store.getLibraryStatistics).toHaveBeenCalledOnce()
+    expect(() => new ReaderLibraryService(createStore()).statistics()).toThrow("unavailable")
+  })
+
   it("[neoview.library.bookmark] creates canonical bookmarks and rejects persisted system lists", async () => {
     const store = createStore()
     const service = new ReaderLibraryService(store, () => 2000, () => "bookmark-1")

@@ -798,6 +798,19 @@ function bookmark(id: string, starred: boolean, listIds: readonly string[]) {
     await expect(inspectLegacyThumbnailDatabase(path)).resolves.toMatchObject({ metadataVersion: "2.4", userVersion: 7, journalMode: "wal" })
   })
 
+  it("[neoview.library.statistics] returns fixed aggregate counts without changing the legacy database", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.save({ bookId: "recent", source: { kind: "path", path: "D:/books/recent.cbz" }, displayName: "Recent", pageIndex: 0, pageCount: 1, updatedAt: 1 })
+    await store.upsertBookmark({ id: "bookmark", source: { kind: "path", path: "D:/books/bookmark.cbz" }, name: "Bookmark", kind: "file", starred: false, createdAt: 1, updatedAt: 1, listIds: ["default"] })
+    await store.upsertBookmarkList({ id: "custom", name: "Custom", isFavorite: false, createdAt: 1, updatedAt: 1 })
+    await store.saveMediaProgress({ bookId: "video", position: 1, duration: 2, completed: false, updatedAt: 1 })
+
+    await expect(store.getLibraryStatistics()).resolves.toEqual({ recentCount: 1, bookmarkCount: 1, bookmarkListCount: 1, mediaProgressCount: 1 })
+    await store.close()
+    await expect(inspectLegacyThumbnailDatabase(path)).resolves.toMatchObject({ metadataVersion: "2.4", userVersion: 7, journalMode: "wal" })
+  })
+
 async function fixture(): Promise<{ path: string }> {
   const directory = await mkdtemp(join(tmpdir(), "xiranite-reader-library-"))
   directories.push(directory)

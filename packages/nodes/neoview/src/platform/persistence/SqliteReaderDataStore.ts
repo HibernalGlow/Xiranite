@@ -16,6 +16,7 @@ import type {
   ReaderPlaylistRecord,
   ReaderPlaylistStore,
 } from "../../ports/ReaderPlaylistStore.js"
+import type { ReaderLibraryStatistics, ReaderLibraryStatisticsStore } from "../../ports/ReaderLibraryStatisticsStore.js"
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
 import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
@@ -48,7 +49,7 @@ import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/ope
 const GLOBAL_SORT_SCOPE = "__global__"
 const MAX_FOLDER_SORT_RULES = 1_000
 
-export class SqliteReaderDataStore implements ReaderDataStore, ReaderPlaylistStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore, ReaderEmmTagCatalogStore, ReaderEmmOverrideStore {
+export class SqliteReaderDataStore implements ReaderDataStore, ReaderPlaylistStore, ReaderLibraryStatisticsStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore, ReaderEmmTagCatalogStore, ReaderEmmOverrideStore {
   readonly directoryEmmAvailable: boolean
   readonly #legacyDirectoryEmmAvailable: boolean
   readonly #directoryRatingDataAvailable: boolean
@@ -870,6 +871,23 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderPlaylistSto
       `SELECT id, name, created_at, updated_at FROM xr_reader_playlists
        ORDER BY updated_at DESC, created_at ASC, id ASC`,
     ).flatMap((row) => parsePlaylist(row) ?? [])
+  }
+
+  async getLibraryStatistics(): Promise<ReaderLibraryStatistics> {
+    this.#assertOpen()
+    const row = this.database.get(`
+      SELECT
+        (SELECT COUNT(*) FROM xr_reader_progress) AS recent_count,
+        (SELECT COUNT(*) FROM xr_reader_bookmarks) AS bookmark_count,
+        (SELECT COUNT(*) FROM xr_reader_bookmark_lists) AS bookmark_list_count,
+        (SELECT COUNT(*) FROM xr_reader_media_progress) AS media_progress_count
+    `)
+    return {
+      recentCount: requireInteger(row?.recent_count, "library recent count"),
+      bookmarkCount: requireInteger(row?.bookmark_count, "library bookmark count"),
+      bookmarkListCount: requireInteger(row?.bookmark_list_count, "library bookmark list count"),
+      mediaProgressCount: requireInteger(row?.media_progress_count, "library media progress count"),
+    }
   }
 
   async getPlaylist(id: string): Promise<ReaderPlaylistRecord | undefined> {

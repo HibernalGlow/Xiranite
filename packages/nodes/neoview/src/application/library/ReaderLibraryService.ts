@@ -7,6 +7,7 @@ import type {
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
+import type { ReaderLibraryStatistics, ReaderLibraryStatisticsStore } from "../../ports/ReaderLibraryStatisticsStore.js"
 import { assertReaderDirectoryFilter } from "../../domain/browser/ReaderDirectoryFilter.js"
 
 export const READER_SYSTEM_BOOKMARK_LIST_IDS = ["all", "default", "favorites"] as const
@@ -79,6 +80,13 @@ export class ReaderLibraryService implements AsyncDisposable {
     this.#assertOpen()
     const normalized = normalizeLibraryQuery(query)
     return this.#track(() => this.store.listRecent(normalized))
+  }
+
+  statistics(): Promise<ReaderLibraryStatistics> {
+    this.#assertOpen()
+    const store = this.store
+    if (!isStatisticsStore(store)) throw new Error("Reader library statistics are unavailable.")
+    return this.#track(() => store.getLibraryStatistics())
   }
 
   async removeRecent(bookId: string, signal?: AbortSignal): Promise<boolean> {
@@ -470,4 +478,8 @@ function assertId(id: string, name: string): void {
 
 function assertTimestamp(timestamp: number, name: string): void {
   if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new Error(`Reader library ${name} is invalid.`)
+}
+
+function isStatisticsStore(store: ReaderLibraryStore): store is ReaderLibraryStore & ReaderLibraryStatisticsStore {
+  return "getLibraryStatistics" in store && typeof store.getLibraryStatistics === "function"
 }
