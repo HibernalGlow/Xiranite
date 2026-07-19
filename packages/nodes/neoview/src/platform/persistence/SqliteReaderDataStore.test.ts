@@ -768,6 +768,36 @@ function bookmark(id: string, starred: boolean, listIds: readonly string[]) {
   }
 }
 
+  it("[neoview.playlist.sqlite] persists ordered entries, compacts deletion and preserves legacy schema", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.upsertPlaylist({ id: "reading", name: "Reading", createdAt: 10, updatedAt: 10 })
+    await store.appendPlaylistEntries("reading", [
+      playlistEntry("first", 0),
+      playlistEntry("second", 1),
+      playlistEntry("third", 2),
+    ], 20)
+    await store.deletePlaylistEntries("reading", ["second"], 30)
+    await expect(store.listPlaylistEntries("reading")).resolves.toEqual([
+      expect.objectContaining({ id: "first", position: 0 }),
+      expect.objectContaining({ id: "third", position: 1 }),
+    ])
+    await store.replacePlaylistEntryOrder("reading", ["third", "first"], 40)
+    await expect(store.listPlaylistEntries("reading")).resolves.toEqual([
+      expect.objectContaining({ id: "third", position: 0 }),
+      expect.objectContaining({ id: "first", position: 1 }),
+    ])
+    await expect(store.replacePlaylistEntryOrder("reading", ["first", "missing"], 50)).rejects.toThrow("every existing entry")
+    await expect(store.listPlaylistEntries("reading")).resolves.toEqual([
+      expect.objectContaining({ id: "third", position: 0 }),
+      expect.objectContaining({ id: "first", position: 1 }),
+    ])
+    await expect(store.deletePlaylist("reading")).resolves.toBe(true)
+    await expect(store.listPlaylistEntries("reading")).resolves.toEqual([])
+    await store.close()
+    await expect(inspectLegacyThumbnailDatabase(path)).resolves.toMatchObject({ metadataVersion: "2.4", userVersion: 7, journalMode: "wal" })
+  })
+
 async function fixture(): Promise<{ path: string }> {
   const directory = await mkdtemp(join(tmpdir(), "xiranite-reader-library-"))
   directories.push(directory)
@@ -776,6 +806,17 @@ async function fixture(): Promise<{ path: string }> {
   database.exec(CURRENT_SCHEMA_SQL)
   database.close()
   return { path }
+}
+
+function playlistEntry(id: string, position: number) {
+  return {
+    id,
+    playlistId: "reading",
+    source: { kind: "archive" as const, path: `D:/books/${id}.cbz` },
+    name: id,
+    position,
+    createdAt: 10,
+  }
 }
 
 const CURRENT_SCHEMA_SQL = `
