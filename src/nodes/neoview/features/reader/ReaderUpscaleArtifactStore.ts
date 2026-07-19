@@ -3,6 +3,7 @@ import type { ReaderUpscaleArtifactResultDto } from "../../adapters/reader-http-
 export interface ReaderUpscaleArtifactSnapshot {
   state: "idle" | "processing" | "completed" | "skipped" | "failed"
   result?: ReaderUpscaleArtifactResultDto
+  error?: string
 }
 
 export const EMPTY_READER_UPSCALE_ARTIFACT_SNAPSHOT: ReaderUpscaleArtifactSnapshot = Object.freeze({ state: "idle" })

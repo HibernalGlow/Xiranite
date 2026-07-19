@@ -8,6 +8,7 @@ import { SuperResolutionArtifactPageService } from "../../../application/super-r
 import type { ReaderPageMaterializer } from "../../../ports/ReaderPageMaterializer.js"
 import type { SuperResolutionArtifactStore } from "../../../ports/SuperResolutionArtifactStore.js"
 import type { NeoviewSuperResolutionConfig } from "../../../application/config/ReaderRuntimeConfig.js"
+import type { SuperResolutionPreferences } from "../../../domain/super-resolution/super-resolution-preferences.js"
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
 import type { NeoviewRuntimeLoadOptions } from "../../config/loadNeoviewRuntimeConfig.js"
 import { SystemSuperResolutionCliResolver } from "../SystemSuperResolutionCliResolver.js"
@@ -70,6 +71,7 @@ export async function createOpenComicAiSystemCapability(
   registerRuntimeCustomModels(runtime, config.customModels)
   const models = runtimeModels(runtime)
   if (!models.length) throw new Error("OpenComic system runtime did not expose any super-resolution models.")
+  const preferences = withRuntimeModelDefaults(config.preferences, models)
   const modelsDirectory = options.modelsDirectory
     ?? config.modelsDirectory
     ?? await (options.resolveDefaultModelsDirectory?.() ?? defaultModelsDirectory())
@@ -94,7 +96,7 @@ export async function createOpenComicAiSystemCapability(
       ownerId: options.ownerId ?? "neoview:super-resolution",
       models,
     })
-  const policy = new SuperResolutionPolicyService(config.preferences)
+  const policy = new SuperResolutionPolicyService(preferences)
   const pages = new SuperResolutionPageService(
     service,
     policy,
@@ -108,7 +110,7 @@ export async function createOpenComicAiSystemCapability(
     await preload.dispose()
     await service.dispose()
   }
-  const preload = new SuperResolutionPreloadService(pages, config.preferences, artifactPages)
+  const preload = new SuperResolutionPreloadService(pages, preferences, artifactPages)
   return {
     service,
     policy,
@@ -117,6 +119,21 @@ export async function createOpenComicAiSystemCapability(
     artifactPages,
     dispose,
     [Symbol.asyncDispose]: dispose,
+  }
+}
+
+function withRuntimeModelDefaults(
+  preferences: SuperResolutionPreferences,
+  models: readonly SuperResolutionModelManifest[],
+): SuperResolutionPreferences {
+  if (preferences.defaultModelId && preferences.defaultScale !== undefined) return preferences
+  const model = models.find((candidate) => candidate.id === preferences.defaultModelId)
+    ?? models.find((candidate) => candidate.id === "realesr-animevideov3")
+    ?? models[0]!
+  return {
+    ...preferences,
+    defaultModelId: preferences.defaultModelId ?? model.id,
+    defaultScale: preferences.defaultScale ?? (model.scales.includes(2) ? 2 : model.scales[0]!),
   }
 }
 

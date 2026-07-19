@@ -24,7 +24,7 @@ describe("NeoView upscale Cards", () => {
     render(<UpscaleModelCard {...context()} onSuperResolutionConfigChange={onChange} />)
     await screen.findByRole("option", { name: "Anime" })
     fireEvent.change(screen.getByLabelText("模型"), { target: { value: "anime" } })
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ preferences: { defaultModelId: "anime" } }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ preferences: expect.objectContaining({ defaultModelId: "anime", defaultScale: 2 }) }))
   })
 
   it("[neoview.super-resolution.cache-card] confirms destructive shared cache cleanup", async () => {

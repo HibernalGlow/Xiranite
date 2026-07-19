@@ -760,6 +760,12 @@ export interface ReaderUpscaleArtifactResultDto {
   contentType?: string
   bytes?: number
   version?: string
+  decision?: {
+    kind: "disabled" | "skip" | "run"
+    reason: string
+    modelId?: string
+    scale?: number
+  }
 }
 
 export interface ReaderUpscaleModelDto {

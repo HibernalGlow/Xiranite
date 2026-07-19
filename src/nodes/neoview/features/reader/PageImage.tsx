@@ -163,7 +163,12 @@ function useUpscaleTarget(
           byteLength: result.bytes ?? sourcePage.byteLength,
         },
       })
-    }).catch(() => { if (!controller.signal.aborted) setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "failed" }) })
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) setReaderUpscaleArtifact(sessionId, sourcePage.id, {
+        state: "failed",
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
     return () => controller.abort()
   }, [client, configRevision, enabled, sessionId, sourceIdentity])
 

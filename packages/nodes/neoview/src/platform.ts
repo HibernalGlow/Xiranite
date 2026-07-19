@@ -46,7 +46,7 @@ import type { ReaderLibraryHeadlessController } from "./application/headless/Rea
 import type { ReaderFileTreeServiceOptions } from "./application/browser/ReaderFileTreeService.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
-import type { NeoviewPresentationDiskCacheConfig } from "./application/config/ReaderRuntimeConfig.js"
+import type { NeoviewPresentationDiskCacheConfig, NeoviewSuperResolutionConfig } from "./application/config/ReaderRuntimeConfig.js"
 import { buildSuperResolutionArtifactKey } from "./platform/super-resolution/SuperResolutionArtifactKey.js"
 import { SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION } from "./platform/asset-route/SuperResolutionArtifactRoute.js"
 import type {
@@ -389,6 +389,8 @@ export async function createReaderHttpController(
   let superResolutionArtifactStore: SuperResolutionArtifactStore | undefined = injectedArtifactStore
   let superResolutionPreload = options.superResolutionPreload
   let disposeSuperResolutionArtifacts = options.disposeSuperResolutionArtifacts
+  let superResolutionRuntimeConfig = runtimeConfig.superResolution
+  let reconfigureSuperResolution: ((config: NeoviewSuperResolutionConfig) => Promise<void>) | undefined
   if (!superResolutionArtifactPages || !superResolutionArtifactStore) {
     const { join } = await import("node:path")
     const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
@@ -405,7 +407,7 @@ export async function createReaderHttpController(
       )
       const capability = await createOpenComicAiSystemCapability({
         ...options,
-        runtimeConfig: runtimeConfig.superResolution,
+        runtimeConfig: superResolutionRuntimeConfig,
         resourceScheduler: options.resourceScheduler,
         artifactStore: ownedStore,
       })
@@ -421,6 +423,10 @@ export async function createReaderHttpController(
     superResolutionArtifactPages = ownedPages
     superResolutionArtifactStore = ownedStore
     superResolutionPreload = ownedPages
+    reconfigureSuperResolution = async (config) => {
+      superResolutionRuntimeConfig = config
+      await ownedPages.reconfigure()
+    }
     disposeSuperResolutionArtifacts = async () => {
       const results = await Promise.allSettled([ownedPages[Symbol.asyncDispose](), ownedStore.close()])
       const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
@@ -542,7 +548,9 @@ export async function createReaderHttpController(
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
-      return parseNeoviewRuntimeConfig(committed.nodeConfig).superResolution
+      const updated = parseNeoviewRuntimeConfig(committed.nodeConfig).superResolution
+      await reconfigureSuperResolution?.(updated)
+      return updated
     },
     updateInputBindings: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")

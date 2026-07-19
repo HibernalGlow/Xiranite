@@ -164,6 +164,16 @@ export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutio
     }
   }
 
+  async reconfigure(): Promise<void> {
+    this.#assertActive()
+    const request = this.#capability
+    this.#capability = undefined
+    this.#resolvedCapability = undefined
+    if (!request) return
+    const capability = await request.catch(() => undefined)
+    await capability?.dispose()
+  }
+
   async [Symbol.asyncDispose](): Promise<void> {
     if (this.#disposed) return
     this.#disposed = true
