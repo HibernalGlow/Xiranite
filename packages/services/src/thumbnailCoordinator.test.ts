@@ -5,6 +5,7 @@ import {
   thumbnailQueuePriority,
   type ThumbnailAsset,
   type ThumbnailDemand,
+  type ThumbnailCoordinatorFlightEvent,
   type ThumbnailResolver,
 } from "./thumbnailCoordinator.js"
 
@@ -27,17 +28,24 @@ describe("ThumbnailCoordinatorService", () => {
 
   it("[neoview.thumbnail.coordinator.generation] cancels superseded work when its context advances", async () => {
     let resolverSignal: AbortSignal | undefined
+    const events: ThumbnailCoordinatorFlightEvent<string>[] = []
     const resolver: ThumbnailResolver<string> = {
       resolve: (_request, signal) => {
         resolverSignal = signal
         return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))
       },
     }
-    const coordinator = new ThumbnailCoordinatorService<string>({ resolver })
+    const coordinator = new ThumbnailCoordinatorService<string>({ resolver, onFlightEvent: (event) => events.push(event) })
     const old = coordinator.acquire(demand("old", "page", { contextId: "book", generation: 1 }))
     coordinator.advanceContext("book", 2)
     await expect(old.ready).rejects.toMatchObject({ name: "AbortError" })
     expect(resolverSignal?.aborted).toBe(true)
+    await vi.waitFor(() => expect(events.map((event) => event.state)).toEqual([
+      "started",
+      "cancellation-requested",
+      "settled",
+    ]))
+    expect(events.at(-1)?.outcome).toBe("cancelled")
     expect(coordinator.snapshot()).toMatchObject({ demands: 0, activeFlights: 0 })
     await coordinator.dispose()
   })
@@ -268,12 +276,18 @@ describe("ThumbnailCoordinatorService", () => {
   it("[neoview.thumbnail.coordinator.queued-cancel] removes stale queued work before it starts", async () => {
     const blocker = deferred<ThumbnailAsset>()
     const resolve = vi.fn(async (request: Readonly<ThumbnailDemand<string>>) => request.source === "blocker" ? blocker.promise : asset(8, 1))
-    const coordinator = new ThumbnailCoordinatorService<string>({ maxConcurrent: 1, resolver: { resolve } })
+    const events: ThumbnailCoordinatorFlightEvent<string>[] = []
+    const coordinator = new ThumbnailCoordinatorService<string>({ maxConcurrent: 1, resolver: { resolve }, onFlightEvent: (event) => events.push(event) })
     const active = coordinator.acquire(demand("blocker", "blocker", { contextId: "active" }))
     const stale = coordinator.acquire(demand("stale", "stale", { contextId: "book", generation: 1, lane: "background" }))
     await vi.waitFor(() => expect(coordinator.snapshot()).toMatchObject({ queuedFlights: 1, runningFlights: 1 }))
     coordinator.advanceContext("book", 2)
     await expect(stale.ready).rejects.toMatchObject({ name: "AbortError" })
+    await vi.waitFor(() => expect(events.filter((event) => event.demand.source === "stale").map((event) => event.state)).toEqual([
+      "cancellation-requested",
+      "settled",
+    ]))
+    expect(events.find((event) => event.demand.source === "stale" && event.state === "settled")?.outcome).toBe("cancelled")
     await vi.waitFor(() => expect(coordinator.snapshot()).toMatchObject({ activeFlights: 1, queuedFlights: 0, runningFlights: 1 }))
     blocker.resolve(asset(8, 1))
     await active.ready
