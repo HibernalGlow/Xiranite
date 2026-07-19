@@ -5,10 +5,14 @@ import { lock } from "proper-lockfile"
 import {
   parseToml,
   resolveXiraniteConfigPath,
-  stringifyToml,
   stripBom,
   type ResolveConfigPathOptions,
 } from "@xiranite/config"
+import {
+  isOptimizedNeoviewConfigEnvelope,
+  unwrapNeoviewConfigEnvelope,
+} from "../../application/config/NeoviewConfigEnvelope.js"
+import { stringifyXiraniteConfigWithOptimizedNeoview } from "./NeoviewConfigToml.js"
 
 export type NeoviewConfigImportStrategy = "merge" | "overwrite"
 
@@ -32,7 +36,7 @@ export async function readNeoviewConfig(
   if (text === undefined) return {}
   const root = requireRecord(parseToml(stripBom(text)), "Xiranite config root")
   const nodes = isRecord(root.nodes) ? root.nodes : {}
-  return isRecord(nodes.neoview) ? cloneRecord(nodes.neoview) : {}
+  return isRecord(nodes.neoview) ? unwrapNeoviewConfigEnvelope(nodes.neoview) : {}
 }
 
 export async function commitNeoviewConfig(
@@ -61,16 +65,17 @@ async function commitLocked(
     ? {}
     : requireRecord(parseToml(stripBom(previousText)), "Xiranite config root")
   const nodes = isRecord(root.nodes) ? { ...root.nodes } : {}
-  const current = isRecord(nodes.neoview) ? nodes.neoview : {}
+  const rawCurrent = isRecord(nodes.neoview) ? nodes.neoview : {}
+  const current = unwrapNeoviewConfigEnvelope(rawCurrent)
   const nextNode = strategy === "overwrite" ? cloneRecord(patch) : deepMerge(current, patch)
-  const changed = !deepEqual(current, nextNode)
+  const changed = !deepEqual(current, nextNode) || !isOptimizedNeoviewConfigEnvelope(rawCurrent)
 
   if (!changed) {
     return { configPath, nodeConfig: nextNode, changed: false }
   }
 
   const nextRoot = { ...root, nodes: { ...nodes, neoview: nextNode } }
-  const nextText = stringifyToml(nextRoot)
+  const nextText = stringifyXiraniteConfigWithOptimizedNeoview(nextRoot, nextNode)
   let backupPath: string | undefined
   if (previousText !== undefined) {
     backupPath = `${configPath}.neoview-import.bak`
@@ -84,7 +89,11 @@ async function commitLocked(
     assertLockHeld()
     const verifiedRoot = requireRecord(parseToml(stripBom(verifiedText)), "written Xiranite config root")
     const verifiedNodes = requireRecord(verifiedRoot.nodes, "written [nodes] section")
-    verifiedNode = requireRecord(verifiedNodes.neoview, "written [nodes.neoview] section")
+    const verifiedEnvelope = requireRecord(verifiedNodes.neoview, "written [nodes.neoview] section")
+    if (!isOptimizedNeoviewConfigEnvelope(verifiedEnvelope)) {
+      throw new Error("NeoView TOML verification failed: optimized config envelope was not written.")
+    }
+    verifiedNode = unwrapNeoviewConfigEnvelope(verifiedEnvelope)
     if (!deepEqual(verifiedNode, nextNode)) {
       throw new Error("NeoView TOML verification failed after atomic write.")
     }

@@ -367,7 +367,7 @@ describe("NeoView CLI", () => {
 
       await expect(runProgram(["folder-exclude", privatePath, "--config", configPath], host([]), testPlatformDependencies)).rejects.toThrow("requires --yes")
       await runProgram(["folder-exclude", privatePath, "--config", configPath, "--yes", "--json"], host([]), testPlatformDependencies)
-      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview.folder.tree]")
+      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview]\nconfig = { ")
 
       const filteredOutput: unknown[] = []
       await runProgram(["folder-search", directory, "--query", "cbz", "--config", configPath, "--json"], host(filteredOutput), testPlatformDependencies)
@@ -571,6 +571,36 @@ describe("NeoView CLI", () => {
     expect(remoteListSubtitles).toHaveBeenCalledWith(0)
   })
 
+  it("[neoview.emm.cli] reuses the current-book CAS metadata contract on local and remote controllers", async () => {
+    const metadata = { revision: 3, overrides: { rating: 4, translatedTitle: "Title" }, inherited: ["manualTags"] as const, updatedAt: 10 }
+    const getEmmMetadata = vi.fn(async () => metadata)
+    const updateEmmMetadata = vi.fn(async () => ({ metadata: { ...metadata, revision: 4, overrides: { manualTags: [{ namespace: "artist", tag: "name" }] }, inherited: ["rating", "translatedTitle"] as const }, reader: snapshot(0) }))
+    const reader = fakeReader({ getEmmMetadata, updateEmmMetadata })
+    const getOutput: unknown[] = []
+    await runProgram(["emm-get", "book.cbz", "--json"], host(getOutput), { createController: async () => reader })
+    expect(JSON.parse(getOutput.join(""))).toMatchObject({ revision: 3, overrides: { rating: 4 } })
+
+    const setOutput: unknown[] = []
+    await runProgram([
+      "emm-set", "book.cbz", "--expected-revision", "3", "--input", '{"manualTags":[{"namespace":"artist","tag":"name"}]}', "--yes", "--json",
+    ], host(setOutput), { createController: async () => reader })
+    expect(updateEmmMetadata).toHaveBeenCalledWith(3, { manualTags: [{ namespace: "artist", tag: "name" }] })
+    expect(JSON.parse(setOutput.join(""))).toMatchObject({ metadata: { revision: 4, overrides: { manualTags: [{ namespace: "artist", tag: "name" }] } } })
+    await expect(runProgram([
+      "emm-set", "book.cbz", "--expected-revision", "3", "--input", '{"rating":4}',
+    ], host([]), { createController: async () => reader })).rejects.toThrow("requires --yes")
+
+    const remoteGetEmmMetadata = vi.fn(async () => metadata)
+    const remote = fakeReader({ getEmmMetadata: remoteGetEmmMetadata })
+    const remoteOutput: unknown[] = []
+    await runProgram(["emm-get", "book.cbz", "--connect", "http://127.0.0.1:41000", "--json"], host(remoteOutput, { XIRANITE_BACKEND_TOKEN: "emm-token" }), {
+      createController: async () => { throw new Error("local controller must stay lazy") },
+      createRemoteController: async () => remote,
+    })
+    expect(JSON.parse(remoteOutput.join(""))).toMatchObject({ revision: 3 })
+    expect(remoteGetEmmMetadata).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.super-resolution.cli] delegates one manual page to the shared headless workflow", async () => {
     const output: unknown[] = []
     const upscalePage = vi.fn(async () => ({
@@ -716,7 +746,7 @@ describe("NeoView CLI", () => {
       ], host(updated))
       expect(JSON.parse(updated.join(""))).toEqual({ enabled: true, type: "flip", duration: 320, easing: "easeOutCubic" })
       const toml = await readFile(configPath, "utf8")
-      expect(toml).toContain("[nodes.neoview.image.page_transition]")
+      expect(toml).toContain("[nodes.neoview]\nconfig = { ")
       expect(toml).not.toContain("pageTransition")
       await expect(runProgram(["page-transition-set", "--config", configPath, "--duration", "501"], host([])))
         .rejects.toThrow("duration")
@@ -794,7 +824,7 @@ describe("NeoView CLI", () => {
       ], host(firstOutput))
       expect(JSON.parse(firstOutput.join(""))).toMatchObject({ changed: true, strategy: "merge" })
       const toml = await readFile(configPath, "utf8")
-      expect(toml).toContain("[nodes.neoview.reader]")
+      expect(toml).toContain("[nodes.neoview]\nconfig = { ")
       expect(toml).toContain('reading_direction = "right-to-left"')
 
       const secondOutput: unknown[] = []
@@ -922,7 +952,7 @@ describe("NeoView CLI", () => {
       ], host(importOutput))
       expect(JSON.parse(importOutput.join(""))).toMatchObject({ changed: true, backupCreated: true })
       const restored = await readFile(configPath, "utf8")
-      expect(restored).toContain("[nodes.neoview.future]")
+      expect(restored).toContain("[nodes.neoview]\nconfig = { ")
       expect(restored).not.toContain("old = true")
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -1084,7 +1114,7 @@ describe("NeoView CLI", () => {
       expect(JSON.parse(importOutput.join(""))).toMatchObject({ imported: { applied: { progress: 1, bookmarks: 1 } }, configChanged: true })
       const configText = await readFile(configPath, "utf8")
       expect(configText).toContain("max_history_size = 250")
-      expect(configText).toContain("[nodes.neoview.bookmark_list]")
+      expect(configText).toContain("[nodes.neoview]\nconfig = { ")
       expect(configText).toContain('active_list_id = "reading"')
       expect(configText).not.toContain("active_bookmark_list_id")
       await expect(loadNeoviewRuntimeConfig({ configPath })).resolves.toMatchObject({ bookmarkList: { activeListId: "reading" } })
@@ -1732,6 +1762,8 @@ function fakeReader(overrides: Partial<{
   inspectSuperResolution: ReaderHeadlessController["inspectSuperResolution"]
   listSubtitles: ReaderHeadlessController["listSubtitles"]
   renderSubtitle: ReaderHeadlessController["renderSubtitle"]
+  getEmmMetadata: ReaderHeadlessController["getEmmMetadata"]
+  updateEmmMetadata: ReaderHeadlessController["updateEmmMetadata"]
 }> = {}): ReaderHeadlessController {
   let current = 0
   const dispose = vi.fn(async () => undefined)
@@ -1758,6 +1790,8 @@ function fakeReader(overrides: Partial<{
     }))),
     listSubtitles: vi.fn(overrides.listSubtitles ?? (() => [])),
     renderSubtitle: vi.fn(overrides.renderSubtitle ?? (async () => { throw new Error("not configured") })),
+    getEmmMetadata: vi.fn(overrides.getEmmMetadata ?? (async () => ({ revision: 0, overrides: {}, inherited: ["rating", "manualTags", "translatedTitle"] }))),
+    updateEmmMetadata: vi.fn(overrides.updateEmmMetadata ?? (async () => { throw new Error("not configured") })),
     closeBook: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: dispose,
   } as unknown as ReaderHeadlessController
