@@ -57,29 +57,46 @@ export class ReaderLibraryThumbnailWarmupService {
     options.signal?.throwIfAborted()
     let completed = 0
     let failed = 0
-    await pMap(input.items, async (item, index) => {
-      options.signal?.throwIfAborted()
-      try {
-        await this.port.warm(item as ReaderLibraryThumbnailWarmupItem, {
-          contextId: options.contextId,
-          mode: input.mode,
-          signal: options.signal,
-        })
-        completed += 1
+    let sawAbortError = false
+    let stopDispatch = false
+    let firstAbortError: unknown
+    try {
+      await pMap(input.items, async (item, index) => {
+        if (stopDispatch) return
+        options.signal?.throwIfAborted()
+        try {
+          await this.port.warm(item as ReaderLibraryThumbnailWarmupItem, {
+            contextId: options.contextId,
+            mode: input.mode,
+            signal: options.signal,
+          })
+          options.signal?.throwIfAborted()
+          completed += 1
+        } catch (error) {
+          if (options.signal?.aborted || isAbortError(error)) {
+            sawAbortError = true
+            stopDispatch = true
+            firstAbortError ??= error
+            throw error
+          }
+          failed += 1
+          options.onProgress?.({ type: "item", index, id: item.id, status: "failed", error: errorMessage(error) })
+          return
+        }
         options.onProgress?.({ type: "item", index, id: item.id, status: "completed" })
-      } catch (error) {
-        if (options.signal?.aborted || isAbortError(error)) throw error
-        failed += 1
-        options.onProgress?.({ type: "item", index, id: item.id, status: "failed", error: errorMessage(error) })
-      }
-    }, { concurrency: input.concurrency, stopOnError: true })
+      }, { concurrency: input.concurrency, stopOnError: false })
+    } catch (error) {
+      if (options.signal?.aborted) options.signal.throwIfAborted()
+      if (sawAbortError) throw firstAbortError ?? error
+      throw error
+    }
     options.signal?.throwIfAborted()
     return { total: input.items.length, completed, failed }
   }
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError"
+  return (error instanceof DOMException || error instanceof Error) && error.name === "AbortError"
 }
 
 function errorMessage(error: unknown): string {

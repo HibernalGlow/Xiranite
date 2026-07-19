@@ -43,7 +43,9 @@ export class ReaderThumbnailMaintenanceService {
     signal?.throwIfAborted()
     const operation = this.#store?.maintenanceSnapshot
     if (!operation) return { enabled: false }
-    return { enabled: true, snapshot: await operation.call(this.#store, signal) }
+    const snapshot = await operation.call(this.#store, signal)
+    signal?.throwIfAborted()
+    return { enabled: true, snapshot }
   }
 
   async cleanup(command: ReaderThumbnailCleanupCommand, signal?: AbortSignal): Promise<ReaderThumbnailCleanupResult> {
@@ -53,13 +55,15 @@ export class ReaderThumbnailMaintenanceService {
       assertInteger(command.deleteLimit, "deleteLimit", 1, 500)
       const operation = this.#store?.cleanupInvalid
       if (!operation) return { enabled: false }
+      const result = await operation.call(this.#store, {
+        scanLimit: command.scanLimit,
+        deleteLimit: command.deleteLimit,
+      }, signal)
+      signal?.throwIfAborted()
       return {
         enabled: true,
         kind: command.kind,
-        result: await operation.call(this.#store, {
-          scanLimit: command.scanLimit,
-          deleteLimit: command.deleteLimit,
-        }, signal),
+        result,
       }
     }
 
@@ -68,11 +72,13 @@ export class ReaderThumbnailMaintenanceService {
       assertInteger(command.limit, "limit", 1, 10_000)
       const operation = this.#store?.cleanup
       if (!operation) return { enabled: false }
+      const deleted = await operation.call(this.#store, { kind: command.kind, prefix, limit: command.limit }, signal)
+      signal?.throwIfAborted()
       return {
         enabled: true,
         kind: command.kind,
         prefix,
-        deleted: await operation.call(this.#store, { kind: command.kind, prefix, limit: command.limit }, signal),
+        deleted,
       }
     }
 
@@ -80,24 +86,28 @@ export class ReaderThumbnailMaintenanceService {
     const operation = this.#store?.cleanup
     if (!operation) return { enabled: false }
     if (command.kind === "empty") {
+      const deleted = await operation.call(this.#store, { kind: command.kind, limit: command.limit }, signal)
+      signal?.throwIfAborted()
       return {
         enabled: true,
         kind: command.kind,
-        deleted: await operation.call(this.#store, { kind: command.kind, limit: command.limit }, signal),
+        deleted,
       }
     }
 
     assertInteger(command.days, "days", 1, 3_650)
     const cutoff = sqliteTimestamp(new Date(this.#now() - command.days * 86_400_000))
+    const deleted = await operation.call(this.#store, {
+      kind: command.kind,
+      cutoff,
+      limit: command.limit,
+      preserveFolders: true,
+    }, signal)
+    signal?.throwIfAborted()
     return {
       enabled: true,
       kind: command.kind,
-      deleted: await operation.call(this.#store, {
-        kind: command.kind,
-        cutoff,
-        limit: command.limit,
-        preserveFolders: true,
-      }, signal),
+      deleted,
       cutoff,
       foldersPreserved: true,
     }
@@ -111,9 +121,11 @@ export class ReaderThumbnailMaintenanceService {
     }
     const operation = this.#store?.clearFailures
     if (!operation) return { enabled: false }
+    const deleted = await operation.call(this.#store, { reason: options.reason, limit: options.limit }, signal)
+    signal?.throwIfAborted()
     return {
       enabled: true,
-      deleted: await operation.call(this.#store, { reason: options.reason, limit: options.limit }, signal),
+      deleted,
     }
   }
 }
