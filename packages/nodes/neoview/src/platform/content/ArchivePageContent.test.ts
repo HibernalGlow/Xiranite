@@ -38,4 +38,34 @@ describe("ArchivePageContent credentials", () => {
     await source.close()
     await provider.close()
   })
+
+  it("[neoview.archive.content-lifecycle] waits for an in-flight open and cancels a late stream", async () => {
+    const provider = new MemoryArchiveProvider([{ path: "page.jpg", bytes: Uint8Array.of(1, 2, 3) }])
+    const [entry] = await provider.list()
+    let resolveOpen!: (stream: ReadableStream<Uint8Array>) => void
+    let cancelCount = 0
+    vi.spyOn(provider, "openEntry").mockImplementation(() => new Promise((resolve) => {
+      resolveOpen = resolve
+    }))
+    const content = new ArchivePageContent(provider, entry!.id, 3, "image/jpeg")
+    const source = await content.load()
+    const opening = source.open()
+    let closeFinished = false
+    const closing = source.close().then(() => {
+      closeFinished = true
+    })
+
+    await Promise.resolve()
+    expect(closeFinished).toBe(false)
+
+    resolveOpen(new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelCount += 1
+      },
+    }))
+    await expect(opening).rejects.toThrow("Archive page source is closed")
+    await closing
+    expect(cancelCount).toBe(1)
+    await provider.close()
+  })
 })
