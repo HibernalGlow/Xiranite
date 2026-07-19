@@ -141,8 +141,7 @@ export type ReaderCardDefinitionSettingsSectionId =
   | "books"
   | "appearance"
   | "performance"
-  | "sidebar"
-  | "cards"
+  | "layout"
   | "bindings"
   | "data"
   | "about"
@@ -218,8 +217,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "media-settings": () => import("../settings/cards/MediaSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "reader-material-settings": () => import("../settings/cards/ReaderMaterialSettingsCard"),
-  "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
-  "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
+  "board-layout-settings": () => import("../settings/cards/BoardLayoutSettingsCard"),
   "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
   "data-migration-settings": () => import("../settings/cards/DataMigrationSettingsCard"),
   "about-settings": () => import("../settings/cards/AboutSettingsCard"),
@@ -245,8 +243,7 @@ const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCard
   "media-settings": async () => ({ default: (await import("../settings/cards/MediaSettingsCard")).SettingsMediaCard }),
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
   "reader-material-settings": async () => ({ default: (await import("../settings/cards/ReaderMaterialSettingsCard")).SettingsReaderMaterialCard }),
-  "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
-  "sidebar-management-settings": async () => ({ default: (await import("../settings/cards/SidebarManagementSettingsCard")).SidebarManagementSettingsCard }),
+  "board-layout-settings": async () => ({ default: (await import("../settings/cards/BoardLayoutSettingsCard")).SettingsBoardLayoutCard }),
   "input-bindings-settings": async () => ({ default: (await import("../settings/cards/InputBindingsSettingsCard")).InputBindingsSettingsCard }),
   "data-migration-settings": async () => ({ default: (await import("../settings/cards/DataMigrationSettingsCard")).SettingsDataMigrationCard }),
   "about-settings": async () => ({ default: (await import("../settings/cards/AboutSettingsCard")).SettingsAboutCard }),
