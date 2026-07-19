@@ -21,17 +21,17 @@ export function ReaderWindowBar({ control, disabled, onOpenSettings, windowContr
   const snapshot = useSyncExternalStore(control.store.subscribe, control.store.getSnapshot, control.store.getSnapshot)
   const topPinned = snapshot.edges.top.pinned
   return (
-    <div className="grid min-h-10 grid-cols-[1fr_auto_1fr] items-center border-b border-border/45 px-2" data-reader-window-bar="true">
+    <div className="grid min-h-10 grid-cols-[1fr_auto] items-center border-b border-border/45 px-2" data-reader-window-bar="true">
       <div className="xiranite-app-region-no-drag flex items-center gap-1 justify-self-start">
         {EDGES.map(({ edge, label, icon: Icon }) => (
           <Button key={edge} type="button" size="icon-sm" variant={snapshot.edges[edge].open ? "default" : "outline"} aria-label={label} aria-pressed={snapshot.edges[edge].open} disabled={disabled} onClick={() => control.requestOpen(edge, !snapshot.edges[edge].open)}><Icon /></Button>
         ))}
       </div>
-      <div className="xiranite-app-region-no-drag flex items-center gap-1 justify-self-center">
+      <div className="xiranite-app-region-no-drag flex items-center gap-1 justify-self-end">
         <Button type="button" size="icon-sm" variant={topPinned ? "default" : "ghost"} aria-label={topPinned ? "取消固定顶栏" : "固定顶栏"} aria-pressed={topPinned} disabled={disabled} onClick={() => control.setPinned("top", !topPinned)}>{topPinned ? <PinOff /> : <Pin />}</Button>
         <Button type="button" size="icon-sm" variant="ghost" aria-label="打开 NeoView 设置" disabled={disabled} onClick={onOpenSettings}><Settings2 /></Button>
+        {windowControls}
       </div>
-      <div className="xiranite-app-region-no-drag flex items-center justify-self-end">{windowControls}</div>
     </div>
   )
 }
