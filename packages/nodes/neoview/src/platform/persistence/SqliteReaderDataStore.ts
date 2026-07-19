@@ -11,6 +11,11 @@ import type {
   ReaderLibraryCollection,
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
+import type {
+  ReaderPlaylistEntryRecord,
+  ReaderPlaylistRecord,
+  ReaderPlaylistStore,
+} from "../../ports/ReaderPlaylistStore.js"
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
 import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
@@ -43,7 +48,7 @@ import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/ope
 const GLOBAL_SORT_SCOPE = "__global__"
 const MAX_FOLDER_SORT_RULES = 1_000
 
-export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore, ReaderEmmTagCatalogStore, ReaderEmmOverrideStore {
+export class SqliteReaderDataStore implements ReaderDataStore, ReaderPlaylistStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore, ReaderEmmTagCatalogStore, ReaderEmmOverrideStore {
   readonly directoryEmmAvailable: boolean
   readonly #legacyDirectoryEmmAvailable: boolean
   readonly #directoryRatingDataAvailable: boolean
@@ -100,6 +105,26 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         );
         CREATE INDEX IF NOT EXISTS xr_reader_bookmark_memberships_list_idx
           ON xr_reader_bookmark_memberships (list_id, bookmark_id);
+        CREATE TABLE IF NOT EXISTS xr_reader_playlists (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_playlists_updated_idx
+          ON xr_reader_playlists (updated_at DESC, id ASC);
+        CREATE TABLE IF NOT EXISTS xr_reader_playlist_entries (
+          playlist_id TEXT NOT NULL,
+          id TEXT NOT NULL,
+          source_json TEXT NOT NULL,
+          name TEXT NOT NULL,
+          position INTEGER NOT NULL CHECK (position >= 0),
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY (playlist_id, id),
+          UNIQUE (playlist_id, position)
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_playlist_entries_order_idx
+          ON xr_reader_playlist_entries (playlist_id, position ASC, id ASC);
         CREATE TABLE IF NOT EXISTS xr_reader_path_stacks (
           book_id TEXT PRIMARY KEY NOT NULL,
           path_stack_json TEXT NOT NULL,
@@ -839,6 +864,154 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     return deleted
   }
 
+  async listPlaylists(): Promise<readonly ReaderPlaylistRecord[]> {
+    this.#assertOpen()
+    return this.database.all(
+      `SELECT id, name, created_at, updated_at FROM xr_reader_playlists
+       ORDER BY updated_at DESC, created_at ASC, id ASC`,
+    ).flatMap((row) => parsePlaylist(row) ?? [])
+  }
+
+  async getPlaylist(id: string): Promise<ReaderPlaylistRecord | undefined> {
+    this.#assertOpen()
+    return parsePlaylist(this.database.get(
+      `SELECT id, name, created_at, updated_at FROM xr_reader_playlists WHERE id = ?1`,
+      id,
+    ))
+  }
+
+  async upsertPlaylist(playlist: ReaderPlaylistRecord): Promise<void> {
+    this.#assertOpen()
+    assertPlaylist(playlist)
+    await this.#write(() => {
+      this.database.run(
+        `INSERT INTO xr_reader_playlists (id, name, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
+        playlist.id,
+        playlist.name,
+        playlist.createdAt,
+        playlist.updatedAt,
+      )
+    })
+  }
+
+  async deletePlaylist(id: string): Promise<boolean> {
+    this.#assertOpen()
+    let deleted = false
+    await this.#transaction(() => {
+      this.database.run("DELETE FROM xr_reader_playlist_entries WHERE playlist_id = ?1", id)
+      deleted = this.database.run("DELETE FROM xr_reader_playlists WHERE id = ?1", id).changes > 0
+    })
+    return deleted
+  }
+
+  async listPlaylistEntries(playlistId: string): Promise<readonly ReaderPlaylistEntryRecord[]> {
+    this.#assertOpen()
+    return this.database.all(
+      `SELECT playlist_id, id, source_json, name, position, created_at
+       FROM xr_reader_playlist_entries WHERE playlist_id = ?1
+       ORDER BY position ASC, id ASC`,
+      playlistId,
+    ).map(parsePlaylistEntry)
+  }
+
+  async appendPlaylistEntries(playlistId: string, entries: readonly ReaderPlaylistEntryRecord[], updatedAt: number): Promise<void> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Reader playlist updatedAt is invalid.")
+    const normalized = entries.map((entry) => ({ ...entry, playlistId }))
+    if (!normalized.length || normalized.length > 500) throw new Error("Reader playlist append batch is invalid.")
+    for (const entry of normalized) assertPlaylistEntry(entry)
+    if (new Set(normalized.map((entry) => entry.id)).size !== normalized.length) throw new Error("Reader playlist append contains duplicate entry ids.")
+    await this.#transaction(() => {
+      const playlist = this.database.get("SELECT id FROM xr_reader_playlists WHERE id = ?1", playlistId)
+      if (!playlist) throw new Error("Reader playlist does not exist.")
+      const countRow = this.database.get(
+        "SELECT COUNT(*) AS count FROM xr_reader_playlist_entries WHERE playlist_id = ?1",
+        playlistId,
+      )
+      const count = requireInteger(countRow?.count, "playlist entry count")
+      if (count + normalized.length > 10_000) throw new Error("Reader playlist entries are limited to 10000.")
+      const expected = new Set(Array.from({ length: normalized.length }, (_, index) => count + index))
+      if (normalized.some((entry) => !expected.delete(entry.position)) || expected.size) {
+        throw new Error("Reader playlist append positions must immediately follow existing entries.")
+      }
+      for (const entry of normalized) {
+        this.database.run(
+          `INSERT INTO xr_reader_playlist_entries (playlist_id, id, source_json, name, position, created_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+          playlistId,
+          entry.id,
+          JSON.stringify(entry.source),
+          entry.name,
+          entry.position,
+          entry.createdAt,
+        )
+      }
+      this.database.run("UPDATE xr_reader_playlists SET updated_at = ?2 WHERE id = ?1", playlistId, updatedAt)
+    })
+  }
+
+  async deletePlaylistEntries(playlistId: string, entryIds: readonly string[], updatedAt: number): Promise<number> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Reader playlist updatedAt is invalid.")
+    const encodedIds = encodeBatchDeleteIds(entryIds, "playlist entry")
+    return this.#transaction(() => {
+      const deleted = this.database.run(
+        `DELETE FROM xr_reader_playlist_entries
+         WHERE playlist_id = ?1 AND id IN (SELECT value FROM json_each(?2))`,
+        playlistId,
+        encodedIds,
+      ).changes
+      if (deleted) {
+        this.#normalizePlaylistEntryPositions(playlistId)
+        this.database.run("UPDATE xr_reader_playlists SET updated_at = ?2 WHERE id = ?1", playlistId, updatedAt)
+      }
+      return deleted
+    })
+  }
+
+  async replacePlaylistEntryOrder(playlistId: string, entryIds: readonly string[], updatedAt: number): Promise<void> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Reader playlist updatedAt is invalid.")
+    if (entryIds.length > 10_000 || new Set(entryIds).size !== entryIds.length) throw new Error("Reader playlist order is invalid.")
+    await this.#transaction(() => {
+      const current = this.database.all(
+        "SELECT id FROM xr_reader_playlist_entries WHERE playlist_id = ?1 ORDER BY position ASC, id ASC",
+        playlistId,
+      ).map((row) => requireString(row.id, "playlist entry id"))
+      if (current.length !== entryIds.length || current.some((id) => !entryIds.includes(id))) {
+        throw new Error("Reader playlist order must include every existing entry exactly once.")
+      }
+      this.database.run("UPDATE xr_reader_playlist_entries SET position = position + 10000 WHERE playlist_id = ?1", playlistId)
+      for (const [position, id] of entryIds.entries()) {
+        this.database.run(
+          "UPDATE xr_reader_playlist_entries SET position = ?3 WHERE playlist_id = ?1 AND id = ?2",
+          playlistId,
+          id,
+          position,
+        )
+      }
+      this.database.run("UPDATE xr_reader_playlists SET updated_at = ?2 WHERE id = ?1", playlistId, updatedAt)
+    })
+  }
+
+  #normalizePlaylistEntryPositions(playlistId: string): void {
+    const ids = this.database.all(
+      "SELECT id FROM xr_reader_playlist_entries WHERE playlist_id = ?1 ORDER BY position ASC, id ASC",
+      playlistId,
+    ).map((row) => requireString(row.id, "playlist entry id"))
+    this.database.run("UPDATE xr_reader_playlist_entries SET position = position + 10000 WHERE playlist_id = ?1", playlistId)
+    for (const [position, id] of ids.entries()) {
+      this.database.run(
+        "UPDATE xr_reader_playlist_entries SET position = ?3 WHERE playlist_id = ?1 AND id = ?2",
+        playlistId,
+        id,
+        position,
+      )
+    }
+  }
+
   async getGlobalDefault(): Promise<ReaderDirectorySortRule | undefined> {
     this.#assertOpen()
     return parseDirectorySort(this.database.get(
@@ -1477,6 +1650,48 @@ function parseBookmarkList(row: Record<string, unknown>): ReaderBookmarkListReco
     isFavorite: requireBooleanInteger(row.is_favorite, "bookmark list favorite"),
     createdAt: requireInteger(row.created_at, "bookmark list created time"),
     updatedAt: requireInteger(row.updated_at, "bookmark list updated time"),
+  }
+}
+
+function parsePlaylist(row: Record<string, unknown> | undefined): ReaderPlaylistRecord | undefined {
+  if (!row) return undefined
+  const playlist = {
+    id: requireString(row.id, "playlist id"),
+    name: requireString(row.name, "playlist name"),
+    createdAt: requireInteger(row.created_at, "playlist created time"),
+    updatedAt: requireInteger(row.updated_at, "playlist updated time"),
+  }
+  assertPlaylist(playlist)
+  return playlist
+}
+
+function parsePlaylistEntry(row: Record<string, unknown>): ReaderPlaylistEntryRecord {
+  const entry = {
+    id: requireString(row.id, "playlist entry id"),
+    playlistId: requireString(row.playlist_id, "playlist entry playlist id"),
+    source: parseSource(row.source_json),
+    name: requireString(row.name, "playlist entry name"),
+    position: requireInteger(row.position, "playlist entry position"),
+    createdAt: requireInteger(row.created_at, "playlist entry created time"),
+  }
+  assertPlaylistEntry(entry)
+  return entry
+}
+
+function assertPlaylist(playlist: ReaderPlaylistRecord): void {
+  assertText(playlist.id, "playlist id")
+  assertText(playlist.name, "playlist name")
+  if (!Number.isSafeInteger(playlist.createdAt) || playlist.createdAt < 0 || !Number.isSafeInteger(playlist.updatedAt) || playlist.updatedAt < 0) {
+    throw new Error("Reader playlist time is invalid.")
+  }
+}
+
+function assertPlaylistEntry(entry: ReaderPlaylistEntryRecord): void {
+  assertText(entry.id, "playlist entry id")
+  assertText(entry.playlistId, "playlist entry playlist id")
+  assertText(entry.name, "playlist entry name")
+  if (!Number.isSafeInteger(entry.position) || entry.position < 0 || !Number.isSafeInteger(entry.createdAt) || entry.createdAt < 0) {
+    throw new Error("Reader playlist entry is invalid.")
   }
 }
 

@@ -257,6 +257,16 @@ export type {
   ReaderOldestBookmarkDeleteResult,
   ReaderRecentQuery,
 } from "./ports/ReaderLibraryStore.js"
+export {
+  ReaderPlaylistService,
+  type AppendReaderPlaylistEntryInput,
+  type SaveReaderPlaylistInput,
+} from "./application/library/ReaderPlaylistService.js"
+export type {
+  ReaderPlaylistEntryRecord,
+  ReaderPlaylistRecord,
+  ReaderPlaylistStore,
+} from "./ports/ReaderPlaylistStore.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
 export {
   ReaderAdjacentBookService,
