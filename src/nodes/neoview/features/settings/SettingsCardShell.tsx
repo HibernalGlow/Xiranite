@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
+import { useReaderCardChrome } from "../panels/ReaderCardChromeContext"
 
 export function SettingsCardShell({
   id,
@@ -19,9 +20,15 @@ export function SettingsCardShell({
   children: ReactNode
   className?: string
 }) {
+  const embeddedInReaderCard = useReaderCardChrome()
   return (
-    <section className={cn("flex flex-col gap-3 rounded-md border bg-card/50 p-3", className)} data-neoview-settings-card={id}>
-      <header className="flex flex-wrap items-start justify-between gap-2 border-b pb-2">
+    <section className={cn("flex flex-col gap-3 rounded-md border bg-card/50 p-3", embeddedInReaderCard && "rounded-none border-0 bg-transparent p-0", className)} data-neoview-settings-card={id}>
+      {embeddedInReaderCard ? (
+        description || actions ? <div className="flex flex-wrap items-start justify-between gap-2 border-b pb-2">
+          {description ? <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">{description}</p> : <span />}
+          {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        </div> : null
+      ) : <header className="flex flex-wrap items-start justify-between gap-2 border-b pb-2">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-base font-semibold leading-none">
             {Icon ? <Icon className="size-4 shrink-0 text-muted-foreground" /> : null}
@@ -30,7 +37,7 @@ export function SettingsCardShell({
           {description ? <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{description}</p> : null}
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
-      </header>
+      </header>}
       <div className="flex flex-col gap-3">{children}</div>
     </section>
   )
