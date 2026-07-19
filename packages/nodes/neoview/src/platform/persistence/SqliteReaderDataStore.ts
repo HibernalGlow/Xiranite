@@ -48,9 +48,11 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
   readonly #legacyDirectoryEmmAvailable: boolean
   readonly #directoryRatingDataAvailable: boolean
   readonly #directoryManualTagsAvailable: boolean
+  readonly #platform: NodeJS.Platform
   #closed = false
 
-  private constructor(private readonly database: WritableSqliteConnection) {
+  private constructor(private readonly database: WritableSqliteConnection, platform: NodeJS.Platform = process.platform) {
+    this.#platform = platform
     const columns = new Set(database.all("PRAGMA table_info(thumbs)").flatMap((row) => typeof row.name === "string" ? [row.name] : []))
     this.#legacyDirectoryEmmAvailable = columns.has("key") && columns.has("emm_json")
     this.directoryEmmAvailable = true
@@ -58,7 +60,7 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     this.#directoryManualTagsAvailable = columns.has("manual_tags")
   }
 
-  static async open(path: string): Promise<SqliteReaderDataStore> {
+  static async open(path: string, options: { platform?: NodeJS.Platform } = {}): Promise<SqliteReaderDataStore> {
     const database = await openWritableSqlite(path, { create: true })
     try {
       database.exec(`
@@ -164,7 +166,7 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
           ON xr_reader_emm_overrides (updated_at DESC, path_key ASC);
         PRAGMA busy_timeout = 50;
       `)
-      return new SqliteReaderDataStore(database)
+      return new SqliteReaderDataStore(database, options.platform)
     } catch (error) {
       database.close()
       throw error
@@ -534,11 +536,14 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
 
   async findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined> {
     this.#assertOpen()
-    const normalizedPath = normalizeBookmarkPath(path)
+    const normalizedPath = normalizeBookmarkPath(path, this.#platform)
+    const pathExpression = this.#platform === "win32"
+      ? "lower(replace(json_extract(source_json, '$.path'), char(92), '/'))"
+      : "replace(json_extract(source_json, '$.path'), char(92), '/')"
     const row = this.database.get(
       `SELECT id, source_json, name, kind, starred, created_at, updated_at
        FROM xr_reader_bookmarks
-       WHERE lower(replace(json_extract(source_json, '$.path'), char(92), '/')) = ?1
+       WHERE ${pathExpression} = ?1
        ORDER BY updated_at DESC, id ASC LIMIT 1`,
       normalizedPath,
     )
@@ -1530,10 +1535,11 @@ function encodeBatchDeleteIds(ids: readonly string[], name: string): string {
   return JSON.stringify(normalized)
 }
 
-function normalizeBookmarkPath(path: string): string {
-  const normalized = path.trim().replaceAll("\\", "/").toLocaleLowerCase("en-US")
-  if (!normalized || normalized.length > 32_768 || normalized.includes("\0")) throw new Error("Reader bookmark path is invalid.")
-  return normalized
+function normalizeBookmarkPath(path: string, platform: NodeJS.Platform = process.platform): string {
+  const normalized = path.trim().replaceAll("\\", "/")
+  const identity = platform === "win32" ? normalized.toLocaleLowerCase("en-US") : normalized
+  if (!identity || identity.length > 32_768 || identity.includes("\0")) throw new Error("Reader bookmark path is invalid.")
+  return identity
 }
 
 function parseSearchHistory(row: Record<string, unknown>): ReaderSearchHistoryRecord {
