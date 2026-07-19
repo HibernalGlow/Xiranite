@@ -167,6 +167,35 @@ describe("ReaderLibraryHttpController", () => {
     expect((await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "future", limit: 2 })))?.status).toBe(400)
     expect((await controller.handle(jsonRequest("/reader/library/recents/cleanup", { kind: "oldest", limit: 2, before: 10 })))?.status).toBe(400)
   })
+
+  it("[neoview.library.playlist-http] exposes shared statistics and strict ordered playlist mutations", async () => {
+    const store = Object.assign(createStore(), playlistStore(), {
+      getLibraryStatistics: vi.fn(async () => ({ recentCount: 1, bookmarkCount: 2, bookmarkListCount: 3, mediaProgressCount: 4 })),
+    })
+    store.listPlaylists.mockResolvedValue([])
+    store.getPlaylist.mockResolvedValue({ id: "reading", name: "Reading", createdAt: 10, updatedAt: 10 })
+    store.listPlaylistEntries.mockResolvedValue([])
+    store.deletePlaylist.mockResolvedValue(true)
+    const controller = new ReaderLibraryHttpController(new ReaderLibraryService(store, () => 20, (() => {
+      const ids = ["reading", "entry-1"]
+      return () => ids.shift()!
+    })()))
+
+    await expect((await controller.handle(request("/reader/library/statistics")))!.json()).resolves.toEqual({ recentCount: 1, bookmarkCount: 2, bookmarkListCount: 3, mediaProgressCount: 4 })
+    const created = (await controller.handle(jsonRequest("/reader/library/playlists", { name: "Reading" })))!
+    expect(created.status).toBe(201)
+    await expect(created.json()).resolves.toMatchObject({ id: "reading", name: "Reading" })
+    const appended = (await controller.handle(jsonRequest("/reader/library/playlists/reading/items", {
+      entries: [{ source: { kind: "archive", path: "D:/books/demo.cbz" }, name: "Demo" }],
+    })))!
+    expect(appended.status).toBe(201)
+    expect(store.appendPlaylistEntries).toHaveBeenCalledWith("reading", [expect.objectContaining({ id: "entry-1", position: 0 })], 20)
+    store.listPlaylistEntries.mockResolvedValue([{ id: "entry-1", playlistId: "reading", source: { kind: "archive", path: "D:/books/demo.cbz" }, name: "Demo", position: 0, createdAt: 20 }])
+    expect((await controller.handle(jsonRequest("/reader/library/playlists/reading/items/order", { ids: ["entry-1"] }, "PUT")))?.status).toBe(204)
+    expect(store.replacePlaylistEntryOrder).toHaveBeenCalledWith("reading", ["entry-1"], 20)
+    expect((await controller.handle(jsonRequest("/reader/library/playlists/reading/items", { entries: [] })))?.status).toBe(400)
+    expect((await controller.handle(request("/reader/library/playlists/reading", { method: "DELETE" })))?.status).toBe(204)
+  })
 })
 
 function createStore() {
@@ -192,6 +221,19 @@ function createStore() {
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(),
     close: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
+  }
+}
+
+function playlistStore() {
+  return {
+    listPlaylists: vi.fn(),
+    getPlaylist: vi.fn(),
+    upsertPlaylist: vi.fn(),
+    deletePlaylist: vi.fn(),
+    listPlaylistEntries: vi.fn(),
+    appendPlaylistEntries: vi.fn(),
+    deletePlaylistEntries: vi.fn(),
+    replacePlaylistEntryOrder: vi.fn(),
   }
 }
 
