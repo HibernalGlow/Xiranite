@@ -1,4 +1,5 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
+import { resolveManagedFrontendUrl } from "./dev-frontend-url"
 
 process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 process.env.XIRANITE_NODE_SOURCE = "1"
@@ -35,7 +36,7 @@ async function restartBackendFromDevScript() {
 backend = await startManagedBackend()
 await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token })
 const args = process.argv.slice(2)
-const frontendUrl = Bun.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${Bun.env.XIRANITE_FRONTEND_PORT ?? "5173"}`
+const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
 
