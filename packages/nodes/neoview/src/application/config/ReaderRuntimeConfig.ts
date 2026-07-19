@@ -8,6 +8,7 @@ import {
 } from "../../domain/page/media.js"
 import type { ReaderSessionOptions } from "../reader/contracts.js"
 import { READER_CARD_MANIFEST, READER_PANEL_MANIFEST, readerCardCanMoveTo } from "./ReaderLayoutManifest.js"
+import { unwrapNeoviewConfigEnvelope } from "./NeoviewConfigEnvelope.js"
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
@@ -610,7 +611,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
     radialMenu: parseReaderRadialMenuConfig(undefined),
   }
-  const config = requireRecord(value, "[nodes.neoview]")
+  const config = unwrapNeoviewConfigEnvelope(value)
   const schemaVersion = config.schema_version ?? 1
   if (schemaVersion !== 1) throw new Error(`[nodes.neoview].schema_version must be 1, received ${String(schemaVersion)}.`)
   const reader = optionalRecord(config.reader, "[nodes.neoview.reader]")

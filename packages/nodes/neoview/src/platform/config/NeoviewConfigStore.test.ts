@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { parseToml } from "@xiranite/config"
 import { lock } from "proper-lockfile"
-import { commitNeoviewConfig } from "./NeoviewConfigStore.js"
+import { commitNeoviewConfig, readNeoviewConfig } from "./NeoviewConfigStore.js"
 import { parseNeoviewRuntimeConfig, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
 
 describe("commitNeoviewConfig", () => {
@@ -60,8 +60,14 @@ describe("commitNeoviewConfig", () => {
       system: { excluded_paths: ["D:/new"] },
     })
     expect(await readFile(result.backupPath!, "utf8")).toBe(original)
-    const written = parseToml(await readFile(configPath, "utf8")) as Record<string, any>
+    const writtenText = await readFile(configPath, "utf8")
+    const written = parseToml(writtenText) as Record<string, any>
     expect(written.app.shell.language).toBe("zh")
+    expect(written.nodes.neoview.config.reader.book).toEqual({
+      reading_direction: "right-to-left",
+      double_page_view: false,
+    })
+    expect(writtenText).not.toContain("[nodes.neoview.reader")
   })
 
   it("overwrite replaces only [nodes.neoview] and is idempotent", async () => {
@@ -78,6 +84,7 @@ describe("commitNeoviewConfig", () => {
     expect(second.nodeConfig).not.toHaveProperty("old")
     const written = parseToml(await readFile(configPath, "utf8")) as Record<string, any>
     expect(written.nodes.other.enabled).toBe(true)
+    expect(written.nodes.neoview).toEqual({ config: patch })
   })
 
   it("[neoview.switch-toast.persistence] atomically writes canonical leaves and preserves future fields", async () => {
@@ -108,8 +115,46 @@ describe("commitNeoviewConfig", () => {
       bookTitleTemplate: "已切换到 {{book.displayName}}",
     })
     const written = await readFile(configPath, "utf8")
-    expect(written).toContain("[nodes.neoview.view.switch_toast]")
-    expect(written).toContain('future_field = "keep"')
+    expect(written).toContain("config = { ")
+    expect(written).not.toContain("[nodes.neoview.view.switch_toast]")
+    expect((parseToml(written) as Record<string, any>).nodes.neoview.config.view.switch_toast.future_field).toBe("keep")
+  })
+
+  it("[neoview.settings.format-compat] reads optimized, legacy, and mixed formats with optimized values taking precedence", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "config = { reader = { double_page_view = true }, future = { optimized = true } }",
+      "[nodes.neoview.reader]",
+      "double_page_view = false",
+      "reading_direction = \"right-to-left\"",
+      "",
+    ].join("\n"), "utf8")
+
+    expect(await readNeoviewConfig({ configPath })).toEqual({
+      schema_version: 1,
+      reader: { double_page_view: true, reading_direction: "right-to-left" },
+      future: { optimized: true },
+    })
+    const runtime = parseNeoviewRuntimeConfig((parseToml(await readFile(configPath, "utf8")) as Record<string, any>).nodes.neoview)
+    expect(runtime.viewDefaults.pageMode).toBe("double")
+    expect(runtime.sessionOptions.direction).toBe("right-to-left")
+  })
+
+  it("[neoview.settings.format-canonicalization] rewrites a semantically unchanged legacy config on the next commit", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, "[nodes.neoview.reader]\ndouble_page_view = true\n", "utf8")
+
+    const result = await commitNeoviewConfig({}, { configPath, strategy: "merge" })
+    const written = await readFile(configPath, "utf8")
+
+    expect(result.changed).toBe(true)
+    expect(written).toContain("[nodes.neoview]\nconfig = { reader = { double_page_view = true } }")
+    expect(written).not.toContain("[nodes.neoview.reader]")
   })
 
   it("[neoview.settings.cross-process-lock] serializes concurrent read-merge-write operations without losing fields", async () => {
@@ -123,7 +168,7 @@ describe("commitNeoviewConfig", () => {
 
     expect(results.every((result) => result.changed)).toBe(true)
     const written = parseToml(await readFile(configPath, "utf8")) as Record<string, any>
-    expect(written.nodes.neoview.concurrent).toEqual(Object.fromEntries(
+    expect(written.nodes.neoview.config.concurrent).toEqual(Object.fromEntries(
       Array.from({ length: 12 }, (_, index) => [`writer_${index}`, index]),
     ))
   })
