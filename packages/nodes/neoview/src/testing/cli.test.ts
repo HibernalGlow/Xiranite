@@ -819,11 +819,12 @@ describe("NeoView CLI", () => {
     }
   })
 
-  it("[neoview.image-trim.cli] exposes strict linked get/set/reset values in canonical TOML", async () => {
+  it("[neoview.image-trim.cli] [neoview.image-trim.persistence] exposes strict linked get/set/reset values in canonical TOML", async () => {
     await expect(runProgram(["image-trim-ui"], host([]))).rejects.toThrow("interactive terminal")
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-image-trim-cli-"))
     const configPath = join(directory, "xiranite.config.toml")
     try {
+      await writeFile(configPath, "[nodes.neoview]\nfuture_image_trim_owner = \"keep\"\n", "utf8")
       const initial: unknown[] = []
       await runProgram(["image-trim-get", "--config", configPath, "--json"], host(initial))
       expect(JSON.parse(initial.join(""))).toEqual({
@@ -868,6 +869,7 @@ describe("NeoView CLI", () => {
       const toml = await readFile(configPath, "utf8")
       expect(toml).toContain("[nodes.neoview.view]")
       expect(toml).toContain("link_vertical = true")
+      expect(toml).toContain('future_image_trim_owner = "keep"')
       expect(toml).not.toContain("linkVertical")
 
       await expect(runProgram(["image-trim-set", "--config", configPath, "--top", "46"], host([])))
@@ -878,6 +880,7 @@ describe("NeoView CLI", () => {
         .rejects.toThrow("autoTrimTarget")
 
       await runProgram(["image-trim-reset", "--config", configPath], host([]))
+      expect(await readFile(configPath, "utf8")).toContain('future_image_trim_owner = "keep"')
       const reset: unknown[] = []
       await runProgram(["image-trim-get", "--config", configPath, "--json"], host(reset))
       expect(JSON.parse(reset.join(""))).toEqual({

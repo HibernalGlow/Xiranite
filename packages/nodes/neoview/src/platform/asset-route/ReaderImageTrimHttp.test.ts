@@ -9,7 +9,7 @@ import type { NeoviewImageTrimPatch } from "../../application/config/ReaderRunti
 import { ReaderHttpController } from "./ReaderHttpController.js"
 
 describe("Reader image trim HTTP", () => {
-  it("[neoview.image-trim.transport-linked] [neoview.image-trim.threshold-http] [neoview.image-trim.target-http] [neoview.image-trim.reset-http] serializes validated projections against the latest committed state", async () => {
+  it("[neoview.image-trim.transport-linked] [neoview.image-trim.persistence] [neoview.image-trim.threshold-http] [neoview.image-trim.target-http] [neoview.image-trim.reset-http] serializes validated projections against the latest committed state", async () => {
     let committed: ReaderImageTrimSettings = {
       ...DEFAULT_READER_IMAGE_TRIM,
       top: 10,

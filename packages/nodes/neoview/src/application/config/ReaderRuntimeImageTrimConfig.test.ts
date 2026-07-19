@@ -16,7 +16,7 @@ describe("ReaderRuntimeImageTrimConfig", () => {
     })
   })
 
-  it("[neoview.image-trim.patch] emits canonical snake_case TOML", () => {
+  it("[neoview.image-trim.patch] [neoview.image-trim.persistence] emits canonical snake_case TOML", () => {
     expect(parseNeoviewImageTrimPatch({ imageTrim: { enabled: true, top: 10.5, linkVertical: true, autoTrimTarget: "black" } })).toEqual({
       patch: { imageTrim: { enabled: true, top: 10.5, linkVertical: true, autoTrimTarget: "black" } },
       tomlPatch: { view: { image_trim: { enabled: true, top: 10.5, link_vertical: true, auto_trim_target: "black" } } },

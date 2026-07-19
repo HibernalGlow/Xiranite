@@ -7,7 +7,7 @@ import type { ReaderImageTrimDetectionOutcome } from "../../image-trim/ReaderIma
 afterEach(cleanup)
 
 describe("ImageTrimCard", () => {
-  it("[neoview.image-trim.loading] remains resident while the injected configuration hydrates", () => {
+  it("[neoview.image-trim.loading] [neoview.image-trim.states] remains resident while the injected configuration hydrates", () => {
     const view = render(<ImageTrimCard />)
     expect(view.container.querySelector('[data-neoview-card="image-trim"]')).toBeTruthy()
     expect(view.container.querySelector('[data-image-trim-state="loading"]')).toBeTruthy()
@@ -89,7 +89,7 @@ describe("ImageTrimCard", () => {
     expect(port.reset).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.image-trim.action-status] reports detecting, success and no-border states", async () => {
+  it("[neoview.image-trim.action-status] [neoview.image-trim.states] reports detecting, success and no-border states", async () => {
     const port = memoryPort({ ...defaults(), enabled: true })
     let finish!: (outcome: ReaderImageTrimDetectionOutcome) => void
     port.autoDetect.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
@@ -104,7 +104,7 @@ describe("ImageTrimCard", () => {
     await waitFor(() => expect(screen.getByText("未检测到明显边框")).toBeTruthy())
   })
 
-  it("[neoview.image-trim.error-retry] preserves a retryable error state", async () => {
+  it("[neoview.image-trim.error-retry] [neoview.image-trim.states] preserves a retryable error state", async () => {
     const port = memoryPort({ ...defaults(), enabled: true })
     port.autoDetect.mockRejectedValueOnce(new Error("canvas failed"))
     render(<ImageTrimCard port={port} />)
