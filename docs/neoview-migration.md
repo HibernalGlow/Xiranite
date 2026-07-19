@@ -201,7 +201,7 @@ EPUB 与 PDF 仍是两个独立 capability；EPUB provider 落地不改变 PDF d
 | 缩略图 | 显示、生成与在线维护纵切可用 | 64 页 cursor 批次、横向 ThumbnailStrip 与纵向 PageList 虚拟窗口、PageList 服务端搜索、按视图跳过/启用预热、旧库批量预热、Page/file/folder/video 生成、WebP BLOB 单库持久化；共享 maintenance service 统一 stats、空 Blob、过期 file、无效路径和失败记录清理；GUI HTTP request abort 贯穿 service/lazy store/SQLite 扫描并保持取消批次游标可重试 | 区域筛选、备份/checkpoint/vacuum 离线编排与旧版本迁移 |
 | 四边 Shell | 进行中（读写布局与 pin 纵切完成） | AST provenance 的 top/right/bottom/left slot；trigger、显隐、pinned、延迟、透明度、模糊、左右宽度/高度/垂直对齐/水平偏移均从 Xiranite TOML 的规范化 DTO 读取；左右图标轨已迁入 Pin/PinOff 控件，单次 sidebar PATCH 原子写入 `pinned`，解除固定后恢复 hide delay 与零 DOM；resize/drag 的 pointermove 仅改 DOM style，pointerup 单次 PATCH；IME/浮层、Escape、零挂载；配置异步到达不重挂活动 `<img>` | 空白点击策略、open 的显式用户控制、完整旧 sidebar lock-state 导入、更多布局预设/独立窗口行为 |
 | Panel/Card | 兼容布局、折叠、Card 高度与设置态管理纵切 | Panel/Card 默认值、`requiresSession/settingsSectionId` 和能力约束已收口为节点包纯 TS manifest，后端默认配置/校验、设置窗口 host 与 React sidebar lazy loader 共用；设置窗口按 section 二级动态加载 Card；显式停靠的设置 Card 无需先打开书籍，业务 Card 在无 session 时不会产生 Panel/DOM；全量 board 携带 `expectedRevision`，后端串行写队列以 `409` 拒绝陈旧快照；固定 Card 不能隐藏，未实现 host 不能接收已知 Card；Card 高度拖动仅用 ref/DOM style，pointerup 单次 PATCH | 其余全部业务卡片、Panel 高级组件设置、独立 card window/tab |
-| 完整阅读工具与设置 UI | 设置浮窗、三张共享设置 Card 与首批视图/幻灯片工具可用 | 路径打开、前后/页码/关闭；fit mode 菜单、单双页 segmented control、缩放、旋转、reset 及 `+/-/R/0` 快捷键；fit/page mode 默认值写入 Xiranite TOML 并立即作用于当前视图与同进程后续书籍；工具栏、设置窗与停靠 Card 共用单一串行写队列，按服务端确认快照处理失败回滚；共享 TS `ReaderSlideshow` 以单个 deadline timeout 提供播放/暂停、1～60 秒间隔、循环、随机、剩余时间与慢导航串行化；`interval/loop/random/fadeTransition` 兼容旧 `reader.slideshow` 与 `book.autoPageTurnInterval`，统一规范化到 `[nodes.neoview.slideshow]`，工具栏经同一后端/前端串行写队列持久化并按确认快照回滚；按 `setting.png` 建立独立设置浮窗，“视图默认值”“边栏管理”和“卡片管理”由同一 Card registry 按 section 二级动态加载，也可显式停靠到侧栏 | slideshow 完整 overlay、淡入淡出实际渲染与 TUI、原 TopToolbar 其余功能、阅读方向/尾页等尚无严格写入契约的视图设置、其余设置分类业务卡、文件浏览、历史/书签、超分、AI、benchmark、完整快捷操作 |
+| 完整阅读工具与设置 UI | 设置浮窗、共享设置 Card 与首批视图/幻灯片工具可用 | 路径打开、前后/页码/关闭；fit mode 菜单、单双页 segmented control、缩放、旋转、reset 及 `+/-/R/0` 快捷键；fit/page mode 默认值写入 Xiranite TOML 并立即作用于当前视图与同进程后续书籍；工具栏、设置窗与停靠 Card 共用单一串行写队列，按服务端确认快照处理失败回滚；共享 TS `ReaderSlideshow` 以单个 deadline timeout 提供播放/暂停、1～60 秒间隔、循环、随机、剩余时间与慢导航串行化；`interval/loop/random/fadeTransition` 兼容旧 `reader.slideshow` 与 `book.autoPageTurnInterval`，统一规范化到 `[nodes.neoview.slideshow]`，工具栏经同一后端/前端串行写队列持久化并按确认快照回滚；按 `setting.png` 建立独立设置浮窗，“视图默认值”与合并后的“布局”Card 由同一 registry 按 section 二级动态加载，布局 Card 以左/右/隐藏三泳道统一管理 Panel 与 Card，也可显式停靠到侧栏 | slideshow 完整 overlay、淡入淡出实际渲染与 TUI、原 TopToolbar 其余功能、阅读方向/尾页等尚无严格写入契约的视图设置、其余设置分类业务卡、文件浏览、历史/书签、超分、AI、benchmark、完整快捷操作 |
 
 当前验证证据（数值随复跑波动，以预算和原始输出为准）：
 
@@ -863,10 +863,11 @@ Panel 与 Card 是两层注册系统：`PanelRegistry` 决定 panel 的位置、
 
 Panel/Card 拖拽固定采用“设置态 Kanban、阅读态静态渲染”的双层呈现，而不是让 ReaderSidebar 常驻 DnD：
 
-- `migration/neoview/setting.png` 固定为独立设置浮窗的结构 characterization fixture：大尺寸浮窗、左侧设置分类导航、右侧分类工作区；“边栏管理”和“卡片管理”是两个独立设置页，不能塞回 Reader 的 settings Panel；
-- 设置浮窗不是第二套组件体系：每个设置模块本身也是共享 Card，必须进入统一 Card registry；设置浮窗是默认宿主，用户也可在“卡片管理”把设置 Card 从“隐藏/未停靠”列拖到任意侧栏 Panel，Reader 随后仍按静态 Card 布局渲染；
-- 复用仓库已有的 Dice UI `src/components/ui/kanban.tsx`；KanbanColumn 表示逻辑 Panel，KanbanItem 表示 Card；
-- Kanban 只允许在“NeoView 独立设置浮窗 → 卡片管理”中动态加载，用于显隐、排序和跨 Panel/左右栏移动；设置浮窗默认打开“边栏管理”，不得因此提前加载 DnD；Kanban 必须包含“隐藏/未停靠”列，设置 Card 默认位于该列而不是自动占用阅读侧栏；
+- `migration/neoview/setting.png` 固定为独立设置浮窗的结构 characterization fixture：大尺寸浮窗、左侧设置分类导航、右侧分类工作区；原“边栏管理”和“卡片管理”合并为一个“布局”设置页，不塞回 Reader 的 settings Panel；
+- 设置浮窗不是第二套组件体系：每个设置模块本身也是共享 Card，必须进入统一 Card registry；统一布局页固定提供“左侧栏 / 右侧栏 / 隐藏”三泳道，Panel 作为泳道项跨栏排序，Card 在 Panel 之间排序和停靠，Reader 随后仍按静态 Card 布局渲染；
+- 直接复用仓库已有的 `src/components/ui/kanban.tsx` 与 Lane 折叠图标；三条 `KanbanColumn` 使用 LaneView 相同的 320px 横向滚动、48px 折叠栏、标题栏和拖拽预览几何，Panel 与 Card 均使用 `KanbanItem` / `KanbanItemHandle`；
+- `folder-main`、`history-list`、`bookmark-list` 在共享 Card manifest 中显式声明 `exclusivePanel`：布局泳道同时在 Card 与所属 Panel 标注“独占面板”，可见状态下禁止与其他 Card 共用 Panel；Reader 仅在声明的独占 Card 确实单独占用 Panel 时启用全尺寸无框渲染，不能再以“当前只有一张 Card”推断；
+- Kanban 只允许在“NeoView 独立设置浮窗 → 布局”中动态加载，用于显隐、排序和跨 Panel/左右栏移动；设置浮窗默认打开“布局”，不得因此提前加载 DnD；“隐藏”泳道必须可见且可接收允许隐藏的 Panel/Card，设置 Card 默认位于该泳道而不是自动占用阅读侧栏；
 - 普通 Reader 继续由 `ReaderSidebar + CollapsibleReaderCard` 按规范化 TOML 快照静态渲染，不挂载 DndContext、sensor、collision detection 或 DragOverlay；
 - 编辑过程只维护设置页草稿，保存时把完整布局压缩为一次批量 PATCH 和一次 TOML 原子写入，不在 drag over/pointer move 中写配置；
 - Card 标题栏使用独立 drag handle，折叠、输入、滚动、resize 和上下文菜单不得成为拖拽触发区；

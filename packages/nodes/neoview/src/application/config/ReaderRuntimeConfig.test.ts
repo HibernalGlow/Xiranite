@@ -730,5 +730,19 @@ describe("parseNeoviewRuntimeConfig", () => {
       panels: [{ id: "cardwindow", visible: true, order: 0, position: "floating" }],
       cards: [{ cardId: "book-information", panelId: "cardwindow", visible: true, order: 0 }],
     } })).toThrow("cannot be placed in a floating panel")
+    expect(() => parseNeoviewBoardLayoutPatch({ expectedRevision: 0, board: {
+      panels: [{ id: "history", visible: true, order: 0, position: "left" }],
+      cards: [
+        { cardId: "history-list", panelId: "history", visible: true, order: 0 },
+        { cardId: "book-information", panelId: "history", visible: true, order: 1 },
+      ],
+    } })).toThrow("history-list requires exclusive panel history")
+    expect(() => parseNeoviewBoardLayoutPatch({ expectedRevision: 0, board: {
+      panels: [{ id: "history", visible: true, order: 0, position: "left" }],
+      cards: [
+        { cardId: "history-list", panelId: "history", visible: true, order: 0 },
+        { cardId: "book-information", panelId: "history", visible: false, order: 1 },
+      ],
+    } })).not.toThrow()
   })
 })

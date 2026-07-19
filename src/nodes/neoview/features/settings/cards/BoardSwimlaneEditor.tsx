@@ -8,15 +8,15 @@ import type {
 import { closestCenter, pointerWithin, rectIntersection } from "@dnd-kit/core"
 import {
   SortableContext,
-  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, LayoutGrid, RotateCcw, Save } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanItemHandle, KanbanOverlay } from "@/components/ui/kanban"
+import { LaneCollapseIcon } from "@/components/workspace/lane/LaneCollapseIcon"
 import { cn } from "@/lib/utils"
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../../adapters/reader-http-client"
 import { CARD_DEFINITIONS, PANEL_DEFINITIONS } from "../../panels/registry"
@@ -28,6 +28,7 @@ interface BoardCard {
   id: string
   title: string
   canHide: boolean
+  exclusivePanel: boolean
 }
 
 interface BoardPanel {
@@ -56,6 +57,8 @@ interface DragState {
   title: string
   emoji?: string
   cardCount?: number
+  width?: number
+  height?: number
 }
 
 /**
@@ -75,17 +78,11 @@ export function BoardSwimlaneEditor({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState<DragState>()
+  const [collapsedLanes, setCollapsedLanes] = useState<Record<LaneId, boolean>>({ left: false, right: false, hidden: false })
+  const dragInitialLanesRef = useRef<BoardLanes>()
 
   useEffect(() => setLanes(createBoardLanes(shell)), [shell])
 
-  const panelIds = useMemo(
-    () => ({
-      left: lanes.left.map((panel) => panel.id),
-      right: lanes.right.map((panel) => panel.id),
-      hidden: lanes.hidden.map((panel) => panel.id),
-    }),
-    [lanes],
-  )
   const panelColumns = useMemo<Record<UniqueIdentifier, BoardPanel[]>>(() => ({
     left: lanes.left,
     right: lanes.right,
@@ -107,8 +104,15 @@ export function BoardSwimlaneEditor({
     }
 
     const targets = pointerWithin(args).filter((target) => String(target.id) !== activeId)
-    if (targets.length) return targets
-    return rectIntersection(args).filter((target) => String(target.id) !== activeId)
+    const cardTarget = targets.find((target) => findCardLocation(lanes, String(target.id)))
+    if (cardTarget) return [cardTarget]
+    const panelTarget = targets.find((target) => findPanelLocation(lanes, String(target.id)))
+    if (panelTarget) return [panelTarget]
+
+    const intersections = rectIntersection(args).filter((target) => String(target.id) !== activeId)
+    const intersectedCard = intersections.find((target) => findCardLocation(lanes, String(target.id)))
+    if (intersectedCard) return [intersectedCard]
+    return intersections
   }, [lanes])
 
   async function save() {
@@ -138,12 +142,15 @@ export function BoardSwimlaneEditor({
     const kind: DragKind | undefined = panel ? "panel" : card ? "card" : undefined
     const title = panel?.title ?? card?.title ?? activeId
     if (kind === "panel" || kind === "card") {
+      dragInitialLanesRef.current = cloneLanes(lanes)
       setDrag({
         kind,
         id: activeId,
         title,
         emoji: panel?.emoji,
         cardCount: panel?.cards.length,
+        width: event.active.rect.current.initial?.width,
+        height: event.active.rect.current.initial?.height,
       })
     }
   }
@@ -151,9 +158,8 @@ export function BoardSwimlaneEditor({
   function onDragOver(event: DragOverEvent) {
     const { active, over } = event
     if (!over) return
-    const kind = active.data.current?.kind as DragKind | undefined
-    if (kind !== "card") return
     const activeId = String(active.id)
+    if (!findCardLocation(lanes, activeId)) return
     const overId = String(over.id)
     event.activatorEvent.preventDefault()
     setLanes((current) => moveCardOver(current, activeId, overId))
@@ -162,19 +168,30 @@ export function BoardSwimlaneEditor({
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event
     setDrag(undefined)
-    if (!over) return
-    const kind = active.data.current?.kind as DragKind | undefined
-    const activeId = String(active.id)
-    const overId = String(over.id)
-    if (kind === "panel") {
+    const initialLanes = dragInitialLanesRef.current
+    dragInitialLanesRef.current = undefined
+    if (!over) {
+      if (initialLanes) setLanes(initialLanes)
       return
     }
-    if (kind === "card") {
+    const activeId = String(active.id)
+    if (findCardLocation(lanes, activeId)) {
+      if (!cardTargetAccepts(lanes, activeId, String(over.id))) {
+        if (initialLanes) setLanes(initialLanes)
+        return
+      }
       // Card ordering is updated during drag-over. Finalizing against a
       // panel's full-height drop zone would append an untouched card to the
       // bottom merely because the pointer was released over its own panel.
       event.activatorEvent.preventDefault()
     }
+  }
+
+  function onDragCancel() {
+    setDrag(undefined)
+    const initialLanes = dragInitialLanesRef.current
+    dragInitialLanesRef.current = undefined
+    if (initialLanes) setLanes(initialLanes)
   }
 
   function onPanelColumnsChange(columns: Record<UniqueIdentifier, BoardPanel[]>) {
@@ -202,10 +219,13 @@ export function BoardSwimlaneEditor({
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
-        onDragCancel={() => setDrag(undefined)}
+        onDragCancel={onDragCancel}
       >
         <KanbanBoard
-          className={cn("!grid h-auto grid-cols-1 gap-3 md:grid-cols-3", saving && "pointer-events-none opacity-60")}
+          className={cn(
+            "h-[min(68vh,720px)] w-full min-w-0 gap-0 overflow-x-auto overflow-y-hidden rounded-md border",
+            saving && "pointer-events-none opacity-60",
+          )}
           data-neoview-board-swimlanes="true"
         >
           {LANES.map((lane) => (
@@ -213,7 +233,8 @@ export function BoardSwimlaneEditor({
               key={lane.id}
               lane={lane}
               panels={lanes[lane.id]}
-              panelIds={panelIds[lane.id]}
+              collapsed={collapsedLanes[lane.id]}
+              onCollapsedChange={(collapsed) => setCollapsedLanes((current) => ({ ...current, [lane.id]: collapsed }))}
               disabled={saving}
             />
           ))}
@@ -224,7 +245,7 @@ export function BoardSwimlaneEditor({
       </Kanban>
       {error ? <p role="alert" className="text-sm text-destructive">保存失败：{error}</p> : null}
       <p className="text-[11px] text-muted-foreground">
-        提示：不可隐藏的卡片不会进「隐藏」泳道；不接受卡片的面板（如文件夹）只作为面板位存在。
+        提示：不可隐藏的卡片不会进「隐藏」泳道；独占卡片不能与其他卡片共用可见面板。
       </p>
     </SettingsCardShell>
   )
@@ -233,55 +254,93 @@ export function BoardSwimlaneEditor({
 function LaneColumn({
   lane,
   panels,
-  panelIds,
+  collapsed,
+  onCollapsedChange,
   disabled,
 }: {
   lane: (typeof LANES)[number]
   panels: BoardPanel[]
-  panelIds: string[]
+  collapsed: boolean
+  onCollapsedChange(collapsed: boolean): void
   disabled: boolean
 }) {
+  if (collapsed) {
+    return (
+      <KanbanColumn
+        value={lane.id}
+        className="h-full w-12 min-w-12 flex-none items-center gap-2 rounded-none border-0 border-r bg-muted/20 px-1 py-3 hover:bg-muted/40"
+        data-neoview-board-lane={lane.id}
+        data-neoview-board-lane-collapsed="true"
+      >
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={`展开${lane.title}`}
+          onClick={() => onCollapsedChange(false)}
+        >
+          <LaneCollapseIcon collapsed />
+        </button>
+        <span
+          className="text-[10px] font-mono font-semibold uppercase tracking-widest text-muted-foreground"
+          style={{ writingMode: "vertical-rl" }}
+        >
+          {lane.title}
+        </span>
+        <span className="text-[10px] tabular-nums text-muted-foreground">{panels.length}</span>
+      </KanbanColumn>
+    )
+  }
+
   return (
     <KanbanColumn
       value={lane.id}
-      className="flex min-h-64 flex-col gap-2 rounded-lg border bg-muted/20 p-2"
+      className={cn(
+        "h-full w-80 flex-none gap-0 rounded-none border-0 border-r bg-card/35 p-0 last:border-r-0",
+        lane.id === "hidden" && "bg-muted/20",
+      )}
       data-neoview-board-lane={lane.id}
     >
-      <header className="px-1 pb-1">
-        <h3 className="text-sm font-semibold">{lane.title}</h3>
-        <p className="text-[10px] text-muted-foreground">{lane.hint}</p>
-        <p className="text-[10px] tabular-nums text-muted-foreground">{panels.length} 个面板</p>
-      </header>
-      <SortableContext items={panelIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-          {panels.map((panel) => (
-            <SortablePanel key={panel.id} panel={panel} laneId={lane.id} disabled={disabled || !panel.canMove} />
-          ))}
-          {panels.length === 0 ? (
-            <div className="grid flex-1 place-items-center rounded-md border border-dashed px-2 py-8 text-center text-[11px] text-muted-foreground">
-              拖入面板
-            </div>
-          ) : null}
+      <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-border/40 bg-muted/30 px-2">
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={`折叠${lane.title}`}
+          onClick={() => onCollapsedChange(true)}
+        >
+          <LaneCollapseIcon collapsed={false} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-[11px] font-mono font-semibold uppercase tracking-widest">{lane.title}</h3>
         </div>
-      </SortableContext>
+        <span className="text-[10px] font-mono tabular-nums text-muted-foreground" title={lane.hint}>{panels.length}</span>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
+        {panels.map((panel) => (
+          <SortablePanel key={panel.id} panel={panel} disabled={disabled || !panel.canMove} />
+        ))}
+        {panels.length === 0 ? (
+          <div className="grid flex-1 place-items-center rounded-md border border-dashed px-2 py-8 text-center text-[11px] text-muted-foreground">
+            拖入面板
+          </div>
+        ) : null}
+      </div>
     </KanbanColumn>
   )
 }
 
 function SortablePanel({
   panel,
-  laneId,
   disabled,
 }: {
   panel: BoardPanel
-  laneId: LaneId
   disabled: boolean
 }) {
   const cardIds = panel.cards.map((card) => card.id)
+  const exclusive = panel.cards.find((card) => card.exclusivePanel)
   return (
     <KanbanItem
       value={panel.id}
-      className="overflow-hidden rounded-md border bg-card p-0 shadow-sm"
+      className="relative z-0 h-auto flex-none overflow-visible rounded-md border bg-card p-0 shadow-sm data-dragging:z-20"
       data-neoview-board-panel={panel.id}
     >
       <header className="flex items-center gap-1.5 border-b px-2 py-1.5">
@@ -299,9 +358,10 @@ function SortablePanel({
           <div className="truncate text-xs font-medium">{panel.title}</div>
           <div className="truncate text-[10px] uppercase text-muted-foreground">{panel.id}</div>
         </div>
+        {exclusive ? <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[9px] font-normal">独占面板</Badge> : null}
         <span className="text-[10px] tabular-nums text-muted-foreground">{panel.cards.length}</span>
       </header>
-      <div className="space-y-1 p-1.5" data-panel-drop-zone={panel.id}>
+      <div className="flex h-auto flex-col gap-1 p-1.5" data-panel-drop-zone={panel.id}>
         {panel.acceptsCards ? (
           <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
             {panel.cards.map((card) => (
@@ -330,33 +390,23 @@ function SortableCard({
   panelId: string
   disabled: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: card.id,
-    disabled,
-    data: { kind: "card", panelId, title: card.title, canHide: card.canHide },
-  })
   return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(
-        "flex items-center gap-1.5 rounded border bg-background px-2 py-1.5 text-[11px]",
-        isDragging && "opacity-40",
-      )}
+    <KanbanItem
+      value={card.id}
+      className="relative z-0 flex h-auto min-h-8 flex-none items-center gap-1.5 rounded border bg-background px-2 py-1.5 text-[11px] data-dragging:z-30"
       data-neoview-board-card={card.id}
+      data-neoview-board-card-panel={panelId}
     >
-      <button
-        type="button"
+      <KanbanItemHandle
         className="touch-none text-muted-foreground"
         aria-label={`拖动卡片 ${card.title}`}
         disabled={disabled}
-        {...attributes}
-        {...listeners}
       >
         <GripVertical className="size-3" />
-      </button>
+      </KanbanItemHandle>
       <span className="min-w-0 flex-1 truncate">{card.title}</span>
-    </div>
+      {card.exclusivePanel ? <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[9px] font-normal">独占面板</Badge> : null}
+    </KanbanItem>
   )
 }
 
@@ -398,7 +448,12 @@ export function createBoardLanes(shell: ReaderShellConfigDto, defaults = false):
       ? definition.defaultPanel
       : (config?.panelId ?? definition.defaultPanel)
     const order = defaults ? 0 : (config?.order ?? 0)
-    const card: BoardCard = { id: definition.id, title: definition.title, canHide: definition.canHide }
+    const card: BoardCard = {
+      id: definition.id,
+      title: definition.title,
+      canHide: definition.canHide,
+      exclusivePanel: definition.exclusivePanel,
+    }
     if (!visible) {
       // Keep undocked cards on their home panel if it is already in the hidden lane;
       // otherwise attach to a synthetic bucket via the first hidden host panel or panel itself.
@@ -414,7 +469,7 @@ export function createBoardLanes(shell: ReaderShellConfigDto, defaults = false):
     for (const panel of lane) {
       panel.cards = panel.cards
         .toSorted((left, right) => ((left as BoardCard & { __order?: number }).__order ?? 0) - ((right as BoardCard & { __order?: number }).__order ?? 0))
-        .map(({ id, title, canHide }) => ({ id, title, canHide }))
+        .map(({ id, title, canHide, exclusivePanel }) => ({ id, title, canHide, exclusivePanel }))
     }
   }
   return lanes
@@ -487,9 +542,7 @@ function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardL
   const card = lanes[from.lane][from.panelIndex]?.cards[from.index]
   if (!card) return lanes
   if (overId === from.panelId || overId === panelDropId(from.panelId)) return lanes
-  if (target.lane === "hidden" && !card.canHide) return lanes
-  const host = lanes[target.lane][target.panelIndex]
-  if (!host?.acceptsCards && target.lane !== "hidden") return lanes
+  if (!cardTargetAccepts(lanes, cardId, overId)) return lanes
 
   const next = cloneLanes(lanes)
   const fromPanel = next[from.lane][from.panelIndex]
@@ -500,6 +553,20 @@ function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardL
   const insertAt = from.panelId === target.panelId && from.index < target.index ? target.index - 1 : target.index
   toPanel.cards.splice(Math.max(0, insertAt), 0, moved)
   return next
+}
+
+function cardTargetAccepts(lanes: BoardLanes, cardId: string, overId: string): boolean {
+  const from = findCardLocation(lanes, cardId)
+  const target = resolveCardTarget(lanes, overId)
+  if (!from || !target) return false
+  const card = lanes[from.lane][from.panelIndex]?.cards[from.index]
+  const host = lanes[target.lane][target.panelIndex]
+  if (!card || !host) return false
+  if (target.lane === "hidden") return card.canHide
+  if (!host.acceptsCards) return false
+  if (from.panelId === target.panelId) return true
+  if (card.exclusivePanel) return host.cards.length === 0
+  return !host.cards.some((candidate) => candidate.exclusivePanel)
 }
 
 function findPanelLocation(lanes: BoardLanes, panelId: string): { lane: LaneId; index: number } | undefined {
@@ -562,7 +629,11 @@ function panelDropId(panelId: string): string {
 function BoardDragPreview({ drag }: { drag: DragState }) {
   if (drag.kind === "panel") {
     return (
-      <article className="w-64 overflow-hidden rounded-md border border-primary/40 bg-card shadow-2xl" data-neoview-drag-preview="panel">
+      <article
+        className="w-80 overflow-hidden rounded-md border border-primary/40 bg-card shadow-2xl"
+        data-neoview-drag-preview="panel"
+        style={{ width: drag.width, minHeight: drag.height }}
+      >
         <header className="flex items-center gap-2 border-b px-3 py-2">
           <span className="grid size-6 place-items-center rounded bg-muted text-xs" aria-hidden="true">
             {drag.emoji ?? "#"}
@@ -570,13 +641,17 @@ function BoardDragPreview({ drag }: { drag: DragState }) {
           <span className="min-w-0 flex-1 truncate text-xs font-medium">{drag.title}</span>
           <span className="text-[10px] tabular-nums text-muted-foreground">{drag.cardCount ?? 0}</span>
         </header>
-        <div className="h-16 bg-muted/20" aria-hidden="true" />
+        <div className="min-h-12 bg-muted/20" aria-hidden="true" />
       </article>
     )
   }
 
   return (
-    <div className="flex w-56 items-center gap-2 rounded border border-primary/40 bg-background px-3 py-2 text-[11px] shadow-2xl" data-neoview-drag-preview="card">
+    <div
+      className="flex w-72 items-center gap-2 rounded border border-primary/40 bg-background px-3 py-2 text-[11px] shadow-2xl"
+      data-neoview-drag-preview="card"
+      style={{ width: drag.width, minHeight: drag.height }}
+    >
       <GripVertical className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       <span className="min-w-0 truncate">{drag.title}</span>
     </div>

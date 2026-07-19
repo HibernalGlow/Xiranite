@@ -19,6 +19,7 @@ import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { translateLabel } from "@/lib/i18nLabel"
 import { LaneCard } from "./LaneCard"
 import { LaneResizer } from "./LaneResizer"
+import { LaneCollapseIcon } from "./LaneCollapseIcon"
 import { KanbanColumn, KanbanColumnHandle } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
 
@@ -31,35 +32,6 @@ const formatRatioInput = (ratio: number) => Number(ratio.toFixed(2)).toString()
  *  原版设计：泳道外框 + 内部 lane 矩形，矩形 fill 状态表示折叠/展开：
  *  - 展开态：矩形空心（fill: none），hover 变实心
  *  - 折叠态：矩形实心（fill: currentColor），hover 变空心 */
-function LaneIcon({ collapsed }: { collapsed: boolean }) {
-  return (
-    <svg
-      className="h-3.5 w-3.5"
-      viewBox="0 0 15 10"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M11.75 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V6.75C0.75 7.85457 1.64543 8.75 2.75 8.75H11.75C12.8546 8.75 13.75 7.85457 13.75 6.75V2.75C13.75 1.64543 12.8546 0.75 11.75 0.75Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <rect
-        x="0.75"
-        y="0.75"
-        width="5"
-        height="8"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        fill={collapsed ? "currentColor" : "none"}
-        className="transition-[fill]"
-      />
-    </svg>
-  )
-}
-
 interface Props {
   lane: LaneType
   components: { id: string; moduleId: string }[]
@@ -113,7 +85,7 @@ export function Lane({ lane, components }: Props) {
           className="text-muted-foreground hover:text-foreground"
           title={t("common:expand")}
         >
-          <LaneIcon collapsed />
+          <LaneCollapseIcon collapsed />
         </button>
         <KanbanColumnHandle
           disabled={renaming}
@@ -143,7 +115,7 @@ export function Lane({ lane, components }: Props) {
           className="text-muted-foreground hover:text-foreground"
           title={t("common:collapse")}
         >
-          <LaneIcon collapsed={false} />
+          <LaneCollapseIcon collapsed={false} />
         </button>
 
         {renaming ? (
@@ -196,7 +168,7 @@ export function Lane({ lane, components }: Props) {
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); workspaceActions.toggleLaneCollapse(lane.id) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm"
             >
-              <LaneIcon collapsed={false} /> {t("common:collapse")}
+              <LaneCollapseIcon collapsed={false} /> {t("common:collapse")}
             </button>
 
             <div className="px-2 py-1.5 border-t border-border/60 mt-1">
