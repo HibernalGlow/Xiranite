@@ -38,6 +38,27 @@ describe("ReaderEdgeShell", () => {
     expect(document.querySelector('[data-reader-edge="bottom"]')?.className).toContain("z-[60]")
   })
 
+  it("[neoview.shell.pointer-isolation] keeps edge controls out of reader gesture bindings", () => {
+    const readerPointerDown = vi.fn()
+    const actionPointerDown = vi.fn()
+    const clicked = vi.fn()
+    render(
+      <div onPointerDown={readerPointerDown}>
+        <ReaderEdgeShell edges={{ top: { ...slot("top", <button type="button" onPointerDown={actionPointerDown} onClick={clicked}>toolbar action</button>), open: true, interaction: "fixed-open" } }}>
+          <div>viewport</div>
+        </ReaderEdgeShell>
+      </div>,
+    )
+
+    const action = screen.getByRole("button", { name: "toolbar action" })
+    fireEvent.pointerDown(action)
+    fireEvent.pointerUp(action)
+    fireEvent.click(action)
+    expect(readerPointerDown).not.toHaveBeenCalled()
+    expect(actionPointerDown).toHaveBeenCalledOnce()
+    expect(clicked).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.shell.controlled] requests visibility without owning a second open state", () => {
     vi.useFakeTimers()
     const requests = vi.fn()

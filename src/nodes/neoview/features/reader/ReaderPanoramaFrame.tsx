@@ -162,14 +162,13 @@ export function ReaderPanoramaFrame({
         itemContent={(index) => {
           const firstPageIndex = index * pagesPerUnit
           const canonicalFrame = frames.get(firstPageIndex)
+          const fallbackPages = Array.from({ length: pagesPerUnit }, (_, offset) => pages.get(firstPageIndex + offset))
           const unitPages = (canonicalFrame
             ? canonicalFrame.pages.map((framePage) => pages.get(framePage.pageIndex))
-            : Array.from({ length: pagesPerUnit }, (_, offset) => pages.get(firstPageIndex + offset)))
+            : direction === "right-to-left" ? fallbackPages.toReversed() : fallbackPages)
             .filter((page): page is ReaderPageDto => Boolean(page))
           if (!unitPages.length) return <div className="grid h-full min-h-48 min-w-48 place-items-center bg-black text-xs text-white/35">{index * pagesPerUnit + 1}</div>
-          const renderedPages = direction === "right-to-left" && pageMode === "double"
-            ? [...unitPages].reverse()
-            : unitPages
+          const renderedPages = unitPages
           const dimensions = renderedPages.flatMap((page) => page.dimensions ? [page.dimensions] : [])
           const frameSize = dimensions.length === unitPages.length
             ? calculateReaderFrameSize(dimensions, presentation.rotation, "horizontal", presentation.autoRotation, presentation.widePageStretch)
