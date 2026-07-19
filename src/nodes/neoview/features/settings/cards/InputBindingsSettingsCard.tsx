@@ -70,7 +70,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ReaderSettingsCardContext } from "../../panels/registry"
+import { SettingsCardShell } from "../SettingsCardShell"
 import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder"
 import { GUI_READER_INPUT_ACTIONS, GUI_READER_INPUT_ACTION_SET } from "../../input/ReaderInputActionCapabilities"
 
@@ -118,10 +120,43 @@ const CONTEXT_VISUAL: Readonly<Record<ReaderInputContext, { label: string; icon:
 
 export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radialMenu, onRadialMenu }: ReaderSettingsCardContext) {
   if (!inputBindings || !onInputBindings) return null
-  return <div className="grid gap-6">
-    <InputBindingsEditor value={inputBindings} onSave={onInputBindings} />
-    {radialMenu && onRadialMenu ? <Suspense fallback={<div className="h-32 animate-pulse rounded bg-muted/30" />}><LazyRadialMenuSettingsEditor value={radialMenu} onSave={onRadialMenu} /></Suspense> : null}
-  </div>
+  // Tabs root wraps the shell so the header actions (TabsList) share context with TabsContent.
+  return (
+    <Tabs defaultValue="bindings" className="w-full gap-0">
+      <SettingsCardShell
+        id="input-bindings-settings"
+        title="操作绑定"
+        description="快捷键与轮盘配置，写入 [nodes.neoview.bindings]。"
+        icon={Keyboard}
+        className="[&>header]:items-center"
+        actions={
+          <TabsList variant="default" layout="fit" aria-label="操作绑定分区" className="h-8">
+            <TabsTrigger value="bindings" className="h-7 gap-1 px-2.5 text-xs">
+              <Keyboard className="size-3.5" />
+              快捷键
+            </TabsTrigger>
+            <TabsTrigger value="radial" className="h-7 gap-1 px-2.5 text-xs" disabled={!radialMenu || !onRadialMenu}>
+              <Sparkles className="size-3.5" />
+              轮盘
+            </TabsTrigger>
+          </TabsList>
+        }
+      >
+        <TabsContent value="bindings" className="mt-0 outline-none">
+          <InputBindingsEditor value={inputBindings} onSave={onInputBindings} />
+        </TabsContent>
+        <TabsContent value="radial" className="mt-0 outline-none">
+          {radialMenu && onRadialMenu ? (
+            <Suspense fallback={null}>
+              <LazyRadialMenuSettingsEditor value={radialMenu} onSave={onRadialMenu} />
+            </Suspense>
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">当前 Reader 未暴露轮盘配置接口。</p>
+          )}
+        </TabsContent>
+      </SettingsCardShell>
+    </Tabs>
+  )
 }
 
 const AUTOSAVE_DELAY_MS = 220
@@ -340,11 +375,9 @@ export function InputBindingsEditor({
   const saveLabel = conflicts.length ? "存在冲突" : saving ? "保存中…" : dirty ? "待保存" : "已自动保存"
 
   return (
-    <section className="grid gap-4" data-neoview-settings-card="input-bindings" data-input-context="modal">
-      <header className="flex flex-wrap items-center gap-2 border-b pb-3">
-        <Keyboard className="size-4 text-muted-foreground" />
-        <h2 className="mr-auto text-lg font-semibold">操作绑定</h2>
-        <span role="status" className={`text-xs ${conflicts.length ? "text-destructive" : "text-muted-foreground"}`}>{saveLabel}</span>
+    <div className="grid gap-4" data-neoview-settings-card="input-bindings" data-input-context="modal">
+      <header className="flex flex-wrap items-center justify-end gap-2">
+        <span role="status" className={`mr-auto text-xs ${conflicts.length ? "text-destructive" : "text-muted-foreground"}`}>{saveLabel}</span>
         <Button type="button" size="sm" variant="outline" disabled={saving || Boolean(activeRecordingId)} onClick={() => void resetDefaults()}><RotateCcw />恢复默认</Button>
       </header>
 
@@ -556,7 +589,7 @@ export function InputBindingsEditor({
       </div>
 
       {feedback ? <p role={feedback.kind} className={feedback.kind === "alert" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{feedback.text}</p> : null}
-    </section>
+    </div>
   )
 }
 

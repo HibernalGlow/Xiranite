@@ -42,7 +42,7 @@ export default function PanelLayoutEditor({ shell, onSave }: { shell: ReaderShel
           setColumns((current) => layoutColumnsRespectPolicy(next) ? next : current)
         }}
       >
-        <KanbanBoard className={`h-[min(28rem,calc(100vh-16rem))] min-h-72 gap-3 overflow-x-auto${saving ? " pointer-events-none opacity-60" : ""}`}>
+        <KanbanBoard className={`min-h-56 gap-3 overflow-x-auto${saving ? " pointer-events-none opacity-60" : ""}`}>
           {Object.entries(columns).map(([panelId, cards]) => (
             <KanbanColumn key={panelId} value={panelId} className="h-full w-60 shrink-0 bg-muted/35" data-panel-layout-column={panelId}>
               <div className="flex h-8 items-center justify-between px-1 text-xs font-semibold">
