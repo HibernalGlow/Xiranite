@@ -466,6 +466,22 @@ describe("NeoView CLI", () => {
     expect(JSON.parse(output.join(""))).toMatchObject({ frame: { anchorPageIndex: 2 }, visiblePages: [{ index: 2 }] })
   })
 
+  it("[neoview.page-order.cli] applies validated session ordering without rebuilding the Reader", async () => {
+    const output: unknown[] = []
+    const reader = fakeReader()
+    await runProgram([
+      "page-order", "book.cbz", "--sort-mode", "timeStampDescending", "--media-priority", "videoFirst", "--json",
+    ], host(output), { createController: async () => reader })
+    expect(reader.updatePageOrder).toHaveBeenCalledWith({ sortMode: "timeStampDescending", mediaPriority: "videoFirst" })
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      pageOrder: { sortMode: "timeStampDescending", mediaPriority: "videoFirst" },
+      visiblePages: [{ id: "p0" }],
+    })
+    await expect(runProgram([
+      "page-order", "book.cbz", "--sort-mode", "unknown",
+    ], host([]), { createController: async () => fakeReader() })).rejects.toThrow("Invalid --sort-mode")
+  })
+
   it("[neoview.book-settings.cli] projects inherited CLI values into the shared revisioned controller", async () => {
     const getBookSettings = vi.fn(async () => bookSettingsSnapshot())
     const updateBookSettings = vi.fn(async () => ({
@@ -1832,7 +1848,10 @@ const pages: readonly HeadlessReaderPageSnapshot[] = [0, 1, 2].map((index) => ({
   contentVersion: `v${index}`,
 }))
 
-function snapshot(index: number): HeadlessReaderSnapshot {
+function snapshot(
+  index: number,
+  pageOrder: HeadlessReaderSnapshot["pageOrder"] = { sortMode: "fileName", mediaPriority: "none" },
+): HeadlessReaderSnapshot {
   return {
     book: { displayName: "book.cbz", pageCount: 3 },
     frame: {
@@ -1846,6 +1865,7 @@ function snapshot(index: number): HeadlessReaderSnapshot {
       atEnd: index === 2,
     },
     visiblePages: [pages[index]!],
+    pageOrder,
   }
 }
 
@@ -1898,6 +1918,7 @@ function fakeReader(overrides: Partial<{
   openPageStream: (index: number) => Promise<HeadlessPageStream>
   getBookSettings: ReaderHeadlessController["getBookSettings"]
   updateBookSettings: ReaderHeadlessController["updateBookSettings"]
+  updatePageOrder: ReaderHeadlessController["updatePageOrder"]
   upscalePage: ReaderHeadlessController["upscalePage"]
   inspectSuperResolution: ReaderHeadlessController["inspectSuperResolution"]
   listSubtitles: ReaderHeadlessController["listSubtitles"]
@@ -1908,21 +1929,26 @@ function fakeReader(overrides: Partial<{
   updateEmmMetadata: ReaderHeadlessController["updateEmmMetadata"]
 }> = {}): ReaderHeadlessController {
   let current = 0
+  let pageOrder: HeadlessReaderSnapshot["pageOrder"] = { sortMode: "fileName", mediaPriority: "none" }
   const dispose = vi.fn(async () => undefined)
   return {
     isOpen: true,
     open: vi.fn(overrides.open ?? (async (input) => {
       current = input.initialPage ?? 0
-      return snapshot(current)
+      return snapshot(current, pageOrder)
     })),
-    inspect: vi.fn(() => snapshot(current)),
+    inspect: vi.fn(() => snapshot(current, pageOrder)),
     listPages: vi.fn((cursor = 0, limit = 100) => pages.slice(cursor, cursor + limit)),
-    next: vi.fn(async () => snapshot(current = Math.min(2, current + 1))),
-    previous: vi.fn(async () => snapshot(current = Math.max(0, current - 1))),
-    goTo: vi.fn(async (index: number) => snapshot(current = index)),
+    next: vi.fn(async () => snapshot(current = Math.min(2, current + 1), pageOrder)),
+    previous: vi.fn(async () => snapshot(current = Math.max(0, current - 1), pageOrder)),
+    goTo: vi.fn(async (index: number) => snapshot(current = index, pageOrder)),
+    updatePageOrder: vi.fn(overrides.updatePageOrder ?? (async (patch) => {
+      pageOrder = { ...pageOrder, ...patch }
+      return snapshot(current, pageOrder)
+    })),
     openPageStream: vi.fn(overrides.openPageStream ?? (async () => { throw new Error("not configured") })),
     getBookSettings: vi.fn(overrides.getBookSettings ?? (async () => bookSettingsSnapshot())),
-    updateBookSettings: vi.fn(overrides.updateBookSettings ?? (async () => ({ settings: bookSettingsSnapshot(), reader: snapshot(current) }))),
+    updateBookSettings: vi.fn(overrides.updateBookSettings ?? (async () => ({ settings: bookSettingsSnapshot(), reader: snapshot(current, pageOrder) }))),
     upscalePage: vi.fn(overrides.upscalePage ?? (async () => { throw new Error("not configured") })),
     inspectSuperResolution: vi.fn(overrides.inspectSuperResolution ?? (async () => ({
       available: false as const,

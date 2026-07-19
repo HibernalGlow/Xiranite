@@ -13,12 +13,22 @@ import {
   type ReaderSessionId,
   type ReaderSessionOptions,
 } from "./contracts.js"
+import {
+  DEFAULT_READER_PAGE_ORDER,
+  normalizeReaderPageOrder,
+  orderReaderPages,
+  type ReaderPageOrder,
+  type ReaderPageOrderPatch,
+} from "./ReaderPageOrder.js"
 
 export class CoreReaderSession implements ReaderSession {
   readonly id: ReaderSessionId
   readonly book: ReaderBook
   #generation: ReaderGeneration = 0
   readonly #pagesById: ReadonlyMap<PageId, ReaderPage>
+  #pageIndexById: ReadonlyMap<PageId, number>
+  #pages: readonly ReaderPage[]
+  #pageOrder: ReaderPageOrder = DEFAULT_READER_PAGE_ORDER
   #anchorPageIndex = 0
   #anchorPart: ReaderPagePart | undefined
   #options: ReaderSessionOptions
@@ -29,7 +39,7 @@ export class CoreReaderSession implements ReaderSession {
   #metadataProbes = new Map<PageId, Promise<void>>()
   #onClose?: (sessionId: ReaderSessionId, snapshot: FrameSnapshot) => void | Promise<void>
   readonly #metadataProbe?: ImageMetadataProbe
-  readonly #preload: ReaderPreloadCoordinator
+  #preload: ReaderPreloadCoordinator
   readonly #preloadTelemetry = new ReaderPreloadTelemetry()
   #preloadPlan?: ReaderPreloadPlan
   #preloadContext: ReaderPreloadContext = {}
@@ -42,15 +52,29 @@ export class CoreReaderSession implements ReaderSession {
     options: Partial<ReaderSessionOptions> = {},
     onClose?: (sessionId: ReaderSessionId, snapshot: FrameSnapshot) => void | Promise<void>,
     metadataProbe?: ImageMetadataProbe,
+    initialPageOrder?: ReaderPageOrderPatch,
   ) {
     assertBook(book)
     this.id = id
     this.book = book
     this.#pagesById = new Map(book.pages.map((page) => [page.id, page]))
+    this.#pageOrder = initialPageOrder === undefined
+      ? DEFAULT_READER_PAGE_ORDER
+      : normalizeReaderPageOrder(initialPageOrder)
+    this.#pages = initialPageOrder === undefined ? book.pages : orderReaderPages(book.pages, this.#pageOrder)
+    this.#pageIndexById = pageIndexMap(this.#pages)
     this.#options = mergeOptions(DEFAULT_READER_SESSION_OPTIONS, options)
     this.#onClose = onClose
     this.#metadataProbe = metadataProbe
-    this.#preload = new ReaderPreloadCoordinator(book.pages)
+    this.#preload = new ReaderPreloadCoordinator(this.#pages)
+  }
+
+  get pages(): readonly ReaderPage[] {
+    return this.#pages
+  }
+
+  get pageOrder(): ReaderPageOrder {
+    return this.#pageOrder
   }
 
   get generation(): ReaderGeneration {
@@ -60,7 +84,7 @@ export class CoreReaderSession implements ReaderSession {
   snapshot(): FrameSnapshot {
     this.#assertOpen()
     return buildFrameSnapshot({
-      pages: this.book.pages,
+      pages: this.#pages,
       anchorPageIndex: this.#anchorPageIndex,
       anchorPart: this.#anchorPart,
       generation: this.#generation,
@@ -74,10 +98,15 @@ export class CoreReaderSession implements ReaderSession {
     return this.#pagesById.get(pageId)
   }
 
+  pageIndex(pageId: PageId): number | undefined {
+    this.#assertOpen()
+    return this.#pageIndexById.get(pageId)
+  }
+
   async frameWindow(centerPageIndex: number, radius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]> {
     this.#assertOpen()
     const boundedRadius = Math.min(Math.max(Math.trunc(radius), 0), 8)
-    const center = clamp(centerPageIndex, this.book.pages.length)
+    const center = clamp(centerPageIndex, this.#pages.length)
     const centerPart = center === this.#anchorPageIndex ? this.#anchorPart : undefined
     const cacheKey = `${this.#generation}:${center}:${centerPart ?? "full"}:${boundedRadius}:${this.#options.direction}:${JSON.stringify(this.#options.layout)}`
     const cached = this.#frameWindowCache.get(cacheKey)
@@ -151,7 +180,7 @@ export class CoreReaderSession implements ReaderSession {
   async initialize(pageIndex = 0, signal?: AbortSignal): Promise<FrameSnapshot> {
     this.#assertOpen()
     signal?.throwIfAborted()
-    const target = clamp(pageIndex, this.book.pages.length)
+    const target = clamp(pageIndex, this.#pages.length)
     await this.#prepareFrameMetadata(target, this.#options, signal)
     signal?.throwIfAborted()
     this.#anchorPageIndex = target
@@ -169,7 +198,7 @@ export class CoreReaderSession implements ReaderSession {
     this.#assertOpen()
     signal?.throwIfAborted()
     const current = this.snapshot()
-    const target = clamp(pageIndex, this.book.pages.length)
+    const target = clamp(pageIndex, this.#pages.length)
     await this.#prepareFrameMetadata(target, this.#options, signal)
     signal?.throwIfAborted()
     const nextPart = this.#partFor(target, this.#options, part)
@@ -223,6 +252,28 @@ export class CoreReaderSession implements ReaderSession {
     this.#options = nextOptions
     this.#anchorPart = this.#firstPartFor(this.#anchorPageIndex, nextOptions)
     this.#generation += 1
+    return this.#publishFrame("layout")
+  }
+
+  async updatePageOrder(patch: ReaderPageOrderPatch, signal?: AbortSignal): Promise<FrameSnapshot> {
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    const currentPageId = this.#pages[this.#anchorPageIndex]?.id
+    const nextOrder = normalizeReaderPageOrder(patch, this.#pageOrder)
+    const nextPages = orderReaderPages(this.book.pages, nextOrder)
+    signal?.throwIfAborted()
+    this.#pages = nextPages
+    this.#pageOrder = nextOrder
+    this.#pageIndexById = pageIndexMap(nextPages)
+    this.#anchorPageIndex = currentPageId === undefined ? 0 : this.#pageIndexById.get(currentPageId) ?? 0
+    await this.#prepareFrameMetadata(this.#anchorPageIndex, this.#options, signal)
+    signal?.throwIfAborted()
+    this.#anchorPart = this.#firstPartFor(this.#anchorPageIndex, this.#options)
+    this.#generation += 1
+    this.#frameWindowCache.clear()
+    this.#frameWindowPending.clear()
+    this.#preload.replacePages(this.#pages)
+    this.#emit({ type: "pages-changed", pages: this.#pages, generation: this.#generation })
     return this.#publishFrame("layout")
   }
 
@@ -282,8 +333,8 @@ export class CoreReaderSession implements ReaderSession {
     signal?: AbortSignal,
   ): Promise<void> {
     if (!this.#metadataProbe) return
-    const pages = [this.book.pages[anchorPageIndex]]
-    if (options.layout.pageMode === "double") pages.push(this.book.pages[anchorPageIndex + 1])
+    const pages = [this.#pages[anchorPageIndex]]
+    if (options.layout.pageMode === "double") pages.push(this.#pages[anchorPageIndex + 1])
     await Promise.all(pages.filter((page): page is ReaderPage => Boolean(page)).map((page) => this.#probePage(page, signal)))
   }
 
@@ -291,7 +342,7 @@ export class CoreReaderSession implements ReaderSession {
     await this.#prepareFrameMetadata(anchorPageIndex, this.#options, signal)
     signal?.throwIfAborted()
     return buildFrameSnapshot({
-      pages: this.book.pages,
+      pages: this.#pages,
       anchorPageIndex,
       anchorPart,
       generation: this.#generation,
@@ -320,7 +371,7 @@ export class CoreReaderSession implements ReaderSession {
         return this.#snapshotAt(frame.anchorPageIndex, secondReaderPagePart(frame.direction), signal)
       }
       const lastPageIndex = Math.max(...frame.pages.map((page) => page.pageIndex), frame.anchorPageIndex)
-      if (lastPageIndex >= this.book.pages.length - 1) return undefined
+      if (lastPageIndex >= this.#pages.length - 1) return undefined
       const nextIndex = lastPageIndex + 1
       return this.#snapshotAt(nextIndex, this.#firstPartFor(nextIndex, this.#options), signal)
     }
@@ -336,7 +387,7 @@ export class CoreReaderSession implements ReaderSession {
   }
 
   #partFor(pageIndex: number, options: ReaderSessionOptions, requested?: ReaderPagePart): ReaderPagePart | undefined {
-    if (!isSplitWidePage(this.book.pages[pageIndex], options.layout)) return undefined
+    if (!isSplitWidePage(this.#pages[pageIndex], options.layout)) return undefined
     return requested === 0 || requested === 1 ? requested : firstReaderPagePart(options.direction)
   }
 
@@ -398,6 +449,10 @@ function mergeOptions(current: ReaderSessionOptions, update: Partial<ReaderSessi
 function clamp(index: number, pageCount: number): number {
   if (!pageCount || !Number.isFinite(index)) return 0
   return Math.min(Math.max(Math.trunc(index), 0), pageCount - 1)
+}
+
+function pageIndexMap(pages: readonly ReaderPage[]): ReadonlyMap<PageId, number> {
+  return new Map(pages.map((page, index) => [page.id, index]))
 }
 
 function assertBook(book: ReaderBook): void {

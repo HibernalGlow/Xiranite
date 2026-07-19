@@ -22,11 +22,11 @@ export function buildFrameSnapshot(input: BuildFrameInput): FrameSnapshot {
   const ordered = input.direction === "right-to-left" && framePages.length === 2
     ? [...framePages].reverse()
     : framePages
-  const pages = ordered.map((page, index): FramePage => {
-    const part = page.index === anchorPageIndex ? anchorPart : undefined
+  const pages = ordered.map(({ page, pageIndex }, index): FramePage => {
+    const part = pageIndex === anchorPageIndex ? anchorPart : undefined
     return {
       pageId: page.id,
-      pageIndex: page.index,
+      pageIndex,
       side: ordered.length === 1 ? "single" : index === 0 ? "left" : "right",
       ...(part === undefined ? {} : { part, cropInsets: cropInsetsForPart(part) }),
     }
@@ -46,15 +46,20 @@ export function buildFrameSnapshot(input: BuildFrameInput): FrameSnapshot {
   }
 }
 
-function selectFramePages(pages: readonly ReaderPage[], anchor: number, layout: ReaderLayout): ReaderPage[] {
+function selectFramePages(
+  pages: readonly ReaderPage[],
+  anchor: number,
+  layout: ReaderLayout,
+): Array<{ page: ReaderPage; pageIndex: number }> {
   const current = pages[anchor]
   if (!current) return []
-  if (layout.pageMode === "single" || isWide(current, layout)) return [current]
-  if (layout.singleFirstPage && anchor === 0) return [current]
-  if (layout.singleLastPage && anchor === pages.length - 1) return [current]
+  const currentEntry = { page: current, pageIndex: anchor }
+  if (layout.pageMode === "single" || isWide(current, layout)) return [currentEntry]
+  if (layout.singleFirstPage && anchor === 0) return [currentEntry]
+  if (layout.singleLastPage && anchor === pages.length - 1) return [currentEntry]
   const next = pages[anchor + 1]
-  if (!next || isWide(next, layout)) return [current]
-  return [current, next]
+  if (!next || isWide(next, layout)) return [currentEntry]
+  return [currentEntry, { page: next, pageIndex: anchor + 1 }]
 }
 
 function isWide(page: ReaderPage, layout: ReaderLayout): boolean {

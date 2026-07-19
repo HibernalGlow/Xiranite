@@ -29,6 +29,13 @@ import type {
   OpenHeadlessReaderInput,
   ReaderDirectorySortRule,
 } from "./core.js"
+import {
+  READER_MEDIA_PRIORITY_MODES,
+  READER_PAGE_SORT_MODES,
+  type ReaderMediaPriorityMode,
+  type ReaderPageOrderPatch,
+  type ReaderPageSortMode,
+} from "./application/reader/ReaderPageOrder.js"
 import type { NeoviewTuiInput, NeoviewTuiResult } from "./interaction.js"
 import { createReaderHeadlessController } from "./platform.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
@@ -45,6 +52,7 @@ export interface ReaderTuiPort extends AsyncDisposable {
     signal?: AbortSignal,
   ): Promise<HeadlessReaderSnapshot | undefined>
   goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  updatePageOrder(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
   closeBook(): Promise<void>
 }
@@ -180,6 +188,14 @@ function ReaderWorkbench({
     }, "navigating")
   }, [language, phase, run, snapshot])
 
+  const cyclePageOrder = useCallback((field: "sortMode" | "mediaPriority") => {
+    if (!snapshot || phase === "opening" || phase === "navigating") return
+    const values = field === "sortMode" ? READER_PAGE_SORT_MODES : READER_MEDIA_PRIORITY_MODES
+    const current = snapshot.pageOrder[field]
+    const next = values[(values.indexOf(current as never) + 1) % values.length]
+    void run((port, signal) => port.updatePageOrder({ [field]: next }, signal), "navigating")
+  }, [phase, run, snapshot])
+
   const reset = useCallback(() => {
     activeAbort.current?.abort()
     void controller.current?.closeBook()
@@ -232,6 +248,8 @@ function ReaderWorkbench({
     if (key.name === "end" && snapshot) navigate("goTo", Math.max(0, snapshot.book.pageCount - 1))
     if (key.name === "o") setFocused("path")
     if (key.name === "g") setFocused("page")
+    if (key.name === "s") cyclePageOrder("sortMode")
+    if (key.name === "m") cyclePageOrder("mediaPriority")
     if (key.name === "q") exit()
   })
 
@@ -279,6 +297,8 @@ function ReaderWorkbench({
           <box width={5}><WorkbenchButton id="next" disabled={!snapshot || busy || snapshot.frame.atEnd} onClick={() => navigate("next")}>{">"}</WorkbenchButton></box>
           <box width={6}><WorkbenchButton id="next-book" disabled={!snapshot || busy} onClick={() => navigateBook("next")}>{">>"}</WorkbenchButton></box>
           <box width={9}><WorkbenchButton id="close" disabled={!snapshot || busy} onClick={reset}>Close</WorkbenchButton></box>
+          <box width={24}><WorkbenchButton id="page-sort" disabled={!snapshot || busy} onClick={() => cyclePageOrder("sortMode")}>{`S:${shortSortLabel(snapshot?.pageOrder.sortMode)}`}</WorkbenchButton></box>
+          <box width={18}><WorkbenchButton id="media-priority" disabled={!snapshot || busy} onClick={() => cyclePageOrder("mediaPriority")}>{`M:${shortMediaLabel(snapshot?.pageOrder.mediaPriority)}`}</WorkbenchButton></box>
         </box>
       </box>
 
@@ -295,7 +315,7 @@ function ReaderWorkbench({
           </scrollbox>
         </WorkbenchPanel>
 
-        <WorkbenchPanel title={language === "zh" ? "当前画面" : "Current frame"} description={snapshot ? `${snapshot.frame.direction} · ${snapshot.frame.layout.pageMode}` : undefined} flexGrow={1}>
+        <WorkbenchPanel title={language === "zh" ? "当前画面" : "Current frame"} description={snapshot ? `${snapshot.frame.direction} · ${snapshot.frame.layout.pageMode} · ${snapshot.pageOrder.sortMode} · ${snapshot.pageOrder.mediaPriority}` : undefined} flexGrow={1}>
           {snapshot ? (
             <box flexGrow={1} flexDirection="column">
               <box height={previewHeight} flexShrink={0} flexDirection="row" gap={1} justifyContent="center" overflow="hidden">
@@ -326,6 +346,20 @@ function ReaderWorkbench({
       </box>
     </box>
   )
+}
+
+function shortSortLabel(mode: ReaderPageSortMode | undefined): string {
+  if (!mode) return "sort"
+  return mode
+    .replace("fileName", "name")
+    .replace("fileSize", "size")
+    .replace("timeStamp", "time")
+    .replace("Descending", " desc")
+}
+
+function shortMediaLabel(mode: ReaderMediaPriorityMode | undefined): string {
+  if (!mode) return "media"
+  return mode.replace("videoFirst", "video first").replace("imageFirst", "image first")
 }
 
 function ReaderPagePreview({

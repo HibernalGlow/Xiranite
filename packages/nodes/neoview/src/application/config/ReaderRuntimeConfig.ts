@@ -57,6 +57,12 @@ import {
   DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS,
   normalizeReaderAnimatedVideoKeywords,
 } from "../animated-video/ReaderAnimatedVideoMode.js"
+import {
+  READER_MEDIA_PRIORITY_MODES,
+  READER_PAGE_SORT_MODES,
+  type ReaderMediaPriorityMode,
+  type ReaderPageSortMode,
+} from "../reader/ReaderPageOrder.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 
@@ -65,6 +71,7 @@ export interface NeoviewRuntimeConfig {
   sessionOptions: Partial<ReaderSessionOptions>
   shellOptions: NeoviewShellConfig
   viewDefaults: NeoviewViewDefaults
+  book: NeoviewBookConfig
   pageList: NeoviewPageListConfig
   bookmarkList: NeoviewBookmarkListConfig
   historyList: NeoviewHistoryListConfig
@@ -204,6 +211,15 @@ export interface NeoviewSuperResolutionConfig {
   taskTimeoutMs: number
   customModels: readonly SuperResolutionCustomModelManifest[]
   preferences: SuperResolutionPreferences
+}
+
+export interface NeoviewBookConfig {
+  lockedSortMode: ReaderPageSortMode | null
+  lockedMediaPriority: Exclude<ReaderMediaPriorityMode, "none"> | null
+}
+
+export interface NeoviewBookPatch {
+  book: Partial<NeoviewBookConfig>
 }
 
 export type NeoviewSuperResolutionPreferencesPatch = Partial<Omit<SuperResolutionPreferences, "schemaVersion">>
@@ -447,6 +463,11 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   widePageStretch: DEFAULT_READER_PRESENTATION.widePageStretch,
 }
 
+export const DEFAULT_NEOVIEW_BOOK_CONFIG: NeoviewBookConfig = {
+  lockedSortMode: null,
+  lockedMediaPriority: null,
+}
+
 export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   homePath: "",
   viewMode: "compact",
@@ -618,6 +639,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     sessionOptions: {},
     shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
     viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
+    book: DEFAULT_NEOVIEW_BOOK_CONFIG,
     pageList: DEFAULT_NEOVIEW_PAGE_LIST_CONFIG,
     bookmarkList: DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG,
     historyList: DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG,
@@ -639,6 +661,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const schemaVersion = config.schema_version ?? 1
   if (schemaVersion !== 1) throw new Error(`[nodes.neoview].schema_version must be 1, received ${String(schemaVersion)}.`)
   const reader = optionalRecord(config.reader, "[nodes.neoview.reader]")
+  const book = optionalRecord(config.book, "[nodes.neoview.book]")
   const panels = optionalRecord(config.panels, "[nodes.neoview.panels]")
   const slideshow = optionalRecord(config.slideshow, "[nodes.neoview.slideshow]")
   const pageList = optionalRecord(config.page_list, "[nodes.neoview.page_list]")
@@ -763,6 +786,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     },
     shellOptions: parseShellOptions(panels, reader),
     viewDefaults: { fitMode, pageMode, splitWidePages: splitWidePages ?? false, hoverScrollEnabled, hoverScrollSpeed, magnifierZoom, magnifierSize, orientation, autoRotation, widePageStretch },
+    book: parseBookConfig(book, legacyBook),
     pageList: {
       viewMode: optionalEnum(pageList?.view_mode, "[nodes.neoview.page_list].view_mode", ["list", "details", "thumbnails"] as const)
         ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG.viewMode,
@@ -2047,6 +2071,52 @@ export function parseNeoviewPageListPatch(value: unknown): {
   }
   if (!Object.keys(patch.pageList).length) throw new Error("reader page list patch must change at least one field.")
   return { patch, tomlPatch: { page_list: tomlPatch } }
+}
+
+export function parseNeoviewBookPatch(value: unknown): {
+  patch: NeoviewBookPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader book patch")
+  if (Object.keys(record).some((key) => key !== "book")) throw new Error("reader book patch contains unsupported fields.")
+  const source = requireRecord(record.book, "reader book patch.book")
+  const allowed = new Set(["lockedSortMode", "lockedMediaPriority"])
+  const unknown = Object.keys(source).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader book patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: NeoviewBookPatch = { book: {} }
+  const toml: Record<string, unknown> = {}
+  if (source.lockedSortMode !== undefined) {
+    patch.book.lockedSortMode = source.lockedSortMode === null
+      ? null
+      : optionalEnum(source.lockedSortMode, "reader book patch.lockedSortMode", READER_PAGE_SORT_MODES)!
+    toml.locked_sort_mode = patch.book.lockedSortMode ?? "none"
+  }
+  if (source.lockedMediaPriority !== undefined) {
+    patch.book.lockedMediaPriority = source.lockedMediaPriority === null
+      ? null
+      : optionalEnum(source.lockedMediaPriority, "reader book patch.lockedMediaPriority", ["videoFirst", "imageFirst"] as const)!
+    toml.locked_media_priority = patch.book.lockedMediaPriority ?? "none"
+  }
+  if (!Object.keys(patch.book).length) throw new Error("reader book patch must change at least one field.")
+  return { patch, tomlPatch: { book: toml } }
+}
+
+function parseBookConfig(
+  canonical: Record<string, unknown> | undefined,
+  legacy: Record<string, unknown> | undefined,
+): NeoviewBookConfig {
+  const sort = canonical?.locked_sort_mode ?? canonical?.lockedSortMode ?? legacy?.locked_sort_mode ?? legacy?.lockedSortMode
+  const media = canonical?.locked_media_priority ?? canonical?.lockedMediaPriority ?? legacy?.locked_media_priority ?? legacy?.lockedMediaPriority
+  const lockedSortMode = sort === undefined || sort === null || sort === "none"
+    ? null
+    : optionalEnum(sort, "[nodes.neoview.book].locked_sort_mode", READER_PAGE_SORT_MODES)!
+  const parsedMedia = media === undefined || media === null
+    ? "none"
+    : optionalEnum(media, "[nodes.neoview.book].locked_media_priority", READER_MEDIA_PRIORITY_MODES)!
+  return {
+    lockedSortMode,
+    lockedMediaPriority: parsedMedia === "none" ? null : parsedMedia,
+  }
 }
 
 export function parseNeoviewViewDefaultsPatch(value: unknown): {

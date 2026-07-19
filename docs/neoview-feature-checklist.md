@@ -127,10 +127,10 @@
 - 设置：`book.readingDirection`、`book.tailOverflowBehavior`、`book.lockedSortMode`、`book.lockedMediaPriority`
 - 数据：page index、current page、frame snapshot
 - 行为：自然排序与媒体优先级；LTR/RTL；首尾跳转和随机页；五种尾页行为；generation 取消和旧结果零回写
-- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`、`neoview.epub.manifest`、`neoview.epub.reader-e2e`、`neoview.control.session`、`neoview.book.adjacent`、`neoview.book.adjacent-sort`、`neoview.book.adjacent-single-file`、`neoview.book.adjacent-formats`、`neoview.control.adjacent-book`、`neoview.control.adjacent-book-rollback`、`neoview.headless.adjacent-book`、`neoview.headless.adjacent-book-connect`、`neoview.headless.media-registry`、`neoview.page-list.catalog`、`neoview.page-list.virtual`、`neoview.page-list.search`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.retry`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.headless.navigation`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.tui.navigation`
+- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`、`neoview.epub.manifest`、`neoview.epub.reader-e2e`、`neoview.control.session`、`neoview.book.adjacent`、`neoview.book.adjacent-sort`、`neoview.book.adjacent-single-file`、`neoview.book.adjacent-formats`、`neoview.control.adjacent-book`、`neoview.control.adjacent-book-rollback`、`neoview.headless.adjacent-book`、`neoview.headless.adjacent-book-connect`、`neoview.headless.media-registry`、`neoview.page-list.catalog`、`neoview.page-list.virtual`、`neoview.page-list.search`、`neoview.page-list.thumbnail-mode`、`neoview.page-list.retry`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.headless.navigation`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.tui.navigation`、`neoview.toolbar.sort`、`neoview.toolbar.sort-http`、`neoview.toolbar.sort-locks`、`neoview.page-order.client`、`neoview.page-order.cli`、`neoview.page-order.cli-connect`、`neoview.toolbar.page-order-e2e`、`neoview.toolbar.page-order-chunk`
 - 计划测试：无
 - 性能基准：`reader-hot-page-turn`
-- 已知差异：共享相邻书解析与原子 session replacement 已完成；GUI next/previous book、尾页 next-book 自动触发、切换提示与 FolderMain 焦点同步仍待接线
+- 已知差异：共享相邻书解析与原子 session replacement 已完成；自然排序、媒体优先、稳定随机、运行时重排、配置锁及 GUI/CLI/TUI/HTTP/Remote 已接线，重排只复制 Page 引用且翻页热路径仍为索引 O(1)；GUI next/previous book、尾页 next-book 自动触发、切换提示与 FolderMain 焦点同步仍待接线；旧版 SortPanel 1920x1080 characterization 仍待可重复脚本捕获
 
 ### 单页、双页、全景、宽页与连续阅读布局（`page-layout-modes`）
 

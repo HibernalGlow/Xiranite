@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewBookPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -157,6 +157,23 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
     expect(() => parseNeoviewPageListPatch({ pageList: {} })).toThrow("at least one")
     expect(() => parseNeoviewPageListPatch({ pageList: { viewMode: "tiles" } })).toThrow("viewMode")
+  })
+
+  it("[neoview.toolbar.sort-locks] reads legacy locks and writes bounded canonical book defaults", () => {
+    expect(parseNeoviewRuntimeConfig({ book: { locked_sort_mode: "timeStampDescending", locked_media_priority: "videoFirst" } }).book).toEqual({
+      lockedSortMode: "timeStampDescending",
+      lockedMediaPriority: "videoFirst",
+    })
+    expect(parseNeoviewRuntimeConfig({ reader: { book: { lockedSortMode: "entry", lockedMediaPriority: "imageFirst" } } }).book).toEqual({
+      lockedSortMode: "entry",
+      lockedMediaPriority: "imageFirst",
+    })
+    expect(parseNeoviewBookPatch({ book: { lockedSortMode: null, lockedMediaPriority: "imageFirst" } })).toEqual({
+      patch: { book: { lockedSortMode: null, lockedMediaPriority: "imageFirst" } },
+      tomlPatch: { book: { locked_sort_mode: "none", locked_media_priority: "imageFirst" } },
+    })
+    expect(() => parseNeoviewBookPatch({ book: { lockedSortMode: "randomDescending" } })).toThrow("lockedSortMode")
+    expect(() => parseNeoviewBookPatch({ book: { lockedMediaPriority: "audioFirst" } })).toThrow("lockedMediaPriority")
   })
 
   it("[neoview.settings.view-defaults] normalizes legacy zoom aliases and writes canonical TOML", () => {

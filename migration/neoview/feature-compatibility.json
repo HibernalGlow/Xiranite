@@ -430,14 +430,22 @@
         "neoview.headless.navigation",
         "neoview.cli.pages",
         "neoview.cli.frame",
-        "neoview.tui.navigation"
+        "neoview.tui.navigation",
+        "neoview.toolbar.sort",
+        "neoview.toolbar.sort-http",
+        "neoview.toolbar.sort-locks",
+        "neoview.page-order.client",
+        "neoview.page-order.cli",
+        "neoview.page-order.cli-connect",
+        "neoview.toolbar.page-order-e2e",
+        "neoview.toolbar.page-order-chunk"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [
         "reader-hot-page-turn"
       ],
       "knownDifferences": [
-        "共享相邻书解析与原子 session replacement 已完成；GUI next/previous book、尾页 next-book 自动触发、切换提示与 FolderMain 焦点同步仍待接线"
+        "共享相邻书解析与原子 session replacement 已完成；自然排序、媒体优先、稳定随机、运行时重排、配置锁及 GUI/CLI/TUI/HTTP/Remote 已接线，重排只复制 Page 引用且翻页热路径仍为索引 O(1)；GUI next/previous book、尾页 next-book 自动触发、切换提示与 FolderMain 焦点同步仍待接线；旧版 SortPanel 1920x1080 characterization 仍待可重复脚本捕获"
       ]
     },
     {

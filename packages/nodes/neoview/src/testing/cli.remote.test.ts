@@ -50,6 +50,26 @@ describe("NeoView CLI remote Reader", () => {
     expect(controller[Symbol.asyncDispose]).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.page-order.cli-connect] forwards ordering to the authenticated remote Reader", async () => {
+    const output: unknown[] = []
+    const controller = fakeRemoteReader()
+    await runProgram([
+      "page-order", "book.cbz", "--connect", "http://127.0.0.1:41000",
+      "--sort-mode", "random", "--random-seed", "stable-seed", "--media-priority", "imageFirst", "--json",
+    ], host(output, { XIRANITE_BACKEND_TOKEN: "runtime-token" }), {
+      createController: async () => { throw new Error("local controller must stay lazy") },
+      createRemoteController: async () => controller,
+    })
+    expect(controller.updatePageOrder).toHaveBeenCalledWith({
+      sortMode: "random",
+      mediaPriority: "imageFirst",
+      randomSeed: "stable-seed",
+    })
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      pageOrder: { sortMode: "random", mediaPriority: "imageFirst", randomSeed: "stable-seed" },
+    })
+  })
+
   it("[neoview.cli.connect-security] rejects missing tokens and remote/local configuration mixing", async () => {
     const dependencies = { createController: vi.fn(async () => fakeRemoteReader()), createRemoteController: vi.fn(async () => fakeRemoteReader()) }
     await expect(runProgram(
@@ -180,10 +200,12 @@ function fakeRemoteReader(): CliReaderController {
       atEnd: true,
     },
     visiblePages: [{ id: "page-1", index: 0, name: "1.jpg", mediaKind: "image", contentVersion: "v1" }],
+    pageOrder: { sortMode: "fileName", mediaPriority: "none" },
   }
   return {
     open: vi.fn(async () => snapshot),
     listPages: vi.fn(async () => snapshot.visiblePages),
+    updatePageOrder: vi.fn(async (patch) => ({ ...snapshot, pageOrder: { ...snapshot.pageOrder, ...patch } })),
     openPageStream: vi.fn(async () => { throw new Error("not used") }),
     getUpscalePreload: vi.fn(async () => [preloadSnapshot("nearby")]),
     startUpscalePreload: vi.fn(async (mode) => [preloadSnapshot(mode)]),

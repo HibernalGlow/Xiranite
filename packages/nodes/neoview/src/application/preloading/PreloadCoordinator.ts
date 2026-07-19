@@ -39,15 +39,21 @@ export class ReaderPreloadCoordinator {
   #lastAnchorPageIndex?: number
   #direction: ReaderPreloadDirection = "forward"
   #plan?: ReaderPreloadPlan
+  #pages: readonly ReaderPage[]
 
   constructor(
-    private readonly pages: readonly ReaderPage[],
+    pages: readonly ReaderPage[],
     options: ReaderPreloadCoordinatorOptions = {},
   ) {
+    this.#pages = pages
     this.#nearFrames = bounded(options.nearFrames ?? 1, "nearFrames", 0, 4)
     this.#aheadFrames = bounded(options.aheadFrames ?? 2, "aheadFrames", 0, 8)
     this.#retainReverseFrame = options.retainReverseFrame ?? true
     this.#maxSpeculativeQueueWaitMs = bounded(options.maxSpeculativeQueueWaitMs ?? 100, "maxSpeculativeQueueWaitMs", 0, 60_000)
+  }
+
+  replacePages(pages: readonly ReaderPage[]): void {
+    this.#pages = pages
   }
 
   update(frame: FrameSnapshot, intent: ReaderNavigationIntent, context: ReaderPreloadContext = {}): ReaderPreloadPlan {
@@ -73,7 +79,7 @@ export class ReaderPreloadCoordinator {
       queueWaitMs: normalized.queueWaitMs,
       memoryPressure: normalized.memoryPressure,
       currentPageIndexes: frame.pages.map((page) => page.pageIndex),
-      candidates: buildCandidates(this.pages, frame, direction, budget.nearFrames, budget.aheadFrames, budget.retainReverseFrame),
+      candidates: buildCandidates(this.#pages, frame, direction, budget.nearFrames, budget.aheadFrames, budget.retainReverseFrame),
     }
     return this.#plan
   }

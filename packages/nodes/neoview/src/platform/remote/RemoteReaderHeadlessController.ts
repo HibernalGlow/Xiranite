@@ -28,6 +28,7 @@ import type { AppendReaderPlaylistEntryInput, SaveReaderPlaylistInput } from "..
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
 import type { ReaderAdjacentBookDirection } from "../../application/reader/ReaderAdjacentBookService.js"
 import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
+import type { ReaderPageOrderPatch } from "../../application/reader/ReaderPageOrder.js"
 import { z } from "zod"
 
 export type RemoteSuperResolutionPreloadMode = "nearby" | "progressive"
@@ -268,6 +269,7 @@ interface ReaderFrameDto {
   frame: ReaderSessionDto["frame"]
   visiblePages: ReaderPageDto[]
   preload?: ReaderSessionDto["preload"]
+  pageOrder?: ReaderSessionDto["pageOrder"]
 }
 
 interface ReaderPageListDto {
@@ -589,6 +591,24 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
 
   goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
     return this.#navigate({ action: "goTo", pageIndex }, signal)
+  }
+
+  async updatePageOrder(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
+    const session = this.#requireSession()
+    const result = await this.#json<ReaderFrameDto>(
+      `/reader/s/${encodeURIComponent(session.sessionId)}/page-order`,
+      { method: "PATCH", body: JSON.stringify(order), signal },
+    )
+    if (!result || !result.frame || !Array.isArray(result.visiblePages) || !result.pageOrder) {
+      throw new Error("Xiranite Reader returned an invalid page-order response.")
+    }
+    session.frame = result.frame
+    session.visiblePages = result.visiblePages
+    session.pageOrder = result.pageOrder
+    session.preload = result.preload
+    this.#pageAssets.clear()
+    this.#replaceVisiblePages(result.visiblePages)
+    return snapshotOf(session, this.#translatedTitle)
   }
 
   async openAdjacent(
@@ -1035,6 +1055,7 @@ function snapshotOf(session: ReaderSessionDto, translatedTitle?: string): Headle
     book: { displayName: session.book.displayName, pageCount: session.book.pageCount, translatedTitle },
     frame: session.frame,
     visiblePages: session.visiblePages.map(pageSnapshot),
+    pageOrder: session.pageOrder,
     preload: session.preload,
   }
 }

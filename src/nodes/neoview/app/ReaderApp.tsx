@@ -26,6 +26,8 @@ import {
   type ReaderHistoryListPreferencesDto,
   type ReaderNavigationDto,
   type ReaderBookSettingsUpdateDto,
+  type ReaderBookDefaultsDto,
+  type ReaderPageOrderDto,
   type ReaderRuntimeConfigDto,
   type ReaderMediaConfigDto,
   type ReaderMediaPatchDto,
@@ -91,6 +93,10 @@ const INITIAL_BOOKMARK_LIST_PREFERENCES: ReaderBookmarkListPreferencesDto = {
 const INITIAL_PAGE_LIST_PREFERENCES: ReaderPageListPreferencesDto = {
   viewMode: "list",
   followProgress: true,
+}
+const INITIAL_BOOK_DEFAULTS: ReaderBookDefaultsDto = {
+  lockedSortMode: null,
+  lockedMediaPriority: null,
 }
 const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   intervalSeconds: 5,
@@ -294,6 +300,7 @@ export function ReaderApp({
     persist: persistShellControl,
   }))
   const [viewDefaults, setViewDefaults] = useState<ReaderRuntimeConfigDto["viewDefaults"]>(() => ({ ...INITIAL_VIEW_DEFAULTS }))
+  const [bookDefaults, setBookDefaults] = useState<ReaderBookDefaultsDto>(() => ({ ...INITIAL_BOOK_DEFAULTS }))
   const [pageListPreferences, setPageListPreferences] = useState<ReaderPageListPreferencesDto>(() => ({ ...INITIAL_PAGE_LIST_PREFERENCES }))
   const [bookmarkListPreferences, setBookmarkListPreferences] = useState<ReaderBookmarkListPreferencesDto>(() => ({ ...INITIAL_BOOKMARK_LIST_PREFERENCES }))
   const [historyListPreferences, setHistoryListPreferences] = useState<ReaderHistoryListPreferencesDto>(() => ({ ...INITIAL_HISTORY_LIST_PREFERENCES }))
@@ -329,6 +336,7 @@ export function ReaderApp({
     const controller = new AbortController()
     void clientRef.current.config(controller.signal).then((config) => {
       setMedia(config.media)
+      setBookDefaults(config.book ?? INITIAL_BOOK_DEFAULTS)
       setSuperResolution(config.superResolution)
       videoController.configure(config.media)
       if (viewDefaultsGenerationRef.current === 0) {
@@ -588,6 +596,22 @@ export function ReaderApp({
   async function updateReadingDirection(direction: "left-to-right" | "right-to-left") {
     if (direction === session?.frame.direction) return
     await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(sessionId, { direction }, signal))
+  }
+
+  async function updateCurrentPageOrder(patch: Partial<ReaderPageOrderDto>) {
+    if (!clientRef.current.updatePageOrder) throw new Error("当前 Reader 不支持页面排序")
+    await updateNavigation((sessionId, signal) => clientRef.current.updatePageOrder!(sessionId, patch, signal))
+  }
+
+  async function updatePageOrderLocks(next: ReaderBookDefaultsDto) {
+    if (!clientRef.current.updateBookDefaults) throw new Error("当前 Reader 不支持排序锁定")
+    setError(undefined)
+    try {
+      const updated = await clientRef.current.updateBookDefaults({ book: next })
+      setBookDefaults(updated)
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
   }
 
   async function updateCurrentBookPageMode(pageMode: "single" | "double") {
@@ -1240,6 +1264,11 @@ export function ReaderApp({
               onChange={updatePresentation}
               onLayoutChange={(layout) => void updateSessionLayout(layout)}
               onDirectionChange={(direction) => void updateReadingDirection(direction)}
+              pageOrder={session.pageOrder ?? { sortMode: "fileName", mediaPriority: "none" }}
+              lockedSortMode={bookDefaults.lockedSortMode}
+              lockedMediaPriority={bookDefaults.lockedMediaPriority}
+              onPageOrderChange={updateCurrentPageOrder}
+              onPageOrderLockChange={updatePageOrderLocks}
               hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
               hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
               onHoverScrollChange={(patch) => persistViewDefaults({
@@ -1511,7 +1540,12 @@ function readerPathSegments(path: string): string[] {
 }
 
 function applyNavigation(session: ReaderSessionDto, navigation: ReaderNavigationDto): ReaderSessionDto {
-  return { ...session, frame: navigation.frame, visiblePages: navigation.visiblePages }
+  return {
+    ...session,
+    frame: navigation.frame,
+    visiblePages: navigation.visiblePages,
+    pageOrder: navigation.pageOrder ?? session.pageOrder,
+  }
 }
 
 function errorMessage(error: unknown): string {

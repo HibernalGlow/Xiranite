@@ -10,11 +10,13 @@ import { ResourceSchedulerService } from "@xiranite/services"
 
 async function verifyPersistentReaderLifecycle() {
   let current = 0
+  let pageOrder: HeadlessReaderSnapshot["pageOrder"] = { sortMode: "fileName", mediaPriority: "none" }
   let opens = 0
   let nextCalls = 0
   let previousCalls = 0
   let nextBookCalls = 0
   let previousBookCalls = 0
+  let pageOrderUpdates = 0
   let pageStreamOpens = 0
   let pageStreamCloses = 0
   let disposed = 0
@@ -22,19 +24,24 @@ async function verifyPersistentReaderLifecycle() {
     create: { width: 4, height: 6, channels: 4, background: "#4c8f6b" },
   }).png().toBuffer()
   const port = {
-    async open() { opens += 1; return snapshot(current = 0) },
+    async open() { opens += 1; return snapshot(current = 0, pageOrder) },
     listPages: async () => pageList,
-    async next() { nextCalls += 1; return snapshot(current = Math.min(2, current + 1)) },
-    async previous() { previousCalls += 1; return snapshot(current = Math.max(0, current - 1)) },
+    async next() { nextCalls += 1; return snapshot(current = Math.min(2, current + 1), pageOrder) },
+    async previous() { previousCalls += 1; return snapshot(current = Math.max(0, current - 1), pageOrder) },
     async openAdjacent(direction: "next" | "previous") {
       if (direction === "next") {
         nextBookCalls += 1
-        return snapshot(current = 2)
+        return snapshot(current = 2, pageOrder)
       }
       previousBookCalls += 1
-      return snapshot(current = 0)
+      return snapshot(current = 0, pageOrder)
     },
-    async goTo(index: number) { return snapshot(current = index) },
+    async goTo(index: number) { return snapshot(current = index, pageOrder) },
+    async updatePageOrder(patch: Partial<HeadlessReaderSnapshot["pageOrder"]>) {
+      pageOrderUpdates += 1
+      pageOrder = { ...pageOrder, ...patch }
+      return snapshot(current, pageOrder)
+    },
     async openPageStream() {
       pageStreamOpens += 1
       let closed = false
@@ -86,6 +93,15 @@ async function verifyPersistentReaderLifecycle() {
     ))
     await screen.flush()
     expect(screen.captureCharFrame()).toContain("当前画面")
+    expect(screen.captureCharFrame()).toContain("S:name")
+    expect(screen.captureCharFrame()).toContain("M:none")
+    await click("page-sort")
+    await screen.waitFor(() => pageOrderUpdates === 1)
+    await screen.waitFor(() => screen.captureCharFrame().includes("name desc"))
+    expect(screen.captureCharFrame()).toContain("001.png")
+    await click("media-priority")
+    await screen.waitFor(() => pageOrderUpdates === 2)
+    await screen.waitFor(() => screen.captureCharFrame().includes("video first"))
     await click("next")
     await screen.waitFor(() => nextCalls === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("2 / 3"))
@@ -160,7 +176,7 @@ const pageList = [0, 1, 2].map((index) => ({
   timestamps: { source: "filesystem" as const, createdAtMs: 1_700_000_000_000, modifiedAtMs: 1_700_000_100_000, accessedAtMs: 1_700_000_200_000 },
 }))
 
-function snapshot(index: number): HeadlessReaderSnapshot {
+function snapshot(index: number, pageOrder: HeadlessReaderSnapshot["pageOrder"] = { sortMode: "fileName", mediaPriority: "none" }): HeadlessReaderSnapshot {
   return {
     book: { displayName: "book.cbz", translatedTitle: "译名", sourceKind: "archive", pageCount: 3 },
     frame: {
@@ -174,5 +190,6 @@ function snapshot(index: number): HeadlessReaderSnapshot {
       atEnd: index === 2,
     },
     visiblePages: [pageList[index]!],
+    pageOrder,
   }
 }
