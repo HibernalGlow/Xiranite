@@ -6,6 +6,8 @@ import type {
   OpenHeadlessReaderInput,
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
+  ReaderMediaProgressRecord,
+  ReaderMediaProgressUpdate,
   ReaderDirectoryFilter,
   ReaderDirectoryEmmEditCommand,
   ReaderHeadlessController,
@@ -62,6 +64,27 @@ export interface NeoviewBookSettingsTuiPort extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
   updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
+}
+
+export interface NeoviewMediaProgressTuiInput {
+  action: "get" | "set"
+  path: string
+  position?: number
+  duration?: number
+  completed?: boolean
+  flush?: boolean
+}
+
+export interface NeoviewMediaProgressTuiResult {
+  success: boolean
+  message: string
+  progress?: ReaderMediaProgressRecord
+}
+
+export interface NeoviewMediaProgressTuiPort extends AsyncDisposable {
+  open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
+  getMediaProgress(): Promise<ReaderMediaProgressRecord | undefined>
+  updateMediaProgress(update: ReaderMediaProgressUpdate, options?: { flush?: boolean }): Promise<ReaderMediaProgressRecord>
 }
 
 export interface NeoviewUpscaleCacheTuiInput {
@@ -252,6 +275,40 @@ export function createNeoviewBookSettingsTuiDefinition(
           settings: updated.settings,
           reader: updated.reader,
         }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      } finally {
+        await controller[Symbol.asyncDispose]()
+      }
+    },
+  }
+}
+
+export function createNeoviewMediaProgressTuiDefinition(
+  language: "zh" | "en" = "zh",
+  createController: () => Promise<NeoviewMediaProgressTuiPort> = createReaderHeadlessController,
+  archivePasswords?: OpenHeadlessReaderInput["archivePasswords"],
+): TerminalInteractionDefinition<NeoviewMediaProgressTuiInput, NeoviewMediaProgressTuiResult> {
+  return {
+    schema: createNeoviewMediaProgressTuiSchema(language),
+    async run(input) {
+      const controller = await createController()
+      try {
+        await controller.open({ path: input.path, archivePasswords })
+        if (input.action === "get") {
+          const progress = await controller.getMediaProgress()
+          return {
+            success: true,
+            message: progress ? "Media progress loaded." : "No saved media progress.",
+            progress,
+          }
+        }
+        const progress = await controller.updateMediaProgress({
+          position: input.position!,
+          duration: input.duration!,
+          completed: input.completed ?? false,
+        }, { flush: input.flush ?? true })
+        return { success: true, message: "Media progress updated.", progress }
       } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : String(error) }
       } finally {
@@ -691,6 +748,48 @@ function createNeoviewBookSettingsTuiSchema(
       success: result.success,
       message: result.message,
       lines: result.settings ? bookSettingsResultLines(result.settings) : [],
+    }),
+  }
+}
+
+function createNeoviewMediaProgressTuiSchema(
+  language: "zh" | "en",
+): TerminalInteractionSchema<NeoviewMediaProgressTuiInput, NeoviewMediaProgressTuiResult> {
+  const zh = language === "zh"
+  const setting = (values: Readonly<InteractionValues>) => values.action === "set"
+  return {
+    id: "neoview-media-progress",
+    title: zh ? "NeoView 视频进度" : "NeoView Media Progress",
+    description: zh ? "读取或写入当前视频的持久播放进度" : "Read or persist the current video's playback progress",
+    initialValues: { action: "get", path: "", position: 0, duration: 0, completed: false, flush: true },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
+        { value: "get", label: zh ? "查看" : "Get" },
+        { value: "set", label: zh ? "写入" : "Set" },
+      ] },
+      { id: "path", label: zh ? "视频路径" : "Video path", kind: "text" },
+      { id: "position", label: zh ? "位置（秒）" : "Position (seconds)", kind: "number", min: 0, step: 0.001, visibleWhen: setting },
+      { id: "duration", label: zh ? "时长（秒）" : "Duration (seconds)", kind: "number", min: 0, step: 0.001, visibleWhen: setting },
+      { id: "completed", label: zh ? "已播放完成" : "Completed", kind: "boolean", visibleWhen: setting },
+      { id: "flush", label: zh ? "立即持久化" : "Flush before returning", kind: "boolean", visibleWhen: setting },
+    ],
+    toInput: (values) => ({
+      action: values.action === "set" ? "set" : "get",
+      path: String(values.path ?? "").trim(),
+      position: values.action === "set" ? Number(values.position) : undefined,
+      duration: values.action === "set" ? Number(values.duration) : undefined,
+      completed: values.action === "set" ? values.completed === true : undefined,
+      flush: values.action === "set" ? values.flush !== false : undefined,
+    }),
+    validate: (_values, input) => !input.path ? (zh ? "请输入视频路径。" : "Enter a video path.") : null,
+    preview: (input) => input.action === "set"
+      ? [input.path, "set", `position=${input.position}`, `duration=${input.duration}`, `completed=${input.completed}`, `flush=${input.flush}`]
+      : [input.path, "get"],
+    isDangerous: () => false,
+    result: (result) => ({
+      success: result.success,
+      message: result.message,
+      lines: result.progress ? mediaProgressResultLines(result.progress) : [],
     }),
   }
 }
@@ -1257,6 +1356,15 @@ function itemsResult(items: readonly unknown[], name: string): NeoviewLibraryTui
 
 function mutationResult(changed: boolean, name: string): NeoviewLibraryTuiResult {
   return { success: true, message: changed ? `${name} removed.` : `${name} not found.` }
+}
+
+function mediaProgressResultLines(progress: ReaderMediaProgressRecord): string[] {
+  return [
+    `position: ${progress.position}`,
+    `duration: ${progress.duration}`,
+    `completed: ${progress.completed}`,
+    `updatedAt: ${progress.updatedAt}`,
+  ]
 }
 
 function parseInputDescriptor(value: unknown): ReaderInputDescriptor | undefined {
