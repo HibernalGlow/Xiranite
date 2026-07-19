@@ -38,6 +38,85 @@ describe("StreamingImageMetadataProbe", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
+  it("[neoview.image.probe-cancellation] cancels a stalled read immediately and still closes its source", async () => {
+    const controller = new AbortController()
+    const cancelled = vi.fn()
+    const closed = vi.fn(async () => undefined)
+    let markOpened: (() => void) | undefined
+    const opened = new Promise<void>((resolve) => { markOpened = resolve })
+    const content: PageContent = {
+      async load(): Promise<PageSource> {
+        return {
+          byteLength: 24,
+          rangeSupported: false,
+          async open() {
+            return new ReadableStream<Uint8Array>({
+              start() { markOpened?.() },
+              cancel: cancelled,
+            })
+          },
+          close: closed,
+          [Symbol.asyncDispose]: closed,
+        }
+      },
+    }
+    const pending = new StreamingImageMetadataProbe().probe(content, "image/png", controller.signal)
+    await opened
+    controller.abort(new Error("cancelled while reading"))
+    await expect(pending).rejects.toThrow("cancelled while reading")
+    expect(cancelled).toHaveBeenCalledOnce()
+    expect(closed).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.image.probe-error-priority] returns discovered metadata despite reader and source cleanup failures", async () => {
+    const png = pngHeader(640, 480)
+    const cancel = vi.fn(async () => { throw new Error("reader cleanup failed") })
+    const close = vi.fn(async () => { throw new Error("source cleanup failed") })
+    const content: PageContent = {
+      async load(): Promise<PageSource> {
+        return {
+          byteLength: png.byteLength,
+          rangeSupported: false,
+          async open() {
+            return new ReadableStream<Uint8Array>({
+              start(controller) { controller.enqueue(png) },
+              cancel,
+            })
+          },
+          close,
+          [Symbol.asyncDispose]: close,
+        }
+      },
+    }
+    await expect(new StreamingImageMetadataProbe().probe(content, "image/png")).resolves.toMatchObject({
+      dimensions: { width: 640, height: 480 },
+      bytesRead: 24,
+    })
+    expect(cancel).toHaveBeenCalled()
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.image.probe-cancellation] closes a loaded source when cancellation wins before open", async () => {
+    const controller = new AbortController()
+    const open = vi.fn()
+    const close = vi.fn(async () => undefined)
+    const content: PageContent = {
+      async load(): Promise<PageSource> {
+        controller.abort(new Error("cancelled before open"))
+        return {
+          byteLength: 24,
+          rangeSupported: false,
+          open,
+          close,
+          [Symbol.asyncDispose]: close,
+        }
+      },
+    }
+    await expect(new StreamingImageMetadataProbe().probe(content, "image/png", controller.signal)).rejects.toThrow("cancelled before open")
+    expect(open).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.image.probe-fallback] leaves unsupported headers to the downstream decoder", async () => {
     const cancelled = vi.fn()
     const closed = vi.fn(async () => undefined)
