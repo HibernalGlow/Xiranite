@@ -63,6 +63,11 @@ import { ReaderImageTrimConfigService } from "./platform/config/ReaderImageTrimC
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
 import { executeReaderHeadlessInputBinding } from "./application/headless/ReaderHeadlessInputBindingExecutor.js"
 import {
+  READER_MEDIA_PRIORITY_MODES,
+  READER_PAGE_SORT_MODES,
+  type ReaderPageOrderPatch,
+} from "./application/reader/ReaderPageOrder.js"
+import {
   ReaderEmmMetadataPatchSchema,
   type ReaderEmmMetadataPatch,
   type ReaderEmmMetadataSnapshot,
@@ -82,7 +87,7 @@ import type {
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "subtitle-list", "subtitle-render", "media-progress-get", "media-progress-set", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
+  "inspect", "pages", "frame", "page-order", "extract-page", "subtitle-list", "subtitle-render", "media-progress-get", "media-progress-set", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
@@ -159,6 +164,7 @@ const VALUE_FLAGS = new Set([
   "--horizontal-book",
   "--input",
   "--input-json",
+  "--sort-mode", "--media-priority", "--random-seed",
   "--contexts-json",
   "--action",
   "--enabled", "--type", "--duration", "--easing", "--subtitle-id", "--position", "--completed",
@@ -216,6 +222,7 @@ export interface CliReaderController extends AsyncDisposable {
   next?(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   previous?(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   goTo?(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  updatePageOrder?(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   openAdjacent?: ReaderHeadlessController["openAdjacent"]
   closeBook?(): Promise<void>
   listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
@@ -248,6 +255,7 @@ export interface CliInteractiveReaderController extends CliReaderController {
   next(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   previous(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  updatePageOrder(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   closeBook(): Promise<void>
 }
 
@@ -515,6 +523,11 @@ export async function runProgram(
     }
     if (command === "inspect") return printInspect(snapshot, parsed.booleans.has("--json"), host)
     if (command === "frame") return printFrame(snapshot, parsed.booleans.has("--json"), host)
+    if (command === "page-order") {
+      if (!controller.updatePageOrder) throw new Error("Reader page ordering is unavailable for this transport.")
+      const updated = await controller.updatePageOrder(pageOrderPatch(parsed))
+      return printInspect(updated, parsed.booleans.has("--json"), host)
+    }
     if (command === "pages") {
       const cursor = integerOption(parsed, "--cursor", 0, snapshot.book.pageCount, 0)
       const limit = integerOption(parsed, "--limit", 1, 500, 100)
@@ -2291,10 +2304,32 @@ function printInspect(snapshot: HeadlessReaderSnapshot, json: boolean, host: Cli
   writeLine(host, `Type: ${book.typeLabel}`)
   writeLine(host, `Page: ${book.pageText}`)
   writeLine(host, `Progress: ${book.progressText}`)
+  writeLine(host, `Order: ${snapshot.pageOrder.sortMode}; media priority: ${snapshot.pageOrder.mediaPriority}`)
   writeLine(host, frameLine(snapshot))
   for (const page of snapshot.visiblePages) {
     writeLine(host, pageLine(page))
     printPageTime(page, host)
+  }
+}
+
+function pageOrderPatch(parsed: ParsedArguments): ReaderPageOrderPatch {
+  const sortMode = oneValue(parsed, "--sort-mode")
+  const mediaPriority = oneValue(parsed, "--media-priority")
+  const randomSeed = oneValue(parsed, "--random-seed")
+  if (!sortMode && !mediaPriority && !randomSeed) throw usage("page-order requires --sort-mode, --media-priority or --random-seed.")
+  if (sortMode && !READER_PAGE_SORT_MODES.includes(sortMode as typeof READER_PAGE_SORT_MODES[number])) {
+    throw usage(`Invalid --sort-mode: ${sortMode}`)
+  }
+  if (mediaPriority && !READER_MEDIA_PRIORITY_MODES.includes(mediaPriority as typeof READER_MEDIA_PRIORITY_MODES[number])) {
+    throw usage(`Invalid --media-priority: ${mediaPriority}`)
+  }
+  if (randomSeed !== undefined && (!randomSeed.length || randomSeed.length > 128)) {
+    throw usage("--random-seed must contain from 1 to 128 characters.")
+  }
+  return {
+    ...(sortMode ? { sortMode: sortMode as typeof READER_PAGE_SORT_MODES[number] } : {}),
+    ...(mediaPriority ? { mediaPriority: mediaPriority as typeof READER_MEDIA_PRIORITY_MODES[number] } : {}),
+    ...(randomSeed === undefined ? {} : { randomSeed }),
   }
 }
 
@@ -3478,6 +3513,7 @@ function formatCliHelp(): string {
     "  settings-backup-inspect <directory> Verify a backup bundle without mutation",
     "  settings-backup-restore <directory> Restore offline with explicit quarantine",
     "  book-settings-get <book>            Read inherited/effective per-book settings",
+    "  page-order <book>                    Apply session page/media ordering",
     "  book-settings-set <book>            Update revisioned per-book settings",
     "  book-settings-legacy-inspect <json>  Inspect legacy per-book settings without opening SQLite",
     "  book-settings-legacy-import <json>   Import legacy per-book settings (--yes)",
@@ -3568,6 +3604,9 @@ function formatCliHelp(): string {
     "  --rating VALUE        1..5|inherit for book-settings-set",
     "  --direction VALUE     left-to-right|right-to-left|inherit",
     "  --page-mode VALUE     single|double|inherit",
+    "  --sort-mode VALUE     fileName|fileSize|timeStamp|entry (+Descending) or random",
+    "  --media-priority MODE none|videoFirst|imageFirst",
+    "  --random-seed VALUE   Stable random permutation seed (1..128 chars)",
     "  --horizontal-book VALUE  true|false|inherit",
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",

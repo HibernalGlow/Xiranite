@@ -7,6 +7,7 @@ import { LatestRecordWriteCoordinator } from "../persistence/LatestRecordWriteCo
 import { CoreReaderSession } from "./ReaderSession.js"
 import { aggregateReaderPreloadTelemetry, type ReaderPreloadDiagnostics } from "../preloading/PreloadTelemetry.js"
 import { DEFAULT_READER_SESSION_OPTIONS, type OpenViewSourceOptions, type ReaderService, type ReaderSession, type ReaderSessionId, type ReaderSessionOptions } from "./contracts.js"
+import type { ReaderPageOrderPatch } from "./ReaderPageOrder.js"
 
 export class CoreReaderService implements ReaderService {
   #sessions = new Map<ReaderSessionId, CoreReaderSession>()
@@ -21,8 +22,13 @@ export class CoreReaderService implements ReaderService {
     private sessionDefaults: Partial<ReaderSessionOptions> = {},
     progressStore?: ReaderProgressStore,
     private readonly bookSettingsStore?: ReaderBookSettingsStore,
+    private pageOrderDefaults?: ReaderPageOrderPatch,
   ) {
     this.#progress = progressStore ? new ReaderProgressCoordinator(progressStore) : undefined
+  }
+
+  updatePageOrderDefaults(order: ReaderPageOrderPatch | undefined): void {
+    this.pageOrderDefaults = order
   }
 
   updateSessionDefaults(options: Partial<ReaderSessionOptions>): void {
@@ -110,6 +116,7 @@ export class CoreReaderService implements ReaderService {
           }
         },
         this.metadataProbe,
+        this.pageOrderDefaults,
       )
       bookOwnedByOpening = false
       try {

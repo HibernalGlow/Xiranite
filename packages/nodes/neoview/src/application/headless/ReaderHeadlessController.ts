@@ -8,6 +8,7 @@ import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import type { ReaderMediaProgressService, ReaderMediaProgressUpdate } from "../reader/ReaderMediaProgressService.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderService, ReaderSession } from "../reader/contracts.js"
+import type { ReaderPageOrder, ReaderPageOrderPatch } from "../reader/ReaderPageOrder.js"
 import type { ReaderSubtitleService, ReaderSubtitleTrack } from "../reader/ReaderSubtitleService.js"
 import type { ReaderBookMetadataService, ReaderBookStaticMetadata } from "../metadata/ReaderBookMetadataService.js"
 import type {
@@ -78,6 +79,7 @@ export interface HeadlessReaderSnapshot {
   book: HeadlessReaderBookSnapshot
   frame: FrameSnapshot
   visiblePages: readonly HeadlessReaderPageSnapshot[]
+  pageOrder: ReaderPageOrder
   preload?: ReaderPreloadPlan
 }
 
@@ -225,8 +227,8 @@ export class ReaderHeadlessController implements AsyncDisposable {
 
   listPages(cursor = 0, limit = 100): readonly HeadlessReaderPageSnapshot[] {
     const session = this.#requireSession()
-    assertSlice(cursor, limit, session.book.pages.length)
-    return session.book.pages.slice(cursor, cursor + limit).map(pageSnapshot)
+    assertSlice(cursor, limit, session.pages.length)
+    return session.pages.slice(cursor, cursor + limit).map((page, index) => pageSnapshot(page, cursor + index))
   }
 
   async next(signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
@@ -267,16 +269,22 @@ export class ReaderHeadlessController implements AsyncDisposable {
     return snapshotOf(session, this.#bookMetadata)
   }
 
+  async updatePageOrder(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<HeadlessReaderSnapshot> {
+    const session = this.#requireSession()
+    await session.updatePageOrder(order, signal)
+    return snapshotOf(session, this.#bookMetadata)
+  }
+
   async openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream> {
     assertPageIndex(pageIndex)
     const session = this.#requireSession()
-    const page = session.book.pages[pageIndex]
+    const page = session.pages[pageIndex]
     if (!page) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
     signal?.throwIfAborted()
     const source = await waitWithAbort(page.content.load(signal), signal, (lateSource) => lateSource.close())
     try {
       const stream = await waitWithAbort(source.open(signal), signal, (lateStream) => lateStream.cancel(signal?.reason))
-      return new OwnedHeadlessPageStream(pageSnapshot(page), source, stream)
+      return new OwnedHeadlessPageStream(pageSnapshot(page, pageIndex), source, stream)
     } catch (error) {
       await source.close().catch(() => undefined)
       throw error
@@ -304,7 +312,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
   ): Promise<HeadlessSuperResolutionPageResult> {
     assertPageIndex(input.pageIndex)
     const session = this.#requireSession()
-    const page = session.book.pages[input.pageIndex]
+    const page = session.pages[input.pageIndex]
     if (!page) throw new RangeError(`Reader page index is out of range: ${input.pageIndex}`)
     if (!this.superResolution) throw new Error("Reader super-resolution is unavailable.")
     const output = await this.superResolution.run({
@@ -350,7 +358,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
       return preload.startPlan({
         contextId,
         plan,
-        pages: session.book.pages,
+        pages: session.pages,
         bookPath: session.book.source.path,
         artifactFor,
       }, signal)
@@ -359,7 +367,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
       contextId,
       generation: plan?.generation ?? Number(session.generation),
       currentPageIndex: session.snapshot().anchorPageIndex,
-      pages: session.book.pages,
+      pages: session.pages,
       bookPath: session.book.source.path,
       artifactFor,
     }, signal)
@@ -519,7 +527,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
 
   #requireVideoSession(): ReaderSession {
     const session = this.#requireSession()
-    if (!session.book.pages.some((page) => page.mediaKind === "video")) {
+    if (!session.pages.some((page) => page.mediaKind === "video")) {
       throw new Error("The open Reader book does not contain video media.")
     }
     return session
@@ -528,7 +536,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
   #requireSubtitlePage(pageIndex: number): { session: ReaderSession; page: ReaderPage } {
     assertPageIndex(pageIndex)
     const session = this.#requireSession()
-    const page = session.book.pages[pageIndex]
+    const page = session.pages[pageIndex]
     if (!page) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
     if (page.mediaKind !== "video") throw new Error("Reader video page was not found.")
     if (!this.subtitles) throw new Error("Reader subtitles are unavailable.")
@@ -575,16 +583,18 @@ function snapshotOf(session: ReaderSession, metadata = staticMetadataOf(session)
   return {
     book: {
       displayName: session.book.displayName,
-      pageCount: session.book.pages.length,
+      pageCount: session.pages.length,
       sourceKind: metadata.sourceKind,
       sourceFormat: metadata.sourceFormat,
       translatedTitle: metadata.emm?.translatedTitle,
     },
     frame,
+    pageOrder: session.pageOrder,
     preload: session.preloadPlan(),
     visiblePages: frame.pages.flatMap(({ pageId }) => {
       const page = session.getPage(pageId)
-      return page ? [pageSnapshot(page)] : []
+      const index = session.pageIndex(pageId)
+      return page && index !== undefined ? [pageSnapshot(page, index)] : []
     }),
   }
 }
@@ -596,14 +606,14 @@ function staticMetadataOf(session: ReaderSession): ReaderBookStaticMetadata {
     sourcePath: session.book.source.path,
     sourceKind: session.book.source.kind,
     sourceFormat: session.book.source.kind === "document" ? session.book.source.format : undefined,
-    pageCount: session.book.pages.length,
+    pageCount: session.pages.length,
   }
 }
 
-function pageSnapshot(page: ReaderPage): HeadlessReaderPageSnapshot {
+function pageSnapshot(page: ReaderPage, index = page.index): HeadlessReaderPageSnapshot {
   return {
     id: page.id,
-    index: page.index,
+    index,
     name: page.name,
     mediaKind: page.mediaKind,
     mimeType: page.mimeType,

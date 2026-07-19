@@ -453,6 +453,7 @@ export async function createReaderHttpController(
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
     viewDefaults: runtimeConfig.viewDefaults,
+    book: runtimeConfig.book,
     pageList: runtimeConfig.pageList,
     bookmarkList: runtimeConfig.bookmarkList,
     historyList: runtimeConfig.historyList,
@@ -499,6 +500,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).viewDefaults
+    },
+    updateBook: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).book
     },
     updateFolderView: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
@@ -970,6 +977,12 @@ export async function createReaderHeadlessController(
       sessionOptions,
       progressStore,
       bookSettingsStore,
+      runtimeConfig.book.lockedSortMode !== null || runtimeConfig.book.lockedMediaPriority !== null
+        ? {
+            sortMode: runtimeConfig.book.lockedSortMode ?? "fileName",
+            mediaPriority: runtimeConfig.book.lockedMediaPriority ?? "none",
+          }
+        : undefined,
     ),
     disposeDependencies,
     mediaProgress,

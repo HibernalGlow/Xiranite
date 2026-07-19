@@ -33,9 +33,11 @@
       "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-zoom-1920x1080.png",
       "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-rotate-1920x1080.png",
       "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-hover-scroll-1920x1080.png",
-      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-magnifier-1920x1080.png"
+      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-magnifier-1920x1080.png",
+      "artifacts/playwright/neoview-neoview-page-order-b4832-and-stable-navigation-order-chromium-desktop/neoview-page-order-chromium-desktop.png",
+      "artifacts/playwright/neoview-neoview-page-order-b4832-and-stable-navigation-order-chromium-card/neoview-page-order-chromium-card.png"
     ],
-    "status": "current-captured-legacy-pending-runtime-capture"
+    "status": "current-desktop-and-card-captured-legacy-sort-pending-runtime-capture"
   },
   "controlGroups": [
     {
@@ -78,7 +80,18 @@
       "title": "媒体优先与页面排序",
       "sourceEvidence": ["SortPanel.svelte", "constants.ts"],
       "controls": ["Lock/LockOpen", "无媒体优先", "视频优先", "图片优先", "全部排序分类", "逐分类升序/降序", "点击应用", "右键锁定"],
-      "status": "pending"
+      "status": "partial",
+      "testIds": [
+        "neoview.toolbar.sort",
+        "neoview.toolbar.sort-http",
+        "neoview.toolbar.sort-locks",
+        "neoview.page-order.client",
+        "neoview.page-order.cli",
+        "neoview.page-order.cli-connect",
+        "neoview.toolbar.page-order-e2e",
+        "neoview.toolbar.page-order-chunk"
+      ],
+      "notes": "Core、Preload、HTTP/Headless/Remote、GUI、CLI、TUI 与 [nodes.neoview.book] 锁定配置已接线；排序命令只建立 Page 引用排列，翻页仍按索引 O(1)，随机 seed 在会话内稳定。排序面板只在展开时加载为独立二级 chunk，预算不超过 8 KiB。当前 desktop/420x360 Chromium 已验证物理页和同一 img 身份保持、重排后导航、随机顺序稳定、锁持久化及无越界；旧版 SortPanel 1920x1080 characterization 仍待可重复脚本捕获，因此不得标 complete。"
     },
     {
       "id": "toolbar.auxiliary",

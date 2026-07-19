@@ -84,6 +84,40 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ pageTransition: { type: "slide", duration: 240 } })
   })
 
+  it("[neoview.page-order.client] updates session ordering and canonical book locks through authenticated routes", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/reader/config")
+      ? Response.json({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null } })
+      : Response.json({
+          frame: { anchorPageIndex: 1 },
+          visiblePages: [{ id: "physical-page", index: 1, name: "2.jpg", mediaKind: "image", contentVersion: "v1" }],
+          pageOrder: { sortMode: "random", mediaPriority: "imageFirst", randomSeed: "stable-seed" },
+        }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.updatePageOrder!("reader/1", {
+      sortMode: "random",
+      mediaPriority: "imageFirst",
+      randomSeed: "stable-seed",
+    })).resolves.toMatchObject({ pageOrder: { sortMode: "random", randomSeed: "stable-seed" } })
+    await expect(client.updateBookDefaults!({
+      book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null },
+    })).resolves.toEqual({ lockedSortMode: "fileSizeDescending", lockedMediaPriority: null })
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/page-order")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      sortMode: "random", mediaPriority: "imageFirst", randomSeed: "stable-seed",
+    })
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/config")
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null },
+    })
+    for (const call of fetchMock.mock.calls) {
+      expect(call[1]).toMatchObject({ method: "PATCH" })
+      expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    }
+  })
+
   it("[neoview.react.control] sends token-authenticated open, navigation and close requests", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(request)

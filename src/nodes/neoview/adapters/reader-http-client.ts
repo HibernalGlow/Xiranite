@@ -24,11 +24,21 @@ export interface ReaderSessionDto {
   book: { id: string; displayName: string; pageCount: number }
   frame: FrameSnapshot
   visiblePages: ReaderPageDto[]
+  pageOrder?: ReaderPageOrderDto
 }
 
 export interface ReaderNavigationDto {
   frame: FrameSnapshot
   visiblePages: ReaderPageDto[]
+  pageOrder?: ReaderPageOrderDto
+}
+
+export type ReaderPageSortModeDto = "fileName" | "fileNameDescending" | "fileSize" | "fileSizeDescending" | "timeStamp" | "timeStampDescending" | "entry" | "entryDescending" | "random"
+export type ReaderMediaPriorityModeDto = "none" | "videoFirst" | "imageFirst"
+export interface ReaderPageOrderDto {
+  sortMode: ReaderPageSortModeDto
+  mediaPriority: ReaderMediaPriorityModeDto
+  randomSeed?: string
 }
 
 export interface ReaderBookSettingsSnapshotDto {
@@ -658,9 +668,19 @@ export interface ReaderPageListPreferencesPatch {
   pageList: Partial<ReaderPageListPreferencesDto>
 }
 
+export interface ReaderBookDefaultsDto {
+  lockedSortMode: ReaderPageSortModeDto | null
+  lockedMediaPriority: Exclude<ReaderMediaPriorityModeDto, "none"> | null
+}
+
+export interface ReaderBookDefaultsPatch {
+  book: Partial<ReaderBookDefaultsDto>
+}
+
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
   viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode; splitWidePages?: boolean; hoverScrollEnabled?: boolean; hoverScrollSpeed?: number; magnifierZoom?: number; magnifierSize?: number; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
+  book: ReaderBookDefaultsDto
   pageList: ReaderPageListPreferencesDto
   bookmarkList: ReaderBookmarkListPreferencesDto
   historyList: ReaderHistoryListPreferencesDto
@@ -1113,6 +1133,7 @@ export interface ReaderHttpClient {
   updateBoardLayout(patch: ReaderBoardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateShellControl?(patch: ReaderShellControlPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
+  updateBookDefaults?(patch: ReaderBookDefaultsPatch, signal?: AbortSignal): Promise<ReaderBookDefaultsDto>
   updatePageList?(patch: ReaderPageListPreferencesPatch, signal?: AbortSignal): Promise<ReaderPageListPreferencesDto>
   updateBookmarkList?(patch: ReaderBookmarkListPreferencesPatch, signal?: AbortSignal): Promise<ReaderBookmarkListPreferencesDto>
   updateHistoryList?(patch: ReaderHistoryListPreferencesPatch, signal?: AbortSignal): Promise<ReaderHistoryListPreferencesDto>
@@ -1244,6 +1265,7 @@ export interface ReaderHttpClient {
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
   updateSessionOptions(sessionId: string, patch: { direction?: FrameSnapshot["direction"]; layout?: Partial<ReaderLayout> }, signal?: AbortSignal): Promise<ReaderNavigationDto>
+  updatePageOrder?(sessionId: string, patch: Partial<ReaderPageOrderDto>, signal?: AbortSignal): Promise<ReaderNavigationDto & { pageOrder: ReaderPageOrderDto }>
   close(sessionId: string): Promise<void>
 }
 
@@ -1300,6 +1322,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.viewDefaults),
+    updateBookDefaults: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.book),
     updateHistoryList: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -1888,6 +1916,15 @@ export function createReaderHttpClient(
     ),
     updateSessionOptions: (sessionId, patch, signal) => request<ReaderNavigationDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/options`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+        signal,
+      },
+    ),
+    updatePageOrder: (sessionId, patch, signal) => request<ReaderNavigationDto & { pageOrder: ReaderPageOrderDto }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/page-order`,
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },

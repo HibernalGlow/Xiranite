@@ -33,7 +33,7 @@ describe("LegacySettingsCodec", () => {
         pageLayout: { splitHorizontalPages: true, widePageStretch: "uniformHeight" },
         sidebarControl: { enabled: false, position: { x: 130, y: 170 } },
       },
-      book: { readingDirection: "right-to-left", doublePageView: true, tailOverflowBehavior: "seamlessLoop" },
+      book: { readingDirection: "right-to-left", doublePageView: true, tailOverflowBehavior: "seamlessLoop", lockedSortMode: "fileSizeDescending", lockedMediaPriority: "videoFirst" },
       subtitleFontSize: 1.2,
       theme: { theme: "dark", uiScale: 1.25 },
     })
@@ -62,6 +62,7 @@ describe("LegacySettingsCodec", () => {
         subtitle: { font_size: 1.2 },
       },
       view: { magnifier: { zoom: 3, size: 260 } },
+      book: { locked_sort_mode: "fileSizeDescending", locked_media_priority: "videoFirst" },
       panels: { sidebar_control: { enabled: false, position: { x: 130, y: 170 } } },
     })
     expect(result.configPatch).not.toHaveProperty("reader.view.sidebar_control")

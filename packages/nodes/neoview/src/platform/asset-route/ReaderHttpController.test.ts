@@ -998,6 +998,44 @@ describe("ReaderHttpController", () => {
     }
   })
 
+  it("[neoview.toolbar.sort-http] reorders the session catalog while retaining the current physical page", async () => {
+    const directory = await createBookDirectory()
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory, initialPage: 1 })))!
+      const session = await opened.json() as ReaderSessionDto
+      const currentPageId = session.visiblePages[0]!.id
+      const reordered = (await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/page-order`,
+        { sortMode: "entryDescending", mediaPriority: "none" },
+        true,
+        "PATCH",
+      )))!
+      expect(reordered.status).toBe(200)
+      expect(await reordered.json()).toMatchObject({
+        pageOrder: { sortMode: "entryDescending", mediaPriority: "none" },
+        frame: { anchorPageIndex: 1, pages: [{ pageId: currentPageId, pageIndex: 1 }] },
+        visiblePages: [{ name: "2.jpg", index: 1 }],
+      })
+      const catalog = (await controller.handle(authorizedRequest(
+        `/reader/s/${session.sessionId}/pages?cursor=0&limit=3&thumbnails=0`,
+      )))!
+      expect((await catalog.json() as { pages: Array<{ name: string; index: number }> }).pages).toEqual([
+        expect.objectContaining({ name: "3.jpg", index: 0 }),
+        expect.objectContaining({ name: "2.jpg", index: 1 }),
+        expect.objectContaining({ name: "1.jpg", index: 2 }),
+      ])
+      expect((await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/page-order`,
+        { sortMode: "randomDescending" },
+        true,
+        "PATCH",
+      )))?.status).toBe(400)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.control.session] [neoview.page-list.catalog] [neoview.metadata.http] opens, filters pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
     const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => new Map([

@@ -103,6 +103,29 @@ describe("CoreReaderSession", () => {
     expect(panorama.pages[0]).not.toHaveProperty("cropInsets")
   })
 
+  it("[neoview.toolbar.sort] reorders once, preserves physical identity, and keeps navigation index-based", async () => {
+    const sourceBook = book(4)
+    sourceBook.pages[0]!.name = "page10.jpg"
+    sourceBook.pages[1]!.name = "clip.mp4"
+    sourceBook.pages[1]!.mediaKind = "video"
+    sourceBook.pages[2]!.name = "page2.jpg"
+    sourceBook.pages[3]!.name = "cover.jpg"
+    const session = new CoreReaderSession("page-order", sourceBook)
+    await session.goTo(2)
+    const physicalPage = session.getPage("page-2")
+    const listener = vi.fn()
+    session.subscribe(listener)
+
+    const frame = await session.updatePageOrder({ sortMode: "fileName", mediaPriority: "videoFirst" })
+    expect(session.pages.map((page) => page.name)).toEqual(["clip.mp4", "cover.jpg", "page2.jpg", "page10.jpg"])
+    expect(session.pages[2]).toBe(physicalPage)
+    expect(frame).toMatchObject({ anchorPageIndex: 2, pages: [{ pageId: "page-2", pageIndex: 2 }] })
+    expect(session.pageIndex("page-2")).toBe(2)
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ type: "pages-changed" }))
+    expect((await session.next()).pages[0]).toMatchObject({ pageId: "page-0", pageIndex: 3 })
+    expect(session.preloadPlan()!.currentPageIndexes).toEqual([3])
+  })
+
   it("[neoview.session.lifecycle] rejects cancelled navigation and closes idempotently", async () => {
     const sourceBook = book(2)
     const session = new CoreReaderSession("reader-1", sourceBook)
@@ -118,6 +141,23 @@ describe("CoreReaderSession", () => {
 })
 
 describe("CoreReaderService", () => {
+  it("[neoview.toolbar.sort-locks] applies locked order before the first book snapshot", async () => {
+    const source = book(3)
+    source.pages[0]!.name = "page10.jpg"
+    source.pages[1]!.name = "clip.mp4"
+    source.pages[1]!.mediaKind = "video"
+    source.pages[2]!.name = "page2.jpg"
+    const service = new CoreReaderService(async () => source, undefined, {}, undefined, undefined, {
+      sortMode: "fileNameDescending",
+      mediaPriority: "videoFirst",
+    })
+    const session = await service.openViewSource({ kind: "directory", path: "C:/book" })
+    expect(session.pageOrder).toMatchObject({ sortMode: "fileNameDescending", mediaPriority: "videoFirst" })
+    expect(session.pages.map((page) => page.name)).toEqual(["clip.mp4", "page10.jpg", "page2.jpg"])
+    expect(session.snapshot().pages[0]).toMatchObject({ pageId: "page-1", pageIndex: 0 })
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.settings.runtime] applies service defaults while explicit open options win", async () => {
     const service = new CoreReaderService(async () => book(4), undefined, {
       direction: "right-to-left",

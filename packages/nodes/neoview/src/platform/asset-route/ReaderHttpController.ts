@@ -30,6 +30,7 @@ import {
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionId, ReaderSessionOptions } from "../../application/reader/contracts.js"
+import type { ReaderPageOrder, ReaderPageOrderPatch } from "../../application/reader/ReaderPageOrder.js"
 import {
   ReaderBookSettingsRevisionConflict,
   ReaderBookSettingsService,
@@ -119,6 +120,7 @@ import {
   DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
   DEFAULT_NEOVIEW_MEDIA_CONFIG,
   DEFAULT_NEOVIEW_PAGE_LIST_CONFIG,
+  DEFAULT_NEOVIEW_BOOK_CONFIG,
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
   parseNeoviewBoardLayoutPatch,
@@ -136,6 +138,7 @@ import {
   parseNeoviewBookmarkListPatch,
   parseNeoviewHistoryListPatch,
   parseNeoviewPageListPatch,
+  parseNeoviewBookPatch,
   parseNeoviewViewDefaultsPatch,
   type NeoviewSlideshowConfig,
   type NeoviewSlideshowPatch,
@@ -158,6 +161,8 @@ import {
   type NeoviewHistoryListPatch,
   type NeoviewPageListConfig,
   type NeoviewPageListPatch,
+  type NeoviewBookConfig,
+  type NeoviewBookPatch,
   type NeoviewFolderViewConfig,
   type NeoviewFolderViewPatch,
   type NeoviewFileTreeConfig,
@@ -191,6 +196,7 @@ const SESSION_PRELOAD_EVENTS_PATH = /^\/reader\/s\/([^/]+)\/preload-events$/
 const SESSION_PRELOAD_CONTEXT_PATH = /^\/reader\/s\/([^/]+)\/preload-context$/
 const SESSION_PRELOAD_ACTIONS_PATH = /^\/reader\/s\/([^/]+)\/preload-actions$/
 const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
+const SESSION_PAGE_ORDER_PATH = /^\/reader\/s\/([^/]+)\/page-order$/
 const SESSION_BOOK_SETTINGS_PATH = /^\/reader\/s\/([^/]+)\/book-settings$/
 const SESSION_METADATA_PATH = /^\/reader\/s\/([^/]+)\/metadata$/
 const SESSION_PAGE_MEDIA_INFORMATION_PATH = /^\/reader\/s\/([^/]+)\/page-media-information$/
@@ -226,6 +232,7 @@ export interface ReaderSessionDto {
   }
   frame: FrameSnapshot
   visiblePages: ReaderPageDto[]
+  pageOrder: ReaderPageOrder
   preload?: ReaderPreloadPlan
 }
 
@@ -258,6 +265,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
   updateViewDefaults?: (patch: NeoviewViewDefaultsPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewViewDefaults>
+  book?: NeoviewBookConfig
+  updateBook?: (patch: NeoviewBookPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewBookConfig>
   pageList?: NeoviewPageListConfig
   updatePageList?: (patch: NeoviewPageListPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewPageListConfig>
   bookmarkList?: NeoviewBookmarkListConfig
@@ -341,6 +350,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #shellOptions: NeoviewShellConfig
   #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
+  #book: NeoviewBookConfig
   #pageList: NeoviewPageListConfig
   #bookmarkList: NeoviewBookmarkListConfig
   #historyList: NeoviewHistoryListConfig
@@ -358,6 +368,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
+  readonly #updateBook?: ReaderHttpControllerOptions["updateBook"]
   readonly #updatePageList?: ReaderHttpControllerOptions["updatePageList"]
   readonly #updateBookmarkList?: ReaderHttpControllerOptions["updateBookmarkList"]
   readonly #updateHistoryList?: ReaderHttpControllerOptions["updateHistoryList"]
@@ -441,6 +452,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.sessionOptions,
       options.progressStore || undefined,
       options.bookSettingsStore,
+      lockedPageOrder(options.book),
     )
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
     this.#emmMetadata = options.emmOverrideStore ? new ReaderEmmMetadataService(options.emmOverrideStore) : undefined
@@ -587,6 +599,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#baseUrl = options.baseUrl.replace(/\/$/, "")
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
     this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
+    this.#book = options.book ?? DEFAULT_NEOVIEW_BOOK_CONFIG
     this.#pageList = options.pageList ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG
     this.#bookmarkList = options.bookmarkList ?? DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG
     this.#historyList = options.historyList ?? DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG
@@ -604,6 +617,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
+    this.#updateBook = options.updateBook
     this.#updatePageList = options.updatePageList
     this.#updateBookmarkList = options.updateBookmarkList
     this.#updateHistoryList = options.updateHistoryList
@@ -777,6 +791,8 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
     if (optionsMatch && request.method === "PATCH") return this.#updateSessionOptions(optionsMatch[1]!, request)
+    const pageOrderMatch = SESSION_PAGE_ORDER_PATH.exec(url.pathname)
+    if (pageOrderMatch && request.method === "PATCH") return this.#updateSessionPageOrder(pageOrderMatch[1]!, request)
     const bookSettingsMatch = SESSION_BOOK_SETTINGS_PATH.exec(url.pathname)
     if (bookSettingsMatch && (request.method === "GET" || request.method === "PATCH")) {
       return this.#handleBookSettings(bookSettingsMatch[1]!, request)
@@ -1208,6 +1224,28 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "book")) {
+      if (!this.#updateBook) return jsonResponse({ error: "Reader book defaults are read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewBookPatch>
+      try {
+        parsed = parseNeoviewBookPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewBookConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateBook!(parsed.patch, parsed.tomlPatch)
+        this.#book = updated
+        this.#service.updatePageOrderDefaults(lockedPageOrder(updated))
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "viewDefaults")) {
       if (!this.#updateViewDefaults) return jsonResponse({ error: "Reader view defaults are read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewViewDefaultsPatch>
@@ -1299,6 +1337,7 @@ export class ReaderHttpController implements AsyncDisposable {
       schemaVersion: 1 as const,
       shell: { ...this.#shellOptions, revision: this.#shellRevision },
       viewDefaults: this.#viewDefaults,
+      book: this.#book,
       pageList: this.#pageList,
       bookmarkList: this.#bookmarkList,
       historyList: this.#historyList,
@@ -1333,8 +1372,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (query.length > 128) return jsonResponse({ error: "Page query must not exceed 128 characters" }, 400)
     const normalizedQuery = query.toLocaleLowerCase()
     const catalog = normalizedQuery
-      ? session.book.pages.filter((page) => page.name.toLocaleLowerCase().includes(normalizedQuery) || String(page.index + 1).includes(normalizedQuery))
-      : session.book.pages
+      ? session.pages.filter((page, index) => page.name.toLocaleLowerCase().includes(normalizedQuery) || String(index + 1).includes(normalizedQuery))
+      : session.pages
     const cursor = boundedInteger(url.searchParams.get("cursor"), 0, catalog.length, 0)
     const limit = boundedInteger(url.searchParams.get("limit"), 1, 500, 100)
     const sourcePages = catalog.slice(cursor, cursor + limit)
@@ -1354,7 +1393,7 @@ export class ReaderHttpController implements AsyncDisposable {
     if (typeof session.frameWindow !== "function") {
       return jsonResponse({ error: "Reader session does not support frame windows" }, 501)
     }
-    const pageCount = session.book.pages.length
+    const pageCount = session.pages.length
     if (!pageCount) return jsonResponse({ frames: [], centerIndex: 0, radius: 0 })
     const defaultCenter = session.snapshot().anchorPageIndex
     const center = boundedInteger(url.searchParams.get("center"), 0, pageCount - 1, defaultCenter)
@@ -1378,7 +1417,7 @@ export class ReaderHttpController implements AsyncDisposable {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     const snapshot = session.snapshot()
-    const page = session.book.pages[snapshot.anchorPageIndex]
+    const page = session.pages[snapshot.anchorPageIndex]
     const sourcePath = session.book.source.path
     const pageFilePath = page && !page.timestamps && !page.entryPath && page.sourcePath !== sourcePath
       ? page.sourcePath
@@ -1393,7 +1432,7 @@ export class ReaderHttpController implements AsyncDisposable {
       book: {
         ...staticMetadata,
         currentPage: snapshot.anchorPageIndex + 1,
-        progressPercent: session.book.pages.length ? Math.min(snapshot.anchorPageIndex + 1, session.book.pages.length) / session.book.pages.length * 100 : undefined,
+        progressPercent: session.pages.length ? Math.min(snapshot.anchorPageIndex + 1, session.pages.length) / session.pages.length * 100 : undefined,
         byteLength: bookStats?.isFile() ? bookStats.size : undefined,
         createdAtMs: validTime(bookStats?.birthtimeMs),
         modifiedAtMs: validTime(bookStats?.mtimeMs),
@@ -1406,7 +1445,7 @@ export class ReaderHttpController implements AsyncDisposable {
   async #pageMediaInformationResponse(encodedSessionId: string, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
-    const page = session.book.pages[session.snapshot().anchorPageIndex]
+    const page = session.pages[session.snapshot().anchorPageIndex]
     if (!page) return jsonResponse({ error: "Reader session has no current page" }, 404)
     try {
       return jsonResponse(await this.#pageMediaInformation.inspect(session.id, page, signal))
@@ -1507,7 +1546,7 @@ export class ReaderHttpController implements AsyncDisposable {
         .filter((event) => event.outcome === "started")
         .map((event) => event.pageId),
     )
-    void this.#archivePreloadDemand.update(session.id, session.book.pages, session.preloadPlan(), demandedPageIds)
+    void this.#archivePreloadDemand.update(session.id, session.pages, session.preloadPlan(), demandedPageIds)
       .catch(() => undefined)
     return jsonResponse({ generation: body.generation, accepted, rejected, stale }, status)
   }
@@ -1619,6 +1658,26 @@ export class ReaderHttpController implements AsyncDisposable {
     }
   }
 
+  async #updateSessionPageOrder(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    const allowed = new Set(["sortMode", "mediaPriority", "randomSeed"])
+    if (!body || !Object.keys(body).length || Object.keys(body).some((key) => !allowed.has(key))) {
+      return jsonResponse({ error: "Reader page order must contain only sortMode, mediaPriority or randomSeed" }, 400)
+    }
+    try {
+      const previousPreloadGeneration = session.preloadPlan()?.generation
+      const frame = await session.updatePageOrder(body, request.signal)
+      await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, session.preloadPlan()?.generation)
+      this.#retainSessionFrame(session, frame)
+      return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), pageOrder: session.pageOrder, preload: session.preloadPlan() })
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+  }
+
   async #handleBookSettings(encodedSessionId: string, request: Request): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -1693,7 +1752,7 @@ export class ReaderHttpController implements AsyncDisposable {
     }
 
     const frame = current.snapshot()
-    const anchor = current.book.pages[frame.anchorPageIndex]
+    const anchor = current.pages[frame.anchorPageIndex]
     let replacement: ReaderSession | undefined
     try {
       replacement = await this.#service.openViewSource(current.book.source, {
@@ -1864,7 +1923,7 @@ export class ReaderHttpController implements AsyncDisposable {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     if (!this.#mediaProgress) return jsonResponse({ error: "Reader media progress is unavailable" }, 501)
-    if (!session.book.pages.some((page) => page.mediaKind === "video")) {
+    if (!session.pages.some((page) => page.mediaKind === "video")) {
       return jsonResponse({ error: "Reader session does not contain video media" }, 409)
     }
     if (request.method === "GET") {
@@ -1990,10 +2049,11 @@ export class ReaderHttpController implements AsyncDisposable {
       book: {
         id: session.book.id,
         displayName: session.book.displayName,
-        pageCount: session.book.pages.length,
+        pageCount: session.pages.length,
       },
       frame,
       visiblePages: this.#visiblePages(session, frame),
+      pageOrder: session.pageOrder,
       preload: session.preloadPlan(),
     }
   }
@@ -2015,7 +2075,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#assets.retainSessionPages(session.id, pageIds)
     // Do not consume adjacent archive pages merely because the backend built a
     // plan. Only explicit client "started" telemetry becomes archive demand.
-    void this.#archivePreloadDemand.update(session.id, session.book.pages, preload, new Set()).catch(() => undefined)
+    void this.#archivePreloadDemand.update(session.id, session.pages, preload, new Set()).catch(() => undefined)
   }
 
   #visiblePages(session: ReaderSession, frame: FrameSnapshot): ReaderPageDto[] {
@@ -2028,7 +2088,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #pageDto(session: ReaderSession, page: ReaderPage): ReaderPageDto {
     return {
       id: page.id,
-      index: page.index,
+      index: session.pageIndex(page.id) ?? page.index,
       name: page.name,
       mediaKind: page.mediaKind,
       mimeType: page.mimeType,
@@ -2305,6 +2365,14 @@ function pageMetadata(page: ReaderPage, fallbackStats?: Stats): Record<string, u
 
 function validTime(value: number | undefined): number | undefined {
   return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function lockedPageOrder(config: NeoviewBookConfig | undefined): ReaderPageOrderPatch | undefined {
+  if (!config || (config.lockedSortMode === null && config.lockedMediaPriority === null)) return undefined
+  return {
+    sortMode: config.lockedSortMode ?? "fileName",
+    mediaPriority: config.lockedMediaPriority ?? "none",
+  }
 }
 
 function jsonResponse(data: unknown, status = 200): Response {

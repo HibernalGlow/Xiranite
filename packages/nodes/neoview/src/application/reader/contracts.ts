@@ -5,6 +5,7 @@ import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderPreloadContext, ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import type { ReaderPreloadReport, ReaderPreloadReportResult, ReaderPreloadTelemetrySnapshot } from "../preloading/PreloadTelemetry.js"
+import type { ReaderPageOrder, ReaderPageOrderPatch } from "./ReaderPageOrder.js"
 
 export type ReaderSessionId = string
 
@@ -29,6 +30,8 @@ export type ReaderSessionEvent =
 export interface ReaderSession extends AsyncDisposable {
   readonly id: ReaderSessionId
   readonly book: ReaderBook
+  readonly pages: readonly ReaderPage[]
+  readonly pageOrder: ReaderPageOrder
   readonly generation: ReaderGeneration
   snapshot(): FrameSnapshot
   preloadPlan(): ReaderPreloadPlan | undefined
@@ -37,11 +40,13 @@ export interface ReaderSession extends AsyncDisposable {
   preloadTelemetry(): ReaderPreloadTelemetrySnapshot
   reportPreload(report: ReaderPreloadReport): ReaderPreloadReportResult
   getPage(pageId: PageId): ReaderPage | undefined
+  pageIndex(pageId: PageId): number | undefined
   frameWindow?(centerPageIndex: number, radius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]>
   goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot>
   next(signal?: AbortSignal): Promise<FrameSnapshot>
   previous(signal?: AbortSignal): Promise<FrameSnapshot>
   updateOptions(options: Partial<ReaderSessionOptions>, signal?: AbortSignal): Promise<FrameSnapshot>
+  updatePageOrder(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<FrameSnapshot>
   subscribe(listener: (event: ReaderSessionEvent) => void): () => void
   close(): Promise<void>
 }

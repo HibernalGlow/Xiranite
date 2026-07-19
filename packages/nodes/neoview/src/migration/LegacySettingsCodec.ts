@@ -536,6 +536,8 @@ function resolveNativeTarget(targetPrefix: readonly string[], key: string): stri
   if (section === "reader.book" && key === "doublePageView") return ["reader", "double_page_view"]
   if (section === "reader.book" && key === "tailOverflowBehavior") return ["reader", "tail_overflow_behavior"]
   if (section === "reader.book" && key === "preloadPages") return ["performance", "preload_pages"]
+  if (section === "reader.book" && key === "lockedSortMode") return ["book", "locked_sort_mode"]
+  if (section === "reader.book" && key === "lockedMediaPriority") return ["book", "locked_media_priority"]
   return [...targetPrefix, snakeCase(key)]
 }
 
@@ -826,6 +828,8 @@ const ENUM_RULES: readonly { pattern: RegExp; values: ReadonlySet<string> }[] = 
   { pattern: /\.defaultZoomMode$/, values: new Set(["fit", "fill", "fitWidth", "fitHeight", "original", "fitLeftAlign", "fitRightAlign"]) },
   { pattern: /\.readingDirection$/, values: new Set(["left-to-right", "right-to-left"]) },
   { pattern: /\.tailOverflowBehavior$/, values: new Set(["doNothing", "stayOnLastPage", "nextBook", "loopTopBottom", "seamlessLoop"]) },
+  { pattern: /\.lockedSortMode$/, values: new Set(["fileName", "fileNameDescending", "fileSize", "fileSizeDescending", "timeStamp", "timeStampDescending", "entry", "entryDescending", "random"]) },
+  { pattern: /\.lockedMediaPriority$/, values: new Set(["none", "videoFirst", "imageFirst"]) },
   { pattern: /\.longImageScrollMode$/, values: new Set(["page", "continuous"]) },
   { pattern: /\.backgroundMode$/, values: new Set(["solid", "auto", "ambient", "aurora", "spotlight"]) },
   { pattern: /\.lastDynamicBackgroundMode$/, values: new Set(["auto", "ambient", "aurora", "spotlight"]) },

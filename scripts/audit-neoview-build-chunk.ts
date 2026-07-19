@@ -43,8 +43,16 @@ const eagerPresentationModules = neoViewChunk.modules.filter((module) => /[/\\]f
 if (eagerPresentationModules.length) throw new Error(`NeoView presentation UI leaked into the reader entry chunk: ${eagerPresentationModules.join(", ")}`)
 const readerFrameChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderFrame\.tsx$/i.test(module)))
 const readerViewToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderViewToolbar\.tsx$/i.test(module)))
+// [neoview.toolbar.page-order-chunk]
+const readerPageOrderToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderPageOrderToolbar\.tsx$/i.test(module)))
 if (!readerFrameChunk || readerFrameChunk === neoViewChunk) throw new Error("NeoView ReaderFrame did not produce a deferred production chunk.")
 if (!readerViewToolbarChunk || readerViewToolbarChunk === neoViewChunk) throw new Error("NeoView ReaderViewToolbar did not produce a deferred production chunk.")
+if (!readerPageOrderToolbarChunk || readerPageOrderToolbarChunk === readerViewToolbarChunk || readerPageOrderToolbarChunk === neoViewChunk || readerPageOrderToolbarChunk === initialChunk) {
+  throw new Error("NeoView page-order toolbar did not produce an independent second-level deferred production chunk.")
+}
+if (readerPageOrderToolbarChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView page-order toolbar chunk ${readerPageOrderToolbarChunk.fileName} is ${readerPageOrderToolbarChunk.bytes} bytes, above 8 KiB.`)
+}
 if (!readerFrameChunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]PageImage\.tsx$/i.test(module))) {
   throw new Error("NeoView PageImage is not colocated with the deferred ReaderFrame chunk.")
 }
@@ -376,6 +384,7 @@ console.log(JSON.stringify({
   initialChunk: { fileName: initialChunk.fileName, bytes: initialChunk.bytes, neoviewModules: 0 },
   neoviewChunk: { fileName: neoViewChunk.fileName, bytes: neoViewChunk.bytes },
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
+  readerPageOrderToolbarChunk: { fileName: readerPageOrderToolbarChunk.fileName, bytes: readerPageOrderToolbarChunk.bytes },
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   historyListChunk: { fileName: historyListChunk.fileName, bytes: historyListChunk.bytes },
   historyContextActionsChunk: { fileName: historyContextActionsChunk.fileName, bytes: historyContextActionsChunk.bytes },

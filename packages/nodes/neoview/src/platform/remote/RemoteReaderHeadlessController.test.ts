@@ -175,6 +175,47 @@ describe("RemoteReaderHeadlessController", () => {
     expect(requests.at(-1)?.method).toBe("DELETE")
   })
 
+  it("[neoview.page-order.cli-connect] preserves physical identity and stable random order across authenticated HTTP", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-remote-page-order-"))
+    cleanup.push(directory)
+    await writeFile(join(directory, "1.jpg"), Uint8Array.of(1))
+    await writeFile(join(directory, "2.jpg"), Uint8Array.of(2))
+    await writeFile(join(directory, "10.jpg"), Uint8Array.of(10))
+    const server = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      progressStore: false,
+    })
+    const requests: Request[] = []
+    const remote = new RemoteReaderHeadlessController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      fetch: controllerFetch(server, requests),
+    })
+    try {
+      await remote.open({ path: directory })
+      const selected = await remote.goTo(2)
+      const selectedId = selected.visiblePages[0]!.id
+      const descending = await remote.updatePageOrder({ sortMode: "fileNameDescending" })
+      expect(descending).toMatchObject({
+        frame: { anchorPageIndex: 0 },
+        visiblePages: [{ id: selectedId, name: "10.jpg", index: 0 }],
+        pageOrder: { sortMode: "fileNameDescending", mediaPriority: "none" },
+      })
+      await expect(remote.next()).resolves.toMatchObject({ visiblePages: [{ name: "2.jpg", index: 1 }] })
+      const firstRandom = await remote.updatePageOrder({ sortMode: "random", randomSeed: "stable-seed" })
+      const firstNames = (await remote.listPages(0, 3)).map((page) => page.name)
+      const secondRandom = await remote.updatePageOrder({ sortMode: "random", randomSeed: "stable-seed" })
+      const secondNames = (await remote.listPages(0, 3)).map((page) => page.name)
+      expect(secondNames).toEqual(firstNames)
+      expect(secondRandom.pageOrder).toEqual(firstRandom.pageOrder)
+      expect(requests.some((request) => request.method === "PATCH" && request.url.endsWith("/page-order"))).toBe(true)
+    } finally {
+      await remote[Symbol.asyncDispose]()
+      await server[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.book-settings.cli-connect] reuses authenticated HTTP, wire validation and frame projection", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-remote-settings-"))
     cleanup.push(directory)

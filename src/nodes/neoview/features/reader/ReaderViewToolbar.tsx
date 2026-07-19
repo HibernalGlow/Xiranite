@@ -7,7 +7,7 @@
  * @source-hash sha256:c823ae6af0f8659ac7cccdaaa2eedfbbb8c8be5088b5148288bb57f3caf4acb5
  * @migration-status adapted
  */
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -55,7 +55,13 @@ import {
 
 import { Button } from "@/components/ui/button"
 import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"
+import type { ReaderMediaPriorityModeDto, ReaderPageOrderDto, ReaderPageSortModeDto } from "../../adapters/reader-http-client"
 import { ReaderSlideshowToolbar } from "./ReaderSlideshowToolbar"
+
+const ReaderPageOrderToolbar = lazy(async () => {
+  const module = await import("./ReaderPageOrderToolbar")
+  return { default: module.ReaderPageOrderToolbar }
+})
 
 const FIT_MODES: Array<{ value: ReaderFitMode; label: string }> = [
   { value: "fit", label: "适应窗口" },
@@ -77,7 +83,7 @@ const FIT_MODE_ICONS = {
   "fit-right": AlignRight,
 } as const
 
-type ExpandedPanel = "zoom" | "rotate" | "hover-scroll" | "slideshow" | "magnifier"
+type ExpandedPanel = "sort" | "zoom" | "rotate" | "hover-scroll" | "slideshow" | "magnifier"
 
 export function ReaderViewToolbar({
   disabled,
@@ -87,6 +93,11 @@ export function ReaderViewToolbar({
   onChange,
   onLayoutChange,
   onDirectionChange,
+  pageOrder = { sortMode: "fileName", mediaPriority: "none" },
+  lockedSortMode,
+  lockedMediaPriority,
+  onPageOrderChange,
+  onPageOrderLockChange,
   hoverScrollEnabled = true,
   hoverScrollSpeed = 2,
   onHoverScrollChange,
@@ -105,6 +116,11 @@ export function ReaderViewToolbar({
   onChange(presentation: ReaderPresentation): void
   onLayoutChange(patch: Partial<ReaderLayout>): void
   onDirectionChange(direction: ReadingDirection): void
+  pageOrder?: ReaderPageOrderDto
+  lockedSortMode?: ReaderPageSortModeDto | null
+  lockedMediaPriority?: Exclude<ReaderMediaPriorityModeDto, "none"> | null
+  onPageOrderChange?(patch: Partial<ReaderPageOrderDto>): void | Promise<void>
+  onPageOrderLockChange?(patch: { lockedSortMode: ReaderPageSortModeDto | null; lockedMediaPriority: Exclude<ReaderMediaPriorityModeDto, "none"> | null }): void | Promise<void>
   hoverScrollEnabled?: boolean
   hoverScrollSpeed?: number
   onHoverScrollChange?(patch: { enabled?: boolean; speed?: number }): void | Promise<void>
@@ -149,7 +165,7 @@ export function ReaderViewToolbar({
   return (
     <div className="xiranite-app-region-no-drag min-w-0" data-reader-view-toolbar="true">
       <div className="flex min-h-12 min-w-0 flex-wrap items-center justify-start gap-1 px-3 py-1.5 lg:justify-center" data-reader-toolbar-row="primary">
-        <Button title="页面排序尚待迁移" aria-label="页面排序" type="button" size="icon-sm" variant="ghost" disabled><ArrowDownUp /></Button>
+        <Button title="页面排序" aria-label="页面排序" aria-expanded={expanded === "sort"} type="button" size="icon-sm" variant={expanded === "sort" ? "default" : "ghost"} disabled={disabled || !onPageOrderChange} onClick={() => toggle("sort")}><ArrowDownUp /></Button>
         <Separator />
         <Button title="缩小" aria-label="缩小" type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={() => onChange({ ...presentation, manualScale: stepReaderManualScale(presentation.manualScale, -1) })}><ZoomOut /></Button>
         {zoomInput === undefined ? (
@@ -199,6 +215,9 @@ export function ReaderViewToolbar({
       </div>
       {expanded ? (
         <div className="flex min-h-12 flex-wrap items-center justify-center gap-1 overflow-x-auto border-t border-border/50 bg-muted/18 px-3 py-2" data-reader-toolbar-row="expanded" data-reader-toolbar-panel={expanded}>
+          {expanded === "sort" ? <Suspense fallback={<span className="text-xs text-muted-foreground" role="status">正在加载页面排序…</span>}>
+            <ReaderPageOrderToolbar disabled={disabled} order={pageOrder} lockedSortMode={lockedSortMode} lockedMediaPriority={lockedMediaPriority} onChange={onPageOrderChange!} onLockChange={onPageOrderLockChange} />
+          </Suspense> : null}
           {expanded === "zoom" ? <ZoomPanel disabled={disabled} layout={layout} presentation={presentation} onChange={onChange} onLayoutChange={onLayoutChange} /> : null}
           {expanded === "rotate" ? <RotatePanel disabled={disabled} presentation={presentation} onChange={onChange} /> : null}
           {expanded === "hover-scroll" ? <HoverScrollPanel disabled={disabled} enabled={hoverScrollEnabled} speed={hoverScrollSpeed} onChange={onHoverScrollChange} /> : null}
