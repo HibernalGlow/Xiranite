@@ -132,7 +132,7 @@ export function ReaderLibraryList<T>({
   }
 
   return (
-    <div className="grid min-h-0 gap-2" data-neoview-library-list={queryKey}>
+    <div className="flex min-h-0 flex-1 flex-col gap-2" data-neoview-library-list={queryKey}>
       <div className="flex items-center justify-end gap-2">
         <span className="mr-auto text-[10px] tabular-nums text-muted-foreground">{items.length} 项</span>
         <Button
@@ -150,7 +150,8 @@ export function ReaderLibraryList<T>({
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div
         ref={viewportRef}
-        className="h-72 min-h-32 overflow-auto rounded border bg-background/60"
+        className="min-h-32 flex-1 overflow-auto rounded border bg-background/60"
+        data-neoview-library-viewport="true"
         role={listLabel ? "listbox" : undefined}
         aria-label={listLabel}
         aria-multiselectable={listLabel ? true : undefined}
