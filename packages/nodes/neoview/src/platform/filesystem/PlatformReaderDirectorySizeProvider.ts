@@ -36,6 +36,8 @@ export class PlatformReaderDirectorySizeProvider implements ReaderDirectorySizeP
     let bytes = 0
     let fileCount = 0
     try {
+      // The scheduler may resolve after cancellation; do not start a scan with a stale lease.
+      signal?.throwIfAborted()
       stream = readdirp(normalizedPath, {
         type: "files",
         alwaysStat: true,

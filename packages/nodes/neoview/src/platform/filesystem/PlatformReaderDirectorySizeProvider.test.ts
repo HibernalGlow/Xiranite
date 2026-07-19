@@ -46,6 +46,27 @@ describe("PlatformReaderDirectorySizeProvider", () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.folder.size-cancellation-race] does not start scanning after a cancelled lease is granted", async () => {
+    const root = await mkdtemp(join(tmpdir(), "neoview-directory-size-cancel-"))
+    roots.push(root)
+    await writeFile(join(root, "a.bin"), Buffer.alloc(3))
+    const release = vi.fn()
+    let grantLease: ((lease: { release: () => void }) => void) | undefined
+    const acquire = vi.fn(() => new Promise<{ release: () => void }>((resolve) => {
+      grantLease = resolve
+    }))
+    const provider = new PlatformReaderDirectorySizeProvider({ resourceScheduler: { acquire } })
+    const controller = new AbortController()
+    const pending = provider.measure(root, controller.signal)
+
+    expect(acquire).toHaveBeenCalledOnce()
+    controller.abort(new Error("directory size caller cancelled"))
+    grantLease!({ release })
+
+    await expect(pending).rejects.toThrow("directory size caller cancelled")
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.folder.size-drive-root] normalizes a Windows drive-only root before scanning", async () => {
     const original = process.platform
     Object.defineProperty(process, "platform", { value: "win32", configurable: true })
