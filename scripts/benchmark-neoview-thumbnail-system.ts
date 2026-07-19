@@ -7,6 +7,7 @@ import pMap from "p-map"
 import { ResourceSchedulerService } from "../packages/services/src/resourceScheduler.js"
 import type { ReaderBook } from "../packages/nodes/neoview/src/domain/book/book.js"
 import type { ReaderPage } from "../packages/nodes/neoview/src/domain/page/page.js"
+import type { ReaderBookLoader } from "../packages/nodes/neoview/src/ports/ReaderBookLoader.js"
 import { ReaderFileTreeService } from "../packages/nodes/neoview/src/application/browser/ReaderFileTreeService.js"
 import { createPlatformReaderBookLoader } from "../packages/nodes/neoview/src/platform/books/PlatformReaderBookLoader.js"
 import { PlatformDirectoryListingProvider } from "../packages/nodes/neoview/src/platform/filesystem/PlatformDirectoryListingProvider.js"
@@ -20,6 +21,7 @@ const parsed = parseArgs({
   options: {
     "page-source": { type: "string" },
     "directory-source": { type: "string" },
+    "video-source": { type: "string" },
     "storage-label": { type: "string" },
     "work-root": { type: "string" },
     report: { type: "string" },
@@ -42,6 +44,7 @@ const storageLabel = parsed.values["storage-label"]?.trim() || "unspecified"
 const reportPath = parsed.values.report ? await assertReportDestinationAvailable(parsed.values.report) : undefined
 const hasRealPageCorpus = Boolean(parsed.values["page-source"])
 const hasRealDirectoryCorpus = Boolean(parsed.values["directory-source"])
+const videoSource = parsed.values["video-source"]?.trim()
 const realCorpus = hasRealPageCorpus && hasRealDirectoryCorpus
 const corpusKind = realCorpus ? "real" : hasRealPageCorpus || hasRealDirectoryCorpus ? "mixed-smoke" : "synthetic-smoke"
 const acceptanceEligible = realCorpus && pageCount >= 1_000 && directoryCount >= 10_000 && storageLabel !== "unspecified"
@@ -94,6 +97,12 @@ try {
   pipeline = new PlatformThumbnailPipeline({
     bookLoader: loadBook,
     loadImageTransformer: async () => new SharpImageTransformer(resourceScheduler),
+    loadVideoThumbnailProvider: videoSource
+      ? async () => {
+          const { FfmpegVideoThumbnailProvider } = await import("../packages/nodes/neoview/src/platform/video/FfmpegVideoThumbnailProvider.js")
+          return new FfmpegVideoThumbnailProvider({ resourceScheduler })
+        }
+      : undefined,
     resourceScheduler,
     maxMemoryBytes: 64 * MIB,
     maxEntryBytes: 2 * MIB,
@@ -126,6 +135,7 @@ try {
         peakRss = Math.max(peakRss, process.memoryUsage().rss)
       })
     : undefined
+  const video = videoSource ? await benchmarkVideo(pipeline, loadBook, resolve(videoSource)) : undefined
   const beforeDispose = pipeline.snapshot()
   await pipeline.dispose()
   const afterDispose = pipeline.snapshot()
@@ -147,6 +157,7 @@ try {
     },
     directory,
     library,
+    video,
     pages: {
       available: pages.length,
       openBookMs: round(openBookMs),
@@ -282,6 +293,29 @@ async function benchmarkLibrary(
   } finally {
     pipeline.releaseContext(contextId)
     pipeline.releaseContext("benchmark:library-l1")
+  }
+}
+
+async function benchmarkVideo(
+  pipeline: PlatformThumbnailPipeline,
+  loadBook: ReaderBookLoader,
+  path: string,
+) {
+  const book = await loadBook({ kind: "path", path })
+  try {
+    const page = book.pages.find((candidate) => candidate.mediaKind === "video")
+    if (!page) throw new Error("Video corpus does not contain a supported video page.")
+    const coldGenerationMs = await measureGeneration(pipeline, page, "benchmark:video:cold")
+    const l1HitMs = await measureGeneration(pipeline, page, "benchmark:video:l1")
+    await pipeline.whenIdle()
+    return {
+      sample: pageDescriptor(page),
+      coldGenerationMs: round(coldGenerationMs),
+      l1HitMs: round(l1HitMs),
+      afterRelease: pipeline.snapshot(),
+    }
+  } finally {
+    await book.close()
   }
 }
 
@@ -534,6 +568,10 @@ function assertReport(report: {
     l1HitMs?: Summary
     afterRelease: { demands: number; activeFlights: number; queuedFlights: number; runningFlights: number }
   }
+  video?: {
+    l1HitMs: number
+    afterRelease: { demands: number; activeFlights: number; queuedFlights: number; runningFlights: number }
+  }
   pages: { coldGenerationMs: number; warmGenerationMs: number }
   scroll: {
     ready: number
@@ -567,6 +605,10 @@ function assertReport(report: {
       failures.push(`library L1 hit p95 ${report.library.l1HitMs.p95}ms > ${budgets.l1HitP95Ms}ms`)
     }
     if (!workStateIsZero(report.library.afterRelease)) failures.push("library thumbnail demands/flights did not return to zero")
+  }
+  if (report.video) {
+    if (report.video.l1HitMs > budgets.l1HitP95Ms) failures.push(`video L1 hit ${report.video.l1HitMs}ms > ${budgets.l1HitP95Ms}ms`)
+    if (!workStateIsZero(report.video.afterRelease)) failures.push("video thumbnail demands/flights did not return to zero")
   }
   if (report.pages.coldGenerationMs > budgets.coldGenerationMs) failures.push(`cold generation ${report.pages.coldGenerationMs}ms > ${budgets.coldGenerationMs}ms`)
   if (report.pages.warmGenerationMs > budgets.warmGenerationMs) failures.push(`warm generation ${report.pages.warmGenerationMs}ms > ${budgets.warmGenerationMs}ms`)
