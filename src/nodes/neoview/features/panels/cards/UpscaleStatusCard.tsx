@@ -53,7 +53,7 @@ export default function UpscaleStatusCard({ client, session, disabled, panelActi
   const pending = preloads.reduce((sum, item) => sum + item.pending, 0)
   const settled = preloads.reduce((sum, item) => sum + item.settled, 0)
   const failed = preloads.reduce((sum, item) => sum + item.failed, 0)
-  const info = statusInfo(snapshot.state)
+  const info = statusInfo(snapshot.state, snapshot.result?.decision?.reason, snapshot.error)
 
   function startResize(event: React.PointerEvent, direction: string) {
     event.preventDefault()
@@ -85,12 +85,19 @@ export default function UpscaleStatusCard({ client, session, disabled, panelActi
 }
 
 function Row({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) { return <div className={accent ? "flex items-center justify-between text-emerald-600" : "flex items-center justify-between"}><span className="text-muted-foreground">{label}</span><span className="max-w-40 truncate font-mono text-[10px]" title={value}>{value}</span></div> }
-function statusInfo(state: "idle" | "processing" | "completed" | "skipped" | "failed") {
+function statusInfo(state: "idle" | "processing" | "completed" | "skipped" | "failed", reason?: string, error?: string) {
   if (state === "processing") return { label: "超分中", description: "正在进行超分处理", className: "flex items-center gap-1.5 text-blue-600", icon: <Loader2 className="size-3.5 animate-spin" /> }
   if (state === "completed") return { label: "已完成", description: "超分完成", className: "flex items-center gap-1.5 text-emerald-600", icon: <Check className="size-3.5" /> }
-  if (state === "skipped") return { label: "已跳过", description: "不符合条件或 provider 已跳过", className: "flex items-center gap-1.5 text-amber-600", icon: <SkipForward className="size-3.5" /> }
-  if (state === "failed") return { label: "失败", description: "超分处理失败", className: "flex items-center gap-1.5 text-destructive", icon: <X className="size-3.5" /> }
+  if (state === "skipped") return { label: "已跳过", description: policyReason(reason), className: "flex items-center gap-1.5 text-amber-600", icon: <SkipForward className="size-3.5" /> }
+  if (state === "failed") return { label: "失败", description: error || "超分处理失败，请检查 runtime、CLI 与模型文件", className: "flex items-center gap-1.5 text-destructive", icon: <X className="size-3.5" /> }
   return { label: "未超分", description: "尚未进行超分", className: "flex items-center gap-1.5 text-muted-foreground", icon: <ImageOff className="size-3.5" /> }
+}
+function policyReason(reason?: string): string {
+  if (reason === "automatic-upscale-disabled") return "自动超分开关尚未在当前 Reader 生效"
+  if (reason === "missing-model-defaults") return "未选择默认模型或放大倍率"
+  if (reason === "below-conditional-minimum") return "图片尺寸低于条件阈值"
+  if (reason === "condition-skip") return "匹配到“不超分”条件"
+  return reason ? `超分策略已跳过：${reason}` : "不符合条件或 provider 已跳过"
 }
 function ResizeHandles({ onStart }: { onStart(event: React.PointerEvent, direction: string): void }) { return <>{["n", "s", "e", "w", "ne", "nw", "se", "sw"].map((direction) => <button key={direction} type="button" className={resizeClass(direction)} aria-label={`${direction} 方向调整大小`} onPointerDown={(event) => onStart(event, direction)} />)}</> }
 function resizeClass(direction: string): string { const classes: Record<string, string> = { n: "top-0 left-3 right-3 h-1 cursor-n-resize", s: "bottom-0 left-3 right-3 h-1 cursor-s-resize", e: "right-0 top-3 bottom-3 w-1 cursor-e-resize", w: "left-0 top-3 bottom-3 w-1 cursor-w-resize", ne: "right-0 top-0 size-3 cursor-ne-resize", nw: "left-0 top-0 size-3 cursor-nw-resize", se: "right-0 bottom-0 size-3 cursor-se-resize", sw: "left-0 bottom-0 size-3 cursor-sw-resize" }; return `absolute z-10 ${classes[direction]}` }

@@ -28,6 +28,23 @@ describe("LazySuperResolutionPagePort", () => {
     await port[Symbol.asyncDispose]()
   })
 
+  it("[neoview.super-resolution.runtime-reconfigure] disposes the loaded capability and reloads it on next demand", async () => {
+    const firstDispose = vi.fn(async () => undefined)
+    const secondDispose = vi.fn(async () => undefined)
+    const run = vi.fn(async () => ({ decision: { kind: "skip" as const, reason: "test" } }))
+    const load = vi.fn()
+      .mockResolvedValueOnce(capability(run, firstDispose))
+      .mockResolvedValueOnce(capability(run, secondDispose))
+    const port = new LazySuperResolutionPagePort(load)
+    await port.run(pageInput())
+    await port.reconfigure()
+    expect(firstDispose).toHaveBeenCalledOnce()
+    await port.run(pageInput())
+    expect(load).toHaveBeenCalledTimes(2)
+    await port[Symbol.asyncDispose]()
+    expect(secondDispose).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.super-resolution.artifact-lazy] reuses the same lazy capability for artifact execution", async () => {
     const acquireOrGenerate = vi.fn(async () => ({
       status: "bypassed" as const,

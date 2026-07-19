@@ -151,6 +151,23 @@ describe("OpenComic AI system composition", () => {
     await capability?.service.dispose()
   })
 
+  it("[neoview.super-resolution.runtime-model-default] selects an installed default model when preferences omit one", async () => {
+    const capability = await createOpenComicAiSystemCapability({
+      loadRuntime: async () => fakeRuntime(),
+      runtimeConfig: { ...enabledConfig, preferences: { ...enabledConfig.preferences, defaultModelId: undefined, defaultScale: undefined } },
+      modelsDirectory: "D:/Models",
+      cliResolver: fakeResolver(),
+    })
+    expect(capability?.policy.decide({
+      trigger: "automatic-current",
+      width: 800,
+      height: 1_200,
+      bookPath: "D:/book.cbz",
+      imagePath: "page.png",
+    })).toMatchObject({ kind: "run", modelId: "realesr-animevideov3", scale: 2 })
+    await capability?.dispose()
+  })
+
   it("[neoview.super-resolution.custom-model-registration] registers TOML manifests once per shared runtime", () => {
     const runtime = fakeRuntime()
     registerRuntimeCustomModels(runtime, [customModel])
