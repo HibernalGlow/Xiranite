@@ -75,6 +75,19 @@ const sourceUiInventorySchema = z.object({
   mappedChecklistIds: z.array(z.string().min(1)).min(1),
 }).strict()
 
+const unsupportedNodeSchema = z.object({
+  node: z.string().min(1),
+  source: z.string().min(1),
+  replacement: z.string().min(1),
+}).strict()
+
+const inventorySummarySchema = z.object({
+  sourceUiGroups: z.number().int().nonnegative(),
+  controlsAndStates: z.number().int().nonnegative(),
+  acceptanceItems: z.number().int().nonnegative(),
+  sourceFiles: z.number().int().nonnegative(),
+}).strict()
+
 export const detailedChecklistSchema = z.object({
   schemaVersion: z.literal(2),
   featureId: z.string().min(1),
@@ -82,7 +95,15 @@ export const detailedChecklistSchema = z.object({
   title: z.string().optional(),
   sourceRoot: z.string().min(1),
   sourceRevision: z.string().min(1).optional(),
+  sourceHash: z.string().min(1).optional(),
+  storeHash: z.string().min(1).optional(),
+  utilityHash: z.string().min(1).optional(),
+  astPrototype: z.string().min(1).optional(),
+  visualBaseline: z.string().min(1).optional(),
+  visualTarget: z.string().min(1).optional(),
+  inventorySummary: inventorySummarySchema.optional(),
   completionRule: z.string().min(1),
+  unsupportedNodes: z.array(unsupportedNodeSchema).optional(),
   sourceUiInventory: z.array(sourceUiInventorySchema).min(1),
   items: z.array(z.object({
     id: z.string().min(1),
@@ -269,8 +290,8 @@ function classifyEvidence(path: string, id: string): CapabilityDimension[] {
   const dimensions = new Set<CapabilityDimension>()
   const normalized = path.toLocaleLowerCase()
   if (normalized.startsWith("src/nodes/neoview/") || normalized.startsWith("tests/e2e/neoview/")) dimensions.add("gui")
-  if (/\bcli\b/.test(normalized) || /(?:^|\.)cli(?:\.|$)/.test(id)) dimensions.add("cli")
-  if (/\btui\b|opentui/.test(normalized) || /(?:^|\.)tui(?:\.|$)/.test(id)) dimensions.add("tui")
+  if (/\bcli\b/.test(normalized) || /(?:^|[.-])cli(?:[.-]|$)/.test(id)) dimensions.add("cli")
+  if (/\btui\b|opentui/.test(normalized) || /(?:^|[.-])tui(?:[.-]|$)/.test(id)) dimensions.add("tui")
   if (/asset-route|remote|reader-http-client|packages\/backend\//.test(normalized) || /(?:^|\.)(?:http|route|client|connect|wire)(?:\.|$)/.test(id)) dimensions.add("transport")
   if (/packages\/nodes\/neoview\/src\/(?:application|domain|platform|testing)|packages\/services\//.test(normalized)
     && !dimensions.has("cli") && !dimensions.has("tui") && !/asset-route|remote/.test(normalized)) dimensions.add("core")

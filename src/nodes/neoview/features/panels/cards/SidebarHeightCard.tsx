@@ -59,7 +59,10 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
   const retryPatchRef = useRef<ReaderSidebarLayoutPatch>()
   const mountedRef = useRef(true)
 
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   useEffect(() => setLeft(shell.sidebars.left), [shell.sidebars.left])
   useEffect(() => setRight(shell.sidebars.right), [shell.sidebars.right])
@@ -183,7 +186,7 @@ export function SidebarHeightEditor({ shell, disabled = false, onSidebarLayout, 
                 disabled={controlsDisabled}
                 compact
                 onPreview={(value) => setTriggers((current) => ({ ...current, [field.edge]: value }))}
-                onCommit={() => onTriggerSize(field.edge, triggers[field.edge])}
+                onCommit={(next) => onTriggerSize(field.edge, next)}
               />
             ))}
           </div>
@@ -219,7 +222,7 @@ function SidebarGeometry({ side, value, disabled, onPreview, onCommit }: {
         outputClassName={output}
         disabled={disabled}
         onPreview={(next) => onPreview({ ...value, height: next >= 100 ? "full" : "custom", customHeight: next })}
-        onCommit={() => onCommit({ height: height >= 100 ? "full" : "custom", customHeight: height })}
+        onCommit={(next) => onCommit({ height: next >= 100 ? "full" : "custom", customHeight: next })}
       />
       <RangeField
         label="Y轴"
@@ -228,9 +231,9 @@ function SidebarGeometry({ side, value, disabled, onPreview, onCommit }: {
         min={0}
         max={100}
         outputClassName={output}
-        disabled={disabled || value.height === "full"}
+        disabled={disabled || height >= 100}
         onPreview={(next) => onPreview({ ...value, verticalAlign: next })}
-        onCommit={() => onCommit({ verticalAlign: value.verticalAlign })}
+        onCommit={(next) => onCommit({ verticalAlign: next })}
       />
       <RangeField
         label="X轴"
@@ -242,7 +245,7 @@ function SidebarGeometry({ side, value, disabled, onPreview, onCommit }: {
         disabled={disabled}
         footer={<><span>贴边</span><span>居中</span></>}
         onPreview={(next) => onPreview({ ...value, horizontalPosition: next })}
-        onCommit={() => onCommit({ horizontalPosition: value.horizontalPosition })}
+        onCommit={(next) => onCommit({ horizontalPosition: next })}
       />
     </section>
   )
@@ -259,7 +262,7 @@ function RangeField({ label, icon, value, min, max, disabled, compact = false, o
   outputClassName?: string
   footer?: ReactNode
   onPreview(value: number): void
-  onCommit(): void
+  onCommit(value: number): void
 }) {
   return (
     <label className={cn("block space-y-1", disabled && "opacity-30")}>
@@ -316,13 +319,15 @@ function sidebarHeightPercent(value: SidebarLayout): number {
   return value.customHeight
 }
 
-function finishPointer(event: PointerEvent<HTMLInputElement>, commit: () => void): void {
+function finishPointer(event: PointerEvent<HTMLInputElement>, commit: (value: number) => void): void {
   if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-  commit()
+  commit(event.currentTarget.valueAsNumber)
 }
 
-function finishKey(event: KeyboardEvent<HTMLInputElement>, commit: () => void): void {
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) commit()
+function finishKey(event: KeyboardEvent<HTMLInputElement>, commit: (value: number) => void): void {
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) {
+    commit(event.currentTarget.valueAsNumber)
+  }
 }
 
 function errorMessage(error: unknown): string {

@@ -5,6 +5,7 @@ import {
   blockedDimensions,
   capabilityStatusSchema,
   compactCapabilityStatus,
+  detailedChecklistSchema,
   deriveOverallStatus,
   featureMatrixSchema,
   seedDetailedCapabilityStatus,
@@ -123,6 +124,47 @@ describe("NeoView capability status", () => {
       sourceRevision: "revision",
       features: [{ ...feature, status: "partial" }],
     })).toThrow()
+  })
+
+  it("[neoview.compatibility.detailed-checklist-schema] accepts frozen prototype and visual evidence while preserving strict item validation", () => {
+    const status = { ...complete, cli: "not-applicable", tui: "not-applicable" }
+    const checklist = {
+      schemaVersion: 2,
+      featureId: "demo-card",
+      legacyCardId: "demoCard",
+      sourceRoot: "legacy/neoview",
+      sourceRevision: "revision",
+      sourceHash: "sha256:source",
+      storeHash: "sha256:store",
+      utilityHash: "sha256:utility",
+      astPrototype: "migration/neoview/demo.tsx",
+      visualBaseline: "output/legacy.png",
+      visualTarget: "output/current.png",
+      inventorySummary: { sourceUiGroups: 1, controlsAndStates: 2, acceptanceItems: 3, sourceFiles: 4 },
+      unsupportedNodes: [{ node: "rune", source: "$state", replacement: "React state" }],
+      completionRule: "Preserve the demonstrated contract.",
+      sourceUiInventory: [{
+        id: "demo-ui",
+        title: "Demo UI",
+        sourceEvidence: ["src/lib/DemoCard.svelte"],
+        acceptanceItems: ["Visible field"],
+        mappedChecklistIds: ["demo.item"],
+      }],
+      items: [{
+        id: "demo.item",
+        category: "capabilities",
+        title: "Demo item",
+        sourceEvidence: ["src/lib/DemoCard.svelte"],
+        targetContract: "Render one visible field.",
+        surfaces: ["GUI"],
+        capabilityStatus: status,
+        testIds: ["neoview.demo.item"],
+        plannedTestIds: [],
+        notes: "Covered by a fixture.",
+      }],
+    }
+    expect(detailedChecklistSchema.parse(checklist)).toMatchObject({ astPrototype: checklist.astPrototype, visualTarget: checklist.visualTarget })
+    expect(() => detailedChecklistSchema.parse({ ...checklist, unsupportedNodes: [{ ...checklist.unsupportedNodes[0], unknown: true }] })).toThrow()
   })
 
   it("[neoview.compatibility.capability-render] renders stable compact summaries", () => {

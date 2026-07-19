@@ -292,7 +292,7 @@
     {
       "id": "sidebar-height.responsive", "category": "ui-parity", "title": "约束 Card 响应式几何", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte"],
       "targetContract": "At constrained Card widths, reflow the two geometry columns without overlap, clipped labels, unusable ranges or horizontal page overflow while retaining all controls.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.ui-1920x1080"], "plannedTestIds": ["neoview.sidebar-height.visual-constrained"], "notes": "The 1920px harness proves no horizontal overflow; a constrained Card viewport remains planned."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"}, "testIds": ["neoview.sidebar-height.ui-1920x1080", "neoview.sidebar-height.visual-constrained"], "plannedTestIds": [], "notes": "Desktop and 420x360 Chromium prove the two geometry groups reflow without losing controls or introducing horizontal overflow."
     },
     {
       "id": "sidebar-height.shell", "category": "ui-parity", "title": "共享 Card 外壳与独立窗口", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/components/cards/CollapsibleCard.svelte", "src/lib/components/cardwindow/CardWindowContent.svelte"],
@@ -302,7 +302,7 @@
     {
       "id": "sidebar-height.lifecycle", "category": "lifecycle", "title": "懒加载、监听释放与迟到响应", "sourceEvidence": ["src/lib/cards/info/SidebarHeightCard.svelte", "src/lib/settings/settingsManager.ts", "src/lib/stores/sidebarConfig.svelte.ts"],
       "targetContract": "Hidden/collapsed Card content is zero mounted work, listeners and pointer work are released on close, and stale hydrate/PATCH responses cannot overwrite a newer interaction or session.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.sidebar-height.lifecycle"], "notes": "The legacy settingsManager listener must not leak across Card remounts."
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "pending", "tui": "pending", "evidence": "pending"}, "testIds": ["neoview.sidebar-height.lifecycle"], "plannedTestIds": [], "notes": "The Card restores its mounted guard under React StrictMode so completed saves clear busy state; broader stale-session and disposed-work coverage remains required."
     },
     {
       "id": "sidebar-height.image-stability", "category": "performance", "title": "几何变化不重挂阅读图像", "sourceEvidence": ["src/lib/components/layout/MainLayout.svelte", "src/lib/cards/info/SidebarHeightCard.svelte"],

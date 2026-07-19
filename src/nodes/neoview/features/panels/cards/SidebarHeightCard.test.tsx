@@ -129,6 +129,22 @@ describe("SidebarHeightCard", () => {
     expect(view.container.querySelector('[data-sidebar-height-state="ready"]')).toBeTruthy()
     expect((screen.getAllByRole("slider", { name: "Y轴" })[0] as HTMLInputElement).disabled).toBe(true)
   })
+  it("[neoview.sidebar-height.lifecycle] re-enables Y-axis positioning as soon as a full-height sidebar leaves 100%", async () => {
+    render(
+      <SidebarHeightEditor
+        shell={shell()}
+        onSidebarLayout={() => undefined}
+        onTriggerSize={() => undefined}
+        onInteraction={() => undefined}
+      />,
+    )
+
+    const sliders = screen.getAllByRole("slider")
+    const leftHeight = sliders[0]!
+    fireEvent.change(leftHeight, { target: { value: "99" } })
+
+    await waitFor(() => expect((screen.getAllByRole("slider")[1] as HTMLInputElement).disabled).toBe(false))
+  })
 })
 
 function shell(): ReaderShellConfigDto {

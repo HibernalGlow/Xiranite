@@ -18,6 +18,13 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-bandia/platform"), { nodeId: "bandia", entry: "platform" }),
     createRuntime: "createNodeBandiaRuntime",
   },
+  batong: {
+    packageName: "@xiranite/node-batong",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-batong/core"), { nodeId: "batong", entry: "core" }),
+    run: "runBatong",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-batong/platform"), { nodeId: "batong", entry: "platform" }),
+    createRuntime: "createNodeBatongRuntime",
+  },
   bitv: {
     packageName: "@xiranite/node-bitv",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-bitv/core"), { nodeId: "bitv", entry: "core" }),

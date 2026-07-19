@@ -485,6 +485,7 @@
         "tui": "pending",
         "evidence": "partial"
       },
+      "currentCardId": "color-filter",
       "sourceComponent": "src/lib/cards/info/ColorFilterCard.svelte",
       "sourceDisposition": "component"
     },
@@ -503,6 +504,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "image-trim",
       "sourceComponent": "src/lib/cards/info/ImageTrimCard.svelte",
       "sourceDisposition": "component"
     },
@@ -517,10 +519,11 @@
         "core": "complete",
         "transport": "complete",
         "gui": "partial",
-        "cli": "pending",
+        "cli": "partial",
         "tui": "pending",
         "evidence": "partial"
       },
+      "currentCardId": "page-transition",
       "sourceComponent": "src/lib/cards/info/PageTransitionCard.svelte",
       "sourceDisposition": "component"
     },
@@ -539,6 +542,7 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
+      "currentCardId": "animated-video-mode",
       "sourceComponent": "src/lib/cards/info/AnimatedVideoModeCard.svelte",
       "sourceDisposition": "component"
     },
@@ -575,6 +579,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "sidebar-height",
       "sourceComponent": "src/lib/cards/info/SidebarHeightCard.svelte",
       "sourceDisposition": "component"
     },
@@ -856,7 +861,9 @@
       "panelId": "upscale",
       "priority": "deferred",
       "featureId": "super-resolution",
-      "disposition": "migrate",
+      "disposition": "replace",
+      "replacement": "超分控制、模型、状态、缓存和条件能力由同一超分功能域提供，当前不注册独立 Progressive Upscale Card；继续沿用现有超分运行时契约。",
+      "sourceDisposition": "component",
       "capabilityStatus": {
         "core": "complete",
         "transport": "partial",
@@ -865,8 +872,7 @@
         "tui": "partial",
         "evidence": "partial"
       },
-      "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
-      "sourceDisposition": "component"
+      "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte"
     },
     {
       "legacyId": "historyList",
