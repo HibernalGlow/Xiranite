@@ -203,7 +203,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
 
   return (
     <div
-      className="grid min-h-0 gap-2"
+      className="flex min-h-0 flex-1 flex-col gap-2"
       data-neoview-history-card="true"
       data-testid="history-card"
       data-history-state={panelActive ? "ready" : "inactive"}
