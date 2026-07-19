@@ -88,6 +88,10 @@ describe("PageImage", () => {
     const disabled = { provider: "opencomic-system" as const, preferences: { autoUpscaleEnabled: false } }
     const view = render(<PageImage page={source} sessionId="reader-1" client={client} superResolution={enabled} />)
 
+    expect(upscalePage).not.toHaveBeenCalled()
+    const sourceImage = view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')!
+    sourceImage.decode = vi.fn(async () => undefined)
+    fireEvent.load(sourceImage)
     await waitFor(() => expect(upscalePage).toHaveBeenCalledWith("reader-1", "page-1", "automatic-current", expect.any(AbortSignal)))
     await waitFor(() => expect(view.container.querySelector('[src="/reader/page-1-upscaled"]')).toBeTruthy())
     const upscaled = view.container.querySelector<HTMLImageElement>('[src="/reader/page-1-upscaled"]')!
@@ -103,6 +107,28 @@ describe("PageImage", () => {
     original.decode = vi.fn(async () => undefined)
     fireEvent.load(original)
     await waitFor(() => expect(view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')?.getAttribute("src")).toBe(source.assetUrl))
+  })
+
+  it("[neoview.viewer.auto-upscale-cancel] aborts stale enhancement work as soon as navigation changes the source page", async () => {
+    const source = page()
+    const target = { ...source, id: "page-2", index: 1, contentVersion: "v2", assetUrl: "/reader/page-2" }
+    let upscaleSignal: AbortSignal | undefined
+    const upscalePage = vi.fn((_sessionId: string, _pageId: string, _mode: string, signal: AbortSignal) => {
+      upscaleSignal = signal
+      return new Promise<never>(() => undefined)
+    })
+    const client = { upscalePage } as never
+    const enabled = { provider: "opencomic-system" as const, preferences: { autoUpscaleEnabled: true } }
+    const view = render(<PageImage page={source} sessionId="reader-1" client={client} superResolution={enabled} />)
+    const sourceImage = view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')!
+    sourceImage.decode = vi.fn(async () => undefined)
+    fireEvent.load(sourceImage)
+    await waitFor(() => expect(upscalePage).toHaveBeenCalledOnce())
+
+    view.rerender(<PageImage page={target} sessionId="reader-1" client={client} superResolution={enabled} />)
+
+    await waitFor(() => expect(upscaleSignal?.aborted).toBe(true))
+    expect(upscalePage).toHaveBeenCalledTimes(1)
   })
 
   it("[neoview.color-filter.image-identity] applies CSS and declarative SVG without replacing the active image", async () => {

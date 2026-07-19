@@ -55,16 +55,7 @@ describe("ReaderApp", () => {
     const pendingNavigation = new Promise<Awaited<ReturnType<ReaderHttpClient["navigate"]>>>((resolve) => { finishNavigation = resolve })
     const navigate = vi.fn(() => pendingNavigation)
     const client: ReaderHttpClient = {
-      config: vi.fn(async () => ({
-        ...runtimeConfig(),
-        inputBindings: { bindings: [{
-          id: "next-page-without-global-busy",
-          action: "reader.next-page",
-          context: "reader",
-          enabled: true,
-          input: { device: "keyboard", code: "KeyN" },
-        }] },
-      })),
+      config: vi.fn(async () => runtimeConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
@@ -80,14 +71,20 @@ describe("ReaderApp", () => {
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
     fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
+    const disabledBefore = new Map(
+      [...document.querySelectorAll<HTMLButtonElement>("[data-reader-app] button")]
+        .map((button) => [button, button.disabled] as const),
+    )
 
     const reader = document.querySelector("[data-reader-app]")!
-    fireEvent.keyDown(reader, { key: "n", code: "KeyN" })
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
     await waitFor(() => expect(navigate).toHaveBeenCalledOnce())
 
     expect(screen.getByRole("button", { name: "关闭书籍" }).hasAttribute("disabled")).toBe(false)
-    expect(screen.getByRole("button", { name: "打开 NeoView 设置" }).hasAttribute("disabled")).toBe(false)
-    fireEvent.keyDown(reader, { key: "n", code: "KeyN" })
+    for (const [button, disabled] of disabledBefore) {
+      if (button.isConnected) expect(button.disabled).toBe(disabled)
+    }
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
     expect(navigate).toHaveBeenCalledOnce()
 
     await act(async () => finishNavigation({

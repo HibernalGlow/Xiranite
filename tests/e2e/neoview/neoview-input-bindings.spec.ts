@@ -8,10 +8,12 @@ import { startBackend } from "../../../packages/backend/src/index"
 import { createZipFixture, type ZipFixture } from "../../../packages/nodes/neoview/test/fixture-builders/create-zip-fixture"
 
 const ONE_PIXEL_PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==", "base64"))
+const INPUT_DISPATCH_P95_BUDGET_MS = 5
 let fixture: ZipFixture
 let backend: Awaited<ReturnType<typeof startBackend>>
 
 test.setTimeout(90_000)
+test.use({ viewport: { width: 1920, height: 1080 } })
 
 test.beforeAll(async () => {
   fixture = await createZipFixture({ entries: [
@@ -29,7 +31,10 @@ test.beforeAll(async () => {
     "pinned = true",
     'lock_mode = "locked-open"',
     "[nodes.neoview.panels.edges.left]",
-    "enabled = false",
+    "enabled = true",
+    "initial_visible = true",
+    "pinned = true",
+    'lock_mode = "locked-open"',
     "[nodes.neoview.panels.edges.right]",
     "enabled = false",
     "[nodes.neoview.panels.edges.bottom]",
@@ -47,6 +52,71 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await backend?.close()
   await fixture?.cleanup()
+})
+
+test("[neoview.bindings.input-latency-e2e] dispatches keyboard page turns within the synchronous budget", async ({ page }, testInfo) => {
+  await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  const reader = page.locator('[data-reader-app="true"]')
+  await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+  await expect(page.locator('[data-reader-sidebar="left"]')).toBeVisible()
+  await reader.focus()
+  await page.evaluate(() => {
+    const state = { keyDownAt: 0, samples: [] as number[] }
+    const target = window as typeof window & { __neoviewInputLatency?: typeof state }
+    target.__neoviewInputLatency = state
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "ArrowLeft" || event.code === "ArrowRight") state.keyDownAt = performance.now()
+    }, { capture: true })
+    const originalFetch = window.fetch.bind(window)
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
+      if (url.endsWith("/navigate") && state.keyDownAt > 0) {
+        state.samples.push(performance.now() - state.keyDownAt)
+        state.keyDownAt = 0
+      }
+      return originalFetch(input, init)
+    }) as typeof window.fetch
+    const sidebars = [...document.querySelectorAll("[data-reader-sidebar]")]
+    const sidebarState: { disabledMutations: number; sidebars: Element[]; observer?: MutationObserver } = { disabledMutations: 0, sidebars }
+    const observer = new MutationObserver((records) => {
+      sidebarState.disabledMutations += records.filter((record) => record.type === "attributes" && record.attributeName === "disabled").length
+    })
+    sidebars.forEach((sidebar) => observer.observe(sidebar, { attributes: true, attributeFilter: ["disabled"], subtree: true }))
+    sidebarState.observer = observer
+    ;(window as typeof window & { __neoviewSidebarTurnProbe?: typeof sidebarState }).__neoviewSidebarTurnProbe = sidebarState
+  })
+  await page.keyboard.press("ArrowRight")
+  await expect(page.locator('img[alt="002.png"]')).toBeVisible()
+  for (let cycle = 0; cycle < 4; cycle += 1) {
+    await page.keyboard.press("ArrowLeft")
+    await expect(page.locator('img[alt="001.png"]')).toBeVisible()
+    await page.keyboard.press("ArrowRight")
+    await expect(page.locator('img[alt="002.png"]')).toBeVisible()
+  }
+  const inputLatency = await page.evaluate(() => {
+    const samples = (window as typeof window & { __neoviewInputLatency?: { samples: number[] } }).__neoviewInputLatency?.samples ?? []
+    const sorted = samples.toSorted((left, right) => left - right)
+    return { samples, p95: sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)] ?? Number.POSITIVE_INFINITY }
+  })
+  expect(inputLatency.samples).toHaveLength(9)
+  expect(inputLatency.p95).toBeLessThan(INPUT_DISPATCH_P95_BUDGET_MS)
+  const sidebarProbe = await page.evaluate(() => {
+    const probe = (window as typeof window & { __neoviewSidebarTurnProbe?: { disabledMutations: number; sidebars: Element[]; observer?: MutationObserver } }).__neoviewSidebarTurnProbe
+    probe?.observer?.disconnect()
+    return {
+      disabledMutations: probe?.disabledMutations ?? -1,
+      sameSidebars: probe?.sidebars.every((sidebar) => sidebar.isConnected) ?? false,
+    }
+  })
+  expect(sidebarProbe).toEqual({ disabledMutations: 0, sameSidebars: true })
+  console.log(`neoview input dispatch: p95=${inputLatency.p95.toFixed(3)}ms samples=${inputLatency.samples.length}`)
+  await testInfo.attach("neoview-input-dispatch-latency", {
+    body: JSON.stringify(inputLatency, null, 2),
+    contentType: "application/json",
+  })
+  await page.screenshot({ path: testInfo.outputPath("neoview-input-latency-1920x1080.png"), fullPage: false })
 })
 
 test("[neoview.bindings.e2e] edits a contextual keyboard binding without leaking into editors", async ({ page }, testInfo) => {

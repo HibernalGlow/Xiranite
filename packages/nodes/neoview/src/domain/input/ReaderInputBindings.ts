@@ -188,12 +188,69 @@ export function matchingReaderInputBinding(
   input: ReaderInputDescriptor,
   contexts: readonly ReaderInputContext[],
 ): ReaderInputBinding | undefined {
-  const descriptor = readerInputDescriptorKey(input)
   const isolatesGlobal = contexts.includes("editor") || contexts.includes("modal")
-  const active = new Set<ReaderInputContext>(isolatesGlobal ? contexts : ["global", ...contexts])
-  return [...bindings]
-    .filter((candidate) => candidate.enabled && active.has(candidate.context) && readerInputDescriptorKey(candidate.input) === descriptor)
-    .sort((left, right) => READER_INPUT_CONTEXT_PRIORITY[right.context] - READER_INPUT_CONTEXT_PRIORITY[left.context])[0]
+  let match: ReaderInputBinding | undefined
+  let matchPriority = Number.NEGATIVE_INFINITY
+  for (const candidate of bindings) {
+    if (!candidate.enabled) continue
+    if (candidate.context === "global") {
+      if (isolatesGlobal) continue
+    } else if (!contexts.includes(candidate.context)) {
+      continue
+    }
+    if (!readerInputDescriptorsEqual(candidate.input, input)) continue
+    const priority = READER_INPUT_CONTEXT_PRIORITY[candidate.context]
+    if (priority > matchPriority) {
+      match = candidate
+      matchPriority = priority
+    }
+  }
+  return match
+}
+
+function readerInputDescriptorsEqual(left: ReaderInputDescriptor, right: ReaderInputDescriptor): boolean {
+  if (left.device !== right.device) return false
+  switch (left.device) {
+    case "keyboard": {
+      const candidate = right as Extract<ReaderInputDescriptor, { device: "keyboard" }>
+      return left.code === candidate.code
+        && (left.trigger ?? "down") === (candidate.trigger ?? "down")
+        && sameModifiers(left, candidate)
+    }
+    case "mouse": {
+      const candidate = right as Extract<ReaderInputDescriptor, { device: "mouse" }>
+      return left.button === candidate.button && left.action === candidate.action
+    }
+    case "mouse-gesture": {
+      const candidate = right as Extract<ReaderInputDescriptor, { device: "mouse-gesture" }>
+      if (left.button !== candidate.button || left.trigger !== candidate.trigger || left.directions.length !== candidate.directions.length) return false
+      return left.directions.every((direction, index) => direction === candidate.directions[index])
+    }
+    case "wheel": {
+      const candidate = right as Extract<ReaderInputDescriptor, { device: "wheel" }>
+      return left.direction === candidate.direction && sameModifiers(left, candidate)
+    }
+    case "touch": {
+      const candidate = right as Extract<ReaderInputDescriptor, { device: "touch" }>
+      return left.fingers === candidate.fingers && left.gesture === candidate.gesture
+    }
+    case "gamepad":
+      return left.button === (right as Extract<ReaderInputDescriptor, { device: "gamepad" }>).button
+    case "area": {
+      const candidate = right as Extract<ReaderInputDescriptor, { device: "area" }>
+      return left.area === candidate.area && left.button === candidate.button && left.action === candidate.action
+    }
+  }
+}
+
+function sameModifiers(
+  left: { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean },
+  right: { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean },
+): boolean {
+  return Boolean(left.ctrl) === Boolean(right.ctrl)
+    && Boolean(left.alt) === Boolean(right.alt)
+    && Boolean(left.shift) === Boolean(right.shift)
+    && Boolean(left.meta) === Boolean(right.meta)
 }
 
 export function cloneReaderInputBindings(config: ReaderInputBindingsConfig): ReaderInputBindingsConfig {
