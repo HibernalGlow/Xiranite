@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
-import { ReaderAdjacentBookService } from "./ReaderAdjacentBookService.js"
+import { ReaderAdjacentBookService, readerPathIdentity } from "./ReaderAdjacentBookService.js"
 
 describe("ReaderAdjacentBookService", () => {
   it("[neoview.book.adjacent] follows the shared natural folder order and legacy boundaries", async () => {
@@ -47,6 +47,30 @@ describe("ReaderAdjacentBookService", () => {
       direction: "next",
     })).resolves.toBeUndefined()
     expect(read).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.book.adjacent-case-identity] folds case only for Windows paths", async () => {
+    const names = ["A.cbz", "a.cbz", "B.cbz"]
+    expect(names.map((name) => readerPathIdentity(`C:/Library/${name}`, "win32"))).toEqual([
+      "c:/library/a.cbz",
+      "c:/library/a.cbz",
+      "c:/library/b.cbz",
+    ])
+    expect(names.map((name) => readerPathIdentity(`/Library/${name}`, "linux"))).toEqual([
+      "/Library/A.cbz",
+      "/Library/a.cbz",
+      "/Library/B.cbz",
+    ])
+    const entries = [file("A.cbz", true), file("a.cbz", true), file("B.cbz", true)]
+    const linuxService = new ReaderAdjacentBookService(provider(entries), undefined, () => true, (path) => readerPathIdentity(path, "linux"))
+    await expect(linuxService.resolve({
+      source: { kind: "media", path: "C:/Library/a.cbz" },
+      direction: "previous",
+    })).resolves.toMatchObject({ name: "A.cbz", index: 0, total: 3 })
+    await expect(linuxService.resolve({
+      source: { kind: "media", path: "C:/Library/a.cbz" },
+      direction: "next",
+    })).resolves.toMatchObject({ name: "B.cbz", index: 2, total: 3 })
   })
 })
 
