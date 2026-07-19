@@ -1870,6 +1870,7 @@
         "neoview.diagnostics.wire-schema",
         "neoview.diagnostics.http",
         "neoview.diagnostics.history-export-http",
+        "neoview.diagnostics.history-cli-connect",
         "neoview.diagnostics.runtime-http",
         "neoview.diagnostics.backend",
         "neoview.diagnostics.cli",
@@ -1895,7 +1896,7 @@
         "build-chunk"
       ],
       "knownDifferences": [
-        "当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；core 导出的 Zod passthrough wire schema 已用于远程 CLI/TUI，React 窄 diagnostics DTO 尚待切换；GPU 利用率、时间序列采样、算法对照和报告导出仍待迁移"
+        "当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；HTTP JSON/CSV history export 与远程有界 history adapter 已完成，CLI/TUI history 命令入口和 React 窄 diagnostics DTO 尚待切换；GPU 利用率、自动时间序列采样和算法对照仍待迁移"
       ]
     },
     {
