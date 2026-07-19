@@ -21,8 +21,7 @@ export type ReaderSettingsSectionId =
   | "books"
   | "appearance"
   | "performance"
-  | "sidebar"
-  | "cards"
+  | "layout"
   | "bindings"
   | "data"
   | "about"
@@ -69,11 +68,10 @@ export const READER_CARD_MANIFEST = [
   card("media-settings", "影像", "settings", true, true, 1, true, false, "image"),
   card("view-defaults-settings", "视图默认值", "settings", true, true, 2, true, false, "view"),
   card("reader-material-settings", "界面材质", "settings", true, true, 3, true, false, "appearance"),
-  card("panel-layout-settings", "面板布局设置", "settings", true, true, 4, true, false, "cards"),
-  card("sidebar-management-settings", "边栏管理设置", "settings", true, true, 5, true, false, "sidebar"),
-  card("input-bindings-settings", "操作绑定", "settings", true, true, 6, true, false, "bindings"),
-  card("data-migration-settings", "数据迁移", "settings", true, true, 7, true, false, "data"),
-  card("about-settings", "关于", "settings", true, true, 8, true, false, "about"),
+  card("board-layout-settings", "布局看板", "settings", true, true, 4, true, false, "layout"),
+  card("input-bindings-settings", "操作绑定", "settings", true, true, 5, true, false, "bindings"),
+  card("data-migration-settings", "数据迁移", "settings", true, true, 6, true, false, "data"),
+  card("about-settings", "关于", "settings", true, true, 7, true, false, "about"),
   card("preload-status", "预加载状态", "info", true, true, 4, true, true),
   card("progressive-upscale", "递进超分", "upscale", true, true, 0, true, false),
   card("upscale-model", "模型选择", "upscale", true, true, 1, true, false),

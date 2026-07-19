@@ -42,7 +42,10 @@ describe("ReaderInputBindings", () => {
     expect(readerInputDescriptorKey({ device: "gamepad", button: 5 })).toBe("gamepad:5")
     expect(readerInputDescriptorKey({ device: "area", area: "bottom-right", button: 2, action: "double-click" })).toBe("area:bottom-right:2:double-click")
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "touch")).toBe(true)
-    expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "gamepad")).toBe(true)
+    expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "wheel")).toBe(true)
+    expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "area")).toBe(true)
+    expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.action === "reader.page-left")).toBe(true)
+    expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "gamepad")).toBe(false)
   })
 
   it("[neoview.bindings.area-grid] maps bounded points into the legacy nine-area grid", () => {

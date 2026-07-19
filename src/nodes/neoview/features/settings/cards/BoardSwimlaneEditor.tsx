@@ -8,7 +8,10 @@ import type {
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  KeyboardSensor,
+  MeasuringStrategy,
+  MouseSensor,
+  TouchSensor,
   closestCorners,
   pointerWithin,
   rectIntersection,
@@ -18,7 +21,7 @@ import {
 } from "@dnd-kit/core"
 import {
   SortableContext,
-  arrayMove,
+  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
@@ -88,7 +91,11 @@ export function BoardSwimlaneEditor({
 
   useEffect(() => setLanes(createBoardLanes(shell)), [shell])
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
   const panelIds = useMemo(
     () => ({
       left: lanes.left.map((panel) => panel.id),
@@ -155,7 +162,7 @@ export function BoardSwimlaneEditor({
       // Card ordering is updated during drag-over. Finalizing against a
       // panel's full-height drop zone would append an untouched card to the
       // bottom merely because the pointer was released over its own panel.
-      setLanes((current) => current)
+      return
     }
   }
 
@@ -175,6 +182,7 @@ export function BoardSwimlaneEditor({
       <DndContext
         sensors={sensors}
         collisionDetection={boardCollision}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}

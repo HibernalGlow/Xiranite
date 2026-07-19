@@ -6,6 +6,7 @@ import {
   type ThumbnailAsset,
   type ThumbnailCoordinatorSnapshot,
   type ThumbnailDemand,
+  type ThumbnailCoordinatorFlightEvent,
   type ThumbnailLane,
   type ThumbnailLease,
 } from "@xiranite/services/thumbnail-coordinator"
@@ -37,6 +38,7 @@ export interface PlatformThumbnailPipelineOptions {
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   maxMemoryBytes?: number
   maxEntryBytes?: number
+  onCoordinatorFlightEvent?: (event: ThumbnailCoordinatorFlightEvent<PlatformThumbnailDemandSource>) => void
   folderRepresentativeIndex?: FolderRepresentativeIndex
   loadMosaicImageComposer?: MosaicImageComposerLoader
   resourceScheduler?: ResourceScheduler
@@ -121,6 +123,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
       maxMemoryBytes: options.maxMemoryBytes,
       maxEntryBytes: options.maxEntryBytes,
+      onFlightEvent: options.onCoordinatorFlightEvent,
       resolver: { resolve: (demand, signal) => this.#resolve(demand, signal) },
     })
     this.#libraryCacheEpochs = new LRUCache<string, number>({
@@ -353,6 +356,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
   snapshot(): ThumbnailCoordinatorSnapshot {
     return this.#coordinator.snapshot()
+  }
+
+  whenIdle(): Promise<void> {
+    return this.#coordinator.whenIdle()
   }
 
   hibernateReader(): { entries: number; bytes: number } {

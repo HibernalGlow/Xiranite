@@ -317,6 +317,146 @@ describe("RemoteReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.subtitle.remote] lists and renders video subtitles through opaque backend assets", async () => {
+    const requests: Request[] = []
+    const assetUrl = "http://127.0.0.1:41000/reader/s/reader-1/subtitle/page-1/subtitle-1?version=subtitle-v1&token=token"
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      const url = new URL(request.url)
+      if (request.method === "DELETE") return new Response(null, { status: 204 })
+      if (url.pathname.endsWith("/subtitles")) {
+        return Response.json({ tracks: [{
+          id: "subtitle-1",
+          name: "clip.zh-CN.srt",
+          format: "srt",
+          contentVersion: "subtitle-v1",
+          assetUrl,
+        }] })
+      }
+      if (url.pathname.includes("/subtitle/")) {
+        return new Response("WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n", {
+          headers: { "content-type": "text/vtt; charset=utf-8", etag: '"neoview-subtitle-v1"' },
+        })
+      }
+      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1", {
+        mediaKind: "video",
+        name: "clip.mp4",
+      }), { status: 201 })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/private/clip.mp4" })
+      await expect(remote.listSubtitles(0)).resolves.toEqual([{
+        id: "subtitle-1",
+        name: "clip.zh-CN.srt",
+        format: "srt",
+        contentVersion: "subtitle-v1",
+      }])
+      await expect(remote.renderSubtitle(0, "subtitle-1")).resolves.toEqual({
+        bytes: new TextEncoder().encode("WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n"),
+        contentVersion: "subtitle-v1",
+      })
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+    const listRequests = requests.filter((request) => new URL(request.url).pathname.endsWith("/subtitles"))
+    expect(listRequests.length).toBeGreaterThanOrEqual(2)
+    expect(new URL(listRequests[0]!.url).searchParams.get("pageId")).toBe("page-1")
+    const assetRequest = requests.find((request) => new URL(request.url).pathname.includes("/subtitle/"))!
+    expect(assetRequest.headers.get("x-xiranite-token")).toBe("token")
+    expect(assetRequest.url).toBe(assetUrl)
+    expect(assetRequest.url).not.toContain("D:/private")
+  })
+
+  it("[neoview.subtitle.remote-wire-security] bounds DTOs and rejects non-video, invalid-page and unsafe asset URLs", async () => {
+    let videoSession = false
+    let subtitlePayload: unknown = { tracks: [{
+      id: "subtitle-1",
+      name: "clip.srt",
+      format: "srt",
+      contentVersion: "v1",
+      assetUrl: "http://127.0.0.1:41000/reader/s/reader-1/subtitle/page-1/subtitle-1?version=v1&token=token",
+      unexpected: true,
+    }] }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (request.method === "DELETE") return new Response(null, { status: 204 })
+      if (url.pathname.endsWith("/subtitles")) return Response.json(subtitlePayload)
+      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1", videoSession ? {
+        mediaKind: "video",
+        name: "clip.mp4",
+      } : undefined), { status: 201 })
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/book.cbz" })
+      await expect(remote.listSubtitles(-1)).rejects.toThrow("out of range")
+      await expect(remote.listSubtitles(0)).rejects.toThrow("video page")
+
+      const videoRemote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+      try {
+        videoSession = true
+        await videoRemote.open({ path: "D:/clip.mp4" })
+        await expect(videoRemote.listSubtitles(0)).rejects.toThrow("invalid subtitles response")
+        subtitlePayload = { tracks: [{
+          id: "subtitle-1",
+          name: "clip.srt",
+          format: "srt",
+          contentVersion: "v1",
+          assetUrl: "https://example.com/reader/s/reader-1/subtitle/page-1/subtitle-1?version=v1&token=token",
+        }] }
+        await expect(videoRemote.listSubtitles(0)).rejects.toThrow("outside the connected backend")
+        subtitlePayload = { tracks: [{
+          id: "subtitle-1",
+          name: "clip.srt",
+          format: "srt",
+          contentVersion: "v1",
+          assetUrl: "http://127.0.0.1:41000/reader/s/reader-1/subtitle/page-1/subtitle-1?version=stale&token=token",
+        }] }
+        await expect(videoRemote.listSubtitles(0)).rejects.toThrow("invalid subtitle asset URL")
+      } finally {
+        await videoRemote[Symbol.asyncDispose]()
+      }
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.subtitle.remote-cancellation] propagates abort through subtitle asset fetch", async () => {
+    const assetUrl = "http://127.0.0.1:41000/reader/s/reader-1/subtitle/page-1/subtitle-1?version=v1&token=token"
+    const requests: Request[] = []
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      const url = new URL(request.url)
+      if (request.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }))
+      if (url.pathname.endsWith("/subtitles")) {
+        return Promise.resolve(Response.json({ tracks: [{
+          id: "subtitle-1", name: "clip.srt", format: "srt", contentVersion: "v1", assetUrl,
+        }] }))
+      }
+      if (url.pathname.includes("/subtitle/")) return pendingUntilAborted(init?.signal)
+      return Promise.resolve(Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1", {
+        mediaKind: "video",
+        name: "clip.mp4",
+      }), { status: 201 }))
+    }) as typeof fetch
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    try {
+      await remote.open({ path: "D:/clip.mp4" })
+      const abort = new AbortController()
+      const rendering = remote.renderSubtitle(0, "subtitle-1", abort.signal)
+      await vi.waitFor(() => expect(requests.some((request) => new URL(request.url).pathname.includes("/subtitle/"))).toBe(true))
+      abort.abort(new Error("cancel subtitle render"))
+      await expect(rendering).rejects.toThrow("cancel subtitle render")
+      expect(requests.find((request) => new URL(request.url).pathname.includes("/subtitle/"))?.url).toBe(assetUrl)
+    } finally {
+      await remote[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.cli.connect-security] requires a token, loopback URL and valid authenticated responses", async () => {
     expect(() => new RemoteReaderHeadlessController({ baseUrl: "https://reader.example.com", token: "secret" })).toThrow("loopback")
     expect(() => new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "" })).toThrow("non-empty")
@@ -445,7 +585,11 @@ function controllerFetch(controller: ReaderHttpController, requests: Request[]):
   }) as typeof fetch
 }
 
-function sessionDto(assetUrl: string) {
+function sessionDto(assetUrl: string, pageOptions: {
+  mediaKind?: "image" | "animated-image" | "video"
+  name?: string
+  contentVersion?: string
+} = {}) {
   return {
     sessionId: "reader-1",
     book: { id: "book-1", displayName: "book.cbz", pageCount: 1 },
@@ -461,12 +605,23 @@ function sessionDto(assetUrl: string) {
     visiblePages: [{
       id: "page-1",
       index: 0,
-      name: "1.jpg",
-      mediaKind: "image",
-      contentVersion: "v1",
+      name: pageOptions.name ?? "1.jpg",
+      mediaKind: pageOptions.mediaKind ?? "image",
+      contentVersion: pageOptions.contentVersion ?? "v1",
       assetUrl,
     }],
   }
+}
+
+function pendingUntilAborted(signal: AbortSignal | undefined): Promise<Response> {
+  return new Promise((_, reject) => {
+    const abort = () => reject(signal?.reason ?? new DOMException("The operation was aborted.", "AbortError"))
+    if (signal?.aborted) {
+      abort()
+      return
+    }
+    signal?.addEventListener("abort", abort, { once: true })
+  })
 }
 
 function preloadSnapshot(mode: string) {

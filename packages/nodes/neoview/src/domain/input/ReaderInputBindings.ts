@@ -91,23 +91,60 @@ export const READER_INPUT_CONTEXT_LABELS: Readonly<Record<ReaderInputContext, st
   modal: "对话框",
 }
 
+/**
+ * Defaults converted 1:1 from legacy NeoView export
+ * `migration/neoview/neoview-data-1784386950682.json` → appSettings.keybindings.
+ * Plus touch/zoom convenience only where the export left those actions empty.
+ * Gamepad intentionally omitted for now.
+ */
 export const DEFAULT_READER_INPUT_BINDINGS: ReaderInputBindingsConfig = {
   bindings: [
-    binding("keyboard-previous", "reader.previous-page", "reader", { device: "keyboard", code: "ArrowLeft" }),
-    binding("keyboard-next", "reader.next-page", "reader", { device: "keyboard", code: "ArrowRight" }),
+    // navigation
+    binding("legacy-reader-page-left-global-0", "reader.page-left", "global", { device: "keyboard", code: "KeyA" }),
+    binding("legacy-reader-page-left-global-1", "reader.page-left", "global", { device: "area", area: "middle-left", button: 0, action: "click" }),
+    binding("legacy-reader-page-left-global-2", "reader.page-left", "global", { device: "wheel", direction: "down" }),
+    binding("legacy-reader-page-left-reader-3", "reader.page-left", "reader", { device: "keyboard", code: "ArrowLeft" }),
+    binding("legacy-reader-page-right-global-0", "reader.page-right", "global", { device: "keyboard", code: "KeyD" }),
+    binding("legacy-reader-page-right-global-1", "reader.page-right", "global", { device: "area", area: "bottom-right", button: 0, action: "click" }),
+    binding("legacy-reader-page-right-global-2", "reader.page-right", "global", { device: "area", area: "middle-right", button: 0, action: "click" }),
+    binding("legacy-reader-page-right-global-3", "reader.page-right", "global", { device: "wheel", direction: "up" }),
+    binding("legacy-reader-page-right-global-4", "reader.page-right", "global", { device: "area", area: "bottom-left", button: 0, action: "click" }),
+    binding("legacy-reader-page-right-reader-5", "reader.page-right", "reader", { device: "keyboard", code: "ArrowRight" }),
+    binding("legacy-reader-next-book-global-0", "reader.next-book", "global", { device: "keyboard", code: "ArrowDown" }),
+    binding("legacy-reader-next-book-global-1", "reader.next-book", "global", { device: "keyboard", code: "KeyS" }),
+    binding("legacy-reader-next-book-global-2", "reader.next-book", "global", { device: "area", area: "bottom-center", button: 0, action: "click" }),
+    binding("legacy-reader-previous-book-global-0", "reader.previous-book", "global", { device: "keyboard", code: "ArrowUp" }),
+    binding("legacy-reader-previous-book-global-1", "reader.previous-book", "global", { device: "keyboard", code: "KeyW" }),
+    binding("legacy-reader-previous-book-global-2", "reader.previous-book", "global", { device: "area", area: "top-center", button: 0, action: "click" }),
+    binding("touch-previous", "reader.previous-page", "reader", { device: "touch", gesture: "swipe-right", fingers: 1 }),
+    binding("touch-next", "reader.next-page", "reader", { device: "touch", gesture: "swipe-left", fingers: 1 }),
+
+    // zoom
     binding("keyboard-zoom-in", "reader.zoom-in", "reader", { device: "keyboard", code: "Equal" }),
     binding("keyboard-zoom-out", "reader.zoom-out", "reader", { device: "keyboard", code: "Minus" }),
     binding("keyboard-reset", "reader.reset-view", "reader", { device: "keyboard", code: "Digit0" }),
-    binding("keyboard-rotate", "reader.rotate-clockwise", "reader", { device: "keyboard", code: "KeyR" }),
-    binding("keyboard-radial", "radial.open-default", "reader", { device: "keyboard", code: "Enter", trigger: "hold", durationMs: 450 }),
-    binding("keyboard-radial-confirm-space", "radial.confirm", "reader", { device: "keyboard", code: "Space" }),
-    binding("keyboard-radial-confirm-enter", "radial.confirm", "reader", { device: "keyboard", code: "Enter" }),
-    binding("touch-previous", "reader.previous-page", "reader", { device: "touch", gesture: "swipe-right", fingers: 1 }),
-    binding("touch-next", "reader.next-page", "reader", { device: "touch", gesture: "swipe-left", fingers: 1 }),
-    binding("gamepad-previous", "reader.previous-page", "reader", { device: "gamepad", button: 4 }),
-    binding("gamepad-next", "reader.next-page", "reader", { device: "gamepad", button: 5 }),
-    binding("mouse-radial", "radial.open-default", "reader", { device: "mouse", button: 2, action: "press" }),
-    binding("touch-radial", "radial.open-default", "reader", { device: "touch", gesture: "long-press", fingers: 1, durationMs: 450, moveTolerancePx: 12 }),
+
+    // view
+    binding("legacy-reader-fullscreen-global-0", "reader.fullscreen", "global", { device: "keyboard", code: "F11" }),
+    binding("legacy-reader-toggle-library-global-0", "reader.toggle-library", "global", { device: "keyboard", code: "KeyL" }),
+    binding("legacy-reader-toggle-reading-direction-global-0", "reader.toggle-reading-direction", "global", { device: "keyboard", code: "KeyR" }),
+
+    // radial
+    binding("legacy-radial-open-default-global-0", "radial.open-default", "global", { device: "mouse", button: 2, action: "press" }),
+    binding("legacy-radial-open-default-global-1", "radial.open-default", "global", { device: "keyboard", code: "Enter" }),
+    binding("legacy-radial-confirm-global-0", "radial.confirm", "global", { device: "keyboard", code: "Space" }),
+
+    // video (legacy videoPlayer context → video)
+    binding("legacy-video-play-pause-video-0", "video.play-pause", "video", { device: "area", area: "middle-center", button: 0, action: "click" }),
+    binding("legacy-video-seek-forward-global-0", "video.seek-forward", "global", { device: "keyboard", code: "MediaTrackNext" }),
+    binding("legacy-video-seek-forward-video-1", "video.seek-forward", "video", { device: "keyboard", code: "ArrowRight" }),
+    binding("legacy-video-seek-forward-video-2", "video.seek-forward", "video", { device: "area", area: "middle-right", button: 0, action: "click" }),
+    binding("legacy-video-seek-backward-global-0", "video.seek-backward", "global", { device: "keyboard", code: "MediaTrackPrevious" }),
+    binding("legacy-video-seek-backward-video-1", "video.seek-backward", "video", { device: "keyboard", code: "ArrowLeft" }),
+    binding("legacy-video-seek-backward-video-2", "video.seek-backward", "video", { device: "area", area: "middle-left", button: 0, action: "click" }),
+    binding("legacy-video-speed-up-global-0", "video.speed-up", "global", { device: "keyboard", code: "KeyC" }),
+    binding("legacy-video-speed-down-global-0", "video.speed-down", "global", { device: "keyboard", code: "KeyX" }),
+    binding("legacy-video-toggle-speed-global-0", "video.toggle-speed", "global", { device: "keyboard", code: "KeyZ" }),
   ],
 }
 

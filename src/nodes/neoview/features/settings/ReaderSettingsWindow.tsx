@@ -1,4 +1,4 @@
-import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Monitor, PanelLeft, Palette, Settings2, SlidersHorizontal } from "lucide-react"
+import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Monitor, Palette, Settings2, SlidersHorizontal } from "lucide-react"
 import { Suspense, useState, type ComponentType, type ReactNode } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
@@ -55,7 +55,7 @@ export function ReaderSettingsWindow({
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
 }) {
-  const [active, setActive] = useState<SettingsSectionId>("sidebar")
+  const [active, setActive] = useState<SettingsSectionId>("layout")
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
@@ -171,7 +171,7 @@ function SettingsSection({
     if (definition.id === "radial-menu-settings" && (!radialMenu || !onRadialMenu)) continue
     if (definition.id === "data-migration-settings" && (!onLegacySettingsInspect || !onLegacySettingsImport)) continue
     if (definition.id === "reader-material-settings" && !onMaterial) continue
-    if ((definition.id === "panel-layout-settings" || definition.id === "sidebar-management-settings") && !onSave) continue
+    if (definition.id === "board-layout-settings" && !onSave) continue
     cards.push(
       <Suspense key={definition.id} fallback={null}>
         <Card
@@ -204,7 +204,7 @@ function SettingsSection({
   return <div className="flex flex-col gap-4">{cards}</div>
 }
 
-type SettingsSectionId = "general" | "system" | "image" | "view" | "notifications" | "books" | "appearance" | "performance" | "sidebar" | "cards" | "bindings" | "data" | "about"
+type SettingsSectionId = "general" | "system" | "image" | "view" | "notifications" | "books" | "appearance" | "performance" | "layout" | "bindings" | "data" | "about"
 
 const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; label: string; icon: ComponentType<{ className?: string }> }> = [
   { id: "general", label: "通用", icon: Settings2 },
@@ -215,8 +215,7 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; label: string; icon: Com
   { id: "books", label: "书籍", icon: BookOpen },
   { id: "appearance", label: "外观", icon: Palette },
   { id: "performance", label: "性能", icon: Gauge },
-  { id: "sidebar", label: "边栏管理", icon: PanelLeft },
-  { id: "cards", label: "卡片管理", icon: LayoutGrid },
+  { id: "layout", label: "布局", icon: LayoutGrid },
   { id: "bindings", label: "操作绑定", icon: Keyboard },
   { id: "data", label: "数据", icon: Database },
   { id: "about", label: "关于", icon: Info },
