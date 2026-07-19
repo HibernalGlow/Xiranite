@@ -33,9 +33,12 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
   const mountedRef = useRef(true)
   const scheduledCommitRef = useRef<ReturnType<typeof setTimeout>>()
   const retryRef = useRef<(() => Promise<void>)>()
-  useEffect(() => () => {
-    mountedRef.current = false
-    if (scheduledCommitRef.current) clearTimeout(scheduledCommitRef.current)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (scheduledCommitRef.current) clearTimeout(scheduledCommitRef.current)
+    }
   }, [])
   const runMutation = useCallback((operation: () => Promise<void>, retry = operation) => {
     retryRef.current = retry
