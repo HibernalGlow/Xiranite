@@ -748,7 +748,10 @@ export interface ReaderSuperResolutionConfigDto {
 }
 
 export interface ReaderSuperResolutionPatchDto {
-  superResolution: { preferences: ReaderSuperResolutionPreferencesDto }
+  superResolution: {
+    modelsDirectory?: string
+    preferences?: ReaderSuperResolutionPreferencesDto
+  }
 }
 
 export interface ReaderUpscaleArtifactResultDto {

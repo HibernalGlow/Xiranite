@@ -77,6 +77,22 @@ describe("NeoView super-resolution runtime config", () => {
     expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { preferences: { backgroundConcurrency: 0 } } })).toThrow("between 1 and 32")
   })
 
+  it("[neoview.super-resolution.models-directory-http] persists the root model directory with or without preferences", () => {
+    expect(parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { modelsDirectory: "D:/Models" },
+    })).toEqual({
+      patch: { superResolution: { modelsDirectory: "D:/Models" } },
+      tomlPatch: { super_resolution: { models_directory: "D:/Models" } },
+    })
+    expect(parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { modelsDirectory: "D:/Models", preferences: { defaultModelId: "anime" } },
+    })).toEqual({
+      patch: { superResolution: { modelsDirectory: "D:/Models", preferences: { defaultModelId: "anime" } } },
+      tomlPatch: { super_resolution: { models_directory: "D:/Models", preferences: { schema_version: 1, default_model_id: "anime" } } },
+    })
+    expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { modelsDirectory: "" } })).toThrow("must not be empty")
+  })
+
   it("[neoview.super-resolution.card-settings-http] persists model, preview and condition controls through the canonical preference schema", () => {
     const result = parseNeoviewSuperResolutionPreferencesPatch({
       superResolution: { preferences: {

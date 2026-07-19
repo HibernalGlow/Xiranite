@@ -14,6 +14,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
+import { setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
 
 export interface PageImageProps {
   page: ReaderPageDto
@@ -147,8 +148,11 @@ function useUpscaleTarget(
     if (!enabled || !sessionId || !client?.upscalePage) return
     const controller = new AbortController()
     const sourcePage = pageRef.current
+    setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "processing" })
     void client.upscalePage(sessionId, sourcePage.id, "automatic-current", controller.signal).then((result) => {
-      if (controller.signal.aborted || !result.artifactUrl || !result.version) return
+      if (controller.signal.aborted) return
+      setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: result.status === "skipped" || result.status === "bypassed" || result.status === "rejected" ? "skipped" : "completed", result })
+      if (!result.artifactUrl || !result.version) return
       setArtifact({
         sourceIdentity,
         page: {
@@ -159,7 +163,7 @@ function useUpscaleTarget(
           byteLength: result.bytes ?? sourcePage.byteLength,
         },
       })
-    }).catch(() => undefined)
+    }).catch(() => { if (!controller.signal.aborted) setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "failed" }) })
     return () => controller.abort()
   }, [client, configRevision, enabled, sessionId, sourceIdentity])
 

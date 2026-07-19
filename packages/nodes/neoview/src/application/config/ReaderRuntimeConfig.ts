@@ -204,6 +204,10 @@ export interface NeoviewSuperResolutionConfig {
 }
 
 export type NeoviewSuperResolutionPreferencesPatch = Partial<Omit<SuperResolutionPreferences, "schemaVersion">>
+export interface NeoviewSuperResolutionPatch {
+  modelsDirectory?: string
+  preferences?: NeoviewSuperResolutionPreferencesPatch
+}
 
 export interface NeoviewHistoryListConfig {
   viewMode: "compact" | "content" | "banner" | "thumbnail"
@@ -1082,7 +1086,7 @@ export function parseNeoviewColorFilterPatch(value: unknown): {
 }
 
 export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
-  patch: { superResolution: { preferences: NeoviewSuperResolutionPreferencesPatch } }
+  patch: { superResolution: NeoviewSuperResolutionPatch }
   tomlPatch: Record<string, unknown>
 } {
   const record = requireRecord(value, "reader super-resolution patch")
@@ -1090,8 +1094,23 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
     throw new Error("reader super-resolution patch contains unsupported fields.")
   }
   const root = requireRecord(record.superResolution, "reader super-resolution patch.superResolution")
-  if (Object.keys(root).some((key) => key !== "preferences")) {
+  if (Object.keys(root).some((key) => key !== "preferences" && key !== "modelsDirectory")) {
     throw new Error("reader super-resolution patch.superResolution contains unsupported fields.")
+  }
+  const rootPatch: NeoviewSuperResolutionPatch = {}
+  const rootToml: Record<string, unknown> = {}
+  if (root.modelsDirectory !== undefined) {
+    const modelsDirectory = optionalConfigPath(root.modelsDirectory, "reader super-resolution patch.superResolution.modelsDirectory")
+    if (!modelsDirectory) throw new Error("reader super-resolution patch.superResolution.modelsDirectory must not be empty.")
+    rootPatch.modelsDirectory = modelsDirectory
+    rootToml.models_directory = modelsDirectory
+  }
+  if (root.preferences === undefined) {
+    if (!Object.keys(rootPatch).length) throw new Error("reader super-resolution patch must change at least one field.")
+    return {
+      patch: { superResolution: rootPatch },
+      tomlPatch: { super_resolution: rootToml },
+    }
   }
   const preferences = requireRecord(root.preferences, "reader super-resolution patch.superResolution.preferences")
   const allowed = new Set([
@@ -1180,9 +1199,11 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
   }
   if (preferences.conditions !== undefined) patch.conditions = parsed.conditions
   if (!Object.keys(patch).length) throw new Error("reader super-resolution preferences patch must change at least one field.")
+  rootPatch.preferences = patch
+  rootToml.preferences = toml
   return {
-    patch: { superResolution: { preferences: patch } },
-    tomlPatch: { super_resolution: { preferences: toml } },
+    patch: { superResolution: rootPatch },
+    tomlPatch: { super_resolution: rootToml },
   }
 }
 

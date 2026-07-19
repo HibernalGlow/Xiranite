@@ -3633,12 +3633,12 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `upscaleControl` | 超分控制 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleControlCard.svelte` | 超分模型、预览、队列、缓存与保存 |
-| `upscaleModel` | 模型选择 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleModelCard.svelte` | 超分模型、预览、队列、缓存与保存 |
-| `upscaleStatus` | 处理状态 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleStatusCard.svelte` | 超分模型、预览、队列、缓存与保存 |
-| `upscaleCache` | 缓存管理 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleCacheCard.svelte` | 超分模型、预览、队列、缓存与保存 |
-| `upscaleConditions` | 条件超分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleConditionsCard.svelte` | 超分模型、预览、队列、缓存与保存 |
-| `progressiveUpscale` | 预超分 | deferred | partial | `core=C transport=P gui=- cli=P tui=P evidence=P` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存 |
+| `upscaleControl` | 超分控制 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleControlCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `progressive-upscale` |
+| `upscaleModel` | 模型选择 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleModelCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `upscale-model` |
+| `upscaleStatus` | 处理状态 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleStatusCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `upscale-status` |
+| `upscaleCache` | 缓存管理 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleCacheCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `upscale-cache` |
+| `upscaleConditions` | 条件超分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleConditionsCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `upscale-conditions` |
+| `progressiveUpscale` | 预超分 | deferred | partial | `core=C transport=P gui=- cli=P tui=P evidence=P` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `progressive-upscale` |
 
 #### `upscaleControl` 超分控制
 

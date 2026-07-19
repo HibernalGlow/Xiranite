@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Bell, Crop, Info, Loader, Palette, Play, Sparkles, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, Cpu, Crop, HardDrive, Info, ListFilter, Loader, Palette, Play, Sparkles, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -28,6 +28,7 @@ import type {
   ReaderPreloadActionResultDto,
   ReaderRuntimeConfigDto,
   ReaderSuperResolutionConfigDto,
+  ReaderSuperResolutionPatchDto,
   ReaderSuperResolutionPreferencesDto,
   ReaderMediaConfigDto,
   ReaderMediaPatchDto,
@@ -91,6 +92,7 @@ export interface ReaderPanelContext {
   onMediaChange?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   superResolution?: ReaderSuperResolutionConfigDto
   onSuperResolutionChange?(patch: ReaderSuperResolutionPreferencesDto): Promise<ReaderSuperResolutionConfigDto>
+  onSuperResolutionConfigChange?(patch: ReaderSuperResolutionPatchDto["superResolution"]): Promise<ReaderSuperResolutionConfigDto>
 }
 
 export interface ReaderPanelDefinition {
@@ -166,6 +168,10 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "time-information": () => import("./cards/TimeInformationCard"),
   "preload-status": () => import("./cards/PreloadStatusCard"),
   "progressive-upscale": () => import("./cards/ProgressiveUpscaleCard"),
+  "upscale-model": () => import("./cards/UpscaleModelCard"),
+  "upscale-status": () => import("./cards/UpscaleStatusCard"),
+  "upscale-cache": () => import("./cards/UpscaleCacheCard"),
+  "upscale-conditions": () => import("./cards/UpscaleConditionsCard"),
   "book-settings": () => import("./cards/BookSettingsCard"),
   "sidebar-control": () => import("./cards/SidebarControlCard"),
   "sidebar-height": () => import("./cards/SidebarHeightCard"),
@@ -185,6 +191,10 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
 const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
   "preload-status": Loader,
   "progressive-upscale": Sparkles,
+  "upscale-model": Cpu,
+  "upscale-status": Activity,
+  "upscale-cache": HardDrive,
+  "upscale-conditions": ListFilter,
   "color-filter": Palette,
   "page-transition": Play,
   "switch-toast": Bell,

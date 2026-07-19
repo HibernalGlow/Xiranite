@@ -484,11 +484,15 @@ export function ReaderApp({
     return updated
   }
 
-  async function persistSuperResolution(patch: NonNullable<ReaderRuntimeConfigDto["superResolution"]>["preferences"]) {
+  async function persistSuperResolutionConfig(patch: Parameters<NonNullable<ReaderHttpClient["updateSuperResolution"]>>[0]["superResolution"]) {
     if (!client.updateSuperResolution) throw new Error("当前 Reader 不支持超分配置写入")
-    const updated = await client.updateSuperResolution({ superResolution: { preferences: patch } })
+    const updated = await client.updateSuperResolution({ superResolution: patch })
     setSuperResolution(updated)
     return updated
+  }
+
+  function persistSuperResolution(patch: NonNullable<ReaderRuntimeConfigDto["superResolution"]>["preferences"]) {
+    return persistSuperResolutionConfig({ preferences: patch })
   }
 
   async function runPreloadAction(action: "cancel-speculative" | "release-retained", signal?: AbortSignal) {
@@ -1247,6 +1251,7 @@ export function ReaderApp({
     onMediaChange: persistAnimatedVideoMode,
     superResolution,
     onSuperResolutionChange: persistSuperResolution,
+    onSuperResolutionConfigChange: persistSuperResolutionConfig,
     onSidebarLayout: commitSidebarLayout,
     onBoardLayout: commitBoardLayout,
     viewDefaults,

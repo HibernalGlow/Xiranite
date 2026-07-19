@@ -123,7 +123,15 @@ describe("NeoView panel and card registries", () => {
       canHide: true,
     })
     expect(definition?.icon).toBeTruthy()
-    expect(cardsForPanel("upscale", undefined, false).map((card) => card.id)).toEqual(["progressive-upscale"])
+    expect(cardsForPanel("upscale", undefined, false).map((card) => card.id)).toEqual([
+      "progressive-upscale", "upscale-model", "upscale-status", "upscale-cache", "upscale-conditions",
+    ])
+    expect(CARD_DEFINITIONS.filter((card) => card.id.startsWith("upscale-")).map((card) => ({ id: card.id, requiresSession: card.requiresSession }))).toEqual([
+      { id: "upscale-model", requiresSession: false },
+      { id: "upscale-status", requiresSession: true },
+      { id: "upscale-cache", requiresSession: true },
+      { id: "upscale-conditions", requiresSession: false },
+    ])
   })
 
   it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {

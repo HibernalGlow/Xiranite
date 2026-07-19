@@ -772,6 +772,8 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
+      "currentCardId": "progressive-upscale",
+      "replacement": "自动超分开关与递进/预超分设置继续合并在 Progressive Card 顶部，保持同一偏好 DTO 与旧版层级语义。",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -790,6 +792,7 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
+      "currentCardId": "upscale-model",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -808,6 +811,7 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
+      "currentCardId": "upscale-status",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -826,6 +830,7 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
+      "currentCardId": "upscale-cache",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -844,6 +849,7 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
+      "currentCardId": "upscale-conditions",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -862,6 +868,7 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "replace",
+      "currentCardId": "progressive-upscale",
       "replacement": "超分控制、模型、状态、缓存和条件能力由同一超分功能域提供，当前不注册独立 Progressive Upscale Card；继续沿用现有超分运行时契约。",
       "sourceDisposition": "component",
       "capabilityStatus": {

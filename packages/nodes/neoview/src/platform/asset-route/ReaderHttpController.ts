@@ -147,7 +147,7 @@ import {
   type NeoviewInfoOverlayPatch,
   type NeoviewImageTrimPatch,
   type NeoviewSuperResolutionConfig,
-  type NeoviewSuperResolutionPreferencesPatch,
+  type NeoviewSuperResolutionPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
@@ -282,7 +282,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   imageTrim?: ReaderImageTrimSettings
   updateImageTrim?: (patch: NeoviewImageTrimPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderImageTrimSettings>
   superResolution?: NeoviewSuperResolutionConfig
-  updateSuperResolution?: (patch: NeoviewSuperResolutionPreferencesPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSuperResolutionConfig>
+  updateSuperResolution?: (patch: NeoviewSuperResolutionPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSuperResolutionConfig>
   inputBindings?: ReaderInputBindingsConfig
   updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
   radialMenu?: ReaderRadialMenuConfig
@@ -940,7 +940,7 @@ export class ReaderHttpController implements AsyncDisposable {
       }
       let updated: NeoviewSuperResolutionConfig | undefined
       const operation = this.#configUpdateQueue.then(async () => {
-        updated = await this.#updateSuperResolution!(parsed.patch.superResolution.preferences, parsed.tomlPatch)
+        updated = await this.#updateSuperResolution!(parsed.patch.superResolution, parsed.tomlPatch)
         this.#superResolution = updated
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
@@ -1308,6 +1308,7 @@ export class ReaderHttpController implements AsyncDisposable {
       imageTrim: this.#imageTrim,
       superResolution: {
         provider: this.#superResolution.provider,
+        modelsDirectory: this.#superResolution.modelsDirectory,
         preferences: this.#superResolution.preferences,
       },
       inputBindings: this.#inputBindings,
