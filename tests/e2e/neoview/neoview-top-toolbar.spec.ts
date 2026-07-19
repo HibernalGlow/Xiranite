@@ -39,4 +39,10 @@ test("[neoview.toolbar.ui-1920x1080] preserves legacy toolbar hierarchy, icons a
   await expect(toolbar.locator('[data-reader-toolbar-panel="hover-scroll"]')).toBeVisible()
   await expect(toolbar.getByRole("slider", { name: "悬停滚动倍率" })).toHaveValue("2")
   await page.screenshot({ path: testInfo.outputPath("neoview-top-toolbar-hover-scroll-1920x1080.png"), fullPage: false })
+
+  await toolbar.getByRole("button", { name: "放大镜" }).click()
+  await expect(toolbar.locator('[data-reader-toolbar-panel="magnifier"]')).toBeVisible()
+  await expect(toolbar.getByRole("slider", { name: "放大倍率" })).toHaveValue("2")
+  await expect(toolbar.getByRole("slider", { name: "镜片大小" })).toHaveValue("200")
+  await page.screenshot({ path: testInfo.outputPath("neoview-top-toolbar-magnifier-1920x1080.png"), fullPage: false })
 })

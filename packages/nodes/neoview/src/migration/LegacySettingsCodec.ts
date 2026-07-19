@@ -524,6 +524,7 @@ function resolveNativeTarget(targetPrefix: readonly string[], key: string): stri
   const section = targetPrefix.join(".")
   if (section === "image" && key === "hoverScrollEnabled") return ["reader", "hover_scroll_enabled"]
   if (section === "image" && key === "hoverScrollSpeed") return ["reader", "hover_scroll_speed"]
+  if (section === "reader.view.magnifier" && (key === "zoom" || key === "size")) return ["view", "magnifier", snakeCase(key)]
   if (section === "system" && key === "temporaryDirectory") return ["paths", "temporary_directory"]
   if (section === "system" && key === "thumbnailDirectory") return ["paths", "thumbnail_directory"]
   if (section === "performance" && key === "cacheMemorySize") return ["performance", "cache_memory_size_mb"]

@@ -82,6 +82,29 @@ describe("ReaderViewToolbar", () => {
     expect(hoverChanged).toHaveBeenCalledTimes(2)
     slideshow.dispose()
   })
+
+  it("[neoview.viewer.magnifier-toolbar] keeps enablement transient while committing bounded lens settings", () => {
+    const enabledChanged = vi.fn()
+    const configChanged = vi.fn()
+    const slideshow = createSlideshow()
+    const props = { layout: DEFAULT_READER_LAYOUT, direction: "left-to-right" as const, presentation: DEFAULT_READER_PRESENTATION, onChange: vi.fn(), onLayoutChange: vi.fn(), onDirectionChange: vi.fn(), magnifierZoom: 2, magnifierSize: 200, onMagnifierEnabledChange: enabledChanged, onMagnifierConfigChange: configChanged, slideshow, onSlideshowChange: vi.fn() }
+    const view = render(<ReaderViewToolbar {...props} magnifierEnabled={false} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "放大镜" }))
+    expect(enabledChanged).toHaveBeenCalledWith(true)
+    expect(view.container.querySelector('[data-reader-toolbar-panel="magnifier"]')).not.toBeNull()
+    const zoom = screen.getByRole("slider", { name: "放大倍率" })
+    fireEvent.change(zoom, { target: { value: "3.4" } })
+    fireEvent.pointerUp(zoom)
+    fireEvent.blur(zoom)
+    expect(configChanged).toHaveBeenCalledWith({ zoom: 3.4 })
+    const size = screen.getByRole("slider", { name: "镜片大小" })
+    fireEvent.change(size, { target: { value: "320" } })
+    fireEvent.pointerUp(size)
+    expect(configChanged).toHaveBeenLastCalledWith({ size: 320 })
+    expect(configChanged).toHaveBeenCalledTimes(2)
+    slideshow.dispose()
+  })
 })
 
 function expectIcon(buttonName: string, iconClass: string) {

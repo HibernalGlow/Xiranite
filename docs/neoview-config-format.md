@@ -12,6 +12,10 @@ double_page_view = true
 hover_scroll_enabled = true
 hover_scroll_speed = 2.0
 
+[nodes.neoview.view.magnifier]
+zoom = 2.0
+size = 200
+
 [nodes.neoview.reader.subtitle]
 font_size = 24
 color = "#ffffff"

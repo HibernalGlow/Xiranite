@@ -11,13 +11,13 @@
 - 功能：30
 - 最新后端命令：319，全部已映射
 - 最新功能源码：670，全部已映射
-- 派生总体：pending=6，partial=24，complete=0
-- core：complete=0，partial=23，pending=7，not-applicable=0
+- 派生总体：pending=5，partial=25，complete=0
+- core：complete=0，partial=24，pending=6，not-applicable=0
 - transport：complete=0，partial=21，pending=0，not-applicable=9
-- gui：complete=0，partial=9，pending=21，not-applicable=0
+- gui：complete=0，partial=10，pending=20，not-applicable=0
 - cli：complete=0，partial=13，pending=8，not-applicable=9
 - tui：complete=0，partial=7，pending=12，not-applicable=11
-- evidence：complete=0，partial=23，pending=7，not-applicable=0
+- evidence：complete=0，partial=24，pending=6，not-applicable=0
 - 完成规则：每个必需维度必须独立完成并具有该维度的 tracked test evidence；单一 core/HTTP/GUI 路径不能提升整个 feature。
 
 ## 推进表
@@ -30,7 +30,7 @@
 | 4 | `archive-index-stream-mutate` | 压缩包索引、流式读取、预热、提取与条目删除 | partial | migrate | `core=P transport=P gui=- cli=P tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 27 | 27 | ZIP/ZIP64/CBZ<br>RAR/7z solid 与 non-solid<br>嵌套与加密<br>当前页优先流<br>CRC/损坏包<br>条目删除后索引失效<br>取消无子进程残留 |
 | 5 | `page-index-navigation` | 页面构建、排序、跳转与边界行为 | partial | migrate | `core=P transport=P gui=P cli=P tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 29 | 39 | 自然排序与媒体优先级<br>LTR/RTL<br>首尾跳转和随机页<br>五种尾页行为<br>generation 取消和旧结果零回写 |
 | 6 | `page-layout-modes` | 单页、双页、全景、宽页与连续阅读布局 | partial | migrate | `core=P transport=P gui=- cli=N/A tui=N/A evidence=P` | core, transport, gui, evidence | gui | 3 | 86 | 封面和末页单页<br>宽页拆分或成对<br>不同尺寸双页对齐<br>全景组合<br>连续长图虚拟窗口<br>旋转后重排 |
-| 7 | `zoom-rotate-magnifier` | 缩放、适应窗口、旋转、拖动与放大镜 | pending | migrate | `core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-` | core, gui, evidence | gui | 1 | 17 | fit/fill/宽/高/原始/左右对齐<br>有界缩放<br>拖动与捏合<br>临时 fit<br>顺逆旋转<br>放大镜尺寸与倍率 |
+| 7 | `zoom-rotate-magnifier` | 缩放、适应窗口、旋转、拖动与放大镜 | partial | migrate | `core=P transport=N/A gui=P cli=N/A tui=N/A evidence=P` | core, gui, evidence | gui | 1 | 17 | fit/fill/宽/高/原始/左右对齐<br>有界缩放<br>拖动与捏合<br>临时 fit<br>顺逆旋转<br>放大镜尺寸与倍率 |
 | 8 | `image-decode-formats` | 图片格式、方向、尺寸与浏览器直出/转换 | partial | migrate | `core=P transport=P gui=P cli=- tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 21 | 37 | JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG<br>EXIF 方向<br>ICC/透明度<br>坏图<br>超大图<br>浏览器直出和转换 fallback |
 | 9 | `animated-image-video` | 动图、视频、字幕和播放控制 | partial | migrate | `core=P transport=P gui=- cli=N/A tui=N/A evidence=P` | core, transport, gui, evidence | gui | 11 | 21 | 动图自动播放与暂停<br>视频进度/音量/倍速<br>字幕轨道<br>切页停止与恢复<br>FFmpeg 缺失诊断<br>视频缩略图 |
 | 10 | `preload-stream-scheduler` | 预读、渐进加载、流传输和全局调度 | partial | migrate | `core=P transport=P gui=P cli=- tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 26 | 22 | View/Ahead/Background 优先级<br>方向感知预读<br>渐进批次<br>背压<br>快速翻页取消<br>多节点资源配额 |
@@ -149,18 +149,18 @@
 
 ### 缩放、适应窗口、旋转、拖动与放大镜（`zoom-rotate-magnifier`）
 
-- 派生总体：`pending`
+- 派生总体：`partial`
 - 处置：`migrate`
-- 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`
+- 六维：`core=P transport=N/A gui=P cli=N/A tui=N/A evidence=P`
 - 阻塞维度：`core`、`gui`、`evidence`
 - 端：gui
 - 设置：`view.defaultZoomMode`、`view.magnifier`、`view.mouseCursor`
 - 数据：zoom state、rotation state
 - 行为：fit/fill/宽/高/原始/左右对齐；有界缩放；拖动与捏合；临时 fit；顺逆旋转；放大镜尺寸与倍率
-- 测试：待补
+- 测试：`neoview.toolbar.ui-1920x1080`、`neoview.viewer.defaults-react`、`neoview.viewer.magnifier-runtime`、`neoview.viewer.magnifier-toolbar`
 - 计划测试：无
 - 性能基准：`zoom-input-latency`
-- 已知差异：无
+- 已知差异：放大镜启用态沿用旧版 viewer session 状态并在关闭 Reader 时清理；倍率和镜片大小写入 canonical TOML。镜片使用一个 CSS replica 复制已提交 image 的 transform/filter/clip，生产 immutable asset URL 的第二次 CSS 资源查找由浏览器缓存吸收，不创建第二个 img、Canvas 或 Blob
 
 ### 图片格式、方向、尺寸与浏览器直出/转换（`image-decode-formats`）
 

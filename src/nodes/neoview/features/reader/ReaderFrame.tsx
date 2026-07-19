@@ -25,10 +25,11 @@ import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
 import { PageMedia } from "./PageMedia"
 import { useReaderHoverScroll } from "./useReaderHoverScroll"
+import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, hoverScrollEnabled = false, hoverScrollSpeed = 2, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
@@ -39,6 +40,9 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   anchorPageIndex: number
   hoverScrollEnabled?: boolean
   hoverScrollSpeed?: number
+  magnifierEnabled?: boolean
+  magnifierZoom?: number
+  magnifierSize?: number
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   pageTransition?: ReaderPageTransitionPort
@@ -130,6 +134,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
           </div>
         </ReaderPageTransitionLayer>
       </div>
+      <ReaderMagnifierLayer viewportRef={viewportRef} enabled={magnifierEnabled && !panorama} zoom={magnifierZoom} size={magnifierSize} pageKey={hoverScrollPageKey} />
     </div>
   )
 }

@@ -1925,6 +1925,8 @@ entry，且热翻页不因 Query 引入 Blob/Canvas/额外图片解码。
 
 悬停滚动现已使用 Reader 现有 viewport ref 完成纵切。规范设置写入 `[nodes.neoview.reader].hover_scroll_enabled` 与 `hover_scroll_speed`（0.5..10），读取继续兼容旧 `image.hoverScrollEnabled` / `image.hoverScrollSpeed` 及 snake_case 变体，旧设置导入直接投影到规范字段。GUI 保留左键开关、右键展开、启用状态与倍率滑条；`viewer.toggle-hover-scroll` 也接入共享输入 action。运行时只在非全景 Reader viewport 内监听 passive pointer move，指针、矩形和速度不进入 React state；存在溢出且仍可移动时才维持唯一 rAF，禁用、切换物理页/半页、离开 viewport 或卸载会同步取消。它不查询 DOM selector、不使用 MutationObserver、不改 Page DTO/媒体 URL/解码/预加载/翻页 generation；窄 viewport 的左右减速区按宽度收缩但仍以旧版 50px 为上限。focused unit、canonical TOML/HTTP、input action、1920×1080 工具栏及 Chromium desktop/420×360 原生滚动证据共同验收。
 
+放大镜也已迁入同一 Reader viewport。旧版启用态属于 `appState.viewer` 而非持久设置，XR 继续把它限制在当前 Reader 生命周期，关闭书籍即清理；只有 `zoom`（1.0..5.0）与 `size`（100..500px）写入 `[nodes.neoview.view.magnifier]`，读取兼容旧 `reader.view.magnifier`，旧设置导入直接转为 canonical 分组。工具栏保留左键启用并展开、再次左键关闭、右键独立展开，以及倍率/镜片滑条。运行时不创建第二个 `<img>`、Canvas 或 Blob：镜片用单个 CSS replica 复制当前已提交 PageImage 的 transform、transform-origin、filter、clip 与 overflow box，并只在指针位于图片时用一个 demand-only rAF 更新；旋转、裁边、颜色滤镜和物理半页几何因此与主图一致。Reader asset 路由的 immutable URL 让 CSS 的第二次资源查找命中浏览器缓存；Chromium desktop/420×360 使用同样 immutable header 的独立传输计数证明只有一次网络传输、一个 DOM `<img>`，离开、禁用、切页或卸载均同步清理镜片。
+
 方向预读当前由独立 `useReaderImagePreloader` 完成：使用浏览器 `Image` 加载相邻页原始 URL并调用 `decode()`，重复 URL 去重，最多保留 4 张，session 切换或卸载时释放引用，并写入 `neoview-reader-prefetch-ready` mark。它不创建隐藏 React 页面树，不生成 Blob/Base64，不调用 sharp。真实 `2000×3000` 高熵 JPEG CBZ 的 Chromium E2E 同时验证 asset URL 不含 transform 参数、热翻页 decode 门槛、桌面/卡片视口和零 Canvas；显式 transform route 只保留给浏览器不支持格式、用户主动转换和导出。该 hook 下一纵切必须改为消费 ReaderSession 的 preload plan，并在 generation 变化时撤销旧 URL；在此之前固定 4 张只是受控旧策略，不是完整 coordinator executor。
 
 推荐规范化存储：
