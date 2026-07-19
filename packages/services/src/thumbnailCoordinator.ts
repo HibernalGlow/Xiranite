@@ -347,6 +347,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       if (!flight.started && flight.controller.signal.aborted) {
         this.#telemetry.cancelled += 1
         this.#telemetry.byLane[flight.request.lane].cancelled += 1
+        this.#emitFlightEvent(flight, "settled", "cancelled")
       }
     })
   }

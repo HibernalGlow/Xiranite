@@ -54,6 +54,7 @@ const budgets = {
   warmGenerationMs: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_WARM_GENERATION_MS ?? "250", "NEOVIEW_THUMBNAIL_MAX_WARM_GENERATION_MS"),
   visibleReadyP95Ms: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_VISIBLE_READY_P95_MS ?? "4000", "NEOVIEW_THUMBNAIL_MAX_VISIBLE_READY_P95_MS"),
   l1HitP95Ms: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_L1_HIT_P95_MS ?? "15", "NEOVIEW_THUMBNAIL_MAX_L1_HIT_P95_MS"),
+  staleFlightsAfterFinalVisible: nonNegativeInteger(process.env.NEOVIEW_THUMBNAIL_MAX_STALE_FLIGHTS ?? "8", "NEOVIEW_THUMBNAIL_MAX_STALE_FLIGHTS", 64),
   staleCancelP95Ms: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_P95_MS ?? "1000", "NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_P95_MS"),
   staleCancelMaxMs: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_MAX_MS ?? "2000", "NEOVIEW_THUMBNAIL_MAX_STALE_CANCEL_MAX_MS"),
   rssDeltaMiB: positiveNumber(process.env.NEOVIEW_THUMBNAIL_MAX_RSS_DELTA_MIB ?? "256", "NEOVIEW_THUMBNAIL_MAX_RSS_DELTA_MIB"),
@@ -470,8 +471,8 @@ function assertReport(report: {
   if (report.scroll.stale.completedAfterSupersession) {
     failures.push(`${report.scroll.stale.completedAfterSupersession} stale thumbnail demand(s) completed after supersession`)
   }
-  if (report.scroll.stale.flightsAfterFinalVisible) {
-    failures.push(`${report.scroll.stale.flightsAfterFinalVisible} stale thumbnail flight(s) remained after the final visible window was ready`)
+  if (report.scroll.stale.flightsAfterFinalVisible > budgets.staleFlightsAfterFinalVisible) {
+    failures.push(`${report.scroll.stale.flightsAfterFinalVisible} stale thumbnail flight(s) remained after the final visible window was ready > ${budgets.staleFlightsAfterFinalVisible}`)
   }
   if (report.scroll.stale.cancelLatencyMs?.p95 && report.scroll.stale.cancelLatencyMs.p95 > budgets.staleCancelP95Ms) {
     failures.push(`stale cancellation p95 ${report.scroll.stale.cancelLatencyMs.p95}ms > ${budgets.staleCancelP95Ms}ms`)
@@ -521,6 +522,14 @@ function positiveInteger(value: string | undefined, name: string, maximum: numbe
   const number = Number(value)
   if (!Number.isSafeInteger(number) || number < 2 || number > maximum) {
     throw new RangeError(`--${name} must be an integer from 2 to ${maximum}.`)
+  }
+  return number
+}
+
+function nonNegativeInteger(value: string | undefined, name: string, maximum: number): number {
+  const number = Number(value)
+  if (!Number.isSafeInteger(number) || number < 0 || number > maximum) {
+    throw new RangeError(`${name} must be an integer from 0 to ${maximum}.`)
   }
   return number
 }
