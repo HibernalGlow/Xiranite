@@ -120,6 +120,19 @@ export type RemoteSuperResolutionArtifactCacheSnapshot = z.infer<typeof artifact
 export type RemoteSuperResolutionArtifactCacheCleanupResult = z.infer<typeof artifactCacheCleanupSchema>
 export type RemoteSuperResolutionArtifactCacheCleanupKind = z.infer<typeof artifactCacheCleanupKindSchema>
 
+const remotePresentationCacheStatusSchema = z.discriminatedUnion("enabled", [
+  z.object({ enabled: z.literal(false) }).strict(),
+  artifactCacheSnapshotSchema.extend({ enabled: z.literal(true) }).strict(),
+])
+
+const remotePresentationCacheMaintenanceSchema = z.discriminatedUnion("enabled", [
+  z.object({ enabled: z.literal(false) }).strict(),
+  artifactCacheCleanupSchema.extend({ enabled: z.literal(true), durationMs: z.number().nonnegative() }).strict(),
+])
+
+export type RemoteReaderPresentationCacheStatus = z.infer<typeof remotePresentationCacheStatusSchema>
+export type RemoteReaderPresentationCacheMaintenanceResult = z.infer<typeof remotePresentationCacheMaintenanceSchema>
+
 const thumbnailWriterSnapshotSchema = z.object({
   pendingWrites: z.number().int().nonnegative(),
   flushing: z.boolean(),
@@ -221,6 +234,38 @@ export async function fetchRemoteReaderDiagnosticsHistory(
   } catch {
     throw new Error("Xiranite Reader returned an invalid diagnostics history response.")
   }
+}
+
+/** Reads the running backend's L3 cache without creating a competing local cache owner. */
+export async function fetchRemoteReaderPresentationCache(
+  options: RemoteReaderHeadlessOptions,
+): Promise<RemoteReaderPresentationCacheStatus> {
+  const result = await remoteJson(options, "/reader/cache/presentation", {}, "Reader presentation cache")
+  const parsed = remotePresentationCacheStatusSchema.safeParse(result)
+  if (!parsed.success) throw new Error("Xiranite Reader returned an invalid presentation cache response.")
+  return parsed.data
+}
+
+export async function cleanupRemoteReaderPresentationCache(
+  options: RemoteReaderHeadlessOptions,
+  reason: "age" | "budget" | "explicit",
+): Promise<RemoteReaderPresentationCacheMaintenanceResult> {
+  const result = await remoteJson(options, "/reader/cache/presentation/cleanup", {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  }, "Reader presentation cache cleanup")
+  const parsed = remotePresentationCacheMaintenanceSchema.safeParse(result)
+  if (!parsed.success) throw new Error("Xiranite Reader returned an invalid presentation cache cleanup response.")
+  return parsed.data
+}
+
+export async function clearRemoteReaderPresentationCache(
+  options: RemoteReaderHeadlessOptions,
+): Promise<RemoteReaderPresentationCacheMaintenanceResult> {
+  const result = await remoteJson(options, "/reader/cache/presentation", { method: "DELETE" }, "Reader presentation cache clear")
+  const parsed = remotePresentationCacheMaintenanceSchema.safeParse(result)
+  if (!parsed.success) throw new Error("Xiranite Reader returned an invalid presentation cache clear response.")
+  return parsed.data
 }
 
 /** Uses the running Reader's single thumbnail writer; it never opens a second SQLite connection. */

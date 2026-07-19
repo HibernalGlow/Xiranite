@@ -1434,6 +1434,8 @@ Phase 0 必须加入以下固定样本，不能只用普通图片目录代表阅
 
 ## 12. 统一缓存设计
 
+L3 maintenance also supports `presentation-cache-stats|cleanup|clear --connect <loopback-url>`. Remote mode uses the authenticated running backend's sole cache owner and rejects `--config`; it never creates a second `cacache` owner in the CLI process.
+
 只保留一个逻辑缓存系统，内部可有不同层级：
 
 | 层级 | 内容 | 预算/失效 |

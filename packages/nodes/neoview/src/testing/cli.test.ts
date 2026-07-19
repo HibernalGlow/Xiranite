@@ -1451,6 +1451,50 @@ describe("NeoView CLI", () => {
     expect(created.every(({ cache }) => cache.close.mock.calls.length === 1)).toBe(true)
   })
 
+  it("[neoview.cache.cli-connect] maintains the running L3 cache without creating a local owner", async () => {
+    const createCacheService = vi.fn()
+    const snapshot = {
+      entries: 2, bytes: 20, maxBytes: 100, maxEntryBytes: 20, activeLeases: 0,
+      hits: 3, misses: 1, writes: 2, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
+    }
+    const fetchRemotePresentationCache = vi.fn(async () => ({ enabled: true as const, ...snapshot }))
+    const cleanupRemotePresentationCache = vi.fn(async () => ({
+      enabled: true as const,
+      ...snapshot,
+      reason: "budget" as const,
+      removedEntries: 2,
+      removedBytes: 20,
+      durationMs: 1.5,
+    }))
+    const clearRemotePresentationCache = vi.fn(async () => ({ enabled: false as const }))
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createCacheService,
+      fetchRemotePresentationCache,
+      cleanupRemotePresentationCache,
+      clearRemotePresentationCache,
+    }
+    const env = { XIRANITE_BACKEND_TOKEN: "cache-token" }
+
+    const statsOutput: unknown[] = []
+    await runProgram(["presentation-cache-stats", "--connect", "http://127.0.0.1:41000", "--json"], host(statsOutput, env), dependencies)
+    expect(JSON.parse(statsOutput.join(""))).toMatchObject({ enabled: true, entries: 2 })
+    expect(fetchRemotePresentationCache).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "cache-token" })
+
+    const cleanupOutput: unknown[] = []
+    await runProgram(["presentation-cache-cleanup", "--connect", "http://127.0.0.1:41000", "--reason", "budget", "--yes", "--json"], host(cleanupOutput, env), dependencies)
+    expect(JSON.parse(cleanupOutput.join(""))).toMatchObject({ enabled: true, reason: "budget", removedEntries: 2 })
+    expect(cleanupRemotePresentationCache).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "cache-token" }, "budget")
+
+    const clearOutput: unknown[] = []
+    await runProgram(["presentation-cache-clear", "--connect", "http://127.0.0.1:41000", "--yes", "--json"], host(clearOutput, env), dependencies)
+    expect(JSON.parse(clearOutput.join(""))).toEqual({ enabled: false })
+    expect(clearRemotePresentationCache).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "cache-token" })
+    expect(createCacheService).not.toHaveBeenCalled()
+    await expect(runProgram(["presentation-cache-stats", "--connect", "http://127.0.0.1:41000", "--config", "private/xiranite.config.toml"], host([], env), dependencies)).rejects.toThrow("cannot be combined")
+    await expect(runProgram(["presentation-cache-cleanup", "--connect", "http://127.0.0.1:41000", "--reason", "age"], host([], env), dependencies)).rejects.toThrow("requires --yes")
+  })
+
   it("[neoview.diagnostics.cli] prints the shared diagnostics DTO and closes owned resources", async () => {
     const output: unknown[] = []
     const close = vi.fn(async () => undefined)
