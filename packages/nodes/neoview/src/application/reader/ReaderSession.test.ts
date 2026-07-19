@@ -150,6 +150,46 @@ describe("CoreReaderService", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.session.lifecycle] closes a loaded book when settings restoration is cancelled before session ownership", async () => {
+    const controller = new AbortController()
+    const loaded = book(1)
+    let settingsStarted!: () => void
+    let releaseSettings!: () => void
+    const settingsStartedPromise = new Promise<void>((resolve) => {
+      settingsStarted = resolve
+    })
+    const settingsPending = new Promise<void>((resolve) => {
+      releaseSettings = resolve
+    })
+    const store: ReaderBookSettingsStore = {
+      async getBookSettings() {
+        settingsStarted()
+        await settingsPending
+        return undefined
+      },
+      async saveBookSettings() {
+        return undefined
+      },
+      async importBookSettings() {
+        return { inserted: 0, updated: 0, unchanged: 0 }
+      },
+    }
+    const service = new CoreReaderService(async () => loaded, undefined, {}, undefined, store)
+    const opening = service.openViewSource(
+      { kind: "image", path: "C:/book/1.jpg" },
+      { signal: controller.signal },
+    )
+
+    await settingsStartedPromise
+    controller.abort(new DOMException("cancelled while restoring settings", "AbortError"))
+    releaseSettings()
+
+    await expect(opening).rejects.toMatchObject({ name: "AbortError" })
+    expect(loaded.close).toHaveBeenCalledOnce()
+    expect(service.sessionCount).toBe(0)
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.session.lifecycle] rejects an in-flight open when service disposal wins the load race", async () => {
     let release!: (loaded: ReaderBook) => void
     const pending = new Promise<ReaderBook>((resolve) => {

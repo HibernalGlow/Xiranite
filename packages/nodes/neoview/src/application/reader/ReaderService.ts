@@ -73,55 +73,62 @@ export class CoreReaderService implements ReaderService {
       await book.close()
       throw error
     }
-    const id = `reader-${this.#nextSessionId++}`
-    const restoredPage = options.initialPage === undefined
-      ? await this.#progress?.restore(book.id)
-      : undefined
-    const restoredSettings = await restoreBookSettings(this.bookSettingsStore, book.id, options.signal)
-    const restoredLayout = restoredSettings?.overrides.pageMode !== undefined || restoredSettings?.overrides.horizontalBook !== undefined
-      ? {
-          ...DEFAULT_READER_SESSION_OPTIONS.layout,
-          ...this.sessionDefaults.layout,
-          ...(restoredSettings.overrides.pageMode === undefined ? {} : { pageMode: restoredSettings.overrides.pageMode }),
-          ...(restoredSettings.overrides.horizontalBook === undefined ? {} : { treatWidePageAsSingle: restoredSettings.overrides.horizontalBook }),
-        }
-      : this.sessionDefaults.layout
-    let unsubscribe: () => void = () => undefined
-    let trackProgress = false
-    const session = new CoreReaderSession(
-      id,
-      book,
-      {
-        direction: options.direction ?? restoredSettings?.overrides.direction ?? this.sessionDefaults.direction,
-        layout: options.layout ?? restoredLayout,
-        tailOverflow: options.tailOverflow ?? this.sessionDefaults.tailOverflow,
-      },
-      async (sessionId, snapshot) => {
-        unsubscribe()
-        try {
-          if (trackProgress) {
-            this.#progress?.record(progressOf(book, snapshot.anchorPageIndex))
-            await this.#progress?.flush(book.id)
-          }
-        } finally {
-          this.#sessions.delete(sessionId)
-        }
-      },
-      this.metadataProbe,
-    )
+    let bookOwnedByOpening = true
     try {
-      await session.initialize(options.initialPage ?? restoredPage ?? 0, options.signal)
-      options.signal?.throwIfAborted()
-      this.#assertOpen()
-      unsubscribe = session.subscribe((event) => {
-        if (event.type === "frame") this.#progress?.record(progressOf(book, event.snapshot.anchorPageIndex))
-      })
-      trackProgress = true
-      this.#sessions.set(id, session)
-      this.#progress?.record(progressOf(book, session.snapshot().anchorPageIndex))
-      return session
+      const id = `reader-${this.#nextSessionId++}`
+      const restoredPage = options.initialPage === undefined
+        ? await this.#progress?.restore(book.id)
+        : undefined
+      const restoredSettings = await restoreBookSettings(this.bookSettingsStore, book.id, options.signal)
+      const restoredLayout = restoredSettings?.overrides.pageMode !== undefined || restoredSettings?.overrides.horizontalBook !== undefined
+        ? {
+            ...DEFAULT_READER_SESSION_OPTIONS.layout,
+            ...this.sessionDefaults.layout,
+            ...(restoredSettings.overrides.pageMode === undefined ? {} : { pageMode: restoredSettings.overrides.pageMode }),
+            ...(restoredSettings.overrides.horizontalBook === undefined ? {} : { treatWidePageAsSingle: restoredSettings.overrides.horizontalBook }),
+          }
+        : this.sessionDefaults.layout
+      let unsubscribe: () => void = () => undefined
+      let trackProgress = false
+      const session = new CoreReaderSession(
+        id,
+        book,
+        {
+          direction: options.direction ?? restoredSettings?.overrides.direction ?? this.sessionDefaults.direction,
+          layout: options.layout ?? restoredLayout,
+          tailOverflow: options.tailOverflow ?? this.sessionDefaults.tailOverflow,
+        },
+        async (sessionId, snapshot) => {
+          unsubscribe()
+          try {
+            if (trackProgress) {
+              this.#progress?.record(progressOf(book, snapshot.anchorPageIndex))
+              await this.#progress?.flush(book.id)
+            }
+          } finally {
+            this.#sessions.delete(sessionId)
+          }
+        },
+        this.metadataProbe,
+      )
+      bookOwnedByOpening = false
+      try {
+        await session.initialize(options.initialPage ?? restoredPage ?? 0, options.signal)
+        options.signal?.throwIfAborted()
+        this.#assertOpen()
+        unsubscribe = session.subscribe((event) => {
+          if (event.type === "frame") this.#progress?.record(progressOf(book, event.snapshot.anchorPageIndex))
+        })
+        trackProgress = true
+        this.#sessions.set(id, session)
+        this.#progress?.record(progressOf(book, session.snapshot().anchorPageIndex))
+        return session
+      } catch (error) {
+        await session.close()
+        throw error
+      }
     } catch (error) {
-      await session.close()
+      if (bookOwnedByOpening) await book.close()
       throw error
     }
   }
