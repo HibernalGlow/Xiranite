@@ -10,7 +10,7 @@ import {
 } from "./ReaderImageTrim.js"
 
 describe("ReaderImageTrim", () => {
-  it("[neoview.image-trim.defaults] preserves the resident card defaults and option values", () => {
+  it("[neoview.image-trim.defaults] [neoview.image-trim.threshold] [neoview.image-trim.target] preserves the resident card defaults and option values", () => {
     expect(DEFAULT_READER_IMAGE_TRIM).toEqual({
       enabled: false,
       top: 0,
@@ -50,7 +50,7 @@ describe("ReaderImageTrim", () => {
     })
   })
 
-  it("[neoview.image-trim.patch] [neoview.image-trim.bounds] strictly validates bounds, steps, enums and unknown fields", () => {
+  it("[neoview.image-trim.patch] [neoview.image-trim.bounds] [neoview.image-trim.threshold] [neoview.image-trim.target] strictly validates bounds, steps, enums and unknown fields", () => {
     expect(parseReaderImageTrimPatch({ enabled: true, top: 45, bottom: 0.5, autoTrimThreshold: 100, autoTrimTarget: "white" })).toEqual({
       enabled: true,
       top: 45,

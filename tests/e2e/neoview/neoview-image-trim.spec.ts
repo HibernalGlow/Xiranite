@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 
 test.use({ viewport: { width: 1920, height: 1080 } })
 
-test("[neoview.image-trim.ui-1920x1080] [neoview.image-trim.resident] [neoview.image-trim.auto-detect] [neoview.image-trim.link-vertical] [neoview.image-trim.link-horizontal] [neoview.image-trim.chunk] [neoview.image-trim.zero-duplicate-request] [neoview.image-trim.image-stability] keeps the resident Card interactive before and after opening", async ({ page }, testInfo) => {
+test("[neoview.image-trim.ui-1920x1080] [neoview.image-trim.resident] [neoview.image-trim.enable] [neoview.image-trim.reset] [neoview.image-trim.threshold] [neoview.image-trim.target] [neoview.image-trim.auto-detect] [neoview.image-trim.link-vertical] [neoview.image-trim.link-horizontal] [neoview.image-trim.chunk] [neoview.image-trim.zero-duplicate-request] [neoview.image-trim.image-stability] keeps the resident Card interactive before and after opening", async ({ page }, testInfo) => {
   const imageRequests: string[] = []
   page.on("request", (request) => {
     if (request.url().endsWith("/tests/e2e/neoview/neoview-image-trim-fixture.svg")) imageRequests.push(request.url())
@@ -60,15 +60,25 @@ test("[neoview.image-trim.ui-1920x1080] [neoview.image-trim.resident] [neoview.i
   await expect(card.getByRole("slider", { name: "右" })).toHaveValue(await left.inputValue())
   await expect(image).toHaveCSS("clip-path", /inset\(/)
 
+  await card.getByRole("combobox", { name: "目标颜色" }).selectOption("white")
+  await expect(card.getByRole("combobox", { name: "目标颜色" })).toHaveValue("white")
+  await expect(page.locator("html")).toHaveAttribute("data-image-trim-writes", "7")
+
   await page.getByRole("button", { name: "打开书本" }).click()
   await expect(page.locator('[data-reader-book-state="open"]')).toBeVisible()
   await card.getByRole("slider", { name: "容差" }).focus()
   await page.keyboard.press("ArrowRight")
-  await expect.poll(() => page.locator("html").getAttribute("data-image-trim-writes")).toBe("7")
+  await expect.poll(() => page.locator("html").getAttribute("data-image-trim-writes")).toBe("8")
+
+  await card.getByRole("button", { name: "重置所有裁剪" }).click()
+  await expect(page.locator("html")).toHaveAttribute("data-image-trim-writes", "9")
+  await expect(card.getByRole("switch", { name: "启用图像裁剪" })).not.toBeChecked()
+  await expect(card.getByRole("slider", { name: "上" })).toHaveCount(0)
+  await expect(image).toHaveCSS("clip-path", "none")
 
   expect(await image.evaluate((element) => (window as typeof window & { __originalImageTrimImage?: Element }).__originalImageTrimImage === element)).toBe(true)
   expect(await image.getAttribute("src")).toBe(originalSource)
-  await expect(page.locator("html")).toHaveAttribute("data-image-trim-writes", "7")
+  await expect(page.locator("html")).toHaveAttribute("data-image-trim-writes", "9")
   expect(imageRequests).toHaveLength(1)
   await page.screenshot({ path: testInfo.outputPath("neoview-image-trim-1920x1080.png"), fullPage: false })
 })
