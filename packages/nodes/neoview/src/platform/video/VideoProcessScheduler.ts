@@ -27,7 +27,18 @@ export class VideoProcessScheduler implements ResourceScheduler, AsyncDisposable
     })
   }
 
-  acquire: ResourceScheduler["acquire"] = (request, signal) => this.#scheduler.acquire(request, signal)
+  acquire: ResourceScheduler["acquire"] = async (request, signal) => {
+    const lease = await this.#scheduler.acquire(request, signal)
+    if (this.#closed) {
+      lease.release()
+      throw resourceSchedulerClosedError()
+    }
+    if (signal?.aborted) {
+      lease.release()
+      signal.throwIfAborted()
+    }
+    return lease
+  }
 
   snapshot(): Readonly<VideoProcessSchedulerSnapshot> {
     return Object.freeze({
@@ -48,6 +59,10 @@ export class VideoProcessScheduler implements ResourceScheduler, AsyncDisposable
     this.close()
     return Promise.resolve()
   }
+}
+
+function resourceSchedulerClosedError(): DOMException {
+  return new DOMException("Resource scheduler is closed.", "AbortError")
 }
 
 /** Shared process budget for all ffmpeg/ffprobe work in the Reader runtime. */
