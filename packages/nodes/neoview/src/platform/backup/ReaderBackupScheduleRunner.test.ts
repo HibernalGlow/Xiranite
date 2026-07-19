@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -45,6 +45,83 @@ describe("ReaderBackupScheduleRunner", () => {
     await expect(runner.runIfDue()).resolves.toEqual({ status: "locked" })
     releaseCreate!()
     await expect(first).resolves.toMatchObject({ status: "created" })
+  })
+
+  it("[neoview.settings.backup-schedule-cleanup] removes a created bundle when verification fails and allows the next run", async () => {
+    const root = await temporaryRoot()
+    let shouldFail = true
+    const port = {
+      create: vi.fn(async (destinationPath: string) => {
+        await mkdir(destinationPath)
+        return { destinationPath }
+      }),
+      inspect: vi.fn(async (bundlePath: string) => {
+        if (shouldFail) {
+          shouldFail = false
+          throw new Error("verification failed")
+        }
+        return inspection(bundlePath, 100)
+      }),
+    }
+    const runner = new ReaderBackupScheduleRunner({ enabled: true, directory: root, intervalHours: 6, retainCount: 2 }, port, { now: () => 100 })
+
+    await expect(runner.runIfDue()).rejects.toThrow("verification failed")
+    expect((await readdir(root)).filter((name) => name.startsWith("xiranite-neoview-auto-"))).toEqual([])
+    await expect(runner.runIfDue()).resolves.toMatchObject({ status: "created", createdAt: 100 })
+    expect(port.create).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.settings.backup-schedule-cancel] propagates cancellation while inspecting existing backups", async () => {
+    const root = await temporaryRoot()
+    let now = 100
+    const controller = new AbortController()
+    const port = fakeBackupPort(() => now)
+    const inspect = port.inspect
+    port.inspect = vi.fn(async (bundlePath: string, signal?: AbortSignal) => {
+      if (port.inspect.mock.calls.length === 2) {
+        controller.abort(new DOMException("cancelled", "AbortError"))
+        signal?.throwIfAborted()
+      }
+      return inspect(bundlePath, signal)
+    })
+    const runner = new ReaderBackupScheduleRunner({ enabled: true, directory: root, intervalHours: 6, retainCount: 2 }, port, { now: () => now })
+
+    await expect(runner.runIfDue()).resolves.toMatchObject({ status: "created" })
+    now += 21_600_000
+    await expect(runner.runIfDue(controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+    expect(port.create).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.settings.backup-schedule-lock-owner] does not remove a replacement lock during release", async () => {
+    const root = await temporaryRoot()
+    let releaseCreate: (() => void) | undefined
+    const createGate = new Promise<void>((resolve) => { releaseCreate = resolve })
+    const port = fakeBackupPort(() => 100, createGate)
+    const runner = new ReaderBackupScheduleRunner({ enabled: true, directory: root, intervalHours: 6, retainCount: 2 }, port, { now: () => 100 })
+    const first = runner.runIfDue()
+    await vi.waitFor(() => expect(port.create).toHaveBeenCalledOnce())
+
+    const lockPath = join(root, ".xiranite-neoview-auto-backup.lock")
+    await rm(lockPath, { recursive: true, force: false })
+    await mkdir(lockPath)
+    await writeFile(join(lockPath, "owner"), "replacement\n", "utf8")
+    releaseCreate!()
+
+    await expect(first).resolves.toMatchObject({ status: "created" })
+    await expect(readFile(join(lockPath, "owner"), "utf8")).resolves.toBe("replacement\n")
+  })
+
+  it("[neoview.settings.backup-schedule-stale-lock] reclaims an old ownerless lock left during acquisition", async () => {
+    const root = await temporaryRoot()
+    const lockPath = join(root, ".xiranite-neoview-auto-backup.lock")
+    await mkdir(lockPath)
+    await writeFile(join(lockPath, "owner"), "incomplete\n", "utf8")
+    const staleAt = new Date(Date.now() - 10 * 60_000)
+    await utimes(lockPath, staleAt, staleAt)
+
+    const port = fakeBackupPort(() => 100)
+    const runner = new ReaderBackupScheduleRunner({ enabled: true, directory: root, intervalHours: 6, retainCount: 2 }, port, { now: () => 100 })
+    await expect(runner.runIfDue()).resolves.toMatchObject({ status: "created", createdAt: 100 })
   })
 
   it("[neoview.settings.backup-schedule-disabled] does not touch the filesystem while disabled", async () => {
