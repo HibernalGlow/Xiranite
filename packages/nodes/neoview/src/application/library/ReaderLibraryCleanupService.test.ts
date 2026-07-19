@@ -40,6 +40,50 @@ describe("ReaderLibraryCleanupService", () => {
     await expect(cleanup.cleanupInvalid({ signal: abort.signal })).rejects.toThrow("cancelled")
     expect(store.listRecent).not.toHaveBeenCalled()
   })
+
+  it("[neoview.library.cleanup-cancel-after-list] does not start the second collection after cancellation", async () => {
+    const store = fakeStore()
+    const pending = deferred<ReturnType<typeof recent>[]> ()
+    store.listRecent.mockReturnValue(pending.promise)
+    const controller = new AbortController()
+    const cleanup = new ReaderLibraryCleanupService(new ReaderLibraryService(store), { check: vi.fn() })
+    const operation = cleanup.cleanupInvalid({ kind: "both", signal: controller.signal })
+
+    controller.abort(new DOMException("cancelled", "AbortError"))
+    pending.resolve([])
+    await expect(operation).rejects.toMatchObject({ name: "AbortError" })
+    expect(store.listBookmarks).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.library.cleanup-cancel-after-check] does not delete a result returned after cancellation", async () => {
+    const store = fakeStore()
+    store.listRecent.mockResolvedValue([recent("missing", "D:/missing.cbz")])
+    const controller = new AbortController()
+    const check = vi.fn(async () => {
+      controller.abort(new DOMException("cancelled", "AbortError"))
+      return "missing" as const
+    })
+    const cleanup = new ReaderLibraryCleanupService(new ReaderLibraryService(store), { check })
+
+    await expect(cleanup.cleanupInvalid({ kind: "recents", signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" })
+    expect(store.deleteRecent).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.library.cleanup-cancel-during-delete] reports cancellation after the store delete settles", async () => {
+    const store = fakeStore()
+    store.listRecent.mockResolvedValue([recent("missing", "D:/missing.cbz")])
+    store.deleteRecent.mockImplementation(async () => {
+      controller.abort(new DOMException("cancelled", "AbortError"))
+      return true
+    })
+    const controller = new AbortController()
+    const cleanup = new ReaderLibraryCleanupService(new ReaderLibraryService(store), {
+      check: vi.fn(async () => "missing" as const),
+    })
+
+    await expect(cleanup.cleanupInvalid({ kind: "recents", signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" })
+    expect(store.deleteRecent).toHaveBeenCalledWith("missing")
+  })
 })
 
 function recent(bookId: string, path: string) {
@@ -74,4 +118,12 @@ function fakeStore() {
     close: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }

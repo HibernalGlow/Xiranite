@@ -40,25 +40,32 @@ export class ReaderLibraryCleanupService {
       for (const item of await this.library.listRecent({ limit: scanLimit, offset: 0 })) {
         candidates.push({ type: "recent", id: item.bookId, path: item.source.path })
       }
+      request.signal?.throwIfAborted()
     }
     if (kind === "bookmarks" || kind === "both") {
       for (const item of await this.library.listBookmarks({ limit: scanLimit, offset: 0 })) {
         candidates.push({ type: "bookmark", id: item.id, path: item.source.path })
       }
+      request.signal?.throwIfAborted()
     }
     const checked = await pMap(candidates, async (candidate) => {
       request.signal?.throwIfAborted()
-      return { candidate, status: await this.pathStatus.check(candidate.path, request.signal) }
+      const status = await this.pathStatus.check(candidate.path, request.signal)
+      request.signal?.throwIfAborted()
+      return { candidate, status }
     }, { concurrency, stopOnError: true })
+    request.signal?.throwIfAborted()
     const invalid = checked.filter((item) => item.status === "missing")
     let deleted = 0
     for (const item of invalid.slice(0, deleteLimit)) {
       request.signal?.throwIfAborted()
       const removed = item.candidate.type === "recent"
-        ? await this.library.removeRecent(item.candidate.id)
-        : await this.library.removeBookmark(item.candidate.id)
+        ? await this.library.removeRecent(item.candidate.id, request.signal)
+        : await this.library.removeBookmark(item.candidate.id, request.signal)
+      request.signal?.throwIfAborted()
       if (removed) deleted += 1
     }
+    request.signal?.throwIfAborted()
     return {
       kind,
       scanned: checked.length,

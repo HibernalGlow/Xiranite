@@ -64,6 +64,10 @@ export interface ReaderOldestBookmarkCleanupResult extends ReaderBookmarkBatchRe
 
 export class ReaderLibraryService implements AsyncDisposable {
   #closed = false
+  #activeOperations = 0
+  #drainPromise?: Promise<void>
+  #resolveDrain?: () => void
+  #closePromise?: Promise<void>
 
   constructor(
     private readonly store: ReaderLibraryStore,
@@ -73,34 +77,42 @@ export class ReaderLibraryService implements AsyncDisposable {
 
   listRecent(query: Partial<ReaderRecentQuery> = {}): Promise<readonly ReaderProgressRecord[]> {
     this.#assertOpen()
-    return this.store.listRecent(normalizeLibraryQuery(query))
+    const normalized = normalizeLibraryQuery(query)
+    return this.#track(() => this.store.listRecent(normalized))
   }
 
-  removeRecent(bookId: string): Promise<boolean> {
+  async removeRecent(bookId: string, signal?: AbortSignal): Promise<boolean> {
     this.#assertOpen()
     assertId(bookId, "bookId")
-    return this.store.deleteRecent(bookId)
+    signal?.throwIfAborted()
+    const removed = await this.#track(() => this.store.deleteRecent(bookId))
+    signal?.throwIfAborted()
+    return removed
   }
 
   async removeRecents(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResult> {
     this.#assertOpen()
     const normalized = normalizeBatchIds(ids, "recent")
     signal?.throwIfAborted()
-    return this.store.deleteRecentBatch(normalized)
+    const result = await this.#track(() => this.store.deleteRecentBatch(normalized))
+    signal?.throwIfAborted()
+    return result
   }
 
   async removeOldestRecents(limit: number, signal?: AbortSignal): Promise<ReaderOldestRecentCleanupResult> {
     this.#assertOpen()
     const normalizedLimit = normalizeCleanupLimit(limit)
     signal?.throwIfAborted()
-    const result = await this.store.deleteOldestRecent(normalizedLimit)
+    const result = await this.#track(() => this.store.deleteOldestRecent(normalizedLimit))
+    signal?.throwIfAborted()
     return { ...result, missingIds: [] }
   }
 
   clearRecentBefore(timestamp: number, limit = 500): Promise<number> {
     this.#assertOpen()
     assertTimestamp(timestamp, "timestamp")
-    return this.store.clearRecentBefore(timestamp, normalizeLimit(limit, 500))
+    const normalizedLimit = normalizeLimit(limit, 500)
+    return this.#track(() => this.store.clearRecentBefore(timestamp, normalizedLimit))
   }
 
   clearByFolder(collection: "recents" | "bookmarks", folderPath: string): Promise<number> {
@@ -108,7 +120,8 @@ export class ReaderLibraryService implements AsyncDisposable {
     if (collection !== "recents" && collection !== "bookmarks") {
       throw new Error("Reader library collection is invalid.")
     }
-    return this.store.clearByPathPrefix(collection, normalizeFolderCleanupPath(folderPath))
+    const normalizedPath = normalizeFolderCleanupPath(folderPath)
+    return this.#track(() => this.store.clearByPathPrefix(collection, normalizedPath))
   }
 
   clearAll(collection: "recents" | "bookmarks"): Promise<number> {
@@ -116,45 +129,48 @@ export class ReaderLibraryService implements AsyncDisposable {
     if (collection !== "recents" && collection !== "bookmarks") {
       throw new Error("Reader library collection is invalid.")
     }
-    return this.store.clearAll(collection)
+    return this.#track(() => this.store.clearAll(collection))
   }
 
   listBookmarks(query: Partial<ReaderBookmarkQuery> = {}): Promise<readonly ReaderBookmarkRecord[]> {
     this.#assertOpen()
     const listId = query.listId?.trim()
-    return this.store.listBookmarks({ ...normalizeLibraryQuery(query), ...(listId ? { listId } : {}) })
+    const normalized = { ...normalizeLibraryQuery(query), ...(listId ? { listId } : {}) }
+    return this.#track(() => this.store.listBookmarks(normalized))
   }
 
   findBookmarkByPath(path: string): Promise<ReaderBookmarkRecord | undefined> {
     this.#assertOpen()
     const normalized = path.trim()
     if (!normalized || normalized.includes("\0")) throw new Error("Reader bookmark path must not be empty.")
-    return this.store.findBookmarkByPath(normalized)
+    return this.#track(() => this.store.findBookmarkByPath(normalized))
   }
 
   async saveBookmark(input: SaveReaderBookmarkInput): Promise<ReaderBookmarkRecord> {
     this.#assertOpen()
-    const now = this.clock()
-    assertTimestamp(now, "clock")
-    const existing = input.id ? undefined : await this.store.findBookmarkByPath(input.source.path)
-    const id = input.id?.trim() || existing?.id || this.createId()
-    const name = input.name.trim()
-    assertId(id, "bookmark id")
-    if (!name) throw new Error("Reader bookmark name must not be empty.")
-    const createdAt = input.createdAt ?? existing?.createdAt ?? now
-    assertTimestamp(createdAt, "createdAt")
-    const bookmark: ReaderBookmarkRecord = {
-      id,
-      source: input.source,
-      name,
-      kind: input.kind ?? (input.source.kind === "directory" ? "folder" : "file"),
-      starred: existing?.starred === true || input.starred === true || input.listIds?.includes("favorites") === true,
-      createdAt,
-      updatedAt: now,
-      listIds: normalizeStoredListIds([...(existing?.listIds ?? []), ...(input.listIds ?? ["default"])]),
-    }
-    await this.store.upsertBookmark(bookmark)
-    return bookmark
+    return this.#track(async () => {
+      const now = this.clock()
+      assertTimestamp(now, "clock")
+      const existing = input.id ? undefined : await this.store.findBookmarkByPath(input.source.path)
+      const id = input.id?.trim() || existing?.id || this.createId()
+      const name = input.name.trim()
+      assertId(id, "bookmark id")
+      if (!name) throw new Error("Reader bookmark name must not be empty.")
+      const createdAt = input.createdAt ?? existing?.createdAt ?? now
+      assertTimestamp(createdAt, "createdAt")
+      const bookmark: ReaderBookmarkRecord = {
+        id,
+        source: input.source,
+        name,
+        kind: input.kind ?? (input.source.kind === "directory" ? "folder" : "file"),
+        starred: existing?.starred === true || input.starred === true || input.listIds?.includes("favorites") === true,
+        createdAt,
+        updatedAt: now,
+        listIds: normalizeStoredListIds([...(existing?.listIds ?? []), ...(input.listIds ?? ["default"])]),
+      }
+      await this.store.upsertBookmark(bookmark)
+      return bookmark
+    })
   }
 
   async updateBookmark(
@@ -171,19 +187,21 @@ export class ReaderLibraryService implements AsyncDisposable {
       throw new Error("Reader bookmark starred update must be a boolean.")
     }
     signal?.throwIfAborted()
-    const listIds = input.listIds === undefined
-      ? undefined
-      : await this.#replacementBookmarkListIds(input.listIds, signal)
-    const updatedAt = this.clock()
-    assertTimestamp(updatedAt, "clock")
-    signal?.throwIfAborted()
-    const updated = await this.store.updateBookmark(id.trim(), {
-      ...(input.starred !== undefined ? { starred: input.starred } : {}),
-      ...(listIds ? { listIds } : {}),
-      updatedAt,
+    return this.#track(async () => {
+      const listIds = input.listIds === undefined
+        ? undefined
+        : await this.#replacementBookmarkListIds(input.listIds, signal)
+      const updatedAt = this.clock()
+      assertTimestamp(updatedAt, "clock")
+      signal?.throwIfAborted()
+      const updated = await this.store.updateBookmark(id.trim(), {
+        ...(input.starred !== undefined ? { starred: input.starred } : {}),
+        ...(listIds ? { listIds } : {}),
+        updatedAt,
+      })
+      signal?.throwIfAborted()
+      return updated
     })
-    signal?.throwIfAborted()
-    return updated
   }
 
   async updateBookmarks(
@@ -210,89 +228,110 @@ export class ReaderLibraryService implements AsyncDisposable {
       }
     }
     signal?.throwIfAborted()
-    if (customListIds.size) {
-      const known = new Set((await this.store.listBookmarkLists()).map((list) => list.id))
-      const unknown = [...customListIds].filter((listId) => !known.has(listId))
-      if (unknown.length) throw new Error(`Reader bookmark update references unknown lists: ${unknown.join(", ")}.`)
-    }
-    const updatedAt = this.clock()
-    assertTimestamp(updatedAt, "clock")
-    signal?.throwIfAborted()
-    return this.store.updateBookmarkBatch(updates.map((update) => {
-      const id = update.id.trim()
-      return {
-        id,
-        ...(update.starred !== undefined ? { starred: update.starred } : {}),
-        ...(requestedLists.has(id) ? { listIds: requestedLists.get(id)! } : {}),
+    return this.#track(async () => {
+      if (customListIds.size) {
+        const known = new Set((await this.store.listBookmarkLists()).map((list) => list.id))
+        const unknown = [...customListIds].filter((listId) => !known.has(listId))
+        if (unknown.length) throw new Error(`Reader bookmark update references unknown lists: ${unknown.join(", ")}.`)
       }
-    }), updatedAt)
+      const updatedAt = this.clock()
+      assertTimestamp(updatedAt, "clock")
+      signal?.throwIfAborted()
+      const result = await this.store.updateBookmarkBatch(updates.map((update) => {
+        const id = update.id.trim()
+        return {
+          id,
+          ...(update.starred !== undefined ? { starred: update.starred } : {}),
+          ...(requestedLists.has(id) ? { listIds: requestedLists.get(id)! } : {}),
+        }
+      }), updatedAt)
+      signal?.throwIfAborted()
+      return result
+    })
   }
 
-  removeBookmark(id: string): Promise<boolean> {
+  async removeBookmark(id: string, signal?: AbortSignal): Promise<boolean> {
     this.#assertOpen()
     assertId(id, "bookmark id")
-    return this.store.deleteBookmark(id)
+    signal?.throwIfAborted()
+    const removed = await this.#track(() => this.store.deleteBookmark(id))
+    signal?.throwIfAborted()
+    return removed
   }
 
   async removeBookmarks(ids: readonly string[], signal?: AbortSignal): Promise<ReaderBookmarkBatchRemoveResult> {
     this.#assertOpen()
     const normalized = normalizeBatchIds(ids, "bookmark")
     signal?.throwIfAborted()
-    return this.store.deleteBookmarkBatch(normalized)
+    const result = await this.#track(() => this.store.deleteBookmarkBatch(normalized))
+    signal?.throwIfAborted()
+    return result
   }
 
   async removeOldestBookmarks(limit: number, signal?: AbortSignal): Promise<ReaderOldestBookmarkCleanupResult> {
     this.#assertOpen()
     const normalizedLimit = normalizeCleanupLimit(limit)
     signal?.throwIfAborted()
-    const result = await this.store.deleteOldestBookmark(normalizedLimit)
+    const result = await this.#track(() => this.store.deleteOldestBookmark(normalizedLimit))
+    signal?.throwIfAborted()
     return { ...result, missingIds: [] }
   }
 
   clearBookmarksBefore(timestamp: number, limit = 500): Promise<number> {
     this.#assertOpen()
     assertTimestamp(timestamp, "timestamp")
-    return this.store.clearBookmarkBefore(timestamp, normalizeLimit(limit, 500))
+    const normalizedLimit = normalizeLimit(limit, 500)
+    return this.#track(() => this.store.clearBookmarkBefore(timestamp, normalizedLimit))
   }
 
   async listBookmarkLists(): Promise<readonly (ReaderBookmarkListRecord & { system?: boolean })[]> {
     this.#assertOpen()
-    const custom = await this.store.listBookmarkLists()
+    const custom = await this.#track(() => this.store.listBookmarkLists())
     return [...SYSTEM_BOOKMARK_LISTS, ...custom]
   }
 
   async saveBookmarkList(input: SaveReaderBookmarkListInput): Promise<ReaderBookmarkListRecord> {
     this.#assertOpen()
-    const now = this.clock()
-    assertTimestamp(now, "clock")
-    const id = input.id?.trim() || this.createId()
-    const name = input.name.trim()
-    assertId(id, "bookmark list id")
-    if (isSystemListId(id)) throw new Error(`Reader bookmark list id '${id}' is reserved.`)
-    if (!name) throw new Error("Reader bookmark list name must not be empty.")
-    const list = {
-      id,
-      name,
-      isFavorite: input.isFavorite ?? false,
-      createdAt: input.createdAt ?? now,
-      updatedAt: now,
-    }
-    assertTimestamp(list.createdAt, "createdAt")
-    await this.store.upsertBookmarkList(list)
-    return list
+    return this.#track(async () => {
+      const now = this.clock()
+      assertTimestamp(now, "clock")
+      const id = input.id?.trim() || this.createId()
+      const name = input.name.trim()
+      assertId(id, "bookmark list id")
+      if (isSystemListId(id)) throw new Error(`Reader bookmark list id '${id}' is reserved.`)
+      if (!name) throw new Error("Reader bookmark list name must not be empty.")
+      const list = {
+        id,
+        name,
+        isFavorite: input.isFavorite ?? false,
+        createdAt: input.createdAt ?? now,
+        updatedAt: now,
+      }
+      assertTimestamp(list.createdAt, "createdAt")
+      await this.store.upsertBookmarkList(list)
+      return list
+    })
   }
 
   removeBookmarkList(id: string): Promise<boolean> {
     this.#assertOpen()
     assertId(id, "bookmark list id")
     if (isSystemListId(id)) throw new Error(`Reader bookmark list id '${id}' is reserved.`)
-    return this.store.deleteBookmarkList(id)
+    return this.#track(() => this.store.deleteBookmarkList(id))
   }
 
-  async close(): Promise<void> {
-    if (this.#closed) return
+  close(): Promise<void> {
+    if (this.#closePromise) return this.#closePromise
     this.#closed = true
-    await this.store.close()
+    this.#closePromise = (async () => {
+      if (this.#activeOperations > 0) {
+        await (this.#drainPromise ??= new Promise<void>((resolve) => {
+          this.#resolveDrain = resolve
+        }))
+      }
+      await this.store.close()
+    })()
+    return this.#closePromise
   }
 
   [Symbol.asyncDispose](): Promise<void> {
@@ -313,6 +352,28 @@ export class ReaderLibraryService implements AsyncDisposable {
 
   #assertOpen(): void {
     if (this.#closed) throw new Error("Reader library service is closed.")
+  }
+
+  #track<T>(operation: () => Promise<T>): Promise<T> {
+    this.#assertOpen()
+    this.#activeOperations += 1
+    let result: Promise<T>
+    try {
+      result = Promise.resolve(operation())
+    } catch (error) {
+      this.#finishOperation()
+      return Promise.reject(error)
+    }
+    return result.finally(() => this.#finishOperation())
+  }
+
+  #finishOperation(): void {
+    this.#activeOperations -= 1
+    if (this.#closed && this.#activeOperations === 0) {
+      const resolve = this.#resolveDrain
+      this.#resolveDrain = undefined
+      resolve?.()
+    }
   }
 }
 
