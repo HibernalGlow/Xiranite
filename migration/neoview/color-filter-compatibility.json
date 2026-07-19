@@ -268,11 +268,26 @@
       "id": "color-filter.colorize",
       "category": "capabilities",
       "title": "开关上色并条件显示上色设置",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/stores/filterStore.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/stores/filterStore.svelte.ts"
+      ],
       "targetContract": "The GUI exposes the legacy colorize checkbox, conditionally mounts preset and black-and-white controls, and applies changes to the active frame immediately without changing its asset identity.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.color-filter.ui", "neoview.color-filter.image-identity"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.color-filter.ui",
+        "neoview.color-filter.image-identity"
+      ],
       "plannedTestIds": [],
       "notes": "Implementation and rendered evidence are intentionally pending."
     },
@@ -280,35 +295,93 @@
       "id": "color-filter.presets",
       "category": "capabilities",
       "title": "提供 12 个旧版上色预设",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "The canonical preset enum preserves all twelve IDs, Chinese labels, order and redAndBlueGray default: redAndBlue/红蓝, redAndBlueGray/红蓝灰, blueSky/蓝天, violetAndBrown/紫棕, violetAndCarnation/紫粉, paleYellowAndBrown/淡黄棕, red/红色, orange/橙色, yellow/黄色, green/绿色, blue/蓝色 and violet/紫色.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.presets", "neoview.color-filter.config-codec", "neoview.color-filter.config-http", "neoview.color-filter.ui"],
-      "plannedTestIds": ["neoview.color-filter.presets", "neoview.color-filter.preset-surfaces"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.presets",
+        "neoview.color-filter.config-codec",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.ui",
+        "neoview.color-filter.presets"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.preset-surfaces"
+      ],
       "notes": "Unknown imported preset IDs must normalize to redAndBlueGray while unknown TOML sibling fields remain intact."
     },
     {
       "id": "color-filter.custom-colors",
       "category": "data-contract",
       "title": "保留自定义颜色点数据契约",
-      "sourceEvidence": ["src/lib/stores/filterStore.svelte.ts", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "The shared settings schema preserves bounded h/s/m ColorPoint arrays; two or more points override the preset and choosing a preset clears custom points. No custom-color editor is claimed as legacy Card UI.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.bounds", "neoview.color-filter.config-codec", "neoview.color-filter.config-http"],
-      "plannedTestIds": ["neoview.color-filter.custom-colors", "neoview.color-filter.custom-colors-validation"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.bounds",
+        "neoview.color-filter.config-codec",
+        "neoview.color-filter.config-http"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.custom-colors",
+        "neoview.color-filter.custom-colors-validation"
+      ],
       "notes": "The old store exposes this API even though ColorFilterCard has no editor; the target must not invent a completed editor."
     },
     {
       "id": "color-filter.only-black-white",
       "category": "capabilities",
       "title": "仅对黑白图像应用上色",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts", "src/lib/stackview/components/FrameImage.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts",
+        "src/lib/stackview/components/FrameImage.svelte"
+      ],
       "targetContract": "When colorize and onlyBlackAndWhite are enabled, XR samples at most 64x64 pixels from the already decoded current img node, applies colorize only below the legacy average/max saturation thresholds, and retains every non-colorize filter for color images.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.color-filter.black-white-detection"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.color-filter.black-white-detection"
+      ],
       "plannedTestIds": [],
       "notes": "Intentional improvement: replace the legacy second Image and 100x100 sample with a 64x64 current-node sample and no second URL/decode."
     },
@@ -316,193 +389,610 @@
       "id": "color-filter.brightness",
       "category": "capabilities",
       "title": "亮度 50..150%",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Brightness is an integer range from 50 through 150 with implicit step 1, default 100 and a live percentage label.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.bounds", "neoview.color-filter.config-http", "neoview.color-filter.slider-commit"], "plannedTestIds": ["neoview.color-filter.brightness"], "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.bounds",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.slider-commit"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.brightness"
+      ],
+      "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.contrast",
       "category": "capabilities",
       "title": "对比度 50..150%",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Contrast is an integer range from 50 through 150 with implicit step 1, default 100 and a live percentage label.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.bounds", "neoview.color-filter.config-http", "neoview.color-filter.ui"], "plannedTestIds": ["neoview.color-filter.contrast"], "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.bounds",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.ui"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.contrast"
+      ],
+      "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.saturation",
       "category": "capabilities",
       "title": "饱和度 0..200%",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Saturation is an integer range from 0 through 200 with implicit step 1, default 100 and a live percentage label.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.bounds", "neoview.color-filter.config-http", "neoview.color-filter.ui"], "plannedTestIds": ["neoview.color-filter.saturation"], "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.bounds",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.ui"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.saturation"
+      ],
+      "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.sepia",
       "category": "capabilities",
       "title": "褐色 0..100%",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Sepia is an integer range from 0 through 100 with implicit step 1, default 0 and a live percentage label.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.bounds", "neoview.color-filter.config-http", "neoview.color-filter.ui"], "plannedTestIds": ["neoview.color-filter.sepia"], "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.bounds",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.ui"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.sepia"
+      ],
+      "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.hue",
       "category": "capabilities",
       "title": "色相旋转 0..360°",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Hue rotation is an integer range from 0 through 360 degrees with implicit step 1, default 0 and a live degree label.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.bounds", "neoview.color-filter.config-http", "neoview.color-filter.ui"], "plannedTestIds": ["neoview.color-filter.hue"], "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.bounds",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.ui"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.hue"
+      ],
+      "notes": "GUI and canonical persistence are implemented; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.invert-negative",
       "category": "capabilities",
       "title": "反色与负片可独立或同时启用",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Invert and negative remain independent booleans; CSS preserves legacy ordering, including invert(100%) followed by invert(100%) hue-rotate(180deg) when both are enabled.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.css-order", "neoview.color-filter.config-http", "neoview.color-filter.ui"], "plannedTestIds": ["neoview.color-filter.invert-negative", "neoview.color-filter.css-order"], "notes": "The legacy double-inversion ordering is preserved; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.css-order",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.ui",
+        "neoview.color-filter.css-order"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.invert-negative"
+      ],
+      "notes": "The legacy double-inversion ordering is preserved; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.reset",
       "category": "capabilities",
       "title": "一次重置全部滤镜",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/stores/filterStore.svelte.ts", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "One named reset command atomically restores every canonical default, updates the active frame without remounting it and persists exactly one reset mutation.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.reset", "neoview.color-filter.config-http"], "plannedTestIds": ["neoview.color-filter.reset", "neoview.color-filter.reset-surfaces"], "notes": "One aggregate reset is implemented; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.reset",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.reset"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.reset-surfaces"
+      ],
+      "notes": "One aggregate reset is implemented; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.pipeline",
       "category": "data-contract",
       "title": "共享 SVG/CSS 滤镜流水线",
-      "sourceEvidence": ["src/lib/stores/filterStore.svelte.ts", "src/lib/utils/colorFilters.ts", "src/lib/stackview/components/FrameImage.svelte"],
+      "sourceEvidence": [
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/utils/colorFilters.ts",
+        "src/lib/stackview/components/FrameImage.svelte"
+      ],
       "targetContract": "A browser-safe shared domain deterministically generates the legacy sRGB feComponentTransfer tables and ordered CSS filter string for img and Canvas presentation branches without server image variants.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "complete", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.color-filter.table-values", "neoview.color-filter.css-order", "neoview.color-filter.image-identity"], "plannedTestIds": [], "notes": "Browser-safe declarative SVG and CSS projection are implemented without image transcoding."
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.color-filter.table-values",
+        "neoview.color-filter.css-order",
+        "neoview.color-filter.image-identity"
+      ],
+      "plannedTestIds": [],
+      "notes": "Browser-safe declarative SVG and CSS projection are implemented without image transcoding."
     },
     {
       "id": "color-filter.persistence",
       "category": "settings",
       "title": "旧 localStorage 导入与唯一 TOML 真相源",
-      "sourceEvidence": ["src/lib/stores/filterStore.svelte.ts", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Import neoview-filter-settings once, validate and normalize it, then persist the only runtime version under [nodes.neoview.image.color_filter] using snake_case fields, serialized atomic PATCH, failure rollback and unknown-field preservation.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.legacy-import", "neoview.color-filter.toml", "neoview.color-filter.persistence", "neoview.color-filter.config-http"],
-      "plannedTestIds": ["neoview.color-filter.legacy-import", "neoview.color-filter.toml", "neoview.color-filter.persistence-rollback", "neoview.color-filter.persistence-surfaces"],
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.legacy-import",
+        "neoview.color-filter.toml",
+        "neoview.color-filter.persistence",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.legacy-import",
+        "neoview.color-filter.toml"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.persistence-rollback",
+        "neoview.color-filter.persistence-surfaces"
+      ],
       "notes": "Canonical fields: colorize_enabled, colorize_preset, custom_colors, only_black_and_white, brightness, contrast, saturation, sepia, hue_rotate, invert and negative."
     },
     {
       "id": "color-filter.scope",
       "category": "settings",
       "title": "全局默认与书籍覆盖范围明确",
-      "sourceEvidence": ["src/lib/stores/filterStore.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/stores/filterStore.svelte.ts"
+      ],
       "targetContract": "The Card labels the legacy-equivalent TOML value as the global default. Any book-specific override must use the shared book-settings contract with explicit book-over-global precedence and must never create a second localStorage or component-state source of truth.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.scope"], "plannedTestIds": ["neoview.color-filter.scope", "neoview.color-filter.scope-precedence"], "notes": "Global TOML precedence is complete; book-specific override remains pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.scope",
+        "neoview.color-filter.scope"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.scope-precedence"
+      ],
+      "notes": "Global TOML precedence is complete; book-specific override remains pending."
     },
     {
       "id": "color-filter.states",
       "category": "interaction-states",
       "title": "加载、条件、提交、错误与回滚状态",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/stores/filterStore.svelte.ts", "src/lib/cards/CardRenderer.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
       "targetContract": "The Card covers lazy loading, loaded defaults, colorize-disabled conditional content, active edits, pending persistence, validation failure, write failure with rollback, retry, reset and disposed states without stale visual state.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.color-filter.hydration-race", "neoview.color-filter.persistence", "neoview.color-filter.ui", "neoview.color-filter.states", "neoview.color-filter.rollback", "neoview.color-filter.retry"], "plannedTestIds": [], "notes": "Conditional, rollback, pending-save, stale hydration and explicit retry states are covered by the Card and Store tests."
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.color-filter.hydration-race",
+        "neoview.color-filter.persistence",
+        "neoview.color-filter.ui",
+        "neoview.color-filter.states",
+        "neoview.color-filter.rollback",
+        "neoview.color-filter.retry"
+      ],
+      "plannedTestIds": [],
+      "notes": "Conditional, rollback, pending-save, stale hydration and explicit retry states are covered by the Card and Store tests."
     },
     {
       "id": "color-filter.shell",
       "category": "ui-parity",
       "title": "共享 Card 外壳与独立窗口行为",
-      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/CardWindow.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/CardWindow.svelte"
+      ],
       "targetContract": "colorFilter retains its 颜色滤镜 title, Palette icon, control Panel default, hideability, independent lazy boundary and shared docked/window Card behaviors.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.color-filter.registry", "neoview.color-filter.ui-1920x1080"], "plannedTestIds": [], "notes": "Registry, independent Card chunk and shared Card rendering are covered."
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.color-filter.registry",
+        "neoview.color-filter.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "Registry, independent Card chunk and shared Card rendering are covered."
     },
     {
       "id": "color-filter.ui-parity",
       "category": "ui-parity",
       "title": "旧版控件层级、标签、密度与响应式布局",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/cards/registry.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/cards/registry.ts"
+      ],
       "targetContract": "The first target render preserves the compact vertical hierarchy, Chinese labels, control ordering, conditional preset section, right-aligned reset icon and value labels, then records any token-level improvement against scripted legacy and current 1920x1080 screenshots.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.color-filter.ui", "neoview.color-filter.ui-1920x1080"], "plannedTestIds": [], "notes": "Scripted legacy and target 1920x1080 screenshots characterize the compact hierarchy and 320px Control Panel geometry."
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.color-filter.ui",
+        "neoview.color-filter.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "Scripted legacy and target 1920x1080 screenshots characterize the compact hierarchy and 320px Control Panel geometry."
     },
     {
       "id": "color-filter.accessibility",
       "category": "keyboard-accessibility",
       "title": "命名控件、键盘调节与焦点语义",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/CardWindow.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/CardWindow.svelte"
+      ],
       "targetContract": "Every checkbox, select, range and icon command has an accessible name; native keyboard interaction and visible focus are preserved; ranges expose current/min/max values; conditional controls leave a predictable focus order; CardWindow shortcuts do not steal input editing gestures.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.color-filter.ui", "neoview.color-filter.ui-1920x1080"], "plannedTestIds": [], "notes": "All controls use native semantics; reset adds an explicit accessible name over the legacy title-only icon."
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.color-filter.ui",
+        "neoview.color-filter.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "All controls use native semantics; reset adds an explicit accessible name over the legacy title-only icon."
     },
     {
       "id": "color-filter.data-contract",
       "category": "data-contract",
       "title": "严格配置 DTO、版本与并发语义",
-      "sourceEvidence": ["src/lib/stores/filterStore.svelte.ts", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "One revisioned settings DTO validates exact booleans, preset enum, bounded integers and bounded ColorPoint arrays; GUI, CLI and TUI share normalization, compare-and-set/serialized mutation, stale-result rejection, reset and error semantics.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.config-codec", "neoview.color-filter.config-http", "neoview.color-filter.hydration-race", "neoview.color-filter.client"], "plannedTestIds": ["neoview.color-filter.config-codec", "neoview.color-filter.config-http", "neoview.color-filter.config-race", "neoview.color-filter.config-surfaces"], "notes": "Shared codec, HTTP DTO and GUI store are complete; CLI/TUI surfaces remain pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.config-codec",
+        "neoview.color-filter.config-http",
+        "neoview.color-filter.hydration-race",
+        "neoview.color-filter.client",
+        "neoview.color-filter.config-codec",
+        "neoview.color-filter.config-http"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.config-race",
+        "neoview.color-filter.config-surfaces"
+      ],
+      "notes": "Shared codec, HTTP DTO and GUI store are complete; CLI/TUI surfaces remain pending."
     },
     {
       "id": "color-filter.lifecycle",
       "category": "lifecycle",
       "title": "懒加载、订阅、采样取消与释放",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/stores/filterStore.svelte.ts", "src/lib/stackview/components/FrameImage.svelte", "src/lib/cards/CardRenderer.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/stackview/components/FrameImage.svelte",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
       "targetContract": "The Card and SVG definitions load only when needed, subscriptions dispose on collapse/hide/window close, current-node sampling is cancelled or made stale on page/session changes, and all owned DOM/cache state is released without affecting the active reader image.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.black-white-detection", "neoview.color-filter.registry", "neoview.color-filter.lifecycle"], "plannedTestIds": ["neoview.color-filter.sample-cancel", "neoview.color-filter.dispose"], "notes": "Card visibility and subscription cleanup are covered; current-node stale-sample cancellation and full owned-resource disposal remain pending outside this Card-only change."
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.black-white-detection",
+        "neoview.color-filter.registry",
+        "neoview.color-filter.lifecycle"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.sample-cancel",
+        "neoview.color-filter.dispose"
+      ],
+      "notes": "Card visibility and subscription cleanup are covered; current-node stale-sample cancellation and full owned-resource disposal remain pending outside this Card-only change."
     },
     {
       "id": "color-filter.image-stability",
       "category": "performance",
       "title": "滤镜操作保持活动媒体身份与解码链",
-      "sourceEvidence": ["src/lib/stackview/components/FrameImage.svelte", "src/lib/utils/colorFilters.ts"],
+      "sourceEvidence": [
+        "src/lib/stackview/components/FrameImage.svelte",
+        "src/lib/utils/colorFilters.ts"
+      ],
       "targetContract": "Changing any filter preserves the exact current img node and asset URL, causes zero duplicate asset requests/decodes, creates no sharp/Blob variant and does not remount the ReaderFrame.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.image-identity", "neoview.color-filter.black-white-detection"], "plannedTestIds": ["neoview.color-filter.image-stability", "neoview.color-filter.zero-duplicate-request", "neoview.color-filter.zero-duplicate-decode"], "notes": "Exact img identity and URL are covered; a real asset-route duplicate-request counter remains pending."
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.image-identity",
+        "neoview.color-filter.black-white-detection"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.image-stability",
+        "neoview.color-filter.zero-duplicate-request",
+        "neoview.color-filter.zero-duplicate-decode"
+      ],
+      "notes": "Exact img identity and URL are covered; a real asset-route duplicate-request counter remains pending."
     },
     {
       "id": "color-filter.performance",
       "category": "performance",
       "title": "有界更新、采样、DOM、内存与 chunk 预算",
-      "sourceEvidence": ["src/lib/cards/info/ColorFilterCard.svelte", "src/lib/utils/colorFilters.ts", "src/lib/stackview/components/FrameImage.svelte", "src/lib/cards/CardRenderer.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/ColorFilterCard.svelte",
+        "src/lib/utils/colorFilters.ts",
+        "src/lib/stackview/components/FrameImage.svelte",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
       "targetContract": "Pointer movement updates only presentation state, persistence happens at interaction end, black-and-white analysis reads at most 4096 pixels from the current node once per media version, DOM and cache ownership remain O(1), the Card stays independently lazy, and Reader navigation/image latency remains within the established NeoView gates.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "not-applicable", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.preview", "neoview.color-filter.black-white-detection", "neoview.color-filter.bounds"], "plannedTestIds": ["neoview.color-filter.poll-budget", "neoview.color-filter.sample-budget", "neoview.color-filter.chunk", "neoview.color-filter.performance", "neoview.color-filter.surface-performance"], "notes": "O(1) store updates, 4096-pixel sampling and 3.5/4.3 KiB deferred chunks are proven; unified navigation timing remains pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.preview",
+        "neoview.color-filter.black-white-detection",
+        "neoview.color-filter.bounds"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.poll-budget",
+        "neoview.color-filter.sample-budget",
+        "neoview.color-filter.chunk",
+        "neoview.color-filter.performance",
+        "neoview.color-filter.surface-performance"
+      ],
+      "notes": "O(1) store updates, 4096-pixel sampling and 3.5/4.3 KiB deferred chunks are proven; unified navigation timing remains pending."
     },
     {
       "id": "color-filter.deviations",
       "category": "deviations",
       "title": "记录存储、采样、安全与交互改进",
-      "sourceEvidence": ["src/lib/stores/filterStore.svelte.ts", "src/lib/utils/colorFilters.ts", "src/lib/stackview/components/FrameImage.svelte"],
+      "sourceEvidence": [
+        "src/lib/stores/filterStore.svelte.ts",
+        "src/lib/utils/colorFilters.ts",
+        "src/lib/stackview/components/FrameImage.svelte"
+      ],
       "targetContract": "Document and verify four intentional changes: localStorage becomes one-time import into canonical TOML; body innerHTML SVG injection becomes React-owned declarative SVG; second-Image 100x100 detection becomes 64x64 current-node sampling; write failures become visible rollback/retry. Legacy filter math, preset IDs, labels, ranges and ordering otherwise remain compatible.",
-      "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.color-filter.legacy-import", "neoview.color-filter.table-values", "neoview.color-filter.black-white-detection", "neoview.color-filter.persistence", "neoview.color-filter.config-http"], "plannedTestIds": ["neoview.color-filter.deviations", "neoview.color-filter.legacy-parity"], "notes": "The four documented XR replacements are implemented for GUI; CLI/TUI exposure remains pending."
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.color-filter.legacy-import",
+        "neoview.color-filter.table-values",
+        "neoview.color-filter.black-white-detection",
+        "neoview.color-filter.persistence",
+        "neoview.color-filter.config-http"
+      ],
+      "plannedTestIds": [
+        "neoview.color-filter.deviations",
+        "neoview.color-filter.legacy-parity"
+      ],
+      "notes": "The four documented XR replacements are implemented for GUI; CLI/TUI exposure remains pending."
     }
   ]
 }

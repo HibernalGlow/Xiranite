@@ -310,11 +310,10 @@
         "neoview.preload-status.current-page",
         "neoview.preload-status.e2e",
         "neoview.preload-status.resident-1920x1080",
-        "neoview.preload-status.no-session"
-      ],
-      "plannedTestIds": [
+        "neoview.preload-status.no-session",
         "neoview.card.preload-status-live"
       ],
+      "plannedTestIds": [],
       "notes": "The React Card derives this field from the active session frame and book snapshot; before a session it keeps the legacy 0 / 0 summary shell resident, while Chromium covers both the empty and active states."
     },
     {
@@ -343,11 +342,10 @@
         "neoview.diagnostics.snapshot",
         "neoview.diagnostics.http",
         "neoview.diagnostics.cli",
-        "neoview.preload-status.memory"
-      ],
-      "plannedTestIds": [
+        "neoview.preload-status.memory",
         "neoview.preload-status.diagnostics-client"
       ],
+      "plannedTestIds": [],
       "notes": "The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; scripted 1920x1080 Chromium proves the lease metric and normal desktop sidebar geometry, while complete status still requires CLI/TUI presentation."
     },
     {
@@ -538,11 +536,10 @@
       },
       "testIds": [
         "neoview.preload-status.refresh",
-        "neoview.preload-status.e2e"
-      ],
-      "plannedTestIds": [
+        "neoview.preload-status.e2e",
         "neoview.preload-status.diagnostics-cancel"
       ],
+      "plannedTestIds": [],
       "notes": "The Card refreshes diagnostics immediately and at most once per two seconds while mounted, aborts on frame/session changes, exposes sanitized retry, and proves zero polling while collapsed in the scripted desktop flow."
     },
     {
@@ -569,10 +566,10 @@
         "neoview.preload-status.states",
         "neoview.preload-status.session-switch",
         "neoview.preload-status.resident-1920x1080",
-        "neoview.preload-status.no-session"
+        "neoview.preload-status.no-session",
+        "neoview.preload-status.retry"
       ],
       "plannedTestIds": [
-        "neoview.preload-status.retry",
         "neoview.preload-status.partial-metrics"
       ],
       "notes": "The Card covers loading, resident pre-session, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish."
@@ -641,10 +638,10 @@
         "neoview.preload.telemetry-http",
         "neoview.diagnostics.wire-schema",
         "neoview.preload.action-http",
-        "neoview.preload.action-client"
+        "neoview.preload.action-client",
+        "neoview.preload-status.diagnostics-client"
       ],
       "plannedTestIds": [
-        "neoview.preload-status.diagnostics-client",
         "neoview.preload.action-cli",
         "neoview.preload.action-tui"
       ],
@@ -677,11 +674,11 @@
         "neoview.preload-status-store",
         "neoview.preload.telemetry-generation",
         "neoview.card.zero-mount",
-        "neoview.preload-status.session-switch"
+        "neoview.preload-status.session-switch",
+        "neoview.card.preload-status-live",
+        "neoview.preload-status.diagnostics-cancel"
       ],
       "plannedTestIds": [
-        "neoview.card.preload-status-live",
-        "neoview.preload-status.diagnostics-cancel",
         "neoview.preload-status.session-close"
       ],
       "notes": "Store unsubscribe, diagnostics polling cancellation on unmount/session/frame change, synchronous cross-session state isolation, browser clear and core close are covered; full session-close integration evidence remains pending."
@@ -772,7 +769,9 @@
         "neoview.card.preload-status-live",
         "neoview.preload-status.resident-1920x1080"
       ],
-      "plannedTestIds": ["neoview.preload-status.visual-baseline"],
+      "plannedTestIds": [
+        "neoview.preload-status.visual-baseline"
+      ],
       "notes": "Scripted Playwright characterization compares the legacy CardWindow and XR Reader at 1920x1080. The resident harness now verifies the legacy two-column empty summary before opening, while the active target verifies compact labels, memory meter, nearby grid and server/browser state hierarchy; independent-window pixel parity remains pending."
     },
     {
@@ -862,12 +861,12 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.preload-status.e2e"
+        "neoview.preload-status.e2e",
+        "neoview.preload-status.poll-budget"
       ],
       "plannedTestIds": [
         "neoview.preload-status.deviations",
-        "neoview.preload-status.partial-metrics",
-        "neoview.preload-status.poll-budget"
+        "neoview.preload-status.partial-metrics"
       ],
       "notes": "The implementation and checklist explicitly separate server presentation cache, aggregate preload telemetry and bounded browser predecode; it preserves the three-behind/five-ahead window, uses active-only sanitized diagnostics, persists no telemetry and reserves cancel/clear for a future session-scoped contract."
     }

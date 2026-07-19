@@ -2,10 +2,10 @@
   "schemaVersion": 2,
   "featureId": "thumbnail-maintenance",
   "legacyCardId": "thumbnailMaintenance",
-  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/ThumbnailMaintenanceCard.tsx",
   "title": "缩略图维护",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/ThumbnailMaintenanceCard.tsx",
   "completionRule": "Complete only when the legacy statistics, bounded invalid/empty/expired cleanup and failure reset controls, loading/result/error states, cancellation, active-media stability and deferred chunk boundary have automated evidence. Path-prefix deletion, key normalization and VACUUM must remain explicitly redirected to confirmed offline maintenance instead of being exposed as unsafe online Card mutations.",
   "sourceUiInventory": [
     {
@@ -134,9 +134,25 @@
         "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
       ],
       "targetContract": "An explicitly visible and expanded Card loads one authenticated aggregate snapshot containing total/file/folder rows, Blob/database/WAL/SHM bytes, empty and failed rows, failure reasons and bounded writer status; it never returns database paths or thumbnail keys.",
-      "surfaces": ["GUI", "CLI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance-service", "neoview.thumbnail.maintenance.http", "neoview.thumbnail.maintenance-cli", "neoview.thumbnail-maintenance.card", "neoview.thumbnail-maintenance.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.maintenance-service",
+        "neoview.thumbnail.maintenance.http",
+        "neoview.thumbnail.maintenance-cli",
+        "neoview.thumbnail-maintenance.card",
+        "neoview.thumbnail-maintenance.e2e"
+      ],
       "plannedTestIds": [],
       "notes": "XR expands the legacy four summary values with separately labelled file, folder, Blob, sidecar and writer aggregates already owned by the shared maintenance service."
     },
@@ -144,11 +160,29 @@
       "id": "thumbnail-maintenance.invalid-cleanup",
       "category": "capabilities",
       "title": "有界扫描并清理确认失效路径",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "Invalid cleanup scans at most 2000 rows, deletes at most 500 confirmed missing local sources, preserves unavailable-volume rows, reports scanned/deleted/preserved/wrapped counts and refreshes statistics after success.",
-      "surfaces": ["GUI", "CLI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance.invalid-paths", "neoview.thumbnail.maintenance.bounded", "neoview.thumbnail.maintenance-cli", "neoview.thumbnail-maintenance.card-actions", "neoview.thumbnail-maintenance.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.maintenance.invalid-paths",
+        "neoview.thumbnail.maintenance.bounded",
+        "neoview.thumbnail.maintenance-cli",
+        "neoview.thumbnail-maintenance.card-actions",
+        "neoview.thumbnail-maintenance.e2e"
+      ],
       "plannedTestIds": [],
       "notes": "The legacy unbounded command is replaced by explicit scan/delete budgets and unavailable-volume preservation."
     },
@@ -156,11 +190,29 @@
       "id": "thumbnail-maintenance.empty-cleanup",
       "category": "capabilities",
       "title": "有界清理空 Blob",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "Empty-Blob cleanup requires an authenticated mutation header, deletes at most 1000 rows per request, reports the exact deleted count and reloads aggregate statistics.",
-      "surfaces": ["GUI", "CLI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance.online", "neoview.thumbnail.maintenance.bounded", "neoview.thumbnail.maintenance-cli", "neoview.thumbnail-maintenance.card-actions", "neoview.thumbnail-maintenance.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.maintenance.online",
+        "neoview.thumbnail.maintenance.bounded",
+        "neoview.thumbnail.maintenance-cli",
+        "neoview.thumbnail-maintenance.card-actions",
+        "neoview.thumbnail-maintenance.e2e"
+      ],
       "plannedTestIds": [],
       "notes": "The Card uses the shared bounded online writer and never opens SQLite directly."
     },
@@ -168,11 +220,29 @@
       "id": "thumbnail-maintenance.expired-cleanup",
       "category": "capabilities",
       "title": "清理过期文件缩略图并保留文件夹",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "The user chooses 1..3650 days; cleanup always sends preserveFolders=true, deletes at most 1000 rows, reports deleted count and cutoff, and refreshes statistics.",
-      "surfaces": ["GUI", "CLI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance-service", "neoview.thumbnail.maintenance.bounded", "neoview.thumbnail.maintenance-cli", "neoview.thumbnail-maintenance.card-actions", "neoview.thumbnail-maintenance.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.maintenance-service",
+        "neoview.thumbnail.maintenance.bounded",
+        "neoview.thumbnail.maintenance-cli",
+        "neoview.thumbnail-maintenance.card-actions",
+        "neoview.thumbnail-maintenance.e2e"
+      ],
       "plannedTestIds": [],
       "notes": "Unlike the legacy checkbox, folder preservation is mandatory because folder thumbnails are shared compatibility data."
     },
@@ -180,11 +250,29 @@
       "id": "thumbnail-maintenance.failure-cleanup",
       "category": "capabilities",
       "title": "有界清除生成失败记录",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "Failure cleanup is disabled at zero failures, requires an authenticated mutation header, clears at most 1000 records, reports the deleted count and reloads statistics without exposing keys or error payloads.",
-      "surfaces": ["GUI", "CLI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance-service", "neoview.thumbnail.maintenance.bounded", "neoview.thumbnail.maintenance-cli", "neoview.thumbnail-maintenance.card-actions", "neoview.thumbnail-maintenance.e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.maintenance-service",
+        "neoview.thumbnail.maintenance.bounded",
+        "neoview.thumbnail.maintenance-cli",
+        "neoview.thumbnail-maintenance.card-actions",
+        "neoview.thumbnail-maintenance.e2e"
+      ],
       "plannedTestIds": [],
       "notes": "Clearing failures permits later demand generation to retry; it does not eagerly regenerate thumbnails."
     },
@@ -192,11 +280,29 @@
       "id": "thumbnail-maintenance.states",
       "category": "states",
       "title": "加载、不可用、成功、失败与取消状态",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "The Card has one in-flight operation, disables duplicate commands, distinguishes initial loading, unavailable 501, temporary 503, success and sanitized failure states, aborts work on unmount and ignores stale completions.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance-cancel-service", "neoview.thumbnail.maintenance-cancel-http", "neoview.thumbnail-maintenance.card", "neoview.thumbnail-maintenance.card-lifecycle", "neoview.thumbnail-maintenance.cancel-ui", "neoview.thumbnail-maintenance.e2e"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.maintenance-cancel-service",
+        "neoview.thumbnail.maintenance-cancel-http",
+        "neoview.thumbnail-maintenance.card",
+        "neoview.thumbnail-maintenance.card-lifecycle",
+        "neoview.thumbnail-maintenance.cancel-ui",
+        "neoview.thumbnail-maintenance.e2e"
+      ],
       "plannedTestIds": [],
       "notes": "There is no interval polling; refresh is initial-load, explicit-command and explicit-refresh only."
     },
@@ -204,11 +310,29 @@
       "id": "thumbnail-maintenance.data-boundary",
       "category": "data-contract",
       "title": "沿用唯一 NeoView 兼容数据库与共享 writer",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "All Card reads and mutations flow through the shared service and original %APPDATA%/NeoView/thumbnails.db xr-compatible adapter; no Reader tables are added to xiranite.db, no second NeoView database is created and old tables, indexes, metadata.version, user_version and journal settings are untouched.",
-      "surfaces": ["GUI", "CLI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.maintenance.online", "neoview.thumbnail.maintenance.http", "neoview.thumbnail.maintenance-cli", "neoview.thumbnail-maintenance.client", "neoview.thumbnail-maintenance.database-e2e"],
+      "surfaces": [
+        "GUI",
+        "CLI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.maintenance.online",
+        "neoview.thumbnail.maintenance.http",
+        "neoview.thumbnail.maintenance-cli",
+        "neoview.thumbnail-maintenance.client",
+        "neoview.thumbnail-maintenance.database-e2e"
+      ],
       "plannedTestIds": [],
       "notes": "The browser client receives aggregate DTOs only and cannot address database paths or row keys."
     },
@@ -216,12 +340,29 @@
       "id": "thumbnail-maintenance.accessibility",
       "category": "accessibility",
       "title": "紧凑控制的名称、范围与状态反馈",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "The refresh icon has an accessible name and title, numeric days input has a label and min/max, buttons expose disabled/busy state, and command outcomes use an aria-live status without changing Card geometry unexpectedly.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail-maintenance.card", "neoview.thumbnail-maintenance.card-actions", "neoview.thumbnail-maintenance.e2e"],
-      "plannedTestIds": ["neoview.thumbnail-maintenance.keyboard"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail-maintenance.card",
+        "neoview.thumbnail-maintenance.card-actions",
+        "neoview.thumbnail-maintenance.e2e"
+      ],
+      "plannedTestIds": [
+        "neoview.thumbnail-maintenance.keyboard"
+      ],
       "notes": "Familiar Lucide icons keep visible labels on destructive commands; only refresh is icon-only."
     },
     {
@@ -234,34 +375,86 @@
         "src/lib/cards/registry.ts"
       ],
       "targetContract": "Preserve the header, compact two-column statistics, invalid/empty/failure group, expiration group, result message and explanatory hierarchy with equivalent Lucide semantics and constrained-sidebar wrapping; intentional omissions are recorded separately.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail-maintenance.card", "neoview.thumbnail-maintenance.card-actions"],
-      "plannedTestIds": ["neoview.thumbnail-maintenance.visual"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail-maintenance.card",
+        "neoview.thumbnail-maintenance.card-actions"
+      ],
+      "plannedTestIds": [
+        "neoview.thumbnail-maintenance.visual"
+      ],
       "notes": "The Card remains a control-panel Card and is default-hidden in XR to prevent an aggregate database scan during ordinary Reader use."
     },
     {
       "id": "thumbnail-maintenance.performance",
       "category": "performance",
       "title": "零隐藏工作、单飞请求与独立延迟 chunk",
-      "sourceEvidence": ["src/lib/cards/properties/ThumbnailMaintenanceCard.svelte", "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "The default-hidden Card performs no work until explicitly docked and expanded, keeps one request in flight, performs no polling, aborts on unmount, does not remount or re-request active media, and remains in an independent deferred chunk under 16 KiB outside entry and ReaderSidebar base chunks.",
-      "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail-maintenance.card-lifecycle", "neoview.thumbnail-maintenance.chunk", "neoview.thumbnail-maintenance.e2e", "neoview.thumbnail-maintenance.image-stability"],
-      "plannedTestIds": ["neoview.thumbnail-maintenance.performance"],
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail-maintenance.card-lifecycle",
+        "neoview.thumbnail-maintenance.chunk",
+        "neoview.thumbnail-maintenance.e2e",
+        "neoview.thumbnail-maintenance.image-stability"
+      ],
+      "plannedTestIds": [
+        "neoview.thumbnail-maintenance.performance"
+      ],
       "notes": "Statistics are cooperative and demand-only; no timer or global store is introduced."
     },
     {
       "id": "thumbnail-maintenance.deviations",
       "category": "deviations",
       "title": "高风险数据库动作使用确认式离线替代契约",
-      "sourceEvidence": ["src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte"
+      ],
       "targetContract": "Document that legacy path-prefix deletion is not exposed until a reviewed bounded path contract exists, while VACUUM/optimize/backup/restore/key normalization remain confirmed offline CLI operations protected by the shared process lock; the online Card must not reproduce direct Tauri SQLite mutations.",
-      "surfaces": ["GUI", "CLI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.thumbnail.database-maintenance-cli", "neoview.thumbnail.database-maintenance-lock", "neoview.thumbnail.maintenance.http", "neoview.thumbnail-maintenance.card"],
-      "plannedTestIds": ["neoview.thumbnail-maintenance.deviations"],
+      "surfaces": [
+        "GUI",
+        "CLI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.thumbnail.database-maintenance-cli",
+        "neoview.thumbnail.database-maintenance-lock",
+        "neoview.thumbnail.maintenance.http",
+        "neoview.thumbnail-maintenance.card"
+      ],
+      "plannedTestIds": [
+        "neoview.thumbnail-maintenance.deviations"
+      ],
       "notes": "This is an intentional safety deviation, not an omitted claim of parity."
     }
   ]

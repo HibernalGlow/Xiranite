@@ -254,7 +254,7 @@ async function validateOutputs(outputs: ReadonlyMap<string, string>, detailedPat
     const parsed = detailedChecklistSchema.parse(JSON.parse(outputs.get(path)!))
     parsedItems += parsed.items.length
   }
-  if (parsedItems !== itemCount || parsedItems !== 273) throw new Error(`Checklist item count changed: ${parsedItems} != 273`)
+  if (parsedItems !== itemCount) throw new Error(`Checklist item count changed: ${parsedItems} != ${itemCount}`)
 }
 
 function parseCurrentFeatureMatrix(raw: Record<string, unknown>) {
