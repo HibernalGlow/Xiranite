@@ -33,7 +33,8 @@ describe("OpenComicAiSystemProvider", () => {
   it("[neoview.super-resolution.provider-run] injects the resolved CLI and validates output dimensions", async () => {
     const runtime = fakeRuntime()
     const progress = vi.fn()
-    const provider = createProvider({ runtime })
+    const ensureModelsDirectory = vi.fn(async () => {})
+    const provider = createProvider({ runtime, ensureModelsDirectory })
     await expect(provider.upscale(request, { onProgress: progress })).resolves.toEqual({
       sourcePath: request.sourcePath,
       destinationPath: request.destinationPath,
@@ -44,6 +45,7 @@ describe("OpenComicAiSystemProvider", () => {
       height: 1276,
       elapsedMs: 25,
     })
+    expect(ensureModelsDirectory).toHaveBeenCalledWith("D:/models")
     expect(runtime.setModelsPath).toHaveBeenCalledWith("D:/models")
     expect(runtime.setConcurrentDaemons).toHaveBeenCalledWith(1)
     expect(runtime.setDaemonIdleTimeout).toHaveBeenCalledWith(300_000)
@@ -120,6 +122,7 @@ function createProvider(options: {
   available?: boolean
   inspectImage?: (path: string) => Promise<{ bytes: number; width: number; height: number }>
   daemonSupported?: boolean
+  ensureModelsDirectory?: (path: string) => Promise<void>
 }) {
   let now = 100
   return new OpenComicAiSystemProvider({
@@ -139,6 +142,7 @@ function createProvider(options: {
       })),
     },
     modelsDirectory: "D:/models",
+    ensureModelsDirectory: options.ensureModelsDirectory ?? (async () => {}),
     inspectImage: options.inspectImage ?? (async (path) => path === request.sourcePath
       ? { bytes: 10, width: 480, height: 638 }
       : { bytes: 20, width: 960, height: 1276 }),
