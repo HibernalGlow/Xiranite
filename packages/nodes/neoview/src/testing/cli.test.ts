@@ -367,7 +367,7 @@ describe("NeoView CLI", () => {
 
       await expect(runProgram(["folder-exclude", privatePath, "--config", configPath], host([]), testPlatformDependencies)).rejects.toThrow("requires --yes")
       await runProgram(["folder-exclude", privatePath, "--config", configPath, "--yes", "--json"], host([]), testPlatformDependencies)
-      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview.folder.tree]")
+      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview]\nconfig = { ")
 
       const filteredOutput: unknown[] = []
       await runProgram(["folder-search", directory, "--query", "cbz", "--config", configPath, "--json"], host(filteredOutput), testPlatformDependencies)
