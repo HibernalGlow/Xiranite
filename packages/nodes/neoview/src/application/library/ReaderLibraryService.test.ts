@@ -29,6 +29,24 @@ describe("ReaderLibraryService", () => {
     expect(store.close).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.library.close-drain] shares close and waits for an in-flight operation before closing the store", async () => {
+    const store = createStore()
+    const pending = deferred<readonly never[]>()
+    store.listRecent.mockReturnValue(pending.promise)
+    const service = new ReaderLibraryService(store)
+
+    const listing = service.listRecent()
+    const closing = service.close()
+    expect(service.close()).toBe(closing)
+    expect(store.close).not.toHaveBeenCalled()
+    await expect(service.listRecent()).rejects.toThrow("closed")
+
+    pending.resolve([])
+    await expect(listing).resolves.toEqual([])
+    await closing
+    expect(store.close).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.library.bookmark] creates canonical bookmarks and rejects persisted system lists", async () => {
     const store = createStore()
     const service = new ReaderLibraryService(store, () => 2000, () => "bookmark-1")
@@ -136,6 +154,20 @@ describe("ReaderLibraryService", () => {
     const controller = new AbortController()
     controller.abort()
     await expect(service.removeRecents(["one"], controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+  })
+
+  it("[neoview.library.remove-cancel-late] reports cancellation that arrives while a delete is in flight", async () => {
+    const store = createStore()
+    const pending = deferred<boolean>()
+    store.deleteRecent.mockReturnValue(pending.promise)
+    const service = new ReaderLibraryService(store)
+    const controller = new AbortController()
+    const removal = service.removeRecent("one", controller.signal)
+
+    controller.abort(new DOMException("cancelled", "AbortError"))
+    pending.resolve(true)
+    await expect(removal).rejects.toMatchObject({ name: "AbortError" })
+    expect(store.deleteRecent).toHaveBeenCalledWith("one")
   })
 
   it("[neoview.history.cleanup-oldest] delegates bounded oldest cleanup to the atomic store operation", async () => {
@@ -277,6 +309,14 @@ function createStore() {
     close: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }
 
 function bookmark(id: string, listIds: readonly string[], starred: boolean): ReaderBookmarkRecord {
