@@ -389,6 +389,64 @@ describe("ReaderApp", () => {
     expect(updateSlideshow.mock.calls[2]?.[0]).toEqual({ slideshow: { intervalSeconds: 1 } })
   })
 
+  it("[neoview.slideshow.fade-react] marks only slideshow-driven frames for the configured compositor fade", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const forward = {
+      frame: {
+        ...opened.frame,
+        generation: 1,
+        anchorPageIndex: 1,
+        pages: [{ pageId: "page-2", pageIndex: 1, side: "single" as const }],
+        atStart: false,
+        atEnd: true,
+      },
+      visiblePages: [{
+        ...opened.visiblePages[0]!,
+        id: "page-2",
+        index: 1,
+        name: "002.jpg",
+        assetUrl: "http://127.0.0.1:41000/reader/page-2",
+      }],
+    }
+    const backward = {
+      frame: { ...opened.frame, generation: 2 },
+      visiblePages: opened.visiblePages,
+    }
+    const navigate = vi.fn(async (_sessionId: string, action: "next" | "previous") => action === "next" ? forward : backward)
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), slideshow: { intervalSeconds: 1, loop: false, random: false, fadeTransition: true } })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: [opened.visiblePages[0]!, forward.visiblePages[0]!], total: 2 })),
+      navigate,
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+    fireEvent.click(screen.getByRole("button", { name: "展开幻灯片设置" }))
+    const interval = await screen.findByRole("slider", { name: "幻灯片间隔" }) as HTMLInputElement
+    fireEvent.change(interval, { target: { value: "1" } })
+    await waitFor(() => expect(interval.value).toBe("1"))
+    fireEvent.click(await screen.findByRole("button", { name: "播放幻灯片" }))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)), { timeout: 2_500 })
+    const pendingImage = await screen.findByRole("img", { name: "002.jpg" })
+    fireEvent.load(pendingImage)
+    await waitFor(() => expect(document.querySelector("[data-reader-page-transition-source=\"slideshow\"]")).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "暂停幻灯片" }))
+
+    fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "ArrowLeft", code: "ArrowLeft" })
+    await waitFor(() => expect(navigate).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(document.querySelector("[data-reader-page-transition-source=\"slideshow\"]")).toBeNull())
+  })
+
   it("[neoview.react.open-cancel] closes a session that resolves after the reader unmounts", async () => {
     let resolveOpen!: (value: ReaderSessionDto) => void
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)

@@ -11,13 +11,13 @@
 - 功能：30
 - 最新后端命令：319，全部已映射
 - 最新功能源码：670，全部已映射
-- 派生总体：pending=5，partial=25，complete=0
+- 派生总体：pending=5，partial=24，complete=1
 - core：complete=1，partial=23，pending=6，not-applicable=0
 - transport：complete=1，partial=20，pending=0，not-applicable=9
-- gui：complete=0，partial=11，pending=19，not-applicable=0
+- gui：complete=1，partial=10，pending=19，not-applicable=0
 - cli：complete=0，partial=13，pending=8，not-applicable=9
 - tui：complete=1，partial=7，pending=11，not-applicable=11
-- evidence：complete=0，partial=24，pending=6，not-applicable=0
+- evidence：complete=1，partial=23，pending=6，not-applicable=0
 - 完成规则：每个必需维度必须独立完成并具有该维度的 tracked test evidence；单一 core/HTTP/GUI 路径不能提升整个 feature。
 
 ## 推进表
@@ -46,7 +46,7 @@
 | 20 | `theme-background-empty-state` | 主题接管、阅读背景和空页面背景 | pending | migrate | `core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-` | core, gui, evidence | gui | 1 | 14 | 旧主题字段仅导入报告<br>Xiranite 主题接管<br>solid/ambient/aurora/spotlight 阅读背景<br>空页图片/视频背景设置 |
 | 21 | `settings-import-export-backup` | 设置、完整导入导出、备份、Gist 和 TOML 统一 | partial | migrate | `core=P transport=P gui=- cli=P tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 12 | 45 | 全部非主题字段可识别<br>模块选择<br>merge/overwrite<br>幂等导入<br>完整备份<br>Gist 同步<br>GUI/CLI/TUI 共用 TOML<br>运行时只写 TOML<br>未知字段报告 |
 | 22 | `startup-window-cli-lifecycle` | 启动参数、窗口状态、托盘、卡片窗口和生命周期 | partial | migrate | `core=P transport=P gui=- cli=P tui=N/A evidence=P` | core, transport, gui, cli, evidence | gui/cli | 7 | 11 | CLI 路径打开<br>窗口大小/位置恢复<br>最小化托盘<br>卡片窗口恢复<br>单实例导航<br>宿主关闭释放所有进程 |
-| 23 | `slideshow` | 幻灯片自动翻页 | partial | migrate | `core=C transport=C gui=P cli=N/A tui=C evidence=P` | gui, evidence | gui/tui | 0 | 3 | 开始/暂停<br>间隔<br>循环/随机<br>淡入淡出<br>切书和手动操作协调 |
+| 23 | `slideshow` | 幻灯片自动翻页 | complete | migrate | `core=C transport=C gui=C cli=N/A tui=C evidence=C` | 无 | gui/tui | 0 | 3 | 开始/暂停<br>间隔<br>循环/随机<br>淡入淡出<br>切书和手动操作协调 |
 | 24 | `ai-ollama-translation` | Ollama、AI 面板和翻译服务 | partial | migrate | `core=P transport=N/A gui=- cli=- tui=N/A evidence=-` | core, gui, cli, evidence | gui/cli | 7 | 24 | 服务探测和模型列表<br>生成请求<br>配置保存<br>取消/错误<br>翻译缓存 |
 | 25 | `performance-benchmark-diagnostics` | 性能设置、基准、系统监控和诊断 | partial | migrate | `core=P transport=P gui=P cli=P tui=N/A evidence=P` | core, transport, gui, cli, evidence | gui/cli | 21 | 44 | 冷/热基准<br>算法对照<br>系统 CPU/RSS/GPU 观测<br>任务队列状态<br>报告导出<br>基准不污染用户缓存 |
 | 26 | `image-effects-transitions` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 | partial | migrate | `core=P transport=N/A gui=P cli=N/A tui=N/A evidence=P` | core, gui, evidence | gui | 0 | 10 | 自动/手动裁边<br>颜色滤镜开关与参数<br>页面切换动画<br>长图悬停滚动和速度<br>切页后清理上一页效果状态 |
@@ -389,18 +389,18 @@
 
 ### 幻灯片自动翻页（`slideshow`）
 
-- 派生总体：`partial`
+- 派生总体：`complete`
 - 处置：`migrate`
-- 六维：`core=C transport=C gui=P cli=N/A tui=C evidence=P`
-- 阻塞维度：`gui`、`evidence`
+- 六维：`core=C transport=C gui=C cli=N/A tui=C evidence=C`
+- 阻塞维度：无
 - 端：gui、tui
 - 设置：`slideshow`、`book.autoPageTurnInterval`
 - 数据：slideshow runtime
 - 行为：开始/暂停；间隔；循环/随机；淡入淡出；切书和手动操作协调
-- 测试：`neoview.slideshow.runtime`、`neoview.slideshow.runtime-options`、`neoview.slideshow.async-navigation`、`neoview.slideshow.dispose`、`neoview.slideshow.boundaries`、`neoview.slideshow.errors`、`neoview.slideshow.runtime-config`、`neoview.slideshow.config`、`neoview.slideshow.http.config`、`neoview.slideshow.config-react`、`neoview.slideshow.react-controls`、`neoview.slideshow.config-e2e`、`neoview.slideshow.toolbar-e2e`、`neoview.slideshow.chunk`、`neoview.slideshow.headless-config`、`neoview.slideshow.local-headless-config`、`neoview.slideshow.remote-config`、`neoview.slideshow.tui-controls`
+- 测试：`neoview.slideshow.runtime`、`neoview.slideshow.runtime-options`、`neoview.slideshow.async-navigation`、`neoview.slideshow.dispose`、`neoview.slideshow.boundaries`、`neoview.slideshow.errors`、`neoview.slideshow.runtime-config`、`neoview.slideshow.config`、`neoview.slideshow.http.config`、`neoview.slideshow.config-react`、`neoview.slideshow.react-controls`、`neoview.slideshow.config-e2e`、`neoview.slideshow.toolbar-e2e`、`neoview.slideshow.chunk`、`neoview.slideshow.headless-config`、`neoview.slideshow.local-headless-config`、`neoview.slideshow.remote-config`、`neoview.slideshow.tui-controls`、`neoview.slideshow.fade-transition`、`neoview.slideshow.fade-react`、`neoview.slideshow.fade-e2e`
 - 计划测试：无
 - 性能基准：无专项
-- 已知差异：Core 已覆盖开始/暂停/停止、串行定时导航、循环/随机、手动操作重置、边界、错误恢复与 dispose；GUI 已恢复 1..60 秒滑杆、3/5/10/15 秒预设、循环/随机和倒计时进度环，并通过 canonical TOML 持久化；TUI 复用同一运行时，支持播放/暂停、间隔、循环、随机、本地 canonical TOML 与远端配置持久化、失败回滚和 reset 计时清理；工具栏仅在展开时加载为独立二级 chunk。fadeTransition 当前只在设置与 TOML 中保留，尚未接入切页呈现
+- 已知差异：旧版 fadeTransition 开关只读写设置，源码没有任何渲染消费者；XR 将替代契约定义为新图 decode 提交后执行 180ms compositor-only opacity fade，遵循 prefers-reduced-motion，不复制图片 DOM，普通翻页不创建 observer。Core、GUI、TUI、本地/远端配置、失败回滚、reset/dispose、desktop 与 420x360 Chromium 证据均已覆盖
 
 ### Ollama、AI 面板和翻译服务（`ai-ollama-translation`）
 
