@@ -1,0 +1,309 @@
+{
+  "schemaVersion": 1,
+  "featureId": "super-resolution",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "prototypeRoot": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/upscale",
+  "completionRule": "Each Card must preserve every listed control, option, state, event and persistence field or record an intentional replacement contract before its production React implementation can be accepted.",
+  "cards": [
+    {
+      "legacyId": "upscaleControl",
+      "title": "超分控制",
+      "source": "src/lib/cards/upscale/UpscaleControlCard.svelte",
+      "prototype": "UpscaleControlCard.tsx",
+      "characterization": "artifacts/legacy-source/neoview-upscale-control-1920x1080.png",
+      "characterizationStatus": "pending",
+      "controls": [
+        {
+          "id": "automatic-upscale",
+          "type": "switch",
+          "label": "自动超分",
+          "description": "切换图片时自动执行超分（全局主开关）",
+          "value": "autoUpscaleEnabled",
+          "event": "set value, save settings, synchronize upscaleStore enabled state and show an enabled/disabled toast",
+          "persistence": "preferences.autoUpscaleEnabled"
+        }
+      ],
+      "states": ["enabled", "disabled", "saving", "save-error"],
+      "intentionalDeviations": [
+        "The unused source showPanelPreview handler is not a rendered control in this Card; preview remains owned by upscaleStatus where it is visible."
+      ]
+    },
+    {
+      "legacyId": "upscaleModel",
+      "title": "模型选择",
+      "source": "src/lib/cards/upscale/UpscaleModelCard.svelte",
+      "prototype": "UpscaleModelCard.tsx",
+      "characterization": "artifacts/legacy-source/neoview-upscale-model-1920x1080.png",
+      "characterizationStatus": "pending",
+      "controls": [
+        {
+          "id": "model",
+          "type": "select",
+          "label": "模型",
+          "options": "availableModels with MODEL_LABELS fallback",
+          "value": "selectedModel",
+          "event": "persist selection and infer 1x/2x/3x/4x scale from the model id",
+          "persistence": "preferences.defaultModelId, preferences.defaultScale"
+        },
+        {
+          "id": "model-directory",
+          "type": "text-input",
+          "label": "MangaJaNai 模型目录",
+          "value": "mangaJanaiModelDir",
+          "event": "persist on change; Enter refreshes model discovery",
+          "persistence": "superResolution.modelsDirectory"
+        },
+        {
+          "id": "model-directory-default",
+          "type": "button",
+          "label": "默认",
+          "event": "restore the legacy default directory and refresh models"
+        },
+        {
+          "id": "model-directory-picker",
+          "type": "icon-button",
+          "icon": "FolderOpen",
+          "accessibleLabel": "选择目录",
+          "event": "open a single-directory picker and refresh models after selection"
+        },
+        {
+          "id": "model-refresh",
+          "type": "icon-button",
+          "icon": "RefreshCw",
+          "accessibleLabel": "刷新模型",
+          "event": "refresh model discovery with loading and error states"
+        },
+        {
+          "id": "scale",
+          "type": "select",
+          "label": "放大倍率",
+          "options": [1, 2, 3, 4],
+          "value": "scale",
+          "persistence": "preferences.defaultScale"
+        },
+        {
+          "id": "tile-enabled",
+          "type": "switch",
+          "label": "Tile Size",
+          "visibleValueLabels": ["On", "Off"],
+          "value": "tileEnabled",
+          "persistence": "preferences.defaultTileEnabled"
+        },
+        {
+          "id": "tile-size",
+          "type": "select",
+          "label": "Tile Size",
+          "options": "TILE_SIZE_OPTIONS",
+          "disabledWhen": "tileEnabled is false",
+          "value": "tileSize",
+          "persistence": "preferences.defaultTileSize"
+        },
+        {
+          "id": "noise",
+          "type": "select",
+          "label": "降噪等级",
+          "options": "NOISE_LEVEL_OPTIONS",
+          "value": "noiseLevel",
+          "persistence": "preferences.defaultNoise"
+        },
+        {
+          "id": "gpu",
+          "type": "select",
+          "label": "GPU",
+          "options": "GPU_OPTIONS",
+          "value": "gpuId",
+          "persistence": "preferences.defaultGpuId"
+        }
+      ],
+      "fields": ["当前: {model label} @ {scale}x"],
+      "states": ["capability-unavailable", "ready", "refreshing", "directory-error", "empty-model-list", "saving", "save-error"]
+    },
+    {
+      "legacyId": "upscaleStatus",
+      "title": "处理状态",
+      "source": "src/lib/cards/upscale/UpscaleStatusCard.svelte",
+      "prototype": "UpscaleStatusCard.tsx",
+      "characterization": "artifacts/legacy-source/neoview-upscale-status-1920x1080.png",
+      "characterizationStatus": "pending",
+      "fields": [
+        "当前页面（1-based）",
+        "状态 and status description",
+        "actual model and scale with a backend-result check marker",
+        "original dimensions",
+        "upscaled dimensions",
+        "pending and processing queue counts",
+        "completed, skipped and failed counts"
+      ],
+      "controls": [
+        {
+          "id": "preview",
+          "type": "switch",
+          "label": "显示预览",
+          "event": "show or hide the current image preview"
+        },
+        {
+          "id": "preview-image",
+          "type": "image-button",
+          "accessibleLabel": "切换原图/超分图对比",
+          "event": "toggle between the original and upscaled artifact",
+          "disabledWhen": "the current page has no upscaled artifact"
+        },
+        {
+          "id": "zoom-compare",
+          "type": "switch",
+          "label": "放大对比",
+          "visibleWhen": "the current page has an upscaled artifact",
+          "event": "open or close the resizable comparison window"
+        },
+        {
+          "id": "zoom-compare-image",
+          "type": "image-button",
+          "accessibleLabel": "点击切换原图/超分图",
+          "event": "toggle the comparison window source"
+        },
+        {
+          "id": "zoom-compare-close",
+          "type": "icon-button",
+          "icon": "X",
+          "accessibleLabel": "关闭对比浮窗"
+        },
+        {
+          "id": "zoom-compare-resize",
+          "type": "eight resize handles",
+          "accessibleLabels": ["向上调整大小", "向下调整大小", "向左调整大小", "向右调整大小", "左上角调整大小", "右上角调整大小", "左下角调整大小", "右下角调整大小"],
+          "minimumSize": { "width": 200, "height": 200 },
+          "initialSize": { "width": 400, "height": 450 }
+        }
+      ],
+      "statusOptions": ["未超分", "等待中", "超分中", "已完成", "已跳过", "失败", "已取消"],
+      "states": ["disabled", "no-image", "pending", "processing", "completed", "skipped", "failed", "cancelled", "preview-original", "preview-upscaled", "comparison-open", "disposed"]
+    },
+    {
+      "legacyId": "upscaleCache",
+      "title": "缓存管理",
+      "source": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
+      "prototype": "UpscaleCacheCard.tsx",
+      "characterization": "artifacts/legacy-source/neoview-upscale-cache-1920x1080.png",
+      "characterizationStatus": "pending",
+      "fields": ["缓存文件 count", "占用空间 formatted bytes", "cache directory with full-path tooltip"],
+      "controls": [
+        {
+          "id": "cleanup-days",
+          "type": "select",
+          "label": "清理天数",
+          "options": [7, 14, 30, 60, 90],
+          "default": 30
+        },
+        {
+          "id": "refresh-cache",
+          "type": "button",
+          "label": "刷新",
+          "icon": "RefreshCw or Loader2",
+          "event": "reload the shared artifact-cache snapshot"
+        },
+        {
+          "id": "open-cache-directory",
+          "type": "button",
+          "label": "打开",
+          "icon": "FolderOpen",
+          "disabledWhen": "cache directory is unavailable"
+        },
+        {
+          "id": "cleanup-age",
+          "type": "button",
+          "label": "清理过期",
+          "icon": "Trash2 or Loader2",
+          "confirmation": "确定要清除 {cleanupDays} 天前的超分缓存吗？",
+          "disabledWhen": "cleanup is running or the cache is empty",
+          "event": "confirmed age cleanup through the shared artifact store"
+        },
+        {
+          "id": "cleanup-all",
+          "type": "destructive-button",
+          "label": "全部清除",
+          "icon": "Trash2 or Loader2",
+          "confirmation": "确定要清除所有超分缓存吗？此操作不可撤销。",
+          "disabledWhen": "cleanup is running or the cache is empty",
+          "event": "confirmed all-cache cleanup through the shared artifact store"
+        }
+      ],
+      "states": ["loading", "ready", "empty", "refresh-error", "confirming", "cleaning-age", "cleaning-all", "cleanup-error", "disposed"],
+      "intentionalDeviations": [
+        "XR uses the bounded shared artifact cache and its authenticated age/book/all maintenance route, not the legacy PyO3 cache commands or fallback manager."
+      ]
+    },
+    {
+      "legacyId": "upscaleConditions",
+      "title": "条件超分",
+      "source": "src/lib/cards/upscale/UpscaleConditionsCard.svelte",
+      "supportingSources": [
+        "src/lib/cards/upscale/UpscalePanelConditionTabs.svelte",
+        "src/lib/cards/upscale/ConditionHeader.svelte",
+        "src/lib/cards/upscale/ConditionMatchEditor.svelte",
+        "src/lib/cards/upscale/ConditionActionEditor.svelte"
+      ],
+      "prototype": "UpscaleConditionsCard.tsx",
+      "characterization": "artifacts/legacy-source/neoview-upscale-conditions-1920x1080.png",
+      "characterizationStatus": "pending",
+      "controls": [
+        {
+          "id": "conditional-enabled",
+          "type": "switch",
+          "label": "条件超分",
+          "description": "根据图片尺寸等条件决定是否超分",
+          "disabledWhen": "automatic upscale is disabled",
+          "persistence": "preferences.conditionalEnabled and preferences.conditions"
+        },
+        {
+          "id": "editor-expand",
+          "type": "button",
+          "labels": ["展开条件编辑器", "收起条件编辑器"],
+          "icons": ["Settings2", "ChevronDown", "ChevronUp"]
+        },
+        {
+          "id": "condition-add",
+          "type": "menu",
+          "label": "添加",
+          "items": "CONDITION_PRESET_OPTIONS plus 空白条件"
+        },
+        { "id": "condition-export", "type": "button", "label": "导出", "icon": "Download", "event": "copy JSON to clipboard or download conditions.json" },
+        { "id": "condition-import", "type": "button", "label": "导入", "icon": "Upload", "event": "open a JSON textarea dialog, validate an array and normalize priorities" },
+        { "id": "condition-reset", "type": "button", "label": "重置", "icon": "RotateCcw", "event": "restore default condition presets" },
+        { "id": "condition-sync", "type": "button", "label": "同步", "icon": "RefreshCw", "event": "persist the enabled flag and normalized rule list" },
+        { "id": "condition-tabs", "type": "tabs", "label": "condition name", "badges": ["禁用", "跳过"] },
+        { "id": "condition-name", "type": "text-input", "event": "rename and persist the active rule" },
+        { "id": "condition-enabled", "type": "switch", "label": "启用" },
+        { "id": "condition-move-up", "type": "icon-button", "icon": "ArrowUp", "disabledWhen": "first rule" },
+        { "id": "condition-move-down", "type": "icon-button", "icon": "ArrowDown", "disabledWhen": "last rule" },
+        { "id": "condition-duplicate", "type": "icon-button", "icon": "Copy" },
+        { "id": "condition-delete", "type": "destructive-icon-button", "icon": "Trash2", "constraint": "at least one condition remains" },
+        { "id": "min-width", "type": "number-input", "label": "最小宽度", "placeholder": "不限" },
+        { "id": "min-height", "type": "number-input", "label": "最小高度", "placeholder": "不限" },
+        { "id": "max-width", "type": "number-input", "label": "最大宽度", "placeholder": "不限" },
+        { "id": "max-height", "type": "number-input", "label": "最大高度", "placeholder": "不限" },
+        { "id": "min-megapixels", "type": "number-input", "label": "最小像素量 (MPx)", "step": 0.1 },
+        { "id": "max-megapixels", "type": "number-input", "label": "最大像素量 (MPx)", "step": 0.1 },
+        { "id": "dimension-mode", "type": "segmented-buttons", "label": "判定", "options": ["同时满足", "任一满足"] },
+        { "id": "book-path-regex", "type": "text-input", "label": "书籍路径正则", "placeholder": ".*manga.*" },
+        { "id": "image-path-regex", "type": "text-input", "label": "图片路径正则", "placeholder": ".*\\.(jpg|png)$" },
+        { "id": "match-inner-path", "type": "switch", "label": "匹配内部路径", "description": "默认只匹配book路径" },
+        { "id": "exclude-preload", "type": "switch", "label": "排除预超分队列" },
+        { "id": "metadata-add", "type": "button", "label": "添加", "section": "自定义元数据" },
+        { "id": "metadata-row", "type": "key/operator/value editor", "operatorOptions": ["等于", "不等于", "大于", "≥", "小于", "≤", "正则", "包含"], "deleteIcon": "Trash2" },
+        { "id": "action-model", "type": "select", "label": "模型", "options": "availableModels" },
+        { "id": "action-scale", "type": "select", "label": "倍数", "options": [1, 2, 3, 4] },
+        { "id": "action-tile-enabled", "type": "switch", "label": "Tile" },
+        { "id": "action-tile-size", "type": "select", "label": "Tile", "options": "TILE_SIZE_OPTIONS" },
+        { "id": "action-noise", "type": "select", "label": "降噪", "options": "NOISE_LEVEL_OPTIONS" },
+        { "id": "action-gpu", "type": "select", "label": "GPU", "options": "GPU_OPTIONS" },
+        { "id": "action-use-cache", "type": "switch", "label": "写入缓存" },
+        { "id": "action-skip", "type": "switch", "label": "不超分", "event": "disable model/action fields while active" },
+        { "id": "import-json", "type": "dialog-textarea", "title": "导入条件 JSON", "description": "粘贴或修改 JSON 文本", "buttons": ["取消", "导入"] }
+      ],
+      "summaryFields": ["条件数量", "状态: 已启用", "up to three enabled condition names", "+N 更多"],
+      "states": ["automatic-disabled-warning", "conditional-disabled", "collapsed", "expanded-empty", "expanded-with-rules", "import-open", "import-error", "syncing", "sync-error", "saving", "save-error", "disposed"],
+      "persistence": "preferences.conditionalEnabled and preferences.conditions; priorities are normalized to stable list order after add, move, duplicate, delete, import and reset"
+    }
+  ]
+}
