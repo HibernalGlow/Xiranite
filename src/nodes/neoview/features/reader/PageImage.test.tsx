@@ -1,5 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/image-trim"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import { createReaderColorFilterStore } from "../color-filter/ReaderColorFilterStore"
@@ -17,17 +18,39 @@ describe("PageImage", () => {
     expect(document.querySelector("canvas")).toBeNull()
   })
 
-  it("[neoview.viewer.image-identity] keeps the same img while applying measured scale and rotation", () => {
+  it("[neoview.viewer.image-identity] [neoview.image-trim.navigation-stability] keeps the same img while applying trim, measured scale and rotation", () => {
     const source = page()
-    const view = render(<PageImage page={source} />)
+    const imageTrim = imageTrimPort()
+    const view = render(<PageImage page={source} imageTrim={imageTrim} />)
     const image = view.container.querySelector("img")!
-    view.rerender(<PageImage page={source} scale={0.5} rotation={90} />)
+    view.rerender(<PageImage page={source} imageTrim={imageTrim} scale={0.5} rotation={90} />)
     expect(view.container.querySelector("img")).toBe(image)
     expect(image.getAttribute("src")).toBe(source.assetUrl)
     expect(image.style.transform).toContain("rotate(90deg)")
+    expect(image.style.clipPath).toBe("inset(10% 40% 20% 30%)")
     const box = view.container.querySelector<HTMLElement>('[data-reader-page-box="page-1"]')!
     expect(box.style.width).toBe("3000px")
     expect(box.style.height).toBe("2000px")
+  })
+
+  it("[neoview.image-trim.active-physical-page] registers a decoded image only while its physical page owns detection", async () => {
+    const unregister = vi.fn()
+    const registerImage = vi.fn(() => unregister)
+    const imageTrim = imageTrimPort(registerImage)
+    const source = page()
+    const view = render(<PageImage page={source} imageTrim={imageTrim} imageTrimDetectionActive={false} />)
+    const image = view.container.querySelector<HTMLImageElement>("img")!
+    image.decode = vi.fn(async () => undefined)
+
+    fireEvent.load(image)
+    await waitFor(() => expect(image.dataset.readerPageImageDecoded).toBe(source.id))
+    expect(registerImage).not.toHaveBeenCalled()
+
+    view.rerender(<PageImage page={source} imageTrim={imageTrim} imageTrimDetectionActive />)
+    await waitFor(() => expect(registerImage).toHaveBeenCalledWith(`${source.id}:${source.contentVersion}:${source.assetUrl}`, image))
+
+    view.rerender(<PageImage page={source} imageTrim={imageTrim} imageTrimDetectionActive={false} />)
+    expect(unregister).toHaveBeenCalledOnce()
   })
 
   it("[neoview.image-trim.active-image] registers only the decoded committed image and unregisters it without remounting", async () => {
@@ -135,6 +158,44 @@ describe("PageImage", () => {
     await waitFor(() => expect(view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')?.getAttribute("src")).toBe(source.assetUrl))
   })
 
+  it("[neoview.image-trim.upscale-generation] transfers detection ownership only after the upscaled image decodes", async () => {
+    const unregisterOriginal = vi.fn()
+    const unregisterUpscaled = vi.fn()
+    const registerImage = vi.fn((identity: string) => identity.includes(":upscale:") ? unregisterUpscaled : unregisterOriginal)
+    const imageTrim = imageTrimPort(registerImage)
+    const source = page()
+    const upscalePage = vi.fn(async () => ({
+      status: "hit" as const,
+      artifactUrl: "/reader/page-1-upscaled",
+      contentType: "image/png",
+      bytes: 42,
+      version: "artifact-v2",
+    }))
+    const client = { upscalePage } as never
+    const enabled = { provider: "opencomic-system" as const, preferences: { autoUpscaleEnabled: true } }
+    const view = render(<PageImage page={source} imageTrim={imageTrim} sessionId="reader-1" client={client} superResolution={enabled} />)
+    const original = view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')!
+    original.decode = vi.fn(async () => undefined)
+
+    fireEvent.load(original)
+    await waitFor(() => expect(registerImage).toHaveBeenCalledWith(`${source.id}:${source.contentVersion}:${source.assetUrl}`, original))
+    await waitFor(() => expect(view.container.querySelector('[src="/reader/page-1-upscaled"]')).toBeTruthy())
+    const upscaled = view.container.querySelector<HTMLImageElement>('[src="/reader/page-1-upscaled"]')!
+    expect(registerImage).toHaveBeenCalledOnce()
+    upscaled.decode = vi.fn(async () => undefined)
+
+    fireEvent.load(upscaled)
+    await waitFor(() => expect(registerImage).toHaveBeenCalledWith(`${source.id}:${source.contentVersion}:upscale:artifact-v2:/reader/page-1-upscaled`, upscaled))
+    expect(unregisterOriginal).toHaveBeenCalledOnce()
+    expect(unregisterUpscaled).not.toHaveBeenCalled()
+
+    view.rerender(<PageImage page={source} imageTrim={imageTrim} imageTrimDetectionActive sessionId="reader-1" client={client} superResolution={enabled} scale={0.5} rotation={90} />)
+    expect(view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')).toBe(upscaled)
+    expect(upscaled.style.clipPath).toBe("inset(10% 40% 20% 30%)")
+    expect(upscaled.style.transform).toContain("rotate(90deg)")
+    expect(registerImage).toHaveBeenCalledTimes(2)
+  })
+
   it("[neoview.viewer.auto-upscale-cancel] aborts stale enhancement work as soon as navigation changes the source page", async () => {
     const source = page()
     const target = { ...source, id: "page-2", index: 1, contentVersion: "v2", assetUrl: "/reader/page-2" }
@@ -238,4 +299,20 @@ function page(): ReaderPageDto {
     contentVersion: "v1",
     assetUrl: "http://127.0.0.1:41000/reader/page-1?version=v1&token=secret",
   }
+}
+
+function imageTrimPort(registerImage = vi.fn(() => () => undefined)): ReaderImageTrimPort {
+  const snapshot = {
+    ...DEFAULT_READER_IMAGE_TRIM,
+    enabled: true,
+    top: 10,
+    right: 40,
+    bottom: 20,
+    left: 30,
+  }
+  return {
+    subscribe: () => () => undefined,
+    getSnapshot: () => snapshot,
+    registerImage,
+  } as unknown as ReaderImageTrimPort
 }

@@ -129,7 +129,7 @@ describe("ReaderImageTrimStore", () => {
     store.dispose()
   })
 
-  it("[neoview.image-trim.stale-detection] aborts and ignores a result after image replacement", async () => {
+  it("[neoview.image-trim.stale-detection] [neoview.image-trim.navigation-cancel] aborts and ignores a result after image replacement", async () => {
     let resolveDetection!: (value: { top: number; bottom: number; left: number; right: number }) => void
     let detectionSignal!: AbortSignal
     const persist = vi.fn(async (value: ReaderImageTrimSettings) => value)

@@ -22,6 +22,7 @@ export interface PageImageProps {
   scale?: number
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
+  imageTrimDetectionActive?: boolean
   sessionId?: string
   client?: ReaderHttpClient
   superResolution?: ReaderSuperResolutionConfigDto
@@ -31,7 +32,7 @@ const NOOP_SUBSCRIBE = () => () => undefined
 const DEFAULT_COLOR_FILTER_SNAPSHOT = () => DEFAULT_READER_COLOR_FILTER
 const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
 
-export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, sessionId, client, superResolution }: PageImageProps) {
+export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, imageTrimDetectionActive = true, sessionId, client, superResolution }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const sourceIdentity = imageIdentity(page)
   const sourceIdentityRef = useRef(sourceIdentity)
@@ -73,11 +74,11 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, s
   const trimClipPath = trimSettings ? readerImageTrimClipPath(trimSettings) : undefined
 
   useEffect(() => {
-    if (!imageTrim || decodedCommittedIdentity !== committedIdentity) return
+    if (!imageTrim || !imageTrimDetectionActive || decodedCommittedIdentity !== committedIdentity) return
     const element = imageRef.current
     if (!element) return
     return imageTrim.registerImage(committedIdentity, element)
-  }, [committedIdentity, decodedCommittedIdentity, imageTrim])
+  }, [committedIdentity, decodedCommittedIdentity, imageTrim, imageTrimDetectionActive])
 
   useEffect(() => {
     if (!settings.colorizeEnabled || !settings.onlyBlackAndWhite) {

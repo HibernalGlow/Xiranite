@@ -3138,26 +3138,26 @@
   - 计划测试：无
   - 备注：One inert status node replaces the prior state and covers detecting, success, no-border, unavailable and retryable error messages; cancellation produces no stale success text.
 - [ ] `image-trim.media` 当前媒体帧兼容
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=P transport=C gui=P cli=C tui=C evidence=P`；阻塞：`core`、`gui`、`evidence`
   - 目标：Crop presentation consumes the shared current frame/image contract for static, animated and video media and never assumes a permanent DOM selector.
-  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.media`
-  - 备注：CLI/TUI must expose a typed setting/result contract even when no preview exists.
-- [ ] `image-trim.double-page` 单双页裁剪策略
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
-  - 目标：A double-page frame applies the documented four-edge policy to the complete frame or each page according to one shared option; it must not silently crop only one side.
-  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/layers/PanoramaFrameLayer.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.double-page`
-  - 备注：The legacy source exposes the Card but the exact double-page runtime policy still needs characterization.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：`neoview.image-trim.media`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.tui`
+  - 计划测试：`neoview.image-trim.video`
+  - 备注：Static and animated image frames consume the same decoded img and typed GUI/CLI/TUI settings contract. Video still needs a stable supported or unsupported reason before this boundary can complete.
+- [x] `image-trim.double-page` 单双页裁剪策略
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：Each image in a double-page frame applies the same four-edge percentages independently, matching the legacy per-FrameImage subscription; automatic detection is owned by the anchor physical page rather than DOM load order.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/layers/PanoramaFrameLayer.svelte`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：`neoview.image-trim.double-page`、`neoview.image-trim.double-page-browser`
+  - 计划测试：无
+  - 备注：Legacy FrameImage subscribes once per image, so both LTR and RTL pages receive the same crop. The explicit anchor-page detection owner replaces the legacy first-match DOM selector to remove load-order ambiguity and global DOM lookup.
 - [ ] `image-trim.generation` generation 与迟到结果
   - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`evidence`
   - 目标：Auto-detect results are committed only when image URL/media generation still matches the request; stale results are dropped and logged with a bounded trace id.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/utils/imageTrace.ts`
-  - 测试：`neoview.image-trim.stale-detection`、`neoview.image-trim.active-image`
+  - 测试：`neoview.image-trim.stale-detection`、`neoview.image-trim.active-image`、`neoview.image-trim.active-physical-page`、`neoview.image-trim.upscale-generation`
   - 计划测试：`neoview.image-trim.generation-trace`
-  - 备注：Registration generations abort and reject stale results before preview or persistence. Bounded trace-id logging is not yet implemented, so core and evidence remain partial.
+  - 备注：Registration generations abort and reject stale results before preview or persistence, including physical-page ownership and decoded upscale handoff. Bounded trace-id logging is not yet implemented, so core and evidence remain partial.
 - [ ] `image-trim.clip-path` clip-path 合并与投影
   - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：mergeClipPaths and trimToClipPath retain the legacy coordinate convention, percentage precision and safe composition for nested/frame crops.
@@ -3215,33 +3215,33 @@
   - 计划测试：无
   - 备注：Card hide/unmount subscription cleanup and late persistence disposal are covered; detection/cache/session-release cleanup remains pending.
 - [ ] `image-trim.navigation` 翻页与切书取消
-  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 六维：`core=P transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：`core`
   - 目标：Navigation invalidates active detection and never applies a result to a newer frame; successful navigation keeps the active img node stable when only crop CSS changes.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/StackView.svelte`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.navigation-cancel`
-  - 备注：No artificial detection result is emitted during initial hydration.
-- [ ] `image-trim.animation` 裁剪与翻页动画共存
-  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 测试：`neoview.image-trim.navigation-cancel`、`neoview.image-trim.navigation-stability`
+  - 计划测试：无
+  - 备注：Image replacement aborts active detection before any stale persistence, while trim, scale and rotation updates retain the committed img node. Initial hydration emits no artificial detection result.
+- [x] `image-trim.animation` 裁剪与翻页动画共存
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Crop projection composes with page-transition transforms without replacing the frame wrapper or changing animation ownership.
   - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.animation`
-  - 备注：Crop must remain presentation-only; page transition remains the animation owner.
+  - 测试：`neoview.image-trim.animation`
+  - 计划测试：无
+  - 备注：Crop and rotation remain on the committed img while the outer ReaderPageTransitionLayer exclusively owns transition transform, opacity, timer and compositor hints.
 - [ ] `image-trim.video` 视频和动图兼容
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=P transport=- gui=P cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：Video/animated frames use the same crop contract or an explicit unsupported state; no static-image URL assumption or repeated decoder is introduced.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/components/FrameImage.svelte`
-  - 测试：待补
+  - 测试：`neoview.image-trim.media`
   - 计划测试：`neoview.image-trim.video`
-  - 备注：If a media type is unsupported, the Card must expose a stable reason and keep manual settings intact.
-- [ ] `image-trim.upscale` 超分输出兼容
-  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 备注：Animated images use the same PageImage img chain and crop projection without a duplicate decoder. Video remains pending until the Card and headless surfaces expose a stable supported or unsupported reason while preserving manual settings.
+- [x] `image-trim.upscale` 超分输出兼容
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Crop detects and applies against the currently presented/upscaled frame generation, never against a stale source or a private duplicate artifact.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.upscale-generation`
-  - 备注：The upscale pipeline remains the artifact owner.
+  - 测试：`neoview.image-trim.upscale-generation`
+  - 计划测试：无
+  - 备注：The upscale pipeline remains the artifact owner; detection registration transfers only after its hidden pending img decodes and becomes the committed presentation image.
 - [ ] `image-trim.shell` 共享 Card 外壳与常驻行为
   - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
   - 目标：The Card retains title, control Panel default, hideability, collapse, resize, dock/window modes and resident pre-session shell using the shared Card renderer.
@@ -3320,12 +3320,12 @@
   - 计划测试：无
   - 备注：Image replacement, navigation registration changes, Card hide/unmount and store disposal abort the active signal; cancelled work neither persists nor reports failure or stale success.
 - [ ] `image-trim.single-double-page` 单双页和页面布局策略
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
-  - 目标：The shared layout contract explicitly states how crop percentages apply to single page, double page and panorama frames, including RTL/rotation.
-  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/layers/PanoramaFrameLayer.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.layout-contract`
-  - 备注：This remains a partial boundary until the old runtime policy is characterized.
+  - 六维：`core=P transport=C gui=C cli=C tui=C evidence=C`；阻塞：`core`
+  - 目标：Single-page, double-page and panorama layouts apply the same inset percentages independently to every image; RTL changes page order, rotation remains an image transform, and only the visible anchor physical page owns automatic detection.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/layers/PanoramaFrameLayer.svelte`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：`neoview.image-trim.layout-contract`、`neoview.image-trim.double-page`、`neoview.image-trim.double-page-browser`、`neoview.image-trim.navigation-stability`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.tui`
+  - 计划测试：无
+  - 备注：Legacy FrameImage characterization confirms per-image subscription and clip composition in current and panorama layers. The new layout preserves that policy across single, double, RTL, rotation and sparse panorama while replacing the global selector with explicit anchor ownership.
 - [ ] `image-trim.reset-boundary` 重置和未完成边界
   - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：The compatibility record stays partial until auto detection, persistence, media layout and visual evidence are implemented; reset must not be marked complete by a UI-only mock.

@@ -32,14 +32,24 @@ store.hydrate({
 
 function Harness() {
   const [opened, setOpened] = useState(false)
+  const doublePage = new URLSearchParams(window.location.search).has("double")
   return (
     <main className="grid h-screen overflow-hidden bg-neutral-950 text-foreground" style={{ gridTemplateColumns: "minmax(0, 1fr) 420px" }}>
       <section className="relative grid min-h-0 place-items-center overflow-hidden bg-neutral-950 p-8" aria-label="阅读页面">
-        <PageImage
-          page={{ id: "image-trim-page", index: 0, name: "001.jpg", mediaKind: "image", contentVersion: "v1", assetUrl: source, dimensions: { width: 1200, height: 800 } }}
-          scale={0.78}
-          imageTrim={store}
-        />
+        <div className="flex items-center justify-center gap-1" data-image-trim-frame={doublePage ? "double" : "single"}>
+          <PageImage
+            page={{ id: "image-trim-page", index: 0, name: "001.jpg", mediaKind: "image", contentVersion: "v1", assetUrl: source, dimensions: { width: 1200, height: 800 } }}
+            scale={doublePage ? 0.38 : 0.78}
+            imageTrim={store}
+            imageTrimDetectionActive
+          />
+          {doublePage ? <PageImage
+            page={{ id: "image-trim-page-2", index: 1, name: "002.jpg", mediaKind: "image", contentVersion: "v1", assetUrl: `${source}#page-2`, dimensions: { width: 1200, height: 800 } }}
+            scale={0.38}
+            imageTrim={store}
+            imageTrimDetectionActive={false}
+          /> : null}
+        </div>
         <nav className="absolute bottom-5 left-1/2 flex -translate-x-1/2 gap-2" aria-label="测试会话">
           <button className="rounded border border-white/25 bg-black/70 px-3 py-1.5 text-xs text-white" onClick={() => setOpened((value) => !value)}>
             {opened ? "关闭书本" : "打开书本"}

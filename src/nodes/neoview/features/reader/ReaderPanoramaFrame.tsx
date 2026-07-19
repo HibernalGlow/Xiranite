@@ -60,6 +60,7 @@ export function ReaderPanoramaFrame({
   const [frames, setFrames] = useState(() => new Map<number, FrameSnapshot>())
   const [pages, setPages] = useState(() => new Map(currentPages.map((page) => [page.index, page])))
   const [viewport, setViewport] = useState({ width: 1, height: 1 })
+  const [imageTrimDetectionPageIndex, setImageTrimDetectionPageIndex] = useState(anchorPageIndex)
   const lastVisiblePageRef = useRef<number>(anchorPageIndex)
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const pagesPerUnit = pageMode === "double" ? 2 : 1
@@ -98,6 +99,7 @@ export function ReaderPanoramaFrame({
 
   useEffect(() => {
     virtuosoRef.current?.scrollToIndex({ index: Math.min(Math.floor(anchorPageIndex / pagesPerUnit), Math.max(0, unitCount - 1)), align: "center" })
+    setImageTrimDetectionPageIndex(anchorPageIndex)
   }, [anchorPageIndex, pagesPerUnit, unitCount])
 
   useEffect(() => () => {
@@ -142,6 +144,7 @@ export function ReaderPanoramaFrame({
     const visiblePageIndex = Math.min(totalPages - 1, centerUnit * pagesPerUnit)
     if (visiblePageIndex !== lastVisiblePageRef.current) {
       lastVisiblePageRef.current = visiblePageIndex
+      startTransition(() => setImageTrimDetectionPageIndex(visiblePageIndex))
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
       syncTimerRef.current = setTimeout(() => onVisiblePageChange?.(visiblePageIndex), 48)
     }
@@ -180,7 +183,7 @@ export function ReaderPanoramaFrame({
           const width = frameSize && scale ? frameSize.width * scale : available.width
           const height = frameSize && scale ? frameSize.height * scale : available.height
           const unit = <div className="flex shrink-0 items-center justify-center gap-1 bg-black p-1" style={{ width, height, flexDirection: "row" }} data-panorama-unit={index}>
-            {renderedPages.map((page, slotIndex) => <PageMedia key={page.id} page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoListEnded={onVideoListEnded} />)}
+            {renderedPages.map((page, slotIndex) => <PageMedia key={page.id} page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoListEnded={onVideoListEnded} />)}
           </div>
           return presentation.orientation === "vertical"
             ? <div className="flex w-full justify-center" data-panorama-unit-wrapper={index}>{unit}</div>
