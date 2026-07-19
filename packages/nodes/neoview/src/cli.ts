@@ -58,6 +58,11 @@ import type { ReaderInputBinding, ReaderInputContext, ReaderInputDescriptor } fr
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
 import { executeReaderHeadlessInputBinding } from "./application/headless/ReaderHeadlessInputBindingExecutor.js"
+import {
+  ReaderEmmMetadataPatchSchema,
+  type ReaderEmmMetadataPatch,
+  type ReaderEmmMetadataSnapshot,
+} from "./application/metadata/ReaderEmmMetadataService.js"
 import type {
   RemoteSuperResolutionArtifactResult,
   RemoteSuperResolutionArtifactCacheCleanupKind,
@@ -73,7 +78,7 @@ import type {
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "subtitle-list", "subtitle-render", "upscale-page", "upscale-capabilities",
+  "inspect", "pages", "frame", "extract-page", "subtitle-list", "subtitle-render", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
@@ -211,6 +216,8 @@ export interface CliReaderController extends AsyncDisposable {
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
   listSubtitles?(pageIndex: number, signal?: AbortSignal): readonly import("./application/reader/ReaderSubtitleService.js").ReaderSubtitleTrack[] | Promise<readonly import("./application/reader/ReaderSubtitleService.js").ReaderSubtitleTrack[]>
   renderSubtitle?(pageIndex: number, assetId: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; contentVersion: string }>
+  getEmmMetadata?(signal?: AbortSignal): Promise<ReaderEmmMetadataSnapshot>
+  updateEmmMetadata?(expectedRevision: number, patch: ReaderEmmMetadataPatch, signal?: AbortSignal): Promise<{ metadata: ReaderEmmMetadataSnapshot; reader: HeadlessReaderSnapshot }>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
   updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
   upscalePage?(input: HeadlessSuperResolutionPageInput): Promise<HeadlessSuperResolutionPageResult>
@@ -432,6 +439,11 @@ export async function runProgram(
     expectedRevision: requiredIntegerOption(parsed, "--expected-revision", 0, Number.MAX_SAFE_INTEGER),
     patch: bookSettingsPatch(parsed),
   } : undefined
+  const emmUpdate = command === "emm-set" ? {
+    expectedRevision: requiredIntegerOption(parsed, "--expected-revision", 0, Number.MAX_SAFE_INTEGER),
+    patch: parseEmmMetadataPatchCli(oneValue(parsed, "--input"), host.cwd),
+  } : undefined
+  if (command === "emm-set" && !parsed.booleans.has("--yes")) throw usage("emm-set requires --yes after reviewing the patch.")
   if (command === "upscale-cache-cleanup" && !parsed.booleans.has("--yes")) throw usage("upscale-cache-cleanup requires --yes.")
   const artifactCacheCleanupKind = command === "upscale-cache-cleanup"
     ? upscaleArtifactCacheCleanupKind(oneValue(parsed, "--kind"))
@@ -500,6 +512,17 @@ export async function runProgram(
       const rendered = await controller.renderSubtitle(index, assetId)
       await writeSubtitle(rendered.bytes, output, parsed.booleans.has("--force"), host)
       if (output !== "-") writeLine(host, `Reader subtitle rendered: ${resolve(host.cwd, output)} (${rendered.contentVersion})`)
+      return
+    }
+    if (command === "emm-get") {
+      if (!controller.getEmmMetadata) throw new Error("Reader EMM metadata is unavailable for this transport.")
+      return printEmmMetadata(await controller.getEmmMetadata(), parsed.booleans.has("--json"), host)
+    }
+    if (command === "emm-set") {
+      if (!controller.updateEmmMetadata) throw new Error("Reader EMM metadata is unavailable for this transport.")
+      const updated = await controller.updateEmmMetadata(emmUpdate!.expectedRevision, emmUpdate!.patch)
+      if (parsed.booleans.has("--json")) writeJson(host, updated)
+      else printEmmMetadata(updated.metadata, false, host)
       return
     }
     if (command.startsWith("upscale-preload-")) {
@@ -617,6 +640,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "subtitle-render") {
     rejectOptions(parsed, new Set(["--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--subtitle-id", "--output", "--force", "--json"]))
+    return
+  }
+  if (command === "emm-get") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"]))
+    return
+  }
+  if (command === "emm-set") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--expected-revision", "--input", "--yes"]))
     return
   }
   if (command === "input-bindings-dispatch") {
@@ -2436,6 +2467,26 @@ function printSubtitleTracks(
   for (const track of tracks) writeLine(host, `${track.id}\t${track.format}\t${track.name}\t${track.contentVersion}`)
 }
 
+function parseEmmMetadataPatchCli(value: string | undefined, cwd: string): ReaderEmmMetadataPatch {
+  if (!value) throw usage("emm-set requires --input <patch.json|inline-json>.")
+  const raw = value.trim().startsWith("{") ? value : requireCliJson(value, cwd)
+  try {
+    return ReaderEmmMetadataPatchSchema.parse(JSON.parse(raw))
+  } catch (error) {
+    throw usage(`Invalid EMM metadata patch: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+function printEmmMetadata(metadata: ReaderEmmMetadataSnapshot, json: boolean, host: CliHost): void {
+  if (json) {
+    writeJson(host, metadata)
+    return
+  }
+  writeLine(host, `EMM metadata revision ${metadata.revision}.`)
+  writeLine(host, `rating=${metadata.overrides.rating ?? "inherited"} translatedTitle=${metadata.overrides.translatedTitle ?? "inherited"}`)
+  writeLine(host, `manualTags=${metadata.overrides.manualTags?.map((tag) => `${tag.namespace}:${tag.tag}`).join(",") ?? "inherited"}`)
+}
+
 async function writeBinaryStdout(stream: ReadableStream<Uint8Array>, host: CliHost): Promise<void> {
   const output = host.stdout as CliHost["stdout"] & { once?: (event: "drain", listener: () => void) => unknown }
   for await (const chunk of stream) {
@@ -3154,6 +3205,8 @@ function formatCliHelp(): string {
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  subtitle-list <path> List matching video subtitle tracks (--index)",
     "  subtitle-render <path> Render one subtitle track as WebVTT (--subtitle-id, --output)",
+    "  emm-get <path>       Inspect current-book EMM overrides",
+    "  emm-set <path>       Apply an EMM override patch (--expected-revision, --input, --yes)",
     "  upscale-page <path>  Upscale one page using the configured policy",
     "  upscale-capabilities Inspect registered models and system CLI capabilities",
     "  upscale-preload-status <path> Show live nearby/progressive preload state",
@@ -3283,6 +3336,7 @@ function formatCliHelp(): string {
     "  --exclude-tag TAG    Repeatable excluded EMM tag",
     "  --tag-mode MODE      Required-tag mode: all or any",
     "  --input PATH         JSON input for folder-emm-edit: { updates, concurrency? }",
+    "                       or emm-set: { rating?, manualTags?, translatedTitle? }",
     "  --subtitle-id ID     Subtitle track ID for subtitle-render",
     "  --action ID          Stable XR or legacy action ID for input-action-dispatch",
     "  --input-json JSON|PATH  Input descriptor JSON for input-bindings-dispatch",
