@@ -21,14 +21,18 @@ export class StreamingImageMetadataProbe implements ImageMetadataProbe {
     signal?.throwIfAborted()
     const initial = parseImageDimensions(new Uint8Array(), mimeType)
     if (initial.status === "unsupported") return undefined
-    const source = await content.load(signal)
+    const source = await waitWithAbort(content.load(signal), signal, (lateSource) => lateSource.close())
     const capacity = Math.min(source.byteLength ?? this.#maxHeaderBytes, this.#maxHeaderBytes)
     const header = new Uint8Array(capacity)
     let bytesRead = 0
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     try {
       signal?.throwIfAborted()
-      const stream = await source.open(signal, source.rangeSupported && capacity > 0 ? { start: 0, end: capacity - 1 } : undefined)
+      const stream = await waitWithAbort(
+        source.open(signal, source.rangeSupported && capacity > 0 ? { start: 0, end: capacity - 1 } : undefined),
+        signal,
+        (lateStream) => lateStream.cancel(signal?.reason),
+      )
       reader = stream.getReader()
       while (bytesRead < capacity) {
         const chunk = await readWithAbort(reader, signal)
@@ -65,6 +69,42 @@ export class StreamingImageMetadataProbe implements ImageMetadataProbe {
       reader?.releaseLock()
       await source.close().catch(() => undefined)
     }
+  }
+}
+
+async function waitWithAbort<T>(
+  operation: Promise<T>,
+  signal: AbortSignal | undefined,
+  disposeLateResult?: (result: T) => Promise<unknown> | unknown,
+): Promise<T> {
+  if (!signal) return operation
+  if (signal.aborted) {
+    void operation.then(
+      (result) => void Promise.resolve(disposeLateResult?.(result)).catch(() => undefined),
+      () => undefined,
+    )
+    signal.throwIfAborted()
+  }
+  let aborted = false
+  let rejectAbort: ((reason: unknown) => void) | undefined
+  const onAbort = () => {
+    aborted = true
+    rejectAbort?.(signal.reason)
+  }
+  const abort = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
+  void operation.then(
+    (result) => {
+      if (aborted) void Promise.resolve(disposeLateResult?.(result)).catch(() => undefined)
+    },
+    () => undefined,
+  )
+  try {
+    return await Promise.race([operation, abort])
+  } finally {
+    signal.removeEventListener("abort", onAbort)
   }
 }
 
