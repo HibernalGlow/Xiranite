@@ -64,7 +64,7 @@ describe("TimeInformationCard lifecycle", () => {
 
     expect(await screen.findByText("\u4e66\u7c4d\u6e90\u6587\u4ef6")).toBeTruthy()
     expect(screen.getByText(new Date(1_700_000_000_000).toLocaleString("zh-CN"))).toBeTruthy()
-    expect(screen.getByText("\u521b\u5efa\u65f6\u95f4").parentElement?.querySelector("dd")?.textContent).not.toBe("\u2014")
+    expect(screen.getByText("创建时间:", { exact: true }).parentElement?.querySelector("dd")?.textContent).not.toBe("—")
     expect(document.querySelector("[data-time-source='book-source']")).toBeTruthy()
   })
 })

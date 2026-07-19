@@ -73,7 +73,16 @@ function ActiveInfoPanelActions({ context }: { context: ReaderPanelContext & { s
           <DropdownMenuItem disabled={revealDisabled} onSelect={() => void run("reveal")}><FolderOpen />在资源管理器中打开</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {feedback ? <span className="sr-only" role={feedback.kind}>{feedback.text}</span> : null}
+      {feedback ? (
+        <span
+          className={feedback.kind === "alert" ? "text-[11px] text-destructive" : "text-[11px] text-muted-foreground"}
+          role={feedback.kind}
+          aria-live="polite"
+          data-info-panel-feedback="true"
+        >
+          {feedback.text}
+        </span>
+      ) : null}
     </>
   )
 }
