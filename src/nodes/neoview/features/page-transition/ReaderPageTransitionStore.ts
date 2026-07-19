@@ -10,6 +10,7 @@ import {
   type ReaderPageTransitionPatch,
   type ReaderPageTransitionSettings,
 } from "@xiranite/node-neoview/page-transition"
+import { persistReaderSettingsWithTimeout } from "../reader/reader-settings-save-timeout"
 
 export interface ReaderPageTransitionPort {
   subscribe(listener: () => void): () => void
@@ -29,6 +30,7 @@ export interface ReaderPageTransitionStoreOptions {
     signal: AbortSignal,
   ): Promise<ReaderPageTransitionSettings>
   onError?(cause: unknown): void
+  saveTimeoutMs?: number
 }
 
 export function createReaderPageTransitionStore(
@@ -73,7 +75,11 @@ export function createReaderPageTransitionStore(
       resetRequested = false
       if (!reset && sameSettings(target, confirmed)) return
       try {
-        const updated = normalizeReaderPageTransition(await options.persist(target, reset, controller.signal))
+        const updated = normalizeReaderPageTransition(await persistReaderSettingsWithTimeout({
+          persist: (signal) => options.persist(target, reset, signal),
+          signal: controller.signal,
+          timeoutMs: options.saveTimeoutMs,
+        }))
         confirmed = updated
         if (revision === targetRevision) publish(updated)
       } catch (cause) {

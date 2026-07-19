@@ -40,6 +40,17 @@ describe("ColorFilterCard", () => {
     expect(persist).toHaveBeenCalledTimes(2)
   })
 
+  it("[neoview.color-filter.pending-edit] keeps controls usable while a serialized save is pending", () => {
+    const store = createReaderColorFilterStore({ persist: async () => new Promise(() => undefined) })
+    render(<ColorFilterCard store={store} />)
+
+    fireEvent.click(screen.getByText("反色"))
+
+    expect(screen.getByRole("checkbox", { name: "负片" }).hasAttribute("disabled")).toBe(false)
+    fireEvent.click(screen.getByText("负片"))
+    expect(store.getSnapshot()).toMatchObject({ invert: true, negative: true })
+  })
+
   it("keeps the resident Card mounted while its panel is inactive", () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
     render(<DockedColorFilterCard colorFilter={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)

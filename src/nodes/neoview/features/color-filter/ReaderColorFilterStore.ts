@@ -4,6 +4,7 @@ import {
   type ReaderColorFilterPatch,
   type ReaderColorFilterSettings,
 } from "@xiranite/node-neoview/color-filter"
+import { persistReaderSettingsWithTimeout } from "../reader/reader-settings-save-timeout"
 
 export interface ReaderColorFilterPort {
   subscribe(listener: () => void): () => void
@@ -19,6 +20,7 @@ export interface ReaderColorFilterPort {
 export interface ReaderColorFilterStoreOptions {
   persist(settings: ReaderColorFilterSettings, reset: boolean, signal: AbortSignal): Promise<ReaderColorFilterSettings>
   onError?(cause: unknown): void
+  saveTimeoutMs?: number
 }
 
 export function createReaderColorFilterStore(options: ReaderColorFilterStoreOptions): ReaderColorFilterPort {
@@ -61,7 +63,11 @@ export function createReaderColorFilterStore(options: ReaderColorFilterStoreOpti
       resetRequested = false
       if (!reset && sameSettings(target, confirmed)) return
       try {
-        const updated = normalizeReaderColorFilter(await options.persist(target, reset, controller.signal))
+        const updated = normalizeReaderColorFilter(await persistReaderSettingsWithTimeout({
+          persist: (signal) => options.persist(target, reset, signal),
+          signal: controller.signal,
+          timeoutMs: options.saveTimeoutMs,
+        }))
         confirmed = updated
         if (revision === targetRevision) publish(updated)
       } catch (cause) {
