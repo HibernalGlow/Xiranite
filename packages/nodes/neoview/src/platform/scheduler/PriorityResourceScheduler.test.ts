@@ -24,6 +24,62 @@ describe("PriorityResourceScheduler", () => {
     expect(scheduler.active).toBe(0)
   })
 
+  it("[neoview.scheduler.deferred-aging] eventually admits background work under continuous view and ahead load", async () => {
+    let now = 0
+    const scheduler = new PriorityResourceScheduler({
+      maxConcurrent: 1,
+      reservedInteractive: 0,
+      deferredAgingMs: 10,
+      now: () => now,
+    })
+    const active = await scheduler.acquire({ resource: "cpu", kind: "active", priority: "interactive" })
+    const background = scheduler.acquire({ resource: "cpu", kind: "background", priority: "background" })
+    now = 0.1
+    const firstView = scheduler.acquire({ resource: "cpu", kind: "view-1", priority: "view" })
+    const firstAhead = scheduler.acquire({ resource: "cpu", kind: "ahead-1", priority: "ahead" })
+    let backgroundStarted = false
+    void background.then(() => { backgroundStarted = true })
+
+    now = 1
+    active.release()
+    const firstViewLease = await firstView
+    now = 2
+    const secondView = scheduler.acquire({ resource: "cpu", kind: "view-2", priority: "view" })
+    const secondAhead = scheduler.acquire({ resource: "cpu", kind: "ahead-2", priority: "ahead" })
+    now = 3
+    firstViewLease.release()
+    const secondViewLease = await secondView
+    now = 4
+    const thirdView = scheduler.acquire({ resource: "cpu", kind: "view-3", priority: "view" })
+    const thirdAhead = scheduler.acquire({ resource: "cpu", kind: "ahead-3", priority: "ahead" })
+    now = 5
+    secondViewLease.release()
+    const thirdViewLease = await thirdView
+    await Promise.resolve()
+    expect(backgroundStarted).toBe(false)
+
+    now = 21
+    thirdViewLease.release()
+    const backgroundLease = await background
+    expect(backgroundStarted).toBe(true)
+    backgroundLease.release()
+
+    const firstAheadLease = await firstAhead
+    firstAheadLease.release()
+    const secondAheadLease = await secondAhead
+    secondAheadLease.release()
+    const thirdAheadLease = await thirdAhead
+    thirdAheadLease.release()
+    expect(scheduler.snapshot()).toMatchObject({ active: 0, queued: 0, granted: 8, released: 8 })
+  })
+
+  it("[neoview.scheduler.deferred-aging-options] rejects invalid aging intervals", () => {
+    for (const deferredAgingMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(() => new PriorityResourceScheduler({ deferredAgingMs })).toThrow(RangeError)
+    }
+    expect(() => new PriorityResourceScheduler({ deferredAgingMs: Number.MIN_VALUE })).not.toThrow()
+  })
+
   it("[neoview.scheduler.telemetry] reports truthful shared-queue lifecycle and queue waits", async () => {
     let now = 100
     const scheduler = new PriorityResourceScheduler({ maxConcurrent: 1, reservedInteractive: 0, now: () => now })
