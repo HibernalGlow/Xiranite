@@ -33,7 +33,17 @@ const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
 
 export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, sessionId, client, superResolution }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
-  const upscaleTarget = useUpscaleTarget(page, sessionId, client, superResolution)
+  const sourceIdentity = imageIdentity(page)
+  const sourceIdentityRef = useRef(sourceIdentity)
+  sourceIdentityRef.current = sourceIdentity
+  const [decodedSourceIdentity, setDecodedSourceIdentity] = useState<string>()
+  const upscaleTarget = useUpscaleTarget(
+    page,
+    sessionId,
+    client,
+    superResolution,
+    decodedSourceIdentity === sourceIdentity,
+  )
   const targetIdentity = imageIdentity(upscaleTarget)
   const targetIdentityRef = useRef(targetIdentity)
   targetIdentityRef.current = targetIdentity
@@ -121,9 +131,17 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, s
             data-reader-page-image={pending ? undefined : candidate.id}
             data-reader-page-image-pending={pending ? candidate.id : undefined}
             style={pending ? PENDING_IMAGE_STYLE : imageStyle}
-            onLoad={pending ? (event) => {
-              void commitDecodedImage(event.currentTarget, candidate, identity, targetIdentityRef, setCommittedPage)
-            } : undefined}
+            onLoad={(event) => {
+              if (pending) {
+                void commitDecodedImage(event.currentTarget, candidate, identity, targetIdentityRef, setCommittedPage).then((committed) => {
+                  if (committed && identity === sourceIdentityRef.current) setDecodedSourceIdentity(identity)
+                })
+              } else if (identity === sourceIdentityRef.current) {
+                void decodeImage(event.currentTarget).then((decoded) => {
+                  if (decoded && identity === sourceIdentityRef.current) setDecodedSourceIdentity(identity)
+                })
+              }
+            }}
           />
         )
       })}
@@ -136,6 +154,7 @@ function useUpscaleTarget(
   sessionId: string | undefined,
   client: ReaderHttpClient | undefined,
   config: ReaderSuperResolutionConfigDto | undefined,
+  sourceReady: boolean,
 ): ReaderPageDto {
   const enabled = config?.provider !== "disabled" && config?.preferences.autoUpscaleEnabled === true
   const sourceIdentity = imageIdentity(page)
@@ -145,7 +164,7 @@ function useUpscaleTarget(
   const configRevision = JSON.stringify(config?.preferences ?? {})
 
   useEffect(() => {
-    if (!enabled || !sessionId || !client?.upscalePage) return
+    if (!enabled || !sourceReady || !sessionId || !client?.upscalePage) return
     const controller = new AbortController()
     const sourcePage = pageRef.current
     setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "processing" })
@@ -170,7 +189,7 @@ function useUpscaleTarget(
       })
     })
     return () => controller.abort()
-  }, [client, configRevision, enabled, sessionId, sourceIdentity])
+  }, [client, configRevision, enabled, sessionId, sourceIdentity, sourceReady])
 
   return enabled && artifact?.sourceIdentity === sourceIdentity ? artifact.page : page
 }
@@ -193,13 +212,20 @@ async function commitDecodedImage(
   identity: string,
   targetIdentityRef: React.RefObject<string>,
   commit: React.Dispatch<React.SetStateAction<ReaderPageDto>>,
-): Promise<void> {
+): Promise<boolean> {
+  if (!await decodeImage(image)) return false
+  if (targetIdentityRef.current !== identity) return false
+  commit(page)
+  return true
+}
+
+async function decodeImage(image: HTMLImageElement): Promise<boolean> {
   try {
     await image.decode?.()
   } catch {
-    if (!image.complete || image.naturalWidth <= 0) return
+    if (!image.complete || image.naturalWidth <= 0) return false
   }
-  if (targetIdentityRef.current === identity) commit(page)
+  return true
 }
 
 function ColorizationFilter({ id, settings, tables }: {
