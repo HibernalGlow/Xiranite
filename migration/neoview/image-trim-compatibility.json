@@ -318,16 +318,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.ast-prototype"
       ],
-      "notes": "The scaffold is evidence only; production code must not import it."
+      "plannedTestIds": [],
+      "notes": "A focused audit freezes the generated manifest/source hash, scaffold hierarchy, icon imports, five ranges, conditions and unsupported Svelte runtime nodes, and proves production imports neither the scaffold nor $lib aliases. The scaffold remains evidence only."
     },
     {
       "id": "image-trim.enable",

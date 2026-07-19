@@ -3032,13 +3032,13 @@
 
 ##### 专用源码级验收项
 
-- [ ] `image-trim.ast-prototype` 审阅 AST 生成的 TSX 原型
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `image-trim.ast-prototype` 审阅 AST 生成的 TSX 原型
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Prototype is a repeatable structural baseline: imports, component hierarchy, class names, conditions, controls, events and unsupported Svelte nodes are reviewed before production React work.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.ast-prototype`
-  - 备注：The scaffold is evidence only; production code must not import it.
+  - 测试：`neoview.image-trim.ast-prototype`
+  - 计划测试：无
+  - 备注：A focused audit freezes the generated manifest/source hash, scaffold hierarchy, icon imports, five ranges, conditions and unsupported Svelte runtime nodes, and proves production imports neither the scaffold nor $lib aliases. The scaffold remains evidence only.
 - [x] `image-trim.enable` 启用或停用图像裁剪
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The checkbox toggles one canonical enabled flag; disabled state keeps the Card resident but removes active crop presentation and expensive detection work.
