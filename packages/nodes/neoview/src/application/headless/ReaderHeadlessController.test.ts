@@ -170,6 +170,75 @@ describe("ReaderHeadlessController", () => {
     }
   })
 
+  it("[neoview.headless.page-stream-cancellation] returns promptly and closes a page source that loads after cancellation", async () => {
+    const lateSource = Promise.withResolvers<PageSource>()
+    const close = vi.fn(async () => undefined)
+    const load = vi.fn(() => lateSource.promise)
+    const value = book("D:/book.cbz", [])
+    const controller = new ReaderHeadlessController(new CoreReaderService(async () => ({
+      ...value,
+      pages: [{ ...value.pages[0]!, content: { load } }, ...value.pages.slice(1)],
+    })))
+    const abort = new AbortController()
+    try {
+      await controller.open({ path: "D:/book.cbz" })
+      const pending = controller.openPageStream(0, abort.signal)
+      await vi.waitFor(() => expect(load).toHaveBeenCalledOnce())
+      abort.abort(new DOMException("page changed", "AbortError"))
+      await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+      lateSource.resolve({
+        byteLength: 3,
+        contentType: "image/png",
+        rangeSupported: false,
+        open: vi.fn(),
+        close,
+        [Symbol.asyncDispose]: close,
+      })
+      await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.headless.page-stream-cancellation] returns promptly and cancels a page stream that opens after cancellation", async () => {
+    const lateStream = Promise.withResolvers<ReadableStream<Uint8Array>>()
+    const streamCancelled = vi.fn()
+    const sourceClosed = vi.fn(async () => undefined)
+    const open = vi.fn(() => lateStream.promise)
+    const value = book("D:/book.cbz", [])
+    const controller = new ReaderHeadlessController(new CoreReaderService(async () => ({
+      ...value,
+      pages: [{
+        ...value.pages[0]!,
+        content: {
+          async load(): Promise<PageSource> {
+            return {
+              byteLength: 3,
+              contentType: "image/png",
+              rangeSupported: false,
+              open,
+              close: sourceClosed,
+              [Symbol.asyncDispose]: sourceClosed,
+            }
+          },
+        },
+      }, ...value.pages.slice(1)],
+    })))
+    const abort = new AbortController()
+    try {
+      await controller.open({ path: "D:/book.cbz" })
+      const pending = controller.openPageStream(0, abort.signal)
+      await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+      abort.abort(new DOMException("page changed", "AbortError"))
+      await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+      expect(sourceClosed).toHaveBeenCalledOnce()
+      lateStream.resolve(new ReadableStream<Uint8Array>({ cancel: streamCancelled }))
+      await vi.waitFor(() => expect(streamCancelled).toHaveBeenCalledOnce())
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.subtitle.headless] lists and renders matching tracks without exposing source paths", async () => {
     const service = new CoreReaderService(async () => subtitleVideoBook("D:/private/clip.mp4", [
       subtitleAsset("clip.zh-CN.srt"),
@@ -638,5 +707,19 @@ function memoryEmmStore(): ReaderEmmOverrideStore {
       record = { path, overrides, revision: expectedRevision + 1, updatedAt }
       return record
     }),
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Test promise timed out after ${timeoutMs} ms.`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }

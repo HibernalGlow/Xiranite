@@ -2,6 +2,7 @@ import type { ViewSource } from "../../domain/book/book.js"
 import type { FrameSnapshot } from "../../domain/frame/frame.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import { waitWithAbort } from "../../domain/page/wait-with-abort.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import type { ReaderMediaProgressService, ReaderMediaProgressUpdate } from "../reader/ReaderMediaProgressService.js"
@@ -272,9 +273,9 @@ export class ReaderHeadlessController implements AsyncDisposable {
     const page = session.book.pages[pageIndex]
     if (!page) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
     signal?.throwIfAborted()
-    const source = await page.content.load(signal)
+    const source = await waitWithAbort(page.content.load(signal), signal, (lateSource) => lateSource.close())
     try {
-      const stream = await source.open(signal)
+      const stream = await waitWithAbort(source.open(signal), signal, (lateStream) => lateStream.cancel(signal?.reason))
       return new OwnedHeadlessPageStream(pageSnapshot(page), source, stream)
     } catch (error) {
       await source.close().catch(() => undefined)
