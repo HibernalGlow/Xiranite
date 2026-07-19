@@ -167,7 +167,10 @@ export function ReaderPanoramaFrame({
             : Array.from({ length: pagesPerUnit }, (_, offset) => pages.get(firstPageIndex + offset)))
             .filter((page): page is ReaderPageDto => Boolean(page))
           if (!unitPages.length) return <div className="grid h-full min-h-48 min-w-48 place-items-center bg-black text-xs text-white/35">{index * pagesPerUnit + 1}</div>
-          const dimensions = unitPages.flatMap((page) => page.dimensions ? [page.dimensions] : [])
+          const renderedPages = direction === "right-to-left" && pageMode === "double"
+            ? [...unitPages].reverse()
+            : unitPages
+          const dimensions = renderedPages.flatMap((page) => page.dimensions ? [page.dimensions] : [])
           const frameSize = dimensions.length === unitPages.length
             ? calculateReaderFrameSize(dimensions, presentation.rotation, "horizontal", presentation.autoRotation, presentation.widePageStretch)
             : undefined
@@ -178,7 +181,7 @@ export function ReaderPanoramaFrame({
           const width = frameSize && scale ? frameSize.width * scale : available.width
           const height = frameSize && scale ? frameSize.height * scale : available.height
           const unit = <div className="flex shrink-0 items-center justify-center gap-1 bg-black p-1" style={{ width, height, flexDirection: "row" }} data-panorama-unit={index}>
-            {unitPages.map((page, slotIndex) => <PageMedia key={page.id} page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoListEnded={onVideoListEnded} />)}
+            {renderedPages.map((page, slotIndex) => <PageMedia key={page.id} page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoListEnded={onVideoListEnded} />)}
           </div>
           return presentation.orientation === "vertical"
             ? <div className="flex w-full justify-center" data-panorama-unit-wrapper={index}>{unit}</div>
