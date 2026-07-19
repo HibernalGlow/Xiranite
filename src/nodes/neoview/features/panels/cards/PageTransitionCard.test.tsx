@@ -6,12 +6,25 @@ import DockedPageTransitionCard, { PageTransitionCard } from "./PageTransitionCa
 afterEach(cleanup)
 
 describe("PageTransitionCard", () => {
-  it("keeps the animation switch available without a book", () => {
+  it("[neoview.page-transition.states] keeps the animation switch available without a book", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
     render(<PageTransitionCard store={store} />)
     expect(screen.getByRole("checkbox", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
     fireEvent.click(screen.getByRole("checkbox", { name: "启用翻页动画" }))
     expect(screen.getByLabelText("动画类型")).toBeTruthy()
+  })
+
+  it("[neoview.page-transition.preview] previews locally without persisting or navigating", () => {
+    const persist = vi.fn(async (settings) => settings)
+    const store = createReaderPageTransitionStore({ persist })
+    store.preview({ enabled: true })
+    render(<PageTransitionCard store={store} />)
+    const preview = screen.getByRole("button", { name: "预览翻页动画" })
+    fireEvent.pointerEnter(preview)
+    expect((preview as HTMLElement).style.transform).toBe("scale(0.95)")
+    fireEvent.pointerLeave(preview)
+    expect((preview as HTMLElement).style.transform).toBe("scale(1)")
+    expect(persist).not.toHaveBeenCalled()
   })
 
   it("previews duration and commits once at interaction end", async () => {

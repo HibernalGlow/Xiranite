@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import { createReaderColorFilterStore } from "./ReaderColorFilterStore"
 
 describe("ReaderColorFilterStore", () => {
-  it("[neoview.color-filter.preview] previews repeated slider values locally and persists once on commit", async () => {
+  it("[neoview.color-filter.preview] [neoview.color-filter.slider-commit] previews repeated slider values locally and persists once on commit", async () => {
     const persist = vi.fn(async (settings) => settings)
     const store = createReaderColorFilterStore({ persist })
     const listener = vi.fn()
@@ -20,14 +20,14 @@ describe("ReaderColorFilterStore", () => {
     expect(persist.mock.calls[0]?.[0]).toMatchObject({ brightness: 140 })
   })
 
-  it("[neoview.color-filter.hydration-race] ignores late config after local interaction", () => {
+  it("[neoview.color-filter.hydration-race] [neoview.color-filter.lifecycle] ignores late config after local interaction", () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
     store.preview({ contrast: 120 })
     store.hydrate({ ...DEFAULT_READER_COLOR_FILTER, contrast: 80 })
     expect(store.getSnapshot().contrast).toBe(120)
   })
 
-  it("[neoview.color-filter.persistence] serializes writes and rolls the latest failed snapshot back", async () => {
+  it("[neoview.color-filter.persistence] [neoview.color-filter.rollback] serializes writes and rolls the latest failed snapshot back", async () => {
     let finishFirst!: (settings: typeof DEFAULT_READER_COLOR_FILTER) => void
     const first = new Promise<typeof DEFAULT_READER_COLOR_FILTER>((resolve) => { finishFirst = resolve })
     const persist = vi.fn()

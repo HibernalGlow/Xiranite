@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 
 test.use({ viewport: { width: 1920, height: 1080 } })
 
-test("[neoview.color-filter.ui-1920x1080] keeps the color filter interactive and stable", async ({ page }, testInfo) => {
+test("[neoview.color-filter.ui] [neoview.color-filter.ui-1920x1080] keeps the color filter interactive and stable", async ({ page }, testInfo) => {
   await page.route(/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//, (route) => route.abort())
   await page.goto("/tests/e2e/neoview/neoview-color-filter-harness.html", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveTitle("NeoView Color Filter Harness")
