@@ -33,6 +33,8 @@ describe("ReaderViewToolbar", () => {
     expect(view.container.querySelector('[data-reader-toolbar-panel="zoom"]')).not.toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "首页独立显示" }))
     expect(layoutChanged).toHaveBeenLastCalledWith({ singleFirstPage: false })
+    fireEvent.click(screen.getByRole("button", { name: "自动分割横向页" }))
+    expect(layoutChanged).toHaveBeenLastCalledWith({ splitWidePages: true })
     fireEvent.click(screen.getByRole("button", { name: "横向页视为双页" }))
     expect(layoutChanged).toHaveBeenLastCalledWith({ treatWidePageAsSingle: false })
     expectIcon("无对齐", "lucide-equal")

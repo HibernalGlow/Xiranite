@@ -252,6 +252,15 @@ export function readerImageTrimEffectiveDimensions(
   return { width, height, aspectRatio: width / height }
 }
 
+export function readerImageCropTranslation(
+  presentation: ReaderImageCropInsets | undefined,
+): { xPercent: number; yPercent: number } {
+  const insets = presentation ? normalizeReaderImageCropInsets(presentation) : undefined
+  return insets
+    ? { xPercent: (insets.right - insets.left) / 2, yPercent: (insets.bottom - insets.top) / 2 }
+    : { xPercent: 0, yPercent: 0 }
+}
+
 export function isReaderImageTrimTarget(value: unknown): value is ReaderImageTrimTarget {
   return typeof value === "string" && READER_IMAGE_TRIM_TARGETS.includes(value as ReaderImageTrimTarget)
 }

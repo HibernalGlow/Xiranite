@@ -776,13 +776,14 @@ describe("NeoView CLI", () => {
       "[nodes.neoview.reader]",
       "reading_direction = \"right-to-left\"",
       "double_page_view = true",
+      "split_wide_pages = true",
       "",
     ].join("\n"), "utf8")
     try {
       const output: unknown[] = []
       await runProgram(["inspect", bookPath, "--index", "1", "--config", configPath, "--json"], host(output), testPlatformDependencies)
       expect(JSON.parse(output.join(""))).toMatchObject({
-        frame: { direction: "right-to-left", layout: { pageMode: "double" } },
+        frame: { direction: "right-to-left", layout: { pageMode: "double", splitWidePages: true } },
         visiblePages: [{ index: 2 }, { index: 1 }],
       })
     } finally {

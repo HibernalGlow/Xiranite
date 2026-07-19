@@ -6,6 +6,7 @@ import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import { CoreReaderService } from "./ReaderService.js"
 import { CoreReaderSession } from "./ReaderSession.js"
+import { DEFAULT_READER_SESSION_OPTIONS } from "./contracts.js"
 
 describe("CoreReaderSession", () => {
   it("[neoview.session.navigation] advances by frames and increments generation", async () => {
@@ -47,6 +48,59 @@ describe("CoreReaderSession", () => {
     expect(cached).toBe(first)
     await session.goTo(4)
     expect(await session.frameWindow(2, 2)).not.toBe(first)
+  })
+
+  it("[neoview.reader.split-wide-pages] navigates landscape halves without duplicating physical pages", async () => {
+    const sourceBook = book(3)
+    sourceBook.pages[0]!.dimensions = { width: 1600, height: 900 }
+    sourceBook.pages[1]!.dimensions = { width: 900, height: 1600 }
+    sourceBook.pages[2]!.dimensions = { width: 1600, height: 900 }
+    const session = new CoreReaderSession("split-wide", sourceBook, {
+      direction: "left-to-right",
+      layout: { ...DEFAULT_READER_SESSION_OPTIONS.layout, pageMode: "single", splitWidePages: true },
+    })
+
+    expect(session.snapshot()).toMatchObject({
+      anchorPageIndex: 0,
+      anchorPart: 0,
+      atStart: true,
+      atEnd: false,
+      pages: [{ pageIndex: 0, part: 0, cropInsets: { top: 0, right: 50, bottom: 0, left: 0 } }],
+    })
+    session.updatePreloadContext({ mode: "paged" })
+    const firstPreloadGeneration = session.preloadPlan()!.generation
+    expect(await session.next()).toMatchObject({ anchorPageIndex: 0, anchorPart: 1, atStart: false })
+    expect(session.preloadPlan()).toMatchObject({ generation: firstPreloadGeneration, frameGeneration: session.generation })
+    const portrait = await session.next()
+    expect(portrait).toMatchObject({ anchorPageIndex: 1, pages: [{ pageIndex: 1 }] })
+    expect(portrait.pages[0]).not.toHaveProperty("part")
+    expect(await session.next()).toMatchObject({ anchorPageIndex: 2, anchorPart: 0, atEnd: false })
+    expect(await session.next()).toMatchObject({ anchorPageIndex: 2, anchorPart: 1, atEnd: true })
+    expect(await session.previous()).toMatchObject({ anchorPageIndex: 2, anchorPart: 0 })
+    const previousPortrait = await session.previous()
+    expect(previousPortrait).toMatchObject({ anchorPageIndex: 1 })
+    expect(previousPortrait).not.toHaveProperty("anchorPart")
+
+    const window = await session.frameWindow(1, 2)
+    expect(window.map((frame) => [frame.anchorPageIndex, frame.anchorPart])).toEqual([[0, 0], [0, 1], [1, undefined], [2, 0], [2, 1]])
+  })
+
+  it("[neoview.reader.split-wide-pages] starts RTL pages on the right half and resets go-to deterministically", async () => {
+    const sourceBook = book(2)
+    for (const page of sourceBook.pages) page.dimensions = { width: 1600, height: 900 }
+    const session = new CoreReaderSession("split-wide-rtl", sourceBook, {
+      direction: "right-to-left",
+      layout: { ...DEFAULT_READER_SESSION_OPTIONS.layout, pageMode: "single", splitWidePages: true },
+    })
+
+    expect(session.snapshot()).toMatchObject({ anchorPageIndex: 0, anchorPart: 1, pages: [{ part: 1, cropInsets: { left: 50, right: 0 } }] })
+    expect(await session.next()).toMatchObject({ anchorPageIndex: 0, anchorPart: 0 })
+    expect(await session.next()).toMatchObject({ anchorPageIndex: 1, anchorPart: 1 })
+    expect(await session.previous()).toMatchObject({ anchorPageIndex: 0, anchorPart: 0 })
+    expect(await session.goTo(1)).toMatchObject({ anchorPageIndex: 1, anchorPart: 1 })
+    const panorama = await session.updateOptions({ layout: { ...session.snapshot().layout, panorama: true } })
+    expect(panorama).not.toHaveProperty("anchorPart")
+    expect(panorama.pages[0]).not.toHaveProperty("cropInsets")
   })
 
   it("[neoview.session.lifecycle] rejects cancelled navigation and closes idempotently", async () => {

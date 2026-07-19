@@ -8,7 +8,7 @@ import {
   projectReaderColorFilterTables,
   type ReaderColorFilterSettings,
 } from "@xiranite/node-neoview/color-filter"
-import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimClipPath, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
@@ -68,11 +68,15 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
   const [blackAndWhite, setBlackAndWhite] = useState<boolean>()
   const dimensions = committedPage.dimensions
   const measured = dimensions !== undefined && scale !== undefined
-  const rotated = dimensions ? rotatePresentationSize(dimensions, rotation) : undefined
+  const presentationDimensions = dimensions
+    ? readerImageTrimEffectiveDimensions(dimensions, DEFAULT_READER_IMAGE_TRIM, presentationCropInsets)
+    : undefined
+  const rotated = presentationDimensions ? rotatePresentationSize(presentationDimensions, rotation) : undefined
   const colorizeAllowed = settings.colorizeEnabled && (!settings.onlyBlackAndWhite || blackAndWhite === true)
   const tables = projectReaderColorFilterTables(settings)
   const filter = projectReaderColorFilterCss(settings, { filterId, colorizeAllowed })
   const trimClipPath = trimSettings ? readerImageTrimClipPath(trimSettings, presentationCropInsets) : readerImageTrimClipPath(DEFAULT_READER_IMAGE_TRIM, presentationCropInsets)
+  const cropTranslation = readerImageCropTranslation(presentationCropInsets)
 
   useEffect(() => {
     if (!imageTrim || !imageTrimDetectionActive || decodedCommittedIdentity !== committedIdentity) return
@@ -110,7 +114,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
       position: "absolute",
       left: "50%",
       top: "50%",
-      transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+      transform: `translate(-50%, -50%) translate(${cropTranslation.xPercent}%, ${cropTranslation.yPercent}%) rotate(${rotation}deg)`,
     } satisfies React.CSSProperties : {}),
     filter: filter || undefined,
     clipPath: trimClipPath,

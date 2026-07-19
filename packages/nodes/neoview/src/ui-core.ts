@@ -8,10 +8,12 @@ export {
 export {
   DEFAULT_READER_LAYOUT,
   type FramePage,
+  type FrameCropInsets,
   type FrameSnapshot,
   type PageMode,
   type ReaderGeneration,
   type ReaderLayout,
+  type ReaderPagePart,
 } from "./domain/frame/frame.js"
 export {
   calculateReaderFrameSize,

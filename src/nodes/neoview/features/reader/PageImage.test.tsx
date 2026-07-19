@@ -67,6 +67,22 @@ describe("PageImage", () => {
     expect(view.container.querySelector("canvas")).toBeNull()
   })
 
+  it("[neoview.reader.split-wide-pages] sizes and centers a physical half without another image", () => {
+    const source = page()
+    const view = render(<PageImage
+      page={source}
+      scale={1}
+      presentationCropInsets={{ top: 0, right: 50, bottom: 0, left: 0 }}
+    />)
+
+    const box = view.container.querySelector<HTMLElement>('[data-reader-page-box="page-1"]')!
+    const image = view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')!
+    expect(box.style.width).toBe("2000px")
+    expect(box.style.height).toBe("6000px")
+    expect(image.style.transform).toContain("translate(25%, 0%)")
+    expect(view.container.querySelectorAll('[data-reader-page-image="page-1"]')).toHaveLength(1)
+  })
+
   it("[neoview.image-trim.active-image] registers only the decoded committed image and unregisters it without remounting", async () => {
     const unregister = vi.fn()
     const registerImage = vi.fn(() => unregister)

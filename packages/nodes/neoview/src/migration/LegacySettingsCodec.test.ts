@@ -50,10 +50,11 @@ describe("LegacySettingsCodec", () => {
       },
       reader: {
         default_zoom_mode: "fitWidth",
+        split_wide_pages: true,
         reading_direction: "right-to-left",
         double_page_view: true,
         tail_overflow_behavior: "seamless-loop",
-        view: { page_layout: { split_horizontal_pages: true, wide_page_stretch: "uniformHeight" } },
+        view: { page_layout: { wide_page_stretch: "uniformHeight" } },
         subtitle: { font_size: 1.2 },
       },
       panels: { sidebar_control: { enabled: false, position: { x: 130, y: 170 } } },

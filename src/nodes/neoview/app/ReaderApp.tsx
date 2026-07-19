@@ -575,6 +575,7 @@ export function ReaderApp({
       signal,
     ))
     if (updated && layout.pageMode) void persistViewDefaults({ pageMode: layout.pageMode })
+    if (updated && layout.splitWidePages !== undefined) void persistViewDefaults({ splitWidePages: layout.splitWidePages })
   }
 
   async function updateReadingDirection(direction: "left-to-right" | "right-to-left") {
@@ -1376,6 +1377,7 @@ export function ReaderApp({
             <Suspense fallback={null}>
               <LazyReaderFrame
                 pages={session.visiblePages}
+                framePages={session.frame.pages}
                 presentation={presentation}
                 panorama={session.frame.layout.panorama}
                 pageMode={session.frame.layout.pageMode}

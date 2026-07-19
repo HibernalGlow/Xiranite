@@ -23,6 +23,7 @@ describe("loadNeoviewSessionOptions", () => {
       "[nodes.neoview.reader]",
       "reading_direction = \"right-to-left\"",
       "double_page_view = true",
+      "split_wide_pages = true",
       "default_zoom_mode = \"fitWidth\"",
       "tail_overflow_behavior = \"loop\"",
       "[nodes.neoview.slideshow]",
@@ -36,12 +37,13 @@ describe("loadNeoviewSessionOptions", () => {
     const configured = await loadNeoviewSessionOptions({ configPath })
     expect(configured).toMatchObject({
       direction: "right-to-left",
-      layout: { pageMode: "double" },
+      layout: { pageMode: "double", splitWidePages: true },
       tailOverflow: "loop",
     })
     expect((await loadNeoviewRuntimeConfig({ configPath })).viewDefaults).toEqual({
       fitMode: "fit-width",
       pageMode: "double",
+      splitWidePages: true,
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",

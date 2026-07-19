@@ -22,6 +22,8 @@ test("[neoview.toolbar.ui-1920x1080] preserves legacy toolbar hierarchy, icons a
 
   await toolbar.getByRole("button", { name: "展开缩放设置" }).click()
   for (const name of ["适应窗口", "铺满整个窗口", "适应宽度", "适应高度", "原始大小", "居左适应窗口", "居右适应窗口", "自动分割横向页", "横向页视为双页", "首页独立显示", "尾页独立显示", "无对齐", "双页高度统一", "双页宽度统一"]) await expect(toolbar.getByRole("button", { name, exact: true }).locator("svg")).toBeVisible()
+  await toolbar.getByRole("button", { name: "自动分割横向页", exact: true }).click()
+  await expect(toolbar.getByRole("button", { name: "自动分割横向页", exact: true })).toHaveAttribute("aria-pressed", "true")
   await page.screenshot({ path: testInfo.outputPath("neoview-top-toolbar-zoom-1920x1080.png"), fullPage: false })
 
   await toolbar.getByRole("button", { name: "展开旋转设置" }).click()

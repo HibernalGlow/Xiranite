@@ -1055,13 +1055,13 @@ describe("ReaderHttpController", () => {
 
       const options = (await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,
-        { layout: { pageMode: "double", panorama: true, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: false } },
+        { layout: { pageMode: "double", panorama: true, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: false, splitWidePages: true } },
         true,
         "PATCH",
       )))!
       expect(options.status).toBe(200)
       expect(await options.json()).toMatchObject({
-        frame: { layout: { pageMode: "double", panorama: true, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: false }, pages: [{ pageIndex: 1 }, { pageIndex: 2 }] },
+        frame: { layout: { pageMode: "double", panorama: true, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: false, splitWidePages: true }, pages: [{ pageIndex: 1 }, { pageIndex: 2 }] },
         visiblePages: [{ index: 1 }, { index: 2 }],
         preload: { generation: 2, candidates: [{ tier: "background", pageIndexes: [0, 1] }] },
       })
@@ -1082,6 +1082,12 @@ describe("ReaderHttpController", () => {
       expect((await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,
         { layout: { pageMode: "panorama" } },
+        true,
+        "PATCH",
+      )))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { layout: { splitWidePages: "yes" } },
         true,
         "PATCH",
       )))?.status).toBe(400)
