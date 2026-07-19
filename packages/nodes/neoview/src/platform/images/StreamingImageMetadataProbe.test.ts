@@ -38,6 +38,52 @@ describe("StreamingImageMetadataProbe", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
+  it("[neoview.image.probe-cancellation] returns promptly and closes a source that loads after cancellation", async () => {
+    const controller = new AbortController()
+    const lateSource = Promise.withResolvers<PageSource>()
+    const close = vi.fn(async () => undefined)
+    const content: PageContent = {
+      load: () => lateSource.promise,
+    }
+    const pending = new StreamingImageMetadataProbe().probe(content, "image/png", controller.signal)
+    controller.abort(new Error("cancelled while loading"))
+    await expect(pending).rejects.toThrow("cancelled while loading")
+    lateSource.resolve({
+      byteLength: 24,
+      rangeSupported: false,
+      open: vi.fn(),
+      close,
+      [Symbol.asyncDispose]: close,
+    })
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+  })
+
+  it("[neoview.image.probe-cancellation] returns promptly and cancels a stream that opens after cancellation", async () => {
+    const controller = new AbortController()
+    const lateStream = Promise.withResolvers<ReadableStream<Uint8Array>>()
+    const cancel = vi.fn()
+    const close = vi.fn(async () => undefined)
+    const open = vi.fn(() => lateStream.promise)
+    const content: PageContent = {
+      async load(): Promise<PageSource> {
+        return {
+          byteLength: 24,
+          rangeSupported: false,
+          open,
+          close,
+          [Symbol.asyncDispose]: close,
+        }
+      },
+    }
+    const pending = new StreamingImageMetadataProbe().probe(content, "image/png", controller.signal)
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+    controller.abort(new Error("cancelled while opening"))
+    await expect(pending).rejects.toThrow("cancelled while opening")
+    expect(close).toHaveBeenCalledOnce()
+    lateStream.resolve(new ReadableStream<Uint8Array>({ cancel }))
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce())
+  })
+
   it("[neoview.image.probe-cancellation] cancels a stalled read immediately and still closes its source", async () => {
     const controller = new AbortController()
     const cancelled = vi.fn()
