@@ -403,7 +403,7 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "partial",
+        "transport": "complete",
         "gui": "complete",
         "cli": "partial",
         "tui": "partial",
@@ -411,13 +411,14 @@
       },
       "testIds": [
         "neoview.image-trim.edges",
-        "neoview.image-trim.link-vertical"
+        "neoview.image-trim.link-vertical",
+        "neoview.image-trim.transport-linked"
       ],
       "plannedTestIds": [
         "neoview.image-trim.cli-edges",
         "neoview.image-trim.tui-edges"
       ],
-      "notes": "Shared projection, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. CLI/TUI command-level edge coverage remains partial; percentages are not converted to pixels."
+      "notes": "Shared projection, serialized HTTP projection, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. CLI/TUI command-level edge coverage remains partial; percentages are not converted to pixels."
     },
     {
       "id": "image-trim.link-vertical",
@@ -433,17 +434,18 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "partial",
+        "transport": "complete",
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
         "evidence": "complete"
       },
       "testIds": [
-        "neoview.image-trim.link-vertical"
+        "neoview.image-trim.link-vertical",
+        "neoview.image-trim.transport-linked"
       ],
       "plannedTestIds": [],
-      "notes": "Shared patch projection, Store state and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later top edits synchronize bottom, and each completed action persists once. Native button keyboard behavior is retained."
+      "notes": "Shared patch projection, serialized HTTP projection, Store state and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later top edits synchronize bottom, and each completed action persists once. Native button keyboard behavior is retained."
     },
     {
       "id": "image-trim.link-horizontal",
@@ -459,17 +461,18 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "partial",
+        "transport": "complete",
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
         "evidence": "complete"
       },
       "testIds": [
-        "neoview.image-trim.link-horizontal"
+        "neoview.image-trim.link-horizontal",
+        "neoview.image-trim.transport-linked"
       ],
       "plannedTestIds": [],
-      "notes": "Shared patch projection, Store synchronization and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later left edits synchronize right, and each completed action persists once without component-local link state."
+      "notes": "Shared patch projection, serialized HTTP projection, Store synchronization and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later left edits synchronize right, and each completed action persists once without component-local link state."
     },
     {
       "id": "image-trim.bounds",
@@ -487,21 +490,22 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "partial",
+        "transport": "complete",
         "gui": "partial",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.image-trim.bounds"
+        "neoview.image-trim.bounds",
+        "neoview.image-trim.transport-linked"
       ],
       "plannedTestIds": [
         "neoview.image-trim.bounds-browser",
         "neoview.image-trim.bounds-cli",
         "neoview.image-trim.bounds-tui"
       ],
-      "notes": "The shared normalizer and strict patch parser cover finite values, 0..45 clamping/rejection and 0.5 steps. GUI boundary-key interaction plus CLI/TUI command-level evidence remain partial."
+      "notes": "The shared normalizer, strict patch parser and authenticated HTTP boundary cover finite values, 0..45 clamping/rejection and 0.5 steps without invoking persistence for invalid input. GUI boundary-key interaction plus CLI/TUI command-level evidence remain partial."
     },
     {
       "id": "image-trim.preview",
