@@ -136,6 +136,7 @@ describe("LegacySettingsCodec", () => {
     })
     expect(result.report.summary["pending-data"]).toBe(2)
     expect(result.report.summary["host-replaced"]).toBe(2)
+    expect(result.report.fullyRecognized).toBe(false)
   })
 
   it("selects modules explicitly and reports skipped data", () => {
@@ -158,6 +159,7 @@ describe("LegacySettingsCodec", () => {
     expect(result.configPatch).not.toHaveProperty("bindings")
     expect(result.configPatch).not.toHaveProperty("integrations")
     expect(result.pendingData).toEqual({ bookmarks: [{ path: "D:/book.cbz" }] })
+    expect(result.report.fullyRecognized).toBe(false)
     expect(result.report.entries).toEqual(expect.arrayContaining([
       expect.objectContaining({ sourcePath: "appSettings.keybindings", disposition: "skipped" }),
       expect.objectContaining({ sourcePath: "extended.history", disposition: "skipped" }),

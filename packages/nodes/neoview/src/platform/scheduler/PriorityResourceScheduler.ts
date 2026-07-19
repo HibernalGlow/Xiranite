@@ -7,15 +7,31 @@ import type {
 
 interface WaitingTask {
   request: ResourceTaskRequest
+  enqueuedAtMs: number
   resolve: (lease: ResourceLease) => void
   reject: (error: unknown) => void
   signal?: AbortSignal
   abort?: () => void
 }
 
+export interface PriorityResourceSchedulerSnapshot {
+  topology: "shared-queue"
+  active: number
+  queued: number
+  queuedByPriority: Readonly<Record<ResourcePriority, number>>
+  granted: number
+  released: number
+  cancelled: number
+  queueWaitSamples: number
+  totalQueueWaitMs: number
+  maxQueueWaitMs: number
+  oldestQueuedWaitMs: number
+}
+
 export interface PriorityResourceSchedulerOptions {
   maxConcurrent?: number
   reservedInteractive?: number
+  now?: () => number
 }
 
 export class PriorityResourceScheduler implements ResourceScheduler, AsyncDisposable {
@@ -28,7 +44,14 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
     background: [],
   }
   #active = 0
+  #granted = 0
+  #released = 0
+  #cancelled = 0
+  #queueWaitSamples = 0
+  #totalQueueWaitMs = 0
+  #maxQueueWaitMs = 0
   #closed = false
+  readonly #now: () => number
 
   constructor(options: PriorityResourceSchedulerOptions = {}) {
     this.#maxConcurrent = boundedInteger(options.maxConcurrent ?? 2, "maxConcurrent", 1, 64)
@@ -38,6 +61,7 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
       0,
       this.#maxConcurrent - 1,
     )
+    this.#now = options.now ?? performance.now.bind(performance)
   }
 
   get active(): number {
@@ -49,16 +73,42 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
       + this.#queues.ahead.length + this.#queues.background.length
   }
 
+  snapshot(): PriorityResourceSchedulerSnapshot {
+    const oldestQueuedAtMs = Object.values(this.#queues)
+      .flatMap((queue) => queue.length ? [queue[0]!.enqueuedAtMs] : [])
+      .reduce<number | undefined>((oldest, value) => oldest === undefined ? value : Math.min(oldest, value), undefined)
+    return {
+      topology: "shared-queue",
+      active: this.#active,
+      queued: this.queued,
+      queuedByPriority: {
+        interactive: this.#queues.interactive.length,
+        view: this.#queues.view.length,
+        ahead: this.#queues.ahead.length,
+        background: this.#queues.background.length,
+      },
+      granted: this.#granted,
+      released: this.#released,
+      cancelled: this.#cancelled,
+      queueWaitSamples: this.#queueWaitSamples,
+      totalQueueWaitMs: this.#totalQueueWaitMs,
+      maxQueueWaitMs: this.#maxQueueWaitMs,
+      oldestQueuedWaitMs: oldestQueuedAtMs === undefined ? 0 : Math.max(0, this.#now() - oldestQueuedAtMs),
+    }
+  }
+
   acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease> {
     if (this.#closed) return Promise.reject(resourceSchedulerClosedError())
     signal?.throwIfAborted()
     return new Promise<ResourceLease>((resolve, reject) => {
-      const waiting: WaitingTask = { request, resolve, reject, signal }
+      const waiting: WaitingTask = { request, enqueuedAtMs: this.#now(), resolve, reject, signal }
       if (signal) {
         waiting.abort = () => {
           const queue = this.#queues[request.priority]
           const index = queue.indexOf(waiting)
-          if (index >= 0) queue.splice(index, 1)
+          if (index < 0) return
+          queue.splice(index, 1)
+          this.#cancelled += 1
           reject(signal.reason)
         }
         signal.addEventListener("abort", waiting.abort, { once: true })
@@ -75,6 +125,7 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
     for (const queue of Object.values(this.#queues)) {
       for (const waiting of queue.splice(0)) {
         waiting.signal?.removeEventListener("abort", waiting.abort!)
+        this.#cancelled += 1
         waiting.reject(error)
       }
     }
@@ -103,16 +154,23 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
   #start(waiting: WaitingTask): void {
     waiting.signal?.removeEventListener("abort", waiting.abort!)
     if (waiting.signal?.aborted) {
+      this.#cancelled += 1
       waiting.reject(waiting.signal.reason)
       return
     }
+    const queueWaitMs = Math.max(0, this.#now() - waiting.enqueuedAtMs)
     this.#active += 1
+    this.#granted += 1
+    this.#queueWaitSamples += 1
+    this.#totalQueueWaitMs += queueWaitMs
+    this.#maxQueueWaitMs = Math.max(this.#maxQueueWaitMs, queueWaitMs)
     let released = false
     waiting.resolve({
       release: () => {
         if (released) return
         released = true
         this.#active -= 1
+        this.#released += 1
         this.#drain()
       },
     })

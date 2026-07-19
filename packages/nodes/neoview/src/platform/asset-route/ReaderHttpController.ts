@@ -52,7 +52,12 @@ import { ReaderMediaProgressService, type ReaderMediaProgressUpdate } from "../.
 import { ReaderClipboardMaterializationService } from "../../application/reader/ReaderClipboardMaterializationService.js"
 import { ReaderSeekableMediaCache } from "../../application/reader/ReaderSeekableMediaCache.js"
 import { ReaderSubtitleService } from "../../application/reader/ReaderSubtitleService.js"
-import { ReaderDiagnosticsService, type ReaderSchedulerPoolDiagnostics, type ReaderVideoProcessDiagnostics } from "../../application/diagnostics/ReaderDiagnosticsService.js"
+import {
+  ReaderDiagnosticsService,
+  type ReaderSchedulerPoolDiagnostics,
+  type ReaderSharedSchedulerDiagnostics,
+  type ReaderVideoProcessDiagnostics,
+} from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { exportReaderDiagnosticsHistory, type ReaderDiagnosticsHistoryExportFormat } from "../../application/diagnostics/ReaderDiagnosticsHistoryExport.js"
 import { ReaderBookMetadataService, type ReaderBookStaticMetadata } from "../../application/metadata/ReaderBookMetadataService.js"
 import { ReaderPageMediaInformationService } from "../../application/metadata/ReaderPageMediaInformationService.js"
@@ -81,6 +86,7 @@ import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCa
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { VideoProcessScheduler, type VideoProcessSchedulerSnapshot } from "../video/VideoProcessScheduler.js"
 import { ReaderArchivePreloadDemandBridge } from "../archives/ReaderArchivePreloadDemandBridge.js"
+import { defaultImageTransformScheduler, type PriorityResourceSchedulerSnapshot } from "../scheduler/PriorityResourceScheduler.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 import { SuperResolutionArtifactRoute } from "./SuperResolutionArtifactRoute.js"
 import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
@@ -309,7 +315,8 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #seekableMedia: ReaderSeekableMediaCache
   readonly #subtitles: ReaderSubtitleService
   readonly #diagnostics: ReaderDiagnosticsService
-  readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
+  readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>> | undefined
+  readonly #sharedSchedulerSnapshot?: () => ReaderSharedSchedulerDiagnostics | undefined
   readonly #videoProcessScheduler: ResourceScheduler
   readonly #ownedVideoProcessScheduler?: VideoProcessScheduler
   readonly #videoProcessSnapshot?: () => ReaderVideoProcessDiagnostics
@@ -368,6 +375,7 @@ export class ReaderHttpController implements AsyncDisposable {
     if (Boolean(options.superResolutionArtifactPages) !== Boolean(options.superResolutionArtifactStore)) {
       throw new TypeError("superResolutionArtifactPages and superResolutionArtifactStore must be provided together")
     }
+    const resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
     const initialMedia = options.media ?? DEFAULT_NEOVIEW_MEDIA_CONFIG
     this.#mediaFormats = new ReaderMediaFormatRegistryRef(initialMedia)
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -384,26 +392,26 @@ export class ReaderHttpController implements AsyncDisposable {
     const imageMetadataProbe = new StreamingImageMetadataProbe()
     const loadImageTransformer = async () => {
       const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
-      const sharp = new SharpImageTransformer(options.resourceScheduler)
+      const sharp = new SharpImageTransformer(resourceScheduler)
       if (process.platform !== "win32") return sharp
       const { WindowsWicImageTransformer } = await import("../images/WindowsWicImageTransformer.js")
-      return new WindowsWicImageTransformer(sharp, { resourceScheduler: options.resourceScheduler })
+      return new WindowsWicImageTransformer(sharp, { resourceScheduler: resourceScheduler })
     }
     const loadVideoThumbnailProvider = options.loadVideoThumbnailProvider ?? (async () => {
       const { FfmpegVideoThumbnailProvider } = await import("../video/FfmpegVideoThumbnailProvider.js")
       return new FfmpegVideoThumbnailProvider({
-        resourceScheduler: options.resourceScheduler,
+        resourceScheduler: resourceScheduler,
         processScheduler: this.#videoProcessScheduler,
       })
     })
     const loadMosaicImageComposer = async () => {
       const { SharpMosaicImageComposer } = await import("../images/sharp/SharpMosaicImageComposer.js")
-      return new SharpMosaicImageComposer(options.resourceScheduler)
+      return new SharpMosaicImageComposer(resourceScheduler)
     }
     const loadSystemThumbnailProvider = options.loadSystemThumbnailProvider ?? (process.platform === "win32"
       ? async () => {
           const { WindowsSystemThumbnailProvider } = await import("../windows/WindowsSystemThumbnailProvider.js")
-          return new WindowsSystemThumbnailProvider({ resourceScheduler: options.resourceScheduler })
+          return new WindowsSystemThumbnailProvider({ resourceScheduler: resourceScheduler })
         }
       : undefined)
     this.#thumbnailPipeline = new PlatformThumbnailPipeline({
@@ -415,7 +423,7 @@ export class ReaderHttpController implements AsyncDisposable {
       thumbnailStore: options.thumbnailStore,
       maxMemoryBytes: 32 * 1024 * 1024,
       maxEntryBytes: 512 * 1024,
-      resourceScheduler: options.resourceScheduler,
+      resourceScheduler: resourceScheduler,
       mediaFormats: this.#mediaFormats,
     })
     this.#service = new CoreReaderService(
@@ -444,7 +452,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.loadPageMediaMetadataProvider ?? (async () => {
         const { FfprobePageMediaMetadataProvider } = await import("../video/FfprobePageMediaMetadataProvider.js")
         return new FfprobePageMediaMetadataProvider({
-          resourceScheduler: options.resourceScheduler,
+          resourceScheduler: resourceScheduler,
           processScheduler: this.#videoProcessScheduler,
         })
       }),
@@ -453,13 +461,13 @@ export class ReaderHttpController implements AsyncDisposable {
       this.#service,
       new PlatformReaderPageMaterializer({
         tempDirectory: options.archiveTempDirectory,
-        resourceScheduler: options.resourceScheduler,
+        resourceScheduler: resourceScheduler,
       }),
     )
     this.#seekableMedia = new ReaderSeekableMediaCache(
       new PlatformReaderPageMaterializer({
         tempDirectory: options.archiveTempDirectory,
-        resourceScheduler: options.resourceScheduler,
+        resourceScheduler: resourceScheduler,
         purpose: "seekable-media",
       }),
       {
@@ -478,7 +486,7 @@ export class ReaderHttpController implements AsyncDisposable {
       presentationProducerVersion: process.platform === "win32" ? WINDOWS_PRESENTATION_PRODUCER_VERSION : undefined,
       loadImageTransformer,
       thumbnailPipeline: this.#thumbnailPipeline,
-      resourceScheduler: options.resourceScheduler,
+      resourceScheduler: resourceScheduler,
       seekableMediaCache: this.#seekableMedia,
       memoryPressureMonitor,
       relieveHostMemoryPressure: async (level) => {
@@ -506,7 +514,7 @@ export class ReaderHttpController implements AsyncDisposable {
         excludedPaths: options.fileTree?.excludedPaths,
         updateExcludedPaths: options.updateFileTreeExclusions,
       },
-      options.resourceScheduler,
+      resourceScheduler,
       options.searchHistoryStore ? new ReaderSearchHistoryService(options.searchHistoryStore) : undefined,
       undefined,
       this.#mediaFormats,
@@ -515,7 +523,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#fileOperations = new ReaderFileOperationHttpController(async () => {
       const { ReaderFileOperationService } = await import("../../application/files/ReaderFileOperationService.js")
       const { PlatformReaderFileMutationProvider } = await import("../filesystem/PlatformReaderFileMutationProvider.js")
-      return new ReaderFileOperationService(new PlatformReaderFileMutationProvider({ scheduler: options.resourceScheduler }), {
+      return new ReaderFileOperationService(new PlatformReaderFileMutationProvider({ scheduler: resourceScheduler }), {
         journal: options.fileUndoJournalStore,
       })
     }, (sessionId, descriptor, signal) => this.#directoryBrowser.resolveSelection(sessionId, descriptor, signal))
@@ -524,8 +532,8 @@ export class ReaderHttpController implements AsyncDisposable {
       const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
       const { WindowsReaderExplorerContextMenuProvider } = await import("../windows/WindowsReaderExplorerContextMenuProvider.js")
       return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({
-        scheduler: options.resourceScheduler,
-        explorerContextMenu: options.explorerContextMenu ?? new WindowsReaderExplorerContextMenuProvider({ resourceScheduler: options.resourceScheduler }),
+        scheduler: resourceScheduler,
+        explorerContextMenu: options.explorerContextMenu ?? new WindowsReaderExplorerContextMenuProvider({ resourceScheduler: resourceScheduler }),
       }))
     })
     this.#settingsMigration = options.loadSettingsMigrationService
@@ -541,13 +549,14 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(
       options.libraryService,
-      new ReaderLibraryCleanupService(options.libraryService, new PlatformReaderPathStatusProvider(options.resourceScheduler)),
+      new ReaderLibraryCleanupService(options.libraryService, new PlatformReaderPathStatusProvider(resourceScheduler)),
     ) : undefined
     this.#disposeLibraryService = options.disposeLibraryService ?? false
     this.#cacheService = new ReaderCacheService(options.presentationDiskCache, {
       ownsPresentationCache: options.disposePresentationDiskCache,
     })
-    this.#schedulerSnapshot = schedulerSnapshot(options.resourceScheduler)
+    this.#schedulerSnapshot = schedulerSnapshot(resourceScheduler)
+    this.#sharedSchedulerSnapshot = sharedSchedulerSnapshot(resourceScheduler)
     this.#diagnostics = new ReaderDiagnosticsService({
       activeSessions: () => this.#service.sessionCount,
       preload: () => this.#service.preloadDiagnostics(),
@@ -558,6 +567,7 @@ export class ReaderHttpController implements AsyncDisposable {
       solidArchiveCache: () => this.#solidArchiveCache.snapshot(),
       videoProcess: this.#videoProcessSnapshot,
       scheduler: this.#schedulerSnapshot,
+      sharedScheduler: this.#sharedSchedulerSnapshot,
     })
     this.#mediaProgress = options.mediaProgressStore
       ? new ReaderMediaProgressService(options.mediaProgressStore)
@@ -1448,6 +1458,7 @@ export class ReaderHttpController implements AsyncDisposable {
       const previousPreloadGeneration = session.preloadPlan()?.generation
       const resources = deriveReaderPreloadResourceContext({
         scheduler: this.#schedulerSnapshot?.(),
+        sharedScheduler: this.#sharedSchedulerSnapshot?.(),
         memoryPressure: this.#assets.snapshot().memoryPressure,
       })
       const preload = session.updatePreloadContext({ ...context, ...resources })
@@ -2257,5 +2268,41 @@ function schedulerSnapshot(
   const source = scheduler as (ResourceScheduler & {
     snapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   }) | undefined
-  return typeof source?.snapshot === "function" ? () => source.snapshot!() : undefined
+  if (typeof source?.snapshot !== "function") return undefined
+  return () => {
+    const snapshot = source.snapshot!()
+    return isSchedulerPoolSnapshot(snapshot) ? snapshot : undefined
+  }
+}
+
+function sharedSchedulerSnapshot(
+  scheduler: ResourceScheduler | undefined,
+): (() => ReaderSharedSchedulerDiagnostics) | undefined {
+  const source = scheduler as (ResourceScheduler & { snapshot?: () => unknown }) | undefined
+  if (typeof source?.snapshot !== "function") return undefined
+  return () => {
+    const snapshot = source.snapshot!()
+    return isSharedSchedulerSnapshot(snapshot) ? snapshot : undefined
+  }
+}
+
+function isSchedulerPoolSnapshot(
+  value: unknown,
+): value is Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>> {
+  if (!value || typeof value !== "object" || "topology" in value) return false
+  return ["cpu", "io", "gpu"].every((resource) => {
+    const pool = (value as Record<string, unknown>)[resource]
+    return Boolean(pool) && typeof pool === "object"
+      && typeof (pool as { active?: unknown }).active === "number"
+      && typeof (pool as { queued?: unknown }).queued === "number"
+  })
+}
+
+function isSharedSchedulerSnapshot(value: unknown): value is PriorityResourceSchedulerSnapshot {
+  if (!value || typeof value !== "object") return false
+  const snapshot = value as Partial<PriorityResourceSchedulerSnapshot>
+  return snapshot.topology === "shared-queue"
+    && typeof snapshot.active === "number"
+    && typeof snapshot.queued === "number"
+    && Boolean(snapshot.queuedByPriority)
 }

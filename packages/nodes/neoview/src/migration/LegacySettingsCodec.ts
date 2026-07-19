@@ -299,7 +299,11 @@ export class LegacySettingsCodec {
         sourceVersion: source.version,
         entries,
         summary,
-        fullyRecognized: summary.unknown === 0 && summary.invalid === 0 && summary["rejected-sensitive"] === 0,
+        fullyRecognized: summary.unknown === 0
+          && summary.invalid === 0
+          && summary["rejected-sensitive"] === 0
+          && summary.skipped === 0
+          && summary["pending-data"] === 0,
       },
     }
   }

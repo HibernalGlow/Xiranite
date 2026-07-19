@@ -46,6 +46,19 @@ describe("ReaderDiagnosticsService", () => {
       scheduler: () => ({
         cpu: pool(1, 2), io: pool(0, 1), gpu: pool(0, 0),
       }),
+      sharedScheduler: () => ({
+        topology: "shared-queue",
+        active: 1,
+        queued: 2,
+        queuedByPriority: { interactive: 0, view: 1, ahead: 1, background: 0 },
+        granted: 3,
+        released: 2,
+        cancelled: 0,
+        queueWaitSamples: 3,
+        totalQueueWaitMs: 12,
+        maxQueueWaitMs: 7,
+        oldestQueuedWaitMs: 4,
+      }),
       now: () => 123,
       uptime: () => 4.5,
       memoryUsage: () => ({ rss: 100, heapTotal: 90, heapUsed: 50, external: 20, arrayBuffers: 10 }),
@@ -81,6 +94,7 @@ describe("ReaderDiagnosticsService", () => {
         indexCache: { entries: 2, maxEntries: 32, payloadBytes: 512, maxPayloadBytes: 768, hits: 3, misses: 2, evictions: 1 },
       },
       scheduler: expect.objectContaining({ cpu: expect.objectContaining({ active: 1, queued: 2 }) }),
+      sharedScheduler: expect.objectContaining({ topology: "shared-queue", active: 1, queued: 2 }),
     }))
     expect(snapshot.assets.thumbnails?.telemetry).toMatchObject({ cacheHits: 3, cacheMisses: 4, completed: 2, failed: 1, cancelled: 1, evictions: 2 })
     expect(parseReaderDiagnosticsSnapshot(snapshot)).toEqual(snapshot)

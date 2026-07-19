@@ -126,6 +126,7 @@ export {
   type ReaderDiagnosticsSnapshot,
   type ReaderDiagnosticsSources,
   type ReaderSchedulerPoolDiagnostics,
+  type ReaderSharedSchedulerDiagnostics,
 } from "./application/diagnostics/ReaderDiagnosticsService.js"
 export {
   ReaderDiagnosticsWireSchema,

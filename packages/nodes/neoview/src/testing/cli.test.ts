@@ -718,6 +718,24 @@ describe("NeoView CLI", () => {
     }
   })
 
+  it("[neoview.settings.inspect] flags deferred migration data for review", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-settings-deferred-"))
+    const inputPath = join(directory, "backup.json")
+    try {
+      await writeFile(inputPath, JSON.stringify({
+        version: "2.0.0",
+        backupType: "manual",
+        rawLocalStorage: { "neoview-history": "[]" },
+      }))
+      const output: unknown[] = []
+      await runProgram(["settings-inspect", inputPath], host(output))
+      expect(output.join("")).toContain("Review unresolved settings before final migration acceptance.")
+      expect(output.join("")).not.toContain("All supplied settings were recognized.")
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.settings.import] requires confirmation and idempotently writes [nodes.neoview]", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-settings-import-"))
     const inputPath = join(directory, "settings.json")
@@ -943,7 +961,9 @@ describe("NeoView CLI", () => {
         "neoview-unified-history": JSON.stringify([{
           pathStack: [{ path: "D:/private/book.cbz" }], displayName: "Book", currentIndex: 2, totalItems: 10, timestamp: 100,
         }]),
-        "neoview-bookmarks": JSON.stringify([{ path: "D:/private/book.cbz", name: "Book", listIds: ["default"] }]),
+        "neoview-bookmarks": JSON.stringify([{ path: "D:/private/book.cbz", name: "Book", listIds: ["reading"] }]),
+        "neoview-bookmark-lists-v2": JSON.stringify([{ id: "reading", name: "Reading", createdAt: 100 }]),
+        "neoview-bookmark-active-list-v2": "reading",
         "neoview-history-settings": JSON.stringify({ maxHistorySize: 250 }),
       },
     }))
@@ -963,7 +983,10 @@ describe("NeoView CLI", () => {
       expect(JSON.parse(previewText)).toMatchObject({
         sourceKind: "backup",
         counts: { history: 1, bookmarks: 1 },
-        configPatch: { history: { max_history_size: 250 } },
+        configPatch: {
+          history: { max_history_size: 250 },
+          bookmark_list: { active_list_id: "reading" },
+        },
       })
 
       await expect(runProgram(["reader-data-import", inputPath], host([]), dependencies)).rejects.toThrow("requires --yes")
@@ -977,7 +1000,99 @@ describe("NeoView CLI", () => {
       expect(importData).toHaveBeenCalledWith(expect.objectContaining({ sourceKind: "backup" }), "merge")
       expect(dispose).toHaveBeenCalledOnce()
       expect(JSON.parse(importOutput.join(""))).toMatchObject({ imported: { applied: { progress: 1, bookmarks: 1 } }, configChanged: true })
-      expect(await readFile(configPath, "utf8")).toContain("max_history_size = 250")
+      const configText = await readFile(configPath, "utf8")
+      expect(configText).toContain("max_history_size = 250")
+      expect(configText).toContain("[nodes.neoview.bookmark_list]")
+      expect(configText).toContain('active_list_id = "reading"')
+      expect(configText).not.toContain("active_bookmark_list_id")
+      await expect(loadNeoviewRuntimeConfig({ configPath })).resolves.toMatchObject({ bookmarkList: { activeListId: "reading" } })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.reader-data.active-list-validation] omits invalid or unavailable active-list selections without blocking data import", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-reader-data-active-list-"))
+    const databasePath = join(directory, "thumbnails.db")
+    const configPath = join(directory, "xiranite.config.toml")
+    const importData = vi.fn(async () => ({
+      applied: { progress: 0, bookmarks: 0, bookmarkLists: 0, pathStacks: 0, mediaProgress: 0 },
+      unresolvedSources: 0,
+      reportEntries: [],
+    }))
+    const dispose = vi.fn(async () => undefined)
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createDataImporter: async () => ({ import: importData, [Symbol.asyncDispose]: dispose }),
+    } as unknown as Parameters<typeof runProgram>[2]
+    try {
+      const cases = [
+        { name: "unknown", activeListId: "reading" },
+        { name: "overlong", activeListId: "x".repeat(257) },
+        { name: "nul", activeListId: "bad\0list" },
+      ]
+      for (const testCase of cases) {
+        const inputPath = join(directory, `${testCase.name}.json`)
+        await writeFile(inputPath, JSON.stringify({
+          backupType: "manual",
+          rawLocalStorage: { "neoview-bookmark-active-list-v2": testCase.activeListId },
+        }))
+        const previewOutput: unknown[] = []
+        await runProgram(["reader-data-inspect", inputPath, "--json"], host(previewOutput), dependencies)
+        expect(JSON.parse(previewOutput.join(""))).toMatchObject({ activeBookmarkListOmitted: true, configPatch: {} })
+        await runProgram(["reader-data-import", inputPath, "--database", databasePath, "--config", configPath, "--yes", "--json"], host([]), dependencies)
+      }
+      expect(importData).toHaveBeenCalledTimes(cases.length)
+      expect(dispose).toHaveBeenCalledTimes(cases.length)
+      await expect(readFile(configPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" })
+
+      const systemInputPath = join(directory, "system.json")
+      await writeFile(systemInputPath, JSON.stringify({
+        backupType: "manual",
+        rawLocalStorage: { "neoview-bookmark-active-list-v2": "all" },
+      }))
+      const systemPreview: unknown[] = []
+      await runProgram(["reader-data-inspect", systemInputPath, "--json"], host(systemPreview), dependencies)
+      expect(JSON.parse(systemPreview.join(""))).toMatchObject({ configPatch: { bookmark_list: { active_list_id: "all" } } })
+      const systemConfigPath = join(directory, "system.config.toml")
+      await runProgram(["reader-data-import", systemInputPath, "--database", databasePath, "--config", systemConfigPath, "--yes"], host([]), dependencies)
+      expect(await readFile(systemConfigPath, "utf8")).toContain('active_list_id = "all"')
+
+      await writeFile(configPath, "[nodes.neoview.bookmark_list]\nactive_list_id = \"reading\"\n")
+      const emptyInputPath = join(directory, "empty.json")
+      await writeFile(emptyInputPath, JSON.stringify({
+        backupType: "manual",
+        rawLocalStorage: { "neoview-bookmark-active-list-v2": "   " },
+      }))
+      await runProgram(["reader-data-import", emptyInputPath, "--database", databasePath, "--config", configPath, "--yes"], host([]), dependencies)
+      expect(await readFile(configPath, "utf8")).toContain('active_list_id = "reading"')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.reader-data.cli] reports configuration commit failure after importing data", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-reader-data-config-failure-"))
+    const inputPath = join(directory, "backup.json")
+    const configPath = join(directory, "xiranite.config.toml")
+    const importData = vi.fn(async () => ({
+      applied: { progress: 0, bookmarks: 0, bookmarkLists: 0, pathStacks: 0, mediaProgress: 0 },
+      unresolvedSources: 0,
+      reportEntries: [],
+    }))
+    const dependencies = {
+      createController: async () => fakeReader(),
+      createDataImporter: async () => ({ import: importData, [Symbol.asyncDispose]: async () => undefined }),
+    } as unknown as Parameters<typeof runProgram>[2]
+    try {
+      await writeFile(inputPath, JSON.stringify({
+        backupType: "manual",
+        rawLocalStorage: { "neoview-history-settings": JSON.stringify({ maxHistorySize: 250 }) },
+      }))
+      await writeFile(configPath, "not = [valid")
+      await expect(runProgram(["reader-data-import", inputPath, "--config", configPath, "--yes"], host([]), dependencies))
+        .rejects.toThrow("Reader data was imported, but NeoView configuration was not migrated")
+      expect(importData).toHaveBeenCalledOnce()
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

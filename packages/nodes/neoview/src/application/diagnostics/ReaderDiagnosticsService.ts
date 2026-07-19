@@ -21,6 +21,20 @@ export interface ReaderSchedulerPoolDiagnostics {
   oldestQueuedWaitMs?: number
 }
 
+export interface ReaderSharedSchedulerDiagnostics {
+  topology: "shared-queue"
+  active: number
+  queued: number
+  queuedByPriority: Readonly<Record<ResourcePriority, number>>
+  granted?: number
+  released?: number
+  cancelled?: number
+  queueWaitSamples?: number
+  totalQueueWaitMs?: number
+  maxQueueWaitMs?: number
+  oldestQueuedWaitMs?: number
+}
+
 export interface ReaderAssetDiagnostics {
   activeTransformFlights: number
   presentationRetention?: {
@@ -68,6 +82,7 @@ export interface ReaderDiagnosticsSnapshot {
   solidArchiveCache: SolidArchiveCacheSnapshot
   videoProcess?: ReaderVideoProcessDiagnostics
   scheduler: Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>> | null
+  sharedScheduler?: ReaderSharedSchedulerDiagnostics
 }
 
 export interface ReaderVideoProcessDiagnostics {
@@ -122,7 +137,8 @@ export interface ReaderDiagnosticsSources {
   presentationDiskCache(): Promise<ReaderCacheStatus>
   solidArchiveCache(): SolidArchiveCacheSnapshot
   videoProcess?(): ReaderVideoProcessDiagnostics
-  scheduler?(): Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>>
+  scheduler?(): Readonly<Record<ResourceClass, ReaderSchedulerPoolDiagnostics>> | undefined
+  sharedScheduler?(): ReaderSharedSchedulerDiagnostics | undefined
   close?(): void | Promise<void>
   now?(): number
   uptime?(): number
@@ -184,6 +200,7 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
       solidArchiveCache,
       videoProcess: this.sources.videoProcess?.(),
       scheduler: this.sources.scheduler?.() ?? null,
+      sharedScheduler: this.sources.sharedScheduler?.(),
     }
   }
 
