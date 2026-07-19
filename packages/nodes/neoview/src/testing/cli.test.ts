@@ -535,6 +535,42 @@ describe("NeoView CLI", () => {
     expect(close).toHaveBeenCalledTimes(1)
   })
 
+  it("[neoview.subtitle.cli] reuses local and remote subtitle controllers without reimplementing conversion", async () => {
+    const tracks = [{ id: "subtitle-clip.srt", name: "clip.srt", format: "srt" as const, contentVersion: "v1" }]
+    const listSubtitles = vi.fn(async () => tracks)
+    const renderSubtitle = vi.fn(async () => ({ bytes: new TextEncoder().encode("WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n"), contentVersion: "v1" }))
+    const reader = fakeReader({
+      listSubtitles,
+      renderSubtitle,
+    })
+    const listOutput: unknown[] = []
+    await runProgram(["subtitle-list", "clip.mp4", "--index", "1", "--json"], host(listOutput), {
+      createController: async () => reader,
+    })
+    expect(JSON.parse(listOutput.join(""))).toEqual({ tracks })
+    expect(listSubtitles).toHaveBeenCalledWith(1)
+
+    const renderOutput: unknown[] = []
+    await runProgram(["subtitle-render", "clip.mp4", "--index", "1", "--subtitle-id", "subtitle-clip.srt", "--output", "-"], host(renderOutput), {
+      createController: async () => reader,
+    })
+    expect(renderSubtitle).toHaveBeenCalledWith(1, "subtitle-clip.srt")
+    expect(new TextDecoder().decode(renderOutput[0] as Uint8Array)).toContain("WEBVTT")
+    await expect(runProgram(["subtitle-render", "clip.mp4", "--subtitle-id", "subtitle-clip.srt"], host([]), {
+      createController: async () => reader,
+    })).rejects.toThrow("requires --output")
+
+    const remoteListSubtitles = vi.fn(async () => tracks)
+    const remote = fakeReader({ listSubtitles: remoteListSubtitles })
+    const remoteOutput: unknown[] = []
+    await runProgram(["subtitle-list", "clip.mp4", "--connect", "http://127.0.0.1:41000", "--json"], host(remoteOutput, { XIRANITE_BACKEND_TOKEN: "subtitle-token" }), {
+      createController: async () => { throw new Error("local controller must stay lazy") },
+      createRemoteController: async () => remote,
+    })
+    expect(JSON.parse(remoteOutput.join(""))).toEqual({ tracks })
+    expect(remoteListSubtitles).toHaveBeenCalledWith(0)
+  })
+
   it("[neoview.super-resolution.cli] delegates one manual page to the shared headless workflow", async () => {
     const output: unknown[] = []
     const upscalePage = vi.fn(async () => ({
@@ -1694,6 +1730,8 @@ function fakeReader(overrides: Partial<{
   updateBookSettings: ReaderHeadlessController["updateBookSettings"]
   upscalePage: ReaderHeadlessController["upscalePage"]
   inspectSuperResolution: ReaderHeadlessController["inspectSuperResolution"]
+  listSubtitles: ReaderHeadlessController["listSubtitles"]
+  renderSubtitle: ReaderHeadlessController["renderSubtitle"]
 }> = {}): ReaderHeadlessController {
   let current = 0
   const dispose = vi.fn(async () => undefined)
@@ -1718,6 +1756,8 @@ function fakeReader(overrides: Partial<{
       models: [],
       engines: [],
     }))),
+    listSubtitles: vi.fn(overrides.listSubtitles ?? (() => [])),
+    renderSubtitle: vi.fn(overrides.renderSubtitle ?? (async () => { throw new Error("not configured") })),
     closeBook: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: dispose,
   } as unknown as ReaderHeadlessController

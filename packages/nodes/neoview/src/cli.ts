@@ -73,7 +73,7 @@ import type {
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "upscale-page", "upscale-capabilities",
+  "inspect", "pages", "frame", "extract-page", "subtitle-list", "subtitle-render", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
@@ -151,7 +151,7 @@ const VALUE_FLAGS = new Set([
   "--input-json",
   "--contexts-json",
   "--action",
-  "--enabled", "--type", "--duration", "--easing",
+  "--enabled", "--type", "--duration", "--easing", "--subtitle-id",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -209,6 +209,8 @@ export interface CliReaderController extends AsyncDisposable {
   closeBook?(): Promise<void>
   listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
+  listSubtitles?(pageIndex: number, signal?: AbortSignal): readonly import("./application/reader/ReaderSubtitleService.js").ReaderSubtitleTrack[] | Promise<readonly import("./application/reader/ReaderSubtitleService.js").ReaderSubtitleTrack[]>
+  renderSubtitle?(pageIndex: number, assetId: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; contentVersion: string }>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
   updateBookSettings(expectedRevision: number, patch: ReaderBookSettingsPatch, signal?: AbortSignal): Promise<HeadlessReaderBookSettingsUpdate>
   upscalePage?(input: HeadlessSuperResolutionPageInput): Promise<HeadlessSuperResolutionPageResult>
@@ -484,6 +486,22 @@ export async function runProgram(
       const updated = await controller.updateBookSettings(bookSettingsUpdate!.expectedRevision, bookSettingsUpdate!.patch)
       return printBookSettingsUpdate(updated, parsed.booleans.has("--json"), host)
     }
+    if (command === "subtitle-list") {
+      if (!controller.listSubtitles) throw new Error("Reader subtitles are unavailable for this transport.")
+      return printSubtitleTracks(await controller.listSubtitles(index), parsed.booleans.has("--json"), host)
+    }
+    if (command === "subtitle-render") {
+      if (!controller.renderSubtitle) throw new Error("Reader subtitles are unavailable for this transport.")
+      if (parsed.booleans.has("--json")) throw usage("subtitle-render does not support --json because its output is WebVTT bytes.")
+      const assetId = oneValue(parsed, "--subtitle-id")
+      if (!assetId) throw usage("subtitle-render requires --subtitle-id <track-id>.")
+      const output = oneValue(parsed, "--output")
+      if (!output) throw usage("subtitle-render requires --output <path|->.")
+      const rendered = await controller.renderSubtitle(index, assetId)
+      await writeSubtitle(rendered.bytes, output, parsed.booleans.has("--force"), host)
+      if (output !== "-") writeLine(host, `Reader subtitle rendered: ${resolve(host.cwd, output)} (${rendered.contentVersion})`)
+      return
+    }
     if (command.startsWith("upscale-preload-")) {
       const mode = command === "upscale-preload-start" || command === "upscale-preload-retry"
         ? upscalePreloadMode(oneValue(parsed, "--mode"))
@@ -591,6 +609,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set([
       "--json", "--config", "--entry", "--password-env", "--archive-password-env", "--index", "--output", "--force",
     ]))
+    return
+  }
+  if (command === "subtitle-list") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"]))
+    return
+  }
+  if (command === "subtitle-render") {
+    rejectOptions(parsed, new Set(["--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--subtitle-id", "--output", "--force", "--json"]))
     return
   }
   if (command === "input-bindings-dispatch") {
@@ -2376,6 +2402,40 @@ async function extractPage(
   }
 }
 
+async function writeSubtitle(bytes: Uint8Array, output: string, force: boolean, host: CliHost): Promise<void> {
+  if (output === "-") {
+    host.stdout.write(bytes as unknown as string)
+    return
+  }
+  const outputPath = resolve(host.cwd, output)
+  await assertOutputAvailable(outputPath, force)
+  const handle = await open(outputPath, force ? "w" : "wx")
+  let complete = false
+  try {
+    await handle.writeFile(bytes)
+    complete = true
+  } finally {
+    await handle.close().catch(() => undefined)
+    if (!complete) await rm(outputPath, { force: true }).catch(() => undefined)
+  }
+}
+
+function printSubtitleTracks(
+  tracks: readonly import("./application/reader/ReaderSubtitleService.js").ReaderSubtitleTrack[],
+  json: boolean,
+  host: CliHost,
+): void {
+  if (json) {
+    writeJson(host, { tracks })
+    return
+  }
+  if (!tracks.length) {
+    writeLine(host, "No matching subtitle tracks.")
+    return
+  }
+  for (const track of tracks) writeLine(host, `${track.id}\t${track.format}\t${track.name}\t${track.contentVersion}`)
+}
+
 async function writeBinaryStdout(stream: ReadableStream<Uint8Array>, host: CliHost): Promise<void> {
   const output = host.stdout as CliHost["stdout"] & { once?: (event: "drain", listener: () => void) => unknown }
   for await (const chunk of stream) {
@@ -3092,6 +3152,8 @@ function formatCliHelp(): string {
     "  pages <path>         List a bounded page window",
     "  frame <path>         Show the frame at --index",
     "  extract-page <path>  Stream the original page to --output <path|->",
+    "  subtitle-list <path> List matching video subtitle tracks (--index)",
+    "  subtitle-render <path> Render one subtitle track as WebVTT (--subtitle-id, --output)",
     "  upscale-page <path>  Upscale one page using the configured policy",
     "  upscale-capabilities Inspect registered models and system CLI capabilities",
     "  upscale-preload-status <path> Show live nearby/progressive preload state",
@@ -3212,7 +3274,7 @@ function formatCliHelp(): string {
     "  --horizontal-book VALUE  true|false|inherit",
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
-    "  --output PATH|-      Output path for extract-page or upscale-page",
+    "  --output PATH|-      Output path for extract-page, subtitle-render or upscale-page",
     "  --config PATH        Xiranite TOML path for settings/cache commands",
     "  --query QUERY        Folder search text or glob",
     "  --mode MODE          Folder search mode, or nearby|progressive for preload",
@@ -3221,6 +3283,7 @@ function formatCliHelp(): string {
     "  --exclude-tag TAG    Repeatable excluded EMM tag",
     "  --tag-mode MODE      Required-tag mode: all or any",
     "  --input PATH         JSON input for folder-emm-edit: { updates, concurrency? }",
+    "  --subtitle-id ID     Subtitle track ID for subtitle-render",
     "  --action ID          Stable XR or legacy action ID for input-action-dispatch",
     "  --input-json JSON|PATH  Input descriptor JSON for input-bindings-dispatch",
     "  --contexts-json JSON|PATH  Active context stack for input-bindings-dispatch",
