@@ -171,7 +171,7 @@ function EdgeControlButton({
   }
 
   function handleContextMenu(event: ReactMouseEvent<HTMLButtonElement>) {
-    if (!isSidebar || disabled) return
+    if (!isSidebar || disabled || !state.enabled) return
     event.preventDefault()
     onPinnedChange(edge, !state.pinned)
   }

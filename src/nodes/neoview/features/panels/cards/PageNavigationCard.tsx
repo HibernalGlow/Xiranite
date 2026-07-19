@@ -38,11 +38,13 @@ const catalogBatchModule = import("./page-list/requestPageCatalogBatch")
 export default function PageNavigationCard(context: ReaderPanelContext) {
   if (context.panelActive === false) return <ReaderCardEmptyState />
   if (!context.session) return <ReaderCardEmptyState>打开书本后显示页面导航</ReaderCardEmptyState>
+  const totalPages = normalizePageCount(context.session.book.pageCount)
+  const activePageIndex = clampPageIndex(context.session.frame.anchorPageIndex, totalPages)
   return (
     <PageListCard
       sessionId={context.session.sessionId}
-      totalPages={context.session.book.pageCount}
-      activePageIndex={context.session.frame.anchorPageIndex}
+      totalPages={totalPages}
+      activePageIndex={activePageIndex}
       currentPages={context.session.visiblePages}
       client={context.client}
       disabled={context.disabled}
@@ -638,6 +640,15 @@ function seedPageCatalog(total: number, pages: readonly ReaderPageDto[], activeP
 
 function batchCursor(position: number): number {
   return Math.floor(Math.max(0, position) / BATCH_SIZE) * BATCH_SIZE
+}
+
+function normalizePageCount(totalPages: number): number {
+  return Number.isSafeInteger(totalPages) ? Math.max(0, totalPages) : 0
+}
+
+function clampPageIndex(pageIndex: number, totalPages: number): number {
+  if (totalPages < 1 || !Number.isSafeInteger(pageIndex)) return 0
+  return Math.min(Math.max(pageIndex, 0), totalPages - 1)
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {

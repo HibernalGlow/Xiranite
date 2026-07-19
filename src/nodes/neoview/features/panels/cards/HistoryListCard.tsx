@@ -37,6 +37,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const [viewMode, setViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
   const [confirmedViewMode, setConfirmedViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
   const [focusedIndex, setFocusedIndex] = useState<number>()
+  const focusedIdRef = useRef<string>()
   const anchorIndexRef = useRef<number>()
   const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" || !panelActive ? [] : visibleRecents.map((item) => ({
     id: item.bookId,
@@ -82,13 +83,24 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
 
   const handleLoadedItems = useCallback((items: readonly ReaderRecentDto[]) => {
     setLoadedRecents(items)
-    setFocusedIndex((current) => current === undefined ? current : Math.min(current, Math.max(0, items.length - 1)))
+    setFocusedIndex((current) => {
+      if (current === undefined) return current
+      const focusedId = focusedIdRef.current
+      const restoredIndex = focusedId ? items.findIndex((item) => item.bookId === focusedId) : -1
+      return restoredIndex >= 0 ? restoredIndex : Math.min(current, Math.max(0, items.length - 1))
+    })
     const available = new Set(items.map((item) => item.bookId))
     setSelectedIds((current) => {
       const next = new Set([...current].filter((id) => available.has(id)))
       return sameSet(current, next) ? current : next
     })
   }, [])
+
+  function focusRecent(index: number) {
+    const item = loadedRecents[index]
+    if (item) focusedIdRef.current = item.bookId
+    setFocusedIndex(index)
+  }
 
   function selectRecent(item: ReaderRecentDto, index: number, event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">) {
     setSelectedIds((current) => {
@@ -111,7 +123,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
       return new Set([item.bookId])
     })
     if (!event.shiftKey) anchorIndexRef.current = index
-    setFocusedIndex(index)
+    focusRecent(index)
   }
 
   function selectAllLoaded() {
@@ -155,7 +167,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
     const targetIndex = Math.min(Math.max(index, 0), Math.max(0, loadedRecents.length - 1))
     const item = loadedRecents[targetIndex]
     if (!item) return
-    setFocusedIndex(targetIndex)
+    focusRecent(targetIndex)
     if (event.shiftKey) selectRecent(item, targetIndex, event)
   }
 
@@ -297,7 +309,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
             thumbnailUrl={thumbnails.urls.get(item.bookId)}
             thumbnailLoading={thumbnails.loading}
             onSelect={selectRecent}
-            onFocus={setFocusedIndex}
+            onFocus={focusRecent}
             onMoveFocus={moveFocus}
             onOpen={() => void onOpen?.(item.source.path)}
             onRemove={() => setPendingDelete({ ids: [item.bookId], batch: false })}
@@ -406,9 +418,10 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
         disabled,
         tabIndex: focused ? 0 : -1,
         "data-context-menu": "neoview-history-entry",
-        "data-history-context-id": item.bookId,
-        "data-history-row-button": index,
-        "data-library-item-focus": "true",
+         "data-history-context-id": item.bookId,
+         "data-history-row-button": index,
+         "data-testid": focused ? "history-focus" : undefined,
+         "data-library-item-focus": "true",
         onFocus: () => onFocus(index),
         onClick: (event) => {
           if (readerEntryClickIntent(event) === "select") onSelect(item, index, event)

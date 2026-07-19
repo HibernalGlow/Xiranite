@@ -34,6 +34,7 @@ export function createReaderImageTrimStore(options: ReaderImageTrimStoreOptions)
   const controller = new AbortController()
 
   const publish = (next: ReaderImageTrimSettings) => {
+    if (disposed) return
     snapshot = next
     for (const listener of listeners) listener()
   }
@@ -59,6 +60,7 @@ export function createReaderImageTrimStore(options: ReaderImageTrimStoreOptions)
       if (!reset && sameSettings(target, confirmed)) return
       try {
         const updated = normalizeReaderImageTrim(await options.persist(target, reset, controller.signal))
+        if (disposed) return
         confirmed = updated
         if (revision === targetRevision) publish(updated)
       } catch (cause) {
@@ -73,6 +75,7 @@ export function createReaderImageTrimStore(options: ReaderImageTrimStoreOptions)
 
   return {
     subscribe(listener) {
+      if (disposed) return () => undefined
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
@@ -96,8 +99,10 @@ export function createReaderImageTrimStore(options: ReaderImageTrimStoreOptions)
       await commit(true)
     },
     dispose() {
+      if (disposed) return
       disposed = true
       controller.abort()
+      snapshot = undefined
       listeners.clear()
     },
   }

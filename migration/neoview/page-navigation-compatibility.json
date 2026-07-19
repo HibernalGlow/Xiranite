@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "featureId": "page-navigation",
+  "legacyCardId": "pageListMain",
+  "title": "页面导航",
+  "targetContract": "Invalid session bounds are normalized before rendering or requesting the page catalog, keeping the active page, focus, slider and numeric navigation within the book page range.",
+  "testIds": [
+    "neoview.page-list.invalid-bounds"
+  ],
+  "notes": "The React Card clamps an invalid active page index and normalizes invalid page counts at the Card boundary; this preserves the existing page-list navigation contract without changing Reader session data."
+}

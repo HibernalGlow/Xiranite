@@ -133,6 +133,23 @@ describe("PageNavigationCard", () => {
     expect(listPageCatalog.mock.calls.some((call) => call[1] === 0)).toBe(false)
   })
 
+  it("[neoview.page-list.invalid-bounds] clamps an invalid active page to the catalog bounds", async () => {
+    const listPageCatalog = vi.fn(async (_sessionId: string, cursor: number, limit: number) => ({
+      pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)),
+      total: 3,
+    }))
+    const onGoTo = vi.fn(async () => undefined)
+    const view = render(<PageNavigationCard {...context(clientWith({ listPageCatalog }), 99, 3, onGoTo)} />)
+
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledWith(
+      "reader-1", 0, 3, { query: "", thumbnails: false }, expect.any(AbortSignal),
+    ))
+    const card = view.container.querySelector('[data-neoview-page-list="true"]')!
+    expect(card.getAttribute("data-focused-position")).toBe("2")
+    expect(screen.getByRole("slider", { name: "页面位置" }).getAttribute("aria-valuemax")).toBe("2")
+    expect(screen.getByRole("spinbutton", { name: "跳转页码" })).toHaveValue(3)
+  })
+
   it("[neoview.page-list.follow-preview] previews without navigation and navigates every followed Slider change", async () => {
     const listPageCatalog = vi.fn(async (_sessionId: string, cursor: number, limit: number) => ({
       pages: Array.from({ length: limit }, (_, offset) => page(cursor + offset)),

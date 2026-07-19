@@ -524,9 +524,9 @@
       "targetContract": "Card subscriptions, detection requests and cache leases are released on hide/collapse/window close/unmount/session release; no timers or observers survive.",
       "surfaces": ["GUI"],
       "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.image-trim.lifecycle", "neoview.image-trim.dispose"],
-      "notes": "Card visibility must not destroy canonical settings."
+      "testIds": ["neoview.image-trim.lifecycle", "neoview.image-trim.dispose"],
+      "plannedTestIds": [],
+      "notes": "Card hide/unmount subscription cleanup and late persistence disposal are covered; detection/cache/session-release cleanup remains pending."
     },
     {
       "id": "image-trim.navigation",

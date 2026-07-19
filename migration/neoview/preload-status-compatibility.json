@@ -309,7 +309,8 @@
       "testIds": [
         "neoview.preload-status.current-page",
         "neoview.preload-status.e2e",
-        "neoview.preload-status.resident-1920x1080"
+        "neoview.preload-status.resident-1920x1080",
+        "neoview.preload-status.no-session"
       ],
       "plannedTestIds": [
         "neoview.card.preload-status-live"
@@ -567,7 +568,8 @@
       "testIds": [
         "neoview.preload-status.states",
         "neoview.preload-status.session-switch",
-        "neoview.preload-status.resident-1920x1080"
+        "neoview.preload-status.resident-1920x1080",
+        "neoview.preload-status.no-session"
       ],
       "plannedTestIds": [
         "neoview.preload-status.retry",

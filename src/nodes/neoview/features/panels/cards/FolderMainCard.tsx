@@ -344,7 +344,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const visible = candidates
       .filter(({ entry }) => entry.kind === "directory" || (entry.kind === "file" && entry.readerSupported))
       .filter(({ entry }) => !targetPaths || targetPaths.has(entry.path))
-      .filter(({ entry }) => refresh || thumbnailProfilesRef.current.get(entry.path) !== thumbnailProfile(entry, viewMode, previewCount))
+      .filter(({ entry }) => refresh || isThumbnailDemandNeeded(
+        entry,
+        viewMode,
+        previewCount,
+        thumbnailProfilesRef.current,
+        thumbnailUrlsRef.current,
+      ))
       .slice(0, MAX_THUMBNAILS)
     if (!visible.length) return
     const signature = `${refresh ? `refresh:${++thumbnailRefreshSequenceRef.current}` : "normal"}:${targetPaths ? "selected" : "visible"}:${current.sessionId}:${current.generation}:${viewMode}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
@@ -1746,6 +1752,24 @@ function sameFolderPath(left: string, right: string): boolean {
   return /^[a-z]:/iu.test(normalizedLeft) || /^[a-z]:/iu.test(normalizedRight)
     ? normalizedLeft.toLocaleLowerCase("en-US") === normalizedRight.toLocaleLowerCase("en-US")
     : normalizedLeft === normalizedRight
+}
+
+/**
+ * Reuse a restored file thumbnail even when it predates the profile sidecar.
+ * Folder mosaic thumbnails remain profile-sensitive because preview count and
+ * layout change their asset contents.
+ */
+export function isThumbnailDemandNeeded(
+  entry: Pick<ReaderDirectoryEntryDto, "kind" | "path">,
+  viewMode: FolderViewMode,
+  previewCount: FolderPreviewCount,
+  profiles: ReadonlyMap<string, string>,
+  urls: ReadonlyMap<string, string>,
+): boolean {
+  const expected = thumbnailProfile(entry, viewMode, previewCount)
+  const current = profiles.get(entry.path)
+  if (current === expected) return false
+  return !(entry.kind === "file" && current === undefined && urls.has(entry.path))
 }
 
 function sameFolderOrChild(folderPath: string, sourcePath: string): boolean {

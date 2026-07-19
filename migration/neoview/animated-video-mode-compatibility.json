@@ -116,6 +116,7 @@
     "neoview.animated-video.inactive-zero-work",
     "neoview.animated-video.navigation-independence",
     "neoview.animated-video.settings",
+    "neoview.animated-video.save-pending",
     "neoview.animated-video.ffmpeg",
     "neoview.animated-video.ui-1920x1080",
     "neoview.animated-video.image-stability"

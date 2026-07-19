@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderFolderViewConfig, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import { ContextMenuProvider } from "@/components/context-menu"
-import FolderMainCard, { mergeThumbnailUrls } from "./FolderMainCard"
+import FolderMainCard, { isThumbnailDemandNeeded, mergeThumbnailUrls } from "./FolderMainCard"
 
 function selectFolderViewMode(scope: ReturnType<typeof within> | typeof screen, label: string) {
   if (!scope.queryByRole("button", { name: label })) selectFolderHandleAction(scope, "视图")
@@ -50,6 +50,26 @@ describe("FolderMainCard", () => {
 
     expect(restored.size).toBe(128)
     expect(restored.get("item-127")).toBe("url-127")
+  })
+
+  it("[neoview.folder.thumbnail-visit-cache] reuses legacy file URLs when the profile sidecar is absent", () => {
+    const urls = new Map([["C:/books/page.png", "http://thumb.test/page.png"]])
+    const profiles = new Map<string, string>()
+
+    expect(isThumbnailDemandNeeded(
+      { kind: "file", path: "C:/books/page.png" },
+      "cover-grid",
+      4,
+      profiles,
+      urls,
+    )).toBe(false)
+    expect(isThumbnailDemandNeeded(
+      { kind: "directory", path: "C:/books/series" },
+      "mosaic-grid",
+      9,
+      profiles,
+      new Map([["C:/books/series", "http://thumb.test/series"]]),
+    )).toBe(true)
   })
 
   it("[neoview.folder.single-click-open] opens files and folders by default while modified clicks select", async () => {

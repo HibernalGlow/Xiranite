@@ -42,6 +42,24 @@ describe("AnimatedVideoModeCard", () => {
     expect(onMediaChange).toHaveBeenCalledWith({ animatedVideoEnabled: true })
   })
 
+  it("[neoview.animated-video.save-pending] exposes pending save state without blocking keyword input", async () => {
+    let resolveSave: (value: ReaderMediaConfigDto) => void = () => undefined
+    const onMediaChange = vi.fn(() => new Promise<ReaderMediaConfigDto>((resolve) => { resolveSave = resolve }))
+    render(<AnimatedVideoModeCard media={media()} onMediaChange={onMediaChange} />)
+
+    fireEvent.click(screen.getByRole("switch"))
+
+    const card = document.querySelector('[data-neoview-card="animated-video-mode"]')
+    expect(card?.getAttribute("data-animated-video-state")).toBe("pending")
+    expect(card?.getAttribute("aria-busy")).toBe("true")
+    expect((screen.getByRole("switch") as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false)
+
+    resolveSave(media())
+    await waitFor(() => expect(card?.getAttribute("data-animated-video-state")).toBe("ready"))
+    expect(card?.getAttribute("aria-busy")).toBe("false")
+  })
+
   it("[neoview.animated-video.ffmpeg] keeps the host probe state honest when no probe is provided", async () => {
     render(<AnimatedVideoModeCard media={media()} />)
     fireEvent.click(screen.getByRole("button", { name: "重新检测 FFmpeg" }))

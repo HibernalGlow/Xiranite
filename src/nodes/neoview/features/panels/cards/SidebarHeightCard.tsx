@@ -20,7 +20,7 @@ import type { ReaderPanelContext } from "../registry"
 type SidebarSide = "left" | "right"
 type SidebarLayout = ReaderShellConfigDto["sidebars"][SidebarSide]
 
-export default function SidebarHeightCard({ shell, shellControl, onSidebarLayout, panelActive = true }: ReaderPanelContext) {
+export default function SidebarHeightCard({ shell, shellControl, onSidebarLayout, disabled, panelActive = true }: ReaderPanelContext) {
   if (!panelActive || !shell || !shellControl || !onSidebarLayout) {
     return (
       <section
@@ -35,6 +35,7 @@ export default function SidebarHeightCard({ shell, shellControl, onSidebarLayout
   return (
     <SidebarHeightEditor
       shell={shell}
+      disabled={disabled}
       onSidebarLayout={onSidebarLayout}
       onTriggerSize={(edge, value) => shellControl.setTriggerSize(edge, value)}
       onInteraction={(patch) => shellControl.persist({ sidebarInteraction: patch })}

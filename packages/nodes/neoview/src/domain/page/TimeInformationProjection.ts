@@ -16,6 +16,15 @@ export interface ReaderTimeInformationInput {
   accessedAtMs?: number
 }
 
+export function resolveReaderTimeInformation(
+  page: ReaderTimeInformationInput | undefined,
+  book: ReaderTimeInformationInput | undefined,
+): ReaderTimeInformationInput | undefined {
+  if (page && hasReaderTimeInformation(page)) return page
+  if (!book) return page
+  return { ...book, source: "book-source" }
+}
+
 export function projectReaderTimeInformation(
   timestamps: ReaderTimeInformationInput | undefined,
   language: ReaderTimeInformationLanguage = "zh",
@@ -33,6 +42,13 @@ export function formatReaderTimestamp(value: number | undefined, language: Reade
   const date = new Date(value!)
   if (Number.isNaN(date.getTime())) return "—"
   return date.toLocaleString(language === "zh" ? "zh-CN" : "en-US")
+}
+
+function hasReaderTimeInformation(value: ReaderTimeInformationInput): boolean {
+  return value.source !== undefined
+    || value.createdAtMs !== undefined
+    || value.modifiedAtMs !== undefined
+    || value.accessedAtMs !== undefined
 }
 
 function timeSourceLabel(source: ReaderTimeInformationInput["source"], language: ReaderTimeInformationLanguage): string {

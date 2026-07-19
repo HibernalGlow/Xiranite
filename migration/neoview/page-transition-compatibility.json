@@ -139,26 +139,26 @@
     {
       "id": "page-transition.enable", "category": "capabilities", "title": "启用并条件挂载翻页动画设置", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
       "targetContract": "The Card preserves the legacy disabled default and only mounts type, duration, easing and preview controls while enabled.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.ui"], "plannedTestIds": ["neoview.page-transition.surfaces"], "notes": "GUI and canonical persistence are complete; CLI/TUI controls remain pending."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "CLI and GUI controls are complete; TUI controls remain pending."
     },
     {
       "id": "page-transition.types", "category": "capabilities", "title": "六种旧版动画类型", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
       "targetContract": "The shared enum preserves none, fade, slide, slideUp, zoom and flip IDs, labels and order.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.types", "neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.ui"], "plannedTestIds": ["neoview.page-transition.surfaces"], "notes": "All six IDs, labels and order are shared; CLI/TUI selection surfaces remain pending."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.types", "neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "All six IDs, labels and order are shared; CLI selection is complete and TUI remains pending."
     },
     {
       "id": "page-transition.duration", "category": "capabilities", "title": "0..500ms 时长控制", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
       "targetContract": "The GUI exposes 0..500ms in 10ms steps while the shared imported-value codec remains bounded.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.bounds", "neoview.page-transition.slider-commit", "neoview.page-transition.http"], "plannedTestIds": ["neoview.page-transition.surfaces"], "notes": "The GUI uses 0..500ms/10ms and commits at interaction end; CLI/TUI remain pending."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.bounds", "neoview.page-transition.slider-commit", "neoview.page-transition.http", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "The GUI uses 0..500ms/10ms; CLI uses the same 0..500ms boundary and TUI remains pending."
     },
     {
       "id": "page-transition.easing", "category": "capabilities", "title": "七种旧版缓动", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
       "targetContract": "The shared enum and CSS projection preserve all seven easing IDs, labels, order and cubic-bezier values.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.easing", "neoview.page-transition.css", "neoview.page-transition.http", "neoview.page-transition.ui"], "plannedTestIds": ["neoview.page-transition.surfaces"], "notes": "All seven IDs and exact CSS values are shared; CLI/TUI remain pending."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.easing", "neoview.page-transition.css", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "All seven IDs and exact CSS values are shared; CLI selection is complete and TUI remains pending."
     },
     {
       "id": "page-transition.preview", "category": "capabilities", "title": "Card 内无副作用预览", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
@@ -187,20 +187,20 @@
     {
       "id": "page-transition.reset", "category": "capabilities", "title": "一次恢复全部默认值", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
       "targetContract": "One explicit reset restores all four defaults and commits exactly one canonical mutation.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.reset", "neoview.page-transition.http", "neoview.page-transition.ui"], "plannedTestIds": ["neoview.page-transition.surfaces"], "notes": "GUI reset is one aggregate mutation; CLI/TUI commands remain pending."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.reset", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "GUI and CLI reset are one aggregate mutation; TUI remains pending."
     },
     {
       "id": "page-transition.persistence", "category": "settings", "title": "旧 localStorage 一次导入并写入唯一 TOML", "sourceEvidence": ["src/lib/stores/pageTransitionStore.svelte.ts"],
       "targetContract": "Import neoview-page-transition-settings once and persist only [nodes.neoview.image.page_transition] through strict serialized atomic PATCH with rollback.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.legacy-import", "neoview.page-transition.toml", "neoview.page-transition.persistence", "neoview.page-transition.http"], "plannedTestIds": ["neoview.page-transition.persistence-surfaces"], "notes": "Legacy localStorage imports once into canonical TOML; CLI/TUI persistence entry points remain pending."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.legacy-import", "neoview.page-transition.toml", "neoview.page-transition.persistence", "neoview.page-transition.http", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.persistence-tui"], "notes": "Legacy localStorage imports once into canonical TOML; CLI persistence is complete and TUI remains pending."
     },
     {
       "id": "page-transition.data-contract", "category": "data-contract", "title": "严格有界共享设置 DTO", "sourceEvidence": ["src/lib/stores/pageTransitionStore.svelte.ts"],
       "targetContract": "One browser-safe DTO validates booleans, exact enums and bounded duration for GUI, CLI and TUI.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.client", "neoview.page-transition.hydration-race"], "plannedTestIds": ["neoview.page-transition.surfaces"], "notes": "Domain, HTTP and GUI share one strict DTO; CLI/TUI exposure remains pending."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.client", "neoview.page-transition.hydration-race", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "Domain, HTTP, GUI and CLI share one strict DTO; TUI exposure remains pending."
     },
     {
       "id": "page-transition.states", "category": "interaction-states", "title": "加载、条件、提交、错误与回滚状态", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/cards/CardRenderer.svelte"],
@@ -247,8 +247,8 @@
     {
       "id": "page-transition.deviations", "category": "deviations", "title": "记录存储、提交和减少动态效果改进", "sourceEvidence": ["src/lib/stores/pageTransitionStore.svelte.ts", "src/lib/stackview/layers/CurrentFrameLayer.svelte"],
       "targetContract": "Document localStorage-to-TOML migration, slider end-only persistence, failure rollback and reduced-motion suppression while preserving legacy type/easing math and control hierarchy.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.legacy-import", "neoview.page-transition.slider-commit", "neoview.page-transition.reduced-motion", "neoview.page-transition.persistence"], "plannedTestIds": ["neoview.page-transition.surfaces"], "notes": "XR replaces localStorage with TOML, end-only slider writes and reduced-motion suppression while preserving legacy math."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
+      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.legacy-import", "neoview.page-transition.slider-commit", "neoview.page-transition.reduced-motion", "neoview.page-transition.persistence", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "XR replaces localStorage with TOML, end-only slider writes and reduced-motion suppression; CLI uses the same strict persistence contract and TUI remains pending."
     }
   ]
 }

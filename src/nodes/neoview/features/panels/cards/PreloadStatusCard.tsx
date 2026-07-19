@@ -21,7 +21,8 @@ const PAGES_BEHIND = 3
 const PAGES_AHEAD = 5
 
 export default function PreloadStatusCard({ session, client, disabled, panelActive = true, onPreloadAction }: ReaderPanelContext) {
-  if (!session || !panelActive) return <PreloadStatusEmptyView />
+  if (!session) return <PreloadStatusEmptyView state="no-session" />
+  if (!panelActive) return <PreloadStatusEmptyView state="inactive" />
   return (
     <PreloadStatusContent
       client={client}
@@ -253,9 +254,15 @@ function PageStatus({ pageIndex, current, status, serverOutcome, serverAvailable
 }
 
 /** Keep the legacy summary shell mounted before a Reader session exists. */
-export function PreloadStatusEmptyView() {
+export function PreloadStatusEmptyView({ state = "no-session" }: { state?: "no-session" | "inactive" }) {
   return (
-    <div className="space-y-3 text-xs" data-neoview-preload-status="true" data-preload-empty="true">
+    <div
+      className="space-y-3 text-xs"
+      data-neoview-preload-status="true"
+      data-preload-empty="true"
+      data-preload-state={state}
+      data-testid="preload-status-empty"
+    >
       <div className="grid grid-cols-2 gap-2" aria-label="预加载摘要">
         <Metric metricId="current-page" label="当前页" value="0 / 0" />
         <Metric metricId="memory-entries" label="内存池" value="--" />

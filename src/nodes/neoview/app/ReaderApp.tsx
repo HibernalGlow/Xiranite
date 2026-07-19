@@ -261,10 +261,6 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
-  const [videoController] = useState(() => new ReaderVideoController())
-  const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
-  const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
-  const [shellControlStore] = useState(() => createReaderShellControlStore({
   const [imageTrim] = useState(() => createReaderImageTrimStore({
     async persist(settings, reset, signal) {
       if (!clientRef.current.updateImageTrim) return settings
@@ -272,6 +268,10 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
+  const [videoController] = useState(() => new ReaderVideoController())
+  const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
+  const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
+  const [shellControlStore] = useState(() => createReaderShellControlStore({
     edges: {
       top: { open: true },
       left: { open: true, pinned: true },
@@ -311,11 +311,11 @@ export function ReaderApp({
     pageTransition.dispose()
     switchToast.dispose()
     infoOverlay.dispose()
+    imageTrim.dispose()
     videoController.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
   }, [])
-    imageTrim.dispose()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -356,11 +356,11 @@ export function ReaderApp({
       }
       if (config.switchToast) switchToast.hydrate(config.switchToast)
       if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
+      if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
         void migrateLegacySidebarHeight({
-      if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
           storage: localStorage,
           canonical: config.shell,
           persist: async ({ left, right, interaction }) => {
@@ -462,6 +462,7 @@ export function ReaderApp({
     setMedia(updated)
     videoController.configure(updated)
   }
+
   async function persistAnimatedVideoMode(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto> {
     if (!client.updateMedia) return media ?? {
       supportedImageFormats: [],
@@ -480,7 +481,6 @@ export function ReaderApp({
     videoController.configure(updated)
     return updated
   }
-
 
   async function runPreloadAction(action: "cancel-speculative" | "release-retained", signal?: AbortSignal) {
     const activeSession = session
@@ -1213,8 +1213,6 @@ export function ReaderApp({
     bookmarkListPreferences,
     onBookmarkListPreferences: persistBookmarkListPreferences,
     historyListPreferences,
-    media,
-    onMediaChange: persistAnimatedVideoMode,
     onHistoryListPreferences: persistHistoryListPreferences,
     pageListPreferences,
     onPageListPreferences: persistPageListPreferences,
@@ -1235,6 +1233,9 @@ export function ReaderApp({
     pageTransition,
     switchToast,
     infoOverlay,
+    imageTrim,
+    media,
+    onMediaChange: persistAnimatedVideoMode,
     onSidebarLayout: commitSidebarLayout,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
@@ -1257,7 +1258,6 @@ export function ReaderApp({
     ),
   } : undefined
   const rightEdge: ReaderControlledEdgeSlot | undefined = shell && shell.edges.right.enabled ? {
-    imageTrim,
     ariaLabel: "NeoView 右侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
     hideDelayMs: shell?.hideDelayMs,
@@ -1311,6 +1311,7 @@ export function ReaderApp({
                 client={client}
                 media={media}
                 onSubtitleConfigChange={persistSubtitleConfig}
+                imageTrim={imageTrim}
                 onVideoListEnded={() => void navigate("next")}
               />
             </Suspense>
@@ -1332,9 +1333,10 @@ export function ReaderApp({
             onViewDefaults={applyConfiguredViewDefaults}
             onInputBindings={persistInputBindings}
             onRadialMenu={persistRadialMenu}
+            onLegacySettingsInspect={inspectLegacySettings}
+            onLegacySettingsImport={importLegacySettings}
             onMaterial={commitShellMaterial}
           />
-                imageTrim={imageTrim}
         </Suspense>
       ) : null}
     </div>
