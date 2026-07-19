@@ -1773,9 +1773,9 @@
       ],
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "pending",
         "evidence": "partial"
@@ -1788,16 +1788,25 @@
         "切书和手动操作协调"
       ],
       "testIds": [
-        "neoview.file-operations.system-service",
-        "neoview.file-operations.system-platform",
-        "neoview.file-operations.system-scheduler",
-        "neoview.file-operations.system-http",
-        "neoview.file-operations.cli"
+        "neoview.slideshow.runtime",
+        "neoview.slideshow.runtime-options",
+        "neoview.slideshow.async-navigation",
+        "neoview.slideshow.dispose",
+        "neoview.slideshow.boundaries",
+        "neoview.slideshow.errors",
+        "neoview.slideshow.runtime-config",
+        "neoview.slideshow.config",
+        "neoview.slideshow.http.config",
+        "neoview.slideshow.config-react",
+        "neoview.slideshow.react-controls",
+        "neoview.slideshow.config-e2e",
+        "neoview.slideshow.toolbar-e2e",
+        "neoview.slideshow.chunk"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [],
       "knownDifferences": [
-        "open/reveal 已迁移；剪贴板、快捷方式解析和 Explorer 右键注册仍待完成"
+        "Core 已覆盖开始/暂停/停止、串行定时导航、循环/随机、手动操作重置、边界、错误恢复与 dispose；GUI 已恢复 1..60 秒滑杆、3/5/10/15 秒预设、循环/随机和倒计时进度环，并通过 canonical TOML 持久化；工具栏仅在展开时加载为独立二级 chunk。fadeTransition 当前只在设置与 TOML 中保留，尚未接入切页呈现；TUI 播放与配置控制仍待实现"
       ]
     },
     {

@@ -51,7 +51,7 @@ function Harness() {
         onMagnifierEnabledChange={setMagnifierEnabled}
         onMagnifierConfigChange={(patch) => setMagnifier((current) => ({ ...current, ...patch }))}
         slideshow={slideshow}
-        onSlideshowChange={() => undefined}
+        onSlideshowChange={(patch) => slideshow.configure(patch)}
       />
     </section>
     <section className="grid h-[calc(100vh-10rem)] place-items-center text-sm text-white/25">1920 × 1080 characterization</section>

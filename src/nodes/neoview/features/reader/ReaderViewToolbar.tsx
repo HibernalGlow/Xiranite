@@ -56,11 +56,14 @@ import {
 import { Button } from "@/components/ui/button"
 import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"
 import type { ReaderMediaPriorityModeDto, ReaderPageOrderDto, ReaderPageSortModeDto } from "../../adapters/reader-http-client"
-import { ReaderSlideshowToolbar } from "./ReaderSlideshowToolbar"
 
 const ReaderPageOrderToolbar = lazy(async () => {
   const module = await import("./ReaderPageOrderToolbar")
   return { default: module.ReaderPageOrderToolbar }
+})
+const ReaderSlideshowToolbar = lazy(async () => {
+  const module = await import("./ReaderSlideshowToolbar")
+  return { default: module.ReaderSlideshowToolbar }
 })
 
 const FIT_MODES: Array<{ value: ReaderFitMode; label: string }> = [
@@ -221,7 +224,9 @@ export function ReaderViewToolbar({
           {expanded === "zoom" ? <ZoomPanel disabled={disabled} layout={layout} presentation={presentation} onChange={onChange} onLayoutChange={onLayoutChange} /> : null}
           {expanded === "rotate" ? <RotatePanel disabled={disabled} presentation={presentation} onChange={onChange} /> : null}
           {expanded === "hover-scroll" ? <HoverScrollPanel disabled={disabled} enabled={hoverScrollEnabled} speed={hoverScrollSpeed} onChange={onHoverScrollChange} /> : null}
-          {expanded === "slideshow" ? <ReaderSlideshowToolbar slideshow={slideshow} disabled={disabled} onChange={onSlideshowChange} /> : null}
+          {expanded === "slideshow" ? <Suspense fallback={<span className="text-xs text-muted-foreground" role="status">正在加载幻灯片…</span>}>
+            <ReaderSlideshowToolbar slideshow={slideshow} disabled={disabled} onChange={onSlideshowChange} />
+          </Suspense> : null}
           {expanded === "magnifier" ? <MagnifierPanel disabled={disabled} zoom={magnifierZoom} size={magnifierSize} onChange={onMagnifierConfigChange} /> : null}
         </div>
       ) : null}

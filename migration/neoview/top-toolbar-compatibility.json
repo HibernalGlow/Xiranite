@@ -35,7 +35,9 @@
       "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-hover-scroll-1920x1080.png",
       "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-magnifier-1920x1080.png",
       "artifacts/playwright/neoview-neoview-page-order-b4832-and-stable-navigation-order-chromium-desktop/neoview-page-order-chromium-desktop.png",
-      "artifacts/playwright/neoview-neoview-page-order-b4832-and-stable-navigation-order-chromium-card/neoview-page-order-chromium-card.png"
+      "artifacts/playwright/neoview-neoview-page-order-b4832-and-stable-navigation-order-chromium-card/neoview-page-order-chromium-card.png",
+      "artifacts/playwright/neoview-neoview-slideshow--41634-wn-and-constrained-geometry-chromium-desktop/neoview-slideshow-chromium-desktop.png",
+      "artifacts/playwright/neoview-neoview-slideshow--41634-wn-and-constrained-geometry-chromium-card/neoview-slideshow-chromium-card.png"
     ],
     "status": "current-desktop-and-card-captured-legacy-sort-pending-runtime-capture"
   },
@@ -98,7 +100,9 @@
       "title": "悬停滚动、幻灯片与放大镜",
       "sourceEvidence": ["HoverScrollPanel.svelte", "SlideshowPanel.svelte", "MagnifierPanel.svelte"],
       "controls": ["悬停滚动开关", "悬停速度", "播放/暂停", "1..60 秒间隔", "预设间隔", "循环", "随机", "剩余时间圆环", "放大镜开关", "倍率滑条", "镜片尺寸滑条", "右键展开设置"],
-      "status": "partial"
+      "status": "partial",
+      "testIds": ["neoview.slideshow.react-controls", "neoview.slideshow.toolbar-e2e", "neoview.slideshow.chunk"],
+      "notes": "幻灯片已恢复旧版控件层级、3/5/10/15 秒预设和倒计时圆环，并在 desktop 与 420x360 Chromium 中验证无越界、无 console/pageerror；面板只在展开时加载为独立二级 chunk。fadeTransition 运行时和 TUI 控制仍待完成。"
     },
     {
       "id": "toolbar.shell-lifecycle",
