@@ -586,6 +586,22 @@ describe("NeoView CLI", () => {
     ], host(setOutput), { createController: async () => reader })
     expect(updateEmmMetadata).toHaveBeenCalledWith(3, { manualTags: [{ namespace: "artist", tag: "name" }] })
     expect(JSON.parse(setOutput.join(""))).toMatchObject({ metadata: { revision: 4, overrides: { manualTags: [{ namespace: "artist", tag: "name" }] } } })
+
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-emm-cli-"))
+    try {
+      const inputPath = join(directory, "patch.json")
+      await writeFile(inputPath, JSON.stringify({ rating: 5 }), "utf8")
+      await runProgram([
+        "emm-set", "book.cbz", "--expected-revision", "3", "--input", inputPath, "--yes",
+      ], host([]), { createController: async () => reader })
+      expect(updateEmmMetadata).toHaveBeenLastCalledWith(3, { rating: 5 })
+      await expect(runProgram([
+        "emm-set", "book.cbz", "--expected-revision", "3", "--input", '{"unknown":true}', "--yes",
+      ], host([]), { createController: async () => reader })).rejects.toThrow("Invalid EMM metadata patch")
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+
     await expect(runProgram([
       "emm-set", "book.cbz", "--expected-revision", "3", "--input", '{"rating":4}',
     ], host([]), { createController: async () => reader })).rejects.toThrow("requires --yes")
