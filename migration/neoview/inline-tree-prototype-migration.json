@@ -1,0 +1,6 @@
+{
+  "sourceRoot": "src",
+  "scaffoldPatterns": [
+    "^src/lib/components/panels/folderPanel/components/InlineTreeList\\.svelte$"
+  ]
+}

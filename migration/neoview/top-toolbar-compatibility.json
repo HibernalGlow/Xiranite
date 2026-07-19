@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "featureId": "panels-toolbar-shell",
+  "title": "顶部阅读工具栏",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "completionRule": "Complete only when every source-evidenced control, option, context-menu lock, expanded panel, persistence rule, lifecycle state and responsive geometry has implementation or an explicit replacement contract, plus scripted 1920x1080 legacy/current evidence and hot-path latency evidence.",
+  "prototype": {
+    "generator": "bun packages/svelte-migrate/src/cli.ts generate",
+    "svelteCompiler": true,
+    "oxcValidated": true,
+    "root": "migration/neoview/frontend/tsx-scaffold/src/lib/components/layout/TopToolbar",
+    "sources": [
+      { "path": "src/lib/components/layout/TopToolbar/TopToolbar.svelte", "hash": "sha256:993aa8bc696d9f362ae66bd759f2da2a66128b6010c371036e705b42dc302fea", "status": "partial-scaffold", "unsupported": ["Svelte runtime import", "BindDirective"] },
+      { "path": "src/lib/components/layout/TopToolbar/ZoomPanel.svelte", "hash": "sha256:c099c03c7b5ea915f60bd4aad42a9919776bf8f136001552fea4680068337b9a", "status": "partial-scaffold", "unsupported": ["Svelte runtime import", "ConstTag"] },
+      { "path": "src/lib/components/layout/TopToolbar/RotatePanel.svelte", "hash": "sha256:c823ae6af0f8659ac7cccdaaa2eedfbbb8c8be5088b5148288bb57f3caf4acb5", "status": "review-scaffold", "unsupported": [] },
+      { "path": "src/lib/components/layout/TopToolbar/SortPanel.svelte", "hash": "sha256:3ebb2eb6cbbeaa3c30ba9ed68afa78c2c5b2ab744ba713e7e150c7b2a8eb269a", "status": "partial-scaffold", "unsupported": ["ConstTag"] },
+      { "path": "src/lib/components/layout/TopToolbar/SlideshowPanel.svelte", "hash": "sha256:eb7a063ad1252600384269d05fe9a67c8af75568dd31cf48f66ed912d5a9f326", "status": "partial-scaffold", "unsupported": ["BindDirective"] },
+      { "path": "src/lib/components/layout/TopToolbar/HoverScrollPanel.svelte", "hash": "sha256:3e2646506cc0585fa406b6a1b96ab9f212f2c7c0230e4aafbea871c144f886b9", "status": "review-scaffold", "unsupported": [] },
+      { "path": "src/lib/components/layout/TopToolbar/MagnifierPanel.svelte", "hash": "sha256:45d78ef56d556d595bcf9b88f65641973c13a5b514f673bd4d47ee862b7c5088", "status": "partial-scaffold", "unsupported": ["Svelte runtime import"] }
+    ]
+  },
+  "visualEvidence": {
+    "viewport": "1920x1080",
+    "script": "scripts/capture-legacy-neoview-card.ts --legacy-toolbar=main|zoom|rotate",
+    "legacy": [
+      "output/playwright/neoview-top-toolbar-legacy-main-1920x1080.png",
+      "output/playwright/neoview-top-toolbar-legacy-zoom-1920x1080.png",
+      "output/playwright/neoview-top-toolbar-legacy-rotate-1920x1080.png"
+    ],
+    "current": [
+      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-main-1920x1080.png",
+      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-zoom-1920x1080.png",
+      "artifacts/playwright/neoview-neoview-top-toolba-7654a-dent-layout-rotation-states-chromium-desktop/neoview-top-toolbar-rotate-1920x1080.png"
+    ],
+    "status": "current-captured-legacy-pending-runtime-capture"
+  },
+  "controlGroups": [
+    {
+      "id": "toolbar.window-path",
+      "title": "窗口、路径与页码行",
+      "sourceEvidence": ["TopToolbar.svelte", "TitleBarSection.svelte", "PathBar.svelte"],
+      "controls": ["关闭/X", "路径面包屑", "FileArchive/Folder", "当前页/总页数", "标题栏拖动", "钉住与右键取消钉住"],
+      "status": "partial"
+    },
+    {
+      "id": "toolbar.navigation-zoom",
+      "title": "导航与缩放主控",
+      "sourceEvidence": ["TopToolbar.svelte", "ZoomPanel.svelte"],
+      "controls": ["上一页/ChevronLeft", "下一页/ChevronRight", "缩小/ZoomOut", "放大/ZoomIn", "百分比短按重置", "500ms 长按输入", "10..1000%", "Enter 提交", "Escape 取消", "缩放模式右键锁定"],
+      "status": "partial"
+    },
+    {
+      "id": "toolbar.layout",
+      "title": "全景、方向、单双页与阅读方向",
+      "sourceEvidence": ["TopToolbar.svelte", "stores/ui.svelte.ts", "stackview/stores/panoramaStore.svelte.ts"],
+      "controls": ["全景/PanelsTopLeft", "横向/ArrowLeftRight", "纵向/ArrowDownUp", "单页/RectangleVertical", "双页/Columns2", "从左到右/ArrowRight", "从右到左/ArrowLeft", "视图模式右键锁定", "阅读方向右键锁定"],
+      "status": "partial"
+    },
+    {
+      "id": "toolbar.page-layout",
+      "title": "横页拆分、双页独立与宽页拉伸",
+      "sourceEvidence": ["ZoomPanel.svelte"],
+      "controls": ["自动分割横向页/SplitSquareHorizontal", "横向页视为双页/Rows2", "首页独立/SquareChevronLeft", "尾页独立/SquareChevronRight", "无拉伸/Equal", "高度统一/AlignVerticalSpaceAround", "宽度统一/AlignHorizontalSpaceAround"],
+      "status": "partial"
+    },
+    {
+      "id": "toolbar.rotation",
+      "title": "手动与自动旋转",
+      "sourceEvidence": ["RotatePanel.svelte", "TopToolbar.svelte"],
+      "controls": ["顺时针手动旋转/RotateCw", "关闭自动旋转/Ban", "纵向左旋/RotateCcw", "纵向右旋/RotateCw", "横屏左旋/Smartphone -90", "横屏右旋/Smartphone +90", "强制左旋/RotateCcw", "强制右旋/RotateCw"],
+      "status": "partial"
+    },
+    {
+      "id": "toolbar.sort",
+      "title": "媒体优先与页面排序",
+      "sourceEvidence": ["SortPanel.svelte", "constants.ts"],
+      "controls": ["Lock/LockOpen", "无媒体优先", "视频优先", "图片优先", "全部排序分类", "逐分类升序/降序", "点击应用", "右键锁定"],
+      "status": "pending"
+    },
+    {
+      "id": "toolbar.auxiliary",
+      "title": "悬停滚动、幻灯片与放大镜",
+      "sourceEvidence": ["HoverScrollPanel.svelte", "SlideshowPanel.svelte", "MagnifierPanel.svelte"],
+      "controls": ["悬停滚动开关", "悬停速度", "播放/暂停", "1..60 秒间隔", "预设间隔", "循环", "随机", "剩余时间圆环", "放大镜开关", "倍率滑条", "镜片尺寸滑条", "右键展开设置"],
+      "status": "partial"
+    },
+    {
+      "id": "toolbar.shell-lifecycle",
+      "title": "展开、自动隐藏与高度调整",
+      "sourceEvidence": ["TopToolbar.svelte"],
+      "controls": ["一次只展开一个子面板", "自动隐藏显隐延迟", "钉住", "强制隐藏", "opacity", "blur", "80..400px 高度", "GripHorizontal", "mousemove 瞬态高度", "mouseup 提交", "currentBook 条件挂载阅读控制行"],
+      "status": "partial"
+    }
+  ],
+  "performanceContract": {
+    "inputToNavigateP95Ms": 5,
+    "hiddenPanelWork": "zero",
+    "panorama": "sparse range loading with visible-window virtualization",
+    "mediaIdentity": "layout and CSS rotation do not regenerate asset URLs",
+    "bundle": "panorama renderer remains a secondary lazy chunk"
+  }
+}
