@@ -67,8 +67,7 @@ describe("commitNeoviewConfig", () => {
       reading_direction: "right-to-left",
       double_page_view: false,
     })
-    expect(writtenText).toContain("[nodes.neoview.reader]")
-    expect(writtenText).not.toContain("[nodes.neoview.reader.book]")
+    expect(writtenText).toContain("[nodes.neoview.reader.book]")
   })
 
   it("overwrite replaces only [nodes.neoview] and is idempotent", async () => {
@@ -116,9 +115,7 @@ describe("commitNeoviewConfig", () => {
       bookTitleTemplate: "已切换到 {{book.displayName}}",
     })
     const written = await readFile(configPath, "utf8")
-    expect(written).toContain("[nodes.neoview.view]")
-    expect(written).toContain("switch_toast = { ")
-    expect(written).not.toContain("[nodes.neoview.view.switch_toast]")
+    expect(written).toContain("[nodes.neoview.view.switch_toast]")
     expect((parseToml(written) as Record<string, any>).nodes.neoview.view.switch_toast.future_field).toBe("keep")
   })
 

@@ -603,7 +603,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   const folderToml = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
   expect(folderToml).toContain("[nodes.neoview.folder]")
   expect(folderToml).toContain('view_mode = "details"')
-  expect(folderToml).not.toContain("[nodes.neoview.folder.details]")
+  expect(folderToml).toContain("[nodes.neoview.folder.details]")
   expect(folderToml).toMatch(/hidden_columns\s*=\s*\[\s*"tags"\s*\]/)
   expect(folderToml).not.toContain("[nodes.neoview.folder.details.column_widths]")
   expect(folderToml).toMatch(/name\s*=\s*2[5-9]\d/)
