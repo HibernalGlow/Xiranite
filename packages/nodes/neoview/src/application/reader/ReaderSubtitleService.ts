@@ -57,10 +57,10 @@ export class ReaderSubtitleService {
     if (asset.byteLength > this.#maxSourceBytes) {
       throw new Error(`Reader subtitle exceeds the ${this.#maxSourceBytes} byte source budget.`)
     }
-    const source = await asset.content.load(signal)
+    const source = await waitWithAbort(asset.content.load(signal), signal, (lateSource) => lateSource.close())
     let stream: ReadableStream<Uint8Array> | undefined
     try {
-      stream = await source.open(signal)
+      stream = await waitWithAbort(source.open(signal), signal, (lateStream) => lateStream.cancel(signal?.reason))
       const bytes = await readBounded(stream, this.#maxSourceBytes, signal)
       const converter = await this.#getConverter()
       const converted = await converter.convertToWebVtt(bytes, asset.format, signal)
@@ -95,6 +95,51 @@ export class ReaderSubtitleService {
     }
     return this.#converter
   }
+}
+
+async function waitWithAbort<T>(
+  operation: Promise<T>,
+  signal: AbortSignal | undefined,
+  disposeLateResult?: (result: T) => Promise<unknown> | unknown,
+): Promise<T> {
+  if (!signal) return operation
+  if (signal.aborted) {
+    void operation.then(
+      (result) => void Promise.resolve(disposeLateResult?.(result)).catch(() => undefined),
+      () => undefined,
+    )
+    signal.throwIfAborted()
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const finish = () => {
+      signal.removeEventListener("abort", onAbort)
+    }
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      finish()
+      reject(signal.reason)
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+    void operation.then(
+      (result) => {
+        if (settled) {
+          void Promise.resolve(disposeLateResult?.(result)).catch(() => undefined)
+          return
+        }
+        settled = true
+        finish()
+        resolve(result)
+      },
+      (error) => {
+        if (settled) return
+        settled = true
+        finish()
+        reject(error)
+      },
+    )
+  })
 }
 
 async function readBounded(stream: ReadableStream<Uint8Array>, maxBytes: number, signal?: AbortSignal): Promise<Uint8Array> {
