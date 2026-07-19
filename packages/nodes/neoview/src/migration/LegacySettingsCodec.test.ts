@@ -82,6 +82,35 @@ describe("LegacySettingsCodec", () => {
     expect(JSON.stringify(result.configPatch)).not.toContain("ipc")
   })
 
+  it("[neoview.media.legacy-format-import] validates old image and video formats through the current registry", () => {
+    const migrated = codec.decode({
+      image: {
+        supportedFormats: [".JPG", "webp", "jxl"],
+        videoFormats: ["MP4", "webm", "nov"],
+      },
+    })
+    expect(migrated.configPatch).toMatchObject({
+      image: {
+        supported_formats: ["jpg", "webp", "jxl"],
+        video_formats: ["mp4", "webm", "nov"],
+      },
+    })
+    expect(migrated.report.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePath: "image.supportedFormats", targetPath: "image.supported_formats", disposition: "converted" }),
+      expect.objectContaining({ sourcePath: "image.videoFormats", targetPath: "image.video_formats", disposition: "converted" }),
+    ]))
+
+    const rejected = codec.decode({
+      image: { supportedFormats: ["jpg", "legacy-raw"] },
+    })
+    expect(rejected.configPatch).not.toHaveProperty("image.supported_formats")
+    expect(rejected.report.entries).toContainEqual(expect.objectContaining({
+      sourcePath: "image.supportedFormats",
+      disposition: "invalid",
+      message: expect.stringContaining("requires an explicit image/* MIME override"),
+    }))
+  })
+
   it("maps full exports, defers database data, and replaces themes", () => {
     const result = codec.decode({
       version: "1.0.0",

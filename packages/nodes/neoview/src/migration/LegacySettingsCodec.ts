@@ -3,6 +3,7 @@ import {
   type DecodedLegacySuperResolutionSettings,
 } from "./LegacySuperResolutionSettingsCodec.js"
 import { convertLegacyReaderInputBindings } from "../application/config/ReaderLegacyInputBindings.js"
+import { ReaderMediaFormatRegistry } from "../domain/page/media.js"
 import { LegacyRadialMenuCodec } from "./LegacyRadialMenuCodec.js"
 
 export const NEOVIEW_CONFIG_SCHEMA_VERSION = 1 as const
@@ -378,7 +379,7 @@ function identifySource(value: Record<string, unknown>): IdentifiedSource {
   if (isRecord(value.emmMetadata) || isRecord(value.fileBrowser) || "keybindings" in value) {
     return baseSource("app-settings", stringValue(value.version), { appSettings: value, appPath: "" })
   }
-  if (isRecord(value.system) || isRecord(value.view)) {
+  if (isRecord(value.system) || isRecord(value.view) || isRecord(value.image)) {
     return baseSource("direct-settings", undefined, { nativeSettings: value, nativePath: "" })
   }
   throw new Error("Unrecognized NeoView settings envelope.")
@@ -428,8 +429,13 @@ function mapNativeSettings(
     }
     if (key === "image") {
       applyLegacySuperResolution(legacySuperResolution.decodeNativeImage(value, sourcePath), config, entries)
+      mapLegacyMediaFormats(value, config, sourcePath, entries)
       mapSchemaObject(
-        Object.fromEntries(Object.entries(value).filter(([childKey]) => !LEGACY_NATIVE_SUPER_RESOLUTION_KEYS.has(childKey))),
+        Object.fromEntries(Object.entries(value).filter(([childKey]) => (
+          !LEGACY_NATIVE_SUPER_RESOLUTION_KEYS.has(childKey)
+          && childKey !== "supportedFormats"
+          && childKey !== "videoFormats"
+        ))),
         schema,
         config,
         target,
@@ -438,6 +444,52 @@ function mapNativeSettings(
       )
     } else {
       mapSchemaObject(value, schema, config, target, sourcePath, entries)
+    }
+  }
+}
+
+function mapLegacyMediaFormats(
+  image: Record<string, unknown>,
+  config: Record<string, unknown>,
+  sourcePrefix: string,
+  entries: LegacySettingsReportEntry[],
+): void {
+  const supportedFormats = image.supportedFormats
+  const videoFormats = image.videoFormats
+  if (supportedFormats === undefined && videoFormats === undefined) return
+
+  const sources = [
+    { sourcePath: joinPath(sourcePrefix, "supportedFormats"), value: supportedFormats, target: ["image", "supported_formats"] },
+    { sourcePath: joinPath(sourcePrefix, "videoFormats"), value: videoFormats, target: ["image", "video_formats"] },
+  ] as const
+  for (const source of sources) {
+    if (source.value === undefined) continue
+    const validationError = validateKnownLeaf(source.sourcePath, source.value)
+    if (validationError) {
+      entries.push({ sourcePath: source.sourcePath, targetPath: source.target.join("."), disposition: "invalid", message: validationError })
+      return
+    }
+  }
+
+  try {
+    const formats = new ReaderMediaFormatRegistry({
+      supportedImageFormats: supportedFormats as readonly string[] | undefined,
+      videoFormats: videoFormats as readonly string[] | undefined,
+    })
+    if (supportedFormats !== undefined) {
+      setPath(config, ["image", "supported_formats"], formats.supportedImageFormats)
+      entries.push({ sourcePath: sources[0].sourcePath, targetPath: "image.supported_formats", disposition: "converted" })
+    }
+    if (videoFormats !== undefined) {
+      setPath(config, ["image", "video_formats"], formats.videoFormats)
+      entries.push({ sourcePath: sources[1].sourcePath, targetPath: "image.video_formats", disposition: "converted" })
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unsupported legacy media format configuration."
+    for (const source of sources) {
+      if (source.value !== undefined) {
+        entries.push({ sourcePath: source.sourcePath, targetPath: source.target.join("."), disposition: "invalid", message })
+      }
     }
   }
 }
