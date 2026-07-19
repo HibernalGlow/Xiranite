@@ -489,21 +489,20 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-trim.bounds",
         "neoview.image-trim.transport-linked",
         "neoview.image-trim.cli",
-        "neoview.image-trim.bounds-tui"
-      ],
-      "plannedTestIds": [
+        "neoview.image-trim.bounds-tui",
         "neoview.image-trim.bounds-browser"
       ],
-      "notes": "The shared normalizer, strict patch parser, authenticated HTTP boundary, CLI and OpenTUI cover finite values, 0..45 clamping/rejection and 0.5 steps without persisting invalid input. GUI boundary-key interaction remains partial."
+      "plannedTestIds": [],
+      "notes": "The shared normalizer, strict patch parser, authenticated HTTP boundary, CLI, OpenTUI and real Chromium ranges cover finite values, 0..45 clamping/rejection, 0.5 steps and native End-key boundaries without persisting invalid input."
     },
     {
       "id": "image-trim.preview",
@@ -519,16 +518,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.preview"
       ],
-      "notes": "The preview is a local geometry indicator, not a second image renderer."
+      "plannedTestIds": [],
+      "notes": "Real Chromium evidence proves the preview mounts only after a non-zero crop, displays the effective percentages and remains a local geometry indicator without a second image renderer."
     },
     {
       "id": "image-trim.preview-geometry",
@@ -544,16 +543,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
       "testIds": [
-        "neoview.image-trim.ui-1920x1080"
+        "neoview.image-trim.ui-1920x1080",
+        "neoview.image-trim.preview-geometry"
       ],
       "plannedTestIds": [],
-      "notes": "Any token adjustment must be recorded against the legacy screenshot."
+      "notes": "Real Chromium asserts the CSSOM-normalized inset and the matching 10.0% by 10.0% effective label at four 45% edges; token adjustments remain tied to the legacy screenshot."
     },
     {
       "id": "image-trim.auto-detect",
@@ -747,14 +747,11 @@
         "core": "pending",
         "transport": "pending",
         "gui": "pending",
-        "cli": "complete",
-        "tui": "complete",
-        "evidence": "partial"
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "pending"
       },
-      "testIds": [
-        "neoview.image-trim.cli",
-        "neoview.image-trim.persistence-tui"
-      ],
+      "testIds": [],
       "plannedTestIds": [
         "neoview.image-trim.media"
       ],
@@ -890,11 +887,14 @@
         "core": "pending",
         "transport": "pending",
         "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.image-trim.cli",
+        "neoview.image-trim.persistence-tui"
+      ],
       "plannedTestIds": [
         "neoview.image-trim.persistence",
         "neoview.image-trim.toml"
@@ -1240,16 +1240,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.accessibility"
       ],
-      "notes": "Titles alone are not sufficient for icon-only commands."
+      "plannedTestIds": [],
+      "notes": "Real Chromium covers accessible range names and bounds, native End-key editing, keyboard activation of the link icon command and retained focus after its accessible name changes."
     },
     {
       "id": "image-trim.image-stability",
