@@ -3054,33 +3054,33 @@
   - 计划测试：无
   - 备注：Headless reset contract remains to be defined with the shared image pipeline.
 - [ ] `image-trim.edges` 四边百分比裁剪
-  - 六维：`core=C transport=P gui=C cli=P tui=P evidence=P`；阻塞：`transport`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Top, bottom, left and right preserve the 0..45 range, 0.5 step, labels, values and clip-path projection.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：`neoview.image-trim.edges`、`neoview.image-trim.link-vertical`
+  - 测试：`neoview.image-trim.edges`、`neoview.image-trim.link-vertical`、`neoview.image-trim.transport-linked`
   - 计划测试：`neoview.image-trim.cli-edges`、`neoview.image-trim.tui-edges`
-  - 备注：Shared projection, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. CLI/TUI command-level edge coverage remains partial; percentages are not converted to pixels.
-- [ ] `image-trim.link-vertical` 上下联动
-  - 六维：`core=C transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`transport`
+  - 备注：Shared projection, serialized HTTP projection, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. CLI/TUI command-level edge coverage remains partial; percentages are not converted to pixels.
+- [x] `image-trim.link-vertical` 上下联动
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：LinkVertical is shared state with exact Link/Unlink icon semantics and linked edge updates.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：`neoview.image-trim.link-vertical`
+  - 测试：`neoview.image-trim.link-vertical`、`neoview.image-trim.transport-linked`
   - 计划测试：无
-  - 备注：Shared patch projection, Store state and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later top edits synchronize bottom, and each completed action persists once. Native button keyboard behavior is retained.
-- [ ] `image-trim.link-horizontal` 左右联动
-  - 六维：`core=C transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`transport`
+  - 备注：Shared patch projection, serialized HTTP projection, Store state and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later top edits synchronize bottom, and each completed action persists once. Native button keyboard behavior is retained.
+- [x] `image-trim.link-horizontal` 左右联动
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：LinkHorizontal is shared state with exact Link/Unlink icon semantics and linked edge updates.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：`neoview.image-trim.link-horizontal`
+  - 测试：`neoview.image-trim.link-horizontal`、`neoview.image-trim.transport-linked`
   - 计划测试：无
-  - 备注：Shared patch projection, Store synchronization and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later left edits synchronize right, and each completed action persists once without component-local link state.
+  - 备注：Shared patch projection, serialized HTTP projection, Store synchronization and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later left edits synchronize right, and each completed action persists once without component-local link state.
 - [ ] `image-trim.bounds` 裁剪值边界和归一化
-  - 六维：`core=C transport=P gui=P cli=P tui=P evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：Reject non-finite values, clamp edges to 0..45 and preserve a non-empty effective region; imported values normalize field by field.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：`neoview.image-trim.bounds`
+  - 测试：`neoview.image-trim.bounds`、`neoview.image-trim.transport-linked`
   - 计划测试：`neoview.image-trim.bounds-browser`、`neoview.image-trim.bounds-cli`、`neoview.image-trim.bounds-tui`
-  - 备注：The shared normalizer and strict patch parser cover finite values, 0..45 clamping/rejection and 0.5 steps. GUI boundary-key interaction plus CLI/TUI command-level evidence remain partial.
+  - 备注：The shared normalizer, strict patch parser and authenticated HTTP boundary cover finite values, 0..45 clamping/rejection and 0.5 steps without invoking persistence for invalid input. GUI boundary-key interaction plus CLI/TUI command-level evidence remain partial.
 - [ ] `image-trim.preview` 有效裁剪区域预览
   - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
   - 目标：Preview mounts only for non-zero crop values and shows the effective width/height percentage without touching Reader session or requesting media.

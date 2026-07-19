@@ -49,6 +49,7 @@ import {
   DEFAULT_READER_IMAGE_TRIM,
   normalizeReaderImageTrim,
   parseReaderImageTrimPatch,
+  projectReaderImageTrimPatch,
   type ReaderImageTrimPatch,
   type ReaderImageTrimSettings,
 } from "../image-trim/ReaderImageTrim.js"
@@ -1376,7 +1377,7 @@ export function parseNeoviewInfoOverlayPatch(value: unknown): {
   }
 }
 
-export function parseNeoviewImageTrimPatch(value: unknown): {
+export function parseNeoviewImageTrimPatch(value: unknown, current?: ReaderImageTrimSettings): {
   patch: NeoviewImageTrimPatch
   tomlPatch: Record<string, unknown>
 } {
@@ -1394,8 +1395,9 @@ export function parseNeoviewImageTrimPatch(value: unknown): {
       tomlPatch: { view: { image_trim: toml } },
     }
   }
-  Object.assign(toml, imageTrimToml(mutation))
-  return { patch: { imageTrim: mutation }, tomlPatch: { view: { image_trim: toml } } }
+  const projected = current ? projectReaderImageTrimPatch(current, mutation) : mutation
+  Object.assign(toml, imageTrimToml(projected))
+  return { patch: { imageTrim: projected }, tomlPatch: { view: { image_trim: toml } } }
 }
 
 function imageTrimToml(value: ReaderImageTrimPatch | ReaderImageTrimSettings): Record<string, unknown> {

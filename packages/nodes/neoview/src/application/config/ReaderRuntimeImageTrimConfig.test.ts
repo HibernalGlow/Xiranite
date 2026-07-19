@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { DEFAULT_READER_IMAGE_TRIM } from "../image-trim/ReaderImageTrim.js"
 import {
   parseNeoviewImageTrimPatch,
   parseNeoviewRuntimeConfig,
@@ -19,6 +20,30 @@ describe("ReaderRuntimeImageTrimConfig", () => {
     expect(parseNeoviewImageTrimPatch({ imageTrim: { enabled: true, top: 10.5, linkVertical: true, autoTrimTarget: "black" } })).toEqual({
       patch: { imageTrim: { enabled: true, top: 10.5, linkVertical: true, autoTrimTarget: "black" } },
       tomlPatch: { view: { image_trim: { enabled: true, top: 10.5, link_vertical: true, auto_trim_target: "black" } } },
+    })
+  })
+
+  it("[neoview.image-trim.transport-linked] projects linked edges before emitting canonical TOML", () => {
+    const current = {
+      ...DEFAULT_READER_IMAGE_TRIM,
+      top: 10,
+      bottom: 20,
+      left: 5,
+      right: 15,
+    }
+    expect(parseNeoviewImageTrimPatch({ imageTrim: { linkVertical: true, linkHorizontal: true } }, current)).toEqual({
+      patch: { imageTrim: { ...current, top: 20, bottom: 20, left: 15, right: 15, linkVertical: true, linkHorizontal: true } },
+      tomlPatch: { view: { image_trim: {
+        enabled: false,
+        top: 20,
+        bottom: 20,
+        left: 15,
+        right: 15,
+        link_vertical: true,
+        link_horizontal: true,
+        auto_trim_threshold: 30,
+        auto_trim_target: "auto",
+      } } },
     })
   })
 

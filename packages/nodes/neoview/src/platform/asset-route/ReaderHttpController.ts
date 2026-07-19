@@ -1082,14 +1082,14 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     if (Object.hasOwn(body, "imageTrim")) {
       if (!this.#updateImageTrim) return jsonResponse({ error: "Reader image trim config is read-only" }, 405)
-      let parsed: ReturnType<typeof parseNeoviewImageTrimPatch>
       try {
-        parsed = parseNeoviewImageTrimPatch(body)
+        parseNeoviewImageTrimPatch(body)
       } catch (error) {
         return jsonResponse({ error: errorMessage(error) }, 400)
       }
       let updated: ReaderImageTrimSettings | undefined
       const operation = this.#configUpdateQueue.then(async () => {
+        const parsed = parseNeoviewImageTrimPatch(body, this.#imageTrim)
         updated = await this.#updateImageTrim!(parsed.patch, parsed.tomlPatch)
         this.#imageTrim = updated
       })
