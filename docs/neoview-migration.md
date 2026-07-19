@@ -2448,7 +2448,7 @@ SQLite `getMany()` 仍复用原 `ReaderThumbnailStore` 和现有 `bun:sqlite`/`n
 - 关闭宿主时停止接收 demand、取消可取消生成、等待当前批写事务、关闭 writer，再关闭 read-only 连接；
 - 严禁测试直接修改用户真实 `%APPDATA%/NeoView/thumbnails.db`。
 
-在线 writer 与维护操作现已共用宿主 I/O scheduler：缩略图/失败记录批写使用 `neoview.thumbnail.database-write`，失败清理、空 Blob/过期记录和无效路径删除使用 `neoview.thumbnail.database-maintenance-write`，候选 key 分页使用 `neoview.thumbnail.database-maintenance-scan`，卷根与来源存在性检查使用 `neoview.thumbnail.path-state`。所有维护任务均为 `background`；SQLite busy 重试会在每次失败后先释放 host lease，再执行有界退避，避免锁等待占住 XR I/O slot。无效路径仍由现有 `p-map` 提供局部上限，但实际文件探测同时受宿主池约束；请求取消会停止后续探测，并且在进入删除事务前再次检查 signal。
+在线 writer 与维护操作现已共用宿主 I/O scheduler：缩略图/失败记录批写使用 `neoview.thumbnail.database-write`，失败清理、空 Blob/过期记录和无效路径删除使用 `neoview.thumbnail.database-maintenance-write`，候选 key 分页使用 `neoview.thumbnail.database-maintenance-scan`，卷根与来源存在性检查使用 `neoview.thumbnail.path-state`。所有维护任务均为 `background`；SQLite busy 重试会在每次失败后先释放 host lease，再执行有界退避，避免锁等待占住 XR I/O slot。无效路径仍由现有 `p-map` 提供局部上限，但实际文件探测同时受宿主池约束；请求取消会停止后续探测，并且在进入删除事务前再次检查 signal。受确认的 `path-prefix` 清理在 Windows drive/UNC 前缀上只在查询边界统一反斜杠与 ASCII 大小写，仍必须命中精确 key、路径边界或 `::` archive 边界；POSIX 前缀保持原始区分大小写语义，且所有删除继续由调用方提供的有界 limit 限制。
 
 #### 18.5.8 完整测试与性能门槛
 

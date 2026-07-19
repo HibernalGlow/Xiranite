@@ -273,13 +273,18 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     validateMaintenanceLimit(request.limit)
     if (request.kind === "path-prefix") {
       const prefix = normalizePathPrefix(request.prefix)
+      const windowsPrefix = isWindowsPathPrefix(prefix)
+      // Legacy Windows keys preserve their original separator and casing.
+      const keyExpression = windowsPrefix ? "lower(replace(key, '\\', '/'))" : "key"
       await this.flush()
       signal?.throwIfAborted()
       return this.#runTransaction(() => {
         const rootPrefix = prefix === "/" || prefix === "\\"
         const where = rootPrefix
-          ? "substr(key, 1, length(?1)) = ?1"
-          : "key = ?1 OR (substr(key, 1, length(?1)) = ?1 AND (substr(key, length(?1) + 1, 1) IN ('/', '\\') OR substr(key, length(?1) + 1, 2) = '::'))"
+          ? `substr(${keyExpression}, 1, length(?1)) = ?1`
+          : windowsPrefix
+            ? `${keyExpression} = ?1 OR (substr(${keyExpression}, 1, length(?1)) = ?1 AND (substr(${keyExpression}, length(?1) + 1, 1) = '/' OR substr(${keyExpression}, length(?1) + 1, 2) = '::'))`
+            : `${keyExpression} = ?1 OR (substr(${keyExpression}, 1, length(?1)) = ?1 AND (substr(${keyExpression}, length(?1) + 1, 1) IN ('/', '\\') OR substr(${keyExpression}, length(?1) + 1, 2) = '::'))`
         return this.#database.run(
           `DELETE FROM thumbs WHERE key IN (SELECT key FROM thumbs WHERE ${where} ORDER BY key LIMIT ?2)`,
           prefix,
@@ -630,8 +635,17 @@ function normalizePathPrefix(value: string): string {
     throw new RangeError("Thumbnail path prefix must be 1..4096 characters without NUL.")
   }
   if (prefix === "/" || prefix === "\\") return prefix
+  if (isWindowsPathPrefix(prefix)) {
+    const portable = prefix.replaceAll("\\", "/")
+    const normalized = portable.replace(/(?:\/|::)+$/u, "")
+    return (normalized || portable).toLowerCase()
+  }
   const normalized = prefix.replace(/(?:[/\\]|::)+$/u, "")
   return normalized || prefix
+}
+
+function isWindowsPathPrefix(value: string): boolean {
+  return /^[a-z]:($|[/\\])/iu.test(value) || value.startsWith("//") || value.startsWith("\\\\")
 }
 
 function validateMaintenanceLimit(value: number): void {
