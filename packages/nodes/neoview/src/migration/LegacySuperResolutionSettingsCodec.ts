@@ -169,7 +169,7 @@ export class LegacySuperResolutionSettingsCodec {
       entries.push({
         sourcePath: `${sourcePath}.mangaJanaiModelDir`,
         disposition: "unknown",
-        message: "MangaJaNai requires an explicit custom_models manifest; its legacy directory is not a runtime model registry.",
+        message: "MangaJaNai is replaced by the unified super-resolution pipeline; its legacy directory is not imported.",
       })
     }
     for (const key of Object.keys(value)) {

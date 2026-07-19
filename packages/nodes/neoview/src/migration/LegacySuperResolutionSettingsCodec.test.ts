@@ -127,4 +127,17 @@ describe("LegacySuperResolutionSettingsCodec", () => {
       expect.objectContaining({ sourcePath: "rawLocalStorage.pyo3_upscale_settings.conditionsList[0]", disposition: "invalid" }),
     ]))
   })
+
+  it("[neoview.super-resolution.legacy-mangajanai-directory] reports the replaced legacy directory without creating a model manifest", () => {
+    const decoded = codec.decodePanel({
+      mangaJanaiModelDir: "D:/legacy/MangaJaNai",
+    }, "extended.upscalePanelSettings")
+
+    expect(decoded.preferencesPatch).toEqual({ schema_version: 1 })
+    expect(decoded.entries).toContainEqual({
+      sourcePath: "extended.upscalePanelSettings.mangaJanaiModelDir",
+      disposition: "unknown",
+      message: "MangaJaNai is replaced by the unified super-resolution pipeline; its legacy directory is not imported.",
+    })
+  })
 })
