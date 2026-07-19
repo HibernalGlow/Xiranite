@@ -17,6 +17,10 @@ async function verifyPersistentReaderLifecycle() {
   let nextBookCalls = 0
   let previousBookCalls = 0
   let pageOrderUpdates = 0
+  let slideshowConfigGets = 0
+  let slideshowConfigUpdates = 0
+  let failNextSlideshowConfigUpdate = false
+  let slideshowConfig = { intervalSeconds: 1, loop: false, random: false }
   let pageStreamOpens = 0
   let pageStreamCloses = 0
   let disposed = 0
@@ -41,6 +45,19 @@ async function verifyPersistentReaderLifecycle() {
       pageOrderUpdates += 1
       pageOrder = { ...pageOrder, ...patch }
       return snapshot(current, pageOrder)
+    },
+    async getSlideshowConfig() {
+      slideshowConfigGets += 1
+      return { ...slideshowConfig }
+    },
+    async updateSlideshowConfig(patch: Partial<typeof slideshowConfig>) {
+      slideshowConfigUpdates += 1
+      if (failNextSlideshowConfigUpdate) {
+        failNextSlideshowConfigUpdate = false
+        throw new Error("slideshow config write failed")
+      }
+      slideshowConfig = { ...slideshowConfig, ...patch }
+      return { ...slideshowConfig }
     },
     async openPageStream() {
       pageStreamOpens += 1
@@ -84,6 +101,7 @@ async function verifyPersistentReaderLifecycle() {
     expect(screen.captureCharFrame()).toContain("NEOVIEW // READER")
     await click("open")
     await screen.waitFor(() => opens === 1)
+    expect(slideshowConfigGets).toBe(1)
     await screen.waitFor(() => screen.captureCharFrame().includes("001.png"))
     expect(screen.captureCharFrame()).toContain("译名 · 压缩包 · 1 / 3 · 33.3%")
     expect(screen.captureCharFrame()).toContain("文件系统")
@@ -95,6 +113,9 @@ async function verifyPersistentReaderLifecycle() {
     expect(screen.captureCharFrame()).toContain("当前画面")
     expect(screen.captureCharFrame()).toContain("S:name")
     expect(screen.captureCharFrame()).toContain("M:none")
+    for (const id of ["slideshow-toggle", "slideshow-interval", "slideshow-loop", "slideshow-random"]) {
+      expect(screen.renderer.root.findDescendantById(id)).toBeDefined()
+    }
     await click("page-sort")
     await screen.waitFor(() => pageOrderUpdates === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("name desc"))
@@ -116,6 +137,39 @@ async function verifyPersistentReaderLifecycle() {
     await screen.waitFor(() => screen.captureCharFrame().includes("1 / 3"))
     expect(pageStreamOpens).toBe(streamsAfterForward)
 
+    await click("slideshow-toggle")
+    await act(async () => waitUntil(
+      () => nextCalls === 2,
+      () => `nextCalls=${nextCalls}`,
+    ))
+    await act(async () => screen.flush())
+    await screen.waitFor(() => screen.captureCharFrame().includes("2 / 3"))
+    await click("slideshow-toggle")
+
+    await click("slideshow-toggle")
+    await click("close")
+    const nextCallsAfterReset = nextCalls
+    await Bun.sleep(1_100)
+    expect(nextCalls).toBe(nextCallsAfterReset)
+    await click("open")
+    await screen.waitFor(() => opens === 2)
+    expect(slideshowConfigGets).toBe(1)
+
+    await click("slideshow-interval")
+    await screen.waitFor(() => slideshowConfigUpdates === 1)
+    expect(slideshowConfig.intervalSeconds).toBe(3)
+    await click("slideshow-loop")
+    await screen.waitFor(() => slideshowConfigUpdates === 2)
+    expect(slideshowConfig.loop).toBe(true)
+    await click("slideshow-random")
+    await screen.waitFor(() => slideshowConfigUpdates === 3)
+    expect(slideshowConfig.random).toBe(true)
+    failNextSlideshowConfigUpdate = true
+    await click("slideshow-loop")
+    await screen.waitFor(() => slideshowConfigUpdates === 4)
+    await screen.waitFor(() => screen.captureCharFrame().includes("L:on"))
+    expect(slideshowConfig.loop).toBe(true)
+
     await click("next-book")
     await screen.waitFor(() => nextBookCalls === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("3 / 3"))
@@ -125,9 +179,6 @@ async function verifyPersistentReaderLifecycle() {
     await screen.waitFor(() => previousBookCalls === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("1 / 3"))
 
-    await click("close")
-    await click("open")
-    await screen.waitFor(() => opens === 2)
     await act(async () => waitUntil(
       () => pageStreamOpens > streamsAfterForward,
       () => `opens=${pageStreamOpens} beforeClose=${streamsAfterForward}`,
@@ -153,7 +204,7 @@ async function verifyPersistentReaderLifecycle() {
 }
 
 test(
-  "[neoview.tui.reader] [neoview.tui.navigation] [neoview.tui.decode-cache] [neoview.tui.connect] opens a persistent reader through an injected async controller",
+  "[neoview.tui.reader] [neoview.tui.navigation] [neoview.tui.decode-cache] [neoview.tui.connect] [neoview.slideshow.tui-controls] opens a persistent reader through an injected async controller",
   verifyPersistentReaderLifecycle,
 )
 

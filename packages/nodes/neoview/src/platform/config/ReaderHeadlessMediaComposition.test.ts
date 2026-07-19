@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -12,6 +12,43 @@ afterEach(async () => {
 })
 
 describe("Reader headless media composition", () => {
+  it("[neoview.slideshow.local-headless-config] reads and persists the canonical TOML slideshow config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-headless-slideshow-"))
+    roots.push(root)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "[nodes.neoview.slideshow]",
+      "interval_seconds = 6",
+      "loop = false",
+      "random = false",
+      "fade_transition = false",
+      "",
+    ].join("\n"), "utf8")
+
+    const controller = await createReaderHeadlessController({
+      configPath,
+      progressStore: false,
+      legacyThumbnailDatabasePath: false,
+    })
+    try {
+      await expect(controller.getSlideshowConfig()).resolves.toEqual({ intervalSeconds: 6, loop: false, random: false })
+      await expect(controller.updateSlideshowConfig({ intervalSeconds: 9, random: true })).resolves.toEqual({
+        intervalSeconds: 9,
+        loop: false,
+        random: true,
+      })
+      const persisted = await readFile(configPath, "utf8")
+      expect(persisted).toContain("[nodes.neoview.slideshow]")
+      expect(persisted).toContain("interval_seconds = 9")
+      expect(persisted).toContain("random = true")
+      expect(persisted).toContain("fade_transition = false")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.headless.media-registry] [neoview.headless.adjacent-book] shares TOML formats and sibling resolution with GUI composition", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-headless-media-"))
     roots.push(root)

@@ -29,9 +29,18 @@ import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpC
 import type { ReaderAdjacentBookDirection } from "../../application/reader/ReaderAdjacentBookService.js"
 import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import type { ReaderPageOrderPatch } from "../../application/reader/ReaderPageOrder.js"
+import type { ReaderSlideshowConfig } from "../../application/slideshow/ReaderSlideshow.js"
 import { z } from "zod"
 
 export type RemoteSuperResolutionPreloadMode = "nearby" | "progressive"
+
+const remoteSlideshowConfigEnvelopeSchema = z.object({
+  slideshow: z.object({
+    intervalSeconds: z.number().int().min(1).max(60),
+    loop: z.boolean(),
+    random: z.boolean(),
+  }).passthrough(),
+}).passthrough()
 
 const skippedPolicyDecisionSchema = z.object({
     kind: z.enum(["disabled", "skip"]),
@@ -522,6 +531,24 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
 
   get isOpen(): boolean {
     return this.#session !== undefined
+  }
+
+  async getSlideshowConfig(signal?: AbortSignal): Promise<ReaderSlideshowConfig> {
+    this.#assertOpen()
+    const parsed = remoteSlideshowConfigEnvelopeSchema.safeParse(await this.#json<unknown>("/reader/config", { signal }))
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid slideshow configuration.")
+    return projectRemoteSlideshowConfig(parsed.data.slideshow)
+  }
+
+  async updateSlideshowConfig(patch: Partial<ReaderSlideshowConfig>, signal?: AbortSignal): Promise<ReaderSlideshowConfig> {
+    this.#assertOpen()
+    const parsed = remoteSlideshowConfigEnvelopeSchema.safeParse(await this.#json<unknown>("/reader/config", {
+      method: "PATCH",
+      body: JSON.stringify({ slideshow: patch }),
+      signal,
+    }))
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid slideshow configuration.")
+    return projectRemoteSlideshowConfig(parsed.data.slideshow)
   }
 
   async open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot> {
@@ -1027,6 +1054,14 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
 
   #assertOpen(): void {
     if (this.#closed) throw new Error("Remote headless reader is closed.")
+  }
+}
+
+function projectRemoteSlideshowConfig(value: z.infer<typeof remoteSlideshowConfigEnvelopeSchema>["slideshow"]): ReaderSlideshowConfig {
+  return {
+    intervalSeconds: value.intervalSeconds,
+    loop: value.loop,
+    random: value.random,
   }
 }
 

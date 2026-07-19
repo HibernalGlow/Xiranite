@@ -1777,7 +1777,7 @@
         "transport": "complete",
         "gui": "partial",
         "cli": "not-applicable",
-        "tui": "pending",
+        "tui": "complete",
         "evidence": "partial"
       },
       "behaviorCases": [
@@ -1801,12 +1801,16 @@
         "neoview.slideshow.react-controls",
         "neoview.slideshow.config-e2e",
         "neoview.slideshow.toolbar-e2e",
-        "neoview.slideshow.chunk"
+        "neoview.slideshow.chunk",
+        "neoview.slideshow.headless-config",
+        "neoview.slideshow.local-headless-config",
+        "neoview.slideshow.remote-config",
+        "neoview.slideshow.tui-controls"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [],
       "knownDifferences": [
-        "Core 已覆盖开始/暂停/停止、串行定时导航、循环/随机、手动操作重置、边界、错误恢复与 dispose；GUI 已恢复 1..60 秒滑杆、3/5/10/15 秒预设、循环/随机和倒计时进度环，并通过 canonical TOML 持久化；工具栏仅在展开时加载为独立二级 chunk。fadeTransition 当前只在设置与 TOML 中保留，尚未接入切页呈现；TUI 播放与配置控制仍待实现"
+        "Core 已覆盖开始/暂停/停止、串行定时导航、循环/随机、手动操作重置、边界、错误恢复与 dispose；GUI 已恢复 1..60 秒滑杆、3/5/10/15 秒预设、循环/随机和倒计时进度环，并通过 canonical TOML 持久化；TUI 复用同一运行时，支持播放/暂停、间隔、循环、随机、本地 canonical TOML 与远端配置持久化、失败回滚和 reset 计时清理；工具栏仅在展开时加载为独立二级 chunk。fadeTransition 当前只在设置与 TOML 中保留，尚未接入切页呈现"
       ]
     },
     {

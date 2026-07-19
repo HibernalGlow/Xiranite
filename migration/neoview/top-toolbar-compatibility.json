@@ -102,7 +102,7 @@
       "controls": ["悬停滚动开关", "悬停速度", "播放/暂停", "1..60 秒间隔", "预设间隔", "循环", "随机", "剩余时间圆环", "放大镜开关", "倍率滑条", "镜片尺寸滑条", "右键展开设置"],
       "status": "partial",
       "testIds": ["neoview.slideshow.react-controls", "neoview.slideshow.toolbar-e2e", "neoview.slideshow.chunk"],
-      "notes": "幻灯片已恢复旧版控件层级、3/5/10/15 秒预设和倒计时圆环，并在 desktop 与 420x360 Chromium 中验证无越界、无 console/pageerror；面板只在展开时加载为独立二级 chunk。fadeTransition 运行时和 TUI 控制仍待完成。"
+      "notes": "幻灯片已恢复旧版控件层级、3/5/10/15 秒预设和倒计时圆环，并在 desktop 与 420x360 Chromium 中验证无越界、无 console/pageerror；面板只在展开时加载为独立二级 chunk。TUI 已复用同一运行时并补齐播放与配置控制；fadeTransition 运行时呈现仍待完成。"
     },
     {
       "id": "toolbar.shell-lifecycle",

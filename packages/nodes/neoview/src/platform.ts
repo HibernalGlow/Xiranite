@@ -851,6 +851,27 @@ export async function createReaderHeadlessController(
   const { ReaderMediaFormatRegistry } = await import("./domain/page/media.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
   const sessionOptions = runtimeConfig.sessionOptions
+  let slideshowConfig = {
+    intervalSeconds: runtimeConfig.slideshow.intervalSeconds,
+    loop: runtimeConfig.slideshow.loop,
+    random: runtimeConfig.slideshow.random,
+  }
+  const slideshowConfigPort = {
+    get: () => ({ ...slideshowConfig }),
+    update: async (patch: Partial<typeof slideshowConfig>) => {
+      const { parseNeoviewRuntimeConfig, parseNeoviewSlideshowPatch } = await import("./application/config/ReaderRuntimeConfig.js")
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const parsed = parseNeoviewSlideshowPatch({ slideshow: patch })
+      const committed = await commitNeoviewConfig(parsed.tomlPatch, { ...options, strategy: "merge" })
+      const updated = parseNeoviewRuntimeConfig(committed.nodeConfig).slideshow
+      slideshowConfig = {
+        intervalSeconds: updated.intervalSeconds,
+        loop: updated.loop,
+        random: updated.random,
+      }
+      return { ...slideshowConfig }
+    },
+  }
   const mediaFormats = new ReaderMediaFormatRegistry(runtimeConfig.media)
   const progressStore = options.progressStore === false
     ? undefined
@@ -994,6 +1015,8 @@ export async function createReaderHeadlessController(
     adjacentBooks,
     emmMetadata,
     superResolution,
+    undefined,
+    slideshowConfigPort,
   )
 }
 

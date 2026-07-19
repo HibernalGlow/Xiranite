@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import type { InteractionField } from "@xiranite/cli-runtime/interaction"
 import { ResourceSchedulerService } from "@xiranite/services"
 import type { ResourceScheduler } from "@xiranite/contract"
@@ -36,6 +36,7 @@ import {
   type ReaderPageOrderPatch,
   type ReaderPageSortMode,
 } from "./application/reader/ReaderPageOrder.js"
+import { ReaderSlideshow, type ReaderSlideshowConfig } from "./application/slideshow/ReaderSlideshow.js"
 import type { NeoviewTuiInput, NeoviewTuiResult } from "./interaction.js"
 import { createReaderHeadlessController } from "./platform.js"
 import { projectReaderBookInformation } from "./domain/book/BookInformationProjection.js"
@@ -53,6 +54,8 @@ export interface ReaderTuiPort extends AsyncDisposable {
   ): Promise<HeadlessReaderSnapshot | undefined>
   goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   updatePageOrder(order: ReaderPageOrderPatch, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  getSlideshowConfig?(signal?: AbortSignal): Promise<ReaderSlideshowConfig>
+  updateSlideshowConfig?(patch: Partial<ReaderSlideshowConfig>, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
   closeBook(): Promise<void>
 }
@@ -112,15 +115,53 @@ function ReaderWorkbench({
   const [pageCursor, setPageCursor] = useState(0)
   const [phase, setPhase] = useState<"ready" | "opening" | "navigating" | "error">("ready")
   const [status, setStatus] = useState(language === "zh" ? "等待打开" : "Ready to open")
+  const snapshotRef = useRef<HeadlessReaderSnapshot | undefined>(undefined)
+  const slideshowNavigateRef = useRef<(action: "next" | "goTo", pageIndex?: number) => Promise<boolean>>(async () => false)
+  const slideshowConfirmedConfig = useRef<ReaderSlideshowConfig>({ intervalSeconds: 5, loop: false, random: false })
+  const slideshowWriteQueue = useRef<Promise<void>>(Promise.resolve())
+  const slideshowGeneration = useRef(0)
+  const [slideshow] = useState(() => new ReaderSlideshow({
+    readPosition: () => {
+      const current = snapshotRef.current
+      return {
+        pageCount: current?.book.pageCount ?? 0,
+        currentPageIndex: current?.frame.anchorPageIndex ?? 0,
+        atEnd: current?.frame.atEnd ?? true,
+      }
+    },
+    nextPage: () => slideshowNavigateRef.current("next"),
+    goToPage: (pageIndex) => slideshowNavigateRef.current("goTo", pageIndex),
+    onError: (error) => {
+      setPhase("error")
+      setStatus(error instanceof Error ? error.message : String(error))
+    },
+  }))
+  const slideshowSnapshot = useSyncExternalStore(slideshow.subscribe, slideshow.getSnapshot, slideshow.getSnapshot)
+  snapshotRef.current = snapshot
 
   const ensureController = useCallback(async () => {
     if (!controller.current) {
-      controller.current = createController
+      const next = createController
         ? await createController()
         : await createReaderHeadlessController({ resourceScheduler: resources })
+      try {
+        if (next.getSlideshowConfig) {
+          const config = await next.getSlideshowConfig()
+          slideshowConfirmedConfig.current = config
+          slideshow.configure(config)
+        }
+        controller.current = next
+      } catch (error) {
+        try {
+          await next[Symbol.asyncDispose]()
+        } catch {
+          // Preserve the configuration load failure while still attempting cleanup.
+        }
+        throw error
+      }
     }
     return controller.current
-  }, [createController, resources])
+  }, [createController, resources, slideshow])
 
   const applySnapshot = useCallback(async (value: HeadlessReaderSnapshot, port: ReaderTuiPort) => {
     const pageLimit = Math.min(value.book.pageCount, 100)
@@ -139,7 +180,7 @@ function ReaderWorkbench({
     setFocused("viewer")
   }, [language])
 
-  const run = useCallback(async (operation: (port: ReaderTuiPort, signal: AbortSignal) => Promise<HeadlessReaderSnapshot>, nextPhase: "opening" | "navigating") => {
+  const run = useCallback(async (operation: (port: ReaderTuiPort, signal: AbortSignal) => Promise<HeadlessReaderSnapshot>, nextPhase: "opening" | "navigating"): Promise<boolean> => {
     activeAbort.current?.abort()
     const abort = new AbortController()
     activeAbort.current = abort
@@ -148,11 +189,14 @@ function ReaderWorkbench({
     try {
       const port = await ensureController()
       const value = await operation(port, abort.signal)
-      if (!abort.signal.aborted) await applySnapshot(value, port)
+      if (abort.signal.aborted) return false
+      await applySnapshot(value, port)
+      return true
     } catch (error) {
-      if (abort.signal.aborted) return
+      if (abort.signal.aborted) return false
       setPhase("error")
       setStatus(error instanceof Error ? error.message : String(error))
+      return false
     } finally {
       if (activeAbort.current === abort) activeAbort.current = undefined
     }
@@ -169,14 +213,18 @@ function ReaderWorkbench({
     void run((port, signal) => port.open({ path: input, signal, archivePasswords: defaultArchivePasswords }), "opening")
   }, [defaultArchivePasswords, language, path, run])
 
-  const navigate = useCallback((action: "next" | "previous" | "goTo", index?: number) => {
-    if (!snapshot || phase === "opening" || phase === "navigating") return
-    void run((port, signal) => action === "next"
+  const navigate = useCallback((action: "next" | "previous" | "goTo", index?: number, slideshowAction = false): Promise<boolean> => {
+    if (!snapshot || phase === "opening" || phase === "navigating") return Promise.resolve(false)
+    return run((port, signal) => action === "next"
       ? port.next(signal)
       : action === "previous"
         ? port.previous(signal)
-        : port.goTo(index ?? 0, signal), "navigating")
-  }, [phase, run, snapshot])
+        : port.goTo(index ?? 0, signal), "navigating").then((changed) => {
+      if (changed && !slideshowAction) slideshow.resetOnUserAction()
+      return changed
+    })
+  }, [phase, run, slideshow, snapshot])
+  slideshowNavigateRef.current = (action, pageIndex) => navigate(action, pageIndex, true)
 
   const navigateBook = useCallback((direction: "next" | "previous") => {
     if (!snapshot || phase === "opening" || phase === "navigating") return
@@ -196,8 +244,39 @@ function ReaderWorkbench({
     void run((port, signal) => port.updatePageOrder({ [field]: next }, signal), "navigating")
   }, [phase, run, snapshot])
 
+  const persistSlideshow = useCallback((patch: Partial<ReaderSlideshowConfig>) => {
+    slideshow.configure(patch)
+    const optimistic = slideshow.getSnapshot()
+    const nextConfig: ReaderSlideshowConfig = {
+      intervalSeconds: optimistic.intervalSeconds,
+      loop: optimistic.loop,
+      random: optimistic.random,
+    }
+    const generation = ++slideshowGeneration.current
+    const write = slideshowWriteQueue.current.then(async () => {
+      const port = await ensureController()
+      const updated = port.updateSlideshowConfig
+        ? await port.updateSlideshowConfig(patch)
+        : nextConfig
+      slideshowConfirmedConfig.current = updated
+      if (generation === slideshowGeneration.current) slideshow.configure(updated)
+    }).catch((error) => {
+      if (generation === slideshowGeneration.current) slideshow.configure(slideshowConfirmedConfig.current)
+      setPhase("error")
+      setStatus(error instanceof Error ? error.message : String(error))
+    })
+    slideshowWriteQueue.current = write
+  }, [ensureController, slideshow])
+
+  const cycleSlideshowInterval = useCallback(() => {
+    const intervals = [3, 5, 10, 15, 30, 60]
+    const currentIndex = intervals.indexOf(slideshow.getSnapshot().intervalSeconds)
+    persistSlideshow({ intervalSeconds: intervals[(currentIndex + 1) % intervals.length] })
+  }, [persistSlideshow, slideshow])
+
   const reset = useCallback(() => {
     activeAbort.current?.abort()
+    slideshow.stop()
     void controller.current?.closeBook()
     imageDecodeService.clear()
     setSnapshot(undefined)
@@ -207,24 +286,35 @@ function ReaderWorkbench({
     setPhase("ready")
     setStatus(language === "zh" ? "等待打开" : "Ready to open")
     setFocused("path")
-  }, [imageDecodeService, language])
+  }, [imageDecodeService, language, slideshow])
 
   const exit = useCallback(() => {
     activeAbort.current?.abort()
+    slideshow.dispose()
     imageDecodeService.clear()
     const value = controller.current
     controller.current = undefined
-    if (value) void Promise.resolve(value[Symbol.asyncDispose]()).finally(onExit)
+    if (value) {
+      void slideshowWriteQueue.current
+        .then(() => value[Symbol.asyncDispose](), () => value[Symbol.asyncDispose]())
+        .then(onExit, onExit)
+    }
     else onExit()
-  }, [imageDecodeService, onExit])
+  }, [imageDecodeService, onExit, slideshow])
 
   useTerminalChromeActions({ onReset: reset, onExit: exit })
   useEffect(() => () => {
     activeAbort.current?.abort()
+    slideshow.dispose()
     imageDecodeService.clear()
-    void controller.current?.[Symbol.asyncDispose]()
+    const value = controller.current
     controller.current = undefined
-  }, [imageDecodeService])
+    if (value) {
+      void slideshowWriteQueue.current
+        .then(() => value[Symbol.asyncDispose](), () => value[Symbol.asyncDispose]())
+        .catch(() => undefined)
+    }
+  }, [imageDecodeService, slideshow])
 
   useKeyboard((key) => {
     if (key.name === "escape") {
@@ -250,6 +340,10 @@ function ReaderWorkbench({
     if (key.name === "g") setFocused("page")
     if (key.name === "s") cyclePageOrder("sortMode")
     if (key.name === "m") cyclePageOrder("mediaPriority")
+    if (key.name === "space" && snapshot && !busy) slideshow.toggle()
+    if (key.name === "i" && snapshot && !busy) cycleSlideshowInterval()
+    if (key.name === "l" && snapshot && !busy) persistSlideshow({ loop: !slideshowSnapshot.loop })
+    if (key.name === "r" && snapshot && !busy) persistSlideshow({ random: !slideshowSnapshot.random })
     if (key.name === "q") exit()
   })
 
@@ -263,7 +357,7 @@ function ReaderWorkbench({
   const busy = phase === "opening" || phase === "navigating"
   const pagePaneWidth = Math.max(24, Math.min(42, Math.floor(dimensions.width * 0.3)))
   const framePaneWidth = Math.max(20, dimensions.width - pagePaneWidth - 8)
-  const previewHeight = Math.max(6, dimensions.height - 23)
+  const previewHeight = Math.max(6, dimensions.height - 26)
   const visiblePageCount = Math.max(1, snapshot?.visiblePages.length ?? 1)
   const previewWidth = Math.max(8, Math.floor((framePaneWidth - visiblePageCount + 1) / visiblePageCount))
   const openPage = useCallback(async (pageIndex: number, signal: AbortSignal) => {
@@ -283,7 +377,7 @@ function ReaderWorkbench({
         </text>
       </box>
 
-      <box height={8} flexShrink={0} marginTop={1} flexDirection="column">
+      <box height={11} flexShrink={0} marginTop={1} flexDirection="column">
         <box height={4} flexShrink={0}><WorkbenchField field={pathField} value={path} focused={focused === "path"} disabled={busy} t={t} onFocus={() => setFocused("path")} onChange={(value) => setPath(String(value))} /></box>
         <box height={3} flexShrink={0} flexDirection="row" gap={1} alignItems="center">
           <box width={18} flexDirection="row" justifyContent="space-between" alignItems="center">
@@ -300,6 +394,13 @@ function ReaderWorkbench({
           <box width={24}><WorkbenchButton id="page-sort" disabled={!snapshot || busy} onClick={() => cyclePageOrder("sortMode")}>{`S:${shortSortLabel(snapshot?.pageOrder.sortMode)}`}</WorkbenchButton></box>
           <box width={18}><WorkbenchButton id="media-priority" disabled={!snapshot || busy} onClick={() => cyclePageOrder("mediaPriority")}>{`M:${shortMediaLabel(snapshot?.pageOrder.mediaPriority)}`}</WorkbenchButton></box>
         </box>
+        <box height={3} flexShrink={0} flexDirection="row" gap={1} alignItems="center">
+          <box width={18}><WorkbenchButton id="slideshow-toggle" disabled={!snapshot || busy} onClick={() => slideshow.toggle()}>{`SL:${slideshowSnapshot.state === "playing" ? "pause" : "play"}`}</WorkbenchButton></box>
+          <box width={14}><WorkbenchButton id="slideshow-interval" disabled={!snapshot || busy} onClick={cycleSlideshowInterval}>{`I:${slideshowSnapshot.intervalSeconds}s`}</WorkbenchButton></box>
+          <box width={14}><WorkbenchButton id="slideshow-loop" disabled={!snapshot || busy} onClick={() => persistSlideshow({ loop: !slideshowSnapshot.loop })}>{`L:${slideshowSnapshot.loop ? "on" : "off"}`}</WorkbenchButton></box>
+          <box width={14}><WorkbenchButton id="slideshow-random" disabled={!snapshot || busy} onClick={() => persistSlideshow({ random: !slideshowSnapshot.random })}>{`R:${slideshowSnapshot.random ? "on" : "off"}`}</WorkbenchButton></box>
+          <text fg={slideshowSnapshot.state === "playing" ? theme.colors.success : theme.colors.mutedForeground}>{slideshowSnapshot.state === "playing" ? `${Math.ceil(slideshowSnapshot.remainingSeconds)}s` : slideshowSnapshot.state}</text>
+        </box>
       </box>
 
       <box flexGrow={1} minHeight={0} flexDirection="row" gap={1}>
@@ -315,7 +416,7 @@ function ReaderWorkbench({
           </scrollbox>
         </WorkbenchPanel>
 
-        <WorkbenchPanel title={language === "zh" ? "当前画面" : "Current frame"} description={snapshot ? `${snapshot.frame.direction} · ${snapshot.frame.layout.pageMode} · ${snapshot.pageOrder.sortMode} · ${snapshot.pageOrder.mediaPriority}` : undefined} flexGrow={1}>
+        <WorkbenchPanel title={language === "zh" ? "当前画面" : "Current frame"} description={snapshot ? `${snapshot.frame.direction} · ${snapshot.frame.layout.pageMode} · ${snapshot.pageOrder.sortMode} · ${snapshot.pageOrder.mediaPriority} · SL:${slideshowSnapshot.state}` : undefined} flexGrow={1}>
           {snapshot ? (
             <box flexGrow={1} flexDirection="column">
               <box height={previewHeight} flexShrink={0} flexDirection="row" gap={1} justifyContent="center" overflow="hidden">
