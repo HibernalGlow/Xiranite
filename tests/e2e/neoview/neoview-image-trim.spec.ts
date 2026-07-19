@@ -88,6 +88,34 @@ function detectorResourceCount(page: import("@playwright/test").Page): Promise<n
     .filter((entry) => entry.name.includes("ReaderImageTrimDetector")).length)
 }
 
+test("[neoview.image-trim.bounds-browser] [neoview.image-trim.preview] [neoview.image-trim.preview-geometry] [neoview.image-trim.accessibility] preserves native range bounds and preview geometry", async ({ page }) => {
+  await page.goto("/tests/e2e/neoview/neoview-image-trim-harness.html", { waitUntil: "domcontentloaded" })
+  const card = page.locator('[data-neoview-card="image-trim"]')
+  await card.getByRole("switch", { name: "启用图像裁剪" }).click()
+
+  for (const label of ["上", "下", "左", "右"] as const) {
+    const slider = card.getByRole("slider", { name: label })
+    await expect(slider).toHaveAttribute("min", "0")
+    await expect(slider).toHaveAttribute("max", "45")
+    await expect(slider).toHaveAttribute("step", "0.5")
+    await slider.focus()
+    await page.keyboard.press("End")
+    await expect(slider).toHaveValue("45")
+  }
+  await expect.poll(() => page.locator("html").getAttribute("data-image-trim-writes")).toBe("5")
+
+  const preview = card.locator('[data-image-trim-preview="true"]')
+  await expect(preview).toBeVisible()
+  await expect(preview.getByText("10.0% × 10.0%")).toBeVisible()
+  await expect(preview.locator(":scope > div").nth(1)).toHaveAttribute("style", "inset: 45%;")
+
+  const verticalLink = card.getByRole("button", { name: "上联动" })
+  await verticalLink.focus()
+  await page.keyboard.press("Enter")
+  await expect(card.getByRole("button", { name: "上取消联动" })).toBeFocused()
+  await expect(page.locator("html")).toHaveAttribute("data-image-trim-writes", "6")
+})
+
 test.describe("constrained Card", () => {
   test.use({ viewport: { width: 860, height: 720 } })
 

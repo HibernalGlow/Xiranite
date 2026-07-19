@@ -3074,27 +3074,27 @@
   - 测试：`neoview.image-trim.link-horizontal`、`neoview.image-trim.transport-linked`
   - 计划测试：无
   - 备注：Shared patch projection, serialized HTTP projection, Store synchronization and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later left edits synchronize right, and each completed action persists once without component-local link state.
-- [ ] `image-trim.bounds` 裁剪值边界和归一化
-  - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
+- [x] `image-trim.bounds` 裁剪值边界和归一化
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Reject non-finite values, clamp edges to 0..45 and preserve a non-empty effective region; imported values normalize field by field.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：`neoview.image-trim.bounds`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.bounds-tui`
-  - 计划测试：`neoview.image-trim.bounds-browser`
-  - 备注：The shared normalizer, strict patch parser, authenticated HTTP boundary, CLI and OpenTUI cover finite values, 0..45 clamping/rejection and 0.5 steps without persisting invalid input. GUI boundary-key interaction remains partial.
-- [ ] `image-trim.preview` 有效裁剪区域预览
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.image-trim.bounds`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.bounds-tui`、`neoview.image-trim.bounds-browser`
+  - 计划测试：无
+  - 备注：The shared normalizer, strict patch parser, authenticated HTTP boundary, CLI, OpenTUI and real Chromium ranges cover finite values, 0..45 clamping/rejection, 0.5 steps and native End-key boundaries without persisting invalid input.
+- [x] `image-trim.preview` 有效裁剪区域预览
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Preview mounts only for non-zero crop values and shows the effective width/height percentage without touching Reader session or requesting media.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.preview`
-  - 备注：The preview is a local geometry indicator, not a second image renderer.
-- [ ] `image-trim.preview-geometry` 预览容器几何和标签
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.image-trim.preview`
+  - 计划测试：无
+  - 备注：Real Chromium evidence proves the preview mounts only after a non-zero crop, displays the effective percentages and remains a local geometry indicator without a second image renderer.
+- [x] `image-trim.preview-geometry` 预览容器几何和标签
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The aspect-3/4 overflow-hidden bordered preview retains the original/effective region layers, colors, radius and centered 10px label.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：`neoview.image-trim.ui-1920x1080`
+  - 测试：`neoview.image-trim.ui-1920x1080`、`neoview.image-trim.preview-geometry`
   - 计划测试：无
-  - 备注：Any token adjustment must be recorded against the legacy screenshot.
+  - 备注：Real Chromium asserts the CSSOM-normalized inset and the matching 10.0% by 10.0% effective label at four 45% edges; token adjustments remain tied to the legacy screenshot.
 - [ ] `image-trim.auto-detect` 自动检测边框
   - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`core`、`transport`
   - 目标：Wand2 automatic detection samples the current decoded image, returns four percentages, applies them atomically and reports no-border/not-found/failure states.
@@ -3138,10 +3138,10 @@
   - 计划测试：无
   - 备注：One inert status node replaces the prior state and covers detecting, success, no-border, unavailable and retryable error messages; cancellation produces no stale success text.
 - [ ] `image-trim.media` 当前媒体帧兼容
-  - 六维：`core=- transport=- gui=- cli=C tui=C evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：Crop presentation consumes the shared current frame/image contract for static, animated and video media and never assumes a permanent DOM selector.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
-  - 测试：`neoview.image-trim.cli`、`neoview.image-trim.persistence-tui`
+  - 测试：待补
   - 计划测试：`neoview.image-trim.media`
   - 备注：CLI/TUI must expose a typed setting/result contract even when no preview exists.
 - [ ] `image-trim.double-page` 单双页裁剪策略
@@ -3173,10 +3173,10 @@
   - 计划测试：`neoview.image-trim.effective-dimensions`
   - 备注：Source dimensions and CSS presentation dimensions remain distinct.
 - [ ] `image-trim.persistence` 唯一规范 TOML 持久化
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=- transport=- gui=- cli=C tui=C evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
   - 目标：Before implementation, agree and freeze one versioned [nodes.neoview.image.*] path; serialize strict snake_case fields through a serialized atomic PATCH, preserve unknown fields and roll back on failure.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/settings/types.ts`、`src/lib/settings/settingsManager.ts`
-  - 测试：待补
+  - 测试：`neoview.image-trim.cli`、`neoview.image-trim.persistence-tui`
   - 计划测试：`neoview.image-trim.persistence`、`neoview.image-trim.toml`
   - 备注：CLI and OpenTUI share ReaderImageTrimConfigService, write strict snake_case fields through the canonical NeoView TOML commit path and do not use a Reader database. GUI/HTTP persistence evidence remains incomplete.
 - [ ] `image-trim.cache` 自动检测缓存边界
@@ -3263,13 +3263,13 @@
   - 测试：`neoview.image-trim.ui-1920x1080`、`neoview.image-trim.responsive`
   - 计划测试：无
   - 备注：Terminal Playwright evidence covers 1920x1080 and an 860x720 constrained dock with visible automatic controls and no horizontal overflow.
-- [ ] `image-trim.accessibility` 原生控件与图标命令可访问
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `image-trim.accessibility` 原生控件与图标命令可访问
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Checkbox, ranges, select, icon buttons and async actions have accessible names, native keyboard behavior, visible focus and non-stolen focus during detection.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.accessibility`
-  - 备注：Titles alone are not sufficient for icon-only commands.
+  - 测试：`neoview.image-trim.accessibility`
+  - 计划测试：无
+  - 备注：Real Chromium covers accessible range names and bounds, native End-key editing, keyboard activation of the link icon command and retained focus after its accessible name changes.
 - [x] `image-trim.image-stability` 裁剪操作不重挂活动图片
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Changing edges, links, threshold, target or detection preview preserves the exact active media node and asset identity and creates no duplicate request/decode.
