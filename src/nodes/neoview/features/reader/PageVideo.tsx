@@ -1,19 +1,22 @@
 import { rotatePresentationSize, type ReaderRotation } from "@xiranite/node-neoview/ui-core"
+import { readerImageTrimClipPath } from "@xiranite/node-neoview/image-trim"
 import { MediaController } from "media-chrome/react"
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react"
 
 import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderMediaProgressDto, ReaderPageDto, ReaderSubtitleConfigDto, ReaderSubtitleTrackDto } from "../../adapters/reader-http-client"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderVideoControlOverlay } from "../video/ReaderVideoControlOverlay"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 
 const DEFAULT_SUBTITLE_CONFIG: ReaderSubtitleConfigDto = { fontSize: 1, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 }
 
-export function PageVideo({ page, controller, sessionId, client, media, onSubtitleConfigChange, onListEnded, rotation = 0, scale, fallbackSize }: {
+export function PageVideo({ page, controller, sessionId, client, media, imageTrim, onSubtitleConfigChange, onListEnded, rotation = 0, scale, fallbackSize }: {
   page: ReaderPageDto
   controller: ReaderVideoController
   sessionId?: string
   client?: ReaderHttpClient
   media?: ReaderMediaConfigDto
+  imageTrim?: ReaderImageTrimPort
   onSubtitleConfigChange?: (patch: Partial<ReaderSubtitleConfigDto>) => Promise<void>
   onListEnded: () => void
   rotation?: ReaderRotation
@@ -29,6 +32,11 @@ export function PageVideo({ page, controller, sessionId, client, media, onSubtit
   const [selectedSubtitleId, setSelectedSubtitleId] = useState<string>()
   const [subtitleText, setSubtitleText] = useState("")
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
+  const trimSettings = useSyncExternalStore(
+    imageTrim?.subscribe ?? subscribeNoop,
+    imageTrim?.getSnapshot ?? getUndefinedSnapshot,
+    imageTrim?.getSnapshot ?? getUndefinedSnapshot,
+  )
   const dimensions = page.dimensions
   const measured = dimensions !== undefined && scale !== undefined
   const rotated = dimensions ? rotatePresentationSize(dimensions, rotation) : undefined
@@ -115,7 +123,8 @@ export function PageVideo({ page, controller, sessionId, client, media, onSubtit
     }
   }, [client, page.id, page.contentVersion, sessionId])
 
-  const videoStyle: React.CSSProperties = measured ? {
+  const videoStyle: React.CSSProperties = {
+    ...(measured ? {
     width: dimensions.width * scale,
     height: dimensions.height * scale,
     maxWidth: "none",
@@ -124,7 +133,9 @@ export function PageVideo({ page, controller, sessionId, client, media, onSubtit
     left: "50%",
     top: "50%",
     transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-  } : { width: "100%", height: "100%", objectFit: "contain" }
+    } : { width: "100%", height: "100%", objectFit: "contain" }),
+    clipPath: trimSettings ? readerImageTrimClipPath(trimSettings) : undefined,
+  }
   const boxStyle = measured
     ? { width: rotated!.width * scale, height: rotated!.height * scale }
     : fallbackMeasured ? fallbackSize : undefined
@@ -215,6 +226,14 @@ export function PageVideo({ page, controller, sessionId, client, media, onSubtit
       </MediaController>
     </div>
   )
+}
+
+function subscribeNoop(): () => void {
+  return () => undefined
+}
+
+function getUndefinedSnapshot(): undefined {
+  return undefined
 }
 
 function restoreProgress(video: HTMLVideoElement | null, progress: ReaderMediaProgressDto): void {

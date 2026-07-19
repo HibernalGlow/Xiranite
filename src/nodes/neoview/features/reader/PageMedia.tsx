@@ -24,7 +24,7 @@ export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, im
   onVideoListEnded: () => void
 }) {
   return page.mediaKind === "video" ? (
-    <PageVideo page={page} rotation={rotation} scale={scale} fallbackSize={fallbackSize} controller={videoController} sessionId={sessionId} client={client} media={media} onSubtitleConfigChange={onSubtitleConfigChange} onListEnded={onVideoListEnded} />
+    <PageVideo page={page} rotation={rotation} scale={scale} fallbackSize={fallbackSize} controller={videoController} sessionId={sessionId} client={client} media={media} imageTrim={imageTrim} onSubtitleConfigChange={onSubtitleConfigChange} onListEnded={onVideoListEnded} />
   ) : (
     <PageImage page={page} rotation={rotation} scale={scale} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={imageTrimDetectionActive} sessionId={sessionId} client={client} superResolution={superResolution} />
   )
