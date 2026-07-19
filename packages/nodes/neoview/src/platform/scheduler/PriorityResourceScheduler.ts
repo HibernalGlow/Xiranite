@@ -31,12 +31,24 @@ export interface PriorityResourceSchedulerSnapshot {
 export interface PriorityResourceSchedulerOptions {
   maxConcurrent?: number
   reservedInteractive?: number
+  /** How long deferred work may wait before it earns one priority level. */
+  deferredAgingMs?: number
   now?: () => number
+}
+
+const DEFAULT_DEFERRED_AGING_MS = 1_000
+const DEFERRED_PRIORITIES: readonly ResourcePriority[] = ["view", "ahead", "background"]
+const DEFERRED_PRIORITY_RANK: Readonly<Record<ResourcePriority, number>> = {
+  interactive: 4,
+  view: 3,
+  ahead: 2,
+  background: 1,
 }
 
 export class PriorityResourceScheduler implements ResourceScheduler, AsyncDisposable {
   readonly #maxConcurrent: number
   readonly #reservedInteractive: number
+  readonly #deferredAgingMs: number
   readonly #queues: Record<ResourcePriority, WaitingTask[]> = {
     interactive: [],
     view: [],
@@ -60,6 +72,10 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
       "reservedInteractive",
       0,
       this.#maxConcurrent - 1,
+    )
+    this.#deferredAgingMs = positiveFiniteNumber(
+      options.deferredAgingMs ?? DEFAULT_DEFERRED_AGING_MS,
+      "deferredAgingMs",
     )
     this.#now = options.now ?? performance.now.bind(performance)
   }
@@ -145,10 +161,39 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
         continue
       }
       if (this.#active >= this.#maxConcurrent - this.#reservedInteractive) return
-      const deferred = this.#queues.view.shift() ?? this.#queues.ahead.shift() ?? this.#queues.background.shift()
+      const deferred = this.#takeDeferred()
       if (!deferred) return
       this.#start(deferred)
     }
+  }
+
+  #takeDeferred(): WaitingTask | undefined {
+    const now = this.#now()
+    let selectedPriority: ResourcePriority | undefined
+    let selectedIndex = -1
+    let selectedRank = -1
+    let selectedEnqueuedAt = Number.POSITIVE_INFINITY
+
+    for (const priority of DEFERRED_PRIORITIES) {
+      const queue = this.#queues[priority]
+      for (let index = 0; index < queue.length; index += 1) {
+        const waiting = queue[index]!
+        const waitMs = Math.max(0, now - waiting.enqueuedAtMs)
+        const agingSteps = Math.floor(waitMs / this.#deferredAgingMs)
+        const rank = Math.min(
+          DEFERRED_PRIORITY_RANK.view,
+          DEFERRED_PRIORITY_RANK[priority] + agingSteps,
+        )
+        if (rank > selectedRank || (rank === selectedRank && waiting.enqueuedAtMs < selectedEnqueuedAt)) {
+          selectedPriority = priority
+          selectedIndex = index
+          selectedRank = rank
+          selectedEnqueuedAt = waiting.enqueuedAtMs
+        }
+      }
+    }
+
+    return selectedPriority === undefined ? undefined : this.#queues[selectedPriority].splice(selectedIndex, 1)[0]
   }
 
   #start(waiting: WaitingTask): void {
@@ -189,6 +234,13 @@ export const defaultImageTransformScheduler = new PriorityResourceScheduler({
 function boundedInteger(value: number, name: string, minimum: number, maximum: number): number {
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
     throw new RangeError(`${name} must be an integer from ${minimum} to ${maximum}`)
+  }
+  return value
+}
+
+function positiveFiniteNumber(value: number, name: string): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new RangeError(`${name} must be a finite number greater than 0`)
   }
   return value
 }
