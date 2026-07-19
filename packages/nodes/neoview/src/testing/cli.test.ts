@@ -1454,6 +1454,28 @@ describe("NeoView CLI", () => {
     expect(output.join("")).toContain("archiveProviders=2 indexEntries=12 indexBytes=640 activeExtractions=1")
     expect(output.join("")).toContain("Cache totals: memory=0 disk=0 leases=0")
   })
+
+  it("[neoview.diagnostics.history-export-cli] exports running-backend history without opening a local Reader", async () => {
+    const output: unknown[] = []
+    const fetchRemoteDiagnosticsHistory = vi.fn(async () => diagnosticsHistory())
+    await runProgram([
+      "diagnostics-history-export", "--connect", "http://127.0.0.1:41000", "--format", "csv", "--since-ms", "-10", "--limit", "2",
+    ], host(output, { XIRANITE_BACKEND_TOKEN: "history-token" }), {
+      createController: async () => fakeReader(),
+      fetchRemoteDiagnosticsHistory,
+    })
+    expect(output.join("")).toContain("historyDroppedSamples")
+    expect(output.join("")).toContain("3")
+    expect(fetchRemoteDiagnosticsHistory).toHaveBeenCalledWith({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "history-token",
+      sinceMs: -10,
+      limit: 2,
+    })
+    await expect(runProgram(["diagnostics-history-export"], host([]), {
+      createController: async () => fakeReader(),
+    })).rejects.toThrow("requires --connect")
+  })
 })
 
 const pages: readonly HeadlessReaderPageSnapshot[] = [0, 1, 2].map((index) => ({
@@ -1480,6 +1502,24 @@ function snapshot(index: number): HeadlessReaderSnapshot {
       atEnd: index === 2,
     },
     visiblePages: [pages[index]!],
+  }
+}
+
+function diagnosticsHistory() {
+  return {
+    schemaVersion: 1,
+    droppedSamples: 3,
+    samples: [{
+      schemaVersion: 1,
+      sampledAtMs: 10,
+      uptimeSeconds: 1,
+      process: { rssBytes: 8, heapTotalBytes: 7, heapUsedBytes: 6, externalBytes: 5, arrayBuffersBytes: 4, cpuUserMicros: 3, cpuSystemMicros: 2 },
+      reader: { activeSessions: 0 },
+      assets: { activeTransformFlights: 0, presentation: null, thumbnails: null },
+      presentationDiskCache: { enabled: false },
+      solidArchiveCache: { entries: 0, retainedBytes: 0, maxBytes: 0, activeEntries: 0, activeLeases: 0 },
+      scheduler: null,
+    }],
   }
 }
 

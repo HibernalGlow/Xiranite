@@ -17,6 +17,7 @@ export const help = {
         "Run `xiranite neoview thumbnail-db-stats --json` for aggregate thumbnail database health.",
         "Run `xiranite neoview presentation-cache-stats --json` for the shared L3 cache budget and hit counters.",
         "Run `xiranite neoview diagnostics --json` for a path-free process, scheduler, cache and queue snapshot.",
+        "Run `xiranite neoview diagnostics-history-export --connect http://127.0.0.1:41000 --format csv --output diagnostics.csv` for bounded diagnostics history from the running backend.",
         "Run `xiranite neoview reader-data-inspect <backup.json> --json` before importing legacy history and bookmarks.",
       ],
     },
@@ -68,6 +69,12 @@ export const help = {
       title: "Inspect runtime diagnostics",
       command: "xiranite neoview diagnostics --json",
       description: "Read a side-effect-free process, scheduler, cache and queue snapshot without exposing source paths.",
+      examples: [],
+    },
+    {
+      title: "Export runtime diagnostics history",
+      command: "xiranite neoview diagnostics-history-export --connect http://127.0.0.1:41000 --format csv --output diagnostics.csv",
+      description: "Export bounded, path-free history from the running loopback backend without opening a Reader session.",
       examples: [],
     },
     {

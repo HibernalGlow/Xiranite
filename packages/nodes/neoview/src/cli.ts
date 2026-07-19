@@ -16,6 +16,7 @@ import type {
   ReaderFileMutation,
   ReaderLibraryHeadlessController,
   ReaderDiagnosticsService,
+  ReaderDiagnosticsHistory,
   ReaderDiagnosticsSnapshot,
   ReaderSchedulerPoolDiagnostics,
   HeadlessReaderBookSettingsUpdate,
@@ -87,7 +88,7 @@ const COMMANDS = new Set([
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
   "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
-  "diagnostics",
+  "diagnostics", "diagnostics-history-export",
   "folder-tree", "folder-search", "folder-emm-tags", "folder-emm-edit", "folder-exclude", "folder-include", "folder-tree-cache-clear",
   "folder-search-history", "folder-search-history-delete", "folder-search-history-clear",
   "file-copy", "file-move", "file-rename", "file-delete", "file-trash", "file-open", "file-reveal", "file-undo", "file-undo-discard", "file-undo-state", "directory-create",
@@ -129,6 +130,8 @@ const VALUE_FLAGS = new Set([
   "--concurrency",
   "--connect",
   "--token-env",
+  "--format",
+  "--since-ms",
   "--quarantine",
   "--expected-revision",
   "--favorite",
@@ -168,6 +171,7 @@ export interface NeoviewCliDependencies {
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
   createDiagnosticsService?: (options: ReaderCompositionOptions) => Promise<ReaderDiagnosticsService>
   fetchRemoteDiagnostics?: (options: { baseUrl: string; token: string }) => Promise<ReaderDiagnosticsSnapshot>
+  fetchRemoteDiagnosticsHistory?: (options: { baseUrl: string; token: string; sinceMs?: number; limit?: number }) => Promise<ReaderDiagnosticsHistory>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
   createBackupBundleService?: (options: ReaderCompositionOptions & { thumbnailDatabasePath?: string }) => Promise<{
     create(destinationPath: string, signal?: AbortSignal): Promise<ReaderBackupBundleResult>
@@ -300,6 +304,11 @@ export async function runProgram(
   if (command === "diagnostics") {
     if (parsed.positionals.length) throw usage("diagnostics does not accept a path.")
     await runDiagnostics(parsed, host, dependencies)
+    return
+  }
+  if (command === "diagnostics-history-export") {
+    if (parsed.positionals.length) throw usage("diagnostics-history-export does not accept a path.")
+    await runDiagnosticsHistoryExport(parsed, host, dependencies)
     return
   }
   if (command.startsWith("input-bindings-")) {
@@ -771,6 +780,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env"]))
     return
   }
+  if (command === "diagnostics-history-export") {
+    rejectOptions(parsed, new Set(["--connect", "--token-env", "--format", "--since-ms", "--limit", "--output", "--force"]))
+    return
+  }
   if (command === "folder-tree") {
     rejectOptions(parsed, new Set(["--json", "--config", "--node", "--refresh"]))
     return
@@ -1101,6 +1114,50 @@ async function runDiagnostics(
   } finally {
     await service.close()
   }
+}
+
+async function runDiagnosticsHistoryExport(
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const connect = oneValue(parsed, "--connect")
+  if (!connect) throw usage("diagnostics-history-export requires --connect because history belongs to the running backend.")
+  const tokenVariable = oneValue(parsed, "--token-env")
+  const format = diagnosticsHistoryFormat(oneValue(parsed, "--format"))
+  const sinceMs = optionalIntegerOption(parsed, "--since-ms", Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
+  const limit = optionalIntegerOption(parsed, "--limit", 1, 1_000)
+  const fetchHistory = dependencies.fetchRemoteDiagnosticsHistory ?? (async (options: {
+    baseUrl: string
+    token: string
+    sinceMs?: number
+    limit?: number
+  }) => {
+    const { fetchRemoteReaderDiagnosticsHistory } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+    return fetchRemoteReaderDiagnosticsHistory(options)
+  })
+  const history = await fetchHistory({
+    baseUrl: connect,
+    token: connectionToken(tokenVariable, host),
+    sinceMs,
+    limit,
+  })
+  const { exportReaderDiagnosticsHistory } = await import("./application/diagnostics/ReaderDiagnosticsHistoryExport.js")
+  const exported = exportReaderDiagnosticsHistory(history, format)
+  const output = oneValue(parsed, "--output")
+  if (!output || output === "-") {
+    host.stdout.write(exported.body)
+    return
+  }
+  const outputPath = resolve(host.cwd, output)
+  await writeTextExclusive(outputPath, exported.body, parsed.booleans.has("--force"))
+  writeLine(host, `Reader diagnostics history exported: ${outputPath}`)
+}
+
+function diagnosticsHistoryFormat(value: string | undefined): "json" | "csv" {
+  const format = value ?? "json"
+  if (format === "json" || format === "csv") return format
+  throw usage("--format must be json or csv.")
 }
 
 function printDiagnostics(result: ReaderDiagnosticsSnapshot, parsed: ParsedArguments, host: CliHost): void {
@@ -2399,6 +2456,16 @@ function integerOption(parsed: ParsedArguments, flag: string, minimum: number, m
   return parsedValue
 }
 
+function optionalIntegerOption(parsed: ParsedArguments, flag: string, minimum: number, maximum: number): number | undefined {
+  const value = oneValue(parsed, flag)
+  if (value === undefined) return undefined
+  const parsedValue = Number(value)
+  if (!Number.isSafeInteger(parsedValue) || parsedValue < minimum || parsedValue > maximum) {
+    throw usage(`${flag} must be an integer from ${minimum} to ${maximum}.`)
+  }
+  return parsedValue
+}
+
 function requiredIntegerOption(parsed: ParsedArguments, flag: string, minimum: number, maximum: number): number {
   if (!parsed.values.has(flag)) throw usage(`${flag} is required.`)
   return integerOption(parsed, flag, minimum, maximum, minimum)
@@ -2828,6 +2895,7 @@ function formatCliHelp(): string {
     "  presentation-cache-cleanup     Run age/budget maintenance for L3",
     "  presentation-cache-clear       Clear unleased L3 entries",
     "  diagnostics                    Show process, scheduler, cache and queue diagnostics",
+    "  diagnostics-history-export     Export bounded diagnostics history from --connect",
     "  folder-tree <path>              List one lazily loaded directory-tree node",
     "  folder-search <path>            Stream a bounded recursive directory search",
     "  folder-emm-tags                 Suggest EMM catalog and favorite tags",
@@ -2854,6 +2922,8 @@ function formatCliHelp(): string {
     "  --archive-password-env SCOPE=VAR  Scoped nested password; join scope with ::",
     "  --connect URL        Use the running loopback XR Reader backend",
     "  --token-env VAR      Read its token from VAR (default XIRANITE_BACKEND_TOKEN)",
+    "  --format FORMAT      Diagnostics history export format: json or csv",
+    "  --since-ms N         First diagnostics history sample timestamp to include",
     "  --expected-revision N  Required CAS revision for book-settings-set",
     "  --enabled VALUE        Page transition enabled: true|false",
     "  --type VALUE           Page transition type",
