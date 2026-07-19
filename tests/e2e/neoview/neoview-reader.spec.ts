@@ -2333,7 +2333,7 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
 
   const pageTransitionCard = rightSidebar.locator('[data-neoview-card="page-transition"]')
   await pageTransitionCard.scrollIntoViewIfNeeded()
-  const pageTransitionToggle = pageTransitionCard.getByRole("checkbox", { name: "启用翻页动画" })
+  const pageTransitionToggle = pageTransitionCard.getByRole("switch", { name: "启用翻页动画" })
   await expect(pageTransitionToggle).toBeEnabled()
   const transitionResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`
     && response.request().method() === "PATCH"
