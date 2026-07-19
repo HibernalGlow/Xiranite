@@ -43,6 +43,7 @@ export function ReaderSwitchToastHost({ port }: { port: ReaderSwitchToastPort })
             type="button"
             className="grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
             aria-label="关闭切换提示"
+            title="关闭切换提示"
             onClick={() => port.dismiss(message.id)}
           >
             <X className="size-3.5" />
