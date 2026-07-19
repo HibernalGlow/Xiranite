@@ -60,6 +60,25 @@ describe("ReaderImageTrimStore", () => {
     expect(lateListener).not.toHaveBeenCalled()
   })
 
+  it("[neoview.image-trim.persistence] [neoview.image-trim.states] rolls an optimistic preview back after a failed write", async () => {
+    const failure = new Error("config disk unavailable")
+    const onError = vi.fn()
+    const store = createReaderImageTrimStore({
+      persist: async () => { throw failure },
+      onError,
+    })
+    const confirmed = settings()
+    store.hydrate(confirmed)
+    store.preview({ enabled: true, top: 12.5, autoTrimTarget: "white" })
+    expect(store.getSnapshot()).toMatchObject({ enabled: true, top: 12.5, autoTrimTarget: "white" })
+
+    await expect(store.commit()).rejects.toBe(failure)
+
+    expect(store.getSnapshot()).toEqual(confirmed)
+    expect(onError).toHaveBeenCalledWith(failure)
+    store.dispose()
+  })
+
   it("[neoview.image-trim.auto-persist] applies detected margins through one canonical write", async () => {
     const persist = vi.fn(async (settings: ReaderImageTrimSettings) => settings)
     const detect = vi.fn(async () => ({ top: 10, bottom: 11, left: 12, right: 13 }))

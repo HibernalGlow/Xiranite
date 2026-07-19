@@ -36,7 +36,7 @@ describe("NeoView image-trim terminal interaction", () => {
     expect(reset).toHaveBeenCalledWith(true)
   })
 
-  it("[neoview.image-trim.bounds-tui] [neoview.image-trim.threshold-tui] [neoview.image-trim.target-tui] [neoview.image-trim.persistence-tui] validates the complete form with the shared codec", () => {
+  it("[neoview.image-trim.bounds-tui] [neoview.image-trim.threshold-tui] [neoview.image-trim.target-tui] [neoview.image-trim.persistence] [neoview.image-trim.persistence-tui] validates the complete form with the shared codec", () => {
     const schema = createNeoviewImageTrimTuiDefinition("en", {} as NeoviewImageTrimTuiPort).schema
     const values = {
       action: "apply",

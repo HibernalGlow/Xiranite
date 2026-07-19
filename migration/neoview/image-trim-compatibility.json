@@ -884,22 +884,19 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
-        "neoview.image-trim.cli",
+        "neoview.image-trim.persistence",
         "neoview.image-trim.persistence-tui"
       ],
-      "plannedTestIds": [
-        "neoview.image-trim.persistence",
-        "neoview.image-trim.toml"
-      ],
-      "notes": "CLI and OpenTUI share ReaderImageTrimConfigService, write strict snake_case fields through the canonical NeoView TOML commit path and do not use a Reader database. GUI/HTTP persistence evidence remains incomplete."
+      "plannedTestIds": [],
+      "notes": "Core, authenticated HTTP, GUI Store, CLI and OpenTUI share the strict DTO and canonical NeoView TOML commit path. Tests prove snake_case output, serialized writes, optimistic rollback, preservation of unknown future fields across set/reset and no Reader database usage."
     },
     {
       "id": "image-trim.cache",
@@ -999,16 +996,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.states"
       ],
-      "notes": "Resident shell and session-dependent detection state must be distinguishable."
+      "plannedTestIds": [],
+      "notes": "Focused Store/Card tests plus Chromium cover loading, disabled, enabled, editing, linked, detecting, unavailable, no-border, success, failed/retry, pending-write rollback and disposed behavior without stale values."
     },
     {
       "id": "image-trim.lifecycle",

@@ -3172,13 +3172,13 @@
   - 测试：待补
   - 计划测试：`neoview.image-trim.effective-dimensions`
   - 备注：Source dimensions and CSS presentation dimensions remain distinct.
-- [ ] `image-trim.persistence` 唯一规范 TOML 持久化
-  - 六维：`core=- transport=- gui=- cli=C tui=C evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
+- [x] `image-trim.persistence` 唯一规范 TOML 持久化
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Before implementation, agree and freeze one versioned [nodes.neoview.image.*] path; serialize strict snake_case fields through a serialized atomic PATCH, preserve unknown fields and roll back on failure.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/settings/types.ts`、`src/lib/settings/settingsManager.ts`
-  - 测试：`neoview.image-trim.cli`、`neoview.image-trim.persistence-tui`
-  - 计划测试：`neoview.image-trim.persistence`、`neoview.image-trim.toml`
-  - 备注：CLI and OpenTUI share ReaderImageTrimConfigService, write strict snake_case fields through the canonical NeoView TOML commit path and do not use a Reader database. GUI/HTTP persistence evidence remains incomplete.
+  - 测试：`neoview.image-trim.persistence`、`neoview.image-trim.persistence-tui`
+  - 计划测试：无
+  - 备注：Core, authenticated HTTP, GUI Store, CLI and OpenTUI share the strict DTO and canonical NeoView TOML commit path. Tests prove snake_case output, serialized writes, optimistic rollback, preservation of unknown future fields across set/reset and no Reader database usage.
 - [ ] `image-trim.cache` 自动检测缓存边界
   - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
   - 目标：autoTrimCache is keyed by stable media identity/generation, bounded by count/bytes, cancellable and invalidated on source changes; cache misses recompute safely.
@@ -3200,13 +3200,13 @@
   - 测试：待补
   - 计划测试：`neoview.image-trim.data-contract`
   - 备注：ReaderApp remains composition only; no GUI-only second protocol.
-- [ ] `image-trim.states` 默认、禁用、编辑、检测和错误状态
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `image-trim.states` 默认、禁用、编辑、检测和错误状态
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Cover loading, default, enabled, disabled, editing, linked, previewing, detecting, no-image, no-border, success, failed, retry, pending-write, rollback and disposed states without stale values.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.states`
-  - 备注：Resident shell and session-dependent detection state must be distinguishable.
+  - 测试：`neoview.image-trim.states`
+  - 计划测试：无
+  - 备注：Focused Store/Card tests plus Chromium cover loading, disabled, enabled, editing, linked, detecting, unavailable, no-border, success, failed/retry, pending-write rollback and disposed behavior without stale values.
 - [ ] `image-trim.lifecycle` 订阅、请求和 Card 生命周期
   - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
   - 目标：Card subscriptions, detection requests and cache leases are released on hide/collapse/window close/unmount/session release; no timers or observers survive.

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 
 test.use({ viewport: { width: 1920, height: 1080 } })
 
-test("[neoview.image-trim.ui-1920x1080] [neoview.image-trim.resident] [neoview.image-trim.enable] [neoview.image-trim.reset] [neoview.image-trim.threshold] [neoview.image-trim.target] [neoview.image-trim.auto-detect] [neoview.image-trim.link-vertical] [neoview.image-trim.link-horizontal] [neoview.image-trim.chunk] [neoview.image-trim.zero-duplicate-request] [neoview.image-trim.image-stability] keeps the resident Card interactive before and after opening", async ({ page }, testInfo) => {
+test("[neoview.image-trim.ui-1920x1080] [neoview.image-trim.resident] [neoview.image-trim.states] [neoview.image-trim.enable] [neoview.image-trim.reset] [neoview.image-trim.threshold] [neoview.image-trim.target] [neoview.image-trim.auto-detect] [neoview.image-trim.link-vertical] [neoview.image-trim.link-horizontal] [neoview.image-trim.chunk] [neoview.image-trim.zero-duplicate-request] [neoview.image-trim.image-stability] keeps the resident Card interactive before and after opening", async ({ page }, testInfo) => {
   const imageRequests: string[] = []
   page.on("request", (request) => {
     if (request.url().endsWith("/tests/e2e/neoview/neoview-image-trim-fixture.svg")) imageRequests.push(request.url())
