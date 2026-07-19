@@ -76,6 +76,11 @@ import type {
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export {
+  OllamaTranslationClient,
+  renderPrompt as renderOllamaTranslationPrompt,
+  type OllamaTranslationClientOptions,
+} from "./platform/ai/OllamaTranslationClient.js"
+export {
   WindowsReaderShortcutResolver,
   type WindowsReaderShortcutResolverOptions,
 } from "./platform/windows/WindowsReaderShortcutResolver.js"
