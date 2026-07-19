@@ -39,7 +39,7 @@ describe("ReaderLibraryService", () => {
     const closing = service.close()
     expect(service.close()).toBe(closing)
     expect(store.close).not.toHaveBeenCalled()
-    await expect(service.listRecent()).rejects.toThrow("closed")
+    expect(() => service.listRecent()).toThrow("closed")
 
     pending.resolve([])
     await expect(listing).resolves.toEqual([])
