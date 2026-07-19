@@ -410,6 +410,7 @@ export class CacachePresentationDiskCache implements ReaderPresentationDiskCache
     } catch {
       const state = this.#leases.get(key)
       if (state) state.invalidated = true
+      else this.#leases.set(key, { leases: 0, invalidated: true })
       return
     } finally {
       await releaseEntryLock?.().catch(() => undefined)
