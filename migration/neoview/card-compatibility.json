@@ -10,6 +10,15 @@
     "integration",
     "deferred"
   ],
+  "hostOnlyCurrentCards": [
+    {
+      "id": "about-settings",
+      "rationale": "Xiranite-only node diagnostics expose the canonical TOML namespace and legacy SQLite ownership. This is a host extension, not a replacement for the legacy system settings controls.",
+      "testIds": [
+        "neoview.settings.window"
+      ]
+    }
+  ],
   "cards": [
     {
       "legacyId": "visibility",
@@ -1224,6 +1233,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "slideshow-settings",
       "sourceComponent": "src/lib/cards/settings/GeneralSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -1279,6 +1289,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "media-settings",
       "sourceComponent": "src/lib/cards/settings/ImageSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -1333,6 +1344,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "reader-material-settings",
       "sourceComponent": "src/lib/cards/settings/ThemeSettingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -1369,7 +1381,7 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
-      "currentCardId": "sidebar-management-settings",
+      "currentCardId": "board-layout-settings",
       "sourceComponent": "src/lib/cards/settings/PanelManagementCard.svelte",
       "sourceDisposition": "component"
     },
@@ -1388,7 +1400,7 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
-      "currentCardId": "panel-layout-settings",
+      "currentCardId": "board-layout-settings",
       "sourceComponent": "src/lib/cards/settings/CardManagementCard.svelte",
       "sourceDisposition": "component"
     },
@@ -1426,6 +1438,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "data-migration-settings",
       "sourceComponent": "src/lib/cards/settings/DataSettingsCard.svelte",
       "sourceDisposition": "component"
     }
