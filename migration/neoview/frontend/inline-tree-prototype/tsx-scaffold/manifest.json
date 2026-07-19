@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "name": "@xiranite/svelte-migrate",
+    "version": "0.1.0"
+  },
+  "sourceRevision": {
+    "vcs": "git",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+    "dirty": true,
+    "dirtyDiffHash": "sha256:2ddd0edc04e9bc1407e7e7879723020b0cd45804e4483d0122768a1119f26aab"
+  },
+  "sourceRoot": "src",
+  "summary": {
+    "sourceFiles": 998,
+    "components": 551,
+    "modules": 447,
+    "stores": 142,
+    "graphEdges": 771,
+    "unresolvedComponentImports": 0,
+    "tauriFiles": 107,
+    "tauriCalls": 389,
+    "unmappedComponents": 551,
+    "unmappedModules": 447,
+    "dispositions": {
+      "converted": 22,
+      "adapter-needed": 3,
+      "manual": 526,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "moduleDispositions": {
+      "converted": 289,
+      "adapter-needed": 42,
+      "manual": 116,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "reactScaffolds": 23
+  },
+  "scaffolds": [
+    {
+      "sourceFile": "src/lib/cards/benchmark/ResultsCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/ResultsCard.tsx",
+      "sourceHash": "sha256:df4e627c6f6f88a02084fd8dae24da8be7633dd2ec6df620e649091a5848902e",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/SummaryCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/SummaryCard.tsx",
+      "sourceHash": "sha256:2e4579bc77b95feadca28e528f3166e402943a76a2816e3d4ff6f8a383d72d1c",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/folder/FolderMainCard.svelte",
+      "outputFile": "src/lib/cards/folder/FolderMainCard.tsx",
+      "sourceHash": "sha256:d93869d9290513ffd008d0041f24bd040646e69bb5f10bcd683a6f29c843fc4b",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/monitor/components/GpuMonitor.svelte",
+      "outputFile": "src/lib/cards/monitor/components/GpuMonitor.tsx",
+      "sourceHash": "sha256:20f0396b77e255f837baced895e392f14652969757c3ee2c9dbcb345fe9415e4",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/EmmConfigCard.svelte",
+      "outputFile": "src/lib/cards/properties/EmmConfigCard.tsx",
+      "sourceHash": "sha256:31aa9e3785d5fbac55a4a07944820b5912c398f644811044026247877dee38a4",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/EmmSyncCard.svelte",
+      "outputFile": "src/lib/cards/properties/EmmSyncCard.tsx",
+      "sourceHash": "sha256:3ba07ed1c95f283dff66592d7b97962cd90b5fe698a57bcae96d875cd5442942",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
+      "outputFile": "src/lib/cards/properties/FileListTagDisplayCard.tsx",
+      "sourceHash": "sha256:372ef11a089413c212e2cfde37e77d7787dd2a4abe9e1ff42a42ca79ab776e33",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
+      "outputFile": "src/lib/cards/properties/ThumbnailMaintenanceCard.tsx",
+      "sourceHash": "sha256:cf84c01530d011d23b609559c6b97a3ebc421d38fa000f744572b7d191481b72",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/browser/FileSystemBrowser.svelte",
+      "outputFile": "src/lib/components/browser/FileSystemBrowser.tsx",
+      "sourceHash": "sha256:035e1305dbafbb398e58ae6b64685208ee747551d70ba4a2f227ca64f95024eb",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/panels/folderPanel/components/InlineTreeList.svelte",
+      "outputFile": "src/lib/components/panels/folderPanel/components/InlineTreeList.tsx",
+      "sourceHash": "sha256:b5b8af47aeb54c07bf99463cb68b535d6b2fb40d31356fc8ec9e6a7230e75494",
+      "featureIds": [],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/panels/PageListPanel.svelte",
+      "outputFile": "src/lib/components/panels/PageListPanel.tsx",
+      "sourceHash": "sha256:bf689199d9ef192fd9c1f6c00646a0ec55ac8843d19161579633831b0594ef05",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/panels/theme/ThemeModeTab.svelte",
+      "outputFile": "src/lib/components/panels/theme/ThemeModeTab.tsx",
+      "sourceHash": "sha256:9a77d89682bfa34ed06b2d72f822537712b7a32a91ae6e3643803fb0d0a4d9aa",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/panels/ThemePreview.svelte",
+      "outputFile": "src/lib/components/panels/ThemePreview.tsx",
+      "sourceHash": "sha256:cd585e6484a617bb969ac2c90084d4850b2249a81ce9b8d7ddc868fe538285f4",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/ui/alert-dialog/alert-dialog-portal.svelte",
+      "outputFile": "src/lib/components/ui/alert-dialog/alert-dialog-portal.tsx",
+      "sourceHash": "sha256:053b95e4d39547f6e0b9028f8889a877233092be9f7d5cfda4f302b38f3a92c2",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/ui/dialog/dialog-portal.svelte",
+      "outputFile": "src/lib/components/ui/dialog/dialog-portal.tsx",
+      "sourceHash": "sha256:89965737ff9031429f56c9f531f1ef31127f281ff4955cfbb2fd63031d45ee31",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/ui/emoji-picker/emoji-picker-skin-tone-selector.svelte",
+      "outputFile": "src/lib/components/ui/emoji-picker/emoji-picker-skin-tone-selector.tsx",
+      "sourceHash": "sha256:1d0aa10602afa4b856708e04115abb5040c2cad50b1b84269f4b793a8f9421f3",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/ui/popover/popover-portal.svelte",
+      "outputFile": "src/lib/components/ui/popover/popover-portal.tsx",
+      "sourceHash": "sha256:fb6faa25d48bb4ae6d020cc7e2a2ddc037a14da134b6902348510e1289f785b1",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/ui/sonner/sonner.svelte",
+      "outputFile": "src/lib/components/ui/sonner/sonner.tsx",
+      "sourceHash": "sha256:8c65d034cf9c6955ad91c91389e1cb0f26dee5575ac65f603d7ae844418b4c78",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/ui/tags-input/tags-input-tag.svelte",
+      "outputFile": "src/lib/components/ui/tags-input/tags-input-tag.tsx",
+      "sourceHash": "sha256:c2b7925292bde274cbb9c9d5f8c3acfb2bc8c4078064753984cbd234c36f7f79",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/viewer/VideoPlayer/MoreMenu.svelte",
+      "outputFile": "src/lib/components/viewer/VideoPlayer/MoreMenu.tsx",
+      "sourceHash": "sha256:6dc2c3de7607c9e555bece44b3b086dadbe3a6b720a637a885c1db7361679566",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/viewer/VideoPlayer/PlaybackRatePanel.svelte",
+      "outputFile": "src/lib/components/viewer/VideoPlayer/PlaybackRatePanel.tsx",
+      "sourceHash": "sha256:00fc463164a2b2324273141b40bfb6453ec18eb354b837b0243690ae51657b5e",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/viewer/VideoPlayer/VideoControls.svelte",
+      "outputFile": "src/lib/components/viewer/VideoPlayer/VideoControls.tsx",
+      "sourceHash": "sha256:00ef7f489042b4c02415aa700ed5bd98c230a8c43c5546d583ed48e89ed11d30",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/viewer/VideoPlayer/VolumePanel.svelte",
+      "outputFile": "src/lib/components/viewer/VideoPlayer/VolumePanel.tsx",
+      "sourceHash": "sha256:abeb5b39ec27d5f7f998e27a7af776f554215fdc7501242424bbf997daa00551",
+      "featureIds": [],
+      "migrationStatus": "scaffold",
+      "sourceDisposition": "converted",
+      "unsupported": []
+    }
+  ]
+}

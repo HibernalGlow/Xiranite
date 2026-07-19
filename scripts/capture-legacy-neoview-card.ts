@@ -5,7 +5,7 @@ import { chromium } from "playwright"
 
 const options = parseArgs(process.argv.slice(2))
 console.log(`launching ${options.viewport.width}x${options.viewport.height}`)
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch({ headless: true, channel: options.channel })
 try {
   const page = await browser.newPage({ viewport: options.viewport, deviceScaleFactor: 1 })
   page.on("pageerror", (error) => console.error(`pageerror: ${error.message}`))
@@ -18,6 +18,10 @@ try {
   if (options.legacyCard) {
     await mountLegacyCard(page, options.legacyCard, options.legacySetup)
     console.log(`mounted legacy card ${options.legacyCard} (${options.legacySetup})`)
+  }
+  if (options.legacyToolbar) {
+    await mountLegacyToolbar(page, options.legacyToolbar)
+    console.log(`mounted legacy toolbar (${options.legacyToolbar})`)
   }
   if (options.probeModule) {
     const probe = await page.evaluate(async (modulePath) => {
@@ -70,7 +74,7 @@ function parseArgs(args: readonly string[]) {
   }))
   const url = values.get("--url")
   const output = values.get("--output")
-  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--legacy-card=<id> --legacy-setup=control|model|status|cache|conditions --expand-conditions] [--wait-label=<label> | --check-label=<label> | --click-selector=<selector>] [--wait-ms=<ms>] [--wait-until=commit|domcontentloaded] [--probe-module=<path>] [--viewport=1920x1080]")
+  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--legacy-card=<id> | --legacy-toolbar=main|zoom|rotate] [--viewport=1920x1080]")
   const [width, height] = (values.get("--viewport") ?? "1920x1080").split("x").map(Number)
   if (!Number.isInteger(width) || !Number.isInteger(height) || width! <= 0 || height! <= 0) throw new Error("Invalid viewport")
   return {
@@ -83,10 +87,63 @@ function parseArgs(args: readonly string[]) {
     clickSelector: values.get("--click-selector"),
     expandConditions: values.has("--expand-conditions"),
     legacyCard: values.get("--legacy-card"),
+    legacyToolbar: values.get("--legacy-toolbar"),
     legacySetup: values.get("--legacy-setup") ?? "control",
     probeModule: values.get("--probe-module"),
     viewport: { width: width!, height: height! },
+    channel: values.get("--channel") as "chrome" | "msedge" | undefined,
   }
+}
+
+async function mountLegacyToolbar(page: import("playwright").Page, panel: string): Promise<void> {
+  if (!new Set(["main", "zoom", "rotate"]).has(panel)) throw new Error(`Unknown legacy toolbar panel: ${panel}`)
+  await page.evaluate(async (panel) => {
+    const load = (path: string): Promise<any> => import(/* @vite-ignore */ path)
+    const [{ mount }, { default: TopToolbar }, { bookStore }, stores] = await Promise.all([
+      load("/node_modules/.vite/deps/svelte.js"),
+      load("/src/lib/components/layout/TopToolbar/TopToolbar.svelte"),
+      load("/src/lib/stores/book.svelte.ts"),
+      load("/src/lib/stores/index.ts"),
+    ])
+    const pages = Array.from({ length: 128 }, (_, index) => ({
+      index,
+      entryIndex: index,
+      path: `D:/漫画/旧版顶栏/第${String(index + 1).padStart(3, "0")}页.jpg`,
+      innerPath: `${String(index + 1).padStart(3, "0")}.jpg`,
+      name: `${String(index + 1).padStart(3, "0")}.jpg`,
+      size: 1_048_576,
+      width: index % 7 === 0 ? 2400 : 1200,
+      height: index % 7 === 0 ? 1200 : 1800,
+      loaded: true,
+      stableHash: `toolbar-${index}`,
+    }))
+    ;(bookStore as any).state.currentBook = {
+      path: "D:/漫画/旧版顶栏/NeoView 顶栏布局基准.cbz",
+      name: "NeoView 顶栏布局基准.cbz",
+      type: "archive",
+      totalPages: pages.length,
+      currentPage: 23,
+      pages,
+      sortMode: "fileName",
+      mediaPriorityMode: "none",
+      readOrder: "leftToRight",
+      pageMode: "twoPage",
+    }
+    ;(bookStore as any).state.viewerOpen = true
+    stores.topToolbarPinned?.set(true)
+    stores.topToolbarLockState?.set(true)
+    document.body.innerHTML = '<main style="height:100vh;background:#09090b;color:var(--foreground)"><div id="legacy-toolbar"></div></main>'
+    mount(TopToolbar, { target: document.getElementById("legacy-toolbar")! })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const toolbar = document.querySelector<HTMLElement>('[data-top-toolbar="true"]')
+    toolbar?.classList.remove("-translate-y-full")
+    toolbar?.classList.add("translate-y-0")
+    if (panel !== "main") {
+      const label = panel === "zoom" ? "缩放模式" : "旋转设置"
+      const button = [...document.querySelectorAll<HTMLButtonElement>("button")].find((candidate) => candidate.getAttribute("aria-label") === label || candidate.title.includes(label))
+      button?.click()
+    }
+  }, panel)
 }
 
 async function mountLegacyCard(
