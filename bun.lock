@@ -32,6 +32,7 @@
         "@xiranite/contract": "workspace:*",
         "@xiranite/node-audiov": "workspace:*",
         "@xiranite/node-bandia": "workspace:*",
+        "@xiranite/node-batong": "workspace:*",
         "@xiranite/node-bitv": "workspace:*",
         "@xiranite/node-classf": "workspace:*",
         "@xiranite/node-classq": "workspace:*",
@@ -340,6 +341,21 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+      },
+    },
+    "packages/nodes/batong": {
+      "name": "@xiranite/node-batong",
+      "version": "0.1.0",
+      "bin": {
+        "xbatong": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
       },
       "devDependencies": {
@@ -2229,6 +2245,8 @@
     "@xiranite/node-audiov": ["@xiranite/node-audiov@workspace:packages/nodes/audiov"],
 
     "@xiranite/node-bandia": ["@xiranite/node-bandia@workspace:packages/nodes/bandia"],
+
+    "@xiranite/node-batong": ["@xiranite/node-batong@workspace:packages/nodes/batong"],
 
     "@xiranite/node-bitv": ["@xiranite/node-bitv@workspace:packages/nodes/bitv"],
 

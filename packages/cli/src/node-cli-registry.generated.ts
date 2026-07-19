@@ -16,6 +16,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Batch extract, compress, repack, and export archive paths with Bandizip.",
   },
   {
+    id: "batong",
+    packageName: "@xiranite/node-batong",
+    bin: nodeCliName("batong"),
+    description: "Migrate drawing-workflow coding-agent sessions with Baton.",
+  },
+  {
     id: "bitv",
     packageName: "@xiranite/node-bitv",
     bin: nodeCliName("bitv"),
