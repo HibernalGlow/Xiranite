@@ -77,6 +77,7 @@
     "test": "vitest run src --environment node --exclude src/testing/Tui.bun.test.tsx && bun test src/testing/Tui.bun.test.tsx"
   },
   "dependencies": {
+    "@hibernalglow/opencomic-ai-system": "github:HibernalGlow/opencomic-ai-bin#cc83499463e68cc893c8b67d12c6e0bf375081a7",
     "@parcel/watcher": "^2.5.6",
     "@xiranite/arcthumb-native": "workspace:*",
     "@xiranite/cli-runtime": "workspace:*",
