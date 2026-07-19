@@ -178,20 +178,27 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
 
       for (const el of path) {
         if (!(el instanceof HTMLElement)) continue
+        // Nodes can opt out of host/workspace ancestor menus (focus, fullscreen, …)
+        // by declaring data-context-menu-stop on their surface root. Inner scopes
+        // already collected above this boundary still contribute.
+        const stopAncestors = el.dataset.contextMenuStop != null
         const scope = el.dataset.contextMenu
-        if (!scope || seenScopes.has(scope)) continue
-        seenScopes.add(scope)
-        const builder = buildersRef.current.get(scope)?.at(-1)
-        if (!builder) continue
-        const data: Record<string, string> = {}
-        for (const k in el.dataset) {
-          if (k === "contextMenu") continue
-          data[k] = el.dataset[k] as string
+        if (scope && !seenScopes.has(scope)) {
+          seenScopes.add(scope)
+          const builder = buildersRef.current.get(scope)?.at(-1)
+          if (builder) {
+            const data: Record<string, string> = {}
+            for (const k in el.dataset) {
+              if (k === "contextMenu" || k === "contextMenuStop") continue
+              data[k] = el.dataset[k] as string
+            }
+            const built = builder({ element: el, event: e, data })
+            if (built && built.length > 0) {
+              items.push(...built, { type: "separator" })
+            }
+          }
         }
-        const built = builder({ element: el, event: e, data })
-        if (built && built.length > 0) {
-          items.push(...built, { type: "separator" })
-        }
+        if (stopAncestors) break
       }
 
       // Drop trailing separators.

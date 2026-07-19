@@ -1306,6 +1306,7 @@ export function ReaderApp({
       ref={surface.ref}
       data-reader-app="true"
       data-input-context="reader"
+      data-context-menu-stop=""
       className="h-full min-h-0 w-full touch-none overflow-hidden bg-background text-foreground"
       tabIndex={0}
       onPointerDown={handleInputPointerDown}
