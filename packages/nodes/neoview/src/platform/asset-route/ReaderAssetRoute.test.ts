@@ -345,6 +345,73 @@ describe("ReaderAssetRoute", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.asset.cancellation] returns promptly and closes a source that loads after the HTTP request aborts", async () => {
+    const lateSource = Promise.withResolvers<PageSource>()
+    const close = vi.fn(async () => undefined)
+    const load = vi.fn(() => lateSource.promise)
+    const value = fixtureBook(pageSource(Uint8Array.of(1, 2)))
+    const service = new CoreReaderService(async () => ({
+      ...value,
+      pages: [{ ...value.pages[0]!, content: { load } }],
+    }))
+    const session = await service.openViewSource({ kind: "path", path: "opaque" })
+    const route = new ReaderAssetRoute(service, { baseUrl: "http://127.0.0.1:41000", token: "route-token" })
+    const controller = new AbortController()
+    const pending = route.handle(new Request(route.pageUrl(session.id, "page-1"), { signal: controller.signal }))
+
+    await vi.waitFor(() => expect(load).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("client disconnected", "AbortError"))
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    lateSource.resolve({
+      byteLength: 2,
+      contentType: "image/jpeg",
+      rangeSupported: false,
+      open: vi.fn(),
+      close,
+      [Symbol.asyncDispose]: close,
+    })
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.asset.cancellation] returns promptly and cancels a stream that opens after the HTTP request aborts", async () => {
+    const lateStream = Promise.withResolvers<ReadableStream<Uint8Array>>()
+    const streamCancelled = vi.fn()
+    const sourceClosed = vi.fn(async () => undefined)
+    const open = vi.fn(() => lateStream.promise)
+    const value = fixtureBook(pageSource(Uint8Array.of(1, 2)))
+    const service = new CoreReaderService(async () => ({
+      ...value,
+      pages: [{
+        ...value.pages[0]!,
+        content: {
+          async load(): Promise<PageSource> {
+            return {
+              byteLength: 2,
+              contentType: "image/jpeg",
+              rangeSupported: false,
+              open,
+              close: sourceClosed,
+              [Symbol.asyncDispose]: sourceClosed,
+            }
+          },
+        },
+      }],
+    }))
+    const session = await service.openViewSource({ kind: "path", path: "opaque" })
+    const route = new ReaderAssetRoute(service, { baseUrl: "http://127.0.0.1:41000", token: "route-token" })
+    const controller = new AbortController()
+    const pending = route.handle(new Request(route.pageUrl(session.id, "page-1"), { signal: controller.signal }))
+
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("client disconnected", "AbortError"))
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    expect(sourceClosed).toHaveBeenCalledOnce()
+    lateStream.resolve(new ReadableStream<Uint8Array>({ cancel: streamCancelled }))
+    await vi.waitFor(() => expect(streamCancelled).toHaveBeenCalledOnce())
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.image.transform-route] loads the transformer only for normalized transform requests", async () => {
     const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3, 4))
     const transform = vi.fn<ImageTransformer["transform"]>(async (input, request) => {
@@ -872,5 +939,19 @@ function pageSource(bytes: Uint8Array): PageSource {
     open: async () => new Blob([bytes]).stream() as ReadableStream<Uint8Array>,
     close: async () => undefined,
     [Symbol.asyncDispose]: async () => undefined,
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Test promise timed out after ${timeoutMs} ms.`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
