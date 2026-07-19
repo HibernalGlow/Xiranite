@@ -164,6 +164,31 @@ describe("CacachePresentationDiskCache", () => {
     await cache.close()
   })
 
+  it("[neoview.cache.l3-windows-lock-no-lease] blocks a failed idle invalidation until maintenance can retry it", async () => {
+    const api = await import("cacache")
+    let locked = true
+    const entry = Object.assign(async (...args: Parameters<typeof api.rm.entry>) => {
+      if (locked) {
+        locked = false
+        throw Object.assign(new Error("fixture file is locked"), { code: "EPERM" })
+      }
+      return api.rm.entry(...args)
+    }, api.rm.entry)
+    const cache = createCache({
+      maxBytes: 64,
+      maxEntryBytes: 32,
+      loadCacache: async () => ({ ...api, rm: Object.assign(entry, { ...api.rm, entry }) as typeof api.rm }),
+    })
+    const cacheKey = key("locked-idle")
+    await cache.put(cacheKey, value(8, 1))
+    await cache.invalidate(cacheKey)
+
+    expect(await cache.acquire(cacheKey)).toBeUndefined()
+    expect(await cache.snapshot()).toMatchObject({ entries: 1, activeLeases: 0 })
+    expect(await cache.clear()).toMatchObject({ removedEntries: 1, entries: 0 })
+    await cache.close()
+  })
+
   it("[neoview.cache.l3-budget] trims old unleased content far enough to admit the next entry", async () => {
     let now = 1
     const cache = createCache({
