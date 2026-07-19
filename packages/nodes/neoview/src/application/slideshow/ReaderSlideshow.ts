@@ -34,6 +34,9 @@ export class ReaderSlideshow {
   #deadline = 0
   #timer: ReturnType<typeof setTimeout> | undefined
   #generation = 0
+  #advanceInFlight = false
+  #advanceQueued = false
+  #disposed = false
 
   constructor(options: ReaderSlideshowOptions, initial: Partial<ReaderSlideshowConfig> = {}) {
     this.#options = options
@@ -47,32 +50,37 @@ export class ReaderSlideshow {
     }
   }
 
-  getSnapshot = (): ReaderSlideshowSnapshot => this.#snapshot
+  getSnapshot = (): ReaderSlideshowSnapshot => ({ ...this.#snapshot })
 
   subscribe = (listener: () => void): (() => void) => {
+    if (this.#disposed) return () => undefined
     this.#listeners.add(listener)
     return () => this.#listeners.delete(listener)
   }
 
   play(): void {
+    if (this.#disposed) return
     if (this.#snapshot.state === "playing") return
     this.#replace({ state: "playing" })
     this.#restartCountdown()
   }
 
   pause(): void {
+    if (this.#disposed) return
     if (this.#snapshot.state !== "playing") return
     this.#cancelTimer()
     this.#replace({ state: "paused" })
   }
 
   stop(): void {
+    if (this.#disposed) return
     if (this.#snapshot.state === "stopped" && this.#snapshot.remainingSeconds === 0) return
     this.#cancelTimer()
     this.#replace({ state: "stopped", remainingSeconds: 0 })
   }
 
   toggle(): void {
+    if (this.#disposed) return
     if (this.#snapshot.state === "playing") this.pause()
     else this.play()
   }
@@ -90,6 +98,7 @@ export class ReaderSlideshow {
   }
 
   configure(config: Partial<ReaderSlideshowConfig>): void {
+    if (this.#disposed) return
     const patch: Partial<ReaderSlideshowSnapshot> = {}
     if (config.intervalSeconds !== undefined) {
       const intervalSeconds = normalizeInterval(config.intervalSeconds)
@@ -103,15 +112,20 @@ export class ReaderSlideshow {
   }
 
   resetOnUserAction(): void {
+    if (this.#disposed) return
     if (this.#snapshot.state === "playing") this.#restartCountdown()
   }
 
   dispose(): void {
+    if (this.#disposed) return
+    this.#disposed = true
     this.#cancelTimer()
+    this.#snapshot = { ...this.#snapshot, state: "stopped", remainingSeconds: 0 }
     this.#listeners.clear()
   }
 
   #restartCountdown(): void {
+    if (this.#disposed || this.#snapshot.state !== "playing") return
     this.#cancelTimer()
     this.#deadline = Date.now() + this.#snapshot.intervalSeconds * 1000
     this.#replace({ remainingSeconds: this.#snapshot.intervalSeconds })
@@ -135,19 +149,24 @@ export class ReaderSlideshow {
       return
     }
     this.#replace({ remainingSeconds: 0 })
+    if (this.#snapshot.state !== "playing") return
+    if (this.#advanceInFlight) {
+      this.#advanceQueued = true
+      return
+    }
     void this.#advance()
   }
 
   async #advance(): Promise<void> {
+    if (this.#disposed || this.#snapshot.state !== "playing" || this.#advanceInFlight) return
+    this.#advanceInFlight = true
     const generation = this.#generation
-    const position = this.#options.readPosition()
     let completed = false
     try {
-      if (position.pageCount <= 0) {
+      const position = this.#readPosition()
+      if (position.pageCount <= 1) {
         this.stop()
-        return
-      }
-      if (this.#snapshot.random) {
+      } else if (this.#snapshot.random) {
         completed = await this.#options.goToPage(randomPageIndex(
           position.currentPageIndex,
           position.pageCount,
@@ -163,23 +182,72 @@ export class ReaderSlideshow {
         completed = await this.#options.nextPage()
       }
     } catch (error) {
-      this.#options.onError?.(error)
+      this.#reportError(error)
     }
-    if (generation === this.#generation && this.#snapshot.state === "playing") {
-      if (!completed && this.#options.readPosition().atEnd && !this.#snapshot.loop && !this.#snapshot.random) this.stop()
-      else this.#restartCountdown()
+    this.#advanceInFlight = false
+    if (this.#disposed || this.#snapshot.state !== "playing") return
+    if (generation !== this.#generation) {
+      if (this.#advanceQueued && this.#deadline <= Date.now()) {
+        this.#advanceQueued = false
+        void this.#advance()
+      } else if (this.#timer === undefined) {
+        this.#scheduleTick()
+      }
+      return
+    }
+    let position: ReaderSlideshowPosition
+    try {
+      position = this.#readPosition()
+    } catch (error) {
+      this.#reportError(error)
+      this.#restartCountdown()
+      return
+    }
+    if (!completed && position.atEnd && !this.#snapshot.loop && !this.#snapshot.random) this.stop()
+    else this.#restartCountdown()
+  }
+
+  #readPosition(): ReaderSlideshowPosition {
+    const position = this.#options.readPosition()
+    if (!Number.isSafeInteger(position.pageCount) || position.pageCount < 0) {
+      throw new RangeError("Reader slideshow page count must be a non-negative integer.")
+    }
+    if (typeof position.atEnd !== "boolean") throw new TypeError("Reader slideshow atEnd must be a boolean.")
+    if (!Number.isSafeInteger(position.currentPageIndex) || position.currentPageIndex < 0) {
+      throw new RangeError("Reader slideshow current page index must be a non-negative integer.")
+    }
+    if (position.pageCount > 0 && position.currentPageIndex >= position.pageCount) {
+      throw new RangeError("Reader slideshow current page index is outside the page count.")
+    }
+    return position
+  }
+
+  #reportError(error: unknown): void {
+    try {
+      this.#options.onError?.(error)
+    } catch {
+      // Error observers must not interrupt slideshow state recovery.
     }
   }
 
   #cancelTimer(): void {
     this.#generation += 1
+    this.#advanceQueued = false
     if (this.#timer !== undefined) clearTimeout(this.#timer)
     this.#timer = undefined
   }
 
   #replace(patch: Partial<ReaderSlideshowSnapshot>): void {
+    if (this.#disposed) return
     this.#snapshot = { ...this.#snapshot, ...patch }
-    for (const listener of this.#listeners) listener()
+    for (const listener of this.#listeners) {
+      if (this.#disposed) break
+      try {
+        listener()
+      } catch (error) {
+        this.#reportError(error)
+      }
+    }
   }
 }
 
@@ -190,7 +258,9 @@ function normalizeInterval(seconds: number): number {
 
 function randomPageIndex(currentPageIndex: number, pageCount: number, random: number): number {
   if (pageCount <= 1) return 0
-  const bounded = Math.min(Math.max(random, 0), 1 - Number.EPSILON)
+  const bounded = Number.isFinite(random)
+    ? Math.min(Math.max(random, 0), 1 - Number.EPSILON)
+    : 0
   const candidate = Math.floor(bounded * (pageCount - 1))
   return candidate >= currentPageIndex ? candidate + 1 : candidate
 }
