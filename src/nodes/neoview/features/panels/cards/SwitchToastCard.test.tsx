@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import DockedSwitchToastCard, { SwitchToastCard, type SwitchToastPatch, type SwitchToastPort, type SwitchToastSettings } from "./SwitchToastCard"
@@ -6,19 +7,16 @@ import DockedSwitchToastCard, { SwitchToastCard, type SwitchToastPatch, type Swi
 afterEach(cleanup)
 
 describe("SwitchToastCard", () => {
-  it("[neoview.switch-toast.inactive-zero-subscription] keeps an empty shell while hidden and subscribes after activation", async () => {
+  it("[neoview.switch-toast.resident] keeps the full Card subscribed while its panel is inactive", async () => {
     const port = memoryPort()
     const subscribe = vi.spyOn(port, "subscribe")
     const context = { switchToast: port, disabled: false, client: {} as never, onGoTo: () => undefined }
     const view = render(<DockedSwitchToastCard {...context} panelActive={false} />)
 
-    expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
-    expect(subscribe).not.toHaveBeenCalled()
-
-    view.rerender(<DockedSwitchToastCard {...context} panelActive />)
     await vi.waitFor(() => expect(subscribe).toHaveBeenCalled())
     expect(view.container.querySelector('[data-neoview-card="switch-toast"]')).toBeTruthy()
     expect(view.container.querySelector('[data-switch-toast-state="ready"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-neoview-card="switch-toast"]')?.getAttribute("data-panel-active")).toBe("false")
   })
 
   it("[neoview.switch-toast.loading] remains mounted with a stable empty state before config hydration", () => {
@@ -80,6 +78,30 @@ describe("SwitchToastCard", () => {
     render(<SwitchToastCard port={memoryPort(settings)} onShowTest={onShowTest} />)
     fireEvent.click(screen.getByRole("button", { name: "显示测试提示" }))
     expect(onShowTest).toHaveBeenCalledWith(settings)
+  })
+
+  it("settles a switch save under React Strict Mode", async () => {
+    const port = memoryPort()
+    render(<StrictMode><SwitchToastCard port={port} /></StrictMode>)
+
+    const toggle = screen.getByRole("switch", { name: "切换页面时显示提示" })
+    fireEvent.click(toggle)
+
+    await waitFor(() => expect(screen.getByText("已保存", { exact: true })).toBeTruthy())
+    expect(toggle.getAttribute("data-state")).toBe("checked")
+  })
+
+  it("surfaces a failed save and retries it", async () => {
+    const port = memoryPort()
+    port.update.mockRejectedValueOnce(new Error("disk full"))
+    render(<SwitchToastCard port={port} />)
+
+    fireEvent.click(screen.getByRole("switch", { name: "切换页面时显示提示" }))
+    expect((await screen.findByRole("alert")).textContent).toContain("保存失败")
+    fireEvent.click(screen.getByRole("button", { name: "重试" }))
+
+    await waitFor(() => expect(screen.getByText("已保存", { exact: true })).toBeTruthy())
+    expect(port.update).toHaveBeenCalledTimes(2)
   })
 })
 
