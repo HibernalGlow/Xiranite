@@ -86,6 +86,54 @@ describe("ReaderSeekableMediaCache", () => {
     expect(cache.snapshot()).toMatchObject({ entries: 0, reservedBytes: 0 })
     await cache.close()
   })
+
+  it("[neoview.media.archive-close-retention] does not revive a release-requested page after close", async () => {
+    const release = vi.fn(async () => undefined)
+    const cache = new ReaderSeekableMediaCache({
+      async materialize(): Promise<ReaderPageMaterializationLease> {
+        return {
+          path: "C:/temp/clip.mp4",
+          byteLength: 32,
+          release,
+          [Symbol.asyncDispose]: release,
+        }
+      },
+    })
+    const lease = await cache.acquire("session-1", archiveVideo())
+
+    await cache.close()
+    await cache.retainSessionPages("session-1", new Set(["page-video"]))
+    await lease.release()
+
+    expect(release).toHaveBeenCalledOnce()
+    expect(cache.snapshot()).toEqual({ entries: 0, reservedBytes: 0, activeReferences: 0, pending: 0 })
+  })
+
+  it("[neoview.media.archive-release-retry] retains the record and retries failed lease cleanup", async () => {
+    const cleanupError = new Error("temporary cleanup failure")
+    const release = vi.fn()
+      .mockRejectedValueOnce(cleanupError)
+      .mockResolvedValueOnce(undefined)
+    const cache = new ReaderSeekableMediaCache({
+      async materialize(): Promise<ReaderPageMaterializationLease> {
+        return {
+          path: "C:/temp/clip.mp4",
+          byteLength: 32,
+          release,
+          [Symbol.asyncDispose]: release,
+        }
+      },
+    })
+    const lease = await cache.acquire("session-1", archiveVideo())
+    await lease.release()
+
+    await expect(cache.close()).rejects.toBe(cleanupError)
+    expect(cache.snapshot()).toEqual({ entries: 1, reservedBytes: 32, activeReferences: 0, pending: 0 })
+
+    await expect(cache.close()).resolves.toBeUndefined()
+    expect(release).toHaveBeenCalledTimes(2)
+    expect(cache.snapshot()).toEqual({ entries: 0, reservedBytes: 0, activeReferences: 0, pending: 0 })
+  })
 })
 
 function archiveVideo(): ReaderPage {
