@@ -6,10 +6,10 @@ import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 afterEach(cleanup)
 
 describe("CollapsibleReaderCard", () => {
-  it("renders the shared magic-card surface and title slot", () => {
+  it("renders its title slot without a hover-effect wrapper", () => {
     render(<CollapsibleReaderCard title="共享标题">content</CollapsibleReaderCard>)
 
-    expect(document.querySelector('[data-slot="magic-card"]')).toBeTruthy()
+    expect(document.querySelector('[data-slot="magic-card"]')).toBeNull()
     expect(document.querySelector('[data-slot="reader-card-title"]')).toBeTruthy()
   })
 
@@ -117,6 +117,14 @@ describe("CollapsibleReaderCard", () => {
     )
 
     expect(screen.getByTestId("resident-card")).toBe(resident)
+    const cardShell = document.querySelector<HTMLElement>('[data-reader-card-chrome="none"]')
+    expect(cardShell?.className).toContain("flex-1")
+    expect(cardShell?.className).toContain("min-h-0")
+    expect(cardShell?.className).toContain("h-full")
+    expect(cardShell?.className).toContain("w-full")
+    const content = document.querySelector<HTMLElement>('[data-reader-card-content="文件浏览"]')
+    expect(content?.className).toContain("h-full")
+    expect(content?.className).toContain("w-full")
     expect(document.querySelector('[data-reader-card="文件浏览"]')?.getAttribute("data-reader-card-chrome")).toBe("none")
     expect(screen.queryByRole("button", { name: "展开文件浏览" })).toBeNull()
     expect(screen.queryByRole("button", { name: "调整文件浏览高度" })).toBeNull()

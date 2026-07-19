@@ -9,7 +9,6 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import { ChevronDown, ChevronUp, GripHorizontal, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { MagicCard } from "@/components/ui/magic-card"
 import { cn } from "@/lib/utils"
 import { ReaderCardChromeProvider } from "./ReaderCardChromeContext"
 
@@ -42,7 +41,8 @@ export function CollapsibleReaderCard({
         "[[data-module-panel-style=solid]_&]:bg-card [[data-module-panel-style=solid]_&]:shadow-sm",
         "[[data-module-panel-style=outline]_&]:bg-transparent",
         "[[data-module-panel-style=flat]_&]:rounded-none [[data-module-panel-style=flat]_&]:border-x-0 [[data-module-panel-style=flat]_&]:bg-transparent",
-        frameless && "min-h-0 flex-1 rounded-none border-0",
+        // Exclusive panels must fill the rail height/width; flex-1 alone is not enough without h/w-full.
+        frameless && "h-full min-h-0 w-full flex-1 rounded-none border-0",
       )}
       data-reader-card={title}
       data-reader-card-chrome={frameless ? "none" : "default"}
@@ -94,7 +94,7 @@ export function CollapsibleReaderCard({
               "overflow-auto px-2.5 pb-3 pt-1.5",
               "[[data-module-title-style=inline]_&]:pt-0",
               "[[data-module-panel-style=flat]_&]:px-0",
-              frameless && "relative flex min-h-0 flex-1 flex-col overflow-hidden p-0",
+              frameless && "relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden p-0",
             )}
             data-reader-card-content={title}
             style={{ height: frameless ? undefined : height }}
@@ -119,21 +119,7 @@ export function CollapsibleReaderCard({
     </section>
   )
 
-  return (
-    <MagicCard
-      className={cn(
-        "neoview-card-magic min-w-0 rounded-xl",
-        "[[data-module-card-effect=plain]_&]:!bg-card [[data-module-card-effect=plain]_&]:!shadow-none",
-        "[[data-module-card-effect=plain]_&_[data-slot=magic-card-gradient]]:hidden",
-        "[[data-module-card-effect=plain]_&_[data-slot=magic-card-orb]]:hidden",
-        "[[data-module-panel-style=outline]_&_[data-slot=magic-card-surface]]:bg-transparent",
-        "[[data-module-panel-style=flat]_&_[data-slot=magic-card-surface]]:bg-transparent",
-        frameless && "flex min-h-0 flex-1 rounded-none border-0 !bg-transparent [&_[data-slot=magic-card-gradient]]:hidden [&_[data-slot=magic-card-orb]]:hidden [&_[data-slot=magic-card-surface]]:hidden",
-      )}
-    >
-      {card}
-    </MagicCard>
-  )
+  return card
 
   function startHeightGesture(event: ReactPointerEvent<HTMLButtonElement>): void {
     const content = contentRef.current
