@@ -96,7 +96,7 @@ test("[neoview.book-information.e2e] [neoview.book-settings.persistence-e2e] [ne
   await sidebar.getByRole("button", { name: "信息面板操作" }).click()
   await page.getByRole("menuitem", { name: "复制路径" }).click()
   await expect.poll(() => page.evaluate(() => window.__NEOVIEW_COPIED_TEXT__)).toBe(fixture.path)
-  await expect(sidebar.getByRole("status")).toHaveText("已复制书籍路径")
+  await expect(page.getByRole("status")).toHaveText("已复制书籍路径")
 
   const revealRequest = page.waitForRequest((request) => request.url() === `${backend.url}/reader/files/reveal` && request.method() === "POST")
   await sidebar.getByRole("button", { name: "信息面板操作" }).click()

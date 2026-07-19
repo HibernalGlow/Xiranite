@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react"
-import { projectReaderTimeInformation, resolveReaderTimeInformation } from "../../../../../../packages/nodes/neoview/src/domain/page/TimeInformationProjection"
+import { projectReaderTimeInformation, resolveReaderTimeInformation } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
@@ -44,10 +44,10 @@ function TimeInformationContent({ session, client }: { session: NonNullable<Read
   const projection = projectReaderTimeInformation(timestamps, "zh")
   return (
     <dl className="space-y-2 text-sm" data-time-source={timestamps?.source}>
-      <MetadataRow label="创建时间" value={projection.createdText} />
-      <MetadataRow label="修改时间" value={projection.modifiedText} />
-      <MetadataRow label="访问时间" value={projection.accessedText} />
-      <MetadataRow label="时间来源" value={projection.sourceLabel} />
+      <MetadataRow label="创建时间:" value={projection.createdText} />
+      <MetadataRow label="修改时间:" value={projection.modifiedText} />
+      <MetadataRow label="访问时间:" value={projection.accessedText} />
+      <MetadataRow label="时间来源:" value={projection.sourceLabel} />
     </dl>
   )
 }

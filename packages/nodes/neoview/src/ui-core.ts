@@ -87,6 +87,7 @@ export type {
 export {
   formatReaderTimestamp,
   projectReaderTimeInformation,
+  resolveReaderTimeInformation,
   type ReaderTimeInformationLanguage,
   type ReaderTimeInformationInput,
   type ReaderTimeInformationProjection,

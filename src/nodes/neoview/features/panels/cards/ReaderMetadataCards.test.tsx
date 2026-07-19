@@ -86,7 +86,7 @@ describe("Reader metadata cards", () => {
     expect(screen.getByText("1920 × 1080")).toBeTruthy()
     expect(screen.getAllByText("2.00 MB").length).toBeGreaterThan(0)
     expect(screen.getByText("D:/books/pages/001.jpg")).toBeTruthy()
-    expect(screen.getByText("访问时间")).toBeTruthy()
+    expect(screen.getByText("访问时间:", { exact: true })).toBeTruthy()
     expect(screen.getByText("文件系统")).toBeTruthy()
   })
 
@@ -140,7 +140,7 @@ describe("Reader metadata cards", () => {
 
     expect(await screen.findByText("D:/books/pages/001.jpg")).toBeTruthy()
     expect(screen.getByRole("alert").textContent).toContain("diagnostics unavailable")
-    fireEvent.click(screen.getByRole("button", { name: "重试" }))
+    fireEvent.click(screen.getByRole("button", { name: "重试资源占用" }))
     expect(await screen.findByText("64.00 KB")).toBeTruthy()
     expect(metadata).toHaveBeenCalledOnce()
     expect(diagnostics).toHaveBeenCalledTimes(2)
