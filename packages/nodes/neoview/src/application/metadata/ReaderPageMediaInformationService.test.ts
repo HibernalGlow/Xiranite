@@ -77,6 +77,62 @@ describe("ReaderPageMediaInformationService", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.image-information.video-cancel] returns promptly and closes an archive source that loads after cancellation", async () => {
+    const lateSource = Promise.withResolvers<PageSource>()
+    const close = vi.fn(async () => undefined)
+    const load = vi.fn(() => lateSource.promise)
+    const service = new ReaderPageMediaInformationService(async () => provider())
+    const controller = new AbortController()
+    const pending = service.inspect("session-archive", page({
+      mediaKind: "video",
+      entryPath: "clips/clip.mp4",
+      content: { load },
+    }), controller.signal)
+
+    await vi.waitFor(() => expect(load).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("Card collapsed", "AbortError"))
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    lateSource.resolve({
+      byteLength: 3,
+      contentType: "video/mp4",
+      rangeSupported: false,
+      open: vi.fn(),
+      close,
+      [Symbol.asyncDispose]: close,
+    })
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.image-information.video-cancel] returns promptly and cancels an archive stream that opens after cancellation", async () => {
+    const lateStream = Promise.withResolvers<ReadableStream<Uint8Array>>()
+    const streamCancelled = vi.fn()
+    const sourceClosed = vi.fn(async () => undefined)
+    const open = vi.fn(() => lateStream.promise)
+    const service = new ReaderPageMediaInformationService(async () => provider())
+    const controller = new AbortController()
+    const pending = service.inspect("session-archive", page({
+      mediaKind: "video",
+      entryPath: "clips/clip.mp4",
+      content: { load: vi.fn(async () => ({
+        byteLength: 3,
+        contentType: "video/mp4",
+        rangeSupported: false,
+        open,
+        close: sourceClosed,
+        [Symbol.asyncDispose]: sourceClosed,
+      })) },
+    }), controller.signal)
+
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("Card collapsed", "AbortError"))
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    expect(sourceClosed).toHaveBeenCalledOnce()
+    lateStream.resolve(new ReadableStream<Uint8Array>({ cancel: streamCancelled }))
+    await vi.waitFor(() => expect(streamCancelled).toHaveBeenCalledOnce())
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.image-information.video-cancel] aborts the underlying probe and closes an archive source when demand ends", async () => {
     const close = vi.fn(async () => undefined)
     const cancelled = vi.fn()
@@ -136,6 +192,21 @@ describe("ReaderPageMediaInformationService", () => {
     await Promise.resolve()
   })
 
+  it("[neoview.image-information.provider-inspect-cancel] drains a non-cooperative provider inspect during session release", async () => {
+    const started = Promise.withResolvers<void>()
+    const inspect = vi.fn(() => {
+      started.resolve()
+      return new Promise<never>(() => undefined)
+    })
+    const service = new ReaderPageMediaInformationService(async () => provider(inspect))
+    const pending = service.inspect("session-1", page({ mediaKind: "video" }))
+    await started.promise
+
+    await expect(withTimeout(service.releaseSession("session-1"), 500)).resolves.toBeUndefined()
+    await expect(withTimeout(pending, 500)).rejects.toMatchObject({ name: "AbortError" })
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.image-information.video-cache-budget] bounds settled probes per session", async () => {
     const inspect = vi.fn(async () => ({ durationSeconds: 1 }))
     const service = new ReaderPageMediaInformationService(async () => provider(inspect))
@@ -179,5 +250,19 @@ function pageSource(stream: ReadableStream<Uint8Array>, close: () => Promise<voi
     open: vi.fn(async () => stream),
     close,
     [Symbol.asyncDispose]: close,
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Test promise timed out after ${timeoutMs} ms.`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
