@@ -27,18 +27,18 @@ export class StreamingImageMetadataProbe implements ImageMetadataProbe {
     let bytesRead = 0
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     try {
+      signal?.throwIfAborted()
       const stream = await source.open(signal, source.rangeSupported && capacity > 0 ? { start: 0, end: capacity - 1 } : undefined)
       reader = stream.getReader()
       while (bytesRead < capacity) {
-        signal?.throwIfAborted()
-        const chunk = await reader.read()
+        const chunk = await readWithAbort(reader, signal)
         if (chunk.done) break
         const copyLength = Math.min(chunk.value.byteLength, capacity - bytesRead)
         header.set(chunk.value.subarray(0, copyLength), bytesRead)
         bytesRead += copyLength
+        signal?.throwIfAborted()
         const parsed = parseImageDimensions(header.subarray(0, bytesRead), mimeType)
         if (parsed.status === "found") {
-          await reader.cancel("image dimensions found")
           return {
             format: parsed.format,
             dimensions: parsed.dimensions,
@@ -47,10 +47,7 @@ export class StreamingImageMetadataProbe implements ImageMetadataProbe {
           }
         }
         if (parsed.status === "invalid") throw new Error(parsed.message)
-        if (parsed.status === "unsupported") {
-          await reader.cancel("unsupported image dimension format")
-          return undefined
-        }
+        if (parsed.status === "unsupported") return undefined
       }
       const parsed = parseImageDimensions(header.subarray(0, bytesRead), mimeType)
       if (parsed.status === "found") {
@@ -68,5 +65,26 @@ export class StreamingImageMetadataProbe implements ImageMetadataProbe {
       reader?.releaseLock()
       await source.close().catch(() => undefined)
     }
+  }
+}
+
+async function readWithAbort(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal?: AbortSignal,
+): Promise<Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>> {
+  signal?.throwIfAborted()
+  if (!signal) return reader.read()
+  let onAbort: (() => void) | undefined
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => {
+      void reader.cancel(signal.reason).catch(() => undefined)
+      reject(signal.reason)
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
+  try {
+    return await Promise.race([reader.read(), aborted])
+  } finally {
+    signal.removeEventListener("abort", onAbort!)
   }
 }
