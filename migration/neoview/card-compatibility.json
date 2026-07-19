@@ -506,12 +506,12 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "pending",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
       "currentCardId": "image-trim",
       "sourceComponent": "src/lib/cards/info/ImageTrimCard.svelte",

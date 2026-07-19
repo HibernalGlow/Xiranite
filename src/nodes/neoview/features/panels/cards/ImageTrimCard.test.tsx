@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import ImageTrimCard, { type ImageTrimPatch, type ImageTrimPort, type ImageTrimSettings } from "./ImageTrimCard"
+import type { ReaderImageTrimDetectionOutcome } from "../../image-trim/ReaderImageTrimStore"
 
 afterEach(cleanup)
 
@@ -85,6 +86,59 @@ describe("ImageTrimCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "重置所有裁剪" }))
     expect(port.reset).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.image-trim.action-status] reports detecting, success and no-border states", async () => {
+    const port = memoryPort({ ...defaults(), enabled: true })
+    let finish!: (outcome: ReaderImageTrimDetectionOutcome) => void
+    port.autoDetect.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    render(<ImageTrimCard port={port} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "自动检测" }))
+    expect((screen.getByRole("button", { name: "检测中..." }) as HTMLButtonElement).disabled).toBe(true)
+    finish({ status: "applied", margins: { top: 10, bottom: 11, left: 12, right: 13 } })
+    await waitFor(() => expect(screen.getByText(/检测完成:/).textContent).toContain("10.0%"))
+
+    fireEvent.click(screen.getByRole("button", { name: "自动检测" }))
+    await waitFor(() => expect(screen.getByText("未检测到明显边框")).toBeTruthy())
+  })
+
+  it("[neoview.image-trim.error-retry] preserves a retryable error state", async () => {
+    const port = memoryPort({ ...defaults(), enabled: true })
+    port.autoDetect.mockRejectedValueOnce(new Error("canvas failed"))
+    render(<ImageTrimCard port={port} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "自动检测" }))
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("检测失败，请重试"))
+    fireEvent.click(screen.getByRole("button", { name: "自动检测" }))
+    await waitFor(() => expect(screen.getByText("未检测到明显边框")).toBeTruthy())
+    expect(port.autoDetect).toHaveBeenCalledTimes(2)
+  })
+
+  it("[neoview.image-trim.messages] [neoview.image-trim.black-border] [neoview.image-trim.white-border] reports unavailable and preset success states", async () => {
+    const port = memoryPort({ ...defaults(), enabled: true })
+    port.autoDetect.mockResolvedValueOnce({ status: "unavailable" })
+    port.presetBlack.mockResolvedValueOnce({ status: "applied", margins: { top: 5, bottom: 5, left: 5, right: 5 } })
+    render(<ImageTrimCard port={port} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "自动检测" }))
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("未找到已解码的当前图片"))
+    fireEvent.click(screen.getByRole("button", { name: "去黑边" }))
+    await waitFor(() => expect(screen.getByText("已应用去黑边")).toBeTruthy())
+    port.presetWhite.mockResolvedValueOnce({ status: "applied", margins: { top: 4, bottom: 4, left: 4, right: 4 } })
+    fireEvent.click(screen.getByRole("button", { name: "去白边" }))
+    await waitFor(() => expect(screen.getByText("已应用去白边")).toBeTruthy())
+  })
+
+  it("[neoview.image-trim.cancel] cancels detection when the Card becomes hidden", () => {
+    const port = memoryPort({ ...defaults(), enabled: true })
+    const view = render(<ImageTrimCard port={port} />)
+
+    view.rerender(<ImageTrimCard port={port} panelActive={false} />)
+
+    expect(port.cancelDetection).toHaveBeenCalled()
+    view.unmount()
+    expect(port.cancelDetection.mock.calls.length).toBeGreaterThan(1)
+  })
 })
 
 function defaults(): ImageTrimSettings {
@@ -106,9 +160,10 @@ function memoryPort(initial = defaults()): ImageTrimPort & {
   commit: ReturnType<typeof vi.fn<() => Promise<void>>>
   update: ReturnType<typeof vi.fn<(patch: ImageTrimPatch) => Promise<void>>>
   reset: ReturnType<typeof vi.fn<() => Promise<void>>>
-  autoDetect: ReturnType<typeof vi.fn<() => Promise<void>>>
-  presetBlack: ReturnType<typeof vi.fn<() => Promise<void>>>
-  presetWhite: ReturnType<typeof vi.fn<() => Promise<void>>>
+  autoDetect: ReturnType<typeof vi.fn<() => Promise<ReaderImageTrimDetectionOutcome>>>
+  presetBlack: ReturnType<typeof vi.fn<() => Promise<ReaderImageTrimDetectionOutcome>>>
+  presetWhite: ReturnType<typeof vi.fn<() => Promise<ReaderImageTrimDetectionOutcome>>>
+  cancelDetection: ReturnType<typeof vi.fn<() => void>>
   unsubscribe: ReturnType<typeof vi.fn<() => void>>
 } {
   let snapshot = initial
@@ -131,9 +186,10 @@ function memoryPort(initial = defaults()): ImageTrimPort & {
     commit: vi.fn(async () => undefined),
     update: vi.fn(async (patch: ImageTrimPatch) => { publish(patch) }),
     reset: vi.fn(async () => { snapshot = defaults(); for (const listener of listeners) listener() }),
-    autoDetect: vi.fn(async () => undefined),
-    presetBlack: vi.fn(async () => undefined),
-    presetWhite: vi.fn(async () => undefined),
+    autoDetect: vi.fn(async () => ({ status: "no-border" as const })),
+    presetBlack: vi.fn(async () => ({ status: "no-border" as const })),
+    presetWhite: vi.fn(async () => ({ status: "no-border" as const })),
+    cancelDetection: vi.fn(),
     unsubscribe,
   }
 }

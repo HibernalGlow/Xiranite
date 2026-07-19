@@ -2280,7 +2280,7 @@
 | `switchToast` | 切换提示 | integration | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `switch-toast` |
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
 | `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
-| `imageTrim` | 图像裁剪 | integration | pending | `core=- transport=- gui=- cli=- tui=- evidence=-` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
+| `imageTrim` | 图像裁剪 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
 | `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=P cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
 | `animatedVideoMode` | 动图视频模式 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制；XR `animated-video-mode` |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
@@ -3096,26 +3096,26 @@
   - 计划测试：无
   - 备注：Any token adjustment must be recorded against the legacy screenshot.
 - [ ] `image-trim.auto-detect` 自动检测边框
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`core`、`transport`
   - 目标：Wand2 automatic detection samples the current decoded image, returns four percentages, applies them atomically and reports no-border/not-found/failure states.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.auto-detect`、`neoview.image-trim.sample-budget`
-  - 备注：The target sampling algorithm must be bounded and cancellable.
+  - 测试：`neoview.image-trim.auto-detect`、`neoview.image-trim.sample-budget`、`neoview.image-trim.auto-persist`、`neoview.image-trim.action-status`
+  - 计划测试：无
+  - 备注：The current decoded img is registered by generation, sampled only after an explicit action, bounded to a 512px longest edge and 128 points per row or column, and committed through one serialized settings write.
 - [ ] `image-trim.black-border` 去黑边预设
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`evidence`
   - 目标：Square action invokes the black-border preset for the current image and reports completion or failure without remounting it.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.black-border`
-  - 备注：Preset semantics must stay separate from manual edge editing.
+  - 测试：`neoview.image-trim.detect-black-white`、`neoview.image-trim.presets`、`neoview.image-trim.black-border`
+  - 计划测试：无
+  - 备注：The preset uses the legacy fixed threshold 40 and the current registered image. Unit coverage verifies the detector, store target and visible success state; a dedicated real-browser preset click remains optional evidence.
 - [ ] `image-trim.white-border` 去白边预设
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`evidence`
   - 目标：Minus action invokes the white-border preset for the current image and reports completion or failure without remounting it.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.white-border`
-  - 备注：Preset target is an explicit white mode, not a generic invert operation.
+  - 测试：`neoview.image-trim.detect-black-white`、`neoview.image-trim.presets`、`neoview.image-trim.white-border`
+  - 计划测试：无
+  - 备注：The preset uses the legacy fixed threshold 40 and an explicit white target on the registered image. Unit coverage verifies the detector, store target and visible success state; a dedicated real-browser preset click remains optional evidence.
 - [ ] `image-trim.threshold` 自动检测容差
   - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：AutoTrimThreshold preserves 5..100 in steps of 5 and is supplied to detection rather than silently changing manual crop values.
@@ -3130,13 +3130,13 @@
   - 测试：待补
   - 计划测试：`neoview.image-trim.target`
   - 备注：Unknown imported values fall back to auto.
-- [ ] `image-trim.auto-message` 自动检测反馈文案
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `image-trim.auto-message` 自动检测反馈文案
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Detection status is visible, bounded and replaceable; loading, success, no-border, not-found and error messages never accumulate DOM nodes.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.messages`
-  - 备注：Text remains inert content; no HTML template execution.
+  - 测试：`neoview.image-trim.action-status`、`neoview.image-trim.messages`、`neoview.image-trim.error-retry`
+  - 计划测试：无
+  - 备注：One inert status node replaces the prior state and covers detecting, success, no-border, unavailable and retryable error messages; cancellation produces no stale success text.
 - [ ] `image-trim.media` 当前媒体帧兼容
   - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：Crop presentation consumes the shared current frame/image contract for static, animated and video media and never assumes a permanent DOM selector.
@@ -3152,12 +3152,12 @@
   - 计划测试：`neoview.image-trim.double-page`
   - 备注：The legacy source exposes the Card but the exact double-page runtime policy still needs characterization.
 - [ ] `image-trim.generation` generation 与迟到结果
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`evidence`
   - 目标：Auto-detect results are committed only when image URL/media generation still matches the request; stale results are dropped and logged with a bounded trace id.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/utils/imageTrace.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.generation`
-  - 备注：Cancellation and stale rejection are separate from UI loading text.
+  - 测试：`neoview.image-trim.stale-detection`、`neoview.image-trim.active-image`
+  - 计划测试：`neoview.image-trim.generation-trace`
+  - 备注：Registration generations abort and reject stale results before preview or persistence. Bounded trace-id logging is not yet implemented, so core and evidence remain partial.
 - [ ] `image-trim.clip-path` clip-path 合并与投影
   - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：mergeClipPaths and trimToClipPath retain the legacy coordinate convention, percentage precision and safe composition for nested/frame crops.
@@ -3256,13 +3256,13 @@
   - 测试：`neoview.image-trim.ui`、`neoview.image-trim.ui-1920x1080`
   - 计划测试：无
   - 备注：Changes to tokens, labels or icons require a recorded deviation.
-- [ ] `image-trim.responsive` 1920x1080 与窄 Card 几何
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `image-trim.responsive` 1920x1080 与窄 Card 几何
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Card remains readable at 1920x1080 and constrained dock/window widths with no horizontal overflow, clipped labels or overlapping controls; 1920x1080 is the primary baseline.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：`neoview.image-trim.ui-1920x1080`
-  - 计划测试：`neoview.image-trim.responsive`
-  - 备注：Use terminal screenshot scripts; do not use the in-app Browser.
+  - 测试：`neoview.image-trim.ui-1920x1080`、`neoview.image-trim.responsive`
+  - 计划测试：无
+  - 备注：Terminal Playwright evidence covers 1920x1080 and an 860x720 constrained dock with visible automatic controls and no horizontal overflow.
 - [ ] `image-trim.accessibility` 原生控件与图标命令可访问
   - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
   - 目标：Checkbox, ranges, select, icon buttons and async actions have accessible names, native keyboard behavior, visible focus and non-stolen focus during detection.
@@ -3270,27 +3270,27 @@
   - 测试：待补
   - 计划测试：`neoview.image-trim.accessibility`
   - 备注：Titles alone are not sufficient for icon-only commands.
-- [ ] `image-trim.image-stability` 裁剪操作不重挂活动图片
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `image-trim.image-stability` 裁剪操作不重挂活动图片
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Changing edges, links, threshold, target or detection preview preserves the exact active media node and asset identity and creates no duplicate request/decode.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/components/FrameImage.svelte`
-  - 测试：`neoview.image-trim.image-stability`、`neoview.image-trim.image-stability`
-  - 计划测试：`neoview.image-trim.zero-duplicate-request`
-  - 备注：The 1920x1080 harness verifies the same img element and asset URL before and after trim interaction; zero-duplicate-request accounting remains a separate gate.
+  - 测试：`neoview.image-trim.image-stability`、`neoview.image-trim.zero-duplicate-request`
+  - 计划测试：无
+  - 备注：The 1920x1080 harness counts the fixture request, performs real detection and manual edits, and verifies one request plus the exact same img object and asset URL throughout.
 - [ ] `image-trim.performance` 采样、DOM、缓存与热路径预算
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=P transport=P gui=P cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：Manual slider updates are O(1) and end-only for persistence; detection samples a bounded number of pixels once per media generation; cache, DOM and timers remain bounded and Reader navigation stays within existing gates.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/utils/imageTrace.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.sample-budget`、`neoview.image-trim.performance`
-  - 备注：Build, typecheck, Vitest and Playwright run strictly serial on Windows.
-- [ ] `image-trim.chunk` 独立延迟 chunk
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.image-trim.sample-budget`、`neoview.image-trim.slider-commit`、`neoview.image-trim.zero-duplicate-request`
+  - 计划测试：`neoview.image-trim.reader-navigation-performance`、`neoview.image-trim.cli-tui-performance`
+  - 备注：Detection is explicit-only, dynamically imported, canvas-bounded to 512px and line-bounded to 128 samples; it creates no second image, cache or timer. Reader navigation and CLI/TUI performance gates remain pending.
+- [x] `image-trim.chunk` 独立延迟 chunk
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：ImageTrimCard and detection code stay in an independently auditable deferred chunk with an explicit byte ceiling and no Node builtin in the browser graph.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.chunk`
-  - 备注：The global entry gate is separate and must not be weakened for this Card.
+  - 测试：`neoview.image-trim.chunk`
+  - 计划测试：无
+  - 备注：Production audit proves an independent 8,583-byte Card chunk and 1,893-byte action-only detector chunk with no Node browser external; the separate global entry gate is not weakened.
 - [ ] `image-trim.visual-evidence` 旧版与目标 1920x1080 截图
   - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
   - 目标：A terminal script captures the expanded legacy Card and target Card at 1920x1080, including enabled/disabled, non-zero preview and auto controls; evidence compares hierarchy, labels, icons, density and geometry.
@@ -3299,26 +3299,26 @@
   - 计划测试：无
   - 备注：Legacy baseline and target screenshot are both captured by terminal scripts at 1920x1080. The target covers resident, enabled, non-zero crop, auto controls and post-open interaction; pixel-level parity remains partial.
 - [ ] `image-trim.deviations` 记录有意改进与替代契约
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=P transport=P gui=C cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`cli`、`tui`、`evidence`
   - 目标：Document any replacement of direct DOM lookup, unbounded legacy cache, per-input writes, second-image sampling, media limitations or token changes while preserving visible control semantics.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.deviations`
-  - 备注：No deviation is approved merely because it is easier to implement.
+  - 测试：`neoview.image-trim.sample-budget`、`neoview.image-trim.auto-persist`、`neoview.image-trim.zero-duplicate-request`
+  - 计划测试：`neoview.image-trim.media-deviations`
+  - 备注：Intentional improvements replace global DOM lookup and a second Image load with decoded-img registration, remove the 200-entry URL cache, defer the detector chunk until explicit use, and replace per-input writes with preview plus end-only commit. Animated/video/media policy and CLI/TUI documentation remain pending.
 - [ ] `image-trim.error-retry` 检测失败与重试
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`core`、`transport`
   - 目标：Detection errors leave the last valid manual settings intact, expose a retryable state and do not poison the cache or disable unrelated controls.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.error-retry`
-  - 备注：A failed auto operation must not reset the user's four-edge values.
+  - 测试：`neoview.image-trim.error-retry`
+  - 计划测试：无
+  - 备注：Detector or persistence failure preserves or restores the last confirmed settings, shows a retryable alert and leaves all unrelated controls usable.
 - [ ] `image-trim.cancel` 检测取消
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`core`、`transport`
   - 目标：Navigation, hide, unmount or explicit cancellation aborts detection and leaves no pending request, timer or stale success message.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/utils/imageTrace.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.cancel`
-  - 备注：Cancellation is not reported as a detection failure.
+  - 测试：`neoview.image-trim.cancel`、`neoview.image-trim.stale-detection`、`neoview.image-trim.detect-dispose`
+  - 计划测试：无
+  - 备注：Image replacement, navigation registration changes, Card hide/unmount and store disposal abort the active signal; cancelled work neither persists nor reports failure or stale success.
 - [ ] `image-trim.single-double-page` 单双页和页面布局策略
   - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：The shared layout contract explicitly states how crop percentages apply to single page, double page and panorama frames, including RTL/rotation.

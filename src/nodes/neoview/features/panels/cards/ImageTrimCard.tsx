@@ -4,11 +4,12 @@
  * @features image-effects-transitions
  * @migration-status adapted
  */
-import { useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react"
 import { Link, Minus, RotateCcw, Square, Unlink, Wand2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import type { ReaderImageTrimDetectionOutcome } from "../../image-trim/ReaderImageTrimStore"
 
 export type ImageTrimTarget = "auto" | "black" | "white"
 
@@ -33,9 +34,10 @@ export interface ImageTrimPort {
   commit(): Promise<void>
   update(patch: ImageTrimPatch): Promise<void>
   reset?(): Promise<void> | void
-  autoDetect?(): Promise<void> | void
-  presetBlack?(): Promise<void> | void
-  presetWhite?(): Promise<void> | void
+  autoDetect?(): Promise<ReaderImageTrimDetectionOutcome>
+  presetBlack?(): Promise<ReaderImageTrimDetectionOutcome>
+  presetWhite?(): Promise<ReaderImageTrimDetectionOutcome>
+  cancelDetection?(): void
 }
 
 export interface ImageTrimCardProps {
@@ -67,6 +69,12 @@ export default function ImageTrimCard({ port, imageTrim, panelActive = true }: I
     getSnapshot,
   )
   const [busyAction, setBusyAction] = useState<string>()
+  const [actionMessage, setActionMessage] = useState<{ kind: "success" | "info" | "error"; text: string }>()
+
+  useEffect(() => {
+    if (!panelActive) activePort?.cancelDetection?.()
+    return () => activePort?.cancelDetection?.()
+  }, [activePort, panelActive])
 
   if (!settings || !activePort) {
     return (
@@ -81,19 +89,27 @@ export default function ImageTrimCard({ port, imageTrim, panelActive = true }: I
   }
 
   const hasValues = settings.top > 0 || settings.bottom > 0 || settings.left > 0 || settings.right > 0
-  const runAction = (name: string, action: (() => Promise<void> | void) | undefined) => {
+  const runAction = (name: "auto-detect" | "preset-black" | "preset-white", action: (() => Promise<ReaderImageTrimDetectionOutcome>) | undefined) => {
     if (!action || busyAction) return
     setBusyAction(name)
-    Promise.resolve(action()).finally(() => setBusyAction(undefined))
+    setActionMessage(undefined)
+    void action().then((outcome) => {
+      const message = detectionMessage(name, outcome)
+      if (message) setActionMessage(message)
+    }).catch(() => {
+      setActionMessage({ kind: "error", text: "检测失败，请重试" })
+    }).finally(() => setBusyAction(undefined))
   }
 
   const reset = () => {
     if (activePort.reset) {
       void activePort.reset()
+      setActionMessage(undefined)
       return
     }
     activePort.preview({ ...DEFAULTS })
     void activePort.commit()
+    setActionMessage(undefined)
   }
 
   return (
@@ -217,6 +233,15 @@ export default function ImageTrimCard({ port, imageTrim, panelActive = true }: I
                 去白边
               </Button>
             </div>
+            {actionMessage ? (
+              <p
+                className={actionMessage.kind === "error" ? "text-xs text-destructive" : "text-xs text-muted-foreground"}
+                role={actionMessage.kind === "error" ? "alert" : "status"}
+                data-image-trim-action-state={actionMessage.kind}
+              >
+                {actionMessage.text}
+              </p>
+            ) : null}
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">容差</span>
@@ -250,6 +275,19 @@ export default function ImageTrimCard({ port, imageTrim, panelActive = true }: I
       ) : null}
     </section>
   )
+}
+
+function detectionMessage(
+  action: "auto-detect" | "preset-black" | "preset-white",
+  outcome: ReaderImageTrimDetectionOutcome,
+): { kind: "success" | "info" | "error"; text: string } | undefined {
+  if (outcome.status === "cancelled") return undefined
+  if (outcome.status === "unavailable") return { kind: "error", text: "未找到已解码的当前图片，请重试" }
+  if (outcome.status === "no-border") return { kind: "info", text: "未检测到明显边框" }
+  if (action === "preset-black") return { kind: "success", text: "已应用去黑边" }
+  if (action === "preset-white") return { kind: "success", text: "已应用去白边" }
+  const { top, bottom, left, right } = outcome.margins
+  return { kind: "success", text: `检测完成: ↑${top.toFixed(1)}% ↓${bottom.toFixed(1)}% ←${left.toFixed(1)}% →${right.toFixed(1)}%` }
 }
 
 function TrimSlider({ label, value, onPreview, onCommit, link, onToggleLink }: {
