@@ -239,6 +239,30 @@ describe("SuperResolutionArtifactRoute", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.capabilities-http] exposes the registered model snapshot with authenticated refresh", async () => {
+    const store = createStore()
+    const inspect = vi.fn(async () => ({
+      available: true as const,
+      models: [{ id: "anime", displayName: "Anime", engine: "upscayl" as const, scales: [2, 4] }],
+      engines: [],
+      probedAt: 42,
+    }))
+    const route = new SuperResolutionArtifactRoute(
+      readerService(readerPage()),
+      { ...port(vi.fn()), inspect },
+      store,
+      { baseUrl: BASE_URL, token: TOKEN },
+    )
+
+    expect((await route.handle(new Request(new URL("/reader/s/session-1/upscale-capabilities", BASE_URL))))?.status).toBe(401)
+    expect((await route.handle(authorized("/reader/s/missing/upscale-capabilities")))?.status).toBe(404)
+    expect((await route.handle(authorized("/reader/s/session-1/upscale-capabilities?refresh=false")))?.status).toBe(400)
+    const response = (await route.handle(authorized("/reader/s/session-1/upscale-capabilities?refresh=true")))!
+    await expect(response.json()).resolves.toMatchObject({ available: true, models: [{ id: "anime", scales: [2, 4] }], probedAt: 42 })
+    expect(inspect).toHaveBeenCalledWith({ refresh: true, signal: expect.any(AbortSignal) })
+    await store.close()
+  })
+
   function createStore() {
     return new CacacheSuperResolutionArtifactStore({
       root: join(root, "cache"),

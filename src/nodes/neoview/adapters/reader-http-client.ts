@@ -743,6 +743,7 @@ export interface ReaderSuperResolutionConditionDto {
 
 export interface ReaderSuperResolutionConfigDto {
   provider: "opencomic-system" | "disabled"
+  modelsDirectory?: string
   preferences: ReaderSuperResolutionPreferencesDto
 }
 
@@ -756,6 +757,54 @@ export interface ReaderUpscaleArtifactResultDto {
   contentType?: string
   bytes?: number
   version?: string
+}
+
+export interface ReaderUpscaleModelDto {
+  id: string
+  displayName: string
+  engine: "upscayl" | "waifu2x" | "realcugan"
+  scales: readonly number[]
+  noise?: readonly number[]
+}
+
+export type ReaderUpscaleCapabilityDto =
+  | { available: false; reason: string; models: readonly []; engines: readonly [] }
+  | { available: true; models: readonly ReaderUpscaleModelDto[]; engines: readonly unknown[]; probedAt: number }
+
+export interface ReaderUpscalePreloadSnapshotDto {
+  contextId: string
+  generation: number
+  mode: "nearby" | "progressive"
+  state: "queued" | "countdown" | "running" | "completed" | "disabled" | "empty" | "paused" | "cancelled" | "failed"
+  planned: number
+  settled: number
+  failed: number
+  cancelled: number
+  pending: number
+  progress: number
+  startedAt: number
+  updatedAt: number
+  completedAt?: number
+}
+
+export interface ReaderUpscaleCacheSnapshotDto {
+  entries: number
+  bytes: number
+  maxBytes: number
+  maxEntryBytes: number
+  activeLeases: number
+  hits: number
+  misses: number
+  writes: number
+  rejectedWrites: number
+  evictions: number
+  integrityFailures: number
+}
+
+export interface ReaderUpscaleCacheCleanupDto extends ReaderUpscaleCacheSnapshotDto {
+  reason: "age" | "budget" | "book" | "explicit" | "low-disk"
+  removedEntries: number
+  removedBytes: number
 }
 
 export interface ReaderSubtitleConfigDto {
@@ -1056,6 +1105,10 @@ export interface ReaderHttpClient {
   updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
   updateSuperResolution?(patch: ReaderSuperResolutionPatchDto, signal?: AbortSignal): Promise<ReaderSuperResolutionConfigDto>
   upscalePage?(sessionId: string, pageId: string, trigger?: "manual" | "automatic-current", signal?: AbortSignal): Promise<ReaderUpscaleArtifactResultDto>
+  upscaleCapabilities?(sessionId: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderUpscaleCapabilityDto>
+  upscalePreloadSnapshots?(sessionId: string, signal?: AbortSignal): Promise<readonly ReaderUpscalePreloadSnapshotDto[]>
+  upscaleCache?(sessionId: string, signal?: AbortSignal): Promise<ReaderUpscaleCacheSnapshotDto>
+  cleanupUpscaleCache?(sessionId: string, kind: "age" | "book" | "all", signal?: AbortSignal): Promise<ReaderUpscaleCacheCleanupDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
@@ -1318,6 +1371,22 @@ export function createReaderHttpClient(
     }).then((value) => value.superResolution!),
     upscalePage: (sessionId, pageId, trigger = "automatic-current", signal) => request<ReaderUpscaleArtifactResultDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/pages/${encodeURIComponent(pageId)}/upscale-artifact?${new URLSearchParams({ trigger })}`,
+      { method: "POST", signal },
+    ),
+    upscaleCapabilities: (sessionId, refresh = false, signal) => {
+      const search = refresh ? "?refresh=true" : ""
+      return request<ReaderUpscaleCapabilityDto>(`/reader/s/${encodeURIComponent(sessionId)}/upscale-capabilities${search}`, { signal })
+    },
+    upscalePreloadSnapshots: (sessionId, signal) => request<{ snapshots: ReaderUpscalePreloadSnapshotDto[] }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/upscale-preload`,
+      { signal },
+    ).then((value) => value.snapshots),
+    upscaleCache: (sessionId, signal) => request<ReaderUpscaleCacheSnapshotDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/upscale-artifact-cache`,
+      { signal },
+    ),
+    cleanupUpscaleCache: (sessionId, kind, signal) => request<ReaderUpscaleCacheCleanupDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/upscale-artifact-cache?${new URLSearchParams({ kind, confirmed: "true" })}`,
       { method: "POST", signal },
     ),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {

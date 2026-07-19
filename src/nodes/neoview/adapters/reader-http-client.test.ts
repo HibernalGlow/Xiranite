@@ -21,6 +21,36 @@ describe("reader-http-client", () => {
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.super-resolution.cards-client] reads capabilities/status/cache and confirms cleanup on the active session", async () => {
+    const capability = { available: true, models: [], engines: [], probedAt: 1 } as const
+    const preload = { snapshots: [] }
+    const cache = { entries: 0, bytes: 0, maxBytes: 1, maxEntryBytes: 1, activeLeases: 0, hits: 0, misses: 0, writes: 0, rejectedWrites: 0, evictions: 0, integrityFailures: 0 }
+    const cleanup = { ...cache, reason: "explicit", removedEntries: 0, removedBytes: 0 } as const
+    const fetchMock = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(request)
+      if (url.includes("upscale-capabilities")) return Response.json(capability)
+      if (url.includes("upscale-preload")) return Response.json(preload)
+      if (init?.method === "POST") return Response.json(cleanup)
+      return Response.json(cache)
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.upscaleCapabilities!("reader/1", true)).resolves.toEqual(capability)
+    await expect(client.upscalePreloadSnapshots!("reader/1")).resolves.toEqual([])
+    await expect(client.upscaleCache!("reader/1")).resolves.toEqual(cache)
+    await expect(client.cleanupUpscaleCache!("reader/1", "all")).resolves.toEqual(cleanup)
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-capabilities?refresh=true",
+      "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-preload",
+      "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-artifact-cache",
+      "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-artifact-cache?kind=all&confirmed=true",
+    ])
+    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "POST" })
+    expect(fetchMock.mock.calls.every(([, init]) => new Headers(init?.headers).get("x-xiranite-token") === "reader-token")).toBe(true)
+  })
+
   it("[neoview.color-filter.client] sends one authenticated aggregate config mutation", async () => {
     const colorFilter = {
       colorizeEnabled: false, colorizePreset: "redAndBlueGray", customColors: [], onlyBlackAndWhite: false,
