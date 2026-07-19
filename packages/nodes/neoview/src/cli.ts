@@ -54,8 +54,9 @@ import { commitNeoviewConfig } from "./platform/config/NeoviewConfigStore.js"
 import { loadNeoviewRuntimeConfig } from "./platform/config/loadNeoviewRuntimeConfig.js"
 import { loadReaderBackupScheduleConfig } from "./platform/backup/ReaderBackupScheduleConfig.js"
 import { ReaderBackupScheduleRunner } from "./platform/backup/ReaderBackupScheduleRunner.js"
-import { parseNeoviewBookmarkListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewBookmarkListPatch, parseNeoviewImageTrimPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
 import { formatReaderPageTransition, type ReaderPageTransitionPatch } from "./page-transition.js"
+import type { ReaderImageTrimPatch } from "./image-trim.js"
 import { READER_INPUT_CONTEXTS, type ReaderInputBinding, type ReaderInputContext, type ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
@@ -85,6 +86,7 @@ const COMMANDS = new Set([
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
   "page-transition-get", "page-transition-set", "page-transition-reset",
+  "image-trim-get", "image-trim-set", "image-trim-reset",
   "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
   "book-settings-get", "book-settings-set", "book-settings-legacy-inspect", "book-settings-legacy-import",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
@@ -159,6 +161,7 @@ const VALUE_FLAGS = new Set([
   "--contexts-json",
   "--action",
   "--enabled", "--type", "--duration", "--easing", "--subtitle-id", "--position", "--completed",
+  "--top", "--bottom", "--left", "--right", "--link-vertical", "--link-horizontal", "--threshold", "--target",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite", "--flush"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -321,6 +324,10 @@ export async function runProgram(
   validateCommandOptions(command, parsed)
   if (command === "page-transition-get" || command === "page-transition-set" || command === "page-transition-reset") {
     await runPageTransitionCommand(command, parsed, host)
+    return
+  }
+  if (command === "image-trim-get" || command === "image-trim-set" || command === "image-trim-reset") {
+    await runImageTrimCommand(command, parsed, host)
     return
   }
   if (command === "thumbnail-db-inspect") {
@@ -637,6 +644,54 @@ function pageTransitionCliPatch(parsed: ParsedArguments): ReaderPageTransitionPa
   return patch
 }
 
+async function runImageTrimCommand(
+  command: "image-trim-get" | "image-trim-set" | "image-trim-reset",
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const options = { configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env }
+  let settings = (await loadNeoviewRuntimeConfig(options)).imageTrim
+  if (command !== "image-trim-get") {
+    const imageTrim = command === "image-trim-reset"
+      ? { reset: "defaults" as const }
+      : imageTrimCliPatch(parsed)
+    const { tomlPatch } = parseNeoviewImageTrimPatch({ imageTrim }, settings)
+    const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+    settings = parseNeoviewRuntimeConfig(committed.nodeConfig).imageTrim
+  }
+  if (parsed.booleans.has("--json")) writeJson(host, settings)
+  else writeLine(host, `Image trim: enabled=${settings.enabled} top=${settings.top}% bottom=${settings.bottom}% left=${settings.left}% right=${settings.right}% links=${settings.linkVertical ? "vertical" : "-"}/${settings.linkHorizontal ? "horizontal" : "-"} threshold=${settings.autoTrimThreshold} target=${settings.autoTrimTarget}`)
+}
+
+function imageTrimCliPatch(parsed: ParsedArguments): ReaderImageTrimPatch {
+  const patch: ReaderImageTrimPatch = {}
+  const enabled = oneValue(parsed, "--enabled")
+  if (enabled !== undefined) patch.enabled = cliBoolean("--enabled", enabled)
+  for (const [flag, field] of [
+    ["--top", "top"],
+    ["--bottom", "bottom"],
+    ["--left", "left"],
+    ["--right", "right"],
+  ] as const) {
+    const value = oneValue(parsed, flag)
+    if (value !== undefined) patch[field] = Number(value)
+  }
+  const linkVertical = oneValue(parsed, "--link-vertical")
+  if (linkVertical !== undefined) patch.linkVertical = cliBoolean("--link-vertical", linkVertical)
+  const linkHorizontal = oneValue(parsed, "--link-horizontal")
+  if (linkHorizontal !== undefined) patch.linkHorizontal = cliBoolean("--link-horizontal", linkHorizontal)
+  const threshold = oneValue(parsed, "--threshold")
+  if (threshold !== undefined) patch.autoTrimThreshold = Number(threshold)
+  const target = oneValue(parsed, "--target")
+  if (target !== undefined) patch.autoTrimTarget = target as ReaderImageTrimPatch["autoTrimTarget"]
+  return patch
+}
+
+function cliBoolean(flag: string, value: string): boolean {
+  if (value !== "true" && value !== "false") throw usage(`${flag} must be true or false.`)
+  return value === "true"
+}
+
 function validateCommandOptions(command: string, parsed: ParsedArguments): void {
   if (command === "input-action-dispatch") {
     rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--action"]))
@@ -756,6 +811,13 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   if (command.startsWith("page-transition-")) {
     const allowed = command === "page-transition-set"
       ? new Set(["--json", "--config", "--enabled", "--type", "--duration", "--easing"])
+      : new Set(["--json", "--config"])
+    rejectOptions(parsed, allowed)
+    return
+  }
+  if (command.startsWith("image-trim-")) {
+    const allowed = command === "image-trim-set"
+      ? new Set(["--json", "--config", "--enabled", "--top", "--bottom", "--left", "--right", "--link-vertical", "--link-horizontal", "--threshold", "--target"])
       : new Set(["--json", "--config"])
     rejectOptions(parsed, allowed)
     return
@@ -3373,6 +3435,9 @@ function formatCliHelp(): string {
     "  page-transition-get       Show global page-transition settings",
     "  page-transition-set       Update page-transition settings",
     "  page-transition-reset     Restore page-transition defaults",
+    "  image-trim-get            Show global image-trim settings",
+    "  image-trim-set            Update edges, links, threshold, and target",
+    "  image-trim-reset          Restore image-trim defaults",
     "  input-bindings-list       Inspect canonical multi-device bindings",
     "  input-bindings-apply <json> Apply a complete binding array (--yes)",
     "  input-bindings-reset      Restore canonical defaults (--yes)",

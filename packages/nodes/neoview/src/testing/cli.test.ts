@@ -819,6 +819,82 @@ describe("NeoView CLI", () => {
     }
   })
 
+  it("[neoview.image-trim.cli] exposes strict linked get/set/reset values in canonical TOML", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-image-trim-cli-"))
+    const configPath = join(directory, "xiranite.config.toml")
+    try {
+      const initial: unknown[] = []
+      await runProgram(["image-trim-get", "--config", configPath, "--json"], host(initial))
+      expect(JSON.parse(initial.join(""))).toEqual({
+        enabled: false,
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        linkVertical: false,
+        linkHorizontal: false,
+        autoTrimThreshold: 30,
+        autoTrimTarget: "auto",
+      })
+
+      await runProgram([
+        "image-trim-set", "--config", configPath,
+        "--enabled", "true", "--top", "10", "--bottom", "20", "--left", "5", "--right", "15",
+        "--threshold", "45", "--target", "black", "--json",
+      ], host([]))
+      const linked: unknown[] = []
+      await runProgram([
+        "image-trim-set", "--config", configPath,
+        "--link-vertical", "true", "--link-horizontal", "true", "--json",
+      ], host(linked))
+      expect(JSON.parse(linked.join(""))).toMatchObject({
+        enabled: true,
+        top: 20,
+        bottom: 20,
+        left: 15,
+        right: 15,
+        linkVertical: true,
+        linkHorizontal: true,
+        autoTrimThreshold: 45,
+        autoTrimTarget: "black",
+      })
+
+      const edged: unknown[] = []
+      await runProgram([
+        "image-trim-set", "--config", configPath, "--top", "12.5", "--left", "8", "--json",
+      ], host(edged))
+      expect(JSON.parse(edged.join(""))).toMatchObject({ top: 12.5, bottom: 12.5, left: 8, right: 8 })
+      const toml = await readFile(configPath, "utf8")
+      expect(toml).toContain("[nodes.neoview.view]")
+      expect(toml).toContain("link_vertical = true")
+      expect(toml).not.toContain("linkVertical")
+
+      await expect(runProgram(["image-trim-set", "--config", configPath, "--top", "46"], host([])))
+        .rejects.toThrow("top")
+      await expect(runProgram(["image-trim-set", "--config", configPath, "--threshold", "12"], host([])))
+        .rejects.toThrow("step")
+      await expect(runProgram(["image-trim-set", "--config", configPath, "--target", "gray"], host([])))
+        .rejects.toThrow("autoTrimTarget")
+
+      await runProgram(["image-trim-reset", "--config", configPath], host([]))
+      const reset: unknown[] = []
+      await runProgram(["image-trim-get", "--config", configPath, "--json"], host(reset))
+      expect(JSON.parse(reset.join(""))).toEqual({
+        enabled: false,
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        linkVertical: false,
+        linkHorizontal: false,
+        autoTrimThreshold: 30,
+        autoTrimTarget: "auto",
+      })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.settings.inspect] previews legacy settings without writing TOML or exposing secrets", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-settings-inspect-"))
     const inputPath = join(directory, "backup.json")
