@@ -94,6 +94,22 @@ const preloadEnvelopeSchema = z.object({ snapshots: z.array(preloadSnapshotSchem
 
 export type RemoteSuperResolutionPreloadSnapshot = z.infer<typeof preloadSnapshotSchema>
 
+const MAX_REMOTE_SUBTITLE_BYTES = 4 * 1024 * 1024
+
+const remoteSubtitleTrackSchema = z.object({
+  id: z.string().min(1).max(256),
+  name: z.string().min(1).max(512),
+  format: z.enum(["srt", "ass", "ssa", "vtt"]),
+  contentVersion: z.string().min(1).max(512),
+  assetUrl: z.string().min(1).max(4096).url(),
+}).strict()
+
+const remoteSubtitleEnvelopeSchema = z.object({
+  tracks: z.array(remoteSubtitleTrackSchema).max(16),
+}).strict()
+
+type RemoteSubtitleTrack = z.infer<typeof remoteSubtitleTrackSchema>
+
 const artifactCacheSnapshotSchema = z.object({
   entries: z.number().int().nonnegative(),
   bytes: z.number().int().nonnegative(),
@@ -763,10 +779,38 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
   }
 
   #assertBackendUrl(value: string, label: string, pathPrefix: string): void {
-    const url = new URL(value)
+    let url: URL
+    try { url = new URL(value) } catch { throw new Error(`Xiranite Reader returned an invalid ${label} URL.`) }
     if (url.origin !== this.#baseUrl.origin || !url.pathname.startsWith(pathPrefix)) {
       throw new Error(`Xiranite Reader returned a ${label} URL outside the connected backend.`)
     }
+  }
+
+  #assertSubtitleAssetUrl(track: RemoteSubtitleTrack, sessionId: string, pageId: string): void {
+    let url: URL
+    try { url = new URL(track.assetUrl) } catch { throw new Error("Xiranite Reader returned an invalid subtitle asset URL.") }
+    if (url.origin !== this.#baseUrl.origin) {
+      throw new Error("Xiranite Reader returned a subtitle asset URL outside the connected backend.")
+    }
+    const expectedPath = `/reader/s/${encodeURIComponent(sessionId)}/subtitle/${encodeURIComponent(pageId)}/${encodeURIComponent(track.id)}`
+    if (url.username || url.password || url.hash || url.pathname !== expectedPath) {
+      throw new Error("Xiranite Reader returned a subtitle asset URL outside the connected backend.")
+    }
+    const queryKeys = [...url.searchParams.keys()]
+    if (
+      queryKeys.length !== 2
+      || queryKeys.some((key) => key !== "version" && key !== "token")
+      || url.searchParams.getAll("version").length !== 1
+      || url.searchParams.getAll("token").length !== 1
+      || url.searchParams.get("version") !== track.contentVersion
+      || url.searchParams.get("token") !== this.#headers["x-xiranite-token"]
+    ) {
+      throw new Error("Xiranite Reader returned an invalid subtitle asset URL.")
+    }
+  }
+
+  #assertCurrentSession(session: ReaderSessionDto): void {
+    if (this.#session !== session) throw new Error("Remote reader session changed while handling the request.")
   }
 
   #requireSession(): ReaderSessionDto {

@@ -34,6 +34,15 @@ export interface ThumbnailCoordinatorOptions<TSource = unknown> {
   maxMemoryBytes?: number
   maxEntryBytes?: number
   now?: () => number
+  onFlightEvent?: (event: ThumbnailCoordinatorFlightEvent<TSource>) => void
+}
+
+export interface ThumbnailCoordinatorFlightEvent<TSource = unknown> {
+  flightId: string
+  state: "started" | "cancellation-requested" | "settled"
+  demand: Readonly<ThumbnailDemand<TSource>>
+  atMs: number
+  outcome?: "completed" | "cancelled" | "failed"
 }
 
 export interface ThumbnailCoordinatorSnapshot {
@@ -85,6 +94,7 @@ interface Flight<TSource> {
   queueTaskId: string
   priority: number
   started: boolean
+  cancellationRequested: boolean
   completed?: ThumbnailAsset
   cached: boolean
 }
@@ -112,6 +122,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
   readonly #maxMemoryBytes: number
   readonly #maxEntryBytes: number
   readonly #now: () => number
+  readonly #onFlightEvent?: ThumbnailCoordinatorOptions<TSource>["onFlightEvent"]
   readonly #flights = new Map<string, Flight<TSource>>()
   readonly #cache = new Map<string, CacheEntry>()
   readonly #demands = new Map<number, DemandRecord>()
@@ -128,6 +139,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     this.#maxMemoryBytes = boundedBytes(options.maxMemoryBytes ?? DEFAULT_MAX_MEMORY_BYTES, "maxMemoryBytes")
     this.#maxEntryBytes = boundedBytes(options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES, "maxEntryBytes")
     this.#now = options.now ?? Date.now
+    this.#onFlightEvent = options.onFlightEvent
   }
 
   acquire(demand: ThumbnailDemand<TSource>): ThumbnailLease {
@@ -195,6 +207,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
           queueTaskId: `thumbnail-${this.#nextQueueTaskId++}`,
           priority: thumbnailQueuePriority(demand.lane),
           started: false,
+          cancellationRequested: false,
           cached: false,
         }
         this.#flights.set(demand.cacheKey, flight)
@@ -252,6 +265,10 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     this.#contextGenerations.delete(contextId)
   }
 
+  async whenIdle(): Promise<void> {
+    await this.#queue.onIdle()
+  }
+
   prime(cacheKey: string, asset: ThumbnailAsset, options: { ttlMs?: number } = {}): boolean {
     this.#assertOpen()
     validateCacheKey(cacheKey)
@@ -302,7 +319,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     for (const record of this.#demands.values()) {
       this.#releaseDemand(record.id, abortError("Thumbnail coordinator disposed."))
     }
-    for (const flight of this.#flights.values()) flight.controller.abort(abortError("Thumbnail coordinator disposed."))
+    for (const flight of this.#flights.values()) this.#requestFlightCancellation(flight, abortError("Thumbnail coordinator disposed."))
     await this.#queue.onIdle()
     this.#flights.clear()
     this.#cache.clear()
@@ -318,6 +335,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     void this.#queue.add(
       async () => {
         flight.started = true
+        this.#emitFlightEvent(flight, "started")
         await this.#runFlight(cacheKey, flight)
       },
       {
@@ -351,6 +369,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
         record.resolve(asset)
       }
       if (flight.cached || !activeDemandIds.length) this.#flights.delete(cacheKey)
+      this.#emitFlightEvent(flight, "settled", "completed")
     } catch (error) {
       const outcome = isAbortError(error) ? "cancelled" : "failed"
       this.#telemetry[outcome] += 1
@@ -362,6 +381,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
         record.reject(error)
       }
       this.#flights.delete(cacheKey)
+      this.#emitFlightEvent(flight, "settled", outcome)
     }
   }
 
@@ -412,7 +432,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     if (flight) {
       flight.demandIds.delete(id)
       if (!flight.demandIds.size) {
-        if (!flight.completed) flight.controller.abort(reason)
+        if (!flight.completed) this.#requestFlightCancellation(flight, reason)
         this.#flights.delete(record.cacheKey)
       }
     }
@@ -424,6 +444,25 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
 
   #assertOpen(): void {
     if (this.#closed) throw new Error("Thumbnail coordinator is closed.")
+  }
+
+  #requestFlightCancellation(flight: Flight<TSource>, reason: unknown): void {
+    if (flight.cancellationRequested || flight.controller.signal.aborted) return
+    flight.cancellationRequested = true
+    this.#emitFlightEvent(flight, "cancellation-requested")
+    flight.controller.abort(reason)
+  }
+
+  #emitFlightEvent(
+    flight: Flight<TSource>,
+    state: ThumbnailCoordinatorFlightEvent<TSource>["state"],
+    outcome?: ThumbnailCoordinatorFlightEvent<TSource>["outcome"],
+  ): void {
+    try {
+      this.#onFlightEvent?.({ flightId: flight.queueTaskId, state, demand: flight.request, atMs: this.#now(), outcome })
+    } catch {
+      // Observability must not change thumbnail scheduling or completion semantics.
+    }
   }
 }
 

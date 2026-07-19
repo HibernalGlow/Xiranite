@@ -190,6 +190,7 @@ export function ReaderApp({
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
+  const navigationPendingRef = useRef(false)
   const slideshowSessionRef = useRef<ReaderSessionDto | undefined>(undefined)
   const [slideshow] = useState(() => new ReaderSlideshow({
     readPosition: () => {
@@ -515,11 +516,11 @@ export function ReaderApp({
     request: (sessionId: string, signal: AbortSignal) => Promise<ReaderNavigationDto>,
   ): Promise<boolean> {
     const sessionId = sessionRef.current
-    if (!sessionId || busy) return false
+    if (!sessionId || busy || navigationPendingRef.current) return false
     const controller = new AbortController()
     operationRef.current?.abort()
     operationRef.current = controller
-    setBusy(true)
+    navigationPendingRef.current = true
     setError(undefined)
     try {
       const result = await request(sessionId, controller.signal)
@@ -530,7 +531,7 @@ export function ReaderApp({
       return false
     } finally {
       if (operationRef.current === controller) operationRef.current = undefined
-      if (!controller.signal.aborted) setBusy(false)
+      navigationPendingRef.current = false
     }
   }
 

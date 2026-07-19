@@ -49,6 +49,54 @@ describe("ReaderApp", () => {
     await waitFor(() => expect(client.close).toHaveBeenCalledWith("reader-1"))
   })
 
+  it("keeps global and sidebar controls out of the busy state while a page turn is pending", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    let finishNavigation!: (value: Awaited<ReturnType<ReaderHttpClient["navigate"]>>) => void
+    const pendingNavigation = new Promise<Awaited<ReturnType<ReaderHttpClient["navigate"]>>>((resolve) => { finishNavigation = resolve })
+    const navigate = vi.fn(() => pendingNavigation)
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({
+        ...runtimeConfig(),
+        inputBindings: { bindings: [{
+          id: "next-page-without-global-busy",
+          action: "reader.next-page",
+          context: "reader",
+          enabled: true,
+          input: { device: "keyboard", code: "KeyN" },
+        }] },
+      })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate,
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+
+    const reader = document.querySelector("[data-reader-app]")!
+    fireEvent.keyDown(reader, { key: "n", code: "KeyN" })
+    await waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+
+    expect(screen.getByRole("button", { name: "关闭书籍" }).hasAttribute("disabled")).toBe(false)
+    expect(screen.getByRole("button", { name: "打开 NeoView 设置" }).hasAttribute("disabled")).toBe(false)
+    fireEvent.keyDown(reader, { key: "n", code: "KeyN" })
+    expect(navigate).toHaveBeenCalledOnce()
+
+    await act(async () => finishNavigation({
+      frame: { ...opened.frame, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" }], atStart: false, atEnd: true },
+      visiblePages: [{ ...opened.visiblePages[0]!, id: "page-2", index: 1, name: "002.jpg", assetUrl: "http://127.0.0.1:41000/reader/page-2" }],
+    }))
+    await screen.findByRole("img", { name: "002.jpg" })
+  })
+
   it("[neoview.bindings.action-executor-react] routes configured actions through the shared Reader executor", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const replacement = { ...session("page-2", "http://127.0.0.1:41000/reader/page-2", 0), sessionId: "reader-2", book: { id: "book-2", displayName: "Book 2", pageCount: 1 } }

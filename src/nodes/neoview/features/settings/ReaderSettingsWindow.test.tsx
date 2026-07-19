@@ -59,6 +59,11 @@ describe("ReaderSettingsWindow", () => {
     fireEvent.click(screen.getByRole("button", { name: "影像" }))
     expect(await screen.findByRole("heading", { name: "影像" })).toBeTruthy()
 
+    fireEvent.click(screen.getByRole("button", { name: "操作绑定" }))
+    expect(await screen.findByRole("heading", { name: "操作绑定" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "快捷键" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "轮盘" })).toBeTruthy()
+
     fireEvent.click(screen.getByRole("button", { name: "数据" }))
     expect(await screen.findByRole("heading", { name: "数据迁移" })).toBeTruthy()
 

@@ -63,6 +63,7 @@ let fixture: SyntheticFixture | undefined
 let book: ReaderBook | undefined
 let pipeline: PlatformThumbnailPipeline | undefined
 const resourceScheduler = new ResourceSchedulerService()
+const flightEvents: ThumbnailFlightEvent[] = []
 try {
   const setupStarted = performance.now()
   if (!realCorpus) fixture = await createSyntheticFixture(
@@ -86,6 +87,16 @@ try {
     resourceScheduler,
     maxMemoryBytes: 64 * MIB,
     maxEntryBytes: 2 * MIB,
+    onCoordinatorFlightEvent: (event) => {
+      flightEvents.push({
+        flightId: event.flightId,
+        state: event.state,
+        contextId: event.demand.contextId,
+        generation: event.demand.generation,
+        atMs: event.atMs,
+        outcome: event.outcome,
+      })
+    },
   })
   const rssBefore = process.memoryUsage().rss
   let peakRss = rssBefore
@@ -97,7 +108,7 @@ try {
   pipeline.hibernateReader()
   peakRss = Math.max(peakRss, process.memoryUsage().rss)
 
-  const scroll = await benchmarkScroll(pipeline, sample, windowSize, () => {
+  const scroll = await benchmarkScroll(pipeline, sample, windowSize, flightEvents, () => {
     peakRss = Math.max(peakRss, process.memoryUsage().rss)
   })
   const beforeDispose = pipeline.snapshot()
@@ -196,6 +207,7 @@ async function benchmarkScroll(
   pipeline: PlatformThumbnailPipeline,
   pages: readonly ReaderPage[],
   windowSize: number,
+  flightEvents: readonly ThumbnailFlightEvent[],
   sampleMemory: () => void,
 ) {
   const contextId = "benchmark:scroll"
@@ -210,8 +222,6 @@ async function benchmarkScroll(
   const dispatchStarted = performance.now()
   const windowStarts = scrollWindowStarts(pages.length, windowSize)
   for (const cursor of windowStarts) {
-    const supersededAt = performance.now()
-    for (const demand of active) demand.supersededAt = supersededAt
     generation += 1
     pipeline.advanceContext(contextId, generation)
     for (const demand of active) demand.lease.release()
@@ -234,16 +244,23 @@ async function benchmarkScroll(
     await demand.lease.ready
     return performance.now() - finalRequestedAt
   }))
-  const staleFlightsAfterFinalVisible = demands.filter((demand) => demand.generation < generation && demand.settledAt === undefined).length
+  const finalVisibleSnapshot = pipeline.snapshot()
   const settled = await Promise.all(demands.map((demand) => demand.settlement))
+  await pipeline.whenIdle()
   for (const demand of active) demand.lease.release()
 
-  const staleSettledAfterSupersession = settled.filter((settlement) => (
-    settlement.supersededAt !== undefined && settlement.settledAt > settlement.supersededAt
+  const staleCancellationRequests = flightEvents.filter((event) => (
+    event.state === "cancellation-requested"
+    && event.contextId === contextId
+    && event.generation < generation
   ))
-  const staleCancelLatencyMs = staleSettledAfterSupersession
-    .filter((settlement) => settlement.outcome === "cancelled")
-    .map((settlement) => settlement.settledAt - settlement.supersededAt!)
+  const settlementsByFlight = new Map(flightEvents
+    .filter((event) => event.state === "settled")
+    .map((event) => [event.flightId, event]))
+  const staleSettlements = staleCancellationRequests
+    .map((request) => ({ request, settled: settlementsByFlight.get(request.flightId) }))
+    .filter((value): value is { request: ThumbnailFlightEvent; settled: ThumbnailFlightEvent } => value.settled !== undefined)
+  const staleCancelLatencyMs = staleSettlements.map(({ request, settled: settledEvent }) => settledEvent.atMs - request.atMs)
 
   const l1HitMs: number[] = []
   for (const page of finalPages) {
@@ -266,10 +283,11 @@ async function benchmarkScroll(
     failed: settled.filter((settlement) => settlement.outcome === "failed").length,
     stale: {
       demands: demands.filter((demand) => demand.generation < generation).length,
-      settledAfterSupersession: staleSettledAfterSupersession.length,
-      completedAfterSupersession: staleSettledAfterSupersession.filter((settlement) => settlement.outcome === "ready").length,
-      failedAfterSupersession: staleSettledAfterSupersession.filter((settlement) => settlement.outcome === "failed").length,
-      flightsAfterFinalVisible: staleFlightsAfterFinalVisible,
+      cancellationRequests: staleCancellationRequests.length,
+      settledAfterSupersession: staleSettlements.length,
+      completedAfterSupersession: staleSettlements.filter(({ settled: settledEvent }) => settledEvent.outcome === "completed").length,
+      failedAfterSupersession: staleSettlements.filter(({ settled: settledEvent }) => settledEvent.outcome === "failed").length,
+      flightsAfterFinalVisible: finalVisibleSnapshot.queuedFlights + finalVisibleSnapshot.runningFlights,
       cancelLatencyMs: staleCancelLatencyMs.length ? summarize(staleCancelLatencyMs) : undefined,
     },
     peakActiveFlights,
@@ -283,16 +301,21 @@ async function benchmarkScroll(
 
 interface ScrollSettlement {
   outcome: "ready" | "cancelled" | "failed"
-  settledAt: number
-  supersededAt?: number
 }
 
 interface ScrollDemand {
   readonly lease: ReturnType<PlatformThumbnailPipeline["acquirePage"]>
   readonly generation: number
-  supersededAt?: number
-  settledAt?: number
   settlement: Promise<ScrollSettlement>
+}
+
+interface ThumbnailFlightEvent {
+  flightId: string
+  state: "started" | "cancellation-requested" | "settled"
+  contextId: string
+  generation: number
+  atMs: number
+  outcome?: "completed" | "cancelled" | "failed"
 }
 
 function trackScrollDemand(
@@ -303,18 +326,12 @@ function trackScrollDemand(
     lease,
     generation,
     settlement: undefined as unknown as Promise<ScrollSettlement>,
-  } satisfies Omit<ScrollDemand, "settledAt" | "supersededAt">
+  } satisfies ScrollDemand
   demand.settlement = lease.ready.then(
-    () => settleScrollDemand(demand, "ready"),
-    (error) => settleScrollDemand(demand, isAbortError(error) ? "cancelled" : "failed"),
+    () => ({ outcome: "ready" }),
+    (error) => ({ outcome: isAbortError(error) ? "cancelled" : "failed" }),
   )
   return demand
-}
-
-function settleScrollDemand(demand: ScrollDemand, outcome: ScrollSettlement["outcome"]): ScrollSettlement {
-  const settledAt = performance.now()
-  demand.settledAt = settledAt
-  return { outcome, settledAt, supersededAt: demand.supersededAt }
 }
 
 async function createSyntheticFixture(pages: number, files: number, workRoot?: string): Promise<SyntheticFixture> {
