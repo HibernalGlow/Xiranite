@@ -122,6 +122,20 @@ describe("ReaderPageMediaInformationService", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.image-information.provider-load-cancel] does not wait for a stalled provider loader during dispose", async () => {
+    const providerReady = Promise.withResolvers<ReaderPageMediaMetadataProvider>()
+    const loadProvider = vi.fn(() => providerReady.promise)
+    const service = new ReaderPageMediaInformationService(loadProvider)
+    const pending = service.inspect("session-1", page({ mediaKind: "video" }))
+    await vi.waitFor(() => expect(loadProvider).toHaveBeenCalledOnce())
+
+    await expect(service[Symbol.asyncDispose]()).resolves.toBeUndefined()
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+
+    providerReady.resolve(provider())
+    await Promise.resolve()
+  })
+
   it("[neoview.image-information.video-cache-budget] bounds settled probes per session", async () => {
     const inspect = vi.fn(async () => ({ durationSeconds: 1 }))
     const service = new ReaderPageMediaInformationService(async () => provider(inspect))
