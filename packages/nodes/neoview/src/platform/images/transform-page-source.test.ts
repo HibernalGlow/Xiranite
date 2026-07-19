@@ -61,6 +61,35 @@ describe("transformPageSource", () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.image.shared-source-cancel] releases the lease and cancels an input stream that opens after abort", async () => {
+    const controller = new AbortController()
+    const lateInput = Promise.withResolvers<ReadableStream<Uint8Array>>()
+    const release = vi.fn()
+    const cancel = vi.fn()
+    const open = vi.fn(() => lateInput.promise)
+    const source: PageSource = {
+      rangeSupported: false,
+      transformResource: "cpu",
+      open,
+      async close() {},
+      async [Symbol.asyncDispose]() {},
+    }
+    const transformer: ImageTransformer = {
+      transform: vi.fn(),
+    }
+    const pending = transformPageSource(source, transformer, REQUEST, controller.signal, {}, {
+      acquire: async () => ({ release }),
+    })
+
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("page changed", "AbortError"))
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+    expect(release).toHaveBeenCalledOnce()
+    expect(transformer.transform).not.toHaveBeenCalled()
+    lateInput.resolve(new ReadableStream<Uint8Array>({ cancel }))
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce())
+  })
+
   it("[neoview.image.shared-source-single-slot] completes without reacquiring the only CPU slot", async () => {
     const scheduler = new PriorityResourceScheduler({ maxConcurrent: 1, reservedInteractive: 0 })
     const acquire = vi.spyOn(scheduler, "acquire")
