@@ -77,6 +77,8 @@ describe("ImageTrimCard", () => {
     render(<ImageTrimCard port={port} />)
     fireEvent.click(screen.getByRole("button", { name: "上取消联动" }))
     expect(port.update).toHaveBeenCalledWith({ linkVertical: false })
+    fireEvent.click(screen.getByRole("button", { name: "左取消联动" }))
+    expect(port.update).toHaveBeenCalledWith({ linkHorizontal: false })
     fireEvent.click(screen.getByRole("button", { name: "去黑边" }))
     expect(port.presetBlack).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole("button", { name: "去白边" }))

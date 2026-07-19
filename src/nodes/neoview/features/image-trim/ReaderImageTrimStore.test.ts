@@ -16,6 +16,25 @@ describe("ReaderImageTrimStore", () => {
     store.dispose()
   })
 
+  it("[neoview.image-trim.edges] synchronizes linked pairs locally and persists once per completed action", async () => {
+    const persist = vi.fn(async (value: ReaderImageTrimSettings) => value)
+    const store = createReaderImageTrimStore({ persist })
+    store.hydrate({ ...settings(), top: 10, bottom: 20, left: 5, right: 15 })
+
+    await store.update({ linkVertical: true, linkHorizontal: true })
+    expect(store.getSnapshot()).toMatchObject({ top: 20, bottom: 20, left: 15, right: 15 })
+    expect(persist).toHaveBeenCalledOnce()
+
+    store.preview({ top: 12 })
+    store.preview({ left: 8 })
+    expect(store.getSnapshot()).toMatchObject({ top: 12, bottom: 12, left: 8, right: 8 })
+    expect(persist).toHaveBeenCalledOnce()
+    await store.commit()
+    expect(persist).toHaveBeenCalledTimes(2)
+    expect(persist.mock.calls[1]?.[0]).toMatchObject({ top: 12, bottom: 12, left: 8, right: 8 })
+    store.dispose()
+  })
+
   it("[neoview.image-trim.dispose] aborts persistence and ignores a late result after disposal", async () => {
     let resolvePersist!: (settings: ReaderImageTrimSettings) => void
     let persistSignal!: AbortSignal

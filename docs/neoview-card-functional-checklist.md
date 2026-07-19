@@ -2280,7 +2280,7 @@
 | `switchToast` | 切换提示 | integration | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `switch-toast` |
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
 | `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
-| `imageTrim` | 图像裁剪 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
+| `imageTrim` | 图像裁剪 | integration | partial | `core=P transport=P gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
 | `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=P cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
 | `animatedVideoMode` | 动图视频模式 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制；XR `animated-video-mode` |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
@@ -2967,7 +2967,7 @@
   - [ ] 上裁剪标题左侧保留 Link/Unlink 图标按钮
   - [ ] linkVertical=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground
   - [ ] 按钮 title 在 上下联动 与 取消上下联动 之间切换
-  - [ ] 切换联动不重置已有数值，后续上/下滑条按旧比例/规则联动
+  - [ ] 开启联动时按旧 store 取上下较大值同步，后续修改任一侧同步另一侧
   - [ ] 图标按钮有 aria-label、visible focus 和原生键盘操作
 - `image-trim-ui.horizontal-link` 左右联动与图标状态
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
@@ -2975,7 +2975,7 @@
   - [ ] 左裁剪标题左侧保留 Link/Unlink 图标按钮
   - [ ] linkHorizontal=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground
   - [ ] 按钮 title 在 左右联动 与 取消左右联动 之间切换
-  - [ ] 切换联动不丢失左右值，拖动一侧时保持另一侧的旧联动语义
+  - [ ] 开启联动时按旧 store 取左右较大值同步，后续修改任一侧同步另一侧
   - [ ] 左右联动状态属于设置 DTO，不得藏在组件局部 state
 - `image-trim-ui.preview` 裁剪预览指示器
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
@@ -3054,33 +3054,33 @@
   - 计划测试：无
   - 备注：Headless reset contract remains to be defined with the shared image pipeline.
 - [ ] `image-trim.edges` 四边百分比裁剪
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=P gui=C cli=P tui=P evidence=P`；阻塞：`transport`、`cli`、`tui`、`evidence`
   - 目标：Top, bottom, left and right preserve the 0..45 range, 0.5 step, labels, values and clip-path projection.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.edges`、`neoview.image-trim.bounds`
-  - 备注：Do not silently change percentages to pixels without recording a deviation.
+  - 测试：`neoview.image-trim.edges`、`neoview.image-trim.link-vertical`
+  - 计划测试：`neoview.image-trim.cli-edges`、`neoview.image-trim.tui-edges`
+  - 备注：Shared projection, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. CLI/TUI command-level edge coverage remains partial; percentages are not converted to pixels.
 - [ ] `image-trim.link-vertical` 上下联动
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=C transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`transport`
   - 目标：LinkVertical is shared state with exact Link/Unlink icon semantics and linked edge updates.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.link-vertical`
-  - 备注：Keyboard and pointer activation are both required.
+  - 测试：`neoview.image-trim.link-vertical`
+  - 计划测试：无
+  - 备注：Shared patch projection, Store state and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later top edits synchronize bottom, and each completed action persists once. Native button keyboard behavior is retained.
 - [ ] `image-trim.link-horizontal` 左右联动
-  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=C transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`transport`
   - 目标：LinkHorizontal is shared state with exact Link/Unlink icon semantics and linked edge updates.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.link-horizontal`
-  - 备注：Do not implement a separate local link state in the Card.
+  - 测试：`neoview.image-trim.link-horizontal`
+  - 计划测试：无
+  - 备注：Shared patch projection, Store synchronization and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later left edits synchronize right, and each completed action persists once without component-local link state.
 - [ ] `image-trim.bounds` 裁剪值边界和归一化
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=P gui=P cli=P tui=P evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：Reject non-finite values, clamp edges to 0..45 and preserve a non-empty effective region; imported values normalize field by field.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/info/ImageTrimCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.bounds`
-  - 备注：Range UI bounds and transport bounds must agree.
+  - 测试：`neoview.image-trim.bounds`
+  - 计划测试：`neoview.image-trim.bounds-browser`、`neoview.image-trim.bounds-cli`、`neoview.image-trim.bounds-tui`
+  - 备注：The shared normalizer and strict patch parser cover finite values, 0..45 clamping/rejection and 0.5 steps. GUI boundary-key interaction plus CLI/TUI command-level evidence remain partial.
 - [ ] `image-trim.preview` 有效裁剪区域预览
   - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
   - 目标：Preview mounts only for non-zero crop values and shows the effective width/height percentage without touching Reader session or requesting media.

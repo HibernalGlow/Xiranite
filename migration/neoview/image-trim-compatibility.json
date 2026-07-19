@@ -145,7 +145,7 @@
         "上裁剪标题左侧保留 Link/Unlink 图标按钮",
         "linkVertical=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground",
         "按钮 title 在 上下联动 与 取消上下联动 之间切换",
-        "切换联动不重置已有数值，后续上/下滑条按旧比例/规则联动",
+        "开启联动时按旧 store 取上下较大值同步，后续修改任一侧同步另一侧",
         "图标按钮有 aria-label、visible focus 和原生键盘操作"
       ],
       "mappedChecklistIds": [
@@ -165,7 +165,7 @@
         "左裁剪标题左侧保留 Link/Unlink 图标按钮",
         "linkHorizontal=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground",
         "按钮 title 在 左右联动 与 取消左右联动 之间切换",
-        "切换联动不丢失左右值，拖动一侧时保持另一侧的旧联动语义",
+        "开启联动时按旧 store 取左右较大值同步，后续修改任一侧同步另一侧",
         "左右联动状态属于设置 DTO，不得藏在组件局部 state"
       ],
       "mappedChecklistIds": [
@@ -402,19 +402,22 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "core": "complete",
+        "transport": "partial",
+        "gui": "complete",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.edges",
-        "neoview.image-trim.bounds"
+        "neoview.image-trim.link-vertical"
       ],
-      "notes": "Do not silently change percentages to pixels without recording a deviation."
+      "plannedTestIds": [
+        "neoview.image-trim.cli-edges",
+        "neoview.image-trim.tui-edges"
+      ],
+      "notes": "Shared projection, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. CLI/TUI command-level edge coverage remains partial; percentages are not converted to pixels."
     },
     {
       "id": "image-trim.link-vertical",
@@ -429,18 +432,18 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.link-vertical"
       ],
-      "notes": "Keyboard and pointer activation are both required."
+      "plannedTestIds": [],
+      "notes": "Shared patch projection, Store state and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later top edits synchronize bottom, and each completed action persists once. Native button keyboard behavior is retained."
     },
     {
       "id": "image-trim.link-horizontal",
@@ -455,18 +458,18 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.link-horizontal"
       ],
-      "notes": "Do not implement a separate local link state in the Card."
+      "plannedTestIds": [],
+      "notes": "Shared patch projection, Store synchronization and real Chromium pointer editing prove that enabling the link synchronizes to the larger edge, later left edits synchronize right, and each completed action persists once without component-local link state."
     },
     {
       "id": "image-trim.bounds",
@@ -483,18 +486,22 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "core": "complete",
+        "transport": "partial",
+        "gui": "partial",
+        "cli": "partial",
+        "tui": "partial",
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.bounds"
       ],
-      "notes": "Range UI bounds and transport bounds must agree."
+      "plannedTestIds": [
+        "neoview.image-trim.bounds-browser",
+        "neoview.image-trim.bounds-cli",
+        "neoview.image-trim.bounds-tui"
+      ],
+      "notes": "The shared normalizer and strict patch parser cover finite values, 0..45 clamping/rejection and 0.5 steps. GUI boundary-key interaction plus CLI/TUI command-level evidence remain partial."
     },
     {
       "id": "image-trim.preview",

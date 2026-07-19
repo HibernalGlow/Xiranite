@@ -11,6 +11,7 @@ export {
   isReaderImageTrimTarget,
   normalizeReaderImageTrim,
   parseReaderImageTrimPatch,
+  projectReaderImageTrimPatch,
   readerImageTrimClipPath,
   serializeReaderImageTrim,
   toReaderImageTrimJson,

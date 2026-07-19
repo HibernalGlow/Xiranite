@@ -25,7 +25,7 @@ describe("ReaderImageTrim", () => {
     expect(READER_IMAGE_TRIM_TARGETS).toEqual(["auto", "black", "white"])
   })
 
-  it("[neoview.image-trim.legacy-normalize] accepts camel/snake legacy fields and clamps to slider steps", () => {
+  it("[neoview.image-trim.legacy-normalize] [neoview.image-trim.bounds] accepts camel/snake legacy fields and clamps to slider steps", () => {
     expect(normalizeReaderImageTrim({
       enabled: "yes",
       top_percent: -4,
@@ -50,7 +50,7 @@ describe("ReaderImageTrim", () => {
     })
   })
 
-  it("[neoview.image-trim.patch] strictly validates bounds, steps, enums and unknown fields", () => {
+  it("[neoview.image-trim.patch] [neoview.image-trim.bounds] strictly validates bounds, steps, enums and unknown fields", () => {
     expect(parseReaderImageTrimPatch({ enabled: true, top: 45, bottom: 0.5, autoTrimThreshold: 100, autoTrimTarget: "white" })).toEqual({
       enabled: true,
       top: 45,
@@ -73,6 +73,28 @@ describe("ReaderImageTrim", () => {
       .toEqual(DEFAULT_READER_IMAGE_TRIM)
     expect(() => parseReaderImageTrimPatch({ reset: "factory" })).toThrow('must be "defaults"')
     expect(() => parseReaderImageTrimPatch({ reset: "defaults", enabled: true })).toThrow(/cannot be combined/)
+  })
+
+  it("[neoview.image-trim.link-vertical] [neoview.image-trim.link-horizontal] preserves legacy linked-edge projection", () => {
+    const linked = applyReaderImageTrimPatch({
+      ...DEFAULT_READER_IMAGE_TRIM,
+      top: 10,
+      bottom: 20,
+      left: 5,
+      right: 15,
+    }, { linkVertical: true, linkHorizontal: true })
+    expect(linked).toMatchObject({ top: 20, bottom: 20, left: 15, right: 15 })
+
+    expect(applyReaderImageTrimPatch(linked, { top: 12 })).toMatchObject({ top: 12, bottom: 12 })
+    expect(applyReaderImageTrimPatch(linked, { bottom: 7 })).toMatchObject({ top: 7, bottom: 7 })
+    expect(applyReaderImageTrimPatch(linked, { left: 8 })).toMatchObject({ left: 8, right: 8 })
+    expect(applyReaderImageTrimPatch(linked, { right: 4 })).toMatchObject({ left: 4, right: 4 })
+    expect(applyReaderImageTrimPatch(linked, { top: 3, bottom: 4, left: 5, right: 6 })).toMatchObject({
+      top: 3,
+      bottom: 4,
+      left: 5,
+      right: 6,
+    })
   })
 
   it("[neoview.image-trim.json] emits detached JSON-safe persistence values", () => {

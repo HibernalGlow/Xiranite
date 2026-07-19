@@ -1,6 +1,7 @@
 import {
   DEFAULT_READER_IMAGE_TRIM,
   normalizeReaderImageTrim,
+  projectReaderImageTrimPatch,
   type ReaderImageTrimPatch,
   type ReaderImageTrimSettings,
 } from "@xiranite/node-neoview/image-trim"
@@ -78,7 +79,7 @@ export function createReaderImageTrimStore(options: ReaderImageTrimStoreOptions)
     if (disposed) return
     touched = true
     revision += 1
-    publish(normalizeReaderImageTrim({ ...snapshot ?? DEFAULT_READER_IMAGE_TRIM, ...patch }))
+    publish(projectReaderImageTrimPatch(snapshot ?? DEFAULT_READER_IMAGE_TRIM, patch))
   }
   const commit = (reset = false): Promise<void> => {
     if (disposed || !snapshot) return Promise.resolve()
