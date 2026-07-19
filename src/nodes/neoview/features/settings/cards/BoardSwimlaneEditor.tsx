@@ -5,31 +5,18 @@ import type {
   DragStartEvent,
   UniqueIdentifier,
 } from "@dnd-kit/core"
-import {
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  MeasuringStrategy,
-  MouseSensor,
-  TouchSensor,
-  closestCorners,
-  pointerWithin,
-  rectIntersection,
-  useDroppable,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core"
+import { closestCenter, pointerWithin, rectIntersection } from "@dnd-kit/core"
 import {
   SortableContext,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, LayoutGrid, RotateCcw, Save } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanItemHandle, KanbanOverlay } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../../adapters/reader-http-client"
 import { CARD_DEFINITIONS, PANEL_DEFINITIONS } from "../../panels/registry"
@@ -91,11 +78,6 @@ export function BoardSwimlaneEditor({
 
   useEffect(() => setLanes(createBoardLanes(shell)), [shell])
 
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
   const panelIds = useMemo(
     () => ({
       left: lanes.left.map((panel) => panel.id),
@@ -104,6 +86,30 @@ export function BoardSwimlaneEditor({
     }),
     [lanes],
   )
+  const panelColumns = useMemo<Record<UniqueIdentifier, BoardPanel[]>>(() => ({
+    left: lanes.left,
+    right: lanes.right,
+    hidden: lanes.hidden,
+  }), [lanes])
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const activeId = String(args.active.id)
+    if (findPanelLocation(lanes, activeId)) {
+      const panelTargets = new Set<string>([
+        ...LANES.map((lane) => lane.id),
+        ...LANES.flatMap((lane) => lanes[lane.id].map((panel) => panel.id)),
+      ])
+      return closestCenter({
+        ...args,
+        droppableContainers: args.droppableContainers.filter((container) =>
+          String(container.id) !== activeId && panelTargets.has(String(container.id)),
+        ),
+      })
+    }
+
+    const targets = pointerWithin(args).filter((target) => String(target.id) !== activeId)
+    if (targets.length) return targets
+    return rectIntersection(args).filter((target) => String(target.id) !== activeId)
+  }, [lanes])
 
   async function save() {
     if (saving) return
@@ -124,15 +130,20 @@ export function BoardSwimlaneEditor({
   }
 
   function onDragStart(event: DragStartEvent) {
-    const kind = event.active.data.current?.kind as DragKind | undefined
-    const title = String(event.active.data.current?.title ?? event.active.id)
+    const activeId = String(event.active.id)
+    const panelLocation = findPanelLocation(lanes, activeId)
+    const panel = panelLocation ? lanes[panelLocation.lane][panelLocation.index] : undefined
+    const cardLocation = panel ? undefined : findCardLocation(lanes, activeId)
+    const card = cardLocation ? lanes[cardLocation.lane][cardLocation.panelIndex]?.cards[cardLocation.index] : undefined
+    const kind: DragKind | undefined = panel ? "panel" : card ? "card" : undefined
+    const title = panel?.title ?? card?.title ?? activeId
     if (kind === "panel" || kind === "card") {
       setDrag({
         kind,
-        id: String(event.active.id),
+        id: activeId,
         title,
-        emoji: typeof event.active.data.current?.emoji === "string" ? event.active.data.current.emoji : undefined,
-        cardCount: typeof event.active.data.current?.cardCount === "number" ? event.active.data.current.cardCount : undefined,
+        emoji: panel?.emoji,
+        cardCount: panel?.cards.length,
       })
     }
   }
@@ -144,6 +155,7 @@ export function BoardSwimlaneEditor({
     if (kind !== "card") return
     const activeId = String(active.id)
     const overId = String(over.id)
+    event.activatorEvent.preventDefault()
     setLanes((current) => moveCardOver(current, activeId, overId))
   }
 
@@ -155,15 +167,18 @@ export function BoardSwimlaneEditor({
     const activeId = String(active.id)
     const overId = String(over.id)
     if (kind === "panel") {
-      setLanes((current) => movePanelEnd(current, activeId, overId))
       return
     }
     if (kind === "card") {
       // Card ordering is updated during drag-over. Finalizing against a
       // panel's full-height drop zone would append an untouched card to the
       // bottom merely because the pointer was released over its own panel.
-      return
+      event.activatorEvent.preventDefault()
     }
+  }
+
+  function onPanelColumnsChange(columns: Record<UniqueIdentifier, BoardPanel[]>) {
+    setLanes((current) => acceptPanelColumns(current, columns))
   }
 
   return (
@@ -179,17 +194,18 @@ export function BoardSwimlaneEditor({
         </>
       }
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={boardCollision}
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      <Kanban
+        value={panelColumns}
+        getItemValue={(panel) => panel.id}
+        onValueChange={onPanelColumnsChange}
+        collisionDetection={collisionDetection}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
         onDragCancel={() => setDrag(undefined)}
       >
-        <div
-          className={cn("grid gap-3 md:grid-cols-3", saving && "pointer-events-none opacity-60")}
+        <KanbanBoard
+          className={cn("!grid h-auto grid-cols-1 gap-3 md:grid-cols-3", saving && "pointer-events-none opacity-60")}
           data-neoview-board-swimlanes="true"
         >
           {LANES.map((lane) => (
@@ -201,11 +217,11 @@ export function BoardSwimlaneEditor({
               disabled={saving}
             />
           ))}
-        </div>
-        <DragOverlay dropAnimation={null}>
-          {drag ? <BoardDragPreview drag={drag} /> : null}
-        </DragOverlay>
-      </DndContext>
+        </KanbanBoard>
+        <KanbanOverlay className="z-[1000]">
+          {() => drag ? <BoardDragPreview drag={drag} /> : null}
+        </KanbanOverlay>
+      </Kanban>
       {error ? <p role="alert" className="text-sm text-destructive">保存失败：{error}</p> : null}
       <p className="text-[11px] text-muted-foreground">
         提示：不可隐藏的卡片不会进「隐藏」泳道；不接受卡片的面板（如文件夹）只作为面板位存在。
@@ -225,14 +241,10 @@ function LaneColumn({
   panelIds: string[]
   disabled: boolean
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: laneDropId(lane.id), data: { kind: "lane", laneId: lane.id } })
   return (
-    <section
-      ref={setNodeRef}
-      className={cn(
-        "flex min-h-64 flex-col gap-2 rounded-lg border bg-muted/20 p-2",
-        isOver && "border-primary/50 bg-primary/5",
-      )}
+    <KanbanColumn
+      value={lane.id}
+      className="flex min-h-64 flex-col gap-2 rounded-lg border bg-muted/20 p-2"
       data-neoview-board-lane={lane.id}
     >
       <header className="px-1 pb-1">
@@ -252,7 +264,7 @@ function LaneColumn({
           ) : null}
         </div>
       </SortableContext>
-    </section>
+    </KanbanColumn>
   )
 }
 
@@ -265,38 +277,23 @@ function SortablePanel({
   laneId: LaneId
   disabled: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: panel.id,
-    disabled,
-    data: { kind: "panel", laneId, title: panel.title, emoji: panel.emoji, cardCount: panel.cards.length },
-  })
   const cardIds = panel.cards.map((card) => card.id)
-  const { setNodeRef: setDropRef, isOver } = useDroppable({
-    id: panelDropId(panel.id),
-    data: { kind: "panel-drop", panelId: panel.id, laneId },
-  })
   return (
-    <article
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(
-        "rounded-md border bg-card shadow-sm",
-        isDragging && "opacity-40",
-        isOver && "ring-1 ring-primary/40",
-      )}
+    <KanbanItem
+      value={panel.id}
+      className="overflow-hidden rounded-md border bg-card p-0 shadow-sm"
       data-neoview-board-panel={panel.id}
     >
       <header className="flex items-center gap-1.5 border-b px-2 py-1.5">
-      <button
-        type="button"
-        className="touch-none text-muted-foreground disabled:opacity-40"
+        <KanbanItemHandle
+          className="touch-none text-muted-foreground disabled:opacity-40"
           aria-label={`拖动面板 ${panel.title}`}
           disabled={disabled}
-          {...attributes}
-          {...listeners}
+          data-kind="panel"
+          data-title={panel.title}
         >
           <GripVertical className="size-3.5" />
-        </button>
+        </KanbanItemHandle>
         <span className="grid size-6 place-items-center rounded bg-muted text-xs" aria-hidden="true">{panel.emoji}</span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium">{panel.title}</div>
@@ -304,7 +301,7 @@ function SortablePanel({
         </div>
         <span className="text-[10px] tabular-nums text-muted-foreground">{panel.cards.length}</span>
       </header>
-      <div ref={setDropRef} className="space-y-1 p-1.5">
+      <div className="space-y-1 p-1.5" data-panel-drop-zone={panel.id}>
         {panel.acceptsCards ? (
           <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
             {panel.cards.map((card) => (
@@ -320,7 +317,7 @@ function SortablePanel({
           <div className="px-1 py-2 text-[10px] text-muted-foreground">此面板不接受卡片</div>
         )}
       </div>
-    </article>
+    </KanbanItem>
   )
 }
 
@@ -465,20 +462,19 @@ export function createBoardPatch(shell: ReaderShellConfigDto, lanes: BoardLanes)
   }
 }
 
-function movePanelEnd(lanes: BoardLanes, panelId: string, overId: string): BoardLanes {
-  const from = findPanelLocation(lanes, panelId)
-  if (!from) return lanes
-  const toLane = resolveLaneTarget(lanes, overId)
-  if (!toLane) return lanes
-  const panel = lanes[from.lane][from.index]
-  if (!panel) return lanes
-  if (toLane === "hidden" && !panel.canHide) return lanes
-  if (!panel.canMove && toLane !== from.lane) return lanes
-
-  const next = cloneLanes(lanes)
-  next[from.lane].splice(from.index, 1)
-  const toIndex = resolvePanelInsertIndex(next, toLane, overId)
-  next[toLane].splice(toIndex, 0, panel)
+function acceptPanelColumns(lanes: BoardLanes, columns: Record<UniqueIdentifier, BoardPanel[]>): BoardLanes {
+  const next: BoardLanes = {
+    left: columns.left ?? [],
+    right: columns.right ?? [],
+    hidden: columns.hidden ?? [],
+  }
+  for (const lane of LANES) {
+    for (const panel of next[lane.id]) {
+      const previous = findPanelLocation(lanes, panel.id)
+      if (lane.id === "hidden" && !panel.canHide && previous?.lane !== "hidden") return lanes
+      if (!panel.canMove && previous?.lane !== lane.id) return lanes
+    }
+  }
   return next
 }
 
@@ -490,7 +486,7 @@ function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardL
   if (from.panelId === target.panelId && from.index === target.index) return lanes
   const card = lanes[from.lane][from.panelIndex]?.cards[from.index]
   if (!card) return lanes
-  if (overId === panelDropId(from.panelId)) return lanes
+  if (overId === from.panelId || overId === panelDropId(from.panelId)) return lanes
   if (target.lane === "hidden" && !card.canHide) return lanes
   const host = lanes[target.lane][target.panelIndex]
   if (!host?.acceptsCards && target.lane !== "hidden") return lanes
@@ -523,24 +519,6 @@ function findCardLocation(lanes: BoardLanes, cardId: string): { lane: LaneId; pa
     }
   }
   return undefined
-}
-
-function resolveLaneTarget(lanes: BoardLanes, overId: string): LaneId | undefined {
-  if (overId.startsWith("lane:")) return overId.slice(5) as LaneId
-  if (overId.startsWith("panel-drop:")) {
-    const panelId = overId.slice("panel-drop:".length)
-    return findPanelLocation(lanes, panelId)?.lane
-  }
-  const panelLocation = findPanelLocation(lanes, overId)
-  if (panelLocation) return panelLocation.lane
-  const cardLocation = findCardLocation(lanes, overId)
-  return cardLocation?.lane
-}
-
-function resolvePanelInsertIndex(lanes: BoardLanes, lane: LaneId, overId: string): number {
-  if (overId === laneDropId(lane) || overId.startsWith("panel-drop:")) return lanes[lane].length
-  const index = lanes[lane].findIndex((panel) => panel.id === overId)
-  return index >= 0 ? index : lanes[lane].length
 }
 
 function resolveCardTarget(lanes: BoardLanes, overId: string): { lane: LaneId; panelIndex: number; panelId: string; index: number } | undefined {
@@ -577,10 +555,6 @@ function cloneLanes(lanes: BoardLanes): BoardLanes {
   }
 }
 
-function laneDropId(lane: LaneId): string {
-  return `lane:${lane}`
-}
-
 function panelDropId(panelId: string): string {
   return `panel-drop:${panelId}`
 }
@@ -588,7 +562,7 @@ function panelDropId(panelId: string): string {
 function BoardDragPreview({ drag }: { drag: DragState }) {
   if (drag.kind === "panel") {
     return (
-      <article className="w-64 overflow-hidden rounded-md border border-primary/40 bg-card shadow-2xl">
+      <article className="w-64 overflow-hidden rounded-md border border-primary/40 bg-card shadow-2xl" data-neoview-drag-preview="panel">
         <header className="flex items-center gap-2 border-b px-3 py-2">
           <span className="grid size-6 place-items-center rounded bg-muted text-xs" aria-hidden="true">
             {drag.emoji ?? "#"}
@@ -602,25 +576,11 @@ function BoardDragPreview({ drag }: { drag: DragState }) {
   }
 
   return (
-    <div className="flex w-56 items-center gap-2 rounded border border-primary/40 bg-background px-3 py-2 text-[11px] shadow-2xl">
+    <div className="flex w-56 items-center gap-2 rounded border border-primary/40 bg-background px-3 py-2 text-[11px] shadow-2xl" data-neoview-drag-preview="card">
       <GripVertical className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       <span className="min-w-0 truncate">{drag.title}</span>
     </div>
   )
-}
-
-const boardCollision: CollisionDetection = (args) => {
-  const activeId = String(args.active.id)
-  const pointerTargets = pointerWithin(args).filter((target) => String(target.id) !== activeId)
-  const explicitTarget = pointerTargets.find((target) => {
-    const kind = target.data.current?.kind
-    return kind === "lane" || kind === "panel-drop"
-  })
-  if (explicitTarget) return [explicitTarget]
-
-  const rectTargets = rectIntersection(args).filter((target) => String(target.id) !== activeId)
-  if (rectTargets.length) return rectTargets
-  return closestCorners(args).filter((target) => String(target.id) !== activeId)
 }
 
 export default BoardSwimlaneEditor
