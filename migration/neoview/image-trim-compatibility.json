@@ -735,7 +735,8 @@
       "title": "当前媒体帧兼容",
       "sourceEvidence": [
         "src/lib/stores/imageTrimStore.svelte.ts",
-        "src/lib/stackview/layers/CurrentFrameLayer.svelte"
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte",
+        "src/lib/stackview/components/FrameImage.svelte"
       ],
       "targetContract": "Crop presentation consumes the shared current frame/image contract for static, animated and video media and never assumes a permanent DOM selector.",
       "surfaces": [
@@ -744,18 +745,23 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "core": "partial",
+        "transport": "complete",
+        "gui": "partial",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.media"
+      "testIds": [
+        "neoview.image-trim.media",
+        "neoview.image-trim.transport-linked",
+        "neoview.image-trim.cli",
+        "neoview.image-trim.tui"
       ],
-      "notes": "CLI/TUI must expose a typed setting/result contract even when no preview exists."
+      "plannedTestIds": [
+        "neoview.image-trim.video"
+      ],
+      "notes": "Static and animated image frames consume the same decoded img and typed GUI/CLI/TUI settings contract. Video still needs a stable supported or unsupported reason before this boundary can complete."
     },
     {
       "id": "image-trim.double-page",
@@ -764,25 +770,27 @@
       "sourceEvidence": [
         "src/lib/stores/imageTrimStore.svelte.ts",
         "src/lib/stackview/layers/CurrentFrameLayer.svelte",
-        "src/lib/stackview/layers/PanoramaFrameLayer.svelte"
+        "src/lib/stackview/layers/PanoramaFrameLayer.svelte",
+        "src/lib/stackview/components/FrameImage.svelte"
       ],
-      "targetContract": "A double-page frame applies the documented four-edge policy to the complete frame or each page according to one shared option; it must not silently crop only one side.",
+      "targetContract": "Each image in a double-page frame applies the same four-edge percentages independently, matching the legacy per-FrameImage subscription; automatic detection is owned by the anchor physical page rather than DOM load order.",
       "surfaces": [
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.double-page"
+      "testIds": [
+        "neoview.image-trim.double-page",
+        "neoview.image-trim.double-page-browser"
       ],
-      "notes": "The legacy source exposes the Card but the exact double-page runtime policy still needs characterization."
+      "plannedTestIds": [],
+      "notes": "Legacy FrameImage subscribes once per image, so both LTR and RTL pages receive the same crop. The explicit anchor-page detection owner replaces the legacy first-match DOM selector to remove load-order ambiguity and global DOM lookup."
     },
     {
       "id": "image-trim.generation",
@@ -806,12 +814,14 @@
       },
       "testIds": [
         "neoview.image-trim.stale-detection",
-        "neoview.image-trim.active-image"
+        "neoview.image-trim.active-image",
+        "neoview.image-trim.active-physical-page",
+        "neoview.image-trim.upscale-generation"
       ],
       "plannedTestIds": [
         "neoview.image-trim.generation-trace"
       ],
-      "notes": "Registration generations abort and reject stale results before preview or persistence. Bounded trace-id logging is not yet implemented, so core and evidence remain partial."
+      "notes": "Registration generations abort and reject stale results before preview or persistence, including physical-page ownership and decoded upscale handoff. Bounded trace-id logging is not yet implemented, so core and evidence remain partial."
     },
     {
       "id": "image-trim.clip-path",
@@ -1048,18 +1058,19 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
+        "core": "partial",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.navigation-cancel"
+      "testIds": [
+        "neoview.image-trim.navigation-cancel",
+        "neoview.image-trim.navigation-stability"
       ],
-      "notes": "No artificial detection result is emitted during initial hydration."
+      "plannedTestIds": [],
+      "notes": "Image replacement aborts active detection before any stale persistence, while trim, scale and rotation updates retain the committed img node. Initial hydration emits no artificial detection result."
     },
     {
       "id": "image-trim.animation",
@@ -1074,18 +1085,18 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
+        "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.animation"
       ],
-      "notes": "Crop must remain presentation-only; page transition remains the animation owner."
+      "plannedTestIds": [],
+      "notes": "Crop and rotation remain on the committed img while the outer ReaderPageTransitionLayer exclusively owns transition transform, opacity, timer and compositor hints."
     },
     {
       "id": "image-trim.video",
@@ -1102,18 +1113,20 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
+        "core": "partial",
         "transport": "pending",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "pending",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.image-trim.media"
+      ],
       "plannedTestIds": [
         "neoview.image-trim.video"
       ],
-      "notes": "If a media type is unsupported, the Card must expose a stable reason and keep manual settings intact."
+      "notes": "Animated images use the same PageImage img chain and crop projection without a duplicate decoder. Video remains pending until the Card and headless surfaces expose a stable supported or unsupported reason while preserving manual settings."
     },
     {
       "id": "image-trim.upscale",
@@ -1128,18 +1141,18 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
+        "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.upscale-generation"
       ],
-      "notes": "The upscale pipeline remains the artifact owner."
+      "plannedTestIds": [],
+      "notes": "The upscale pipeline remains the artifact owner; detection registration transfers only after its hidden pending img decodes and becomes the committed presentation image."
     },
     {
       "id": "image-trim.shell",
@@ -1454,27 +1467,34 @@
       "sourceEvidence": [
         "src/lib/stores/imageTrimStore.svelte.ts",
         "src/lib/stackview/layers/CurrentFrameLayer.svelte",
-        "src/lib/stackview/layers/PanoramaFrameLayer.svelte"
+        "src/lib/stackview/layers/PanoramaFrameLayer.svelte",
+        "src/lib/stackview/components/FrameImage.svelte"
       ],
-      "targetContract": "The shared layout contract explicitly states how crop percentages apply to single page, double page and panorama frames, including RTL/rotation.",
+      "targetContract": "Single-page, double-page and panorama layouts apply the same inset percentages independently to every image; RTL changes page order, rotation remains an image transform, and only the visible anchor physical page owns automatic detection.",
       "surfaces": [
         "GUI",
         "CLI",
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "core": "partial",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.image-trim.layout-contract"
+      "testIds": [
+        "neoview.image-trim.layout-contract",
+        "neoview.image-trim.double-page",
+        "neoview.image-trim.double-page-browser",
+        "neoview.image-trim.navigation-stability",
+        "neoview.image-trim.transport-linked",
+        "neoview.image-trim.cli",
+        "neoview.image-trim.tui"
       ],
-      "notes": "This remains a partial boundary until the old runtime policy is characterized."
+      "plannedTestIds": [],
+      "notes": "Legacy FrameImage characterization confirms per-image subscription and clip composition in current and panorama layers. The new layout preserves that policy across single, double, RTL, rotation and sparse panorama while replacing the global selector with explicit anchor ownership."
     },
     {
       "id": "image-trim.reset-boundary",

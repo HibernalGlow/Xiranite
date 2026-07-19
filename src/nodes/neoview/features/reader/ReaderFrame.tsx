@@ -62,6 +62,9 @@ export function ReaderFrame({ pages, presentation, panorama, direction, pageMode
     : undefined
   const rotatedDimensions = dimensions.map((dimension) => rotatePresentationSize(dimension, effectiveReaderRotation(presentation.rotation, presentation.autoRotation, dimension)))
   const pageStretchScales = calculateReaderPageStretchScales(rotatedDimensions, presentation.widePageStretch)
+  const imageTrimDetectionPageIndex = pages.some((page) => page.index === anchorPageIndex)
+    ? anchorPageIndex
+    : pages[0]?.index
 
   return (
     <div
@@ -101,6 +104,7 @@ export function ReaderFrame({ pages, presentation, panorama, direction, pageMode
                 fallbackSize={available}
                 colorFilter={colorFilter}
                 imageTrim={imageTrim}
+                imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex}
                 videoController={videoController}
                 sessionId={sessionId}
                 client={client}

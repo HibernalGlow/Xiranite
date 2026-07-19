@@ -4,10 +4,11 @@ import { DEFAULT_READER_PRESENTATION } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import { ReaderFrame } from "./ReaderFrame"
 
-vi.mock("./PageMedia", () => ({ PageMedia: ({ page }: { page: ReaderPageDto }) => <img alt={page.name} /> }))
-vi.mock("../page-transition/ReaderPageTransitionLayer", () => ({ ReaderPageTransitionLayer: ({ children }: { children: React.ReactNode }) => children }))
+vi.mock("./PageMedia", () => ({ PageMedia: ({ page, imageTrim, imageTrimDetectionActive }: { page: ReaderPageDto; imageTrim?: ReaderImageTrimPort; imageTrimDetectionActive?: boolean }) => <img alt={page.name} data-image-trim={imageTrim ? "true" : "false"} data-image-trim-detection-active={imageTrimDetectionActive ? "true" : "false"} /> }))
+vi.mock("../page-transition/ReaderPageTransitionLayer", () => ({ ReaderPageTransitionLayer: ({ children }: { children: React.ReactNode }) => <div data-reader-page-transition-layer="true">{children}</div> }))
 
 afterEach(cleanup)
 
@@ -17,8 +18,19 @@ describe("ReaderFrame", () => {
 
     const frame = document.querySelector('[data-reader-frame="true"]')
     expect(frame?.className).not.toContain("flex-col")
-    expect(frame?.parentElement?.parentElement?.getAttribute("data-reader-orientation")).toBe("vertical")
+    expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-orientation")).toBe("vertical")
     expect([...frame!.querySelectorAll("img")].map((image) => image.alt)).toEqual(["000.jpg", "001.jpg"])
+  })
+
+  it("[neoview.image-trim.double-page] shares trim rendering while only the anchor physical page owns detection", () => {
+    const imageTrim = {} as ReaderImageTrimPort
+    render(<div style={{ width: 1600, height: 900 }}><ReaderFrame pages={[page(1), page(0)]} presentation={{ ...DEFAULT_READER_PRESENTATION, rotation: 90 }} pageMode="double" direction="right-to-left" totalPages={2} anchorPageIndex={0} imageTrim={imageTrim} sessionId="reader" client={{} as ReaderHttpClient} videoController={{} as ReaderVideoController} onSubtitleConfigChange={vi.fn()} onVideoListEnded={vi.fn()} /></div>)
+
+    const images = [...document.querySelectorAll<HTMLImageElement>('[data-image-trim="true"]')]
+    expect(images.map((image) => image.alt)).toEqual(["001.jpg", "000.jpg"])
+    expect(images.map((image) => image.dataset.imageTrimDetectionActive)).toEqual(["false", "true"])
+    expect(document.querySelector('[data-reader-page-transition-layer="true"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-rotation")).toBe("90")
   })
 })
 

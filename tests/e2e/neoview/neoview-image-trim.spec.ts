@@ -116,6 +116,24 @@ test("[neoview.image-trim.bounds-browser] [neoview.image-trim.preview] [neoview.
   await expect(page.locator("html")).toHaveAttribute("data-image-trim-writes", "6")
 })
 
+test("[neoview.image-trim.double-page-browser] applies one crop snapshot to both decoded pages", async ({ page }) => {
+  await page.goto("/tests/e2e/neoview/neoview-image-trim-harness.html?double=1", { waitUntil: "domcontentloaded" })
+  const images = page.locator('[data-image-trim-frame="double"] [data-reader-page-image]')
+  await expect(images).toHaveCount(2)
+  await expect(images.nth(0)).toHaveAttribute("data-reader-page-image-decoded", "image-trim-page")
+  await expect(images.nth(1)).toHaveAttribute("data-reader-page-image-decoded", "image-trim-page-2")
+
+  const card = page.locator('[data-neoview-card="image-trim"]')
+  await card.getByRole("switch", { name: "启用图像裁剪" }).click()
+  await card.getByRole("slider", { name: "上" }).focus()
+  await page.keyboard.press("ArrowRight")
+  await expect.poll(() => page.locator("html").getAttribute("data-image-trim-writes")).toBe("2")
+
+  const firstClip = await images.nth(0).evaluate((image) => getComputedStyle(image).clipPath)
+  expect(firstClip).toMatch(/^inset\(/)
+  await expect(images.nth(1)).toHaveCSS("clip-path", firstClip)
+})
+
 test.describe("constrained Card", () => {
   test.use({ viewport: { width: 860, height: 720 } })
 

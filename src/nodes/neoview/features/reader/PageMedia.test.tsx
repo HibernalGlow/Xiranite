@@ -1,10 +1,12 @@
 import { fireEvent, render, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/image-trim"
 
 vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 
 import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto } from "../../adapters/reader-http-client"
 import { ReaderVideoController } from "../video/ReaderVideoController"
+import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import { PageMedia } from "./PageMedia"
 
 describe("PageMedia", () => {
@@ -66,6 +68,26 @@ describe("PageMedia", () => {
     />)
     expect(view.container.querySelector("img")?.getAttribute("src")).toBe("/reader/image")
     expect(view.container.querySelector("video")).toBeNull()
+  })
+
+  it("[neoview.image-trim.media] applies the shared crop contract to animated images on the existing img chain", () => {
+    const snapshot = { ...DEFAULT_READER_IMAGE_TRIM, enabled: true, top: 5, right: 10, bottom: 15, left: 20 }
+    const imageTrim = {
+      subscribe: () => () => undefined,
+      getSnapshot: () => snapshot,
+    } as unknown as ReaderImageTrimPort
+    const animatedPage = { ...page("image"), name: "animated.gif", mimeType: "image/gif" }
+    const view = render(<PageMedia
+      page={animatedPage}
+      imageTrim={imageTrim}
+      videoController={new ReaderVideoController()}
+      onVideoListEnded={() => undefined}
+    />)
+
+    const image = view.container.querySelector("img")
+    expect(image?.getAttribute("src")).toBe("/reader/image")
+    expect(image?.style.clipPath).toBe("inset(5% 10% 15% 20%)")
+    expect(view.container.querySelector("canvas")).toBeNull()
   })
 })
 

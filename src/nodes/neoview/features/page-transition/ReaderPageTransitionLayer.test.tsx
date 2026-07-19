@@ -11,19 +11,22 @@ afterEach(() => {
 })
 
 describe("ReaderPageTransitionLayer", () => {
-  it("[neoview.page-transition.runtime] derives exact next/prev direction and keeps the child image", async () => {
+  it("[neoview.page-transition.runtime] [neoview.image-trim.animation] derives exact next/prev direction without taking crop ownership from the child image", async () => {
     vi.useFakeTimers()
     const store = enabledStore()
-    const view = render(<ReaderPageTransitionLayer pageIndex={2} store={store}><img src="/page.jpg" /></ReaderPageTransitionLayer>)
+    const view = render(<ReaderPageTransitionLayer pageIndex={2} store={store}><img src="/page.jpg" style={{ clipPath: "inset(10% 20% 30% 40%)", transform: "rotate(90deg)" }} /></ReaderPageTransitionLayer>)
     const image = view.container.querySelector("img")
 
-    view.rerender(<ReaderPageTransitionLayer pageIndex={3} store={store}><img src="/page.jpg" /></ReaderPageTransitionLayer>)
+    view.rerender(<ReaderPageTransitionLayer pageIndex={3} store={store}><img src="/page.jpg" style={{ clipPath: "inset(10% 20% 30% 40%)", transform: "rotate(90deg)" }} /></ReaderPageTransitionLayer>)
     const layer = view.container.querySelector<HTMLElement>("[data-reader-page-transition-layer]")!
     expect(layer.dataset.readerPageTransitionDirection).toBe("next")
     expect(layer.style.transition).toContain("transform")
     expect(view.container.querySelector("img")).toBe(image)
+    expect(image?.style.clipPath).toBe("inset(10% 20% 30% 40%)")
+    expect(image?.style.transform).toBe("rotate(90deg)")
+    expect(layer.style.transform).not.toBe(image?.style.transform)
 
-    view.rerender(<ReaderPageTransitionLayer pageIndex={1} store={store}><img src="/page.jpg" /></ReaderPageTransitionLayer>)
+    view.rerender(<ReaderPageTransitionLayer pageIndex={1} store={store}><img src="/page.jpg" style={{ clipPath: "inset(10% 20% 30% 40%)", transform: "rotate(90deg)" }} /></ReaderPageTransitionLayer>)
     expect(layer.dataset.readerPageTransitionDirection).toBe("prev")
     expect(vi.getTimerCount()).toBe(1)
     act(() => vi.runAllTimers())
