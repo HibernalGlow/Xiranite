@@ -1055,15 +1055,15 @@ describe("ReaderHttpController", () => {
 
       const options = (await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,
-        { layout: { pageMode: "double" } },
+        { layout: { pageMode: "double", panorama: true, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: false } },
         true,
         "PATCH",
       )))!
       expect(options.status).toBe(200)
       expect(await options.json()).toMatchObject({
-        frame: { layout: { pageMode: "double" }, pages: [{ pageIndex: 1 }, { pageIndex: 2 }] },
+        frame: { layout: { pageMode: "double", panorama: true, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: false }, pages: [{ pageIndex: 1 }, { pageIndex: 2 }] },
         visiblePages: [{ index: 1 }, { index: 2 }],
-        preload: { generation: 2, candidates: [{ tier: "background", pageIndexes: [0] }] },
+        preload: { generation: 2, candidates: [{ tier: "background", pageIndexes: [0, 1] }] },
       })
       const direction = (await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,
@@ -1085,6 +1085,26 @@ describe("ReaderHttpController", () => {
         true,
         "PATCH",
       )))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { layout: { panorama: "yes" } },
+        true,
+        "PATCH",
+      )))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { layout: { futureLayout: true } },
+        true,
+        "PATCH",
+      )))?.status).toBe(400)
+      const panoramaOnly = (await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { layout: { panorama: false } },
+        true,
+        "PATCH",
+      )))!
+      expect(panoramaOnly.status).toBe(200)
+      expect(await panoramaOnly.json()).toMatchObject({ frame: { layout: { panorama: false, pageMode: "double" } } })
       expect((await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,
         { layout: { pageMode: "single" } },
@@ -1117,6 +1137,22 @@ describe("ReaderHttpController", () => {
         `/reader/s/${session.sessionId}/pages?query=${"x".repeat(129)}`,
       )))?.status).toBe(400)
 
+      const frameWindow = (await controller.handle(authorizedRequest(
+        `/reader/s/${session.sessionId}/frame-window?center=1&radius=1`,
+      )))!
+      expect(frameWindow.status).toBe(200)
+      const windowBody = await frameWindow.json() as {
+        frames: Array<{ anchorPageIndex: number }>
+        centerIndex: number
+        radius: number
+      }
+      expect(windowBody).toMatchObject({ centerIndex: 1, radius: 1 })
+      expect(windowBody.frames.some((frame) => frame.anchorPageIndex === 1)).toBe(true)
+      expect(windowBody.frames.length).toBeGreaterThanOrEqual(1)
+      expect((await controller.handle(authorizedRequest(
+        `/reader/s/missing-session/frame-window?center=0&radius=1`,
+      )))?.status).toBe(404)
+
       const asset = (await controller.handle(new Request(pageList.pages[0]!.assetUrl)))!
       expect(new Uint8Array(await asset.arrayBuffer())).toEqual(Uint8Array.of(2))
 
@@ -1126,7 +1162,7 @@ describe("ReaderHttpController", () => {
       )))!
       expect(await navigated.json()).toMatchObject({
         frame: { anchorPageIndex: 2 },
-        preload: { generation: 5, direction: "forward", candidates: [{ tier: "background", pageIndexes: [1] }] },
+        preload: { generation: 6, direction: "forward", candidates: [{ tier: "background", pageIndexes: [1] }] },
       })
       const metadataAfterNavigation = await (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!.json()
       expect(metadataAfterNavigation).toMatchObject({ book: { currentPage: 3, emm: { translatedTitle: "译名" } } })

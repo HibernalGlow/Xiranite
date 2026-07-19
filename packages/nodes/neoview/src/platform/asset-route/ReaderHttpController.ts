@@ -3,7 +3,7 @@ import { createHash } from "node:crypto"
 import { stat } from "node:fs/promises"
 import { z } from "zod"
 
-import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/frame.js"
+import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderLayout } from "../../domain/frame/frame.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { ReaderMediaFormatRegistryRef } from "../../domain/page/media.js"
@@ -183,6 +183,7 @@ const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_RELOAD_PATH = /^\/reader\/s\/([^/]+)\/reload$/
 const SESSION_SOURCE_CHANGES_PATH = /^\/reader\/s\/([^/]+)\/source-changes$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
+const SESSION_FRAME_WINDOW_PATH = /^\/reader\/s\/([^/]+)\/frame-window$/
 const SESSION_ADJACENT_BOOK_PATH = /^\/reader\/s\/([^/]+)\/adjacent-book$/
 const SESSION_PAGE_ACTION_PATH = /^\/reader\/s\/([^/]+)\/pages\/([^/]+)\/actions$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
@@ -722,6 +723,8 @@ export class ReaderHttpController implements AsyncDisposable {
 
     const pagesMatch = SESSION_PAGES_PATH.exec(url.pathname)
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
+    const frameWindowMatch = SESSION_FRAME_WINDOW_PATH.exec(url.pathname)
+    if (frameWindowMatch && request.method === "GET") return this.#frameWindow(frameWindowMatch[1]!, url, request.signal)
     const adjacentBookMatch = SESSION_ADJACENT_BOOK_PATH.exec(url.pathname)
     if (adjacentBookMatch && request.method === "POST") return this.#openAdjacentBook(adjacentBookMatch[1]!, request)
     const pageActionMatch = SESSION_PAGE_ACTION_PATH.exec(url.pathname)
@@ -1344,6 +1347,32 @@ export class ReaderHttpController implements AsyncDisposable {
     return jsonResponse({ pages, nextCursor, total: catalog.length })
   }
 
+  async #frameWindow(encodedSessionId: string, url: URL, signal?: AbortSignal): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (typeof session.frameWindow !== "function") {
+      return jsonResponse({ error: "Reader session does not support frame windows" }, 501)
+    }
+    const pageCount = session.book.pages.length
+    if (!pageCount) return jsonResponse({ frames: [], centerIndex: 0, radius: 0 })
+    const defaultCenter = session.snapshot().anchorPageIndex
+    const center = boundedInteger(url.searchParams.get("center"), 0, pageCount - 1, defaultCenter)
+    const radius = boundedInteger(url.searchParams.get("radius"), 0, 8, 1)
+    try {
+      const frames = await session.frameWindow(center, radius, signal)
+      signal?.throwIfAborted()
+      return jsonResponse({
+        frames,
+        centerIndex: center,
+        radius,
+        visiblePages: frames.flatMap((frame) => this.#visiblePages(session, frame)),
+      })
+    } catch (error) {
+      if (signal?.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+  }
+
   async #metadata(encodedSessionId: string, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -1553,23 +1582,32 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: "Reader session options.direction must be left-to-right or right-to-left" }, 400)
     }
     const layout = body.layout
-    let pageMode: "single" | "double" | undefined
+    let layoutPatch: Partial<ReaderLayout> | undefined
     if (layout !== undefined) {
       if (!layout || typeof layout !== "object" || Array.isArray(layout)) {
         return jsonResponse({ error: "Reader session options.layout must be an object" }, 400)
       }
       const record = layout as Record<string, unknown>
-      if (Object.keys(record).some((key) => key !== "pageMode") || (record.pageMode !== "single" && record.pageMode !== "double")) {
+      const layoutKeys = new Set(["pageMode", "panorama", "singleFirstPage", "singleLastPage", "treatWidePageAsSingle"])
+      if (!Object.keys(record).length || Object.keys(record).some((key) => !layoutKeys.has(key))) {
+        return jsonResponse({ error: "Reader session options.layout contains unsupported fields" }, 400)
+      }
+      if (record.pageMode !== undefined && record.pageMode !== "single" && record.pageMode !== "double") {
         return jsonResponse({ error: "Reader session options.layout.pageMode must be single or double" }, 400)
       }
-      pageMode = record.pageMode
+      for (const key of ["panorama", "singleFirstPage", "singleLastPage", "treatWidePageAsSingle"] as const) {
+        if (record[key] !== undefined && typeof record[key] !== "boolean") {
+          return jsonResponse({ error: `Reader session options.layout.${key} must be boolean` }, 400)
+        }
+      }
+      layoutPatch = record as typeof layoutPatch
     }
     try {
       const previousPreloadGeneration = session.preloadPlan()?.generation
       const current = session.snapshot().layout
       const frame = await session.updateOptions({
         ...(direction === undefined ? {} : { direction }),
-        ...(pageMode === undefined ? {} : { layout: { ...current, pageMode } }),
+        ...(layoutPatch === undefined ? {} : { layout: { ...current, ...layoutPatch } }),
       }, request.signal)
       await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, session.preloadPlan()?.generation)
       this.#retainSessionFrame(session, frame)
