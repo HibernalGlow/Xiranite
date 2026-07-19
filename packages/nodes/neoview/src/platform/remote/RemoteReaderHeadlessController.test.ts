@@ -7,7 +7,13 @@ import { ReaderHttpController } from "../asset-route/ReaderHttpController.js"
 import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrideStore, ReaderEmmOverrides } from "../../ports/ReaderEmmOverrideStore.js"
-import { fetchRemoteReaderDiagnostics, RemoteReaderHeadlessController } from "./RemoteReaderHeadlessController.js"
+import {
+  cleanupRemoteReaderThumbnails,
+  clearRemoteReaderThumbnailFailures,
+  fetchRemoteReaderDiagnostics,
+  fetchRemoteReaderThumbnailMaintenance,
+  RemoteReaderHeadlessController,
+} from "./RemoteReaderHeadlessController.js"
 
 const cleanup: string[] = []
 
@@ -16,6 +22,42 @@ afterEach(async () => {
 })
 
 describe("RemoteReaderHeadlessController", () => {
+  it("[neoview.thumbnail.maintenance.cli-connect] reuses the running writer with authenticated, validated maintenance requests", async () => {
+    const requests: Request[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      const url = new URL(request.url)
+      if (request.method === "GET") return Response.json({ snapshot: thumbnailMaintenanceSnapshot() })
+      if (url.pathname.endsWith("/failures/clear")) return Response.json({ deleted: 3 })
+      if (url.pathname.endsWith("/cleanup")) {
+        const body = await request.json() as { kind: string }
+        if (body.kind === "invalid") return Response.json({ result: { scanned: 50, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false } })
+        if (body.kind === "expired") return Response.json({ deleted: 4, cutoff: "2026-06-19 00:00:00" })
+        return Response.json({ deleted: 1, prefix: "D:/library" })
+      }
+      return new Response(null, { status: 404 })
+    }) as typeof fetch
+    const options = { baseUrl: "http://127.0.0.1:41000", token: "remote-token", fetch: fetchMock }
+    await expect(fetchRemoteReaderThumbnailMaintenance(options)).resolves.toMatchObject({ totalRows: 12, writer: { committedWrites: 12 } })
+    await expect(cleanupRemoteReaderThumbnails(options, { kind: "expired", days: 30, limit: 10 })).resolves.toEqual({ kind: "expired", deleted: 4, cutoff: "2026-06-19 00:00:00" })
+    await expect(cleanupRemoteReaderThumbnails(options, { kind: "invalid", scanLimit: 50, deleteLimit: 10 })).resolves.toEqual({ kind: "invalid", scanned: 50, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false })
+    await expect(cleanupRemoteReaderThumbnails(options, { kind: "path-prefix", prefix: "D:/library", limit: 10 })).resolves.toEqual({ kind: "path-prefix", prefix: "D:/library", deleted: 1 })
+    await expect(clearRemoteReaderThumbnailFailures(options, { reason: "decode-error", limit: 10 })).resolves.toBe(3)
+    expect(requests.every((request) => request.headers.get("x-xiranite-token") === "remote-token")).toBe(true)
+    expect(await requests[1]?.json()).toEqual({ kind: "expired", days: 30, limit: 10, preserveFolders: true })
+    expect(await requests[2]?.json()).toEqual({ kind: "invalid", scanLimit: 50, limit: 10 })
+  })
+
+  it("[neoview.thumbnail.maintenance.remote-wire] rejects malformed maintenance results", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ snapshot: { totalRows: -1 } })) as typeof fetch
+    await expect(fetchRemoteReaderThumbnailMaintenance({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "remote-token",
+      fetch: fetchMock,
+    })).rejects.toThrow("invalid thumbnail maintenance response")
+  })
+
   it("[neoview.cli.connect] reuses the running Reader controller for inspect, pages, navigation and original-byte streaming", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-remote-"))
     cleanup.push(directory)
@@ -414,6 +456,28 @@ function artifactCacheSnapshot() {
   return {
     entries: 3, bytes: 300, maxBytes: 1_024, maxEntryBytes: 512, activeLeases: 0,
     hits: 2, misses: 1, writes: 3, rejectedWrites: 0, evictions: 0, integrityFailures: 0,
+  }
+}
+
+function thumbnailMaintenanceSnapshot() {
+  return {
+    totalRows: 12,
+    fileRows: 7,
+    folderRows: 5,
+    blobBytes: 1024,
+    emptyBlobs: 0,
+    failedRows: 1,
+    failuresByReason: { "decode-error": 1 },
+    databaseBytes: 4096,
+    walBytes: 128,
+    writer: {
+      pendingWrites: 0,
+      flushing: false,
+      committedBatches: 2,
+      committedWrites: 12,
+      busyRetries: 0,
+      failedBatches: 0,
+    },
   }
 }
 

@@ -188,9 +188,9 @@ EPUB 与 PDF 仍是两个独立 capability；EPUB provider 落地不改变 PDF d
 | Archive provider | ZIP/7z/RAR 主纵切可用 | Store/Deflate ZIP、stdout non-solid、单进程 solid materializer、嵌套 lease、CRC/预算/取消、header/non-solid/solid stdin 密码、真实 RAR5 non-solid/solid、provider 与 Reader Core 的损坏 RAR 拒绝、RAR4 capability skip | 更多真实 RAR 版本、超大包和外部语料；文档格式不属于 archive provider |
 | HTTP 图片数据面 | 主链可用 | opaque token、GET/HEAD、ETag/304、文件 Range、ZIP 流、背压和断开取消；默认原图不进 sharp | 格式 fallback 策略、远程源、更多 Range/代理兼容 |
 | Probe/transform/cache/scheduler | 部分完成 | 有界尺寸探测、惰性 sharp、singleflight、weighted LRU、`cacache` 内容寻址 L3、request-bound 内存压力 admission/回收、宿主 CPU lease；non-solid 归档流与 sharp/WIC 复用单一 CPU lease | frame pin、方向权重、所有重节点共享配额 |
-| 旧缩略图数据库 | 主运行纵切可用、迁移未完成 | 沿用 `%APPDATA%/NeoView/thumbnails.db`；惰性单 writer、批量命中、Page/file/folder/video/归档内视频生成与持久化、失败退避、统计与有界在线清理；SQLite 原生一致性备份、显式离线 checkpoint/optimize/vacuum、验证备份恢复与原 DB/WAL/SHM 隔离；XR writer/维护进程锁；`data_version` 外部 writer epoch；V1/V3/V4 行为收口到单一有界优先 Coordinator；2026-07-18 真实 14,258 行/816 MiB 主库只读 benchmark 含 SHA-256、WAL/SHM 与 5,000 次单条/512 批次结果 | 不同存储介质与真实 reader thumbnail-system corpus 的大规模验收 |
+| 旧缩略图数据库 | 主运行纵切可用、迁移未完成 | 沿用 `%APPDATA%/NeoView/thumbnails.db`；惰性单 writer、批量命中、Page/file/folder/video/归档内视频生成与持久化、失败退避、统计与有界在线清理；本地或 `--connect` CLI 都复用运行中 writer，远程维护不另开 SQLite 连接；SQLite 原生一致性备份、显式离线 checkpoint/optimize/vacuum、验证备份恢复与原 DB/WAL/SHM 隔离；XR writer/维护进程锁；`data_version` 外部 writer epoch；V1/V3/V4 行为收口到单一有界优先 Coordinator；2026-07-18 真实 14,258 行/816 MiB 主库只读 benchmark 含 SHA-256、WAL/SHM 与 5,000 次单条/512 批次结果 | 不同存储介质与真实 reader thumbnail-system corpus 的大规模验收 |
 | 设置与数据迁移 | 部分完成 | LegacySettingsCodec、共享 ReaderSettingsMigrationService、CLI 与鉴权 HTTP legacy inspect/import；当前 `[nodes.neoview]` 的 Xiranite/NeoViewConfig v1 portable 导出/回读；Xiranite/NeoViewBackup v1 配置+原 thumbnails.db 在线一致目录 bundle；bundle manifest/哈希/portable/SQLite 只读检查；带配置回滚与旧数据库隔离的 offline restore；确认/备份/跨进程锁/原子写入；默认关闭的外部计划任务自动备份与已验证 bundle 保留 | GUI/TUI 确认界面、宿主常驻调度、Gist transport |
-| 超分 | 后端契约、Page workflow、local headless/CLI、远程 headless/CLI 预载控制、预超分 core、流式 artifact HTTP 与 Windows 三 CLI 小样本实测可用，生产依赖未锁定 | 共享 policy/service、文件页零复制与归档页受 lease materialize、ReaderPreloadPlan + p-map 有界邻页/渐进批次、generation 取消、GPU lease、TOML composition、旧 preferences/conditions 导入、系统 CLI/daemon capability 探测、薄 Provider、惰性 runtime/headless port、流式 cacache artifact、session-scoped opaque HTTP、live snapshot、暂停/重试、严格 remote wire schema、输出校验、daemon/短进程清理及可注册模型；`xneoview upscale-page` 与本地 `upscale-preload-status/start/pause/retry` 均复用当前 Reader session、同一 policy/plan 和 artifact store，不嵌入 Python/exe | 前端 remote client、TUI/GUI/Card、fork 推送/锁版本、更多真实页/驱动/显存与派生进程树、MangaJaNai 旧目录 manifest 补全 |
+| 超分 | 后端契约、Page workflow、local headless/CLI、远程 headless/CLI 预载控制、预超分 core、流式 artifact HTTP 与 Windows 三 CLI 小样本实测可用，生产依赖未锁定 | 共享 policy/service、文件页零复制与归档页受 lease materialize、ReaderPreloadPlan + p-map 有界邻页/渐进批次、generation 取消、GPU lease、TOML composition、旧 preferences/conditions 导入、系统 CLI/daemon capability 探测、薄 Provider、惰性 runtime/headless port、流式 cacache artifact、session-scoped opaque HTTP、live snapshot、暂停/重试、严格 remote wire schema、输出校验、daemon/短进程清理及可注册模型；`xneoview upscale-page` 与本地 `upscale-preload-status/start/pause/retry` 均复用当前 Reader session、同一 policy/plan 和 artifact store，不嵌入 Python/exe；IllustrationJaNai/MangaJaNai 仅作不可执行迁移报告 | 前端 remote client、TUI/GUI/Card、fork 推送/锁版本、更多真实页/驱动/显存与派生进程树 |
 
 前端当前真实状态：
 
@@ -1829,7 +1829,7 @@ output_blob = "out0"
 - 路径包含空格、引号、Unicode、长路径时不能通过 shell 字符串拼接，必须使用参数数组或经过测试的 daemon quoting；
 - stdout/stderr 只承载控制日志和进度，不传输图片字节。
 
-OpenComic 模型表已经扩展为可注册 manifest，而不是只允许包内硬编码联合类型。IllustrationJaNai、MangaJaNai 和用户自定义 NCNN 模型至少记录：模型 id、engine、`.param/.bin` 路径、scale、输入/输出 blob、前后处理、许可和逐文件校验 hash；fork 已负责原子注册、路径边界和流式校验，XR 已完成 TOML manifest 解析、runtime 注册以及普通旧偏好/条件导入。遗留的单独模型目录仍不能推导 license、blob 名与逐文件 hash，必须由用户提供或受信任清单补全，不能凭路径自动生成不完整 manifest，也不再实现第二套 registry。Upscayl 已能直接识别部分 `in0/out0` 模型；不能假定把模型文件重命名成 `sr-vulkan` 固定枚举就等价兼容。
+OpenComic 模型表已经扩展为可注册 manifest，而不是只允许包内硬编码联合类型。用户自定义 NCNN 模型至少记录：模型 id、engine、`.param/.bin` 路径、scale、输入/输出 blob、前后处理、许可和逐文件校验 hash；fork 已负责原子注册、路径边界和流式校验，XR 已完成 TOML manifest 解析、runtime 注册以及普通旧偏好/条件导入。IllustrationJaNai 与 MangaJaNai 已被统一超分能力替代，仅保留为不可执行的迁移报告来源，不迁移目录或 manifest。遗留的单独模型目录仍不能推导 license、blob 名与逐文件 hash，必须由用户提供或受信任清单补全，不能凭路径自动生成不完整 manifest，也不再实现第二套 registry。Upscayl 已能直接识别部分 `in0/out0` 模型；不能假定把模型文件重命名成 `sr-vulkan` 固定枚举就等价兼容。
 
 AVIF/JXL 仍由 Reader 的统一图片解码层负责。当前 CLI 只接受文件路径和 JPG/PNG/WebP 时，使用受 lease 管理的无损 PNG 中间文件，不允许旧版 JPEG Q85 中转；任务完成、取消或 session close 后立即清理。将来若系统 CLI 支持 raw pixels/named pipe，可在 Provider 内替换数据面而不改变 `SuperResolutionService`。
 
@@ -2596,7 +2596,7 @@ scripts/
 | Archive 识别与索引 | 目录、Store/Deflate/ZIP64、RAR/7z solid/non-solid、嵌套、加密、空包、损坏包、重复文件名、非 UTF-8/Unicode 名、超大 entry 数 |
 | Archive 数据面 | 当前页优先、首 chunk、背压、客户端取消、CRC 错误、singleflight、无整页 Buffer、无意外临时写入、solid 不重复解码 |
 | 图片格式 | JPEG/PNG/WebP/GIF/AVIF/JXL/SVG、动画、透明度、ICC/EXIF 方向、超大图、坏图、浏览器直出与 sharp fallback |
-| 超分 | 三个系统 CLI 的发现/显式路径/版本不兼容/缺失降级；OpenComic 模型映射、自定义 manifest、Upscayl daemon 握手/排队/取消/崩溃/idle quit；IllustrationJaNai/MangaJaNai/AnimeVideoV3 golden 与冷/热性能；AVIF/JXL 无损中间文件、清理、无 JPEG 中转；发布包无内嵌 exe/Python |
+| 超分 | 三个系统 CLI 的发现/显式路径/版本不兼容/缺失降级；OpenComic 模型映射、自定义 manifest、Upscayl daemon 握手/排队/取消/崩溃/idle quit；当前统一模型与 AnimeVideoV3 golden 和冷/热性能；AVIF/JXL 无损中间文件、清理、无 JPEG 中转；发布包无内嵌 exe/Python；IllustrationJaNai/MangaJaNai 只保留迁移报告，不作执行验证 |
 | 图片主渲染链 | 单页/双页/全景共用 `PageImage <img>`；源码和生产构建中普通 Reader 无 Canvas 分支；旧 canvas 设置映射；ready 前保留旧 frame；decode、取消、错误占位和资源释放 |
 | 书籍构建与排序 | 自然排序、文件夹层级、压缩包内目录、媒体优先级、排除路径、横页识别、空页与不支持文件 |
 | 单/双页布局 | LTR/RTL、封面单页、末页单页、宽页拆分、不同尺寸对齐、旋转后方向、窗口 resize、页数奇偶 |

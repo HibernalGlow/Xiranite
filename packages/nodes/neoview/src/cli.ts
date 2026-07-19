@@ -65,6 +65,8 @@ import type {
   RemoteSuperResolutionArtifactCacheSnapshot,
   RemoteSuperResolutionPreloadMode,
   RemoteSuperResolutionPreloadSnapshot,
+  RemoteReaderThumbnailCleanupCommand,
+  RemoteReaderThumbnailCleanupResult,
 } from "./platform/remote/RemoteReaderHeadlessController.js"
 
 const CLI_NAME = "xneoview"
@@ -176,6 +178,12 @@ export interface NeoviewCliDependencies {
   createDiagnosticsService?: (options: ReaderCompositionOptions) => Promise<ReaderDiagnosticsService>
   fetchRemoteDiagnostics?: (options: { baseUrl: string; token: string }) => Promise<ReaderDiagnosticsSnapshot>
   fetchRemoteDiagnosticsHistory?: (options: { baseUrl: string; token: string; sinceMs?: number; limit?: number }) => Promise<ReaderDiagnosticsHistory>
+  fetchRemoteThumbnailMaintenance?: (options: { baseUrl: string; token: string }) => Promise<ReaderThumbnailMaintenanceSnapshot>
+  cleanupRemoteThumbnails?: (
+    options: { baseUrl: string; token: string },
+    command: RemoteReaderThumbnailCleanupCommand,
+  ) => Promise<RemoteReaderThumbnailCleanupResult>
+  clearRemoteThumbnailFailures?: (options: { baseUrl: string; token: string }, request: { reason?: string; limit: number }) => Promise<number>
   createThumbnailDatabaseMaintenance?: () => Promise<ReaderThumbnailDatabaseMaintenance>
   createBackupBundleService?: (options: ReaderCompositionOptions & { thumbnailDatabasePath?: string }) => Promise<{
     create(destinationPath: string, signal?: AbortSignal): Promise<ReaderBackupBundleResult>
@@ -764,15 +772,15 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "thumbnail-db-stats") {
-    rejectOptions(parsed, new Set(["--json"]))
+    rejectOptions(parsed, new Set(["--json", "--connect", "--token-env"]))
     return
   }
   if (command === "thumbnail-db-cleanup") {
-    rejectOptions(parsed, new Set(["--json", "--yes", "--kind", "--prefix", "--days", "--limit", "--scan-limit"]))
+    rejectOptions(parsed, new Set(["--json", "--yes", "--kind", "--prefix", "--days", "--limit", "--scan-limit", "--connect", "--token-env"]))
     return
   }
   if (command === "thumbnail-db-clear-failures") {
-    rejectOptions(parsed, new Set(["--json", "--yes", "--reason", "--limit"]))
+    rejectOptions(parsed, new Set(["--json", "--yes", "--reason", "--limit", "--connect", "--token-env"]))
     return
   }
   if (command === "thumbnail-db-backup") {
@@ -1721,6 +1729,13 @@ async function runThumbnailMaintenanceCommand(
     throw usage(`${command} requires --yes because it modifies the thumbnail database.`)
   }
   const plan = thumbnailMaintenancePlan(command, parsed)
+  const connect = oneValue(parsed, "--connect")
+  const tokenVariable = oneValue(parsed, "--token-env")
+  if (!connect && tokenVariable) throw usage("--token-env requires --connect.")
+  if (connect) {
+    if (path) throw usage(`${command} does not accept a database path with --connect because the running backend owns its writer.`)
+    return await runRemoteThumbnailMaintenanceCommand(plan, connect, tokenVariable, parsed, host, dependencies)
+  }
   const databasePath = await resolveThumbnailDatabasePath(path, host)
   const openStore = dependencies.openThumbnailStore ?? (async (target: string): Promise<CliThumbnailMaintenanceStore> => {
     const { createWritableLegacyThumbnailStore } = await import("./platform.js")
@@ -1766,6 +1781,62 @@ async function runThumbnailMaintenanceCommand(
   } finally {
     await store[Symbol.asyncDispose]()
   }
+}
+
+async function runRemoteThumbnailMaintenanceCommand(
+  plan: ThumbnailMaintenancePlan,
+  baseUrl: string,
+  tokenVariable: string | undefined,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  const options = { baseUrl, token: connectionToken(tokenVariable, host) }
+  if (plan.kind === "stats") {
+    const fetchStatus = dependencies.fetchRemoteThumbnailMaintenance ?? (async (remoteOptions: typeof options) => {
+      const { fetchRemoteReaderThumbnailMaintenance } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+      return fetchRemoteReaderThumbnailMaintenance(remoteOptions)
+    })
+    printThumbnailStats(await fetchStatus(options), parsed.booleans.has("--json"), host)
+    return
+  }
+  if (plan.kind === "clear-failures") {
+    const clearFailures = dependencies.clearRemoteThumbnailFailures ?? (async (
+      remoteOptions: typeof options,
+      request: { reason?: string; limit: number },
+    ) => {
+      const { clearRemoteReaderThumbnailFailures } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+      return clearRemoteReaderThumbnailFailures(remoteOptions, request)
+    })
+    return printMaintenanceResult({
+      operation: plan.kind,
+      deleted: await clearFailures(options, { reason: plan.reason, limit: plan.limit }),
+    }, parsed.booleans.has("--json"), host)
+  }
+  const cleanup = dependencies.cleanupRemoteThumbnails ?? (async (
+    remoteOptions: typeof options,
+    command: RemoteReaderThumbnailCleanupCommand,
+  ) => {
+    const { cleanupRemoteReaderThumbnails } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+    return cleanupRemoteReaderThumbnails(remoteOptions, command)
+  })
+  const command: RemoteReaderThumbnailCleanupCommand = plan.kind === "invalid"
+    ? { kind: plan.kind, scanLimit: plan.scanLimit, deleteLimit: plan.limit }
+    : plan
+  const result = await cleanup(options, command)
+  if (result.kind === "invalid") {
+    return printMaintenanceResult({ operation: result.kind, scanned: result.scanned, deleted: result.deleted, unavailableVolumeRowsPreserved: result.unavailableVolumeRowsPreserved, wrapped: result.wrapped }, parsed.booleans.has("--json"), host)
+  }
+  if (result.kind === "path-prefix") {
+    return printMaintenanceResult({ operation: result.kind, prefix: result.prefix, deleted: result.deleted }, parsed.booleans.has("--json"), host)
+  }
+  return printMaintenanceResult(
+    result.kind === "expired"
+      ? { operation: result.kind, deleted: result.deleted, cutoff: result.cutoff, foldersPreserved: true }
+      : { operation: result.kind, deleted: result.deleted },
+    parsed.booleans.has("--json"),
+    host,
+  )
 }
 
 async function runThumbnailDatabaseMergePlan(
@@ -3006,9 +3077,9 @@ function formatCliHelp(): string {
     "  explorer-context-menu-enable     Enable Explorer registration (--yes)",
     "  explorer-context-menu-disable    Disable Explorer registration (--yes)",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
-    "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
-    "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid/path-prefix cleanup batch",
-    "  thumbnail-db-clear-failures [path]  Clear a bounded failure batch",
+    "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics (--connect uses the running backend)",
+    "  thumbnail-db-cleanup [path]  Run one bounded cleanup batch (--connect uses the running backend)",
+    "  thumbnail-db-clear-failures [path]  Clear a failure batch (--connect uses the running backend)",
     "  thumbnail-db-backup [path]   Create and verify a SQLite snapshot with VACUUM INTO",
     "  thumbnail-db-optimize [path] Backup, checkpoint and optimize an offline database",
     "  thumbnail-db-recover [path]  Restore a verified backup and quarantine the offline source",
