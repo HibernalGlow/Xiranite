@@ -4,6 +4,8 @@
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
   "prototypeRoot": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/upscale",
+  "characterizationCommand": "node --experimental-strip-types scripts/capture-legacy-neoview-card.ts --url=http://127.0.0.1:1420/ --output=<artifact> --legacy-card=<legacyId> --legacy-setup=control|model|status|cache|conditions --wait-label=<label> --viewport=1920x1080",
+  "characterizationNotes": "The legacy Web-only shell reports appWindow.setResizable is not a function before characterization. The script then mounts the unmodified legacy CardRenderer and source Card with the legacy Svelte runtime, styles, stores and mocks; screenshots were reviewed for real Card hierarchy rather than the broken window shell.",
   "completionRule": "Each Card must preserve every listed control, option, state, event and persistence field or record an intentional replacement contract before its production React implementation can be accepted.",
   "cards": [
     {
@@ -12,7 +14,7 @@
       "source": "src/lib/cards/upscale/UpscaleControlCard.svelte",
       "prototype": "UpscaleControlCard.tsx",
       "characterization": "artifacts/legacy-source/neoview-upscale-control-1920x1080.png",
-      "characterizationStatus": "pending",
+      "characterizationStatus": "generated-reviewed",
       "controls": [
         {
           "id": "automatic-upscale",
@@ -35,7 +37,7 @@
       "source": "src/lib/cards/upscale/UpscaleModelCard.svelte",
       "prototype": "UpscaleModelCard.tsx",
       "characterization": "artifacts/legacy-source/neoview-upscale-model-1920x1080.png",
-      "characterizationStatus": "pending",
+      "characterizationStatus": "generated-reviewed",
       "controls": [
         {
           "id": "model",
@@ -125,7 +127,7 @@
       "source": "src/lib/cards/upscale/UpscaleStatusCard.svelte",
       "prototype": "UpscaleStatusCard.tsx",
       "characterization": "artifacts/legacy-source/neoview-upscale-status-1920x1080.png",
-      "characterizationStatus": "pending",
+      "characterizationStatus": "generated-reviewed",
       "fields": [
         "当前页面（1-based）",
         "状态 and status description",
@@ -185,7 +187,7 @@
       "source": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
       "prototype": "UpscaleCacheCard.tsx",
       "characterization": "artifacts/legacy-source/neoview-upscale-cache-1920x1080.png",
-      "characterizationStatus": "pending",
+      "characterizationStatus": "generated-reviewed",
       "fields": ["缓存文件 count", "占用空间 formatted bytes", "cache directory with full-path tooltip"],
       "controls": [
         {
@@ -245,7 +247,7 @@
       ],
       "prototype": "UpscaleConditionsCard.tsx",
       "characterization": "artifacts/legacy-source/neoview-upscale-conditions-1920x1080.png",
-      "characterizationStatus": "pending",
+      "characterizationStatus": "generated-reviewed",
       "controls": [
         {
           "id": "conditional-enabled",
