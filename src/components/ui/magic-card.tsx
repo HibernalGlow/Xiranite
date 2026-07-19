@@ -156,6 +156,7 @@ export function MagicCard(props: MagicCardProps) {
 
   return (
     <motion.div
+      data-slot="magic-card"
       className={cn(
         "group relative isolate overflow-hidden rounded-[inherit] border border-transparent",
         className,
@@ -174,11 +175,12 @@ export function MagicCard(props: MagicCardProps) {
         `,
       }}
     >
-      <div className="absolute inset-px z-20 rounded-[inherit] bg-card/85" />
+      <div data-slot="magic-card-surface" className="absolute inset-px z-20 rounded-[inherit] bg-card/85" />
 
       {mode === "gradient" && (
         <motion.div
           suppressHydrationWarning
+          data-slot="magic-card-gradient"
           className="pointer-events-none absolute inset-px z-30 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
           style={{
             background: useMotionTemplate`
@@ -196,6 +198,7 @@ export function MagicCard(props: MagicCardProps) {
         <motion.div
           suppressHydrationWarning
           aria-hidden="true"
+          data-slot="magic-card-orb"
           className="pointer-events-none absolute z-30"
           style={{
             width: glowSize,

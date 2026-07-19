@@ -3,7 +3,6 @@ import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { EncodebAction, EncodebData, EncodebInput } from "@xiranite/node-encodeb/core"
 import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import { parseEncodebPaths } from "@xiranite/node-encodeb/core"
-import type { LucideIcon } from "lucide-react"
 import { ArrowRight, Clipboard, Copy, Eraser, FileText, Gauge, Languages, Radar, RotateCcw, ScanSearch, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { GridPattern } from "@/components/ui/grid-pattern"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MagicCard } from "@/components/ui/magic-card"
+import { ModulePanel } from "@/components/ui/module-panel"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -351,30 +350,21 @@ function FullView(props: ViewProps) {
         className="grid min-h-0 flex-1 gap-3"
         style={{ gridTemplateColumns: "minmax(190px, 0.72fr) minmax(300px, 1.45fr) minmax(220px, 0.82fr)" }}
       >
-        <MagicCard className="min-h-0 overflow-hidden rounded-xl border bg-background/78">
-          <section className="flex h-full min-h-0 flex-col gap-3 p-3">
-            <PanelTitle icon={Clipboard} title="输入路径" subtitle="添加需要检查或修复的文件和目录" />
+        <ModulePanel fill className="overflow-hidden bg-background/78 p-3" contentClassName="gap-3" icon={Clipboard} title="输入路径" subtitle="添加需要检查或修复的文件和目录">
             <PathChamber props={props} />
             <StatusMeter props={props} />
-          </section>
-        </MagicCard>
+        </ModulePanel>
 
-        <MagicCard className="relative min-h-0 overflow-hidden rounded-xl border bg-background/76">
+        <ModulePanel fill className="relative overflow-hidden bg-background/76 p-3" contentClassName="gap-3" icon={Gauge} title="编码设置" subtitle="选择源编码、目标编码和修复策略">
           {props.running && <BorderBeam size={90} duration={7} />}
-          <section className="flex h-full min-h-0 flex-col gap-3 p-3">
-            <PanelTitle icon={Gauge} title="编码设置" subtitle="选择源编码、目标编码和修复策略" />
             <CodecRail props={props} />
             <EncodingConsole props={props} />
             <DefaultsTools props={props} />
-          </section>
-        </MagicCard>
+        </ModulePanel>
 
-        <MagicCard className="min-h-0 overflow-hidden rounded-xl border bg-background/78">
-          <section className="flex h-full min-h-0 flex-col gap-3 p-3">
-            <PanelTitle icon={FileText} title="结果与日志" subtitle="查看扫描命中、预览映射和运行日志" />
+        <ModulePanel fill className="overflow-hidden bg-background/78 p-3" contentClassName="gap-3" icon={FileText} title="结果与日志" subtitle="查看扫描命中、预览映射和运行日志">
             <EvidenceLedger props={props} />
-          </section>
-        </MagicCard>
+        </ModulePanel>
       </div>
     </div>
   )
@@ -421,20 +411,6 @@ function StatsDeck({ props }: { props: ViewProps }) {
           </div>
         </div>
       ))}
-    </div>
-  )
-}
-
-function PanelTitle({ icon: Icon, subtitle, title }: { icon: LucideIcon; subtitle: string; title: string }) {
-  return (
-    <div className="flex min-w-0 items-start gap-2">
-      <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-        <Icon className="size-4" />
-      </div>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold leading-none">{title}</div>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
-      </div>
     </div>
   )
 }

@@ -31,6 +31,16 @@ afterEach(() => {
 })
 
 describe("app-owned bandia Component", () => {
+  test("uses shared module panels for full-view sections", () => {
+    surfaceState.mode = "regular"
+    render(<Component compId="comp-bandia" host={createHost({ pathText: "D:/archives/book.zip" })} />)
+
+    expect(document.querySelectorAll('[data-slot="module-panel"]')).toHaveLength(3)
+    expect(screen.getByText("Input silo")).toBeTruthy()
+    expect(screen.getByText("Command chamber")).toBeTruthy()
+    expect(screen.getByText("Mapping output")).toBeTruthy()
+  })
+
   test.each(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
     "renders the %s surface with Bandia-specific UI",
     (mode) => {

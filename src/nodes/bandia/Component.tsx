@@ -12,6 +12,7 @@ import { BorderBeam } from "@/components/ui/border-beam"
 import { Button } from "@/components/ui/button"
 import { GridPattern } from "@/components/ui/grid-pattern"
 import { MagicCard } from "@/components/ui/magic-card"
+import { ModulePanel } from "@/components/ui/module-panel"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -471,20 +472,10 @@ function PipelinePanel(props: {
   subtitle: string
   title: string
 }) {
-  const Icon = props.icon
   return (
-    <MagicCard className={cn("relative flex min-h-0 flex-col rounded-xl bg-background/80", props.className)} gradientColor="color-mix(in oklch, var(--chart-3) 25%, transparent)">
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b bg-muted/20 px-3 py-2">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <Icon className="size-4 shrink-0 text-muted-foreground" />
-            <div className="truncate text-sm font-semibold">{props.title}</div>
-          </div>
-          <div className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</div>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 p-3">{props.children}</div>
-    </MagicCard>
+    <ModulePanel fill className={cn("bg-background/80 p-3", props.className)} contentClassName="gap-0" icon={props.icon} title={props.title} subtitle={props.subtitle}>
+      {props.children}
+    </ModulePanel>
   )
 }
 
