@@ -8,9 +8,12 @@ import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../po
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrideStore, ReaderEmmOverrides } from "../../ports/ReaderEmmOverrideStore.js"
 import {
+  cleanupRemoteReaderPresentationCache,
+  clearRemoteReaderPresentationCache,
   cleanupRemoteReaderThumbnails,
   clearRemoteReaderThumbnailFailures,
   fetchRemoteReaderDiagnostics,
+  fetchRemoteReaderPresentationCache,
   fetchRemoteReaderThumbnailMaintenance,
   RemoteReaderHeadlessController,
 } from "./RemoteReaderHeadlessController.js"
@@ -22,6 +25,37 @@ afterEach(async () => {
 })
 
 describe("RemoteReaderHeadlessController", () => {
+  it("[neoview.presentation-cache.cli-connect] reads and maintains the authenticated running L3 cache", async () => {
+    const requests: Request[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      if (request.method === "GET") return Response.json({ enabled: true, ...artifactCacheSnapshot() })
+      if (request.method === "DELETE") return Response.json({ enabled: false })
+      return Response.json({ enabled: true, ...artifactCacheSnapshot(), reason: "budget", removedEntries: 2, removedBytes: 20, durationMs: 1.5 })
+    }) as typeof fetch
+    const options = { baseUrl: "http://127.0.0.1:41000", token: "cache-token", fetch: fetchMock }
+    await expect(fetchRemoteReaderPresentationCache(options)).resolves.toMatchObject({ enabled: true, entries: 3 })
+    await expect(cleanupRemoteReaderPresentationCache(options, "budget")).resolves.toMatchObject({ enabled: true, reason: "budget", removedEntries: 2 })
+    await expect(clearRemoteReaderPresentationCache(options)).resolves.toEqual({ enabled: false })
+    expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
+      ["GET", "/reader/cache/presentation"],
+      ["POST", "/reader/cache/presentation/cleanup"],
+      ["DELETE", "/reader/cache/presentation"],
+    ])
+    expect(requests.every((request) => request.headers.get("x-xiranite-token") === "cache-token")).toBe(true)
+    expect(await requests[1]?.json()).toEqual({ reason: "budget" })
+  })
+
+  it("[neoview.presentation-cache.remote-wire] rejects malformed cache responses", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ enabled: true, ...artifactCacheSnapshot(), entries: -1 })) as typeof fetch
+    await expect(fetchRemoteReaderPresentationCache({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "cache-token",
+      fetch: fetchMock,
+    })).rejects.toThrow("invalid presentation cache response")
+  })
+
   it("[neoview.thumbnail.maintenance.cli-connect] reuses the running writer with authenticated, validated maintenance requests", async () => {
     const requests: Request[] = []
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

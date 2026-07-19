@@ -65,6 +65,8 @@ import type {
   RemoteSuperResolutionArtifactCacheSnapshot,
   RemoteSuperResolutionPreloadMode,
   RemoteSuperResolutionPreloadSnapshot,
+  RemoteReaderPresentationCacheMaintenanceResult,
+  RemoteReaderPresentationCacheStatus,
   RemoteReaderThumbnailCleanupCommand,
   RemoteReaderThumbnailCleanupResult,
 } from "./platform/remote/RemoteReaderHeadlessController.js"
@@ -175,6 +177,9 @@ export interface NeoviewCliDependencies {
   createFileOperationService?: (databasePath?: string) => Promise<ReaderFileOperationService>
   createSystemIntegrationService?: () => Promise<ReaderSystemIntegrationService>
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
+  fetchRemotePresentationCache?: (options: { baseUrl: string; token: string }) => Promise<RemoteReaderPresentationCacheStatus>
+  cleanupRemotePresentationCache?: (options: { baseUrl: string; token: string }, reason: "age" | "budget" | "explicit") => Promise<RemoteReaderPresentationCacheMaintenanceResult>
+  clearRemotePresentationCache?: (options: { baseUrl: string; token: string }) => Promise<RemoteReaderPresentationCacheMaintenanceResult>
   createDiagnosticsService?: (options: ReaderCompositionOptions) => Promise<ReaderDiagnosticsService>
   fetchRemoteDiagnostics?: (options: { baseUrl: string; token: string }) => Promise<ReaderDiagnosticsSnapshot>
   fetchRemoteDiagnosticsHistory?: (options: { baseUrl: string; token: string; sinceMs?: number; limit?: number }) => Promise<ReaderDiagnosticsHistory>
@@ -796,15 +801,15 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "presentation-cache-stats") {
-    rejectOptions(parsed, new Set(["--json", "--config"]))
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env"]))
     return
   }
   if (command === "presentation-cache-cleanup") {
-    rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--reason"]))
+    rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--reason", "--connect", "--token-env"]))
     return
   }
   if (command === "presentation-cache-clear") {
-    rejectOptions(parsed, new Set(["--json", "--yes", "--config"]))
+    rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--connect", "--token-env"]))
     return
   }
   if (command === "diagnostics") {
@@ -1102,6 +1107,34 @@ async function runPresentationCacheCommand(
   if (command !== "presentation-cache-stats" && !parsed.booleans.has("--yes")) {
     throw usage(`${command} requires --yes because it removes cache data.`)
   }
+  const connect = oneValue(parsed, "--connect")
+  const tokenVariable = oneValue(parsed, "--token-env")
+  if (!connect && tokenVariable) throw usage("--token-env requires --connect.")
+  if (connect && parsed.values.has("--config")) {
+    throw usage("--config cannot be combined with --connect because the running backend owns the presentation cache.")
+  }
+  if (connect) {
+    const options = { baseUrl: connect, token: connectionToken(tokenVariable, host) }
+    const result = command === "presentation-cache-stats"
+      ? await (dependencies.fetchRemotePresentationCache ?? (async (remoteOptions: typeof options) => {
+          const { fetchRemoteReaderPresentationCache } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+          return fetchRemoteReaderPresentationCache(remoteOptions)
+        }))(options)
+      : command === "presentation-cache-clear"
+        ? await (dependencies.clearRemotePresentationCache ?? (async (remoteOptions: typeof options) => {
+            const { clearRemoteReaderPresentationCache } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+            return clearRemoteReaderPresentationCache(remoteOptions)
+          }))(options)
+        : await (dependencies.cleanupRemotePresentationCache ?? (async (
+            remoteOptions: typeof options,
+            reason: "age" | "budget" | "explicit",
+          ) => {
+            const { cleanupRemoteReaderPresentationCache } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+            return cleanupRemoteReaderPresentationCache(remoteOptions, reason)
+          }))(options, cacheMaintenanceReason(oneValue(parsed, "--reason")))
+    printPresentationCacheResult(result, parsed.booleans.has("--json"), host)
+    return
+  }
   const createService = dependencies.createCacheService ?? (async (options: ReaderCompositionOptions) => {
     const { createReaderCacheService } = await import("./platform.js")
     return createReaderCacheService(options)
@@ -1249,7 +1282,9 @@ function cacheMaintenanceReason(value: string | undefined): "age" | "budget" | "
 }
 
 function printPresentationCacheResult(
-  result: Awaited<ReturnType<ReaderCacheService["status"] | ReaderCacheService["cleanup"]>>,
+  result: Awaited<ReturnType<ReaderCacheService["status"]> | ReturnType<ReaderCacheService["cleanup"]>>
+    | RemoteReaderPresentationCacheStatus
+    | RemoteReaderPresentationCacheMaintenanceResult,
   json: boolean,
   host: CliHost,
 ): void {
@@ -3085,9 +3120,9 @@ function formatCliHelp(): string {
     "  thumbnail-db-recover [path]  Restore a verified backup and quarantine the offline source",
     "  thumbnail-db-merge-plan [path] Inspect a secondary database merge without mutation (--source)",
     "  thumbnail-db-merge-secondary [path] Merge a verified secondary database offline (--source, --backup, --yes)",
-    "  presentation-cache-stats       Show L3 content-cache statistics",
-    "  presentation-cache-cleanup     Run age/budget maintenance for L3",
-    "  presentation-cache-clear       Clear unleased L3 entries",
+    "  presentation-cache-stats       Show L3 content-cache statistics (--connect uses the running backend)",
+    "  presentation-cache-cleanup     Run age/budget maintenance for L3 (--connect uses the running backend)",
+    "  presentation-cache-clear       Clear unleased L3 entries (--connect uses the running backend)",
     "  diagnostics                    Show process, scheduler, cache and queue diagnostics",
     "  diagnostics-history-export     Export bounded diagnostics history from --connect",
     "  folder-tree <path>              List one lazily loaded directory-tree node",
