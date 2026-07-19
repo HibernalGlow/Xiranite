@@ -1,5 +1,5 @@
 import { rotatePresentationSize, type ReaderRotation } from "@xiranite/node-neoview/ui-core"
-import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimClipPath, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
 import { MediaController } from "media-chrome/react"
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react"
 
@@ -40,7 +40,10 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
   )
   const dimensions = page.dimensions
   const measured = dimensions !== undefined && scale !== undefined
-  const rotated = dimensions ? rotatePresentationSize(dimensions, rotation) : undefined
+  const presentationDimensions = dimensions
+    ? readerImageTrimEffectiveDimensions(dimensions, DEFAULT_READER_IMAGE_TRIM, presentationCropInsets)
+    : undefined
+  const rotated = presentationDimensions ? rotatePresentationSize(presentationDimensions, rotation) : undefined
   const fallbackMeasured = !measured && fallbackSize !== undefined
   const subtitleConfig = media?.subtitle ?? DEFAULT_SUBTITLE_CONFIG
 
@@ -124,6 +127,7 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
     }
   }, [client, page.id, page.contentVersion, sessionId])
 
+  const cropTranslation = readerImageCropTranslation(presentationCropInsets)
   const videoStyle: React.CSSProperties = {
     ...(measured ? {
     width: dimensions.width * scale,
@@ -133,7 +137,7 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
     position: "absolute",
     left: "50%",
     top: "50%",
-    transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+    transform: `translate(-50%, -50%) translate(${cropTranslation.xPercent}%, ${cropTranslation.yPercent}%) rotate(${rotation}deg)`,
     } : { width: "100%", height: "100%", objectFit: "contain" }),
     clipPath: trimSettings ? readerImageTrimClipPath(trimSettings, presentationCropInsets) : readerImageTrimClipPath(DEFAULT_READER_IMAGE_TRIM, presentationCropInsets),
   }

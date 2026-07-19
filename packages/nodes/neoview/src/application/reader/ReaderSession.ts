@@ -1,7 +1,7 @@
 import type { ReaderBook } from "../../domain/book/book.js"
-import { buildFrameSnapshot } from "../../domain/frame/frame-builder.js"
+import { buildFrameSnapshot, firstReaderPagePart, isSplitWidePage, secondReaderPagePart } from "../../domain/frame/frame-builder.js"
 import { LRUCache } from "lru-cache"
-import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.js"
+import type { FrameSnapshot, ReaderGeneration, ReaderPagePart } from "../../domain/frame/frame.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import { ReaderPreloadCoordinator, type ReaderNavigationIntent, type ReaderPreloadContext, type ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
@@ -20,6 +20,7 @@ export class CoreReaderSession implements ReaderSession {
   #generation: ReaderGeneration = 0
   readonly #pagesById: ReadonlyMap<PageId, ReaderPage>
   #anchorPageIndex = 0
+  #anchorPart: ReaderPagePart | undefined
   #options: ReaderSessionOptions
   #listeners = new Set<(event: ReaderSessionEvent) => void>()
   #closed = false
@@ -61,6 +62,7 @@ export class CoreReaderSession implements ReaderSession {
     return buildFrameSnapshot({
       pages: this.book.pages,
       anchorPageIndex: this.#anchorPageIndex,
+      anchorPart: this.#anchorPart,
       generation: this.#generation,
       direction: this.#options.direction,
       layout: this.#options.layout,
@@ -76,13 +78,14 @@ export class CoreReaderSession implements ReaderSession {
     this.#assertOpen()
     const boundedRadius = Math.min(Math.max(Math.trunc(radius), 0), 8)
     const center = clamp(centerPageIndex, this.book.pages.length)
-    const cacheKey = `${this.#generation}:${center}:${boundedRadius}:${this.#options.direction}:${JSON.stringify(this.#options.layout)}`
+    const centerPart = center === this.#anchorPageIndex ? this.#anchorPart : undefined
+    const cacheKey = `${this.#generation}:${center}:${centerPart ?? "full"}:${boundedRadius}:${this.#options.direction}:${JSON.stringify(this.#options.layout)}`
     const cached = this.#frameWindowCache.get(cacheKey)
     if (cached) return cached
     const pending = this.#frameWindowPending.get(cacheKey)
     if (pending) return pending
 
-    const operation = this.#buildFrameWindow(center, boundedRadius, signal)
+    const operation = this.#buildFrameWindow(center, centerPart, boundedRadius, signal)
     this.#frameWindowPending.set(cacheKey, operation)
     void operation.then((frames) => this.#frameWindowCache.set(cacheKey, frames)).catch(() => undefined).finally(() => {
       if (this.#frameWindowPending.get(cacheKey) === operation) this.#frameWindowPending.delete(cacheKey)
@@ -90,24 +93,24 @@ export class CoreReaderSession implements ReaderSession {
     return operation
   }
 
-  async #buildFrameWindow(centerPageIndex: number, boundedRadius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]> {
-    const center = await this.#snapshotAt(centerPageIndex, signal)
+  async #buildFrameWindow(centerPageIndex: number, centerPart: ReaderPagePart | undefined, boundedRadius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]> {
+    const center = await this.#snapshotAt(centerPageIndex, centerPart, signal)
     const before: FrameSnapshot[] = []
     const after: FrameSnapshot[] = []
-    let firstPage = Math.min(...center.pages.map((page) => page.pageIndex), center.anchorPageIndex)
-    let lastPage = Math.max(...center.pages.map((page) => page.pageIndex), center.anchorPageIndex)
+    let first = center
+    let last = center
 
-    for (let offset = 0; offset < boundedRadius && firstPage > 0; offset += 1) {
-      const previous = await this.#previousSnapshot(firstPage, signal)
+    for (let offset = 0; offset < boundedRadius && !first.atStart; offset += 1) {
+      const previous = await this.#adjacentSnapshot(first, "previous", signal)
       if (!previous) break
       before.unshift(previous)
-      firstPage = Math.min(...previous.pages.map((page) => page.pageIndex), previous.anchorPageIndex)
+      first = previous
     }
-    for (let offset = 0; offset < boundedRadius && lastPage < this.book.pages.length - 1; offset += 1) {
-      const next = await this.#snapshotAt(lastPage + 1, signal)
-      if (next.anchorPageIndex <= lastPage) break
+    for (let offset = 0; offset < boundedRadius && !last.atEnd; offset += 1) {
+      const next = await this.#adjacentSnapshot(last, "next", signal)
+      if (!next) break
       after.push(next)
-      lastPage = Math.max(...next.pages.map((page) => page.pageIndex), next.anchorPageIndex)
+      last = next
     }
     return [...before, center, ...after]
   }
@@ -152,6 +155,7 @@ export class CoreReaderSession implements ReaderSession {
     await this.#prepareFrameMetadata(target, this.#options, signal)
     signal?.throwIfAborted()
     this.#anchorPageIndex = target
+    this.#anchorPart = this.#firstPartFor(target, this.#options)
     const frame = this.snapshot()
     this.#refreshPreload(frame, "initial")
     return frame
@@ -161,19 +165,29 @@ export class CoreReaderSession implements ReaderSession {
     return this.#goTo(pageIndex, "go-to", signal)
   }
 
-  async #goTo(pageIndex: number, intent: ReaderNavigationIntent, signal?: AbortSignal): Promise<FrameSnapshot> {
+  async #goTo(pageIndex: number, intent: ReaderNavigationIntent, signal?: AbortSignal, part?: ReaderPagePart): Promise<FrameSnapshot> {
     this.#assertOpen()
     signal?.throwIfAborted()
+    const current = this.snapshot()
     const target = clamp(pageIndex, this.book.pages.length)
     await this.#prepareFrameMetadata(target, this.#options, signal)
     signal?.throwIfAborted()
+    const nextPart = this.#partFor(target, this.#options, part)
+    const preservePreload = target === this.#anchorPageIndex
+      && current.anchorPart !== undefined
+      && nextPart !== undefined
+      && current.anchorPart !== nextPart
     this.#anchorPageIndex = target
+    this.#anchorPart = nextPart
     this.#generation += 1
-    return this.#publishFrame(intent)
+    return this.#publishFrame(intent, preservePreload)
   }
 
   async next(signal?: AbortSignal): Promise<FrameSnapshot> {
     const current = this.snapshot()
+    if (current.anchorPart === firstReaderPagePart(current.direction)) {
+      return this.#goTo(current.anchorPageIndex, "next", signal, secondReaderPagePart(current.direction))
+    }
     if (current.atEnd) {
       if (this.#options.tailOverflow === "loop" || this.#options.tailOverflow === "seamless-loop") {
         return this.#goTo(0, "next", signal)
@@ -191,8 +205,13 @@ export class CoreReaderSession implements ReaderSession {
   async previous(signal?: AbortSignal): Promise<FrameSnapshot> {
     const current = this.snapshot()
     signal?.throwIfAborted()
+    if (current.anchorPart === secondReaderPagePart(current.direction)) {
+      return this.#goTo(current.anchorPageIndex, "previous", signal, firstReaderPagePart(current.direction))
+    }
     if (current.atStart) return current
-    return this.#goTo(current.anchorPageIndex - Math.max(current.pages.length, 1), "previous", signal)
+    const previousIndex = current.anchorPageIndex - Math.max(current.pages.length, 1)
+    const previousPart = this.#secondPartFor(previousIndex, this.#options)
+    return this.#goTo(previousIndex, "previous", signal, previousPart)
   }
 
   async updateOptions(options: Partial<ReaderSessionOptions>, signal?: AbortSignal): Promise<FrameSnapshot> {
@@ -202,6 +221,7 @@ export class CoreReaderSession implements ReaderSession {
     await this.#prepareFrameMetadata(this.#anchorPageIndex, nextOptions, signal)
     signal?.throwIfAborted()
     this.#options = nextOptions
+    this.#anchorPart = this.#firstPartFor(this.#anchorPageIndex, nextOptions)
     this.#generation += 1
     return this.#publishFrame("layout")
   }
@@ -239,9 +259,14 @@ export class CoreReaderSession implements ReaderSession {
     await this.close()
   }
 
-  #publishFrame(intent: ReaderNavigationIntent): FrameSnapshot {
+  #publishFrame(intent: ReaderNavigationIntent, preservePreload = false): FrameSnapshot {
     const snapshot = this.snapshot()
-    this.#refreshPreload(snapshot, intent)
+    if (preservePreload) {
+      this.#preloadPlan = this.#preload.retargetFrame(snapshot) ?? this.#preload.update(snapshot, intent, this.#preloadContext)
+      this.#preloadTelemetry.updatePlan(this.#preloadPlan)
+    } else {
+      this.#refreshPreload(snapshot, intent)
+    }
     this.#emit({ type: "frame", snapshot })
     return snapshot
   }
@@ -262,12 +287,13 @@ export class CoreReaderSession implements ReaderSession {
     await Promise.all(pages.filter((page): page is ReaderPage => Boolean(page)).map((page) => this.#probePage(page, signal)))
   }
 
-  async #snapshotAt(anchorPageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot> {
+  async #snapshotAt(anchorPageIndex: number, anchorPart?: ReaderPagePart, signal?: AbortSignal): Promise<FrameSnapshot> {
     await this.#prepareFrameMetadata(anchorPageIndex, this.#options, signal)
     signal?.throwIfAborted()
     return buildFrameSnapshot({
       pages: this.book.pages,
       anchorPageIndex,
+      anchorPart,
       generation: this.#generation,
       direction: this.#options.direction,
       layout: this.#options.layout,
@@ -277,7 +303,7 @@ export class CoreReaderSession implements ReaderSession {
   async #previousSnapshot(firstPageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot | undefined> {
     const candidates: FrameSnapshot[] = []
     for (let anchor = Math.max(0, firstPageIndex - 2); anchor < firstPageIndex; anchor += 1) {
-      const candidate = await this.#snapshotAt(anchor, signal)
+      const candidate = await this.#snapshotAt(anchor, undefined, signal)
       const last = Math.max(...candidate.pages.map((page) => page.pageIndex), candidate.anchorPageIndex)
       if (last < firstPageIndex) candidates.push(candidate)
     }
@@ -286,6 +312,40 @@ export class CoreReaderSession implements ReaderSession {
       const rightLast = Math.max(...right.pages.map((page) => page.pageIndex), right.anchorPageIndex)
       return rightLast - leftLast || right.anchorPageIndex - left.anchorPageIndex
     })[0]
+  }
+
+  async #adjacentSnapshot(frame: FrameSnapshot, direction: "next" | "previous", signal?: AbortSignal): Promise<FrameSnapshot | undefined> {
+    if (direction === "next") {
+      if (frame.anchorPart === firstReaderPagePart(frame.direction)) {
+        return this.#snapshotAt(frame.anchorPageIndex, secondReaderPagePart(frame.direction), signal)
+      }
+      const lastPageIndex = Math.max(...frame.pages.map((page) => page.pageIndex), frame.anchorPageIndex)
+      if (lastPageIndex >= this.book.pages.length - 1) return undefined
+      const nextIndex = lastPageIndex + 1
+      return this.#snapshotAt(nextIndex, this.#firstPartFor(nextIndex, this.#options), signal)
+    }
+    if (frame.anchorPart === secondReaderPagePart(frame.direction)) {
+      return this.#snapshotAt(frame.anchorPageIndex, firstReaderPagePart(frame.direction), signal)
+    }
+    const firstPageIndex = Math.min(...frame.pages.map((page) => page.pageIndex), frame.anchorPageIndex)
+    if (firstPageIndex <= 0) return undefined
+    const previous = await this.#previousSnapshot(firstPageIndex, signal)
+    if (!previous) return undefined
+    const part = this.#secondPartFor(previous.anchorPageIndex, this.#options)
+    return part === undefined ? previous : this.#snapshotAt(previous.anchorPageIndex, part, signal)
+  }
+
+  #partFor(pageIndex: number, options: ReaderSessionOptions, requested?: ReaderPagePart): ReaderPagePart | undefined {
+    if (!isSplitWidePage(this.book.pages[pageIndex], options.layout)) return undefined
+    return requested === 0 || requested === 1 ? requested : firstReaderPagePart(options.direction)
+  }
+
+  #firstPartFor(pageIndex: number, options: ReaderSessionOptions): ReaderPagePart | undefined {
+    return this.#partFor(pageIndex, options, firstReaderPagePart(options.direction))
+  }
+
+  #secondPartFor(pageIndex: number, options: ReaderSessionOptions): ReaderPagePart | undefined {
+    return this.#partFor(pageIndex, options, secondReaderPagePart(options.direction))
   }
 
   async #probePage(page: ReaderPage, signal?: AbortSignal): Promise<void> {

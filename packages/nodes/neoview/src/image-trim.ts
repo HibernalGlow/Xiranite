@@ -13,6 +13,7 @@ export {
   parseReaderImageTrimPatch,
   projectReaderImageTrimPatch,
   mergeReaderImageCropInsets,
+  readerImageCropTranslation,
   readerImageTrimClipPath,
   readerImageTrimEffectiveDimensions,
   readerImageTrimInsets,

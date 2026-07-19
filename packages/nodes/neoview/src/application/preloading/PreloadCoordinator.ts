@@ -81,6 +81,16 @@ export class ReaderPreloadCoordinator {
   snapshot(): ReaderPreloadPlan | undefined {
     return this.#plan
   }
+
+  retargetFrame(frame: FrameSnapshot): ReaderPreloadPlan | undefined {
+    if (!this.#plan || !samePageIndexes(this.#plan.currentPageIndexes, frame.pages.map((page) => page.pageIndex))) return undefined
+    this.#plan = { ...this.#plan, frameGeneration: frame.generation }
+    return this.#plan
+  }
+}
+
+function samePageIndexes(left: readonly number[], right: readonly number[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
 interface NormalizedPreloadContext {

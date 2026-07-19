@@ -241,6 +241,7 @@ export interface NeoviewPageListPatch {
 export interface NeoviewViewDefaults {
   fitMode: ReaderFitMode
   pageMode: PageMode
+  splitWidePages: boolean
   orientation?: ReaderOrientation
   autoRotation?: ReaderAutoRotation
   widePageStretch?: ReaderWidePageStretch
@@ -432,6 +433,7 @@ export const DEFAULT_NEOVIEW_PAGE_LIST_CONFIG: NeoviewPageListConfig = {
 export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: DEFAULT_READER_LAYOUT.pageMode,
+  splitWidePages: DEFAULT_READER_LAYOUT.splitWidePages ?? false,
   orientation: DEFAULT_READER_PRESENTATION.orientation,
   autoRotation: DEFAULT_READER_PRESENTATION.autoRotation,
   widePageStretch: DEFAULT_READER_PRESENTATION.widePageStretch,
@@ -680,6 +682,17 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     reader?.double_page_view ?? nestedValue(reader, "book", "double_page_view"),
     "[nodes.neoview.reader].double_page_view",
   )
+  const legacyPageLayout = optionalRecord(
+    nestedValue(reader, "view", "page_layout") ?? nestedValue(reader, "view", "pageLayout"),
+    "[nodes.neoview.reader.view.page_layout]",
+  )
+  const splitWidePages = optionalBoolean(
+    reader?.split_wide_pages
+      ?? reader?.splitWidePages
+      ?? legacyPageLayout?.split_horizontal_pages
+      ?? legacyPageLayout?.splitHorizontalPages,
+    "[nodes.neoview.reader].split_wide_pages",
+  )
   const tailOverflow = parseTailOverflow(
     reader?.tail_overflow_behavior ?? nestedValue(reader, "book", "tail_overflow_behavior"),
   )
@@ -696,13 +709,17 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     schemaVersion: 1,
     sessionOptions: {
       direction,
-      layout: doublePage === undefined
+      layout: doublePage === undefined && splitWidePages === undefined
         ? undefined
-        : { ...DEFAULT_READER_LAYOUT, pageMode: doublePage ? "double" : "single" },
+        : {
+            ...DEFAULT_READER_LAYOUT,
+            ...(doublePage === undefined ? {} : { pageMode: doublePage ? "double" : "single" }),
+            splitWidePages: splitWidePages ?? DEFAULT_READER_LAYOUT.splitWidePages,
+          },
       tailOverflow,
     },
     shellOptions: parseShellOptions(panels, reader),
-    viewDefaults: { fitMode, pageMode, orientation, autoRotation, widePageStretch },
+    viewDefaults: { fitMode, pageMode, splitWidePages: splitWidePages ?? false, orientation, autoRotation, widePageStretch },
     pageList: {
       viewMode: optionalEnum(pageList?.view_mode, "[nodes.neoview.page_list].view_mode", ["list", "details", "thumbnails"] as const)
         ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG.viewMode,
@@ -1996,7 +2013,7 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   const record = requireRecord(value, "reader view defaults patch")
   if (Object.keys(record).some((key) => key !== "viewDefaults")) throw new Error("reader view defaults patch contains unsupported fields.")
   const defaults = requireRecord(record.viewDefaults, "reader view defaults patch.viewDefaults")
-  const allowed = new Set(["fitMode", "pageMode", "orientation", "autoRotation", "widePageStretch"])
+  const allowed = new Set(["fitMode", "pageMode", "splitWidePages", "orientation", "autoRotation", "widePageStretch"])
   const unknown = Object.keys(defaults).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader view defaults patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewViewDefaultsPatch = { viewDefaults: {} }
@@ -2008,6 +2025,10 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   if (defaults.pageMode !== undefined) {
     patch.viewDefaults.pageMode = optionalEnum(defaults.pageMode, "reader view defaults patch.pageMode", ["single", "double"] as const)
     readerPatch.double_page_view = patch.viewDefaults.pageMode === "double"
+  }
+  if (defaults.splitWidePages !== undefined) {
+    patch.viewDefaults.splitWidePages = requiredBoolean(defaults.splitWidePages, "reader view defaults patch.splitWidePages")
+    readerPatch.split_wide_pages = patch.viewDefaults.splitWidePages
   }
   if (defaults.orientation !== undefined) {
     patch.viewDefaults.orientation = optionalEnum(defaults.orientation, "reader view defaults patch.orientation", ["horizontal", "vertical"] as const)

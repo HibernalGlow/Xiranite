@@ -1220,11 +1220,12 @@ export class ReaderHttpController implements AsyncDisposable {
       const operation = this.#configUpdateQueue.then(async () => {
         updated = await this.#updateViewDefaults!(parsed.patch, parsed.tomlPatch)
         this.#viewDefaults = updated
-        if (parsed.patch.viewDefaults.pageMode) {
+        if (parsed.patch.viewDefaults.pageMode || parsed.patch.viewDefaults.splitWidePages !== undefined) {
           const layout = {
             ...DEFAULT_READER_LAYOUT,
             ...this.#sessionOptions.layout,
-            pageMode: parsed.patch.viewDefaults.pageMode,
+            ...(parsed.patch.viewDefaults.pageMode === undefined ? {} : { pageMode: parsed.patch.viewDefaults.pageMode }),
+            ...(parsed.patch.viewDefaults.splitWidePages === undefined ? {} : { splitWidePages: parsed.patch.viewDefaults.splitWidePages }),
           }
           this.#sessionOptions = { ...this.#sessionOptions, layout }
           this.#service.updateSessionDefaults(this.#sessionOptions)
@@ -1588,14 +1589,14 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: "Reader session options.layout must be an object" }, 400)
       }
       const record = layout as Record<string, unknown>
-      const layoutKeys = new Set(["pageMode", "panorama", "singleFirstPage", "singleLastPage", "treatWidePageAsSingle"])
+      const layoutKeys = new Set(["pageMode", "panorama", "singleFirstPage", "singleLastPage", "treatWidePageAsSingle", "splitWidePages"])
       if (!Object.keys(record).length || Object.keys(record).some((key) => !layoutKeys.has(key))) {
         return jsonResponse({ error: "Reader session options.layout contains unsupported fields" }, 400)
       }
       if (record.pageMode !== undefined && record.pageMode !== "single" && record.pageMode !== "double") {
         return jsonResponse({ error: "Reader session options.layout.pageMode must be single or double" }, 400)
       }
-      for (const key of ["panorama", "singleFirstPage", "singleLastPage", "treatWidePageAsSingle"] as const) {
+      for (const key of ["panorama", "singleFirstPage", "singleLastPage", "treatWidePageAsSingle", "splitWidePages"] as const) {
         if (record[key] !== undefined && typeof record[key] !== "boolean") {
           return jsonResponse({ error: `Reader session options.layout.${key} must be boolean` }, 400)
         }

@@ -19,12 +19,14 @@ describe("parseNeoviewRuntimeConfig", () => {
         singleFirstPage: true,
         singleLastPage: true,
         treatWidePageAsSingle: true,
+        splitWidePages: false,
       },
       tailOverflow: "seamless-loop",
     })
     expect(parseNeoviewRuntimeConfig({ reader: { double_page_view: true, default_zoom_mode: "fitWidth" } }).viewDefaults).toEqual({
       fitMode: "fit-width",
       pageMode: "double",
+      splitWidePages: false,
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
@@ -164,9 +166,14 @@ describe("parseNeoviewRuntimeConfig", () => {
       autoRotation: "horizontal-right",
       widePageStretch: "uniform-height",
     })
+    expect(parseNeoviewRuntimeConfig({ reader: { view: { page_layout: { split_horizontal_pages: true } } } })).toMatchObject({
+      sessionOptions: { layout: { pageMode: "single", splitWidePages: true } },
+      viewDefaults: { splitWidePages: true },
+    })
     expect(parseNeoviewViewDefaultsPatch({ viewDefaults: {
       fitMode: "fit-height",
       pageMode: "double",
+      splitWidePages: true,
       orientation: "vertical",
       autoRotation: "forced-left",
       widePageStretch: "uniform-width",
@@ -174,6 +181,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       patch: { viewDefaults: {
         fitMode: "fit-height",
         pageMode: "double",
+        splitWidePages: true,
         orientation: "vertical",
         autoRotation: "forced-left",
         widePageStretch: "uniform-width",
@@ -181,6 +189,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       tomlPatch: { reader: {
         default_zoom_mode: "fitHeight",
         double_page_view: true,
+        split_wide_pages: true,
         orientation: "vertical",
         auto_rotation: "forcedLeft",
         wide_page_stretch: "uniformWidth",

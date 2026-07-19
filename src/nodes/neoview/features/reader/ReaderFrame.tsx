@@ -13,7 +13,9 @@ import {
   rotatePresentationSize,
   type PresentationSize,
   type ReaderPresentation,
+  type FramePage,
 } from "@xiranite/node-neoview/ui-core"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimEffectiveDimensions } from "@xiranite/node-neoview/image-trim"
 
 import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
@@ -25,8 +27,9 @@ import { PageMedia } from "./PageMedia"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
+  framePages?: readonly FramePage[]
   presentation: ReaderPresentation
   panorama?: boolean
   direction?: "left-to-right" | "right-to-left"
@@ -49,7 +52,9 @@ export function ReaderFrame({ pages, presentation, panorama, direction, pageMode
   const viewport = useObservedSize(viewportRef, panorama)
   if (panorama) return <Suspense fallback={null}><LazyReaderPanoramaFrame sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense>
   const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation
-  const dimensions = pages.flatMap((page) => page.dimensions ? [page.dimensions] : [])
+  const dimensions = pages.flatMap((page, index) => page.dimensions
+    ? [readerImageTrimEffectiveDimensions(page.dimensions, DEFAULT_READER_IMAGE_TRIM, framePages?.[index]?.cropInsets)]
+    : [])
   const frameSize = dimensions.length === pages.length
     ? calculateReaderFrameSize(dimensions, presentation.rotation, frameOrientation, presentation.autoRotation, presentation.widePageStretch)
     : undefined
@@ -105,6 +110,7 @@ export function ReaderFrame({ pages, presentation, panorama, direction, pageMode
                 colorFilter={colorFilter}
                 imageTrim={imageTrim}
                 imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex}
+                presentationCropInsets={framePages?.[slotIndex]?.cropInsets}
                 videoController={videoController}
                 sessionId={sessionId}
                 client={client}

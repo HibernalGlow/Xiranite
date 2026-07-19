@@ -7,6 +7,7 @@ import {
   parseReaderImageTrimPatch,
   READER_IMAGE_TRIM_TARGETS,
   mergeReaderImageCropInsets,
+  readerImageCropTranslation,
   readerImageTrimClipPath,
   readerImageTrimEffectiveDimensions,
   serializeReaderImageTrim,
@@ -149,5 +150,11 @@ describe("ReaderImageTrim", () => {
       aspectRatio: 0.5625,
     })
     expect(() => readerImageTrimEffectiveDimensions({ width: 0, height: 800 }, settings)).toThrow(/positive finite/)
+  })
+
+  it("[neoview.reader.split-wide-pages] centers typed physical-half crops", () => {
+    expect(readerImageCropTranslation({ top: 0, right: 50, bottom: 0, left: 0 })).toEqual({ xPercent: 25, yPercent: 0 })
+    expect(readerImageCropTranslation({ top: 0, right: 0, bottom: 0, left: 50 })).toEqual({ xPercent: -25, yPercent: 0 })
+    expect(readerImageCropTranslation(undefined)).toEqual({ xPercent: 0, yPercent: 0 })
   })
 })

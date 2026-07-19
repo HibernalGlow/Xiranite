@@ -174,7 +174,7 @@ function ZoomPanel({ disabled, layout, presentation, onChange, onLayoutChange }:
     })}</div>
     <Separator />
     <span className="mr-1 text-xs text-muted-foreground">页面布局</span>
-    <Button title="自动分割横向页尚待图像裁剪契约" aria-label="自动分割横向页" type="button" size="icon-sm" variant="ghost" disabled><SplitSquareHorizontal /></Button>
+    <Button title={`自动分割横向页${layout.splitWidePages ? "（开）" : "（关）"}`} aria-label="自动分割横向页" aria-pressed={layout.splitWidePages ?? false} type="button" size="icon-sm" variant={layout.splitWidePages ? "default" : "ghost"} disabled={disabled} onClick={() => onLayoutChange({ splitWidePages: !(layout.splitWidePages ?? false) })}><SplitSquareHorizontal /></Button>
     <Button title="横向页视为双页" aria-label="横向页视为双页" aria-pressed={layout.treatWidePageAsSingle} type="button" size="icon-sm" variant={layout.treatWidePageAsSingle ? "default" : "ghost"} disabled={disabled} onClick={() => onLayoutChange({ treatWidePageAsSingle: !layout.treatWidePageAsSingle })}><Rows2 /></Button>
     <Separator />
     <span className="mr-1 text-xs text-muted-foreground">双页独立</span>

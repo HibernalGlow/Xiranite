@@ -1,13 +1,13 @@
 import { cleanup, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { DEFAULT_READER_PRESENTATION } from "@xiranite/node-neoview/ui-core"
+import { DEFAULT_READER_PRESENTATION, type FramePage } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import { ReaderFrame } from "./ReaderFrame"
 
-vi.mock("./PageMedia", () => ({ PageMedia: ({ page, imageTrim, imageTrimDetectionActive }: { page: ReaderPageDto; imageTrim?: ReaderImageTrimPort; imageTrimDetectionActive?: boolean }) => <img alt={page.name} data-image-trim={imageTrim ? "true" : "false"} data-image-trim-detection-active={imageTrimDetectionActive ? "true" : "false"} /> }))
+vi.mock("./PageMedia", () => ({ PageMedia: ({ page, imageTrim, imageTrimDetectionActive, presentationCropInsets }: { page: ReaderPageDto; imageTrim?: ReaderImageTrimPort; imageTrimDetectionActive?: boolean; presentationCropInsets?: { top: number; right: number; bottom: number; left: number } }) => <img alt={page.name} data-image-trim={imageTrim ? "true" : "false"} data-image-trim-detection-active={imageTrimDetectionActive ? "true" : "false"} data-presentation-crop={presentationCropInsets ? JSON.stringify(presentationCropInsets) : undefined} /> }))
 vi.mock("../page-transition/ReaderPageTransitionLayer", () => ({ ReaderPageTransitionLayer: ({ children }: { children: React.ReactNode }) => <div data-reader-page-transition-layer="true">{children}</div> }))
 
 afterEach(cleanup)
@@ -32,8 +32,26 @@ describe("ReaderFrame", () => {
     expect(document.querySelector('[data-reader-page-transition-layer="true"]')).toBeTruthy()
     expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-rotation")).toBe("90")
   })
+
+  it("[neoview.reader.split-wide-pages] reuses one media element while switching typed physical-half crops", () => {
+    const source = page(0, { width: 1600, height: 900 })
+    const left = framePage(0, 0, { top: 0, right: 50, bottom: 0, left: 0 })
+    const right = framePage(0, 1, { top: 0, right: 0, bottom: 0, left: 50 })
+    const props = { pages: [source], presentation: DEFAULT_READER_PRESENTATION, pageMode: "single" as const, totalPages: 1, anchorPageIndex: 0, sessionId: "reader", client: {} as ReaderHttpClient, videoController: {} as ReaderVideoController, onSubtitleConfigChange: vi.fn(), onVideoListEnded: vi.fn() }
+    const view = render(<ReaderFrame {...props} framePages={[left]} />)
+    const media = view.container.querySelector<HTMLImageElement>("img")!
+    expect(media.dataset.presentationCrop).toBe(JSON.stringify(left.cropInsets))
+
+    view.rerender(<ReaderFrame {...props} framePages={[right]} />)
+    expect(view.container.querySelector("img")).toBe(media)
+    expect(media.dataset.presentationCrop).toBe(JSON.stringify(right.cropInsets))
+  })
 })
 
-function page(index: number): ReaderPageDto {
-  return { id: `page-${index}`, index, name: `${String(index).padStart(3, "0")}.jpg`, mediaKind: "image", contentVersion: "v1", assetUrl: `https://reader.invalid/${index}.jpg`, dimensions: { width: 1200, height: 1800 } }
+function page(index: number, dimensions = { width: 1200, height: 1800 }): ReaderPageDto {
+  return { id: `page-${index}`, index, name: `${String(index).padStart(3, "0")}.jpg`, mediaKind: "image", contentVersion: "v1", assetUrl: `https://reader.invalid/${index}.jpg`, dimensions }
+}
+
+function framePage(index: number, part: 0 | 1, cropInsets: NonNullable<FramePage["cropInsets"]>): FramePage {
+  return { pageId: `page-${index}`, pageIndex: index, side: "single", part, cropInsets }
 }
