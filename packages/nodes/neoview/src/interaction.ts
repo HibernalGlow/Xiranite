@@ -41,6 +41,12 @@ import {
   exportReaderDiagnosticsHistory,
   type ReaderDiagnosticsHistoryExportFormat,
 } from "./application/diagnostics/ReaderDiagnosticsHistoryExport.js"
+import {
+  parseReaderImageTrimPatch,
+  type ReaderImageTrimPatch,
+  type ReaderImageTrimSettings,
+} from "./application/image-trim/ReaderImageTrim.js"
+import { ReaderImageTrimConfigService } from "./platform/config/ReaderImageTrimConfigService.js"
 
 export interface NeoviewTuiInput {
   path: string
@@ -50,6 +56,23 @@ export interface NeoviewTuiResult {
   success: boolean
   message: string
   snapshot?: HeadlessReaderSnapshot
+}
+
+export interface NeoviewImageTrimTuiInput {
+  action: "inspect" | "apply" | "reset"
+  patch?: ReaderImageTrimPatch
+}
+
+export interface NeoviewImageTrimTuiResult {
+  success: boolean
+  message: string
+  config?: ReaderImageTrimSettings
+}
+
+export interface NeoviewImageTrimTuiPort {
+  inspect(): Promise<ReaderImageTrimSettings>
+  apply(patch: ReaderImageTrimPatch, confirmed: boolean): Promise<{ config: ReaderImageTrimSettings; changed: boolean }>
+  reset(confirmed: boolean): Promise<{ config: ReaderImageTrimSettings; changed: boolean }>
 }
 
 export interface NeoviewBookSettingsTuiInput {
@@ -731,6 +754,30 @@ export function createNeoviewInputBindingsTuiDefinition(
   }
 }
 
+export function createNeoviewImageTrimTuiDefinition(
+  language: "zh" | "en" = "zh",
+  service: NeoviewImageTrimTuiPort = new ReaderImageTrimConfigService(),
+): TerminalInteractionDefinition<NeoviewImageTrimTuiInput, NeoviewImageTrimTuiResult> {
+  return {
+    schema: createNeoviewImageTrimTuiSchema(language),
+    async run(input) {
+      try {
+        if (input.action === "inspect") {
+          return { success: true, message: language === "zh" ? "已读取图像裁剪设置。" : "Image trim settings loaded.", config: await service.inspect() }
+        }
+        if (input.action === "reset") {
+          const result = await service.reset(true)
+          return { success: true, message: result.changed ? (language === "zh" ? "已重置图像裁剪。" : "Image trim reset.") : (language === "zh" ? "图像裁剪已是默认值。" : "Image trim already uses defaults."), config: result.config }
+        }
+        const result = await service.apply(input.patch ?? {}, true)
+        return { success: true, message: result.changed ? (language === "zh" ? "已更新图像裁剪。" : "Image trim updated.") : (language === "zh" ? "图像裁剪未变化。" : "Image trim unchanged."), config: result.config }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      }
+    },
+  }
+}
+
 function createNeoviewTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewTuiInput, NeoviewTuiResult> {
   const zh = language === "zh"
   return {
@@ -752,6 +799,73 @@ function createNeoviewTuiSchema(language: "zh" | "en"): TerminalInteractionSchem
       success: result.success,
       message: result.message,
       lines: result.snapshot ? [`${result.snapshot.book.pageCount} page(s)`] : [],
+    }),
+  }
+}
+
+function createNeoviewImageTrimTuiSchema(language: "zh" | "en"): TerminalInteractionSchema<NeoviewImageTrimTuiInput, NeoviewImageTrimTuiResult> {
+  const zh = language === "zh"
+  const applying = (values: Readonly<InteractionValues>) => values.action === "apply"
+  return {
+    id: "neoview-image-trim",
+    title: zh ? "NeoView 图像裁剪" : "NeoView Image Trim",
+    description: zh ? "查看、更新或重置全局裁边设置" : "Inspect, update or reset global crop settings",
+    initialValues: {
+      action: "inspect", enabled: false, top: 0, bottom: 0, left: 0, right: 0,
+      linkVertical: false, linkHorizontal: false, threshold: 30, target: "auto",
+    },
+    fields: [
+      { id: "action", label: zh ? "操作" : "Action", kind: "select", role: "action", options: [
+        { value: "inspect", label: zh ? "查看设置" : "Inspect settings" },
+        { value: "apply", label: zh ? "应用设置" : "Apply settings" },
+        { value: "reset", label: zh ? "恢复默认" : "Reset defaults" },
+      ] },
+      { id: "enabled", label: zh ? "启用" : "Enabled", kind: "boolean", visibleWhen: applying },
+      { id: "top", label: zh ? "上裁剪 (%)" : "Top crop (%)", kind: "number", min: 0, max: 45, step: 0.5, visibleWhen: applying },
+      { id: "bottom", label: zh ? "下裁剪 (%)" : "Bottom crop (%)", kind: "number", min: 0, max: 45, step: 0.5, visibleWhen: applying },
+      { id: "left", label: zh ? "左裁剪 (%)" : "Left crop (%)", kind: "number", min: 0, max: 45, step: 0.5, visibleWhen: applying },
+      { id: "right", label: zh ? "右裁剪 (%)" : "Right crop (%)", kind: "number", min: 0, max: 45, step: 0.5, visibleWhen: applying },
+      { id: "linkVertical", label: zh ? "上下联动" : "Link vertical", kind: "boolean", visibleWhen: applying },
+      { id: "linkHorizontal", label: zh ? "左右联动" : "Link horizontal", kind: "boolean", visibleWhen: applying },
+      { id: "threshold", label: zh ? "检测容差" : "Detection threshold", kind: "number", min: 5, max: 100, step: 5, visibleWhen: applying },
+      { id: "target", label: zh ? "目标颜色" : "Target color", kind: "select", visibleWhen: applying, options: [
+        { value: "auto", label: zh ? "自动" : "Auto" },
+        { value: "black", label: zh ? "黑色" : "Black" },
+        { value: "white", label: zh ? "白色" : "White" },
+      ] },
+    ],
+    toInput: (values) => ({
+      action: values.action === "apply" || values.action === "reset" ? values.action : "inspect",
+      patch: values.action === "apply" ? {
+        enabled: Boolean(values.enabled),
+        top: Number(values.top), bottom: Number(values.bottom), left: Number(values.left), right: Number(values.right),
+        linkVertical: Boolean(values.linkVertical), linkHorizontal: Boolean(values.linkHorizontal),
+        autoTrimThreshold: Number(values.threshold),
+        autoTrimTarget: values.target === "black" || values.target === "white" ? values.target : "auto",
+      } : undefined,
+    }),
+    validate: (_values, input) => {
+      if (input.action !== "apply") return null
+      try {
+        parseReaderImageTrimPatch(input.patch)
+        return null
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+    },
+    preview: (input) => input.patch ? [JSON.stringify(input.patch)] : [input.action],
+    isDangerous: (input) => input.action === "apply" || input.action === "reset",
+    dangerPrompt: (input) => ({
+      title: zh ? "确认修改图像裁剪" : "Confirm image trim change",
+      body: input.action === "reset"
+        ? (zh ? "将恢复全部图像裁剪默认值。" : "All image trim settings will be restored to defaults.")
+        : (zh ? "将原子写入全部图像裁剪字段。" : "All image trim fields will be written atomically."),
+      confirmLabel: zh ? "确认应用" : "Apply",
+    }),
+    result: (result) => ({
+      success: result.success,
+      message: result.message,
+      lines: result.config ? JSON.stringify(result.config, null, 2).split("\n") : [],
     }),
   }
 }

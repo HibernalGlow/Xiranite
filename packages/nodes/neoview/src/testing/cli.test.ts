@@ -820,6 +820,7 @@ describe("NeoView CLI", () => {
   })
 
   it("[neoview.image-trim.cli] exposes strict linked get/set/reset values in canonical TOML", async () => {
+    await expect(runProgram(["image-trim-ui"], host([]))).rejects.toThrow("interactive terminal")
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-image-trim-cli-"))
     const configPath = join(directory, "xiranite.config.toml")
     try {

@@ -374,18 +374,17 @@
         "transport": "complete",
         "gui": "complete",
         "cli": "complete",
-        "tui": "pending",
-        "evidence": "partial"
+        "tui": "complete",
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-trim.reset",
         "neoview.image-trim.reset-http",
-        "neoview.image-trim.cli"
-      ],
-      "plannedTestIds": [
+        "neoview.image-trim.cli",
         "neoview.image-trim.reset-tui"
       ],
-      "notes": "The shared codec, authenticated HTTP boundary, CLI and real Chromium Card restore every canonical field in one mutation, hide the disabled editor, clear crop CSS and preserve the active image identity. TUI wiring remains incomplete."
+      "plannedTestIds": [],
+      "notes": "The shared codec, authenticated HTTP boundary, CLI, OpenTUI interaction and real Chromium Card restore every canonical field in one mutation, hide the disabled editor, clear crop CSS and preserve the active image identity."
     },
     {
       "id": "image-trim.edges",
@@ -406,19 +405,18 @@
         "transport": "complete",
         "gui": "complete",
         "cli": "complete",
-        "tui": "partial",
-        "evidence": "partial"
+        "tui": "complete",
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-trim.edges",
         "neoview.image-trim.link-vertical",
         "neoview.image-trim.transport-linked",
-        "neoview.image-trim.cli"
-      ],
-      "plannedTestIds": [
+        "neoview.image-trim.cli",
         "neoview.image-trim.tui-edges"
       ],
-      "notes": "Shared projection, serialized HTTP projection, CLI get/set/reset, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. TUI command-level edge coverage remains partial; percentages are not converted to pixels."
+      "plannedTestIds": [],
+      "notes": "Shared projection, serialized HTTP projection, CLI/OpenTUI get-set-reset, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action; percentages are not converted to pixels."
     },
     {
       "id": "image-trim.link-vertical",
@@ -493,19 +491,19 @@
         "transport": "complete",
         "gui": "partial",
         "cli": "complete",
-        "tui": "partial",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.image-trim.bounds",
         "neoview.image-trim.transport-linked",
-        "neoview.image-trim.cli"
-      ],
-      "plannedTestIds": [
-        "neoview.image-trim.bounds-browser",
+        "neoview.image-trim.cli",
         "neoview.image-trim.bounds-tui"
       ],
-      "notes": "The shared normalizer, strict patch parser, authenticated HTTP boundary and CLI cover finite values, 0..45 clamping/rejection and 0.5 steps without persisting invalid input. GUI boundary-key interaction plus TUI command-level evidence remain partial."
+      "plannedTestIds": [
+        "neoview.image-trim.bounds-browser"
+      ],
+      "notes": "The shared normalizer, strict patch parser, authenticated HTTP boundary, CLI and OpenTUI cover finite values, 0..45 clamping/rejection and 0.5 steps without persisting invalid input. GUI boundary-key interaction remains partial."
     },
     {
       "id": "image-trim.preview",
@@ -661,18 +659,17 @@
         "transport": "complete",
         "gui": "complete",
         "cli": "complete",
-        "tui": "pending",
-        "evidence": "partial"
+        "tui": "complete",
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-trim.threshold",
         "neoview.image-trim.threshold-http",
-        "neoview.image-trim.cli"
-      ],
-      "plannedTestIds": [
+        "neoview.image-trim.cli",
         "neoview.image-trim.threshold-tui"
       ],
-      "notes": "The shared codec, authenticated HTTP boundary, CLI and real Chromium range preserve 5..100 in step-5 increments; invalid transport input does not persist, and keyboard completion persists once without starting detection. TUI evidence remains pending."
+      "plannedTestIds": [],
+      "notes": "The shared codec, authenticated HTTP boundary, CLI/OpenTUI and real Chromium range preserve 5..100 in step-5 increments; invalid input does not persist, and keyboard completion persists once without starting detection."
     },
     {
       "id": "image-trim.target",
@@ -693,18 +690,17 @@
         "transport": "complete",
         "gui": "complete",
         "cli": "complete",
-        "tui": "pending",
-        "evidence": "partial"
+        "tui": "complete",
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-trim.target",
         "neoview.image-trim.target-http",
-        "neoview.image-trim.cli"
-      ],
-      "plannedTestIds": [
+        "neoview.image-trim.cli",
         "neoview.image-trim.target-tui"
       ],
-      "notes": "The shared enum validator, authenticated HTTP boundary, CLI and real Chromium select preserve auto/black/white and reject unknown values without persisting or starting detection. TUI and legacy-import fallback evidence remains pending."
+      "plannedTestIds": [],
+      "notes": "The shared enum validator, authenticated HTTP boundary, CLI/OpenTUI and real Chromium select preserve auto/black/white and reject unknown values without persisting or starting detection. Legacy-import fallback remains covered separately."
     },
     {
       "id": "image-trim.auto-message",
@@ -752,11 +748,12 @@
         "transport": "pending",
         "gui": "pending",
         "cli": "complete",
-        "tui": "pending",
+        "tui": "complete",
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.image-trim.cli"
+        "neoview.image-trim.cli",
+        "neoview.image-trim.persistence-tui"
       ],
       "plannedTestIds": [
         "neoview.image-trim.media"
@@ -902,7 +899,7 @@
         "neoview.image-trim.persistence",
         "neoview.image-trim.toml"
       ],
-      "notes": "CLI get/set/reset writes strict snake_case fields through the canonical NeoView TOML commit path and does not use a Reader database. GUI/HTTP/TUI persistence evidence remains incomplete."
+      "notes": "CLI and OpenTUI share ReaderImageTrimConfigService, write strict snake_case fields through the canonical NeoView TOML commit path and do not use a Reader database. GUI/HTTP persistence evidence remains incomplete."
     },
     {
       "id": "image-trim.cache",
