@@ -268,6 +268,34 @@ describe("SqliteReaderDataStore", () => {
     await store.close()
   })
 
+  it("[neoview.library.bookmarks-path-identity-platform] preserves POSIX case while retaining Windows compatibility", async () => {
+    const { path } = await fixture()
+    const posixStore = await SqliteReaderDataStore.open(path, { platform: "linux" })
+    try {
+      await posixStore.upsertBookmark({
+        ...bookmark("upper-path", false, []),
+        source: { kind: "archive", path: "/library/A.cbz" },
+        updatedAt: 300,
+      })
+      await posixStore.upsertBookmark({
+        ...bookmark("lower-path", false, []),
+        source: { kind: "archive", path: "/library/a.cbz" },
+      })
+      await expect(posixStore.findBookmarkByPath("\\library\\A.cbz")).resolves.toMatchObject({ id: "upper-path" })
+      await expect(posixStore.findBookmarkByPath("/library/a.cbz")).resolves.toMatchObject({ id: "lower-path" })
+      await expect(posixStore.findBookmarkByPath("/library/A.CBZ")).resolves.toBeUndefined()
+    } finally {
+      await posixStore.close()
+    }
+
+    const winStore = await SqliteReaderDataStore.open(path, { platform: "win32" })
+    try {
+      await expect(winStore.findBookmarkByPath("\\library\\A.CBZ")).resolves.toMatchObject({ id: "upper-path" })
+    } finally {
+      await winStore.close()
+    }
+  })
+
   it("[neoview.library.bookmark-update-sqlite] atomically clears starred and replaces memberships", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)
