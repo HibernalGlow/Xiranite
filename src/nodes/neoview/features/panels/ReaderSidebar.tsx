@@ -144,7 +144,7 @@ export function ReaderSidebar({
                 onPointerCancel={cancelGesture}
               >↕</button>
             ) : null}
-            <div className={cn(exclusive ? "flex min-h-0 flex-1" : "grid px-3 pb-3")}>
+            <div className={cn(exclusive ? "flex min-h-0 flex-1" : "grid gap-2 px-3 py-3")}>
               {cards.map((card) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]

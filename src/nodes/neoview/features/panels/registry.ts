@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Activity, Bell, Cpu, Crop, HardDrive, Info, ListFilter, Loader, Palette, Play, Sparkles, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, HardDrive, Image, Info, Keyboard, LayoutDashboard, ListFilter, ListTree, Loader, Palette, PanelLeft, Play, Sparkles, SlidersHorizontal, Trash2, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -224,20 +224,40 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "about-settings": () => import("../settings/cards/AboutSettingsCard"),
 }
 
-const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
+const CARD_ICONS = {
+  "folder-main": FolderOpen,
+  "history-list": Clock3,
+  "bookmark-list": BookMarked,
+  "page-navigation": ListTree,
+  "book-information": BookOpen,
+  "image-information": Image,
+  "storage-information": HardDrive,
+  "time-information": Clock3,
+  "slideshow-settings": Play,
+  "media-settings": Film,
+  "view-defaults-settings": Eye,
+  "reader-material-settings": Palette,
+  "board-layout-settings": LayoutDashboard,
+  "input-bindings-settings": Keyboard,
+  "data-migration-settings": DatabaseBackup,
+  "about-settings": Info,
   "preload-status": Loader,
   "progressive-upscale": Sparkles,
   "upscale-model": Cpu,
   "upscale-status": Activity,
   "upscale-cache": HardDrive,
   "upscale-conditions": ListFilter,
+  "info-overlay": Info,
+  "book-settings": BookOpenCheck,
+  "switch-toast": Bell,
+  "sidebar-control": PanelLeft,
   "color-filter": Palette,
   "page-transition": Play,
-  "switch-toast": Bell,
-  "info-overlay": Info,
+  "thumbnail-maintenance": Trash2,
+  "sidebar-height": SlidersHorizontal,
   "image-trim": Crop,
   "animated-video-mode": Video,
-}
+} satisfies Record<ReaderCardId, LucideIcon>
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
   "slideshow-settings": async () => ({ default: (await import("../settings/cards/SlideshowSettingsCard")).SettingsSlideshowCard }),

@@ -6,6 +6,13 @@ import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 afterEach(cleanup)
 
 describe("CollapsibleReaderCard", () => {
+  it("renders the shared magic-card surface and title slot", () => {
+    render(<CollapsibleReaderCard title="共享标题">content</CollapsibleReaderCard>)
+
+    expect(document.querySelector('[data-slot="magic-card"]')).toBeTruthy()
+    expect(document.querySelector('[data-slot="reader-card-title"]')).toBeTruthy()
+  })
+
   it("[neoview.card.header-icon] preserves an explicitly registered legacy header icon", () => {
     render(
       <CollapsibleReaderCard title="预加载状态" icon={<span data-testid="loader-icon" />}>content</CollapsibleReaderCard>,
