@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ReaderShellConfigDto, ReaderShellMaterialPatch, ReaderShellSurface } from "../../../adapters/reader-http-client"
+import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
 import {
   applyReaderShellMaterialPreview,
   readerShellMaterialDraft,
@@ -12,6 +13,7 @@ import {
   READER_SHELL_SURFACES,
   type ReaderShellMaterialDraft,
 } from "../../material/ReaderShellMaterial"
+import { SettingsCardShell } from "../SettingsCardShell"
 
 const SURFACE_LABELS: Record<ReaderShellSurface, string> = { top: "顶栏", bottom: "底栏", sidebar: "侧栏" }
 const PRESET_LABELS = { solid: "实色", soft: "轻透", frosted: "磨砂" } as const
@@ -112,12 +114,12 @@ export function ReaderMaterialSettingsCard({ shell, onMaterial }: {
   }
 
   return (
-    <section className="grid gap-5" data-neoview-settings-card="reader-material">
-      <header className="border-b pb-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-4" />界面材质</h2>
-        <p className="mt-1 text-xs text-muted-foreground">颜色继续继承项目主题，仅调整 NeoView 边栏的透明和磨砂质感。</p>
-      </header>
-
+    <SettingsCardShell
+      id="reader-material"
+      title="界面材质"
+      description="颜色继续继承项目主题，仅调整 NeoView 边栏的透明和磨砂质感。"
+      icon={Sparkles}
+    >
       <div className="grid gap-2">
         <span className="text-xs font-medium">材质预设</span>
         <div className="flex flex-wrap gap-1 rounded-md border bg-muted/15 p-1" aria-label="材质预设">
@@ -168,8 +170,13 @@ export function ReaderMaterialSettingsCard({ shell, onMaterial }: {
         <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => selectPreset("frosted")}><RotateCcw />恢复磨砂默认值</Button>
       </div>
       {error ? <p role="alert" className="text-xs text-destructive">保存失败，已恢复上次设置：{error}</p> : null}
-    </section>
+    </SettingsCardShell>
   )
+}
+
+export function SettingsReaderMaterialCard({ shell, onMaterial }: ReaderSettingsCardContext) {
+  if (!onMaterial) return null
+  return <ReaderMaterialSettingsCard shell={shell} onMaterial={onMaterial} />
 }
 
 function sameMaterial(left: ReaderShellMaterialDraft, right: ReaderShellMaterialDraft): boolean {
@@ -187,4 +194,7 @@ function cloneMaterial(source: ReaderShellMaterialDraft): ReaderShellMaterialDra
   }
 }
 
-export default ReaderMaterialSettingsCard
+export default function DockedReaderMaterialSettingsCard({ shell, onMaterial }: ReaderPanelContext) {
+  if (!shell || !onMaterial) return null
+  return <ReaderMaterialSettingsCard shell={shell} onMaterial={onMaterial} />
+}

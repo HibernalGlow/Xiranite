@@ -12,7 +12,7 @@ describe("NeoView panel and card registries", () => {
 
   it("[neoview.shell.registry-lazy] reads metadata without invoking any card loader", () => {
     const loaders = CARD_DEFINITIONS.map((card) => vi.spyOn(card, "load"))
-    expect(availablePanels("left").map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
+    expect(availablePanels("left").map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList", "settings"])
     expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "control"])
     for (const loader of loaders) expect(loader).not.toHaveBeenCalled()
     for (const loader of loaders) loader.mockRestore()
@@ -38,7 +38,7 @@ describe("NeoView panel and card registries", () => {
         pageList: { visible: false, order: 20, position: "left" },
         folder: { visible: true, order: 0, position: "left" },
       },
-    } as never).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark"])
+    } as never).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "settings"])
     expect(availablePanels("right", {
       panelLayout: {
         info: { visible: true, order: 10, position: "right" },
@@ -50,7 +50,32 @@ describe("NeoView panel and card registries", () => {
         pageList: { visible: false, order: 20, position: "left" },
         info: { visible: true, order: 0, position: "left" },
       },
-    } as never).map((panel) => panel.id)).toEqual(["folder", "info", "history", "bookmark"])
+    } as never).map((panel) => panel.id)).toEqual(["folder", "info", "history", "bookmark", "settings"])
+  })
+
+  it("[neoview.settings.registry] maps settings cards to settings sections and the settings panel", () => {
+    expect(CARD_DEFINITIONS.filter((card) => card.settingsSectionId).map((card) => card.id)).toEqual(expect.arrayContaining([
+      "slideshow-settings",
+      "media-settings",
+      "view-defaults-settings",
+      "reader-material-settings",
+      "panel-layout-settings",
+      "sidebar-management-settings",
+      "input-bindings-settings",
+      "data-migration-settings",
+      "about-settings",
+    ]))
+    expect(cardsForPanel("settings").map((card) => card.id)).toEqual([
+      "slideshow-settings",
+      "media-settings",
+      "view-defaults-settings",
+      "reader-material-settings",
+      "panel-layout-settings",
+      "sidebar-management-settings",
+      "input-bindings-settings",
+      "data-migration-settings",
+      "about-settings",
+    ])
   })
 
   it("[neoview.card.parallel-core] exposes preload and current-book settings without eager loading", () => {
@@ -134,16 +159,19 @@ describe("NeoView panel and card registries", () => {
     ])
   })
 
-  it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {
-    expect(availablePanels("left").map((panel) => panel.id)).not.toContain("settings")
-    expect(availablePanels("left", {
-      panelLayout: { settings: { visible: true, order: 99, position: "left" } },
-      cardLayout: { "panel-layout-settings": { panelId: "settings", visible: true, expanded: true, order: 0 } },
-    } as never).map((panel) => panel.id)).toContain("settings")
-    expect(cardsForPanel("settings")).toEqual([])
-    expect(cardsForPanel("settings", {
-      cardLayout: { "sidebar-management-settings": { panelId: "settings", visible: true, expanded: true, order: 1 } },
-    } as never).map((card) => card.id)).toContain("sidebar-management-settings")
+  it("[neoview.settings.card-docking] docks settings cards into the settings panel by default", () => {
+    expect(availablePanels("left").map((panel) => panel.id)).toContain("settings")
+    expect(cardsForPanel("settings").map((card) => card.id)).toEqual([
+      "slideshow-settings",
+      "media-settings",
+      "view-defaults-settings",
+      "reader-material-settings",
+      "panel-layout-settings",
+      "sidebar-management-settings",
+      "input-bindings-settings",
+      "data-migration-settings",
+      "about-settings",
+    ])
     expect(availablePanels("left", {
       panelLayout: {
         pageList: { visible: true, order: 0, position: "left" },
@@ -151,13 +179,12 @@ describe("NeoView panel and card registries", () => {
       },
       cardLayout: {
         "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
-        "panel-layout-settings": { panelId: "settings", visible: true, expanded: true, order: 0 },
       },
     } as never, false).map((panel) => panel.id)).toEqual(["folder", "pageList", "history", "bookmark", "settings"])
   })
 
   it("[neoview.shell.resident-cards] keeps configured panels and session-dependent Card shells resident before opening a book", () => {
-    expect(availablePanels("left", undefined, false).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList"])
+    expect(availablePanels("left", undefined, false).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList", "settings"])
     expect(availablePanels("right", undefined, false).map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "control"])
     expect(cardsForPanel("info", undefined, false).map((card) => card.id)).toEqual([
       "book-information", "image-information", "storage-information", "time-information", "preload-status", "info-overlay",

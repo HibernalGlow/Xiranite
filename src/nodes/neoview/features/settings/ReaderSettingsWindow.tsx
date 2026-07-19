@@ -1,18 +1,35 @@
 import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Monitor, PanelLeft, Palette, Settings2, SlidersHorizontal } from "lucide-react"
-import { lazy, Suspense, useState, type ComponentType } from "react"
+import { Suspense, useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderBoardLayoutPatch, ReaderInputBindingsPatch, ReaderRadialMenuPatch, ReaderRuntimeConfigDto, ReaderSettingsMigrationImportResult, ReaderSettingsMigrationInspection, ReaderShellConfigDto, ReaderShellMaterialPatch, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
+import type {
+  ReaderBoardLayoutPatch,
+  ReaderInputBindingsPatch,
+  ReaderMediaConfigDto,
+  ReaderMediaPatchDto,
+  ReaderRadialMenuPatch,
+  ReaderRuntimeConfigDto,
+  ReaderSettingsMigrationImportResult,
+  ReaderSettingsMigrationInspection,
+  ReaderShellConfigDto,
+  ReaderShellMaterialPatch,
+  ReaderSlideshowConfig,
+  ReaderSlideshowPatch,
+  ReaderViewDefaultsPatch,
+} from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
-
-const LazyReaderMaterialSettingsCard = lazy(() => import("./cards/ReaderMaterialSettingsCard"))
+import { SettingsUnavailableNote } from "./SettingsCardShell"
 
 export function ReaderSettingsWindow({
   shell,
   viewDefaults,
+  slideshow,
+  media,
   onClose,
   onBoardLayout,
   onViewDefaults,
+  onSlideshow,
+  onMedia,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -23,9 +40,13 @@ export function ReaderSettingsWindow({
 }: {
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
+  slideshow?: ReaderSlideshowConfig
+  media?: ReaderMediaConfigDto
   onClose(): void
   onBoardLayout(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
+  onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
+  onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -38,15 +59,15 @@ export function ReaderSettingsWindow({
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
-        className="z-[91] overflow-hidden p-0"
+        className="z-[91] gap-0 overflow-hidden p-0 sm:max-w-none"
         overlayClassName="z-[90]"
         style={{ width: "min(64rem, calc(100vw - 2rem))", maxWidth: "none", height: "min(70rem, calc(100vh - 2rem))", maxHeight: "calc(100vh - 2rem)" }}
       >
-        <DialogHeader className="border-b px-4 py-3">
+        <DialogHeader className="shrink-0 space-y-0 border-b px-4 py-3 text-left">
           <DialogTitle className="flex items-center gap-2"><Settings2 className="size-4" />设置</DialogTitle>
           <DialogDescription className="sr-only">NeoView 节点设置</DialogDescription>
         </DialogHeader>
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[10rem_minmax(0,1fr)] sm:grid-rows-1">
+        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[10rem_minmax(0,1fr)] sm:grid-rows-1" style={{ height: "calc(100% - 3.25rem)" }}>
           <nav className="flex min-w-0 overflow-x-auto border-b bg-muted/15 p-2 sm:block sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-r" aria-label="NeoView 设置分类">
             {SETTINGS_SECTIONS.map((section) => {
               const Icon = section.icon
@@ -63,7 +84,26 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onBoardLayout} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} onLegacySettingsInspect={onLegacySettingsInspect} onLegacySettingsImport={onLegacySettingsImport} onMaterial={onMaterial} />
+            <div className="grid gap-4">
+              <SettingsSection
+                sectionId={active}
+                shell={shell}
+                viewDefaults={viewDefaults}
+                slideshow={slideshow}
+                media={media}
+                inputBindings={inputBindings}
+                radialMenu={radialMenu}
+                onSave={onBoardLayout}
+                onViewDefaults={onViewDefaults}
+                onSlideshow={onSlideshow}
+                onMedia={onMedia}
+                onInputBindings={onInputBindings}
+                onRadialMenu={onRadialMenu}
+                onLegacySettingsInspect={onLegacySettingsInspect}
+                onLegacySettingsImport={onLegacySettingsImport}
+                onMaterial={onMaterial}
+              />
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -75,8 +115,12 @@ function SettingsSection({
   sectionId,
   shell,
   viewDefaults,
+  slideshow,
+  media,
   onSave,
   onViewDefaults,
+  onSlideshow,
+  onMedia,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -88,8 +132,12 @@ function SettingsSection({
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
+  slideshow?: ReaderSlideshowConfig
+  media?: ReaderMediaConfigDto
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
+  onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
+  onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -98,16 +146,33 @@ function SettingsSection({
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
 }) {
-  if (sectionId === "appearance") {
-    return <Suspense fallback={<div className="h-48 animate-pulse rounded-md bg-muted/35" aria-label="正在加载界面材质设置" />}><LazyReaderMaterialSettingsCard shell={shell} onMaterial={onMaterial} /></Suspense>
-  }
   const definitions = settingsCardsForSection(sectionId)
-  if (!definitions.length) return <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} />
+  if (!definitions.length) {
+    const unavailable = UNAVAILABLE_SECTIONS[sectionId]
+    if (unavailable) return <SettingsUnavailableNote title={unavailable.title} reason={unavailable.reason} />
+    return <SettingsUnavailableNote title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} reason="该分类尚未接入 XR 配置面。" />
+  }
   return definitions.map((definition) => {
     const Card = lazyReaderSettingsCard(definition.id)
     return Card ? (
       <Suspense key={definition.id} fallback={<div className="h-24 animate-pulse rounded-md bg-muted/35" aria-label={`正在加载${definition.title}`} />}>
-        <Card shell={shell} viewDefaults={viewDefaults} inputBindings={inputBindings} radialMenu={radialMenu} onSave={onSave} onViewDefaults={onViewDefaults} onInputBindings={onInputBindings} onRadialMenu={onRadialMenu} onLegacySettingsInspect={onLegacySettingsInspect} onLegacySettingsImport={onLegacySettingsImport} />
+        <Card
+          shell={shell}
+          viewDefaults={viewDefaults}
+          slideshow={slideshow}
+          media={media}
+          inputBindings={inputBindings}
+          radialMenu={radialMenu}
+          onSave={onSave}
+          onViewDefaults={onViewDefaults}
+          onSlideshow={onSlideshow}
+          onMedia={onMedia}
+          onInputBindings={onInputBindings}
+          onRadialMenu={onRadialMenu}
+          onLegacySettingsInspect={onLegacySettingsInspect}
+          onLegacySettingsImport={onLegacySettingsImport}
+          onMaterial={onMaterial}
+        />
       </Suspense>
     ) : null
   })
@@ -131,6 +196,21 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; label: string; icon: Com
   { id: "about", label: "关于", icon: Info },
 ]
 
-function SettingsPlaceholder({ title }: { title: string }) {
-  return <section className="rounded-md border bg-card/50 p-4"><h2 className="text-lg font-semibold">{title}</h2></section>
+const UNAVAILABLE_SECTIONS: Partial<Record<SettingsSectionId, { title: string; reason: string }>> = {
+  system: {
+    title: "系统",
+    reason: "排除路径等系统项由文件树配置与 CLI 管理；完整设置卡待 fileTree DTO/PATCH 暴露后接入。",
+  },
+  notifications: {
+    title: "通知",
+    reason: "切换提示已在右侧栏「切换提示」卡片中配置，设置窗口不再重复提供全局通知页。",
+  },
+  books: {
+    title: "书籍",
+    reason: "本书方向/单双页等设置在右侧栏「本书设置」中按会话编辑；全局书籍默认值尚未单独成卡。",
+  },
+  performance: {
+    title: "性能",
+    reason: "呈现缓存与预加载阈值目前由节点配置/诊断链路管理，设置窗口可编辑面尚未开放。",
+  },
 }

@@ -36,7 +36,10 @@ import type {
   ReaderSettingsMigrationInspection,
   ReaderSessionDto,
   ReaderShellConfigDto,
+  ReaderShellMaterialPatch,
   ReaderSidebarLayoutPatch,
+  ReaderSlideshowConfig,
+  ReaderSlideshowPatch,
   ReaderViewDefaultsPatch,
   ReaderFolderViewPatch,
 } from "../../adapters/reader-http-client"
@@ -90,6 +93,15 @@ export interface ReaderPanelContext {
   imageTrim?: ReaderImageTrimPort
   media?: ReaderMediaConfigDto
   onMediaChange?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
+  slideshow?: ReaderSlideshowConfig
+  onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
+  inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
+  onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
+  radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
+  onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onMaterial?(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
+  onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
+  onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   superResolution?: ReaderSuperResolutionConfigDto
   onSuperResolutionChange?(patch: ReaderSuperResolutionPreferencesDto): Promise<ReaderSuperResolutionConfigDto>
   onSuperResolutionConfigChange?(patch: ReaderSuperResolutionPatchDto["superResolution"]): Promise<ReaderSuperResolutionConfigDto>
@@ -114,21 +126,41 @@ export interface ReaderCardDefinition {
   canHide: boolean
   requiresSession: boolean
   icon?: LucideIcon
-  settingsSectionId?: "view" | "sidebar" | "cards" | "bindings"
+  settingsSectionId?: ReaderCardDefinitionSettingsSectionId
   defaultSidebarVisible?: boolean
   load(): Promise<{ default: ComponentType<ReaderPanelContext> }>
   loadSettings?(): Promise<{ default: ComponentType<ReaderSettingsCardContext> }>
 }
+
+export type ReaderCardDefinitionSettingsSectionId =
+  | "general"
+  | "system"
+  | "image"
+  | "view"
+  | "notifications"
+  | "books"
+  | "appearance"
+  | "performance"
+  | "sidebar"
+  | "cards"
+  | "bindings"
+  | "data"
+  | "about"
 
 export interface ReaderSettingsCardContext {
   shell: ReaderShellConfigDto
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
   viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
+  slideshow?: ReaderSlideshowConfig
+  onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
+  media?: ReaderMediaConfigDto
+  onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onMaterial?(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
 }
@@ -182,10 +214,15 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "image-trim": () => import("./cards/ImageTrimCard"),
   "animated-video-mode": () => import("./cards/AnimatedVideoModeCard"),
   "thumbnail-maintenance": () => import("./cards/ThumbnailMaintenanceCard"),
+  "slideshow-settings": () => import("../settings/cards/SlideshowSettingsCard"),
+  "media-settings": () => import("../settings/cards/MediaSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
+  "reader-material-settings": () => import("../settings/cards/ReaderMaterialSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
   "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
+  "data-migration-settings": () => import("../settings/cards/DataMigrationSettingsCard"),
+  "about-settings": () => import("../settings/cards/AboutSettingsCard"),
 }
 
 const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
@@ -204,10 +241,15 @@ const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
 }
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
+  "slideshow-settings": async () => ({ default: (await import("../settings/cards/SlideshowSettingsCard")).SettingsSlideshowCard }),
+  "media-settings": async () => ({ default: (await import("../settings/cards/MediaSettingsCard")).SettingsMediaCard }),
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
+  "reader-material-settings": async () => ({ default: (await import("../settings/cards/ReaderMaterialSettingsCard")).SettingsReaderMaterialCard }),
   "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
   "sidebar-management-settings": async () => ({ default: (await import("../settings/cards/SidebarManagementSettingsCard")).SidebarManagementSettingsCard }),
   "input-bindings-settings": async () => ({ default: (await import("../settings/cards/InputBindingsSettingsCard")).InputBindingsSettingsCard }),
+  "data-migration-settings": async () => ({ default: (await import("../settings/cards/DataMigrationSettingsCard")).SettingsDataMigrationCard }),
+  "about-settings": async () => ({ default: (await import("../settings/cards/AboutSettingsCard")).SettingsAboutCard }),
 }
 
 export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = READER_CARD_MANIFEST.map((definition) => ({

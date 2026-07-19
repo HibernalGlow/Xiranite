@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../../adapters/reader-http-client"
 import { PANEL_DEFINITIONS, type ReaderPanelContext } from "../../panels/registry"
+import { SettingsCardShell } from "../SettingsCardShell"
 
 type PanelPosition = ReaderShellConfigDto["panelLayout"][string]["position"]
 type PanelDestination = "left" | "right" | "hidden" | "floating"
@@ -70,18 +71,18 @@ export function SidebarManagementSettingsCard({
   }
 
   return (
-    <section className="grid gap-4" data-neoview-settings-card="sidebar-management">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold"><PanelLeft className="size-4" />边栏布局</h2>
-          <p className="mt-1 text-xs text-muted-foreground">管理左右边栏的面板位置、顺序和可见性。</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <SettingsCardShell
+      id="sidebar-management"
+      title="边栏布局"
+      description="管理左右边栏的面板位置、顺序和可见性。"
+      icon={PanelLeft}
+      actions={
+        <>
           <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => updateDraft(resetSidebarPanelDraft)}><RotateCcw />重置</Button>
           <Button type="button" size="sm" disabled={saving} onClick={() => void save()}><Save />保存边栏布局</Button>
-        </div>
-      </header>
-
+        </>
+      }
+    >
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input aria-label="搜索边栏面板" disabled={saving} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索面板..." className="h-9 pl-8" />
@@ -125,7 +126,7 @@ export function SidebarManagementSettingsCard({
         })}
         {filtered.length === 0 ? <div className="px-3 py-10 text-center text-xs text-muted-foreground">未找到匹配的面板</div> : null}
       </div>
-    </section>
+    </SettingsCardShell>
   )
 }
 

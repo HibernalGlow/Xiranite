@@ -12,6 +12,21 @@ export interface ReaderPanelManifestEntry {
   acceptsCards: boolean
 }
 
+export type ReaderSettingsSectionId =
+  | "general"
+  | "system"
+  | "image"
+  | "view"
+  | "notifications"
+  | "books"
+  | "appearance"
+  | "performance"
+  | "sidebar"
+  | "cards"
+  | "bindings"
+  | "data"
+  | "about"
+
 export interface ReaderCardManifestEntry {
   id: string
   title: string
@@ -21,7 +36,7 @@ export interface ReaderCardManifestEntry {
   defaultOrder: number
   canHide: boolean
   requiresSession: boolean
-  settingsSectionId?: "view" | "sidebar" | "cards" | "bindings"
+  settingsSectionId?: ReaderSettingsSectionId
 }
 
 export const READER_PANEL_MANIFEST = [
@@ -50,10 +65,15 @@ export const READER_CARD_MANIFEST = [
   card("image-information", "图像信息", "info", true, true, 1, true, true),
   card("storage-information", "存储信息", "info", true, true, 2, true, true),
   card("time-information", "时间信息", "info", true, true, 3, true, true),
-  card("view-defaults-settings", "视图默认值", "settings", false, true, 0, true, false, "view"),
-  card("panel-layout-settings", "面板布局设置", "settings", false, true, 0, true, false, "cards"),
-  card("sidebar-management-settings", "边栏管理设置", "settings", false, true, 1, true, false, "sidebar"),
-  card("input-bindings-settings", "操作绑定", "settings", false, true, 0, true, false, "bindings"),
+  card("slideshow-settings", "幻灯片", "settings", true, true, 0, true, false, "general"),
+  card("media-settings", "影像", "settings", true, true, 1, true, false, "image"),
+  card("view-defaults-settings", "视图默认值", "settings", true, true, 2, true, false, "view"),
+  card("reader-material-settings", "界面材质", "settings", true, true, 3, true, false, "appearance"),
+  card("panel-layout-settings", "面板布局设置", "settings", true, true, 4, true, false, "cards"),
+  card("sidebar-management-settings", "边栏管理设置", "settings", true, true, 5, true, false, "sidebar"),
+  card("input-bindings-settings", "操作绑定", "settings", true, true, 6, true, false, "bindings"),
+  card("data-migration-settings", "数据迁移", "settings", true, true, 7, true, false, "data"),
+  card("about-settings", "关于", "settings", true, true, 8, true, false, "about"),
   card("preload-status", "预加载状态", "info", true, true, 4, true, true),
   card("progressive-upscale", "递进超分", "upscale", true, true, 0, true, false),
   card("upscale-model", "模型选择", "upscale", true, true, 1, true, false),
@@ -110,7 +130,7 @@ function card<const Id extends string, const PanelId extends string>(
   defaultOrder: number,
   canHide: boolean,
   requiresSession: boolean,
-  settingsSectionId?: ReaderCardManifestEntry["settingsSectionId"],
+  settingsSectionId?: ReaderSettingsSectionId,
 ): ReaderCardManifestEntry & { id: Id; defaultPanelId: PanelId } {
   return {
     id,

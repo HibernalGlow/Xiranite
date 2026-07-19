@@ -1,37 +1,40 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { InputBindingsEditor } from "./InputBindingsSettingsCard"
 
 afterEach(cleanup)
 
 describe("InputBindingsSettingsCard", () => {
-  it("[neoview.bindings.editor] filters contexts and exposes all device editors", () => {
+  it("[neoview.bindings.editor] groups devices under the action and filters contexts", () => {
     render(<InputBindingsEditor value={{ bindings: [
       binding("key", "keyboard"), binding("mouse", "mouse"), binding("gesture", "mouse-gesture"), binding("wheel", "wheel"), binding("touch", "touch"), binding("pad", "gamepad"),
     ] }} onSave={vi.fn()} />)
-    expect(screen.getAllByRole("listitem")).toHaveLength(6)
-    expect(screen.getAllByRole("combobox", { name: "输入设备" }).map((element) => (element as HTMLSelectElement).value)).toEqual(["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad"])
+    expect(screen.getByRole("option", { name: /下一页/ }).getAttribute("aria-selected")).toBe("true")
+    const bindings = within(screen.getByRole("list", { name: "操作绑定列表" }))
+    expect(bindings.getAllByRole("listitem")).toHaveLength(6)
+    expect(bindings.getAllByRole("combobox", { name: "输入设备" }).map((element) => (element as HTMLSelectElement).value)).toEqual(["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad"])
     fireEvent.change(screen.getByRole("combobox", { name: "筛选上下文" }), { target: { value: "panel" } })
-    expect(screen.queryAllByRole("listitem")).toHaveLength(0)
+    expect(screen.getByText("没有匹配的动作")).toBeTruthy()
+    expect(screen.queryByRole("list", { name: "操作绑定列表" })).toBeNull()
   })
 
-  it("[neoview.bindings.action-capability] hides actions without a GUI provider", () => {
+  it("[neoview.bindings.action-capability] lists only GUI-executable actions in the catalog", () => {
     render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} />)
-    const actionSelect = screen.getByRole("combobox", { name: "动作" })
-    expect(actionSelect.querySelector('option[value="reader.next-page"]')).not.toBeNull()
-    expect(actionSelect.querySelector('option[value="file.delete-current"]')).toBeNull()
-    expect(actionSelect.querySelector('option[value="upscale.toggle-auto"]')).toBeNull()
-    expect(actionSelect.querySelector('option[value="viewer.toggle-dynamic-background"]')).toBeNull()
+    const catalog = screen.getByRole("listbox", { name: "可选动作" })
+    expect(within(catalog).getByRole("option", { name: /下一页/ })).toBeTruthy()
+    expect(catalog.querySelector('[data-action="reader.next-page"]')).not.toBeNull()
+    expect(catalog.querySelector('[data-action="file.delete-current"]')).toBeNull()
+    expect(catalog.querySelector('[data-action="upscale.toggle-auto"]')).toBeNull()
+    expect(catalog.querySelector('[data-action="viewer.toggle-dynamic-background"]')).toBeNull()
   })
 
-  it("[neoview.bindings.conflict-ui] blocks ambiguous saves and permits disabled collisions", async () => {
+  it("[neoview.bindings.conflict-ui] blocks ambiguous autosaves and permits disabled collisions", async () => {
     const save = vi.fn(async ({ bindings }: { bindings?: ReturnType<typeof binding>[] }) => ({ bindings: bindings ?? [] }))
     render(<InputBindingsEditor value={{ bindings: [binding("one", "keyboard"), binding("two", "keyboard")] }} onSave={save as never} />)
     expect(screen.getByRole("alert").textContent).toContain("输入冲突")
-    expect((screen.getByRole("button", { name: "保存" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole("status").textContent).toContain("存在冲突")
     fireEvent.click(screen.getAllByRole("switch")[1]!)
-    fireEvent.click(screen.getByRole("button", { name: "保存" }))
-    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    await waitFor(() => expect(save).toHaveBeenCalledOnce(), { timeout: 1_000 })
   })
 
   it("[neoview.bindings.editor] edits modifiers, extended mouse buttons and touch fingers", () => {
@@ -63,7 +66,7 @@ describe("InputBindingsSettingsCard", () => {
     render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard"), binding("mouse", "mouse")] }} onSave={vi.fn()} />)
     fireEvent.change(screen.getByRole("combobox", { name: "键盘触发方式" }), { target: { value: "hold" } })
     expect(screen.getByDisplayValue("450")).toBeTruthy()
-    expect(screen.getAllByRole("listitem")).toHaveLength(2)
+    expect(within(screen.getByRole("list", { name: "操作绑定列表" })).getAllByRole("listitem")).toHaveLength(2)
   })
 
   it("[neoview.bindings.mouse-gesture-editor] edits press, hold timing and a bounded direction sequence", () => {
@@ -118,29 +121,26 @@ describe("InputBindingsSettingsCard", () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith({ reset: "defaults" }))
   })
 
-  it("[neoview.bindings.legacy-import-ui] inspects before importing and refreshes the canonical runtime", async () => {
-    const inspect = vi.fn(async () => ({
-      report: {
-        codecVersion: 1,
-        sourceKind: "app-settings",
-        entries: [{ sourcePath: "keybindings[0]", disposition: "converted" }],
-        summary: { converted: 1 },
-        fullyRecognized: true,
-      },
-      configPatch: { bindings: { items: [] } },
-    }))
-    const importLegacy = vi.fn(async () => ({
-      report: { codecVersion: 1, sourceKind: "app-settings", entries: [], summary: {}, fullyRecognized: true },
-      configPatch: {}, strategy: "merge" as const, changed: true, backupCreated: true,
-    }))
-    render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={vi.fn()} onLegacySettingsInspect={inspect} onLegacySettingsImport={importLegacy} />)
-    fireEvent.change(screen.getByRole("textbox", { name: "Legacy settings JSON" }), { target: { value: '{"keybindings":[]}' } })
-    fireEvent.click(screen.getByRole("button", { name: "Inspect" }))
-    await waitFor(() => expect(inspect).toHaveBeenCalledWith('{"keybindings":[]}'))
-    expect(screen.getByText("Recognized legacy settings")).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "Import" }))
-    await waitFor(() => expect(importLegacy).toHaveBeenCalledWith('{"keybindings":[]}', "merge"))
-    expect(screen.getByText(/Imported successfully/)).toBeTruthy()
+  it("[neoview.bindings.action-master] adds another binding under the selected action with smart context", async () => {
+    const save = vi.fn(async ({ bindings }: { bindings?: ReturnType<typeof binding>[] }) => ({ bindings: bindings ?? [] }))
+    render(<InputBindingsEditor value={{ bindings: [binding("key", "keyboard")] }} onSave={save as never} />)
+    fireEvent.click(screen.getByRole("button", { name: "添加绑定" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "触控" }))
+    const bindings = within(screen.getByRole("list", { name: "操作绑定列表" }))
+    expect(bindings.getAllByRole("listitem")).toHaveLength(2)
+    const contexts = bindings.getAllByRole("combobox", { name: "上下文" }).map((element) => (element as HTMLSelectElement).value)
+    expect(contexts).toEqual(["reader", "reader"])
+    expect(bindings.getAllByRole("combobox", { name: "输入设备" }).map((element) => (element as HTMLSelectElement).value)).toContain("touch")
+    await waitFor(() => expect(save).toHaveBeenCalled(), { timeout: 1_000 })
+  })
+
+  it("[neoview.bindings.unbound-action] allows adding the first binding on an unbound action", () => {
+    render(<InputBindingsEditor value={{ bindings: [] }} onSave={vi.fn()} />)
+    fireEvent.click(screen.getByRole("option", { name: /下一页/ }))
+    expect(screen.getByText("此动作还没有绑定。选择设备后开始录制。")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "添加绑定" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "键盘" }))
+    expect(within(screen.getByRole("list", { name: "操作绑定列表" })).getAllByRole("listitem")).toHaveLength(1)
   })
 })
 
