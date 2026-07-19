@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 import {
   calculateReaderFrameSize,
+  calculateReaderPageStretchScales,
   calculateReaderScale,
+  effectiveReaderRotation,
   normalizeReaderManualScale,
   normalizeReaderRotation,
   rotatePresentationSize,
@@ -25,7 +27,25 @@ describe("reader presentation geometry", () => {
     const pages = [{ width: 1_000, height: 2_000 }, { width: 1_200, height: 2_000 }]
     expect(calculateReaderFrameSize(pages, 0)).toEqual({ width: 2_200, height: 2_000 })
     expect(calculateReaderFrameSize(pages, 90)).toEqual({ width: 4_000, height: 1_200 })
+    expect(calculateReaderFrameSize(pages, 0, "vertical")).toEqual({ width: 1_200, height: 4_000 })
     expect(rotatePresentationSize(pages[0]!, 270)).toEqual({ width: 2_000, height: 1_000 })
+  })
+
+  it("[neoview.viewer.auto-rotation] derives portrait, landscape and forced CSS rotations", () => {
+    const portrait = { width: 1_000, height: 2_000 }
+    const landscape = { width: 2_000, height: 1_000 }
+    expect(effectiveReaderRotation(0, "left", portrait)).toBe(270)
+    expect(effectiveReaderRotation(0, "left", landscape)).toBe(0)
+    expect(effectiveReaderRotation(90, "horizontal-right", landscape)).toBe(180)
+    expect(effectiveReaderRotation(180, "forced-left", portrait)).toBe(90)
+  })
+
+  it("[neoview.viewer.wide-stretch] preserves the legacy uniform height and average width algorithms", () => {
+    const pages = [{ width: 1_000, height: 2_000 }, { width: 1_500, height: 3_000 }]
+    expect(calculateReaderPageStretchScales(pages, "none")).toEqual([1, 1])
+    expect(calculateReaderPageStretchScales(pages, "uniform-height")).toEqual([1.5, 1])
+    expect(calculateReaderPageStretchScales(pages, "uniform-width")).toEqual([1.25, 5 / 6])
+    expect(calculateReaderFrameSize(pages, 0, "horizontal", "none", "uniform-height")).toEqual({ width: 3_000, height: 3_000 })
   })
 
   it("[neoview.viewer.presentation-bounds] normalizes rotation and bounded manual zoom", () => {

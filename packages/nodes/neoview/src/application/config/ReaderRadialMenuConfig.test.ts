@@ -38,6 +38,24 @@ describe("ReaderRadialMenuConfig", () => {
     expect(parsed.menus[0]?.layers[0]?.[0]).toMatchObject({ id: "next", slotIndex: 3, action: "reader.next-page" })
   })
 
+  it("[neoview.bindings.radial-defaults] seeds layer-1/2 slots from the legacy radialMenus export", () => {
+    expect(DEFAULT_READER_RADIAL_MENU_CONFIG.layerCount).toBe(2)
+    expect(DEFAULT_READER_RADIAL_MENU_CONFIG.menus[0]?.layers[0]?.map((item) => item.action)).toEqual([
+      "reader.toggle-temporary-fit",
+      "upscale.toggle-auto",
+      "reader.toggle-temporary-fit",
+      "reader.rotate-180",
+      "reader.fullscreen",
+      "viewer.toggle-page-switch-toast",
+    ])
+    expect(DEFAULT_READER_RADIAL_MENU_CONFIG.menus[0]?.layers[1]?.map((item) => item.action)).toEqual([
+      "reader.next-page",
+      "reader.last-page",
+      "shell.toggle-bottom-thumbnail-pin",
+    ])
+    expect(() => parseReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)).not.toThrow()
+  })
+
   it("[neoview.bindings.radial-persistence] emits the canonical [nodes.neoview.bindings].radial_menus patch", () => {
     const parsed = parseReaderRadialMenuPatch({ radialMenu: { config: DEFAULT_READER_RADIAL_MENU_CONFIG } })
     expect(parsed.patch.radialMenu.config?.activeMenuId).toBe("default")

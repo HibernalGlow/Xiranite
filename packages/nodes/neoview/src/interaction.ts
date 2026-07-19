@@ -22,6 +22,11 @@ import type {
   ReaderBookSettingsMigrationFilePort,
 } from "./platform/migration/ReaderBookSettingsMigrationFileController.js"
 import type { ReaderBookSettingsMigrationInspection } from "./application/migration/ReaderBookSettingsMigrationService.js"
+import type {
+  ReaderBackupBundleResult,
+  ReaderBackupInspection,
+  ReaderBackupRestoreResult,
+} from "./platform/backup/ReaderBackupBundleService.js"
 import { ReaderInputBindingsConfigService } from "./platform/config/ReaderInputBindingsConfigService.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction, type ReaderHeadlessInputActionResult } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
@@ -122,6 +127,28 @@ export interface NeoviewDiagnosticsHistoryTuiResult {
 
 export interface NeoviewDiagnosticsHistoryTuiPort {
   history(options: { sinceMs?: number; limit?: number }): Promise<ReaderDiagnosticsHistory>
+}
+
+export type NeoviewSettingsBackupTuiAction = "create" | "inspect" | "restore"
+
+export interface NeoviewSettingsBackupTuiInput {
+  action: NeoviewSettingsBackupTuiAction
+  bundlePath: string
+  configPath?: string
+  databasePath?: string
+  quarantinePath?: string
+}
+
+export interface NeoviewSettingsBackupTuiResult {
+  success: boolean
+  message: string
+  lines?: readonly string[]
+}
+
+export interface NeoviewSettingsBackupTuiPort {
+  create(destinationPath: string, signal?: AbortSignal): Promise<ReaderBackupBundleResult>
+  inspect(bundlePath: string, signal?: AbortSignal): Promise<ReaderBackupInspection>
+  restore(bundlePath: string, options: { quarantinePath: string }, signal?: AbortSignal): Promise<ReaderBackupRestoreResult>
 }
 
 export interface NeoviewBookSettingsMigrationTuiInput {
@@ -400,6 +427,51 @@ export function createNeoviewDiagnosticsHistoryTuiDefinition(
         return { success: false, message: error instanceof Error ? error.message : String(error) }
       }
     },
+  }
+}
+
+export function createNeoviewSettingsBackupTuiDefinition(
+  language: "zh" | "en" = "zh",
+  createService: (options: { configPath?: string; databasePath?: string }) => Promise<NeoviewSettingsBackupTuiPort>,
+): TerminalInteractionDefinition<NeoviewSettingsBackupTuiInput, NeoviewSettingsBackupTuiResult> {
+  let activeAbort: AbortController | undefined
+  return {
+    schema: createNeoviewSettingsBackupTuiSchema(language),
+    async run(input) {
+      const abort = new AbortController()
+      activeAbort = abort
+      try {
+        const service = await createService({ configPath: input.configPath, databasePath: input.databasePath })
+        if (input.action === "create") {
+          const created = await service.create(input.bundlePath, abort.signal)
+          const manifest = created.manifest
+          return {
+            success: true,
+            message: "NeoView backup created and verified.",
+            lines: backupManifestLines(manifest),
+          }
+        }
+        if (input.action === "inspect") {
+          const inspected = await service.inspect(input.bundlePath, abort.signal)
+          return {
+            success: true,
+            message: "NeoView backup verified.",
+            lines: [...backupManifestLines(inspected.manifest), `databaseCompatibility=${inspected.database.compatibility}`],
+          }
+        }
+        const restored = await service.restore(input.bundlePath, { quarantinePath: input.quarantinePath! }, abort.signal)
+        return {
+          success: true,
+          message: "NeoView backup restored; the original database was quarantined.",
+          lines: [`format=${restored.manifest.format}`, `version=${restored.manifest.version}`, `settingsChanged=${restored.settingsChanged}`, `databaseQuickCheck=${restored.database.quickCheck}`],
+        }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      } finally {
+        if (activeAbort === abort) activeAbort = undefined
+      }
+    },
+    cancel: () => activeAbort?.abort(),
   }
 }
 
@@ -927,6 +999,77 @@ function createNeoviewDiagnosticsHistoryTuiSchema(
         : [],
     }),
   }
+}
+
+function createNeoviewSettingsBackupTuiSchema(
+  language: "zh" | "en",
+): TerminalInteractionSchema<NeoviewSettingsBackupTuiInput, NeoviewSettingsBackupTuiResult> {
+  const zh = language === "zh"
+  return {
+    id: "neoview-settings-backup",
+    title: zh ? "NeoView Settings Backup" : "NeoView Settings Backup",
+    description: zh ? "Create, inspect, or offline-restore a verified settings and thumbnail database bundle." : "Create, inspect, or offline-restore a verified settings and thumbnail database bundle.",
+    initialValues: { action: "inspect", bundlePath: "", configPath: "", databasePath: "", quarantinePath: "" },
+    fields: [
+      { id: "action", label: zh ? "Action" : "Action", kind: "select", role: "action", options: [
+        { value: "create", label: zh ? "Create verified backup" : "Create verified backup" },
+        { value: "inspect", label: zh ? "Inspect backup" : "Inspect backup" },
+        { value: "restore", label: zh ? "Restore offline backup" : "Restore offline backup" },
+      ] },
+      { id: "bundlePath", label: zh ? "Destination or bundle directory" : "Destination or bundle directory", kind: "text" },
+      { id: "configPath", label: zh ? "Config path (optional)" : "Config path (optional)", kind: "text" },
+      { id: "databasePath", label: zh ? "Thumbnail database path (optional)" : "Thumbnail database path (optional)", kind: "text" },
+      { id: "quarantinePath", label: zh ? "Restore quarantine directory" : "Restore quarantine directory", kind: "text" },
+    ],
+    toInput: (values) => ({
+      action: isSettingsBackupTuiAction(values.action) ? values.action : "inspect",
+      bundlePath: String(values.bundlePath ?? "").trim(),
+      configPath: optionalTrimmedText(values.configPath),
+      databasePath: optionalTrimmedText(values.databasePath),
+      quarantinePath: optionalTrimmedText(values.quarantinePath),
+    }),
+    validate: (_values, input) => !input.bundlePath
+      ? (zh ? "Enter a destination or bundle directory." : "Enter a destination or bundle directory.")
+      : input.action === "restore" && !input.quarantinePath
+        ? (zh ? "Offline restore requires a quarantine directory." : "Offline restore requires a quarantine directory.")
+        : null,
+    preview: (input) => [input.action, ...(input.action === "restore" ? ["offline", "quarantine"] : [])],
+    isDangerous: (input) => input.action !== "inspect",
+    dangerPrompt: (input) => input.action === "restore"
+      ? {
+          title: zh ? "Confirm offline backup restore" : "Confirm offline backup restore",
+          body: zh
+            ? "Close NeoView and Xiranite database users before continuing. This replaces settings and the thumbnail database, then quarantines the original database."
+            : "Close NeoView and Xiranite database users before continuing. This replaces settings and the thumbnail database, then quarantines the original database.",
+          confirmLabel: zh ? "Restore offline" : "Restore offline",
+        }
+      : {
+          title: zh ? "Confirm backup creation" : "Confirm backup creation",
+          body: zh ? "This creates a verified settings and thumbnail database backup bundle." : "This creates a verified settings and thumbnail database backup bundle.",
+          confirmLabel: zh ? "Create backup" : "Create backup",
+        },
+    result: (result) => ({ success: result.success, message: result.message, lines: result.lines ?? [] }),
+  }
+}
+
+function backupManifestLines(manifest: ReaderBackupBundleResult["manifest"]): string[] {
+  return [
+    `format=${manifest.format}`,
+    `version=${manifest.version}`,
+    `createdAt=${manifest.createdAt}`,
+    `settingsBytes=${manifest.settings.bytes}`,
+    `databaseBytes=${manifest.database.bytes}`,
+    `databaseQuickCheck=${manifest.database.quickCheck}`,
+  ]
+}
+
+function isSettingsBackupTuiAction(value: unknown): value is NeoviewSettingsBackupTuiAction {
+  return value === "create" || value === "inspect" || value === "restore"
+}
+
+function optionalTrimmedText(value: unknown): string | undefined {
+  const text = String(value ?? "").trim()
+  return text || undefined
 }
 
 function optionalSafeInteger(value: unknown): number | undefined {

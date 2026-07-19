@@ -39,7 +39,13 @@ describe("loadNeoviewSessionOptions", () => {
       layout: { pageMode: "double" },
       tailOverflow: "loop",
     })
-    expect((await loadNeoviewRuntimeConfig({ configPath })).viewDefaults).toEqual({ fitMode: "fit-width", pageMode: "double" })
+    expect((await loadNeoviewRuntimeConfig({ configPath })).viewDefaults).toEqual({
+      fitMode: "fit-width",
+      pageMode: "double",
+      orientation: "horizontal",
+      autoRotation: "none",
+      widePageStretch: "uniform-height",
+    })
     expect((await loadNeoviewRuntimeConfig({ configPath })).slideshow).toEqual({ intervalSeconds: 13, loop: true, random: false, fadeTransition: false })
 
     const explicit = await loadNeoviewSessionOptions({

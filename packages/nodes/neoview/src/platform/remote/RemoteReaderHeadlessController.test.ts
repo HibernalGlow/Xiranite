@@ -15,6 +15,7 @@ import {
   fetchRemoteReaderDiagnostics,
   fetchRemoteReaderPresentationCache,
   fetchRemoteReaderThumbnailMaintenance,
+  RemoteReaderLibraryController,
   RemoteReaderHeadlessController,
 } from "./RemoteReaderHeadlessController.js"
 
@@ -90,6 +91,50 @@ describe("RemoteReaderHeadlessController", () => {
       token: "remote-token",
       fetch: fetchMock,
     })).rejects.toThrow("invalid thumbnail maintenance response")
+  })
+
+  it("[neoview.library.playlist.cli-connect] reuses authenticated running-library routes with strict wire validation", async () => {
+    const requests: Request[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      const path = new URL(request.url).pathname
+      if (path === "/reader/library/statistics") return Response.json({ recentCount: 1, bookmarkCount: 2, bookmarkListCount: 3, mediaProgressCount: 4 })
+      if (path === "/reader/library/playlists" && request.method === "GET") return Response.json({ items: [playlistRecord()] })
+      if (path === "/reader/library/playlists" && request.method === "POST") return Response.json(playlistRecord())
+      if (path.endsWith("/items") && request.method === "GET") return Response.json({ items: [playlistEntry()] })
+      if (path.endsWith("/items") && request.method === "POST") return Response.json({ items: [playlistEntry()] })
+      if (path.endsWith("/items") && request.method === "DELETE") return Response.json({ deleted: 1 })
+      if (path.endsWith("/items/order") && request.method === "PUT") return new Response(null, { status: 204 })
+      if (path.endsWith("/playlists/missing") && request.method === "DELETE") return new Response(null, { status: 404 })
+      if (path.endsWith("/playlists/reading") && request.method === "DELETE") return new Response(null, { status: 204 })
+      return new Response(null, { status: 404 })
+    }) as typeof fetch
+    const library = new RemoteReaderLibraryController({ baseUrl: "http://127.0.0.1:41000", token: "library-token", fetch: fetchMock })
+
+    await expect(library.statistics()).resolves.toEqual({ recentCount: 1, bookmarkCount: 2, bookmarkListCount: 3, mediaProgressCount: 4 })
+    await expect(library.listPlaylists()).resolves.toEqual([playlistRecord()])
+    await expect(library.savePlaylist({ id: "reading", name: "Reading" })).resolves.toEqual(playlistRecord())
+    await expect(library.listPlaylistEntries("reading")).resolves.toEqual([playlistEntry()])
+    await expect(library.appendPlaylistEntries("reading", [{ id: "entry-1", name: "Demo", source: { kind: "archive", path: "D:/books/demo.cbz" } }])).resolves.toEqual([playlistEntry()])
+    await expect(library.removePlaylistEntries("reading", ["entry-1"])).resolves.toBe(1)
+    await expect(library.reorderPlaylistEntries("reading", ["entry-1"])).resolves.toBeUndefined()
+    await expect(library.removePlaylist("reading")).resolves.toBe(true)
+    await expect(library.removePlaylist("missing")).resolves.toBe(false)
+    expect(requests.every((request) => request.headers.get("x-xiranite-token") === "library-token")).toBe(true)
+    expect(await requests[2]?.json()).toEqual({ id: "reading", name: "Reading" })
+    expect(await requests[4]?.json()).toEqual({ entries: [{ id: "entry-1", name: "Demo", source: { kind: "archive", path: "D:/books/demo.cbz" } }] })
+    expect(await requests[6]?.json()).toEqual({ ids: ["entry-1"] })
+    expect(await requests[7]?.json()).toEqual({ ids: ["entry-1"] })
+  })
+
+  it("[neoview.library.playlist.remote-wire] rejects malformed library responses before exposing them to CLI", async () => {
+    const library = new RemoteReaderLibraryController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "library-token",
+      fetch: vi.fn(async () => Response.json({ recentCount: -1 })) as typeof fetch,
+    })
+    await expect(library.statistics()).rejects.toThrow("invalid statistics response")
   })
 
   it("[neoview.cli.connect] reuses the running Reader controller for inspect, pages, navigation and original-byte streaming", async () => {

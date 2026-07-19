@@ -25,6 +25,9 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewRuntimeConfig({ reader: { double_page_view: true, default_zoom_mode: "fitWidth" } }).viewDefaults).toEqual({
       fitMode: "fit-width",
       pageMode: "double",
+      orientation: "horizontal",
+      autoRotation: "none",
+      widePageStretch: "uniform-height",
     })
   })
 
@@ -151,13 +154,43 @@ describe("parseNeoviewRuntimeConfig", () => {
   })
 
   it("[neoview.settings.view-defaults] normalizes legacy zoom aliases and writes canonical TOML", () => {
-    expect(parseNeoviewRuntimeConfig({ reader: { default_zoom_mode: "fitRightAlign" } }).viewDefaults.fitMode).toBe("fit")
-    expect(parseNeoviewViewDefaultsPatch({ viewDefaults: { fitMode: "fit-height", pageMode: "double" } })).toEqual({
-      patch: { viewDefaults: { fitMode: "fit-height", pageMode: "double" } },
-      tomlPatch: { reader: { default_zoom_mode: "fitHeight", double_page_view: true } },
+    expect(parseNeoviewRuntimeConfig({ reader: { default_zoom_mode: "fitRightAlign" } }).viewDefaults.fitMode).toBe("fit-right")
+    expect(parseNeoviewRuntimeConfig({ reader: { view: {
+      orientation: "vertical",
+      autoRotateMode: "horizontalRight",
+      widePageStretch: "uniformHeight",
+    } } }).viewDefaults).toMatchObject({
+      orientation: "vertical",
+      autoRotation: "horizontal-right",
+      widePageStretch: "uniform-height",
+    })
+    expect(parseNeoviewViewDefaultsPatch({ viewDefaults: {
+      fitMode: "fit-height",
+      pageMode: "double",
+      orientation: "vertical",
+      autoRotation: "forced-left",
+      widePageStretch: "uniform-width",
+    } })).toEqual({
+      patch: { viewDefaults: {
+        fitMode: "fit-height",
+        pageMode: "double",
+        orientation: "vertical",
+        autoRotation: "forced-left",
+        widePageStretch: "uniform-width",
+      } },
+      tomlPatch: { reader: {
+        default_zoom_mode: "fitHeight",
+        double_page_view: true,
+        orientation: "vertical",
+        auto_rotation: "forcedLeft",
+        wide_page_stretch: "uniformWidth",
+      } },
     })
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: {} })).toThrow("at least one")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { fitMode: "stretch" } })).toThrow("fitMode")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { orientation: "landscape" } })).toThrow("orientation")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { autoRotation: "clockwise" } })).toThrow("auto rotation")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { widePageStretch: "cover" } })).toThrow("wide page stretch")
   })
 
   it("[neoview.folder.settings] [neoview.folder.search-settings] [neoview.folder.tabs-pin-config] normalizes folder view and legacy search settings", () => {
@@ -560,8 +593,8 @@ describe("parseNeoviewRuntimeConfig", () => {
   })
 
   it("[neoview.settings.card-layout] imports v14 card arrays and lets canonical state override them", () => {
-    expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["sidebar-management-settings"]).toEqual({
-      panelId: "settings", visible: false, expanded: true, order: 1,
+    expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["sidebar-control"]).toEqual({
+      panelId: "control", visible: true, expanded: true, order: 1,
     })
     const parsed = parseNeoviewRuntimeConfig({
       panels: {
@@ -743,6 +776,6 @@ describe("parseNeoviewRuntimeConfig", () => {
         { cardId: "history-list", panelId: "history", visible: true, order: 0 },
         { cardId: "book-information", panelId: "history", visible: false, order: 1 },
       ],
-    } })).not.toThrow()
+    } })).toThrow("cannot hide card book-information")
   })
 })

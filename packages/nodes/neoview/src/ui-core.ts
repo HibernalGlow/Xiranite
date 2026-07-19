@@ -15,8 +15,10 @@ export {
 } from "./domain/frame/frame.js"
 export {
   calculateReaderFrameSize,
+  calculateReaderPageStretchScales,
   calculateReaderScale,
   DEFAULT_READER_PRESENTATION,
+  effectiveReaderRotation,
   normalizeReaderManualScale,
   normalizeReaderRotation,
   rotatePresentationSize,
@@ -24,6 +26,9 @@ export {
   stepReaderManualScale,
   type PresentationSize,
   type ReaderFitMode,
+  type ReaderAutoRotation,
+  type ReaderOrientation,
+  type ReaderWidePageStretch,
   type ReaderPresentation,
   type ReaderRotation,
 } from "./domain/presentation/presentation.js"

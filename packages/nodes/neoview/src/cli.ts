@@ -295,6 +295,10 @@ export async function runProgram(
     await runMediaProgressUi(args.slice(1), host, dependencies)
     return
   }
+  if (command === "settings-backup-ui") {
+    await runSettingsBackupUi(args.slice(1), host, dependencies)
+    return
+  }
   if (command === "book-settings-migration-ui") {
     await runBookSettingsMigrationUi(args.slice(1), host)
     return
@@ -3180,6 +3184,45 @@ async function runBookSettingsMigrationUi(args: readonly string[], host: CliHost
   })
 }
 
+async function runSettingsBackupUi(
+  args: readonly string[],
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView settings-backup-ui requires an interactive terminal.")
+  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
+  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+    throw usage(flags.error ?? `Unknown settings-backup-ui argument: ${flags.args[0]}`)
+  }
+  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+    throw usage(`Unknown terminal theme: ${flags.theme}.`)
+  }
+  const { createNeoviewSettingsBackupTuiDefinition } = await import("./interaction.js")
+  await runTerminalUi(createNeoviewSettingsBackupTuiDefinition(flags.language, async (options) => {
+    const service = await (dependencies.createBackupBundleService ?? createReaderBackupBundleService)({
+      configPath: options.configPath ? resolve(host.cwd, options.configPath) : undefined,
+      thumbnailDatabasePath: options.databasePath ? resolve(host.cwd, options.databasePath) : undefined,
+      cwd: host.cwd,
+      env: host.env,
+    })
+    return {
+      create: (destinationPath, signal) => service.create(resolve(host.cwd, destinationPath), signal),
+      inspect: (bundlePath, signal) => service.inspect(resolve(host.cwd, bundlePath), signal),
+      restore: (bundlePath, options, signal) => service.restore(resolve(host.cwd, bundlePath), {
+        quarantinePath: resolve(host.cwd, options.quarantinePath),
+      }, signal),
+    }
+  }), {
+    host,
+    language: flags.language,
+    renderer: flags.renderer,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["settings-backup-ui", ...args] } : undefined,
+  })
+}
+
 async function runInputBindingsUi(args: readonly string[], host: CliHost): Promise<void> {
   if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView input-bindings-ui requires an interactive terminal.")
   const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
@@ -3338,6 +3381,7 @@ function formatCliHelp(): string {
     "  settings-portable-inspect <json>  Validate a portable Xiranite settings export",
     "  settings-portable-import <json>   Import a portable settings export",
     "  settings-backup <directory>        Create a verified settings + thumbnails.db bundle",
+    "  settings-backup-ui                 Create, inspect, or offline-restore a backup in OpenTUI",
     "  settings-backup-scheduled          Run one configured automatic backup check (--yes)",
     "  settings-backup-inspect <directory> Verify a backup bundle without mutation",
     "  settings-backup-restore <directory> Restore offline with explicit quarantine",

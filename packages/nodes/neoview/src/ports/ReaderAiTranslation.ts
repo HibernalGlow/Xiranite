@@ -15,6 +15,19 @@ export interface ReaderAiTranslationProvider {
   translate(request: ReaderAiTranslationRequest, signal?: AbortSignal): Promise<string>
 }
 
+export interface ReaderAiTranslationCacheEntry {
+  title: string
+  service: "libre" | "ollama"
+  model?: string
+  timestamp: number
+}
+
+export interface ReaderAiTranslationPersistentCache {
+  load(key: string, model?: string): Promise<ReaderAiTranslationCacheEntry | undefined>
+  save(key: string, entry: ReaderAiTranslationCacheEntry): Promise<void>
+  count(): Promise<number>
+}
+
 export interface ReaderOllamaModel {
   name: string
   digest?: string

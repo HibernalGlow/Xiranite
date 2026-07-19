@@ -5,6 +5,7 @@ import { LRUCache } from "lru-cache"
 import { waitWithAbort } from "../../domain/page/wait-with-abort.js"
 import type {
   ReaderAiTranslationProvider,
+  ReaderAiTranslationPersistentCache,
   ReaderAiTranslationRequest,
   ReaderAiTranslationResult,
 } from "../../ports/ReaderAiTranslation.js"
@@ -19,6 +20,7 @@ export class ReaderAiTranslationService {
   constructor(
     private readonly provider: ReaderAiTranslationProvider,
     cacheEntries = 1_000,
+    private readonly persistentCache?: ReaderAiTranslationPersistentCache,
   ) {
     if (!Number.isSafeInteger(cacheEntries) || cacheEntries < 0 || cacheEntries > 10_000) {
       throw new RangeError("AI translation cache entries must be from 0 to 10000.")
@@ -35,10 +37,22 @@ export class ReaderAiTranslationService {
     const cached = this.#cacheEnabled ? this.#cache.get(key) : undefined
     if (cached !== undefined) return { text: cached, cached: true }
 
+    const persisted = await this.#loadPersisted(normalized.text, normalized.model, signal)
+    if (persisted !== undefined) {
+      if (this.#cacheEnabled) this.#cache.set(key, persisted)
+      return { text: persisted, cached: true }
+    }
+
     const translated = normalizeTranslated(await waitWithAbort(this.provider.translate(normalized, signal), signal))
     signal?.throwIfAborted()
     if (!translated) throw new Error("AI translation provider returned an empty result.")
     if (this.#cacheEnabled) this.#cache.set(key, translated)
+    void this.persistentCache?.save(normalized.text, {
+      title: translated,
+      service: "ollama",
+      model: normalized.model,
+      timestamp: Date.now(),
+    }).catch(() => undefined)
     return { text: translated, cached: false }
   }
 
@@ -48,6 +62,18 @@ export class ReaderAiTranslationService {
 
   cacheSize(): number {
     return this.#cache.size
+  }
+
+  async #loadPersisted(key: string, model: string, signal?: AbortSignal): Promise<string | undefined> {
+    if (!this.persistentCache) return undefined
+    try {
+      const entry = await waitWithAbort(this.persistentCache.load(key, model), signal)
+      if (entry?.service !== "ollama" || entry.model !== model) return undefined
+      return normalizeTranslated(entry.title) || undefined
+    } catch {
+      signal?.throwIfAborted()
+      return undefined
+    }
   }
 }
 
