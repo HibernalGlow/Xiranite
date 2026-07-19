@@ -27,6 +27,7 @@ import type {
   HeadlessReaderPageSnapshot,
   HeadlessReaderSnapshot,
   OpenHeadlessReaderInput,
+  ReaderDirectorySortRule,
 } from "./core.js"
 import type { NeoviewTuiInput, NeoviewTuiResult } from "./interaction.js"
 import { createReaderHeadlessController } from "./platform.js"
@@ -38,6 +39,11 @@ export interface ReaderTuiPort extends AsyncDisposable {
   listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
   next(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   previous(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
+  openAdjacent?(
+    direction: "next" | "previous",
+    sort?: ReaderDirectorySortRule,
+    signal?: AbortSignal,
+  ): Promise<HeadlessReaderSnapshot | undefined>
   goTo(pageIndex: number, signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
   closeBook(): Promise<void>
@@ -164,6 +170,16 @@ function ReaderWorkbench({
         : port.goTo(index ?? 0, signal), "navigating")
   }, [phase, run, snapshot])
 
+  const navigateBook = useCallback((direction: "next" | "previous") => {
+    if (!snapshot || phase === "opening" || phase === "navigating") return
+    void run(async (port, signal) => {
+      if (!port.openAdjacent) throw new Error(language === "zh" ? "相邻书籍导航不可用" : "Adjacent-book navigation is unavailable")
+      const value = await port.openAdjacent(direction, undefined, signal)
+      if (value) return value
+      throw new Error(language === "zh" ? "没有相邻书籍" : "No adjacent book is available")
+    }, "navigating")
+  }, [language, phase, run, snapshot])
+
   const reset = useCallback(() => {
     activeAbort.current?.abort()
     void controller.current?.closeBook()
@@ -210,6 +226,8 @@ function ReaderWorkbench({
     }
     if (key.name === "left" || key.name === "p") navigate("previous")
     if (key.name === "right" || key.name === "n") navigate("next")
+    if (key.sequence === "[") navigateBook("previous")
+    if (key.sequence === "]") navigateBook("next")
     if (key.name === "home") navigate("goTo", 0)
     if (key.name === "end" && snapshot) navigate("goTo", Math.max(0, snapshot.book.pageCount - 1))
     if (key.name === "o") setFocused("path")
@@ -255,9 +273,11 @@ function ReaderWorkbench({
             <NumberInput id="field-page" value={pageInput} focused={focused === "page"} disabled={!snapshot || busy} min={1} max={Math.max(1, snapshot?.book.pageCount ?? 1)} colors={theme.colors} onFocus={() => setFocused("page")} onChange={setPageInput} />
           </box>
           <box width={9}><WorkbenchButton id="open" focused={focused === "path"} disabled={busy} onClick={openBook}>Open</WorkbenchButton></box>
+          <box width={6}><WorkbenchButton id="previous-book" disabled={!snapshot || busy} onClick={() => navigateBook("previous")}>{"<<"}</WorkbenchButton></box>
           <box width={5}><WorkbenchButton id="previous" disabled={!snapshot || busy || snapshot.frame.atStart} onClick={() => navigate("previous")}>{"<"}</WorkbenchButton></box>
           <box width={6}><WorkbenchButton id="goto" focused={focused === "page"} disabled={!snapshot || busy} onClick={() => navigate("goTo", Math.max(0, pageInput - 1))}>Go</WorkbenchButton></box>
           <box width={5}><WorkbenchButton id="next" disabled={!snapshot || busy || snapshot.frame.atEnd} onClick={() => navigate("next")}>{">"}</WorkbenchButton></box>
+          <box width={6}><WorkbenchButton id="next-book" disabled={!snapshot || busy} onClick={() => navigateBook("next")}>{">>"}</WorkbenchButton></box>
           <box width={9}><WorkbenchButton id="close" disabled={!snapshot || busy} onClick={reset}>Close</WorkbenchButton></box>
         </box>
       </box>

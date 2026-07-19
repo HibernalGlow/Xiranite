@@ -13,6 +13,8 @@ async function verifyPersistentReaderLifecycle() {
   let opens = 0
   let nextCalls = 0
   let previousCalls = 0
+  let nextBookCalls = 0
+  let previousBookCalls = 0
   let pageStreamOpens = 0
   let pageStreamCloses = 0
   let disposed = 0
@@ -24,6 +26,14 @@ async function verifyPersistentReaderLifecycle() {
     listPages: async () => pageList,
     async next() { nextCalls += 1; return snapshot(current = Math.min(2, current + 1)) },
     async previous() { previousCalls += 1; return snapshot(current = Math.max(0, current - 1)) },
+    async openAdjacent(direction: "next" | "previous") {
+      if (direction === "next") {
+        nextBookCalls += 1
+        return snapshot(current = 2)
+      }
+      previousBookCalls += 1
+      return snapshot(current = 0)
+    },
     async goTo(index: number) { return snapshot(current = index) },
     async openPageStream() {
       pageStreamOpens += 1
@@ -89,6 +99,15 @@ async function verifyPersistentReaderLifecycle() {
     await screen.waitFor(() => previousCalls === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("1 / 3"))
     expect(pageStreamOpens).toBe(streamsAfterForward)
+
+    await click("next-book")
+    await screen.waitFor(() => nextBookCalls === 1)
+    await screen.waitFor(() => screen.captureCharFrame().includes("3 / 3"))
+    expect(screen.captureCharFrame()).toContain("003.png")
+
+    await click("previous-book")
+    await screen.waitFor(() => previousBookCalls === 1)
+    await screen.waitFor(() => screen.captureCharFrame().includes("1 / 3"))
 
     await click("close")
     await click("open")
