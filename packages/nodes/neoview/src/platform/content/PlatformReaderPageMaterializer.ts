@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
 import type { ReaderPage } from "../../domain/page/page.js"
+import { waitWithAbort } from "../../domain/page/wait-with-abort.js"
 import type { ReaderPageMaterializer, ReaderPageMaterializationLease } from "../../ports/ReaderPageMaterializer.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { defaultImageTransformScheduler } from "../scheduler/PriorityResourceScheduler.js"
@@ -46,14 +47,17 @@ export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
       root = await mkdtemp(join(parent, profile.prefix))
       const path = join(root, safeFileName(page.name))
       handle = await open(path, "wx")
-      source = await page.content.load(signal)
-      const stream = await source.open(signal, undefined, { resourceLease })
+      source = await waitWithAbort(page.content.load(signal), signal, (lateSource) => lateSource.close())
+      const stream = await waitWithAbort(
+        source.open(signal, undefined, { resourceLease }),
+        signal,
+        (lateStream) => lateStream.cancel(signal?.reason),
+      )
       const reader = stream.getReader()
       let written = 0
       try {
         for (;;) {
-          signal?.throwIfAborted()
-          const result = await reader.read()
+          const result = await readWithAbort(reader, signal)
           if (result.done) break
           written += result.value.byteLength
           if (written > maxBytes || (page.byteLength !== undefined && written > page.byteLength)) {
@@ -81,6 +85,25 @@ export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
     } finally {
       resourceLease.release()
     }
+  }
+}
+
+async function readWithAbort(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal?: AbortSignal,
+): Promise<Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>> {
+  signal?.throwIfAborted()
+  if (!signal) return reader.read()
+  let cancellation: Promise<void> | undefined
+  const cancel = (reason: unknown): Promise<void> => cancellation ??= reader.cancel(reason).catch(() => undefined)
+  const onAbort = () => {
+    void cancel(signal.reason)
+  }
+  signal.addEventListener("abort", onAbort, { once: true })
+  try {
+    return await waitWithAbort(reader.read(), signal, () => cancel(signal.reason))
+  } finally {
+    signal.removeEventListener("abort", onAbort)
   }
 }
 
