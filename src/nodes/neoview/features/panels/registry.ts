@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Bell, Crop, Info, Loader, Palette, Play, Video, type LucideIcon } from "lucide-react"
+import { Bell, Crop, Info, Loader, Palette, Play, Sparkles, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -161,6 +161,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "storage-information": () => import("./cards/StorageInformationCard"),
   "time-information": () => import("./cards/TimeInformationCard"),
   "preload-status": () => import("./cards/PreloadStatusCard"),
+  "progressive-upscale": () => import("./cards/ProgressiveUpscaleCard"),
   "book-settings": () => import("./cards/BookSettingsCard"),
   "sidebar-control": () => import("./cards/SidebarControlCard"),
   "sidebar-height": () => import("./cards/SidebarHeightCard"),
@@ -179,6 +180,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
 
 const CARD_ICONS: Partial<Record<ReaderCardId, LucideIcon>> = {
   "preload-status": Loader,
+  "progressive-upscale": Sparkles,
   "color-filter": Palette,
   "page-transition": Play,
   "switch-toast": Bell,

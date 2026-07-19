@@ -665,6 +665,7 @@ export interface ReaderRuntimeConfigDto {
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
   imageTrim?: ReaderImageTrimSettings
+  superResolution?: ReaderSuperResolutionConfigDto
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
 }
@@ -680,6 +681,25 @@ import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig } from "@xiranit
 
 export interface ReaderInputBindingsPatch {
   inputBindings: { bindings?: ReaderInputBindingsConfig["bindings"]; reset?: "defaults" }
+}
+
+export interface ReaderSuperResolutionPreferencesDto {
+  autoUpscaleEnabled?: boolean
+  preUpscaleEnabled?: boolean
+  preloadPages?: number
+  backgroundConcurrency?: number
+  progressiveEnabled?: boolean
+  progressiveDwellTimeMs?: number
+  progressiveMaxPages?: number
+}
+
+export interface ReaderSuperResolutionConfigDto {
+  provider: "opencomic-system" | "disabled"
+  preferences: ReaderSuperResolutionPreferencesDto
+}
+
+export interface ReaderSuperResolutionPatchDto {
+  superResolution: { preferences: ReaderSuperResolutionPreferencesDto }
 }
 
 export interface ReaderSubtitleConfigDto {
@@ -978,6 +998,7 @@ export interface ReaderHttpClient {
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
+  updateSuperResolution?(patch: ReaderSuperResolutionPatchDto, signal?: AbortSignal): Promise<ReaderSuperResolutionConfigDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
@@ -1232,6 +1253,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.imageTrim),
+    updateSuperResolution: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.superResolution!),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
