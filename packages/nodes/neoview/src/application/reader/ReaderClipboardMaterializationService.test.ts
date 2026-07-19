@@ -78,6 +78,87 @@ describe("ReaderClipboardMaterializationService", () => {
     await service[Symbol.asyncDispose]()
     await reader[Symbol.asyncDispose]()
   })
+
+  it("[neoview.clipboard.materialization-release-retry] retains a failed lease release for retry", async () => {
+    let attempts = 0
+    const release = vi.fn(async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error("cleanup failed")
+    })
+    const reader = new CoreReaderService(async () => archiveBook())
+    const session = await reader.openViewSource({ kind: "archive", path: "C:/book.cbz" })
+    const service = new ReaderClipboardMaterializationService(reader, {
+      materialize: async (page) => ({
+        path: `C:/temp/${page.name}`,
+        byteLength: page.byteLength!,
+        release,
+        [Symbol.asyncDispose]: release,
+      }),
+    })
+
+    const materialized = await service.materialize(session.id, "page-1")
+    await expect(service.release(materialized.token)).rejects.toThrow("cleanup failed")
+    await expect(service.release(materialized.token)).resolves.toBe(true)
+    expect(release).toHaveBeenCalledTimes(2)
+
+    await service[Symbol.asyncDispose]()
+    await session.close()
+    await reader[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.clipboard.materialization-release-limit-retention] keeps maxLeases occupied until cleanup succeeds", async () => {
+    let attempts = 0
+    const release = vi.fn(async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error("cleanup failed")
+    })
+    const reader = new CoreReaderService(async () => archiveBook())
+    const session = await reader.openViewSource({ kind: "archive", path: "C:/book.cbz" })
+    const service = new ReaderClipboardMaterializationService(reader, {
+      materialize: async (page) => ({
+        path: `C:/temp/${page.name}`,
+        byteLength: page.byteLength!,
+        release,
+        [Symbol.asyncDispose]: release,
+      }),
+    }, { maxLeases: 1 })
+
+    const materialized = await service.materialize(session.id, "page-1")
+    await expect(service.release(materialized.token)).rejects.toThrow("cleanup failed")
+    await expect(service.materialize(session.id, "page-1")).rejects.toThrow("limit reached")
+    await expect(service.release(materialized.token)).resolves.toBe(true)
+    await expect(service.materialize(session.id, "page-1")).resolves.toMatchObject({ byteLength: 3 })
+
+    await service[Symbol.asyncDispose]()
+    await session.close()
+    await reader[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.clipboard.materialization-dispose-retry] retries failed cleanup after asyncDispose rejects", async () => {
+    let attempts = 0
+    const release = vi.fn(async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error("cleanup failed")
+    })
+    const reader = new CoreReaderService(async () => archiveBook())
+    const session = await reader.openViewSource({ kind: "archive", path: "C:/book.cbz" })
+    const service = new ReaderClipboardMaterializationService(reader, {
+      materialize: async (page) => ({
+        path: `C:/temp/${page.name}`,
+        byteLength: page.byteLength!,
+        release,
+        [Symbol.asyncDispose]: release,
+      }),
+    })
+
+    await service.materialize(session.id, "page-1")
+    await expect(service[Symbol.asyncDispose]()).rejects.toThrow("Failed to close")
+    await expect(service[Symbol.asyncDispose]()).resolves.toBeUndefined()
+    expect(release).toHaveBeenCalledTimes(2)
+
+    await session.close()
+    await reader[Symbol.asyncDispose]()
+  })
 })
 
 function archiveBook(overrides: Partial<ReaderPage> = {}): ReaderBook {

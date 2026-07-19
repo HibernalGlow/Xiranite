@@ -28,6 +28,7 @@ interface ActiveLease {
   lease: ReaderPageMaterializationLease
   expiresAt: number
   timeout: ReturnType<typeof setTimeout>
+  releaseFlight?: Promise<void>
 }
 
 interface PendingMaterialization {
@@ -126,10 +127,25 @@ export class ReaderClipboardMaterializationService implements AsyncDisposable {
   async release(token: string, sessionId?: ReaderSessionId): Promise<boolean> {
     const active = this.#leases.get(token)
     if (!active || (sessionId !== undefined && active.sessionId !== sessionId)) return false
-    this.#leases.delete(token)
+    const existing = active.releaseFlight
+    if (existing) {
+      await existing
+      return true
+    }
     clearTimeout(active.timeout)
-    this.#activeBytes -= active.lease.byteLength
-    await active.lease.release()
+    const operation = Promise.resolve().then(() => active.lease.release())
+    active.releaseFlight = operation
+    try {
+      await operation
+    } catch (error) {
+      if (active.releaseFlight === operation) active.releaseFlight = undefined
+      throw error
+    }
+    if (this.#leases.get(token) === active) {
+      this.#leases.delete(token)
+      this.#activeBytes -= active.lease.byteLength
+    }
+    if (active.releaseFlight === operation) active.releaseFlight = undefined
     this.#unwatchIdleSession(active.sessionId)
     return true
   }
@@ -161,7 +177,6 @@ export class ReaderClipboardMaterializationService implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
-    if (this.#closed) return
     this.#closed = true
     const pending = [...this.#pendingBySession.values()].flatMap((operations) => [...operations])
     for (const operation of pending) operation.controller.abort(new Error("Reader clipboard materialization service is closed."))
