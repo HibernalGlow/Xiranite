@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/image-trim"
 
@@ -7,6 +7,7 @@ vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto } from "../../adapters/reader-http-client"
 import { ReaderVideoController } from "../video/ReaderVideoController"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
+import { createReaderImageTrimStore } from "../image-trim/ReaderImageTrimStore"
 import { PageMedia } from "./PageMedia"
 
 describe("PageMedia", () => {
@@ -88,6 +89,29 @@ describe("PageMedia", () => {
     expect(image?.getAttribute("src")).toBe("/reader/image")
     expect(image?.style.clipPath).toBe("inset(5% 10% 15% 20%)")
     expect(view.container.querySelector("canvas")).toBeNull()
+  })
+
+  it("[neoview.image-trim.video] applies manual crop to video without registering a duplicate image detector", async () => {
+    const store = createReaderImageTrimStore({ persist: async (settings) => settings })
+    store.hydrate({ ...DEFAULT_READER_IMAGE_TRIM, enabled: true, top: 5, right: 10, bottom: 15, left: 20 })
+    const view = render(<PageMedia
+      page={{ ...page("video"), mimeType: "video/mp4", dimensions: { width: 1920, height: 1080 } }}
+      imageTrim={store}
+      scale={0.5}
+      rotation={90}
+      videoController={new ReaderVideoController()}
+      onVideoListEnded={() => undefined}
+    />)
+
+    const video = view.container.querySelector("video")!
+    expect(video.style.clipPath).toBe("inset(5% 10% 15% 20%)")
+    expect(video.style.transform).toContain("rotate(90deg)")
+    await expect(store.autoDetect()).resolves.toEqual({ status: "unavailable" })
+
+    await act(async () => store.update({ top: 10 }))
+    expect(video.style.clipPath).toBe("inset(10% 10% 15% 20%)")
+    expect(view.container.querySelector("canvas")).toBeNull()
+    store.dispose()
   })
 })
 

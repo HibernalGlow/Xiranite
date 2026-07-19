@@ -745,23 +745,23 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "partial",
+        "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
+        "neoview.image-trim.media-core",
         "neoview.image-trim.media",
+        "neoview.image-trim.video",
         "neoview.image-trim.transport-linked",
         "neoview.image-trim.cli",
         "neoview.image-trim.tui"
       ],
-      "plannedTestIds": [
-        "neoview.image-trim.video"
-      ],
-      "notes": "Static and animated image frames consume the same decoded img and typed GUI/CLI/TUI settings contract. Video still needs a stable supported or unsupported reason before this boundary can complete."
+      "plannedTestIds": [],
+      "notes": "Static and animated images use the decoded img chain; video applies the same manual inset on its existing element while automatic detection returns a stable unavailable result without loading an image detector or duplicate decoder. GUI/HTTP/CLI/TUI consume the same typed settings."
     },
     {
       "id": "image-trim.double-page",
@@ -1113,20 +1113,23 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "pending",
-        "gui": "partial",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "partial"
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
       },
       "testIds": [
-        "neoview.image-trim.media"
+        "neoview.image-trim.media-core",
+        "neoview.image-trim.media",
+        "neoview.image-trim.video",
+        "neoview.image-trim.transport-linked",
+        "neoview.image-trim.cli",
+        "neoview.image-trim.tui"
       ],
-      "plannedTestIds": [
-        "neoview.image-trim.video"
-      ],
-      "notes": "Animated images use the same PageImage img chain and crop projection without a duplicate decoder. Video remains pending until the Card and headless surfaces expose a stable supported or unsupported reason while preserving manual settings."
+      "plannedTestIds": [],
+      "notes": "Animated images use PageImage and video uses PageVideo, both on the existing media element with the same manual inset projection. Video does not register an image detector, so automatic actions report the existing stable unavailable reason while manual settings remain active and persist across GUI/HTTP/CLI/TUI."
     },
     {
       "id": "image-trim.upscale",

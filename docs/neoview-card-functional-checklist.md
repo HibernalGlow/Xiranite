@@ -3137,13 +3137,13 @@
   - 测试：`neoview.image-trim.action-status`、`neoview.image-trim.messages`、`neoview.image-trim.error-retry`
   - 计划测试：无
   - 备注：One inert status node replaces the prior state and covers detecting, success, no-border, unavailable and retryable error messages; cancellation produces no stale success text.
-- [ ] `image-trim.media` 当前媒体帧兼容
-  - 六维：`core=P transport=C gui=P cli=C tui=C evidence=P`；阻塞：`core`、`gui`、`evidence`
+- [x] `image-trim.media` 当前媒体帧兼容
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Crop presentation consumes the shared current frame/image contract for static, animated and video media and never assumes a permanent DOM selector.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/components/FrameImage.svelte`
-  - 测试：`neoview.image-trim.media`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.tui`
-  - 计划测试：`neoview.image-trim.video`
-  - 备注：Static and animated image frames consume the same decoded img and typed GUI/CLI/TUI settings contract. Video still needs a stable supported or unsupported reason before this boundary can complete.
+  - 测试：`neoview.image-trim.media-core`、`neoview.image-trim.media`、`neoview.image-trim.video`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.tui`
+  - 计划测试：无
+  - 备注：Static and animated images use the decoded img chain; video applies the same manual inset on its existing element while automatic detection returns a stable unavailable result without loading an image detector or duplicate decoder. GUI/HTTP/CLI/TUI consume the same typed settings.
 - [x] `image-trim.double-page` 单双页裁剪策略
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Each image in a double-page frame applies the same four-edge percentages independently, matching the legacy per-FrameImage subscription; automatic detection is owned by the anchor physical page rather than DOM load order.
@@ -3228,13 +3228,13 @@
   - 测试：`neoview.image-trim.animation`
   - 计划测试：无
   - 备注：Crop and rotation remain on the committed img while the outer ReaderPageTransitionLayer exclusively owns transition transform, opacity, timer and compositor hints.
-- [ ] `image-trim.video` 视频和动图兼容
-  - 六维：`core=P transport=- gui=P cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+- [x] `image-trim.video` 视频和动图兼容
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Video/animated frames use the same crop contract or an explicit unsupported state; no static-image URL assumption or repeated decoder is introduced.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/components/FrameImage.svelte`
-  - 测试：`neoview.image-trim.media`
-  - 计划测试：`neoview.image-trim.video`
-  - 备注：Animated images use the same PageImage img chain and crop projection without a duplicate decoder. Video remains pending until the Card and headless surfaces expose a stable supported or unsupported reason while preserving manual settings.
+  - 测试：`neoview.image-trim.media-core`、`neoview.image-trim.media`、`neoview.image-trim.video`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.tui`
+  - 计划测试：无
+  - 备注：Animated images use PageImage and video uses PageVideo, both on the existing media element with the same manual inset projection. Video does not register an image detector, so automatic actions report the existing stable unavailable reason while manual settings remain active and persist across GUI/HTTP/CLI/TUI.
 - [x] `image-trim.upscale` 超分输出兼容
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Crop detects and applies against the currently presented/upscaled frame generation, never against a stale source or a private duplicate artifact.

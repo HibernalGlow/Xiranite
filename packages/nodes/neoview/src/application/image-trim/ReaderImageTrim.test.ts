@@ -6,6 +6,7 @@ import {
   normalizeReaderImageTrim,
   parseReaderImageTrimPatch,
   READER_IMAGE_TRIM_TARGETS,
+  readerImageTrimClipPath,
   serializeReaderImageTrim,
 } from "./ReaderImageTrim.js"
 
@@ -109,5 +110,17 @@ describe("ReaderImageTrim", () => {
     expect(encoded).toEqual(settings)
     expect(JSON.parse(JSON.stringify(encoded))).toEqual(encoded)
     expect(encoded).not.toBe(settings)
+  })
+
+  it("[neoview.image-trim.media-core] projects one media-agnostic inset contract", () => {
+    expect(readerImageTrimClipPath({
+      ...DEFAULT_READER_IMAGE_TRIM,
+      enabled: true,
+      top: 5,
+      right: 10,
+      bottom: 15,
+      left: 20,
+    })).toBe("inset(5% 10% 15% 20%)")
+    expect(readerImageTrimClipPath(DEFAULT_READER_IMAGE_TRIM)).toBeUndefined()
   })
 })
