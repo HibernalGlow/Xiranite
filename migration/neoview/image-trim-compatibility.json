@@ -374,18 +374,23 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
+        "core": "complete",
+        "transport": "partial",
         "gui": "pending",
-        "cli": "pending",
+        "cli": "complete",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
       "testIds": [
-        "neoview.image-trim.reset"
+        "neoview.image-trim.reset",
+        "neoview.image-trim.cli"
       ],
-      "plannedTestIds": [],
-      "notes": "Headless reset contract remains to be defined with the shared image pipeline."
+      "plannedTestIds": [
+        "neoview.image-trim.reset-http",
+        "neoview.image-trim.reset-gui",
+        "neoview.image-trim.reset-tui"
+      ],
+      "notes": "The shared codec and CLI restore every canonical field in one config mutation. HTTP-specific reset, GUI command evidence and TUI wiring remain incomplete."
     },
     {
       "id": "image-trim.edges",
@@ -405,20 +410,20 @@
         "core": "complete",
         "transport": "complete",
         "gui": "complete",
-        "cli": "partial",
+        "cli": "complete",
         "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.image-trim.edges",
         "neoview.image-trim.link-vertical",
-        "neoview.image-trim.transport-linked"
+        "neoview.image-trim.transport-linked",
+        "neoview.image-trim.cli"
       ],
       "plannedTestIds": [
-        "neoview.image-trim.cli-edges",
         "neoview.image-trim.tui-edges"
       ],
-      "notes": "Shared projection, serialized HTTP projection, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. CLI/TUI command-level edge coverage remains partial; percentages are not converted to pixels."
+      "notes": "Shared projection, serialized HTTP projection, CLI get/set/reset, Store preview/commit and real Chromium top-edge editing are covered, including one write per completed action. TUI command-level edge coverage remains partial; percentages are not converted to pixels."
     },
     {
       "id": "image-trim.link-vertical",
@@ -492,20 +497,20 @@
         "core": "complete",
         "transport": "complete",
         "gui": "partial",
-        "cli": "partial",
+        "cli": "complete",
         "tui": "partial",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.image-trim.bounds",
-        "neoview.image-trim.transport-linked"
+        "neoview.image-trim.transport-linked",
+        "neoview.image-trim.cli"
       ],
       "plannedTestIds": [
         "neoview.image-trim.bounds-browser",
-        "neoview.image-trim.bounds-cli",
         "neoview.image-trim.bounds-tui"
       ],
-      "notes": "The shared normalizer, strict patch parser and authenticated HTTP boundary cover finite values, 0..45 clamping/rejection and 0.5 steps without invoking persistence for invalid input. GUI boundary-key interaction plus CLI/TUI command-level evidence remain partial."
+      "notes": "The shared normalizer, strict patch parser, authenticated HTTP boundary and CLI cover finite values, 0..45 clamping/rejection and 0.5 steps without persisting invalid input. GUI boundary-key interaction plus TUI command-level evidence remain partial."
     },
     {
       "id": "image-trim.preview",
@@ -660,15 +665,17 @@
         "core": "pending",
         "transport": "pending",
         "gui": "pending",
-        "cli": "pending",
+        "cli": "complete",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.image-trim.cli"
+      ],
       "plannedTestIds": [
         "neoview.image-trim.threshold"
       ],
-      "notes": "Use one bounded codec for UI and headless consumers."
+      "notes": "CLI set/get uses the shared 5..100 step-5 codec and canonical TOML. Dedicated core, HTTP, GUI and TUI evidence remains pending."
     },
     {
       "id": "image-trim.target",
@@ -688,15 +695,17 @@
         "core": "pending",
         "transport": "pending",
         "gui": "pending",
-        "cli": "pending",
+        "cli": "complete",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.image-trim.cli"
+      ],
       "plannedTestIds": [
         "neoview.image-trim.target"
       ],
-      "notes": "Unknown imported values fall back to auto."
+      "notes": "CLI set/get preserves auto/black/white through the shared enum validator and canonical TOML. Other surfaces and legacy-import fallback evidence remain pending."
     },
     {
       "id": "image-trim.auto-message",
@@ -743,11 +752,13 @@
         "core": "pending",
         "transport": "pending",
         "gui": "pending",
-        "cli": "pending",
+        "cli": "complete",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.image-trim.cli"
+      ],
       "plannedTestIds": [
         "neoview.image-trim.media"
       ],
@@ -892,7 +903,7 @@
         "neoview.image-trim.persistence",
         "neoview.image-trim.toml"
       ],
-      "notes": "No new Reader business table or second NeoView database is allowed."
+      "notes": "CLI get/set/reset writes strict snake_case fields through the canonical NeoView TOML commit path and does not use a Reader database. GUI/HTTP/TUI persistence evidence remains incomplete."
     },
     {
       "id": "image-trim.cache",
