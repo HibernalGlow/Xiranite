@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderSessionDto, ReaderSuperResolutionConfigDto } from "../../../adapters/reader-http-client"
 import { setReaderUpscaleArtifact } from "../../reader/ReaderUpscaleArtifactStore"
@@ -8,6 +8,8 @@ import UpscaleCacheCard from "./UpscaleCacheCard"
 import UpscaleConditionsCard from "./UpscaleConditionsCard"
 import UpscaleModelCard from "./UpscaleModelCard"
 import UpscaleStatusCard from "./UpscaleStatusCard"
+
+afterEach(cleanup)
 
 describe("NeoView upscale Cards", () => {
   it("[neoview.super-resolution.status-card-idle] keeps a stable snapshot before a Reader session exists", () => {
@@ -27,13 +29,31 @@ describe("NeoView upscale Cards", () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ preferences: expect.objectContaining({ defaultModelId: "anime", defaultScale: 2 }) }))
   })
 
+  it("[neoview.super-resolution.model-probe-without-session] probes models before a book is opened", async () => {
+    const probe = vi.fn(async () => ({ available: true as const, models: [], engines: [], probedAt: 1 }))
+    const { client, ...props } = context({ upscaleCapabilities: probe })
+    render(<UpscaleModelCard {...props} client={client} session={undefined} />)
+    await waitFor(() => expect(probe).toHaveBeenCalledWith(undefined, false, expect.any(AbortSignal)))
+    expect(screen.getByRole("button", { name: "刷新模型" }).hasAttribute("disabled")).toBe(false)
+  })
+
   it("[neoview.super-resolution.model-sources-card] adds model source directories", async () => {
     const onChange = vi.fn(async () => CONFIG)
     render(<UpscaleModelCard {...context()} onSuperResolutionConfigChange={onChange} />)
-    const inputs = await screen.findAllByPlaceholderText("添加包含 models 的目录")
-    fireEvent.change(inputs.at(-1)!, { target: { value: "D:/Python/realesrgan" } })
-    fireEvent.click(screen.getAllByRole("button", { name: "添加来源" }).at(-1)!)
+    fireEvent.click(await screen.findByRole("button", { name: "展开模型管理" }))
+    fireEvent.change(await screen.findByPlaceholderText("添加包含 models 的目录"), { target: { value: "D:/Python/realesrgan" } })
+    fireEvent.click(screen.getByRole("button", { name: "添加来源" }))
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ modelSources: ["D:/Python/realesrgan"] }))
+  })
+
+  it("[neoview.super-resolution.model-catalog-filter] hides downloads until model management enables them", async () => {
+    render(<UpscaleModelCard {...context()} />)
+    await screen.findByRole("option", { name: /Anime/ })
+    expect(screen.queryByText("Downloadable Model")).toBeNull()
+    expect(screen.queryByLabelText("显示未下载模型")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "展开模型管理" }))
+    fireEvent.click(screen.getByLabelText("显示未下载模型"))
+    expect(await screen.findByText("Downloadable Model")).toBeTruthy()
   })
 
   it("[neoview.super-resolution.cache-card] confirms destructive shared cache cleanup", async () => {
@@ -79,7 +99,7 @@ const CACHE = { entries: 2, bytes: 2048, maxBytes: 4096, maxEntryBytes: 2048, ac
 function context(overrides: Partial<ReaderHttpClient> | ReaderHttpClient = {}) {
   const client = overrides && "config" in overrides ? overrides as ReaderHttpClient : {
     config: vi.fn(async () => ({ superResolution: CONFIG } as never)),
-    upscaleCapabilities: vi.fn(async () => ({ available: true as const, models: [{ id: "anime", displayName: "Anime", engine: "upscayl" as const, scales: [2], family: "RealESRGAN", category: "anime", sizeBytes: 12_582_912, installed: true, sourceDirectories: ["D:/Python/realesrgan"] }], engines: [], probedAt: 1 })),
+    upscaleCapabilities: vi.fn(async () => ({ available: true as const, models: [{ id: "anime", displayName: "Anime", engine: "upscayl" as const, scales: [2], family: "RealESRGAN", category: "anime", sizeBytes: 12_582_912, installed: true, sourceDirectories: ["D:/Python/realesrgan"] }, { id: "downloadable", displayName: "Downloadable Model", engine: "upscayl" as const, scales: [4], installed: false }], engines: [], probedAt: 1 })),
     upscaleCache: vi.fn(async () => CACHE),
     cleanupUpscaleCache: vi.fn(async () => ({ ...CACHE, reason: "explicit" as const, removedEntries: 0, removedBytes: 0 })),
     upscalePreloadSnapshots: vi.fn(async () => []),

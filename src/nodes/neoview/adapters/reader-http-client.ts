@@ -1,4 +1,4 @@
-import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ViewSource } from "@xiranite/node-neoview/ui-core"
+import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ReaderLayout, ViewSource } from "@xiranite/node-neoview/ui-core"
 import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
 import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
 import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/switch-toast"
@@ -1123,7 +1123,7 @@ export interface ReaderHttpClient {
   updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
   updateSuperResolution?(patch: ReaderSuperResolutionPatchDto, signal?: AbortSignal): Promise<ReaderSuperResolutionConfigDto>
   upscalePage?(sessionId: string, pageId: string, trigger?: "manual" | "automatic-current", signal?: AbortSignal): Promise<ReaderUpscaleArtifactResultDto>
-  upscaleCapabilities?(sessionId: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderUpscaleCapabilityDto>
+  upscaleCapabilities?(sessionId?: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderUpscaleCapabilityDto>
   upscalePreloadSnapshots?(sessionId: string, signal?: AbortSignal): Promise<readonly ReaderUpscalePreloadSnapshotDto[]>
   upscaleCache?(sessionId: string, signal?: AbortSignal): Promise<ReaderUpscaleCacheSnapshotDto>
   cleanupUpscaleCache?(sessionId: string, kind: "age" | "book" | "all", signal?: AbortSignal): Promise<ReaderUpscaleCacheCleanupDto>
@@ -1235,7 +1235,7 @@ export interface ReaderHttpClient {
   removeBookmarkList?(id: string, signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
-  updateSessionOptions(sessionId: string, patch: { direction?: FrameSnapshot["direction"]; layout?: { pageMode: PageMode } }, signal?: AbortSignal): Promise<ReaderNavigationDto>
+  updateSessionOptions(sessionId: string, patch: { direction?: FrameSnapshot["direction"]; layout?: Partial<ReaderLayout> }, signal?: AbortSignal): Promise<ReaderNavigationDto>
   close(sessionId: string): Promise<void>
 }
 
@@ -1393,7 +1393,10 @@ export function createReaderHttpClient(
     ),
     upscaleCapabilities: (sessionId, refresh = false, signal) => {
       const search = refresh ? "?refresh=true" : ""
-      return request<ReaderUpscaleCapabilityDto>(`/reader/s/${encodeURIComponent(sessionId)}/upscale-capabilities${search}`, { signal })
+      const path = sessionId
+        ? `/reader/s/${encodeURIComponent(sessionId)}/upscale-capabilities`
+        : "/reader/upscale-capabilities"
+      return request<ReaderUpscaleCapabilityDto>(`${path}${search}`, { signal })
     },
     upscalePreloadSnapshots: (sessionId, signal) => request<{ snapshots: ReaderUpscalePreloadSnapshotDto[] }>(
       `/reader/s/${encodeURIComponent(sessionId)}/upscale-preload`,
