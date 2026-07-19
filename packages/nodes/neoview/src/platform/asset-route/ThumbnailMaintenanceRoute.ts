@@ -126,7 +126,49 @@ export class ThumbnailMaintenanceRoute {
 async function readBody(request: Request): Promise<Record<string, unknown> | undefined> {
   const length = Number(request.headers.get("content-length") ?? 0)
   if (Number.isFinite(length) && length > MAX_BODY_BYTES) return undefined
-  return request.json().catch(() => undefined) as Promise<Record<string, unknown> | undefined>
+  request.signal.throwIfAborted()
+  if (!request.body) return undefined
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  const cancelOnAbort = () => {
+    void reader.cancel(request.signal.reason).catch(() => undefined)
+  }
+  request.signal.addEventListener("abort", cancelOnAbort, { once: true })
+  try {
+    while (true) {
+      request.signal.throwIfAborted()
+      const chunk = await reader.read()
+      if (chunk.done) break
+      totalBytes += chunk.value.byteLength
+      if (totalBytes > MAX_BODY_BYTES) {
+        await reader.cancel().catch(() => undefined)
+        request.signal.throwIfAborted()
+        return undefined
+      }
+      chunks.push(chunk.value)
+    }
+    request.signal.throwIfAborted()
+  } finally {
+    request.signal.removeEventListener("abort", cancelOnAbort)
+    reader.releaseLock()
+  }
+
+  const bytes = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  try {
+    const parsed: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes))
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function maintenanceLimit(value: unknown): number | undefined {
