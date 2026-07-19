@@ -20,6 +20,7 @@ const SLIDERS = [
   { key: "sepia", label: "棕褐色", min: 0, max: 100, suffix: "%" },
   { key: "hueRotate", label: "色相旋转", min: 0, max: 360, suffix: "°" },
 ] as const
+const COLOR_FILTER_COMMIT_DELAY_MS = 120
 
 export default function DockedColorFilterCard({ colorFilter, panelActive = true }: ReaderPanelContext) {
   if (!colorFilter) return <p className="text-xs text-muted-foreground">颜色滤镜尚未就绪。</p>
@@ -30,19 +31,37 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
   const settings = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const [saveState, setSaveState] = useState<SaveState>({ phase: "idle" })
   const mountedRef = useRef(true)
+  const scheduledCommitRef = useRef<ReturnType<typeof setTimeout>>()
   const retryRef = useRef<(() => Promise<void>)>()
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => () => {
+    mountedRef.current = false
+    if (scheduledCommitRef.current) clearTimeout(scheduledCommitRef.current)
+  }, [])
   const runMutation = useCallback((operation: () => Promise<void>, retry = operation) => {
     retryRef.current = retry
     setSaveState({ phase: "saving" })
     void operation().then(() => { if (mountedRef.current) { retryRef.current = undefined; setSaveState({ phase: "saved" }) } }).catch((cause) => { if (mountedRef.current) setSaveState({ phase: "error", message: errorMessage(cause) }) })
   }, [])
-  const update = useCallback((patch: ReaderColorFilterPatch) => runMutation(() => store.update(patch), () => store.update(patch)), [runMutation, store])
+  const commit = useCallback(() => {
+    if (scheduledCommitRef.current) {
+      clearTimeout(scheduledCommitRef.current)
+      scheduledCommitRef.current = undefined
+    }
+    const target = store.getSnapshot()
+    runMutation(() => store.commit(), () => store.update(target))
+  }, [runMutation, store])
+  const update = useCallback((patch: ReaderColorFilterPatch) => {
+    store.preview(patch)
+    retryRef.current = () => store.update(patch)
+    setSaveState((current) => current.phase === "saving" ? current : { phase: "idle" })
+    if (scheduledCommitRef.current) clearTimeout(scheduledCommitRef.current)
+    scheduledCommitRef.current = setTimeout(commit, COLOR_FILTER_COMMIT_DELAY_MS)
+  }, [commit, store])
   const preview = useCallback((patch: ReaderColorFilterPatch) => { store.preview(patch); retryRef.current = undefined; setSaveState((current) => current.phase === "saving" ? current : { phase: "idle" }) }, [store])
-  const commit = useCallback(() => { const target = store.getSnapshot(); runMutation(() => store.commit(), () => store.update(target)) }, [runMutation, store])
   const reset = useCallback(() => runMutation(() => store.reset(), () => store.reset()), [runMutation, store])
   const retry = useCallback(() => { const operation = retryRef.current; if (operation) runMutation(operation, operation) }, [runMutation])
-  const controlsDisabled = disabled || saveState.phase === "saving"
+  // Store writes are serialized, so a new intent can safely replace the pending snapshot.
+  const controlsDisabled = disabled
   return <section className="space-y-3 text-sm" data-neoview-card="color-filter" data-panel-active={dataPanelActive ? "true" : "false"}>
     <div className="flex items-center justify-between gap-2"><CheckboxRow label="着色" checked={settings.colorizeEnabled} disabled={controlsDisabled} onCheckedChange={(checked) => update({ colorizeEnabled: checked })} /><Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" disabled={controlsDisabled} title="重置全部滤镜" aria-label="重置全部滤镜" onClick={reset}><RotateCcw className="size-3.5" /></Button></div>
     {settings.colorizeEnabled ? <div className="space-y-2"><select className="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground" aria-label="着色预设" value={settings.colorizePreset} disabled={controlsDisabled} onChange={(event) => update({ colorizePreset: event.currentTarget.value as ReaderColorFilterSettings["colorizePreset"] })}>{READER_COLOR_FILTER_PRESET_IDS.map((preset) => <option key={preset} value={preset}>{READER_COLOR_FILTER_PRESET_LABELS[preset]}</option>)}</select><CheckboxRow label="仅黑白图像" checked={settings.onlyBlackAndWhite} disabled={controlsDisabled} onCheckedChange={(checked) => update({ onlyBlackAndWhite: checked })} /></div> : null}

@@ -40,6 +40,16 @@ describe("PageTransitionCard", () => {
     expect(persist.mock.calls[0]?.[0].duration).toBe(240)
   })
 
+  it("[neoview.page-transition.pending-edit] surfaces a pending save without locking the animation controls", () => {
+    const store = createReaderPageTransitionStore({ persist: async () => new Promise(() => undefined) })
+    render(<PageTransitionCard store={store} />)
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "启用翻页动画" }))
+
+    expect(screen.getByText("正在保存...", { exact: true })).toBeTruthy()
+    expect(screen.getByLabelText("动画类型").hasAttribute("disabled")).toBe(false)
+  })
+
   it("keeps the resident Card mounted while its panel is inactive", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
     render(<DockedPageTransitionCard pageTransition={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)
