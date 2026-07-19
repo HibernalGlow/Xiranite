@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeLocalFilesCapability } from "@xiranite/contract"
 import { addCzkawkaPaths, addCzkawkaPathsWithReferences, isValidCzkawkaExcludedItem, isValidCzkawkaExtensionToken, parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, removeCzkawkaPaths, serializeCzkawkaExtensionTokens, serializeCzkawkaPaths, setAllCzkawkaReferences, toggleCzkawkaReference } from "@xiranite/node-czkawka/source-inputs"
 import { CheckCheck, FolderMinus, FolderPlus, Plus, RotateCcw, Star, Trash2, X } from "lucide-react"
@@ -25,11 +25,17 @@ interface DirectoryEditorProps {
 export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirectories, referenceKeywords = "", referenceValue = "", value = "", onChange, onReferenceChange }: DirectoryEditorProps) {
   const { t } = useNodeI18n("czkawka")
   const [manual, setManual] = useState("")
+  const [manualOpen, setManualOpen] = useState(false)
+  const manualRef = useRef<HTMLTextAreaElement>(null)
   const [selected, setSelected] = useState<string[]>([])
   const paths = parseCzkawkaList(value)
   const references = reconcileCzkawkaReferences(paths, referenceValue)
   const selectedSet = new Set(selected.filter((path) => paths.includes(path)))
   const allReferences = paths.length > 0 && references.length === paths.length
+
+  useEffect(() => {
+    if (manualOpen) manualRef.current?.focus()
+  }, [manualOpen])
 
   function commit(next: string[]) {
     onChange(serializeCzkawkaPaths(next))
@@ -43,6 +49,7 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirecto
       onReferenceChange(serializeCzkawkaPaths(next.references))
     } else commit(addCzkawkaPaths(paths, raw))
     setManual("")
+    setManualOpen(false)
   }
 
   async function browse() {
@@ -60,6 +67,7 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirecto
     <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-xs font-medium"><span>{label}</span><Badge variant="outline">{paths.length}</Badge></div><div className="flex items-center gap-1">
       {onReferenceChange ? <Button aria-label={allReferences ? t("sources.cancelAllReferences", "取消全部参考目录") : t("sources.setAllReferences", "全部设为参考目录")} size="icon-sm" variant={allReferences ? "secondary" : "ghost"} onClick={() => onReferenceChange(serializeCzkawkaPaths(setAllCzkawkaReferences(paths, !allReferences)))}><CheckCheck /></Button> : null}
       <Button aria-label={t("sources.browseAdd", "浏览添加{{label}}", { label })} disabled={!pickDirectories && !pickDirectory} size="icon-sm" variant="outline" onClick={() => void browse()}><FolderPlus /></Button>
+      <Button aria-label={t("sources.openManualAdd", "手动添加{{label}}", { label })} size="icon-sm" variant={manualOpen ? "secondary" : "outline"} onClick={() => setManualOpen((open) => !open)}><Plus /></Button>
       <Button aria-label={t("sources.removeSelected", "移除选中的{{label}}", { label })} disabled={!selectedSet.size} size="icon-sm" variant="outline" onClick={() => remove(selectedSet)}><Trash2 /></Button>
       <Button aria-label={t("sources.clear", "清空{{label}}", { label })} disabled={!paths.length} size="icon-sm" variant="ghost" onClick={() => remove(paths)}><FolderMinus /></Button>
     </div></div>
@@ -69,7 +77,7 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirecto
       {onReferenceChange ? <Button aria-label={t(references.includes(path) ? "sources.cancelReference" : "sources.setReference", references.includes(path) ? "取消参考 {{path}}" : "设为参考 {{path}}", { path })} size="icon-sm" variant="ghost" onClick={() => onReferenceChange(serializeCzkawkaPaths(toggleCzkawkaReference(paths, references, path)))}><Star className={cn(references.includes(path) && "fill-amber-400 text-amber-500")} /></Button> : null}
       <Button aria-label={t("sources.removeDirectory", "移除目录 {{path}}", { path })} size="icon-sm" variant="ghost" onClick={() => remove([path])}><X /></Button>
     </div>) : <div className="rounded border border-dashed p-3 text-center text-xs text-muted-foreground">{t("sources.empty", "尚未添加目录")}</div>}</div>
-    <div className="flex items-end gap-1"><PathTextarea aria-label={t("sources.pasteMany", "批量粘贴{{label}}", { label })} autoResize={{ minHeight: 36, maxHeight: 96 }} className="font-mono text-xs" placeholder={t("sources.pasteHint", "可粘贴多行、逗号或分号分隔路径\n也可拖放目录")} value={manual} onValueChange={setManual} /><Button aria-label={t("sources.addPasted", "添加粘贴的{{label}}", { label })} disabled={!parseCzkawkaList(manual).length} size="icon-sm" onClick={() => add(manual)}><Plus /></Button></div>
+    {manualOpen ? <div className="flex items-end gap-1"><PathTextarea ref={manualRef} aria-label={t("sources.pasteMany", "批量粘贴{{label}}", { label })} autoResize={{ minHeight: 36, maxHeight: 96 }} className="font-mono text-xs" placeholder={t("sources.pasteHint", "可粘贴多行、逗号或分号分隔路径\n也可拖放目录")} value={manual} onValueChange={setManual} /><Button aria-label={t("sources.addPasted", "添加粘贴的{{label}}", { label })} disabled={!parseCzkawkaList(manual).length} size="icon-sm" onClick={() => add(manual)}><Plus /></Button><Button aria-label={t("sources.cancelManualAdd", "取消手动添加{{label}}", { label })} size="icon-sm" variant="ghost" onClick={() => { setManual(""); setManualOpen(false) }}><X /></Button></div> : null}
   </section>
 }
 
