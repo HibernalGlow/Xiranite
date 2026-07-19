@@ -22,6 +22,8 @@ import type {
   HeadlessReaderBookSettingsUpdate,
   ReaderBookSettingsPatch,
   ReaderBookSettingsSnapshot,
+  ReaderMediaProgressRecord,
+  ReaderMediaProgressUpdate,
   ReaderDirectoryFilter,
   ReaderDirectoryEmmEditCommand,
   HeadlessSuperResolutionPageInput,
@@ -78,7 +80,7 @@ import type {
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "extract-page", "subtitle-list", "subtitle-render", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
+  "inspect", "pages", "frame", "extract-page", "subtitle-list", "subtitle-render", "media-progress-get", "media-progress-set", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
@@ -156,9 +158,9 @@ const VALUE_FLAGS = new Set([
   "--input-json",
   "--contexts-json",
   "--action",
-  "--enabled", "--type", "--duration", "--easing", "--subtitle-id",
+  "--enabled", "--type", "--duration", "--easing", "--subtitle-id", "--position", "--completed",
 ])
-const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite"])
+const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes", "--offline", "--vacuum", "--case-sensitive", "--search-in-path", "--refresh", "--starred", "--favorite", "--overwrite", "--flush"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
 const MAX_READER_DATA_BYTES = 256 * 1024 * 1024
 const MAX_EMM_EDIT_INPUT_BYTES = 1024 * 1024
@@ -216,6 +218,8 @@ export interface CliReaderController extends AsyncDisposable {
   openPageStream(pageIndex: number, signal?: AbortSignal): Promise<HeadlessPageStream>
   listSubtitles?(pageIndex: number, signal?: AbortSignal): readonly import("./application/reader/ReaderSubtitleService.js").ReaderSubtitleTrack[] | Promise<readonly import("./application/reader/ReaderSubtitleService.js").ReaderSubtitleTrack[]>
   renderSubtitle?(pageIndex: number, assetId: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; contentVersion: string }>
+  getMediaProgress?(): Promise<ReaderMediaProgressRecord | undefined>
+  updateMediaProgress?(update: ReaderMediaProgressUpdate, options?: { flush?: boolean }): Promise<ReaderMediaProgressRecord>
   getEmmMetadata?(signal?: AbortSignal): Promise<ReaderEmmMetadataSnapshot>
   updateEmmMetadata?(expectedRevision: number, patch: ReaderEmmMetadataPatch, signal?: AbortSignal): Promise<{ metadata: ReaderEmmMetadataSnapshot; reader: HeadlessReaderSnapshot }>
   getBookSettings(signal?: AbortSignal): Promise<ReaderBookSettingsSnapshot>
@@ -443,6 +447,11 @@ export async function runProgram(
     expectedRevision: requiredIntegerOption(parsed, "--expected-revision", 0, Number.MAX_SAFE_INTEGER),
     patch: parseEmmMetadataPatchCli(oneValue(parsed, "--input"), host.cwd),
   } : undefined
+  const mediaProgressUpdate = command === "media-progress-set" ? {
+    position: requiredFiniteNumberOption(parsed, "--position"),
+    duration: requiredFiniteNumberOption(parsed, "--duration"),
+    completed: requiredBooleanOption(parsed, "--completed"),
+  } satisfies ReaderMediaProgressUpdate : undefined
   if (command === "emm-set" && !parsed.booleans.has("--yes")) throw usage("emm-set requires --yes after reviewing the patch.")
   if (command === "upscale-cache-cleanup" && !parsed.booleans.has("--yes")) throw usage("upscale-cache-cleanup requires --yes.")
   const artifactCacheCleanupKind = command === "upscale-cache-cleanup"
@@ -455,6 +464,7 @@ export async function runProgram(
     const connect = oneValue(parsed, "--connect")
     const tokenVariable = oneValue(parsed, "--token-env")
     if (!connect && tokenVariable) throw usage("--token-env requires --connect.")
+    if (connect && command.startsWith("media-progress-")) throw usage(`${command} currently requires a local Reader composition; remote media-progress transport is not yet available.`)
     if (command.startsWith("upscale-cache-") && !connect) throw usage(`${command} requires --connect to the running Reader backend.`)
     if (connect && parsed.values.has("--config")) throw usage("--config cannot be combined with --connect because the running backend owns configuration.")
     controller = connect
@@ -513,6 +523,15 @@ export async function runProgram(
       await writeSubtitle(rendered.bytes, output, parsed.booleans.has("--force"), host)
       if (output !== "-") writeLine(host, `Reader subtitle rendered: ${resolve(host.cwd, output)} (${rendered.contentVersion})`)
       return
+    }
+    if (command === "media-progress-get") {
+      if (!controller.getMediaProgress) throw new Error("Reader media progress is unavailable for this transport.")
+      return printMediaProgress(await controller.getMediaProgress(), parsed.booleans.has("--json"), host)
+    }
+    if (command === "media-progress-set") {
+      if (!controller.updateMediaProgress) throw new Error("Reader media progress is unavailable for this transport.")
+      const progress = await controller.updateMediaProgress(mediaProgressUpdate!, { flush: parsed.booleans.has("--flush") })
+      return printMediaProgress(progress, parsed.booleans.has("--json"), host)
     }
     if (command === "emm-get") {
       if (!controller.getEmmMetadata) throw new Error("Reader EMM metadata is unavailable for this transport.")
@@ -640,6 +659,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "subtitle-render") {
     rejectOptions(parsed, new Set(["--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--subtitle-id", "--output", "--force", "--json"]))
+    return
+  }
+  if (command === "media-progress-get") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index"]))
+    return
+  }
+  if (command === "media-progress-set") {
+    rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env", "--entry", "--password-env", "--archive-password-env", "--index", "--position", "--duration", "--completed", "--flush"]))
     return
   }
   if (command === "emm-get") {
@@ -2467,6 +2494,18 @@ function printSubtitleTracks(
   for (const track of tracks) writeLine(host, `${track.id}\t${track.format}\t${track.name}\t${track.contentVersion}`)
 }
 
+function printMediaProgress(progress: ReaderMediaProgressRecord | undefined, json: boolean, host: CliHost): void {
+  if (json) {
+    writeJson(host, { progress: progress ?? null })
+    return
+  }
+  if (!progress) {
+    writeLine(host, "No saved media progress.")
+    return
+  }
+  writeLine(host, `Media progress: ${progress.position}/${progress.duration} completed=${progress.completed} updatedAt=${progress.updatedAt}`)
+}
+
 function parseEmmMetadataPatchCli(value: string | undefined, cwd: string): ReaderEmmMetadataPatch {
   if (!value) throw usage("emm-set requires --input <patch.json|inline-json>.")
   const raw = value.trim().startsWith("{") ? value : requireCliJson(value, cwd)
@@ -2810,6 +2849,22 @@ function optionalIntegerOption(parsed: ParsedArguments, flag: string, minimum: n
 function requiredIntegerOption(parsed: ParsedArguments, flag: string, minimum: number, maximum: number): number {
   if (!parsed.values.has(flag)) throw usage(`${flag} is required.`)
   return integerOption(parsed, flag, minimum, maximum, minimum)
+}
+
+function requiredFiniteNumberOption(parsed: ParsedArguments, flag: string): number {
+  const value = oneValue(parsed, flag)
+  if (value === undefined) throw usage(`${flag} is required.`)
+  const parsedValue = Number(value)
+  if (!Number.isFinite(parsedValue)) throw usage(`${flag} must be a finite number.`)
+  return parsedValue
+}
+
+function requiredBooleanOption(parsed: ParsedArguments, flag: string): boolean {
+  const value = oneValue(parsed, flag)
+  if (value === undefined) throw usage(`${flag} is required.`)
+  if (value === "true") return true
+  if (value === "false") return false
+  throw usage(`${flag} must be true or false.`)
 }
 
 function oneValue(parsed: ParsedArguments, flag: string): string | undefined {
@@ -3205,6 +3260,8 @@ function formatCliHelp(): string {
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  subtitle-list <path> List matching video subtitle tracks (--index)",
     "  subtitle-render <path> Render one subtitle track as WebVTT (--subtitle-id, --output)",
+    "  media-progress-get <path> Read saved video progress",
+    "  media-progress-set <path> Write video progress (--position, --duration, --completed)",
     "  emm-get <path>       Inspect current-book EMM overrides",
     "  emm-set <path>       Apply an EMM override patch (--expected-revision, --input, --yes)",
     "  upscale-page <path>  Upscale one page using the configured policy",
@@ -3328,6 +3385,9 @@ function formatCliHelp(): string {
     "  --json               Structured metadata output",
     "  --force              Replace an existing extract output",
     "  --output PATH|-      Output path for extract-page, subtitle-render or upscale-page",
+    "  --position N         Media position for media-progress-set",
+    "  --completed BOOL     true|false media completion state for media-progress-set",
+    "  --flush              Durably flush media progress before returning",
     "  --config PATH        Xiranite TOML path for settings/cache commands",
     "  --query QUERY        Folder search text or glob",
     "  --mode MODE          Folder search mode, or nearby|progressive for preload",
