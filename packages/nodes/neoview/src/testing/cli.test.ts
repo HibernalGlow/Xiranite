@@ -1269,6 +1269,9 @@ describe("NeoView CLI", () => {
     await expect(runProgram([
       "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "path-prefix", "--limit", "20", "--yes",
     ], host([]), dependencies)).rejects.toThrow("requires --prefix")
+    await expect(runProgram([
+      "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "empty", "--prefix", "D:/library", "--yes",
+    ], host([]), dependencies)).rejects.toThrow("--prefix is only valid")
 
     const failureOutput: unknown[] = []
     await runProgram([
@@ -1363,6 +1366,14 @@ describe("NeoView CLI", () => {
       backupPath: expect.stringMatching(/verified\.db$/),
       quarantinePath: expect.stringMatching(/corrupt\.db$/),
     })
+  })
+
+  it("[neoview.thumbnail.secondary-merge-cli] keeps planning read-only and requires offline confirmation for mutation", async () => {
+    await expect(runProgram(["thumbnail-db-merge-plan"], host([]), testPlatformDependencies))
+      .rejects.toThrow("requires --source")
+    await expect(runProgram([
+      "thumbnail-db-merge-secondary", "canonical.db", "--source", "secondary.db", "--backup", "canonical.backup.db",
+    ], host([]), testPlatformDependencies)).rejects.toThrow("requires --offline and --yes")
   })
 
   it("[neoview.cache.cli] reuses the shared cache service and gates destructive maintenance", async () => {

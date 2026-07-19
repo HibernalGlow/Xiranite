@@ -88,7 +88,7 @@ const COMMANDS = new Set([
   "library-bookmark-batch-update", "library-bookmark-batch-delete",
   "library-bookmark-lists", "library-bookmark-list-add", "library-bookmark-list-delete",
   "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
-  "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover",
+  "thumbnail-db-backup", "thumbnail-db-optimize", "thumbnail-db-recover", "thumbnail-db-merge-plan", "thumbnail-db-merge-secondary",
   "presentation-cache-stats", "presentation-cache-cleanup", "presentation-cache-clear",
   "diagnostics", "diagnostics-history-export",
   "folder-tree", "folder-search", "folder-emm-tags", "folder-emm-edit", "folder-exclude", "folder-include", "folder-tree-cache-clear",
@@ -113,6 +113,8 @@ const VALUE_FLAGS = new Set([
   "--days",
   "--scan-limit",
   "--reason",
+  "--source",
+  "--backup",
   "--database",
   "--query",
   "--mode",
@@ -291,6 +293,16 @@ export async function runProgram(
   if (command === "thumbnail-db-backup" || command === "thumbnail-db-optimize" || command === "thumbnail-db-recover") {
     if (parsed.positionals.length > 1) throw usage(`${command} accepts at most one database path.`)
     await runThumbnailDatabaseOfflineCommand(command, parsed.positionals[0], parsed, host, dependencies)
+    return
+  }
+  if (command === "thumbnail-db-merge-plan") {
+    if (parsed.positionals.length > 1) throw usage("thumbnail-db-merge-plan accepts at most one canonical database path.")
+    await runThumbnailDatabaseMergePlan(parsed.positionals[0], parsed, host)
+    return
+  }
+  if (command === "thumbnail-db-merge-secondary") {
+    if (parsed.positionals.length > 1) throw usage("thumbnail-db-merge-secondary accepts at most one canonical database path.")
+    await runThumbnailDatabaseMergeSecondary(parsed.positionals[0], parsed, host)
     return
   }
   if (command.startsWith("thumbnail-db-")) {
@@ -789,6 +801,14 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
   }
   if (command === "diagnostics") {
     rejectOptions(parsed, new Set(["--json", "--config", "--connect", "--token-env"]))
+    return
+  }
+  if (command === "thumbnail-db-merge-plan") {
+    rejectOptions(parsed, new Set(["--json", "--source"]))
+    return
+  }
+  if (command === "thumbnail-db-merge-secondary") {
+    rejectOptions(parsed, new Set(["--json", "--source", "--backup", "--yes", "--offline"]))
     return
   }
   if (command === "diagnostics-history-export") {
@@ -1746,6 +1766,59 @@ async function runThumbnailMaintenanceCommand(
   } finally {
     await store[Symbol.asyncDispose]()
   }
+}
+
+async function runThumbnailDatabaseMergePlan(
+  canonicalPath: string | undefined,
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  const source = oneValue(parsed, "--source")
+  if (!source) throw usage("thumbnail-db-merge-plan requires --source <secondary.db>.")
+  const target = await resolveThumbnailDatabasePath(canonicalPath, host)
+  const { LegacyThumbnailDatabaseMergePlanner } = await import("./platform/thumbnails/LegacyThumbnailDatabaseMergePlanner.js")
+  const plan = await new LegacyThumbnailDatabaseMergePlanner().plan(target, resolve(host.cwd, source))
+  if (parsed.booleans.has("--json")) {
+    writeJson(host, plan)
+    return
+  }
+  if (!plan.eligible || !plan.statistics) {
+    writeLine(host, `Thumbnail database merge is not eligible: ${plan.reasons.join(" ")}`)
+    return
+  }
+  const thumbnails = plan.statistics.thumbnails
+  const failures = plan.statistics.failures
+  writeLine(host, `Thumbnails: canonical=${thumbnails.canonicalRows} secondary=${thumbnails.secondaryRows} conflicts=${thumbnails.conflicts} secondary-only=${thumbnails.secondaryOnly}`)
+  writeLine(host, `Conflict winners: secondary=${thumbnails.secondaryThumbnailWins} canonical=${thumbnails.canonicalThumbnailWins}; metadata fills=${Object.values(thumbnails.fieldsFilledFromSecondary).reduce((sum, value) => sum + value, 0)}`)
+  writeLine(host, `Failures: canonical=${failures.canonicalRows} secondary=${failures.secondaryRows} conflicts=${failures.conflicts} secondary-only=${failures.secondaryOnly}`)
+}
+
+async function runThumbnailDatabaseMergeSecondary(
+  canonicalPath: string | undefined,
+  parsed: ParsedArguments,
+  host: CliHost,
+): Promise<void> {
+  if (!parsed.booleans.has("--yes") || !parsed.booleans.has("--offline")) {
+    throw usage("thumbnail-db-merge-secondary requires --offline and --yes after closing NeoView and Xiranite database users.")
+  }
+  const source = oneValue(parsed, "--source")
+  const backup = oneValue(parsed, "--backup")
+  if (!source) throw usage("thumbnail-db-merge-secondary requires --source <secondary.db>.")
+  if (!backup) throw usage("thumbnail-db-merge-secondary requires --backup <canonical-backup.db>.")
+  const target = await resolveThumbnailDatabasePath(canonicalPath, host)
+  const { LegacyThumbnailDatabaseMergeService } = await import("./platform/thumbnails/LegacyThumbnailDatabaseMergeService.js")
+  const result = await new LegacyThumbnailDatabaseMergeService().merge({
+    canonicalPath: target,
+    secondaryPath: resolve(host.cwd, source),
+    backupPath: resolve(host.cwd, backup),
+  })
+  if (parsed.booleans.has("--json")) {
+    writeJson(host, result)
+    return
+  }
+  const thumbnails = result.plan.statistics?.thumbnails
+  writeLine(host, `Thumbnail databases merged: ${thumbnails?.secondaryOnly ?? 0} secondary-only rows, ${thumbnails?.conflicts ?? 0} conflicts.`)
+  writeLine(host, `Verified backup: ${result.backup.destinationPath} (${result.backup.bytes} bytes).`)
 }
 
 async function runThumbnailDatabaseOfflineCommand(
@@ -2939,6 +3012,8 @@ function formatCliHelp(): string {
     "  thumbnail-db-backup [path]   Create and verify a SQLite snapshot with VACUUM INTO",
     "  thumbnail-db-optimize [path] Backup, checkpoint and optimize an offline database",
     "  thumbnail-db-recover [path]  Restore a verified backup and quarantine the offline source",
+    "  thumbnail-db-merge-plan [path] Inspect a secondary database merge without mutation (--source)",
+    "  thumbnail-db-merge-secondary [path] Merge a verified secondary database offline (--source, --backup, --yes)",
     "  presentation-cache-stats       Show L3 content-cache statistics",
     "  presentation-cache-cleanup     Run age/budget maintenance for L3",
     "  presentation-cache-clear       Clear unleased L3 entries",
@@ -3018,6 +3093,8 @@ function formatCliHelp(): string {
     "  --scan-limit N       Invalid-path scan batch (default 500)",
     "  --offline            Confirm all NeoView/Xiranite database users are closed",
     "  --vacuum             Rebuild the database after backup during offline optimize",
+    "  --source PATH        Secondary thumbnails.db for thumbnail-db-merge-plan",
+    "  --backup PATH        Canonical database backup for thumbnail-db-merge-secondary",
     "  --reason REASON      Failure reason, or L3 cleanup reason: age|budget|explicit",
   ].join("\n")
 }
