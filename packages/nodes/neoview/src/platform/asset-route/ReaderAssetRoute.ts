@@ -15,6 +15,7 @@ import {
 } from "../../domain/image/image-transform.js"
 import type { PageByteRange, PageSource } from "../../domain/page/page-content.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
+import { waitWithAbort } from "../../domain/page/wait-with-abort.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
@@ -245,7 +246,7 @@ export class ReaderAssetRoute {
 
   async #loadOriginalSource(sessionId: ReaderSessionId, page: ReaderPage, signal: AbortSignal): Promise<PageSource> {
     if (page.mediaKind !== "video" || !page.entryPath || !this.#seekableMediaCache) {
-      return page.content.load(signal)
+      return waitWithAbort(page.content.load(signal), signal, (lateSource) => lateSource.close())
     }
     const lease = await this.#seekableMediaCache.acquire(sessionId, page, signal)
     try {
@@ -392,7 +393,11 @@ export class ReaderAssetRoute {
       return new Response(null, { status, headers })
     }
 
-    const stream = await source.open(request.signal, requestedRange ?? undefined)
+    const stream = await waitWithAbort(
+      source.open(request.signal, requestedRange ?? undefined),
+      request.signal,
+      (lateStream) => lateStream.cancel(request.signal.reason),
+    )
     return new Response(finalizePageStream(stream, source), { status, headers })
   }
 
