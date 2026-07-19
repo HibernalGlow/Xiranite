@@ -49,7 +49,7 @@ import { projectReaderBookInformation } from "./domain/book/BookInformationProje
 import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
 import { commitNeoviewConfig } from "./platform/config/NeoviewConfigStore.js"
 import { loadNeoviewRuntimeConfig } from "./platform/config/loadNeoviewRuntimeConfig.js"
-import { parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewBookmarkListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
 import { formatReaderPageTransition, type ReaderPageTransitionPatch } from "./page-transition.js"
 import type { ReaderInputBinding, ReaderInputContext, ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
@@ -1181,7 +1181,8 @@ async function runReaderDataCommand(
   if (inputStat.size > MAX_READER_DATA_BYTES) throw usage(`Reader data input exceeds ${MAX_READER_DATA_BYTES} bytes.`)
   const { LegacyReaderDataCodec } = await import("./migration/LegacyReaderDataCodec.js")
   const decoded = new LegacyReaderDataCodec().decode(await readFile(inputPath, "utf8"))
-  const preview = readerDataPreview(decoded)
+  const configPatch = readerDataConfigPatch(decoded)
+  const preview = readerDataPreview(decoded, configPatch)
   if (command === "reader-data-inspect") {
     if (parsed.booleans.has("--json")) writeJson(host, preview)
     else printReaderDataPreview(preview, host)
@@ -1204,17 +1205,20 @@ async function runReaderDataCommand(
   } finally {
     await importer[Symbol.asyncDispose]()
   }
-  const configPatch = readerDataConfigPatch(decoded)
   let configChanged = false
-  if (Object.keys(configPatch).length) {
-    const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
-    const committed = await commitNeoviewConfig(configPatch, {
-      configPath: oneValue(parsed, "--config"),
-      cwd: host.cwd,
-      env: host.env,
-      strategy: "merge",
-    })
-    configChanged = committed.changed
+  if (Object.keys(configPatch.configPatch).length) {
+    try {
+      const committed = await commitNeoviewConfig(configPatch.configPatch, {
+        configPath: oneValue(parsed, "--config"),
+        cwd: host.cwd,
+        env: host.env,
+        strategy: "merge",
+      })
+      configChanged = committed.changed
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`Reader data was imported, but NeoView configuration was not migrated: ${detail}`, { cause: error })
+    }
   }
   const result = { ...preview, strategy, imported, configChanged }
   if (parsed.booleans.has("--json")) writeJson(host, result)
@@ -1553,7 +1557,10 @@ function printLibraryMutation(result: Record<string, unknown>, json: boolean, ho
   else writeLine(host, JSON.stringify(result))
 }
 
-function readerDataPreview(decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData) {
+function readerDataPreview(
+  decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData,
+  config: ReturnType<typeof readerDataConfigPatch> = readerDataConfigPatch(decoded),
+) {
   return {
     sourceKind: decoded.sourceKind,
     counts: {
@@ -1564,26 +1571,54 @@ function readerDataPreview(decoded: import("./migration/LegacyReaderDataCodec.js
       pathStacks: decoded.history.filter((entry) => entry.pathStack.length > 1 || entry.pathStack.some((ref) => ref.innerPath)).length,
     },
     report: decoded.report,
-    configPatch: readerDataConfigPatch(decoded),
+    configPatch: config.configPatch,
+    ...(config.activeBookmarkListOmitted ? { activeBookmarkListOmitted: true } : {}),
   }
 }
 
-function readerDataConfigPatch(decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData): Record<string, unknown> {
+function readerDataConfigPatch(decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData): {
+  configPatch: Record<string, unknown>
+  activeBookmarkListOmitted: boolean
+} {
   const settings = decoded.historySettings
   const history = {
     ...(settings?.syncFileTreeOnHistorySelect !== undefined ? { sync_file_tree_on_history_select: settings.syncFileTreeOnHistorySelect } : {}),
     ...(settings?.syncFileTreeOnBookmarkSelect !== undefined ? { sync_file_tree_on_bookmark_select: settings.syncFileTreeOnBookmarkSelect } : {}),
     ...(settings?.maxHistorySize !== undefined ? { max_history_size: settings.maxHistorySize } : {}),
     ...(settings?.maxBookmarkSize !== undefined ? { max_bookmark_size: settings.maxBookmarkSize } : {}),
-    ...(decoded.activeBookmarkListId ? { active_bookmark_list_id: decoded.activeBookmarkListId } : {}),
   }
-  return Object.keys(history).length ? { history } : {}
+  const activeList = resolvedActiveBookmarkListId(decoded)
+  return {
+    configPatch: {
+      ...(Object.keys(history).length ? { history } : {}),
+      ...(activeList.id ? activeList.tomlPatch : {}),
+    },
+    activeBookmarkListOmitted: activeList.omitted,
+  }
+}
+
+function resolvedActiveBookmarkListId(decoded: import("./migration/LegacyReaderDataCodec.js").DecodedLegacyReaderData): {
+  id?: string
+  tomlPatch?: Record<string, unknown>
+  omitted: boolean
+} {
+  if (!decoded.activeBookmarkListId) return { omitted: false }
+  try {
+    const parsed = parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: decoded.activeBookmarkListId } })
+    const activeListId = parsed.patch.bookmarkList.activeListId
+    const isSystem = activeListId === "all" || activeListId === "default" || activeListId === "favorites"
+    if (!isSystem && !decoded.bookmarkLists.some((list) => list.id === activeListId)) return { omitted: true }
+    return { id: activeListId, tomlPatch: parsed.tomlPatch, omitted: false }
+  } catch {
+    return { omitted: true }
+  }
 }
 
 function printReaderDataPreview(preview: ReturnType<typeof readerDataPreview>, host: CliHost): void {
   writeLine(host, `Legacy reader data: ${preview.sourceKind}`)
   writeLine(host, `Rows: history=${preview.counts.history} bookmarks=${preview.counts.bookmarks} lists=${preview.counts.bookmarkLists}`)
   writeLine(host, `Migration metadata: pathStacks=${preview.counts.pathStacks} videoProgress=${preview.counts.videoProgress}`)
+  if (preview.activeBookmarkListOmitted) writeLine(host, "Active bookmark-list selection was omitted because it is invalid or unavailable in imported data.")
   writeLine(host, Object.entries(preview.report.summary).map(([key, count]) => `${key}=${count}`).join(" "))
 }
 

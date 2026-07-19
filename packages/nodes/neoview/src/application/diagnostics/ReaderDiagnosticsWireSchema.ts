@@ -19,6 +19,20 @@ const schedulerPool = loose({
   oldestQueuedWaitMs: measurement.optional(),
 })
 
+const sharedScheduler = loose({
+  topology: z.literal("shared-queue"),
+  active: count,
+  queued: count,
+  queuedByPriority: z.record(z.string(), count),
+  granted: count.optional(),
+  released: count.optional(),
+  cancelled: count.optional(),
+  queueWaitSamples: count.optional(),
+  totalQueueWaitMs: measurement.optional(),
+  maxQueueWaitMs: measurement.optional(),
+  oldestQueuedWaitMs: measurement.optional(),
+})
+
 const preloadPerformance = loose({
   ttfbSamples: count,
   totalTtfbMs: measurement,
@@ -203,6 +217,7 @@ export const ReaderDiagnosticsWireSchema = loose({
     maxConcurrent: count,
   }).optional(),
   scheduler: loose({ cpu: schedulerPool, io: schedulerPool, gpu: schedulerPool }).nullable(),
+  sharedScheduler: sharedScheduler.optional(),
 })
 
 export const ReaderDiagnosticsHistoryWireSchema = loose({

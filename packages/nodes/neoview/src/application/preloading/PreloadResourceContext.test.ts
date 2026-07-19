@@ -14,6 +14,13 @@ describe("deriveReaderPreloadResourceContext", () => {
     })).toEqual({ queueWaitMs: 45, memoryPressure: "elevated" })
   })
 
+  it("[neoview.preload.resource-context-shared-scheduler] uses truthful fallback shared-queue wait without inventing resource pools", () => {
+    expect(deriveReaderPreloadResourceContext({
+      sharedScheduler: { oldestQueuedWaitMs: 275 },
+      memoryPressure: { level: "normal" },
+    })).toEqual({ queueWaitMs: 275, memoryPressure: "normal" })
+  })
+
   it("[neoview.preload.resource-context-compat] tolerates old or malformed optional diagnostics without unsafe admission values", () => {
     expect(deriveReaderPreloadResourceContext({ scheduler: { cpu: {} } })).toEqual({ queueWaitMs: 0, memoryPressure: "normal" })
     expect(deriveReaderPreloadResourceContext({
