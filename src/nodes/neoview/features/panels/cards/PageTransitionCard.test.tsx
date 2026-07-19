@@ -10,8 +10,8 @@ describe("PageTransitionCard", () => {
   it("[neoview.page-transition.states] keeps the animation switch available without a book", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
     render(<PageTransitionCard store={store} />)
-    expect(screen.getByRole("checkbox", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
-    fireEvent.click(screen.getByRole("checkbox", { name: "启用翻页动画" }))
+    expect(screen.getByRole("switch", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
+    fireEvent.click(screen.getByRole("switch", { name: "启用翻页动画" }))
     expect(screen.getByLabelText("动画类型")).toBeTruthy()
   })
 
@@ -45,7 +45,7 @@ describe("PageTransitionCard", () => {
     const store = createReaderPageTransitionStore({ persist: async () => new Promise(() => undefined) })
     render(<PageTransitionCard store={store} />)
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "启用翻页动画" }))
+    fireEvent.click(screen.getByRole("switch", { name: "启用翻页动画" }))
 
     expect(screen.getByText("正在保存...", { exact: true })).toBeTruthy()
     expect(screen.getByLabelText("动画类型").hasAttribute("disabled")).toBe(false)
@@ -54,7 +54,7 @@ describe("PageTransitionCard", () => {
   it("keeps the resident Card mounted while its panel is inactive", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
     render(<DockedPageTransitionCard pageTransition={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)
-    expect(screen.getByRole("checkbox", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
+    expect(screen.getByRole("switch", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
     expect(document.querySelector('[data-neoview-card="page-transition"]')?.getAttribute("data-panel-active")).toBe("false")
   })
 
@@ -62,10 +62,10 @@ describe("PageTransitionCard", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
     render(<StrictMode><PageTransitionCard store={store} /></StrictMode>)
 
-    const toggle = screen.getByRole("checkbox", { name: "\u542f\u7528\u7ffb\u9875\u52a8\u753b" })
+    const toggle = screen.getByRole("switch", { name: "启用翻页动画" })
     fireEvent.click(toggle)
 
-    await waitFor(() => expect(screen.getByText("\u5df2\u4fdd\u5b58", { exact: true })).toBeTruthy())
+    await waitFor(() => expect(screen.getByText("已保存", { exact: true })).toBeTruthy())
     expect(toggle.getAttribute("data-state")).toBe("checked")
   })
 })

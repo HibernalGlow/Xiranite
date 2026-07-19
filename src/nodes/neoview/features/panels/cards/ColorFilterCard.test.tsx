@@ -11,7 +11,7 @@ describe("ColorFilterCard", () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
     render(<ColorFilterCard store={store} />)
     expect(screen.getAllByRole("slider")).toHaveLength(5)
-    fireEvent.click(screen.getByText("着色"))
+    fireEvent.click(screen.getByRole("switch", { name: "着色" }))
     expect(await screen.findByLabelText("着色预设")).toBeTruthy()
     expect(screen.getByText("仅黑白图像")).toBeTruthy()
   })
@@ -34,7 +34,7 @@ describe("ColorFilterCard", () => {
       .mockImplementation(async (settings) => settings)
     const store = createReaderColorFilterStore({ persist })
     render(<ColorFilterCard store={store} />)
-    fireEvent.click(screen.getByText("反色"))
+    fireEvent.click(screen.getByRole("switch", { name: "反色" }))
     expect((await screen.findByRole("alert")).textContent).toContain("保存失败")
     fireEvent.click(screen.getByRole("button", { name: "重试" }))
     await waitFor(() => expect(screen.getByText("已保存", { exact: true })).toBeTruthy())
@@ -45,10 +45,10 @@ describe("ColorFilterCard", () => {
     const store = createReaderColorFilterStore({ persist: async () => new Promise(() => undefined) })
     render(<ColorFilterCard store={store} />)
 
-    fireEvent.click(screen.getByText("反色"))
+    fireEvent.click(screen.getByRole("switch", { name: "反色" }))
 
-    expect(screen.getByRole("checkbox", { name: "负片" }).hasAttribute("disabled")).toBe(false)
-    fireEvent.click(screen.getByText("负片"))
+    expect(screen.getByRole("switch", { name: "负片" }).hasAttribute("disabled")).toBe(false)
+    fireEvent.click(screen.getByRole("switch", { name: "负片" }))
     expect(store.getSnapshot()).toMatchObject({ invert: true, negative: true })
   })
 
@@ -63,9 +63,9 @@ describe("ColorFilterCard", () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
     render(<StrictMode><ColorFilterCard store={store} /></StrictMode>)
 
-    fireEvent.click(screen.getByText("\u53cd\u8272"))
+    fireEvent.click(screen.getByRole("switch", { name: "反色" }))
 
-    await waitFor(() => expect(screen.getByText("\u5df2\u4fdd\u5b58", { exact: true })).toBeTruthy())
-    expect(screen.getByRole("checkbox", { name: "\u53cd\u8272" }).getAttribute("data-state")).toBe("checked")
+    await waitFor(() => expect(screen.getByText("已保存", { exact: true })).toBeTruthy())
+    expect(screen.getByRole("switch", { name: "反色" }).getAttribute("data-state")).toBe("checked")
   })
 })

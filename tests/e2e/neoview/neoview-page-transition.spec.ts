@@ -10,7 +10,7 @@ test("[neoview.page-transition.ui] [neoview.page-transition.ui-1920x1080] [neovi
   await expect(image).toBeVisible()
   await image.evaluate((element) => { (window as typeof window & { __originalPageTransitionImage?: Element }).__originalPageTransitionImage = element })
   const originalSource = await image.getAttribute("src")
-  await page.getByRole("checkbox", { name: "启用翻页动画" }).click()
+  await page.getByRole("switch", { name: "启用翻页动画" }).click()
   await page.getByLabel("动画类型").selectOption("slide")
   const duration = page.getByRole("slider", { name: "动画时长" })
   await duration.focus()
