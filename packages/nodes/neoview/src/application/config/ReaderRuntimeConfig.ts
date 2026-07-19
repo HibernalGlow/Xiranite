@@ -203,15 +203,7 @@ export interface NeoviewSuperResolutionConfig {
   preferences: SuperResolutionPreferences
 }
 
-export interface NeoviewSuperResolutionPreferencesPatch {
-  autoUpscaleEnabled?: boolean
-  preUpscaleEnabled?: boolean
-  preloadPages?: number
-  backgroundConcurrency?: number
-  progressiveEnabled?: boolean
-  progressiveDwellTimeMs?: number
-  progressiveMaxPages?: number
-}
+export type NeoviewSuperResolutionPreferencesPatch = Partial<Omit<SuperResolutionPreferences, "schemaVersion">>
 
 export interface NeoviewHistoryListConfig {
   viewMode: "compact" | "content" | "banner" | "thumbnail"
@@ -1105,11 +1097,25 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
   const allowed = new Set([
     "autoUpscaleEnabled",
     "preUpscaleEnabled",
+    "globalUpscaleEnabled",
+    "currentImageUpscaleEnabled",
     "preloadPages",
     "backgroundConcurrency",
+    "showPanelPreview",
+    "defaultModelId",
+    "defaultScale",
+    "defaultTileSize",
+    "defaultTileEnabled",
+    "defaultNoise",
+    "defaultGpuId",
+    "defaultTta",
     "progressiveEnabled",
     "progressiveDwellTimeMs",
     "progressiveMaxPages",
+    "conditionalEnabled",
+    "conditionalMinWidth",
+    "conditionalMinHeight",
+    "conditions",
   ])
   if (Object.keys(preferences).some((key) => !allowed.has(key))) {
     throw new Error("reader super-resolution preferences patch contains unsupported fields.")
@@ -1119,7 +1125,13 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
   const booleanFields = [
     ["autoUpscaleEnabled", "auto_upscale_enabled"],
     ["preUpscaleEnabled", "pre_upscale_enabled"],
+    ["globalUpscaleEnabled", "global_upscale_enabled"],
+    ["currentImageUpscaleEnabled", "current_image_upscale_enabled"],
+    ["showPanelPreview", "show_panel_preview"],
+    ["defaultTileEnabled", "default_tile_enabled"],
+    ["defaultTta", "default_tta"],
     ["progressiveEnabled", "progressive_enabled"],
+    ["conditionalEnabled", "conditional_enabled"],
   ] as const
   for (const [field, tomlField] of booleanFields) {
     if (preferences[field] !== undefined) {
@@ -1132,6 +1144,9 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
   const integerFields = [
     ["preloadPages", "preload_pages", 0, 1_000],
     ["backgroundConcurrency", "background_concurrency", 1, 32],
+    ["defaultScale", "default_scale", 1, 32],
+    ["defaultTileSize", "default_tile_size", 1, 65_536],
+    ["defaultNoise", "default_noise", -1, 3],
     ["progressiveDwellTimeMs", "progressive_dwell_time_ms", 0, 3_600_000],
     ["progressiveMaxPages", "progressive_max_pages", 0, 10_000],
   ] as const
@@ -1142,11 +1157,87 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
       toml[tomlField] = parsed
     }
   }
+  const directFields = [
+    ["defaultModelId", "default_model_id"],
+    ["defaultGpuId", "default_gpu_id"],
+    ["conditionalMinWidth", "conditional_min_width"],
+    ["conditionalMinHeight", "conditional_min_height"],
+  ] as const
+  for (const [field, tomlField] of directFields) {
+    if (preferences[field] !== undefined) toml[tomlField] = preferences[field]
+  }
+  if (preferences.conditions !== undefined) {
+    toml.conditions = superResolutionConditionsToml(preferences.conditions)
+  }
+  let parsed: SuperResolutionPreferences
+  try {
+    parsed = parseSuperResolutionPreferences(toml)
+  } catch (error) {
+    throw new Error(`reader super-resolution preferences patch is invalid: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  for (const [field] of directFields) {
+    if (preferences[field] !== undefined) Object.assign(patch, { [field]: parsed[field] })
+  }
+  if (preferences.conditions !== undefined) patch.conditions = parsed.conditions
   if (!Object.keys(patch).length) throw new Error("reader super-resolution preferences patch must change at least one field.")
   return {
     patch: { superResolution: { preferences: patch } },
     tomlPatch: { super_resolution: { preferences: toml } },
   }
+}
+
+function superResolutionConditionsToml(value: unknown): unknown[] {
+  if (!Array.isArray(value)) throw new Error("reader super-resolution preferences.conditions must be an array.")
+  return value.map((condition, index) => {
+    const path = `reader super-resolution preferences.conditions[${index}]`
+    const root = remapSuperResolutionFields(condition, path, {
+      id: "id",
+      name: "name",
+      enabled: "enabled",
+      priority: "priority",
+      match: "match",
+      action: "action",
+    })
+    root.match = remapSuperResolutionFields(root.match, `${path}.match`, {
+      minWidth: "min_width",
+      minHeight: "min_height",
+      maxWidth: "max_width",
+      maxHeight: "max_height",
+      minMegapixels: "min_megapixels",
+      maxMegapixels: "max_megapixels",
+      dimensionMode: "dimension_mode",
+      createdBetween: "created_between",
+      modifiedBetween: "modified_between",
+      bookPathRegex: "book_path_regex",
+      imagePathRegex: "image_path_regex",
+      matchInnerPath: "match_inner_path",
+      excludeFromPreload: "exclude_from_preload",
+      metadata: "metadata",
+    })
+    root.action = remapSuperResolutionFields(root.action, `${path}.action`, {
+      skip: "skip",
+      modelId: "model_id",
+      scale: "scale",
+      tileSize: "tile_size",
+      tileEnabled: "tile_enabled",
+      noise: "noise",
+      gpuId: "gpu_id",
+      useCache: "use_cache",
+      tta: "tta",
+    })
+    return root
+  })
+}
+
+function remapSuperResolutionFields(
+  value: unknown,
+  path: string,
+  fields: Readonly<Record<string, string>>,
+): Record<string, unknown> {
+  const record = requireRecord(value, path)
+  const unsupported = Object.keys(record).find((key) => fields[key] === undefined)
+  if (unsupported) throw new Error(`${path} contains unsupported field: ${unsupported}`)
+  return Object.fromEntries(Object.entries(record).map(([key, fieldValue]) => [fields[key]!, fieldValue]))
 }
 
 export function parseNeoviewPageTransitionPatch(value: unknown): {

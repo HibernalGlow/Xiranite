@@ -77,6 +77,72 @@ describe("NeoView super-resolution runtime config", () => {
     expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { preferences: { backgroundConcurrency: 0 } } })).toThrow("between 1 and 32")
   })
 
+  it("[neoview.super-resolution.card-settings-http] persists model, preview and condition controls through the canonical preference schema", () => {
+    const result = parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { preferences: {
+        showPanelPreview: true,
+        defaultModelId: "realcugan",
+        defaultScale: 3,
+        defaultTileSize: 256,
+        defaultTileEnabled: true,
+        defaultNoise: 1,
+        defaultGpuId: "0",
+        defaultTta: false,
+        conditionalEnabled: true,
+        conditions: [{
+          id: "small-page",
+          name: "Small page",
+          enabled: true,
+          priority: 0,
+          match: { maxWidth: 1_024, maxMegapixels: 2.5, dimensionMode: "or", excludeFromPreload: true },
+          action: { skip: false, modelId: "realcugan", scale: 3, tileEnabled: true, tileSize: 256, noise: 1, gpuId: "0", useCache: true },
+        }],
+      } },
+    })
+    expect(result.patch).toMatchObject({ superResolution: { preferences: {
+        showPanelPreview: true,
+        defaultModelId: "realcugan",
+        defaultScale: 3,
+        defaultTileSize: 256,
+        defaultTileEnabled: true,
+        defaultNoise: 1,
+        defaultGpuId: "0",
+        defaultTta: false,
+        conditionalEnabled: true,
+        conditions: [{
+          id: "small-page",
+          name: "Small page",
+          enabled: true,
+          priority: 0,
+          match: { maxWidth: 1_024, maxMegapixels: 2.5, dimensionMode: "or", excludeFromPreload: true },
+          action: { skip: false, modelId: "realcugan", scale: 3, tileEnabled: true, tileSize: 256, noise: 1, gpuId: "0", useCache: true },
+        }],
+      } } })
+    expect(result.tomlPatch).toEqual({ super_resolution: { preferences: {
+        schema_version: 1,
+        show_panel_preview: true,
+        default_model_id: "realcugan",
+        default_scale: 3,
+        default_tile_size: 256,
+        default_tile_enabled: true,
+        default_noise: 1,
+        default_gpu_id: "0",
+        default_tta: false,
+        conditional_enabled: true,
+        conditions: [{
+          id: "small-page",
+          name: "Small page",
+          enabled: true,
+          priority: 0,
+          match: { max_width: 1_024, max_megapixels: 2.5, dimension_mode: "or", exclude_from_preload: true },
+          action: { skip: false, model_id: "realcugan", scale: 3, tile_enabled: true, tile_size: 256, noise: 1, gpu_id: "0", use_cache: true },
+        }],
+      } } })
+    expect(() => parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { preferences: { conditions: [{ id: "bad", name: "Bad", enabled: true, priority: 0, match: { futureField: true }, action: { skip: true } }] } },
+    })).toThrow("contains unsupported field: futureField")
+  })
+
   it("[neoview.super-resolution.custom-model-config] validates portable NCNN manifests", () => {
     const checksum = "a".repeat(64)
     expect(parseNeoviewRuntimeConfig({ super_resolution: { custom_models: [{
