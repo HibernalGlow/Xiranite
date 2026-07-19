@@ -36,6 +36,50 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.tree-inline-ui] makes the hierarchy an explicit renderer without clearing list selection", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [
+        { name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true },
+        { name: "series", path: "C:/books/series", kind: "directory", readerSupported: true },
+      ],
+      total: 2,
+    })
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string) => ({
+      sessionId: "browser-1",
+      path: path ?? "C:\\",
+      entries: path === "C:/books" ? [{ name: "series", path: "C:/books/series", kind: "directory" as const, readerSupported: true }] : [],
+      generation: 1,
+      cacheHit: false,
+      excludedPaths: [],
+    }))
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      treeDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    const book = await ui.findByTitle("C:/books/book.cbz")
+    fireEvent.click(book, { ctrlKey: true })
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+
+    selectFolderHandleAction(ui, "内联树")
+    await waitFor(() => expect(ui.getByRole("tree")).toBeTruthy())
+    expect(view.container.querySelector('[data-neoview-folder-list="true"]')?.getAttribute("role")).toBeNull()
+    expect(treeDirectoryBrowser).toHaveBeenCalledWith("browser-1", "C:\\", false, expect.any(AbortSignal))
+
+    selectFolderHandleAction(ui, "内联树")
+    await waitFor(() => expect(ui.getByTitle("C:/books/book.cbz")).toBeTruthy())
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
+    view.unmount()
+  })
+
   it("[neoview.folder.thumbnail-visit-cache] keeps recent URLs in a bounded visit cache", () => {
     const current = new Map([["A", "url-a"], ["B", "url-b"]])
     const merged = mergeThumbnailUrls(current, [["A", "url-a-2"], ["C", "url-c"]], 2)

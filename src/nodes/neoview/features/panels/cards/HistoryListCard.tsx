@@ -11,6 +11,7 @@ import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
+import { readerLibraryListLayout, readerLibraryMediaClassName } from "./shared/readerLibraryEntryLayout"
 
 interface PendingDelete {
   ids: readonly string[]
@@ -36,6 +37,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const [cleanupOpen, setCleanupOpen] = useState(false)
   const [viewMode, setViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
   const [confirmedViewMode, setConfirmedViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
+  const [viewportWidth, setViewportWidth] = useState(320)
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const focusedIdRef = useRef<string>()
   const anchorIndexRef = useRef<number>()
@@ -46,6 +48,10 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
     previewCount: item.source.kind === "directory" ? 4 : 1,
   })), [viewMode, visibleRecents])
   const thumbnails = useReaderLibraryThumbnails(client, "history", thumbnailItems)
+  const listLayout = useMemo(() => readerLibraryListLayout(viewMode, viewportWidth), [viewMode, viewportWidth])
+  const handleViewportWidthChange = useCallback((width: number) => {
+    setViewportWidth((current) => current === width ? current : width)
+  }, [])
 
   useEffect(() => {
     if (switchingView || !historyListPreferences) return
@@ -288,9 +294,8 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
         loadPage={loadPage}
         emptyLabel="暂无阅读历史"
         refreshLabel="刷新历史记录"
-        itemSize={viewMode === "compact" ? 34 : viewMode === "content" ? 76 : viewMode === "banner" ? 100 : 148}
-        columns={viewMode === "banner" ? 2 : viewMode === "thumbnail" ? 3 : 1}
-        gap={viewMode === "banner" || viewMode === "thumbnail" ? 4 : 0}
+        {...listLayout}
+        onViewportWidthChange={handleViewportWidthChange}
         getItemKey={(item) => item.bookId}
         onVisibleItemsChange={setVisibleRecents}
         onItemsChange={handleLoadedItems}
@@ -303,7 +308,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
             viewMode={viewMode}
             selected={selectedIds.has(item.bookId)}
             focused={focusedIndex === undefined ? index === 0 : focusedIndex === index}
-            columnCount={viewMode === "banner" ? 2 : viewMode === "thumbnail" ? 3 : 1}
+            columnCount={listLayout.columns}
             disabled={disabled}
             canOpen={Boolean(onOpen)}
             thumbnailUrl={thumbnails.urls.get(item.bookId)}
@@ -406,7 +411,7 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
           kind={kind}
           fit="cover"
           loading={thumbnailLoading}
-          className={viewMode === "content" ? "size-16" : "size-full rounded-none"}
+          className={readerLibraryMediaClassName(viewMode)}
         />
       )}
       primary={item.displayName}

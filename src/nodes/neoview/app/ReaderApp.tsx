@@ -226,7 +226,6 @@ export function ReaderApp({
   const inputBindingsRef = useRef<ReaderInputBindingsConfig>(structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const lastInputPointRef = useRef<{ x: number; y: number }>()
   const temporaryFitPresentationRef = useRef<ReaderPresentation>()
-  const panoramaRestorePageModeRef = useRef<"single" | "double">("double")
   const shellControlWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const shellControlGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
@@ -397,7 +396,13 @@ export function ReaderApp({
       setInputBindings(config.inputBindings)
       setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
       if (!presentationTouchedRef.current) {
-        setPresentation((current) => ({ ...current, fitMode: config.viewDefaults.fitMode }))
+        setPresentation((current) => ({
+          ...current,
+          fitMode: config.viewDefaults.fitMode,
+          orientation: config.viewDefaults.orientation ?? DEFAULT_READER_PRESENTATION.orientation,
+          autoRotation: config.viewDefaults.autoRotation ?? DEFAULT_READER_PRESENTATION.autoRotation,
+          widePageStretch: config.viewDefaults.widePageStretch ?? DEFAULT_READER_PRESENTATION.widePageStretch,
+        }))
       }
     }).catch(() => undefined)
     return () => controller.abort()
@@ -428,7 +433,7 @@ export function ReaderApp({
       }
       sessionRef.current = opened.sessionId
       setSession(opened)
-      setPresentation({ ...DEFAULT_READER_PRESENTATION, fitMode: viewDefaultsRef.current.fitMode })
+      setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
       presentationTouchedRef.current = false
       setPath(normalizedPath)
       onPathCommitted?.(normalizedPath)
@@ -541,10 +546,14 @@ export function ReaderApp({
   }
 
   function updatePresentation(next: ReaderPresentation) {
-    const fitModeChanged = next.fitMode !== presentation.fitMode
+    const defaultsPatch: ReaderViewDefaultsPatch["viewDefaults"] = {}
+    if (next.fitMode !== presentation.fitMode) defaultsPatch.fitMode = next.fitMode
+    if (next.orientation !== presentation.orientation) defaultsPatch.orientation = next.orientation
+    if (next.autoRotation !== presentation.autoRotation) defaultsPatch.autoRotation = next.autoRotation
+    if (next.widePageStretch !== presentation.widePageStretch) defaultsPatch.widePageStretch = next.widePageStretch
     presentationTouchedRef.current = true
     setPresentation(next)
-    if (fitModeChanged) void persistViewDefaults({ fitMode: next.fitMode })
+    if (Object.keys(defaultsPatch).length) void persistViewDefaults(defaultsPatch)
   }
 
   async function updatePageMode(pageMode: "single" | "double") {
@@ -555,6 +564,22 @@ export function ReaderApp({
       signal,
     ))
     if (updated) void persistViewDefaults({ pageMode })
+  }
+
+  async function updateSessionLayout(layout: Partial<NonNullable<typeof session>["frame"]["layout"]>) {
+    const current = session?.frame.layout
+    if (!current || Object.entries(layout).every(([key, value]) => current[key as keyof typeof current] === value)) return
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
+      sessionId,
+      { layout },
+      signal,
+    ))
+    if (updated && layout.pageMode) void persistViewDefaults({ pageMode: layout.pageMode })
+  }
+
+  async function updateReadingDirection(direction: "left-to-right" | "right-to-left") {
+    if (direction === session?.frame.direction) return
+    await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(sessionId, { direction }, signal))
   }
 
   async function updateCurrentBookPageMode(pageMode: "single" | "double") {
@@ -656,16 +681,26 @@ export function ReaderApp({
   }
 
   async function applyConfiguredViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
-    const fitMode = patch.fitMode
-    if (fitMode) {
+    if (!Object.keys(patch).length) return
+    const presentationPatch = {
+      ...(patch.fitMode ? { fitMode: patch.fitMode, manualScale: 1 } : {}),
+      ...(patch.orientation ? { orientation: patch.orientation } : {}),
+      ...(patch.autoRotation ? { autoRotation: patch.autoRotation } : {}),
+      ...(patch.widePageStretch ? { widePageStretch: patch.widePageStretch } : {}),
+    }
+    if (Object.keys(presentationPatch).length) {
       presentationTouchedRef.current = true
-      setPresentation((current) => ({ ...current, fitMode, manualScale: 1 }))
-      await persistViewDefaults({ fitMode })
+      setPresentation((current) => ({ ...current, ...presentationPatch }))
     }
-    if (patch.pageMode) {
-      if (sessionRef.current) await updatePageMode(patch.pageMode)
-      else await persistViewDefaults({ pageMode: patch.pageMode })
+    if (patch.pageMode && sessionRef.current && patch.pageMode !== session?.frame.layout.pageMode) {
+      const updated = await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
+        sessionId,
+        { layout: { pageMode: patch.pageMode } },
+        signal,
+      ))
+      if (!updated) return
     }
+    await persistViewDefaults(patch)
   }
 
   async function persistInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderInputBindingsConfig> {
@@ -761,7 +796,7 @@ export function ReaderApp({
       if (!replacement || controller.signal.aborted) return false
       sessionRef.current = replacement.sessionId
       setSession(replacement)
-      setPresentation({ ...DEFAULT_READER_PRESENTATION, fitMode: viewDefaultsRef.current.fitMode })
+      setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
       presentationTouchedRef.current = false
       void clientRef.current.metadata?.(replacement.sessionId, controller.signal).then((metadata) => {
         if (sessionRef.current !== replacement.sessionId) return
@@ -792,13 +827,17 @@ export function ReaderApp({
   }
 
   function toggleSinglePanorama(): void {
-    const current = session?.frame.layout.pageMode
+    const current = session?.frame.layout
     if (!current) return
-    if (current === "single") void updatePageMode(panoramaRestorePageModeRef.current)
-    else {
-      panoramaRestorePageModeRef.current = current
-      void updatePageMode("single")
-    }
+    void updateSessionLayout({ panorama: !current.panorama })
+  }
+
+  function syncPanoramaVisiblePage(pageIndex: number): void {
+    setSession((current) => {
+      if (!current || !current.frame.layout.panorama || current.frame.anchorPageIndex === pageIndex) return current
+      const bounded = Math.max(0, Math.min(current.book.pageCount - 1, pageIndex))
+      return { ...current, frame: { ...current.frame, anchorPageIndex: bounded, atStart: bounded === 0, atEnd: bounded >= current.book.pageCount - 1 } }
+    })
   }
 
   async function toggleFullscreen(): Promise<void> {
@@ -1182,10 +1221,12 @@ export function ReaderApp({
           <Suspense fallback={null}>
             <LazyReaderViewToolbar
               disabled={busy}
-              pageMode={frame?.layout.pageMode ?? "single"}
+              layout={frame?.layout ?? session.frame.layout}
+              direction={frame?.direction ?? session.frame.direction}
               presentation={presentation}
               onChange={updatePresentation}
-              onPageModeChange={(pageMode) => void updatePageMode(pageMode)}
+              onLayoutChange={(layout) => void updateSessionLayout(layout)}
+              onDirectionChange={(direction) => void updateReadingDirection(direction)}
               slideshow={slideshow}
               onSlideshowChange={persistSlideshow}
             />
@@ -1336,6 +1377,11 @@ export function ReaderApp({
               <LazyReaderFrame
                 pages={session.visiblePages}
                 presentation={presentation}
+                panorama={session.frame.layout.panorama}
+                pageMode={session.frame.layout.pageMode}
+                direction={session.frame.direction}
+                totalPages={session.book.pageCount}
+                anchorPageIndex={session.frame.anchorPageIndex}
                 colorFilter={colorFilter}
                 pageTransition={pageTransition}
                 videoController={videoController}
@@ -1344,6 +1390,7 @@ export function ReaderApp({
                 media={media}
                 superResolution={superResolution}
                 onSubtitleConfigChange={persistSubtitleConfig}
+                onVisiblePageChange={syncPanoramaVisiblePage}
                 imageTrim={imageTrim}
                 onVideoListEnded={() => void navigate("next")}
               />

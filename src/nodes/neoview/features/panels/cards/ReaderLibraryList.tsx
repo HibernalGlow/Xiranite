@@ -21,6 +21,7 @@ export function ReaderLibraryList<T>({
   listLabel,
   columns = 1,
   gap = 0,
+  onViewportWidthChange,
 }: {
   queryKey: string
   loadPage(offset: number, limit: number, signal: AbortSignal): Promise<readonly T[]>
@@ -36,6 +37,8 @@ export function ReaderLibraryList<T>({
   listLabel?: string
   columns?: number
   gap?: number
+  /** Fired when the scroll viewport width changes so parents can recompute adaptive columns/heights. */
+  onViewportWidthChange?(width: number): void
 }) {
   const columnCount = Math.max(1, Math.floor(columns))
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -49,6 +52,8 @@ export function ReaderLibraryList<T>({
   const [error, setError] = useState<string | undefined>(undefined)
   const [manualRevision, setManualRevision] = useState(0)
   const rowCount = Math.ceil(items.length / columnCount)
+  // Include geometry in the virtualizer identity so view-mode / resize switches drop stale row heights.
+  const layoutKey = `${itemSize}:${columnCount}:${gap}`
   const virtualizer = useVirtualizer({
     count: rowCount + (hasMore ? 1 : 0),
     getScrollElement: () => viewportRef.current,
@@ -82,6 +87,24 @@ export function ReaderLibraryList<T>({
   }, [columnCount, focusIndex, items.length, virtualizer])
 
   useEffect(() => () => onVisibleItemsChange?.([]), [onVisibleItemsChange])
+
+  useEffect(() => {
+    virtualizer.measure?.()
+  }, [layoutKey, virtualizer])
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport || !onViewportWidthChange) return
+    const report = () => onViewportWidthChange(Math.max(0, Math.floor(viewport.clientWidth)))
+    report()
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", report)
+      return () => window.removeEventListener("resize", report)
+    }
+    const observer = new ResizeObserver(report)
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [onViewportWidthChange])
 
   useEffect(() => {
     generationRef.current += 1
@@ -159,26 +182,36 @@ export function ReaderLibraryList<T>({
         {items.length === 0 && !loading ? (
           <div className="grid h-24 place-items-center text-xs text-muted-foreground">{emptyLabel}</div>
         ) : (
-          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }} data-library-grid-columns={columnCount}>
+          <div
+            key={layoutKey}
+            className="relative w-full"
+            style={{ height: virtualizer.getTotalSize() }}
+            data-library-grid-columns={columnCount}
+            data-library-item-size={itemSize}
+            data-library-gap={gap}
+          >
             {virtualItems.map((virtualItem) => {
               const firstItemIndex = virtualItem.index * columnCount
               const rowItems = items.slice(firstItemIndex, firstItemIndex + columnCount)
+              // itemSize is the full row pitch (surface + gap). Content fills the non-gap portion.
+              const contentHeight = Math.max(virtualItem.size - gap, 0)
               return (
                 <div
                   key={virtualItem.key}
                   className="absolute left-0 grid w-full"
                   style={{
-                    gap,
+                    columnGap: gap,
+                    rowGap: 0,
                     gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-                    height: virtualItem.size,
-                    paddingBottom: gap,
+                    height: contentHeight,
+                    marginBottom: gap,
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
                   {rowItems.length ? rowItems.map((item, offset) => (
                     <div
                       key={getItemKey ? getItemKey(item) : firstItemIndex + offset}
-                      className="min-w-0 overflow-hidden"
+                      className="h-full min-h-0 min-w-0 overflow-hidden"
                       data-library-item-index={firstItemIndex + offset}
                     >
                       {renderRow(item, firstItemIndex + offset)}

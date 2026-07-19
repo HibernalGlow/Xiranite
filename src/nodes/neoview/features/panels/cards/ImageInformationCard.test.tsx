@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { DEFAULT_READER_PRESENTATION } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderHttpClient, ReaderMetadataDto, ReaderPageDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
 import ImageInformationCard from "./ImageInformationCard"
@@ -15,7 +16,7 @@ describe("ImageInformationCard", () => {
       session={session(page("image"))}
       disabled={false}
       onGoTo={vi.fn()}
-      presentation={{ fitMode: "fit-width", manualScale: 1.25, rotation: 90 }}
+      presentation={{ ...DEFAULT_READER_PRESENTATION, fitMode: "fit-width", manualScale: 1.25, rotation: 90 }}
     />)
 
     expect(await screen.findByText("001.png")).toBeTruthy()
