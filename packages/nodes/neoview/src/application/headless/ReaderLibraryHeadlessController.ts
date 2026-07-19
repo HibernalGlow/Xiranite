@@ -1,4 +1,5 @@
 import type { ReaderBookmarkBatchUpdate, ReaderLibraryService, SaveReaderBookmarkListInput, UpdateReaderBookmarkInput } from "../library/ReaderLibraryService.js"
+import type { AppendReaderPlaylistEntryInput, SaveReaderPlaylistInput } from "../library/ReaderPlaylistService.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderLibraryCleanupRequest, ReaderLibraryCleanupService } from "../library/ReaderLibraryCleanupService.js"
 import type { ReaderDirectoryFilter } from "../../domain/browser/ReaderDirectoryFilter.js"
@@ -107,6 +108,46 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
   listBookmarkLists() {
     this.#assertOpen()
     return this.library.listBookmarkLists()
+  }
+
+  statistics() {
+    this.#assertOpen()
+    return this.library.statistics()
+  }
+
+  listPlaylists() {
+    this.#assertOpen()
+    return this.library.playlists().list()
+  }
+
+  savePlaylist(input: SaveReaderPlaylistInput) {
+    this.#assertOpen()
+    return this.library.playlists().save(input)
+  }
+
+  removePlaylist(id: string) {
+    this.#assertOpen()
+    return this.library.playlists().remove(id)
+  }
+
+  listPlaylistEntries(playlistId: string) {
+    this.#assertOpen()
+    return this.library.playlists().entries(playlistId)
+  }
+
+  appendPlaylistEntries(playlistId: string, entries: readonly AppendReaderPlaylistEntryInput[]) {
+    this.#assertOpen()
+    return this.library.playlists().append(playlistId, entries)
+  }
+
+  removePlaylistEntries(playlistId: string, entryIds: readonly string[]) {
+    this.#assertOpen()
+    return this.library.playlists().removeEntries(playlistId, entryIds)
+  }
+
+  reorderPlaylistEntries(playlistId: string, entryIds: readonly string[]) {
+    this.#assertOpen()
+    return this.library.playlists().reorder(playlistId, entryIds)
   }
 
   saveBookmarkList(input: SaveReaderBookmarkListInput) {
