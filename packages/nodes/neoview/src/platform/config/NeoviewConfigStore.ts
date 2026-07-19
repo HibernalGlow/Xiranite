@@ -64,7 +64,7 @@ async function commitLocked(
   const nodes = isRecord(root.nodes) ? { ...root.nodes } : {}
   const rawCurrent = isRecord(nodes.neoview) ? nodes.neoview : {}
   const current = unwrapNeoviewConfigEnvelope(rawCurrent)
-  const nextNode = strategy === "overwrite" ? cloneRecord(patch) : deepMerge(current, patch)
+  const nextNode = canonicalizeTomlRecord(strategy === "overwrite" ? cloneRecord(patch) : deepMerge(current, patch))
   const nextRoot = { ...root, nodes: { ...nodes, neoview: nextNode } }
   const nextText = stringifyXiraniteConfig(nextRoot)
   const changed = !deepEqual(current, nextNode) || previousText !== nextText
@@ -182,6 +182,28 @@ function cloneValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(cloneValue)
   if (isRecord(value)) return cloneRecord(value)
   return value
+}
+
+/**
+ * TOML has no null or undefined value. Treat nullish record fields as an
+ * explicit deletion before writing so the expected value matches the parsed
+ * value after the atomic replacement.
+ */
+function canonicalizeTomlRecord(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).flatMap(([key, child]) => {
+    if (child === null || child === undefined) return []
+    return [[key, canonicalizeTomlValue(child)]]
+  }))
+}
+
+function canonicalizeTomlValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    if (value.some((child) => child === null || child === undefined)) {
+      throw new TypeError("NeoView TOML arrays cannot contain null or undefined values.")
+    }
+    return value.map(canonicalizeTomlValue)
+  }
+  return isRecord(value) ? canonicalizeTomlRecord(value) : value
 }
 
 function deepEqual(left: unknown, right: unknown): boolean {
