@@ -7,7 +7,7 @@
  * @source-hash sha256:c823ae6af0f8659ac7cccdaaa2eedfbbb8c8be5088b5148288bb57f3caf4acb5
  * @migration-status adapted
  */
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -30,6 +30,7 @@ import {
   RotateCcw,
   RotateCw,
   Search,
+  ScanSearch,
   SplitSquareHorizontal,
   StretchHorizontal,
   StretchVertical,
@@ -76,7 +77,7 @@ const FIT_MODE_ICONS = {
   "fit-right": AlignRight,
 } as const
 
-type ExpandedPanel = "zoom" | "rotate" | "hover-scroll" | "slideshow"
+type ExpandedPanel = "zoom" | "rotate" | "hover-scroll" | "slideshow" | "magnifier"
 
 export function ReaderViewToolbar({
   disabled,
@@ -89,6 +90,11 @@ export function ReaderViewToolbar({
   hoverScrollEnabled = true,
   hoverScrollSpeed = 2,
   onHoverScrollChange,
+  magnifierEnabled = false,
+  magnifierZoom = 2,
+  magnifierSize = 200,
+  onMagnifierEnabledChange,
+  onMagnifierConfigChange,
   slideshow,
   onSlideshowChange,
 }: {
@@ -102,6 +108,11 @@ export function ReaderViewToolbar({
   hoverScrollEnabled?: boolean
   hoverScrollSpeed?: number
   onHoverScrollChange?(patch: { enabled?: boolean; speed?: number }): void | Promise<void>
+  magnifierEnabled?: boolean
+  magnifierZoom?: number
+  magnifierSize?: number
+  onMagnifierEnabledChange?(enabled: boolean): void
+  onMagnifierConfigChange?(patch: { zoom?: number; size?: number }): void | Promise<void>
   slideshow: ReaderSlideshow
   onSlideshowChange(patch: ReaderSlideshowPatch["slideshow"]): void | Promise<void>
 }) {
@@ -169,7 +180,22 @@ export function ReaderViewToolbar({
           onContextMenu={(event) => { event.preventDefault(); toggle("hover-scroll") }}
         ><MousePointer2 /></Button>
         <Button title="幻灯片设置" aria-label="展开幻灯片设置" aria-expanded={expanded === "slideshow"} type="button" size="icon-sm" variant={expanded === "slideshow" ? "default" : "ghost"} disabled={disabled} onClick={() => toggle("slideshow")}><Play /></Button>
-        <Button title="放大镜尚待迁移" aria-label="放大镜" type="button" size="icon-sm" variant="ghost" disabled><Search /></Button>
+        <Button
+          title="放大镜 / Magnifier（右键设置）"
+          aria-label="放大镜"
+          aria-pressed={magnifierEnabled}
+          aria-expanded={expanded === "magnifier"}
+          type="button"
+          size="icon-sm"
+          variant={magnifierEnabled || expanded === "magnifier" ? "default" : "ghost"}
+          disabled={disabled || !onMagnifierEnabledChange}
+          onClick={() => {
+            const next = !magnifierEnabled
+            onMagnifierEnabledChange?.(next)
+            setExpanded(next ? "magnifier" : null)
+          }}
+          onContextMenu={(event) => { event.preventDefault(); toggle("magnifier") }}
+        ><Search /></Button>
       </div>
       {expanded ? (
         <div className="flex min-h-12 flex-wrap items-center justify-center gap-1 overflow-x-auto border-t border-border/50 bg-muted/18 px-3 py-2" data-reader-toolbar-row="expanded" data-reader-toolbar-panel={expanded}>
@@ -177,10 +203,43 @@ export function ReaderViewToolbar({
           {expanded === "rotate" ? <RotatePanel disabled={disabled} presentation={presentation} onChange={onChange} /> : null}
           {expanded === "hover-scroll" ? <HoverScrollPanel disabled={disabled} enabled={hoverScrollEnabled} speed={hoverScrollSpeed} onChange={onHoverScrollChange} /> : null}
           {expanded === "slideshow" ? <ReaderSlideshowToolbar slideshow={slideshow} disabled={disabled} onChange={onSlideshowChange} /> : null}
+          {expanded === "magnifier" ? <MagnifierPanel disabled={disabled} zoom={magnifierZoom} size={magnifierSize} onChange={onMagnifierConfigChange} /> : null}
         </div>
       ) : null}
     </div>
   )
+}
+
+function MagnifierPanel({ disabled, zoom, size, onChange }: { disabled?: boolean; zoom: number; size: number; onChange?(patch: { zoom?: number; size?: number }): void | Promise<void> }) {
+  return <>
+    <CommittedRange label="放大倍率" valueLabel={`${zoom.toFixed(1)}x`} value={zoom} min={1} max={5} step={0.1} disabled={disabled || !onChange} icon={<ScanSearch className="size-3" />} onCommit={(value) => void onChange?.({ zoom: value })} />
+    <Separator />
+    <CommittedRange label="镜片大小" valueLabel={`${size}px`} value={size} min={100} max={500} step={10} disabled={disabled || !onChange} onCommit={(value) => void onChange?.({ size: value })} />
+  </>
+}
+
+function CommittedRange({ label, valueLabel, value, min, max, step, disabled, icon, onCommit }: { label: string; valueLabel: string; value: number; min: number; max: number; step: number; disabled?: boolean; icon?: ReactNode; onCommit(value: number): void }) {
+  const [draft, setDraft] = useState(value)
+  const committedRef = useRef(value)
+  useEffect(() => {
+    committedRef.current = value
+    setDraft(value)
+  }, [value])
+  const commit = () => {
+    const clamped = Math.max(min, Math.min(max, draft))
+    setDraft(clamped)
+    if (clamped === committedRef.current) return
+    committedRef.current = clamped
+    onCommit(clamped)
+  }
+  const renderedLabel = label === "放大倍率" ? `${draft.toFixed(1)}x` : `${draft}px`
+  return <label className="flex items-center gap-2 text-xs text-muted-foreground">
+    <span className="mr-1 flex items-center gap-1">{icon}{label}</span>
+    <span className="inline-flex min-w-37.5 items-center gap-2 rounded-full bg-muted/60 px-3 py-1 shadow-inner">
+      <span className="w-10 text-right tabular-nums" aria-hidden="true">{value === draft ? valueLabel : renderedLabel}</span>
+      <input aria-label={label} className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-muted" type="range" min={min} max={max} step={step} value={draft} disabled={disabled} onChange={(event) => setDraft(Number(event.currentTarget.value))} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
+    </span>
+  </label>
 }
 
 function HoverScrollPanel({ disabled, enabled, speed, onChange }: { disabled?: boolean; enabled: boolean; speed: number; onChange?(patch: { enabled?: boolean; speed?: number }): void | Promise<void> }) {

@@ -25,6 +25,8 @@ function Harness() {
   const [direction, setDirection] = useState<ReadingDirection>("left-to-right")
   const [presentation, setPresentation] = useState<ReaderPresentation>(DEFAULT_READER_PRESENTATION)
   const [hoverScroll, setHoverScroll] = useState({ enabled: true, speed: 2 })
+  const [magnifierEnabled, setMagnifierEnabled] = useState(false)
+  const [magnifier, setMagnifier] = useState({ zoom: 2, size: 200 })
   return <main className="h-screen overflow-hidden bg-neutral-950 text-foreground">
     <div className="h-14 bg-[linear-gradient(90deg,#171717,#0a0a0a)]" />
     <section className="border-y border-border/60 bg-background/95 shadow-xl" data-toolbar-harness="true">
@@ -43,6 +45,11 @@ function Harness() {
         hoverScrollEnabled={hoverScroll.enabled}
         hoverScrollSpeed={hoverScroll.speed}
         onHoverScrollChange={(patch) => setHoverScroll((current) => ({ ...current, ...patch }))}
+        magnifierEnabled={magnifierEnabled}
+        magnifierZoom={magnifier.zoom}
+        magnifierSize={magnifier.size}
+        onMagnifierEnabledChange={setMagnifierEnabled}
+        onMagnifierConfigChange={(patch) => setMagnifier((current) => ({ ...current, ...patch }))}
         slideshow={slideshow}
         onSlideshowChange={() => undefined}
       />

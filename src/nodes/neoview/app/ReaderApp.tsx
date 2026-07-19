@@ -79,6 +79,8 @@ const INITIAL_VIEW_DEFAULTS = {
   splitWidePages: false,
   hoverScrollEnabled: true,
   hoverScrollSpeed: 2,
+  magnifierZoom: 2,
+  magnifierSize: 200,
 } satisfies ReaderRuntimeConfigDto["viewDefaults"]
 const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
   viewMode: "compact",
@@ -304,6 +306,7 @@ export function ReaderApp({
   const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
+  const [magnifierEnabled, setMagnifierEnabled] = useState(false)
   const prefetchController = useReaderImagePreloader(session?.sessionId)
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
@@ -980,6 +983,7 @@ export function ReaderApp({
     const sessionId = sessionRef.current
     sessionRef.current = undefined
     setSession(undefined)
+    setMagnifierEnabled(false)
     setBusy(false)
     if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
   }
@@ -1242,6 +1246,14 @@ export function ReaderApp({
                 ...(patch.enabled === undefined ? {} : { hoverScrollEnabled: patch.enabled }),
                 ...(patch.speed === undefined ? {} : { hoverScrollSpeed: patch.speed }),
               })}
+              magnifierEnabled={magnifierEnabled}
+              magnifierZoom={viewDefaults.magnifierZoom ?? 2}
+              magnifierSize={viewDefaults.magnifierSize ?? 200}
+              onMagnifierEnabledChange={setMagnifierEnabled}
+              onMagnifierConfigChange={(patch) => persistViewDefaults({
+                ...(patch.zoom === undefined ? {} : { magnifierZoom: patch.zoom }),
+                ...(patch.size === undefined ? {} : { magnifierSize: patch.size }),
+              })}
               slideshow={slideshow}
               onSlideshowChange={persistSlideshow}
             />
@@ -1400,6 +1412,9 @@ export function ReaderApp({
                 anchorPageIndex={session.frame.anchorPageIndex}
                 hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
                 hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
+                magnifierEnabled={magnifierEnabled}
+                magnifierZoom={viewDefaults.magnifierZoom ?? 2}
+                magnifierSize={viewDefaults.magnifierSize ?? 200}
                 colorFilter={colorFilter}
                 pageTransition={pageTransition}
                 videoController={videoController}

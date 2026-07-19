@@ -29,6 +29,7 @@ describe("LegacySettingsCodec", () => {
       image: { hoverScrollEnabled: false, hoverScrollSpeed: 4.5 },
       view: {
         defaultZoomMode: "fitWidth",
+        magnifier: { zoom: 3, size: 260 },
         pageLayout: { splitHorizontalPages: true, widePageStretch: "uniformHeight" },
         sidebarControl: { enabled: false, position: { x: 130, y: 170 } },
       },
@@ -60,6 +61,7 @@ describe("LegacySettingsCodec", () => {
         view: { page_layout: { wide_page_stretch: "uniformHeight" } },
         subtitle: { font_size: 1.2 },
       },
+      view: { magnifier: { zoom: 3, size: 260 } },
       panels: { sidebar_control: { enabled: false, position: { x: 130, y: 170 } } },
     })
     expect(result.configPatch).not.toHaveProperty("reader.view.sidebar_control")

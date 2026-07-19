@@ -244,6 +244,8 @@ export interface NeoviewViewDefaults {
   splitWidePages: boolean
   hoverScrollEnabled: boolean
   hoverScrollSpeed: number
+  magnifierZoom: number
+  magnifierSize: number
   orientation?: ReaderOrientation
   autoRotation?: ReaderAutoRotation
   widePageStretch?: ReaderWidePageStretch
@@ -438,6 +440,8 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   splitWidePages: DEFAULT_READER_LAYOUT.splitWidePages ?? false,
   hoverScrollEnabled: true,
   hoverScrollSpeed: 2,
+  magnifierZoom: 2,
+  magnifierSize: 200,
   orientation: DEFAULT_READER_PRESENTATION.orientation,
   autoRotation: DEFAULT_READER_PRESENTATION.autoRotation,
   widePageStretch: DEFAULT_READER_PRESENTATION.widePageStretch,
@@ -666,6 +670,10 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       ?? nestedValue(reader, "view", "imageTrim"),
     "[nodes.neoview.view.image_trim]",
   )
+  const magnifier = optionalRecord(
+    view?.magnifier ?? nestedValue(reader, "view", "magnifier"),
+    "[nodes.neoview.view.magnifier]",
+  )
   const subtitle = optionalRecord(reader?.subtitle, "[nodes.neoview.reader.subtitle]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
@@ -714,6 +722,20 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     DEFAULT_NEOVIEW_VIEW_DEFAULTS.hoverScrollSpeed,
     "[nodes.neoview.reader].hover_scroll_speed",
   )
+  const magnifierZoom = boundedNumber(
+    magnifier?.zoom,
+    1,
+    5,
+    DEFAULT_NEOVIEW_VIEW_DEFAULTS.magnifierZoom,
+    "[nodes.neoview.view.magnifier].zoom",
+  )
+  const magnifierSize = boundedNumber(
+    magnifier?.size,
+    100,
+    500,
+    DEFAULT_NEOVIEW_VIEW_DEFAULTS.magnifierSize,
+    "[nodes.neoview.view.magnifier].size",
+  )
   const tailOverflow = parseTailOverflow(
     reader?.tail_overflow_behavior ?? nestedValue(reader, "book", "tail_overflow_behavior"),
   )
@@ -740,7 +762,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       tailOverflow,
     },
     shellOptions: parseShellOptions(panels, reader),
-    viewDefaults: { fitMode, pageMode, splitWidePages: splitWidePages ?? false, hoverScrollEnabled, hoverScrollSpeed, orientation, autoRotation, widePageStretch },
+    viewDefaults: { fitMode, pageMode, splitWidePages: splitWidePages ?? false, hoverScrollEnabled, hoverScrollSpeed, magnifierZoom, magnifierSize, orientation, autoRotation, widePageStretch },
     pageList: {
       viewMode: optionalEnum(pageList?.view_mode, "[nodes.neoview.page_list].view_mode", ["list", "details", "thumbnails"] as const)
         ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG.viewMode,
@@ -2034,11 +2056,12 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   const record = requireRecord(value, "reader view defaults patch")
   if (Object.keys(record).some((key) => key !== "viewDefaults")) throw new Error("reader view defaults patch contains unsupported fields.")
   const defaults = requireRecord(record.viewDefaults, "reader view defaults patch.viewDefaults")
-  const allowed = new Set(["fitMode", "pageMode", "splitWidePages", "hoverScrollEnabled", "hoverScrollSpeed", "orientation", "autoRotation", "widePageStretch"])
+  const allowed = new Set(["fitMode", "pageMode", "splitWidePages", "hoverScrollEnabled", "hoverScrollSpeed", "magnifierZoom", "magnifierSize", "orientation", "autoRotation", "widePageStretch"])
   const unknown = Object.keys(defaults).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader view defaults patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewViewDefaultsPatch = { viewDefaults: {} }
   const readerPatch: Record<string, unknown> = {}
+  const magnifierPatch: Record<string, unknown> = {}
   if (defaults.fitMode !== undefined) {
     patch.viewDefaults.fitMode = readerFitMode(defaults.fitMode, "reader view defaults patch.fitMode")
     readerPatch.default_zoom_mode = persistedReaderFitMode(patch.viewDefaults.fitMode)
@@ -2059,6 +2082,14 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
     patch.viewDefaults.hoverScrollSpeed = boundedNumber(defaults.hoverScrollSpeed, 0.5, 10, DEFAULT_NEOVIEW_VIEW_DEFAULTS.hoverScrollSpeed, "reader view defaults patch.hoverScrollSpeed")
     readerPatch.hover_scroll_speed = patch.viewDefaults.hoverScrollSpeed
   }
+  if (defaults.magnifierZoom !== undefined) {
+    patch.viewDefaults.magnifierZoom = boundedNumber(defaults.magnifierZoom, 1, 5, DEFAULT_NEOVIEW_VIEW_DEFAULTS.magnifierZoom, "reader view defaults patch.magnifierZoom")
+    magnifierPatch.zoom = patch.viewDefaults.magnifierZoom
+  }
+  if (defaults.magnifierSize !== undefined) {
+    patch.viewDefaults.magnifierSize = boundedNumber(defaults.magnifierSize, 100, 500, DEFAULT_NEOVIEW_VIEW_DEFAULTS.magnifierSize, "reader view defaults patch.magnifierSize")
+    magnifierPatch.size = patch.viewDefaults.magnifierSize
+  }
   if (defaults.orientation !== undefined) {
     patch.viewDefaults.orientation = optionalEnum(defaults.orientation, "reader view defaults patch.orientation", ["horizontal", "vertical"] as const)
     readerPatch.orientation = patch.viewDefaults.orientation
@@ -2072,7 +2103,10 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
     readerPatch.wide_page_stretch = persistedReaderWidePageStretch(patch.viewDefaults.widePageStretch)
   }
   if (!Object.keys(patch.viewDefaults).length) throw new Error("reader view defaults patch must change at least one field.")
-  return { patch, tomlPatch: { reader: readerPatch } }
+  return { patch, tomlPatch: {
+    ...(Object.keys(readerPatch).length ? { reader: readerPatch } : {}),
+    ...(Object.keys(magnifierPatch).length ? { view: { magnifier: magnifierPatch } } : {}),
+  } }
 }
 
 export function parseNeoviewShellControlPatch(value: unknown): {

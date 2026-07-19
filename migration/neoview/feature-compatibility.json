@@ -548,12 +548,12 @@
       ],
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "pending",
+        "core": "partial",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
       "behaviorCases": [
         "fit/fill/宽/高/原始/左右对齐",
@@ -563,12 +563,19 @@
         "顺逆旋转",
         "放大镜尺寸与倍率"
       ],
-      "testIds": [],
+      "testIds": [
+        "neoview.toolbar.ui-1920x1080",
+        "neoview.viewer.defaults-react",
+        "neoview.viewer.magnifier-runtime",
+        "neoview.viewer.magnifier-toolbar"
+      ],
       "plannedTestIds": [],
       "benchmarkIds": [
         "zoom-input-latency"
       ],
-      "knownDifferences": []
+      "knownDifferences": [
+        "放大镜启用态沿用旧版 viewer session 状态并在关闭 Reader 时清理；倍率和镜片大小写入 canonical TOML。镜片使用一个 CSS replica 复制已提交 image 的 transform/filter/clip，生产 immutable asset URL 的第二次 CSS 资源查找由浏览器缓存吸收，不创建第二个 img、Canvas 或 Blob"
+      ]
     },
     {
       "id": "image-decode-formats",

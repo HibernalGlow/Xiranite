@@ -29,6 +29,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       splitWidePages: false,
       hoverScrollEnabled: true,
       hoverScrollSpeed: 2,
+      magnifierZoom: 2,
+      magnifierSize: 200,
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
@@ -176,12 +178,18 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverScrollEnabled: false,
       hoverScrollSpeed: 4.5,
     })
+    expect(parseNeoviewRuntimeConfig({ reader: { view: { magnifier: { zoom: 3.2, size: 320 } } } }).viewDefaults).toMatchObject({
+      magnifierZoom: 3.2,
+      magnifierSize: 320,
+    })
     expect(parseNeoviewViewDefaultsPatch({ viewDefaults: {
       fitMode: "fit-height",
       pageMode: "double",
       splitWidePages: true,
       hoverScrollEnabled: false,
       hoverScrollSpeed: 3.5,
+      magnifierZoom: 2.5,
+      magnifierSize: 280,
       orientation: "vertical",
       autoRotation: "forced-left",
       widePageStretch: "uniform-width",
@@ -192,6 +200,8 @@ describe("parseNeoviewRuntimeConfig", () => {
         splitWidePages: true,
         hoverScrollEnabled: false,
         hoverScrollSpeed: 3.5,
+        magnifierZoom: 2.5,
+        magnifierSize: 280,
         orientation: "vertical",
         autoRotation: "forced-left",
         widePageStretch: "uniform-width",
@@ -205,7 +215,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         orientation: "vertical",
         auto_rotation: "forcedLeft",
         wide_page_stretch: "uniformWidth",
-      } },
+      }, view: { magnifier: { zoom: 2.5, size: 280 } } },
     })
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: {} })).toThrow("at least one")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { fitMode: "stretch" } })).toThrow("fitMode")
@@ -213,6 +223,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { autoRotation: "clockwise" } })).toThrow("auto rotation")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { widePageStretch: "cover" } })).toThrow("wide page stretch")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { hoverScrollSpeed: 12 } })).toThrow("between 0.5 and 10")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { magnifierZoom: 0.5 } })).toThrow("between 1 and 5")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { magnifierSize: 510 } })).toThrow("between 100 and 500")
   })
 
   it("[neoview.folder.settings] [neoview.folder.search-settings] [neoview.folder.tabs-pin-config] normalizes folder view and legacy search settings", () => {
