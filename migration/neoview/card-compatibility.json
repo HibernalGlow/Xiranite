@@ -509,8 +509,8 @@
         "core": "partial",
         "transport": "partial",
         "gui": "partial",
-        "cli": "pending",
-        "tui": "pending",
+        "cli": "partial",
+        "tui": "partial",
         "evidence": "partial"
       },
       "currentCardId": "image-trim",

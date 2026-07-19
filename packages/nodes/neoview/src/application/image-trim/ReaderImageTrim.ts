@@ -136,7 +136,43 @@ export function applyReaderImageTrimPatch(
 ): ReaderImageTrimSettings {
   const mutation = parseReaderImageTrimPatch(value)
   if ("reset" in mutation) return { ...DEFAULT_READER_IMAGE_TRIM }
-  return normalizeReaderImageTrim({ ...current, ...mutation })
+  return projectReaderImageTrimPatch(current, mutation)
+}
+
+/**
+ * Project a trusted GUI/runtime patch while preserving the legacy linked-edge
+ * contract. Strict transport callers should use applyReaderImageTrimPatch.
+ */
+export function projectReaderImageTrimPatch(
+  current: ReaderImageTrimSettings,
+  patch: ReaderImageTrimPatch,
+): ReaderImageTrimSettings {
+  const previous = normalizeReaderImageTrim(current)
+  const next = normalizeReaderImageTrim({ ...previous, ...patch })
+  const topChanged = patch.top !== undefined
+  const bottomChanged = patch.bottom !== undefined
+  const leftChanged = patch.left !== undefined
+  const rightChanged = patch.right !== undefined
+
+  if (next.linkVertical && !previous.linkVertical) {
+    const linked = Math.max(next.top, next.bottom)
+    next.top = linked
+    next.bottom = linked
+  } else if (next.linkVertical && topChanged !== bottomChanged) {
+    if (topChanged) next.bottom = next.top
+    else next.top = next.bottom
+  }
+
+  if (next.linkHorizontal && !previous.linkHorizontal) {
+    const linked = Math.max(next.left, next.right)
+    next.left = linked
+    next.right = linked
+  } else if (next.linkHorizontal && leftChanged !== rightChanged) {
+    if (leftChanged) next.right = next.left
+    else next.left = next.right
+  }
+
+  return next
 }
 
 /** Return a detached object that is safe to pass through JSON/TOML adapters. */
