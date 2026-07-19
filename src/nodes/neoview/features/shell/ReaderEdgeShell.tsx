@@ -238,11 +238,14 @@ function ReaderEdgeSurface({
           )}
           onPointerEnter={() => clearTimer(hideTimerRef)}
           onPointerLeave={handleSurfaceLeave}
-          onPointerDownCapture={() => {
+          onPointerDown={(event) => {
+            event.stopPropagation()
             if (!automatic) return
             protectedInteractionRef.current = true
             clearTimer(hideTimerRef)
           }}
+          onPointerUp={(event) => event.stopPropagation()}
+          onPointerCancel={(event) => event.stopPropagation()}
           onFocusCapture={() => clearTimer(hideTimerRef)}
           onBlurCapture={(event) => {
             if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) scheduleHide()

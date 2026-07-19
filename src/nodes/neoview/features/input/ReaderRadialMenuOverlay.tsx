@@ -85,7 +85,11 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
     }
   }, [request.id])
 
-  return createElement("neoview-ray-menu", { ref: elementRef })
+  return createElement("neoview-ray-menu", {
+    ref: elementRef,
+    "data-reader-radial-menu": "true",
+    style: { position: "fixed", inset: 0, zIndex: 70 },
+  })
 }
 
 function labelMenu(element: NeoViewRayMenu, radius: number): void {
