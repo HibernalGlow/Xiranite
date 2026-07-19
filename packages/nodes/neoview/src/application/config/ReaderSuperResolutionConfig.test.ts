@@ -9,6 +9,11 @@ import {
 describe("NeoView super-resolution runtime config", () => {
   it("[neoview.super-resolution.config-defaults] remains system-capable without probing at parse time", () => {
     expect(parseNeoviewRuntimeConfig(undefined).superResolution).toEqual(DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG)
+    expect(DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.modelSources).toEqual([
+      "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realsr",
+      "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realcugan",
+      "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realesrgan",
+    ])
   })
 
   it("[neoview.super-resolution.config] reads only [nodes.neoview.super_resolution] values", () => {
@@ -20,6 +25,7 @@ describe("NeoView super-resolution runtime config", () => {
         waifu2x_path: "",
         realcugan_path: "D:/Tools/realcugan.exe",
         models_directory: "D:/Models",
+        model_sources: ["D:/Python/realesrgan", "D:/Python/realcugan"],
         max_daemons_per_gpu: 2,
         daemon_idle_timeout_ms: 120_000,
         task_timeout_ms: 900_000,
@@ -30,6 +36,7 @@ describe("NeoView super-resolution runtime config", () => {
       waifu2xPath: undefined,
       realcuganPath: "D:/Tools/realcugan.exe",
       modelsDirectory: "D:/Models",
+      modelSources: ["D:/Python/realesrgan", "D:/Python/realcugan"],
       maxDaemonsPerGpu: 2,
       daemonIdleTimeoutMs: 120_000,
       taskTimeoutMs: 900_000,
@@ -91,6 +98,16 @@ describe("NeoView super-resolution runtime config", () => {
       tomlPatch: { super_resolution: { models_directory: "D:/Models", preferences: { schema_version: 1, default_model_id: "anime" } } },
     })
     expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { modelsDirectory: "" } })).toThrow("must not be empty")
+  })
+
+  it("[neoview.super-resolution.model-sources-http] persists multiple deduplicated model sources", () => {
+    expect(parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { modelSources: ["D:/Python/realesrgan", "D:/Python/realcugan", "D:/Python/realesrgan"] },
+    })).toEqual({
+      patch: { superResolution: { modelSources: ["D:/Python/realesrgan", "D:/Python/realcugan"] } },
+      tomlPatch: { super_resolution: { model_sources: ["D:/Python/realesrgan", "D:/Python/realcugan"] } },
+    })
+    expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { modelSources: [""] } })).toThrow("must not be empty")
   })
 
   it("[neoview.super-resolution.card-settings-http] persists model, preview and condition controls through the canonical preference schema", () => {

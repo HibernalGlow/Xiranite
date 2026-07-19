@@ -30,8 +30,10 @@ export interface OpenComicSystemStep {
 
 export interface OpenComicSystemModelInfo {
   name?: string
+  type?: SuperResolutionModelType
   upscaler: SuperResolutionEngine
   scales: readonly number[]
+  noise?: readonly number[]
   folder?: string
   files?: readonly string[]
   scaleFiles?: Readonly<Record<number, string>>

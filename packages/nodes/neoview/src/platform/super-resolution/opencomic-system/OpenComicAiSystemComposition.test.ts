@@ -66,7 +66,7 @@ describe("OpenComic AI system composition", () => {
       modelsDirectory: "D:/Models",
       cliResolver: fakeResolver(),
     })
-    expect(service?.listModels()).toEqual([
+    expect(service?.listModels()).toMatchObject([
       {
         id: "realesr-animevideov3",
         displayName: "AnimeVideoV3",

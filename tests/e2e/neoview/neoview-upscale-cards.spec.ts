@@ -10,7 +10,23 @@ test("[neoview.super-resolution.cards-browser] preserves the legacy upscale Card
   await expect(page).toHaveTitle("NeoView Upscale Cards Harness")
   await expect(page.getByRole("heading", { name: "超分设置与状态" })).toBeVisible()
   await expect(page.locator("[data-neoview-upscale-status=true]")).toContainText("已完成")
-  await page.getByLabel("模型", { exact: true }).selectOption("manga")
+
+  const modelCard = page.locator('[data-harness-card="模型选择"]')
+  await expect(modelCard).toContainText("RealESRGAN / 动漫 / upscayl")
+  await expect(modelCard).toContainText("倍率 2x/3x/4x")
+  await expect(modelCard).toContainText("3.6 MiB")
+  await expect(modelCard).toContainText("来源 D:/Python/realesrgan")
+  await page.getByLabel("默认模型").selectOption("external-realcugan-pro")
+  await expect(page.getByLabel("放大倍率").locator("option")).toHaveText(["2x", "3x"])
+  await expect(page.getByLabel("降噪等级").locator("option")).toHaveText(["保守", "0", "3"])
+  await page.getByPlaceholder("添加包含 models 的目录").fill("D:/Extra/models")
+  await page.getByRole("button", { name: "添加来源" }).click()
+  await expect(modelCard).toContainText("D:/Extra/models")
+  await page.getByRole("button", { name: "移除模型来源 D:/Extra/models" }).click()
+  await expect(modelCard).not.toContainText("D:/Extra/models")
+  await modelCard.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: testInfo.outputPath("neoview-upscale-models-1920x1080.png"), fullPage: false })
+
   await page.locator('[data-harness-card="缓存管理"]').scrollIntoViewIfNeeded()
   await page.getByRole("button", { name: "全部" }).click()
   await page.getByRole("button", { name: "清理", exact: true }).click()
@@ -22,6 +38,17 @@ test("[neoview.super-resolution.cards-browser] preserves the legacy upscale Card
   await page.screenshot({ path: testInfo.outputPath("neoview-upscale-cards-1920x1080.png"), fullPage: false })
 
   await page.setViewportSize({ width: 420, height: 360 })
+  await modelCard.scrollIntoViewIfNeeded()
+  await expect(modelCard).toBeVisible()
+  const modelCardBox = await modelCard.boundingBox()
+  expect(modelCardBox).not.toBeNull()
+  for (const control of await modelCard.locator("button:visible,input:visible,select:visible").all()) {
+    const box = await control.boundingBox()
+    expect(box, "visible model control has stable geometry").not.toBeNull()
+    expect(box!.x + box!.width).toBeLessThanOrEqual(modelCardBox!.x + modelCardBox!.width + 1)
+  }
+  await page.screenshot({ path: testInfo.outputPath("neoview-upscale-models-420x360.png"), fullPage: false })
+
   const conditions = page.locator('[data-harness-card="条件超分"]')
   await conditions.scrollIntoViewIfNeeded()
   await expect(conditions).toBeVisible()

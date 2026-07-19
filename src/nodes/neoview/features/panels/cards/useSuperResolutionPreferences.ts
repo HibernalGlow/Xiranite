@@ -48,7 +48,12 @@ export function useSuperResolutionPreferences(
 
   const commitConfig = useCallback((patch: ReaderSuperResolutionPatchDto["superResolution"]) => {
     const previous = config
-    const next = previous ? { ...previous, ...(patch.modelsDirectory === undefined ? {} : { modelsDirectory: patch.modelsDirectory }), ...(patch.preferences ? { preferences: { ...previous.preferences, ...patch.preferences } } : {}) } : undefined
+    const next = previous ? {
+      ...previous,
+      ...(patch.modelsDirectory === undefined ? {} : { modelsDirectory: patch.modelsDirectory }),
+      ...(patch.modelSources === undefined ? {} : { modelSources: patch.modelSources }),
+      ...(patch.preferences ? { preferences: { ...previous.preferences, ...patch.preferences } } : {}),
+    } : undefined
     setConfig(next)
     setFeedback(undefined)
     const revision = ++revisionRef.current

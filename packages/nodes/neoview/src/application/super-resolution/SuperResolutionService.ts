@@ -158,6 +158,11 @@ function normalizeModelManifest(model: SuperResolutionModelManifest): SuperResol
     id,
     displayName,
     scales: Object.freeze(scales),
+    sourceDirectories: model.sourceDirectories ? Object.freeze([...model.sourceDirectories]) : undefined,
+    noise: model.noise ? Object.freeze([...model.noise]) : undefined,
+    noiseByScale: model.noiseByScale
+      ? Object.freeze(Object.fromEntries(Object.entries(model.noiseByScale).map(([scale, noise]) => [scale, Object.freeze([...noise])])))
+      : undefined,
     modelFiles: model.modelFiles ? Object.freeze([...model.modelFiles]) : undefined,
   })
 }

@@ -24,6 +24,14 @@ export interface SuperResolutionModelManifest {
   displayName: string
   engine: SuperResolutionEngine
   scales: readonly number[]
+  modelType?: SuperResolutionModelType
+  family?: string
+  category?: string
+  sizeBytes?: number
+  installed?: boolean
+  sourceDirectories?: readonly string[]
+  noise?: readonly number[]
+  noiseByScale?: Readonly<Record<number, readonly number[]>>
   modelDirectory?: string
   modelFiles?: readonly string[]
   inputBlob?: string

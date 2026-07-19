@@ -197,6 +197,7 @@ export interface NeoviewSuperResolutionConfig {
   waifu2xPath?: string
   realcuganPath?: string
   modelsDirectory?: string
+  modelSources: readonly string[]
   maxDaemonsPerGpu: number
   daemonIdleTimeoutMs: number
   taskTimeoutMs: number
@@ -207,6 +208,7 @@ export interface NeoviewSuperResolutionConfig {
 export type NeoviewSuperResolutionPreferencesPatch = Partial<Omit<SuperResolutionPreferences, "schemaVersion">>
 export interface NeoviewSuperResolutionPatch {
   modelsDirectory?: string
+  modelSources?: readonly string[]
   preferences?: NeoviewSuperResolutionPreferencesPatch
 }
 
@@ -522,6 +524,11 @@ export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConf
   maxDaemonsPerGpu: 1,
   daemonIdleTimeoutMs: 300_000,
   taskTimeoutMs: 10 * 60_000,
+  modelSources: Object.freeze([
+    "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realsr",
+    "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realcugan",
+    "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realesrgan",
+  ]),
   customModels: Object.freeze([]),
   preferences: parseSuperResolutionPreferences(undefined),
 }
@@ -750,6 +757,7 @@ function parseSuperResolutionConfig(value: Record<string, unknown> | undefined):
     waifu2xPath: optionalConfigPath(value.waifu2x_path, "[nodes.neoview.super_resolution].waifu2x_path"),
     realcuganPath: optionalConfigPath(value.realcugan_path, "[nodes.neoview.super_resolution].realcugan_path"),
     modelsDirectory: optionalConfigPath(value.models_directory, "[nodes.neoview.super_resolution].models_directory"),
+    modelSources: parseSuperResolutionModelSources(value.model_sources, "[nodes.neoview.super_resolution].model_sources"),
     maxDaemonsPerGpu: boundedIntegerWithFallback(
       value.max_daemons_per_gpu,
       0,
@@ -828,6 +836,17 @@ function parseSwitchToastConfig(
     opacity: value.opacity,
     liquidGlass: value.liquid_glass ?? value.liquidGlass,
   }, legacy)
+}
+
+function parseSuperResolutionModelSources(value: unknown, path: string): readonly string[] {
+  if (value === undefined) return DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.modelSources
+  if (!Array.isArray(value) || value.length > 32) throw new Error(`${path} must be an array of at most 32 paths.`)
+  const sources = value.map((entry, index) => {
+    const source = optionalConfigPath(entry, `${path}[${index}]`)
+    if (!source) throw new Error(`${path}[${index}] must not be empty.`)
+    return source
+  })
+  return Object.freeze([...new Set(sources)])
 }
 
 function parseSuperResolutionCustomModels(value: unknown): readonly SuperResolutionCustomModelManifest[] {
@@ -1095,7 +1114,7 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
     throw new Error("reader super-resolution patch contains unsupported fields.")
   }
   const root = requireRecord(record.superResolution, "reader super-resolution patch.superResolution")
-  if (Object.keys(root).some((key) => key !== "preferences" && key !== "modelsDirectory")) {
+  if (Object.keys(root).some((key) => key !== "preferences" && key !== "modelsDirectory" && key !== "modelSources")) {
     throw new Error("reader super-resolution patch.superResolution contains unsupported fields.")
   }
   const rootPatch: NeoviewSuperResolutionPatch = {}
@@ -1105,6 +1124,11 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
     if (!modelsDirectory) throw new Error("reader super-resolution patch.superResolution.modelsDirectory must not be empty.")
     rootPatch.modelsDirectory = modelsDirectory
     rootToml.models_directory = modelsDirectory
+  }
+  if (root.modelSources !== undefined) {
+    const modelSources = parseSuperResolutionModelSources(root.modelSources, "reader super-resolution patch.superResolution.modelSources")
+    rootPatch.modelSources = modelSources
+    rootToml.model_sources = modelSources
   }
   if (root.preferences === undefined) {
     if (!Object.keys(rootPatch).length) throw new Error("reader super-resolution patch must change at least one field.")
