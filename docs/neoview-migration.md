@@ -2476,7 +2476,7 @@ SQLite fixture 覆盖 current 2.4、活动 WAL/SHM、旧版、较新版、损坏
 - 无资源竞争时 visible demand queue wait p95 目标不高于 10 ms；
 - 4K JPEG PageThumbnail 的冷生成 p95 初始目标不高于 250 ms，AVIF/JXL、视频和 solid archive 分开报告，不能混合稀释；
 - 1,000 页快速滚动后，过期 generation 不得继续增长后台任务，取消延迟和活动任务数必须有硬上限；
-- `benchmark:neoview-thumbnail-system -- --assert` 必须将旧 demand 在 supersession 后的 `ready`、最终可见窗口就绪时仍存活的旧 flight（默认最多 8，可按介质收紧）、以及实际取消延迟 p95/max 写入不可覆盖报告并作为门禁；无须取消的已提前 settle demand 不计入延迟样本；
+- `benchmark:neoview-thumbnail-system -- --assert` 必须将旧 demand 在 supersession 后的 `ready`、最终可见窗口就绪时仍存活的旧 flight（默认最多 8，可按介质收紧）、以及实际取消延迟 p95/max 写入不可覆盖报告并作为门禁；真实双语料默认还要抽样 file/folder library cover，验证实际生成、L1 命中、失败数和 release 后的 flight 归零；无须取消的已提前 settle demand 不计入延迟样本；
 - L1 永远不超过配置字节预算，关闭最后一个消费者后 pinned/lease/flight 数归零；
 - 单次可见窗口最多一次批量 SQLite 查询，相同 fingerprint 同时请求只生成一次；
 - 批写事务频率、WAL 增量、命中率、生成 p50/p95、source read、sharp decode/resize/encode、HTTP first-byte 和 RSS 均进入 benchmark 输出；
