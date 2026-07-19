@@ -1808,7 +1808,7 @@
       ],
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "pending",
+        "core": "partial",
         "transport": "not-applicable",
         "gui": "pending",
         "cli": "pending",
@@ -1822,10 +1822,16 @@
         "取消/错误",
         "翻译缓存"
       ],
-      "testIds": [],
+      "testIds": [
+        "neoview.ai.translation-cache",
+        "neoview.ai.translation-cancel",
+        "neoview.ai.ollama-client"
+      ],
       "plannedTestIds": [],
       "benchmarkIds": [],
-      "knownDifferences": []
+      "knownDifferences": [
+        "已提供可注入的 Ollama 探测/模型列表/非流式翻译与内存缓存核心；TOML 配置、旧 ai_translation 持久缓存、LibreTranslate、GUI 和 CLI 尚未接线"
+      ]
     },
     {
       "id": "performance-benchmark-diagnostics",
