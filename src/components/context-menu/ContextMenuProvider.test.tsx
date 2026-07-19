@@ -359,6 +359,40 @@ describe("ContextMenuProvider", () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
+  test("data-context-menu-stop keeps node menus and blocks host ancestor menus", async () => {
+    render(
+      <ContextMenuProvider>
+        <HostCardWithNodeBoundary />
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId("node-entry"), {
+      clientX: 12,
+      clientY: 18,
+    })
+
+    expect(await screen.findByText("Node entry action")).toBeTruthy()
+    expect(screen.queryByText("Host focus")).toBeNull()
+  })
+
+  test("data-context-menu-stop on empty node surface blocks host menus entirely", async () => {
+    render(
+      <ContextMenuProvider>
+        <HostCardWithNodeBoundary />
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId("node-surface"), {
+      clientX: 12,
+      clientY: 18,
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText("Host focus")).toBeNull()
+      expect(screen.queryByText("Node entry action")).toBeNull()
+    })
+  })
+
   test("confirm dialog requires confirmation before running onSelect", async () => {
     const onSelect = vi.fn()
     const user = userEvent.setup()
@@ -516,6 +550,20 @@ function KeepOpenTarget({ onSelect, onClose }: { onSelect: () => void; onClose: 
   return (
     <div data-context-menu="target" data-testid="context-target">
       Target
+    </div>
+  )
+}
+
+function HostCardWithNodeBoundary() {
+  useContextMenuBuilder("component-card", () => [{ label: "Host focus", onSelect: vi.fn() }])
+  useContextMenuBuilder("node-entry", () => [{ label: "Node entry action", onSelect: vi.fn() }])
+  return (
+    <div data-context-menu="component-card" data-testid="host-card">
+      <div data-context-menu-stop="" data-testid="node-surface">
+        <button type="button" data-context-menu="node-entry" data-testid="node-entry">
+          entry
+        </button>
+      </div>
     </div>
   )
 }
