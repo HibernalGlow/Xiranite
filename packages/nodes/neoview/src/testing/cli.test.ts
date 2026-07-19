@@ -1282,6 +1282,43 @@ describe("NeoView CLI", () => {
     expect(dispose).toHaveBeenCalledTimes(4)
   })
 
+  it("[neoview.thumbnail.maintenance-cli-connect] uses the running backend writer without opening a local database", async () => {
+    const openThumbnailStore = vi.fn()
+    const fetchRemoteThumbnailMaintenance = vi.fn(async () => ({
+      totalRows: 12, fileRows: 7, folderRows: 5, blobBytes: 1024, emptyBlobs: 0, failedRows: 1,
+      failuresByReason: { "decode-error": 1 },
+      writer: { pendingWrites: 0, flushing: false, committedBatches: 2, committedWrites: 12, busyRetries: 0, failedBatches: 0 },
+    }))
+    const cleanupRemoteThumbnails = vi.fn(async (_options: { baseUrl: string; token: string }, command: { kind: string }) => command.kind === "invalid"
+      ? { kind: "invalid" as const, scanned: 50, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false }
+      : { kind: "empty" as const, deleted: 1 })
+    const clearRemoteThumbnailFailures = vi.fn(async () => 3)
+    const dependencies = {
+      createController: async () => fakeReader(),
+      openThumbnailStore,
+      fetchRemoteThumbnailMaintenance,
+      cleanupRemoteThumbnails,
+      clearRemoteThumbnailFailures,
+    }
+    const env = { XIRANITE_BACKEND_TOKEN: "remote-token" }
+
+    const statsOutput: unknown[] = []
+    await runProgram(["thumbnail-db-stats", "--connect", "http://127.0.0.1:41000", "--token-env", "XIRANITE_BACKEND_TOKEN", "--json"], host(statsOutput, env), dependencies)
+    expect(JSON.parse(statsOutput.join(""))).toMatchObject({ totalRows: 12, writer: { committedWrites: 12 } })
+    expect(fetchRemoteThumbnailMaintenance).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "remote-token" })
+
+    const cleanupOutput: unknown[] = []
+    await runProgram(["thumbnail-db-cleanup", "--connect", "http://127.0.0.1:41000", "--kind", "invalid", "--scan-limit", "50", "--limit", "10", "--yes", "--json"], host(cleanupOutput, env), dependencies)
+    expect(JSON.parse(cleanupOutput.join(""))).toEqual({ operation: "invalid", scanned: 50, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false })
+    expect(cleanupRemoteThumbnails).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "remote-token" }, { kind: "invalid", scanLimit: 50, deleteLimit: 10 })
+
+    await runProgram(["thumbnail-db-clear-failures", "--connect", "http://127.0.0.1:41000", "--reason", "decode-error", "--limit", "10", "--yes"], host([], env), dependencies)
+    expect(clearRemoteThumbnailFailures).toHaveBeenCalledWith({ baseUrl: "http://127.0.0.1:41000", token: "remote-token" }, { reason: "decode-error", limit: 10 })
+    expect(openThumbnailStore).not.toHaveBeenCalled()
+    await expect(runProgram(["thumbnail-db-stats", "private/thumbnails.db", "--connect", "http://127.0.0.1:41000"], host([], env), dependencies)).rejects.toThrow("does not accept a database path")
+    await expect(runProgram(["thumbnail-db-stats", "--token-env", "XIRANITE_BACKEND_TOKEN"], host([], env), dependencies)).rejects.toThrow("requires --connect")
+  })
+
   it("[neoview.thumbnail.database-maintenance-cli] requires confirmation and keeps offline work behind one shared adapter", async () => {
     const backup = vi.fn(async (sourcePath: string, destinationPath: string) => ({
       sourcePath,

@@ -223,6 +223,62 @@ export async function fetchRemoteReaderDiagnosticsHistory(
   }
 }
 
+/** Uses the running Reader's single thumbnail writer; it never opens a second SQLite connection. */
+export async function fetchRemoteReaderThumbnailMaintenance(
+  options: RemoteReaderHeadlessOptions,
+): Promise<ReaderThumbnailMaintenanceSnapshot> {
+  const result = await remoteJson(options, "/reader/thumbnails/maintenance", {}, "Reader thumbnail maintenance")
+  const parsed = thumbnailMaintenanceEnvelopeSchema.safeParse(result)
+  if (!parsed.success) throw new Error("Xiranite Reader returned an invalid thumbnail maintenance response.")
+  return parsed.data.snapshot
+}
+
+export async function cleanupRemoteReaderThumbnails(
+  options: RemoteReaderHeadlessOptions,
+  command: RemoteReaderThumbnailCleanupCommand,
+): Promise<RemoteReaderThumbnailCleanupResult> {
+  const body = command.kind === "expired"
+    ? { ...command, preserveFolders: true }
+    : command.kind === "invalid"
+      ? { kind: command.kind, scanLimit: command.scanLimit, limit: command.deleteLimit }
+      : command
+  const result = await remoteJson(options, "/reader/thumbnails/maintenance/cleanup", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }, "Reader thumbnail cleanup")
+  if (command.kind === "invalid") {
+    const parsed = thumbnailInvalidCleanupSchema.safeParse(result)
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid thumbnail cleanup response.")
+    return { kind: command.kind, ...parsed.data.result }
+  }
+  if (command.kind === "path-prefix") {
+    const parsed = thumbnailPathPrefixDeletedSchema.safeParse(result)
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid thumbnail cleanup response.")
+    return { kind: command.kind, ...parsed.data }
+  }
+  if (command.kind === "expired") {
+    const parsed = thumbnailExpiredDeletedSchema.safeParse(result)
+    if (!parsed.success) throw new Error("Xiranite Reader returned an invalid thumbnail cleanup response.")
+    return { kind: command.kind, deleted: parsed.data.deleted, cutoff: parsed.data.cutoff }
+  }
+  const parsed = thumbnailDeletedSchema.safeParse(result)
+  if (!parsed.success) throw new Error("Xiranite Reader returned an invalid thumbnail cleanup response.")
+  return { kind: command.kind, deleted: parsed.data.deleted }
+}
+
+export async function clearRemoteReaderThumbnailFailures(
+  options: RemoteReaderHeadlessOptions,
+  request: { reason?: string; limit: number },
+): Promise<number> {
+  const result = await remoteJson(options, "/reader/thumbnails/maintenance/failures/clear", {
+    method: "POST",
+    body: JSON.stringify(request),
+  }, "Reader thumbnail failure cleanup")
+  const parsed = thumbnailDeletedSchema.safeParse(result)
+  if (!parsed.success) throw new Error("Xiranite Reader returned an invalid thumbnail failure cleanup response.")
+  return parsed.data.deleted
+}
+
 /** Headless adapter over the running XR Reader controller. It owns only sessions it creates. */
 export class RemoteReaderHeadlessController implements AsyncDisposable {
   readonly #baseUrl: URL
@@ -878,7 +934,7 @@ async function readRemoteResponseBytes(response: Response, maxBytes: number, sig
   return bytes
 }
 
-function readRemoteChunk<T>(reader: ReadableStreamDefaultReader<T>, signal?: AbortSignal): Promise<ReadableStreamReadResult<T>> {
+function readRemoteChunk<T>(reader: ReadableStreamDefaultReader<T>, signal?: AbortSignal): ReturnType<ReadableStreamDefaultReader<T>["read"]> {
   if (!signal) return reader.read()
   signal.throwIfAborted()
   return new Promise((resolve, reject) => {
