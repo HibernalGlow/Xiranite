@@ -46,6 +46,7 @@ class ArchivePageSource implements PageSource {
   readonly #entryPaths: readonly string[]
   #opened = false
   #closed = false
+  #opening?: Promise<ReadableStream<Uint8Array>>
   #active?: { reader: ReadableStreamDefaultReader<Uint8Array>; clear(): void }
 
   constructor(
@@ -69,7 +70,21 @@ class ArchivePageSource implements PageSource {
     if (this.#opened) throw new Error(`Archive page source can only be opened once: ${this.#entryId}`)
     if (range) throw new Error("Archive page source does not support decompressed byte ranges.")
     this.#opened = true
+    const opening = this.#openEntry(signal, execution)
+    this.#opening = opening
+    try {
+      return await opening
+    } finally {
+      if (this.#opening === opening) this.#opening = undefined
+    }
+  }
+
+  async #openEntry(signal?: AbortSignal, execution?: PageSourceExecution): Promise<ReadableStream<Uint8Array>> {
     const rawPassword = this.#credentials?.copyRawPassword(this.#entryPaths)
+    const clearPassword = () => {
+      this.#credentials?.clearRawPassword(rawPassword)
+      if (!this.#credentials) rawPassword?.fill(0)
+    }
     let stream: ReadableStream<Uint8Array>
     try {
       stream = await this.#provider.openEntry(this.#entryId, {
@@ -78,17 +93,23 @@ class ArchivePageSource implements PageSource {
         resourceLease: execution?.resourceLease,
       })
     } catch (error) {
-      this.#credentials?.clearRawPassword(rawPassword)
-      if (!this.#credentials) rawPassword?.fill(0)
+      clearPassword()
       throw error
+    }
+    if (this.#closed) {
+      try {
+        await stream.cancel("archive page source closed")
+      } finally {
+        clearPassword()
+      }
+      throw new Error(`Archive page source is closed: ${this.#entryId}`)
     }
     const reader = stream.getReader()
     let cleared = false
     const clear = () => {
       if (cleared) return
       cleared = true
-      this.#credentials?.clearRawPassword(rawPassword)
-      if (!this.#credentials) rawPassword?.fill(0)
+      clearPassword()
       this.#active = undefined
     }
     this.#active = { reader, clear }
@@ -119,6 +140,7 @@ class ArchivePageSource implements PageSource {
 
   async close(): Promise<void> {
     this.#closed = true
+    await this.#opening?.catch(() => undefined)
     const active = this.#active
     if (active) {
       try {
