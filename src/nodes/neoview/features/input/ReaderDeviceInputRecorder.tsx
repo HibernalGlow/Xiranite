@@ -137,8 +137,11 @@ export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: Reader
         meta: metaKey || undefined,
       })
     },
-    onDrag: ({ first, last, event, swipe: [x, y], tap, touches, buttons, initial: [initialX, initialY], xy: [clientX, clientY], memo }) => {
-      if (isReaderInputInteractive(event.target)) return memo
+    onDrag: ({ first, last, event, swipe: [x, y], tap, touches, buttons, initial: [initialX, initialY], xy: [clientX, clientY], memo, cancel }) => {
+      if (isReaderInputInteractive(event.target)) {
+        cancel()
+        return memo
+      }
       const pointer = event as PointerEvent
       const current: RecorderDragMemo = first || !memo
         ? { button: readerMouseButtonFromButtons(buttons, pointer.button), fingers: touches || 1, trace: beginReaderMouseGesture(initialX, initialY) }
@@ -173,7 +176,7 @@ export function ReaderDeviceInputRecorder({ device, onCancel, onRecord }: Reader
     },
   }, {
     target,
-    drag: { filterTaps: true, pointer: { buttons: -1 } },
+    drag: { filterTaps: true, pointer: { buttons: -1, capture: false } },
     wheel: { eventOptions: { passive: false } },
   })
 

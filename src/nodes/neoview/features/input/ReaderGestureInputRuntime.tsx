@@ -85,9 +85,14 @@ export function ReaderGestureInputRuntime({ config, disabled = false, target, cl
         meta: metaKey || undefined,
       }, wheel.target)) wheel.preventDefault()
     },
-    onDrag: ({ first, last, event, swipe: [swipeX, swipeY], tap, touches, buttons, initial: [initialX, initialY], xy: [clientX, clientY], memo }) => {
+    onDrag: ({ first, last, event, swipe: [swipeX, swipeY], tap, touches, buttons, initial: [initialX, initialY], xy: [clientX, clientY], memo, cancel }) => {
       const pointer = event as PointerEvent
-      if (isReaderInputInteractive(pointer.target)) return memo
+      // Panel controls (Switch, range, select…) live under the same root target.
+      // Cancel before capture so use-gesture never steals their pointer stream.
+      if (isReaderInputInteractive(pointer.target)) {
+        cancel()
+        return memo
+      }
       const current: DragMemo = first || !memo
         ? {
             button: readerMouseButtonFromButtons(buttons, pointer.button),
@@ -156,7 +161,8 @@ export function ReaderGestureInputRuntime({ config, disabled = false, target, cl
     },
   }, {
     target,
-    drag: { filterTaps: false, pointer: { buttons: -1 } },
+    // capture:false keeps form controls (range/switch) owning their pointer stream
+    drag: { filterTaps: false, pointer: { buttons: -1, capture: false } },
     wheel: { eventOptions: { passive: false } },
   })
 

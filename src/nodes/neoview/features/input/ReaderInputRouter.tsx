@@ -179,8 +179,32 @@ export function isReaderInputInteractive(target: EventTarget | null): boolean {
   return target instanceof Element && isInteractive(target)
 }
 
+const INTERACTIVE_SELECTOR = [
+  "button",
+  "a[href]",
+  "input",
+  "textarea",
+  "select",
+  "option",
+  "label",
+  "summary",
+  '[contenteditable="true"]',
+  '[role="button"]',
+  '[role="checkbox"]',
+  '[role="switch"]',
+  '[role="slider"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[role="option"]',
+  '[role="tab"]',
+  '[role="combobox"]',
+  '[data-slot="switch"]',
+  '[data-slot="slider"]',
+  '[data-input-interactive="true"]',
+].join(", ")
+
 function isInteractive(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('button, a[href], input, textarea, select, option, [contenteditable="true"], [role="button"], [role="link"], [role="menuitem"], [role="option"], [data-input-interactive="true"]') !== null
+  return target instanceof Element && target.closest(INTERACTIVE_SELECTOR) !== null
 }
 
 function isEditable(target: Element): boolean {
