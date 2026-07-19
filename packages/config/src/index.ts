@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path"
 import { homedir, platform as osPlatform } from "node:os"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
 import { z } from "zod"
+import { stringifyXiraniteConfig } from "./xiraniteToml.js"
 
 export const XIRANITE_CONFIG_FILENAME = "xiranite.config.toml"
 
@@ -135,7 +136,7 @@ export async function loadXiraniteConfig(options: LoadConfigOptions = {}): Promi
 
 export async function saveXiraniteConfig(config: XiraniteConfig, options: ResolveConfigPathOptions = {}): Promise<string> {
   const path = resolveXiraniteConfigPath(options)
-  const content = stringifyToml(config as Record<string, unknown>)
+  const content = stringifyXiraniteConfig(config as Record<string, unknown>)
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, content, "utf8")
   return path
@@ -328,4 +329,4 @@ export async function loadNodeConfigWithHints<T = unknown>(
   return { config: nodeConfig, path, source: "xiranite-config", fields }
 }
 
-export { parseToml, stringifyToml }
+export { parseToml, stringifyToml, stringifyXiraniteConfig }

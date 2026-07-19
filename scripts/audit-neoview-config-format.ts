@@ -29,7 +29,7 @@ const label = report.format === "optimized" || report.format === "absent" ? "ok"
 console.log(`[neoview-config] ${label}: ${report.message}`)
 console.log(`[neoview-config] file: ${configPath}`)
 
-if (write && (report.format === "legacy" || report.format === "mixed")) {
+if (write && (report.format === "envelope" || report.format === "legacy" || report.format === "mixed")) {
   const { commitNeoviewConfig } = await import("../packages/nodes/neoview/src/platform/config/NeoviewConfigStore")
   const result = await commitNeoviewConfig({}, { configPath, strategy: "merge" })
   report = inspectNeoviewConfigFormat(await readFile(configPath, "utf8"))
@@ -37,6 +37,6 @@ if (write && (report.format === "legacy" || report.format === "mixed")) {
   console.log(`[neoview-config] verification: ${report.format}: ${report.message}`)
 }
 
-if (report.format === "invalid" || (strict && (report.format === "legacy" || report.format === "mixed"))) {
+if (report.format === "invalid" || (strict && (report.format === "envelope" || report.format === "legacy" || report.format === "mixed"))) {
   process.exitCode = 1
 }

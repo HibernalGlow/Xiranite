@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 import { tmpdir } from "node:os"
@@ -203,6 +203,35 @@ describe("saveXiraniteConfig", () => {
 
     const { config } = await loadXiraniteConfig({ configPath: path })
     expect(config).toEqual(original)
+  })
+
+  test("keeps NeoView first-level sections and inlines deeper objects through the shared writer", async () => {
+    const dir = join(RUN_ROOT, "save-neoview-test")
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await saveXiraniteConfig({ nodes: {
+      other: { enabled: true },
+      neoview: { config: {
+        schema_version: 1,
+        reader: { reading_direction: "right-to-left", subtitle: { font_size: 24, color: "#fff" } },
+        bindings: { items: [{ action: "next", input: { key: "ArrowRight" } }] },
+      } },
+    } }, { configPath: path })
+
+    const text = await readFile(path, "utf8")
+    expect(text).toContain("[nodes.neoview]\nschema_version = 1")
+    expect(text).toContain("[nodes.neoview.reader]")
+    expect(text).toContain('subtitle = { font_size = 24, color = "#fff" }')
+    expect(text).toContain("[nodes.neoview.bindings]")
+    expect(text).toContain('items = [ { action = "next", input = { key = "ArrowRight" } } ]')
+    expect(text).not.toContain("nodes.neoview.config")
+    expect(text).not.toContain("[nodes.neoview.reader.subtitle]")
+
+    const { config } = await loadXiraniteConfig({ configPath: path })
+    expect(config.nodes?.neoview).toMatchObject({
+      schema_version: 1,
+      reader: { reading_direction: "right-to-left", subtitle: { font_size: 24, color: "#fff" } },
+    })
   })
 })
 

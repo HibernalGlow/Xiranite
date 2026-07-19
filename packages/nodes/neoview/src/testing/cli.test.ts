@@ -367,7 +367,7 @@ describe("NeoView CLI", () => {
 
       await expect(runProgram(["folder-exclude", privatePath, "--config", configPath], host([]), testPlatformDependencies)).rejects.toThrow("requires --yes")
       await runProgram(["folder-exclude", privatePath, "--config", configPath, "--yes", "--json"], host([]), testPlatformDependencies)
-      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview]\nconfig = { ")
+      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview.folder]")
 
       const filteredOutput: unknown[] = []
       await runProgram(["folder-search", directory, "--query", "cbz", "--config", configPath, "--json"], host(filteredOutput), testPlatformDependencies)
@@ -762,7 +762,7 @@ describe("NeoView CLI", () => {
       ], host(updated))
       expect(JSON.parse(updated.join(""))).toEqual({ enabled: true, type: "flip", duration: 320, easing: "easeOutCubic" })
       const toml = await readFile(configPath, "utf8")
-      expect(toml).toContain("[nodes.neoview]\nconfig = { ")
+      expect(toml).toContain("[nodes.neoview.image]")
       expect(toml).not.toContain("pageTransition")
       await expect(runProgram(["page-transition-set", "--config", configPath, "--duration", "501"], host([])))
         .rejects.toThrow("duration")
@@ -840,7 +840,7 @@ describe("NeoView CLI", () => {
       ], host(firstOutput))
       expect(JSON.parse(firstOutput.join(""))).toMatchObject({ changed: true, strategy: "merge" })
       const toml = await readFile(configPath, "utf8")
-      expect(toml).toContain("[nodes.neoview]\nconfig = { ")
+      expect(toml).toContain("[nodes.neoview.reader]")
       expect(toml).toContain('reading_direction = "right-to-left"')
 
       const secondOutput: unknown[] = []
@@ -968,7 +968,7 @@ describe("NeoView CLI", () => {
       ], host(importOutput))
       expect(JSON.parse(importOutput.join(""))).toMatchObject({ changed: true, backupCreated: true })
       const restored = await readFile(configPath, "utf8")
-      expect(restored).toContain("[nodes.neoview]\nconfig = { ")
+      expect(restored).toContain("[nodes.neoview.future]")
       expect(restored).not.toContain("old = true")
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -1130,7 +1130,7 @@ describe("NeoView CLI", () => {
       expect(JSON.parse(importOutput.join(""))).toMatchObject({ imported: { applied: { progress: 1, bookmarks: 1 } }, configChanged: true })
       const configText = await readFile(configPath, "utf8")
       expect(configText).toContain("max_history_size = 250")
-      expect(configText).toContain("[nodes.neoview]\nconfig = { ")
+      expect(configText).toContain("[nodes.neoview.bookmark_list]")
       expect(configText).toContain('active_list_id = "reading"')
       expect(configText).not.toContain("active_bookmark_list_id")
       await expect(loadNeoviewRuntimeConfig({ configPath })).resolves.toMatchObject({ bookmarkList: { activeListId: "reading" } })
