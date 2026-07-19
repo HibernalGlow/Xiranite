@@ -1,6 +1,6 @@
 import { DEFAULT_READER_LAYOUT, type PageMode } from "../../domain/frame/frame.js"
 import type { TailOverflowBehavior } from "../../domain/navigation/navigation.js"
-import { DEFAULT_READER_PRESENTATION, type ReaderFitMode } from "../../domain/presentation/presentation.js"
+import { DEFAULT_READER_PRESENTATION, type ReaderAutoRotation, type ReaderFitMode, type ReaderOrientation, type ReaderWidePageStretch } from "../../domain/presentation/presentation.js"
 import {
   DEFAULT_READER_IMAGE_FORMATS,
   DEFAULT_READER_VIDEO_FORMATS,
@@ -240,6 +240,9 @@ export interface NeoviewPageListPatch {
 export interface NeoviewViewDefaults {
   fitMode: ReaderFitMode
   pageMode: PageMode
+  orientation?: ReaderOrientation
+  autoRotation?: ReaderAutoRotation
+  widePageStretch?: ReaderWidePageStretch
 }
 
 export interface NeoviewViewDefaultsPatch {
@@ -428,6 +431,9 @@ export const DEFAULT_NEOVIEW_PAGE_LIST_CONFIG: NeoviewPageListConfig = {
 export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: DEFAULT_READER_LAYOUT.pageMode,
+  orientation: DEFAULT_READER_PRESENTATION.orientation,
+  autoRotation: DEFAULT_READER_PRESENTATION.autoRotation,
+  widePageStretch: DEFAULT_READER_PRESENTATION.widePageStretch,
 }
 
 export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
@@ -681,6 +687,9 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     "[nodes.neoview.reader].default_zoom_mode",
   )
   const pageMode = doublePage === undefined ? DEFAULT_READER_LAYOUT.pageMode : doublePage ? "double" : "single"
+  const orientation = optionalEnum(reader?.orientation ?? nestedValue(reader, "view", "orientation"), "[nodes.neoview.reader].orientation", ["horizontal", "vertical"] as const) ?? DEFAULT_READER_PRESENTATION.orientation
+  const autoRotation = readerAutoRotation(reader?.auto_rotation ?? nestedValue(reader, "view", "auto_rotation") ?? nestedValue(reader, "view", "autoRotateMode"))
+  const widePageStretch = readerWidePageStretch(reader?.wide_page_stretch ?? nestedValue(reader, "view", "wide_page_stretch") ?? nestedValue(reader, "view", "widePageStretch"))
 
   return {
     schemaVersion: 1,
@@ -692,7 +701,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       tailOverflow,
     },
     shellOptions: parseShellOptions(panels, reader),
-    viewDefaults: { fitMode, pageMode },
+    viewDefaults: { fitMode, pageMode, orientation, autoRotation, widePageStretch },
     pageList: {
       viewMode: optionalEnum(pageList?.view_mode, "[nodes.neoview.page_list].view_mode", ["list", "details", "thumbnails"] as const)
         ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG.viewMode,
@@ -1985,7 +1994,7 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   const record = requireRecord(value, "reader view defaults patch")
   if (Object.keys(record).some((key) => key !== "viewDefaults")) throw new Error("reader view defaults patch contains unsupported fields.")
   const defaults = requireRecord(record.viewDefaults, "reader view defaults patch.viewDefaults")
-  const allowed = new Set(["fitMode", "pageMode"])
+  const allowed = new Set(["fitMode", "pageMode", "orientation", "autoRotation", "widePageStretch"])
   const unknown = Object.keys(defaults).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader view defaults patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewViewDefaultsPatch = { viewDefaults: {} }
@@ -1997,6 +2006,18 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   if (defaults.pageMode !== undefined) {
     patch.viewDefaults.pageMode = optionalEnum(defaults.pageMode, "reader view defaults patch.pageMode", ["single", "double"] as const)
     readerPatch.double_page_view = patch.viewDefaults.pageMode === "double"
+  }
+  if (defaults.orientation !== undefined) {
+    patch.viewDefaults.orientation = optionalEnum(defaults.orientation, "reader view defaults patch.orientation", ["horizontal", "vertical"] as const)
+    readerPatch.orientation = patch.viewDefaults.orientation
+  }
+  if (defaults.autoRotation !== undefined) {
+    patch.viewDefaults.autoRotation = readerAutoRotation(defaults.autoRotation)
+    readerPatch.auto_rotation = persistedReaderAutoRotation(patch.viewDefaults.autoRotation)
+  }
+  if (defaults.widePageStretch !== undefined) {
+    patch.viewDefaults.widePageStretch = readerWidePageStretch(defaults.widePageStretch)
+    readerPatch.wide_page_stretch = persistedReaderWidePageStretch(patch.viewDefaults.widePageStretch)
   }
   if (!Object.keys(patch.viewDefaults).length) throw new Error("reader view defaults patch must change at least one field.")
   return { patch, tomlPatch: { reader: readerPatch } }
@@ -2587,16 +2608,20 @@ function parseTailOverflow(value: unknown): TailOverflowBehavior | undefined {
 
 function readerFitMode(value: unknown, path: string): ReaderFitMode {
   if (value === undefined) return DEFAULT_READER_PRESENTATION.fitMode
-  if (value === "fit" || value === "fitLeftAlign" || value === "fitRightAlign") return "fit"
+  if (value === "fit") return "fit"
+  if (value === "fitLeftAlign" || value === "fit-left") return "fit-left"
+  if (value === "fitRightAlign" || value === "fit-right") return "fit-right"
   if (value === "fill" || value === "original") return value
   if (value === "fitWidth" || value === "fit-width") return "fit-width"
   if (value === "fitHeight" || value === "fit-height") return "fit-height"
-  throw new Error(`${path} must be fit, fill, fitWidth, fitHeight or original.`)
+  throw new Error(`${path} must be fit, fill, fitWidth, fitHeight, original, fitLeftAlign or fitRightAlign.`)
 }
 
 function persistedReaderFitMode(value: ReaderFitMode): string {
   if (value === "fit-width") return "fitWidth"
   if (value === "fit-height") return "fitHeight"
+  if (value === "fit-left") return "fitLeftAlign"
+  if (value === "fit-right") return "fitRightAlign"
   return value
 }
 
@@ -2616,6 +2641,28 @@ function optionalConfigPath(value: unknown, path: string): string | undefined {
     throw new Error(`${path} must be an empty string or a non-empty path without NUL.`)
   }
   return value.trim()
+}
+
+function readerAutoRotation(value: unknown): ReaderAutoRotation {
+  if (value === undefined) return DEFAULT_READER_PRESENTATION.autoRotation
+  const aliases: Record<string, ReaderAutoRotation> = { none: "none", left: "left", right: "right", horizontalLeft: "horizontal-left", "horizontal-left": "horizontal-left", horizontalRight: "horizontal-right", "horizontal-right": "horizontal-right", forcedLeft: "forced-left", "forced-left": "forced-left", forcedRight: "forced-right", "forced-right": "forced-right" }
+  if (typeof value !== "string" || !aliases[value]) throw new Error("reader auto rotation is invalid.")
+  return aliases[value]
+}
+
+function persistedReaderAutoRotation(value: ReaderAutoRotation): string {
+  return value.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
+}
+
+function readerWidePageStretch(value: unknown): ReaderWidePageStretch {
+  if (value === undefined) return DEFAULT_READER_PRESENTATION.widePageStretch
+  const aliases: Record<string, ReaderWidePageStretch> = { none: "none", uniformHeight: "uniform-height", "uniform-height": "uniform-height", uniformWidth: "uniform-width", "uniform-width": "uniform-width" }
+  if (typeof value !== "string" || !aliases[value]) throw new Error("reader wide page stretch is invalid.")
+  return aliases[value]
+}
+
+function persistedReaderWidePageStretch(value: ReaderWidePageStretch): string {
+  return value === "uniform-height" ? "uniformHeight" : value === "uniform-width" ? "uniformWidth" : value
 }
 
 function shellMaterialValues(

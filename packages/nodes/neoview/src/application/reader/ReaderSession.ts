@@ -1,5 +1,6 @@
 import type { ReaderBook } from "../../domain/book/book.js"
 import { buildFrameSnapshot } from "../../domain/frame/frame-builder.js"
+import { LRUCache } from "lru-cache"
 import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
@@ -31,6 +32,8 @@ export class CoreReaderSession implements ReaderSession {
   readonly #preloadTelemetry = new ReaderPreloadTelemetry()
   #preloadPlan?: ReaderPreloadPlan
   #preloadContext: ReaderPreloadContext = {}
+  readonly #frameWindowCache = new LRUCache<string, readonly FrameSnapshot[]>({ max: 32, ttl: 2_000 })
+  readonly #frameWindowPending = new Map<string, Promise<readonly FrameSnapshot[]>>()
 
   constructor(
     id: ReaderSessionId,
@@ -67,6 +70,46 @@ export class CoreReaderSession implements ReaderSession {
   getPage(pageId: PageId): ReaderPage | undefined {
     this.#assertOpen()
     return this.#pagesById.get(pageId)
+  }
+
+  async frameWindow(centerPageIndex: number, radius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]> {
+    this.#assertOpen()
+    const boundedRadius = Math.min(Math.max(Math.trunc(radius), 0), 8)
+    const center = clamp(centerPageIndex, this.book.pages.length)
+    const cacheKey = `${this.#generation}:${center}:${boundedRadius}:${this.#options.direction}:${JSON.stringify(this.#options.layout)}`
+    const cached = this.#frameWindowCache.get(cacheKey)
+    if (cached) return cached
+    const pending = this.#frameWindowPending.get(cacheKey)
+    if (pending) return pending
+
+    const operation = this.#buildFrameWindow(center, boundedRadius, signal)
+    this.#frameWindowPending.set(cacheKey, operation)
+    void operation.then((frames) => this.#frameWindowCache.set(cacheKey, frames)).catch(() => undefined).finally(() => {
+      if (this.#frameWindowPending.get(cacheKey) === operation) this.#frameWindowPending.delete(cacheKey)
+    })
+    return operation
+  }
+
+  async #buildFrameWindow(centerPageIndex: number, boundedRadius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]> {
+    const center = await this.#snapshotAt(centerPageIndex, signal)
+    const before: FrameSnapshot[] = []
+    const after: FrameSnapshot[] = []
+    let firstPage = Math.min(...center.pages.map((page) => page.pageIndex), center.anchorPageIndex)
+    let lastPage = Math.max(...center.pages.map((page) => page.pageIndex), center.anchorPageIndex)
+
+    for (let offset = 0; offset < boundedRadius && firstPage > 0; offset += 1) {
+      const previous = await this.#previousSnapshot(firstPage, signal)
+      if (!previous) break
+      before.unshift(previous)
+      firstPage = Math.min(...previous.pages.map((page) => page.pageIndex), previous.anchorPageIndex)
+    }
+    for (let offset = 0; offset < boundedRadius && lastPage < this.book.pages.length - 1; offset += 1) {
+      const next = await this.#snapshotAt(lastPage + 1, signal)
+      if (next.anchorPageIndex <= lastPage) break
+      after.push(next)
+      lastPage = Math.max(...next.pages.map((page) => page.pageIndex), next.anchorPageIndex)
+    }
+    return [...before, center, ...after]
   }
 
   preloadPlan(): ReaderPreloadPlan | undefined {
@@ -172,6 +215,8 @@ export class CoreReaderSession implements ReaderSession {
   close(): Promise<void> {
     if (this.#closing) return this.#closing
     const finalSnapshot = this.snapshot()
+    this.#frameWindowCache.clear()
+    this.#frameWindowPending.clear()
     this.#closed = true
     this.#preloadTelemetry.close()
     this.#closing = Promise.resolve().then(async () => {
@@ -215,6 +260,32 @@ export class CoreReaderSession implements ReaderSession {
     const pages = [this.book.pages[anchorPageIndex]]
     if (options.layout.pageMode === "double") pages.push(this.book.pages[anchorPageIndex + 1])
     await Promise.all(pages.filter((page): page is ReaderPage => Boolean(page)).map((page) => this.#probePage(page, signal)))
+  }
+
+  async #snapshotAt(anchorPageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot> {
+    await this.#prepareFrameMetadata(anchorPageIndex, this.#options, signal)
+    signal?.throwIfAborted()
+    return buildFrameSnapshot({
+      pages: this.book.pages,
+      anchorPageIndex,
+      generation: this.#generation,
+      direction: this.#options.direction,
+      layout: this.#options.layout,
+    })
+  }
+
+  async #previousSnapshot(firstPageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot | undefined> {
+    const candidates: FrameSnapshot[] = []
+    for (let anchor = Math.max(0, firstPageIndex - 2); anchor < firstPageIndex; anchor += 1) {
+      const candidate = await this.#snapshotAt(anchor, signal)
+      const last = Math.max(...candidate.pages.map((page) => page.pageIndex), candidate.anchorPageIndex)
+      if (last < firstPageIndex) candidates.push(candidate)
+    }
+    return candidates.slice().sort((left, right) => {
+      const leftLast = Math.max(...left.pages.map((page) => page.pageIndex), left.anchorPageIndex)
+      const rightLast = Math.max(...right.pages.map((page) => page.pageIndex), right.anchorPageIndex)
+      return rightLast - leftLast || right.anchorPageIndex - left.anchorPageIndex
+    })[0]
   }
 
   async #probePage(page: ReaderPage, signal?: AbortSignal): Promise<void> {

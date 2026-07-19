@@ -129,10 +129,10 @@ export const DEFAULT_READER_INPUT_BINDINGS: ReaderInputBindingsConfig = {
     binding("legacy-reader-toggle-library-global-0", "reader.toggle-library", "global", { device: "keyboard", code: "KeyL" }),
     binding("legacy-reader-toggle-reading-direction-global-0", "reader.toggle-reading-direction", "global", { device: "keyboard", code: "KeyR" }),
 
-    // radial
-    binding("legacy-radial-open-default-global-0", "radial.open-default", "global", { device: "mouse", button: 2, action: "press" }),
-    binding("legacy-radial-open-default-global-1", "radial.open-default", "global", { device: "keyboard", code: "Enter" }),
-    binding("legacy-radial-confirm-global-0", "radial.confirm", "global", { device: "keyboard", code: "Space" }),
+    // radial — reader context only so higher layers (panel/modal/editor) do not open the wheel
+    binding("legacy-radial-open-default-reader-0", "radial.open-default", "reader", { device: "mouse", button: 2, action: "press" }),
+    binding("legacy-radial-open-default-reader-1", "radial.open-default", "reader", { device: "keyboard", code: "Enter" }),
+    binding("legacy-radial-confirm-reader-0", "radial.confirm", "reader", { device: "keyboard", code: "Space" }),
 
     // video (legacy videoPlayer context → video)
     binding("legacy-video-play-pause-video-0", "video.play-pause", "video", { device: "area", area: "middle-center", button: 0, action: "click" }),

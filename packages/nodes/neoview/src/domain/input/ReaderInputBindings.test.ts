@@ -48,6 +48,15 @@ describe("ReaderInputBindings", () => {
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "gamepad")).toBe(false)
   })
 
+  it("[neoview.bindings.radial-context] opens the wheel only on the reader surface, not panel/modal", () => {
+    const open = DEFAULT_READER_INPUT_BINDINGS.bindings.find((current) => current.action === "radial.open-default" && current.input.device === "mouse")
+    expect(open).toMatchObject({ context: "reader", input: { device: "mouse", button: 2, action: "press" } })
+    expect(matchingReaderInputBinding(DEFAULT_READER_INPUT_BINDINGS.bindings, { device: "mouse", button: 2, action: "press" }, ["reader"])?.action).toBe("radial.open-default")
+    expect(matchingReaderInputBinding(DEFAULT_READER_INPUT_BINDINGS.bindings, { device: "mouse", button: 2, action: "press" }, ["panel"])).toBeUndefined()
+    expect(matchingReaderInputBinding(DEFAULT_READER_INPUT_BINDINGS.bindings, { device: "mouse", button: 2, action: "press" }, ["modal"])).toBeUndefined()
+    expect(matchingReaderInputBinding(DEFAULT_READER_INPUT_BINDINGS.bindings, { device: "mouse", button: 2, action: "press" }, ["editor"])).toBeUndefined()
+  })
+
   it("[neoview.bindings.area-grid] maps bounded points into the legacy nine-area grid", () => {
     expect(readerViewAreaAtPoint(0, 0, 900, 600)).toBe("top-left")
     expect(readerViewAreaAtPoint(450, 300, 900, 600)).toBe("middle-center")

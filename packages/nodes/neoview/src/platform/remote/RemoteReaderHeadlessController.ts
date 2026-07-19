@@ -22,6 +22,9 @@ import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressS
 import type { ReaderDiagnosticsHistory, ReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsService.js"
 import { parseReaderDiagnosticsHistory, parseReaderDiagnosticsSnapshot } from "../../application/diagnostics/ReaderDiagnosticsWireSchema.js"
 import type { ReaderThumbnailMaintenanceSnapshot } from "../../ports/ReaderThumbnailStore.js"
+import type { ReaderLibraryStatistics } from "../../ports/ReaderLibraryStatisticsStore.js"
+import type { ReaderPlaylistEntryRecord, ReaderPlaylistRecord } from "../../ports/ReaderPlaylistStore.js"
+import type { AppendReaderPlaylistEntryInput, SaveReaderPlaylistInput } from "../../application/library/ReaderPlaylistService.js"
 import type { ReaderPageDto, ReaderSessionDto } from "../asset-route/ReaderHttpController.js"
 import type { ReaderAdjacentBookDirection } from "../../application/reader/ReaderAdjacentBookService.js"
 import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
@@ -208,6 +211,47 @@ const thumbnailInvalidCleanupSchema = z.object({
   }).strict(),
 }).strict()
 
+const remoteViewSourceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("path"), path: z.string().min(1).max(4_096) }).strict(),
+  z.object({ kind: z.literal("directory"), path: z.string().min(1).max(4_096) }).strict(),
+  z.object({ kind: z.literal("image"), path: z.string().min(1).max(4_096) }).strict(),
+  z.object({ kind: z.literal("media"), path: z.string().min(1).max(4_096) }).strict(),
+  z.object({ kind: z.literal("document"), path: z.string().min(1).max(4_096), format: z.enum(["pdf", "epub"]) }).strict(),
+  z.object({
+    kind: z.literal("archive"),
+    path: z.string().min(1).max(4_096),
+    entryPath: z.string().min(1).max(4_096).optional(),
+    entryPaths: z.array(z.string().min(1).max(4_096)).max(16_384).optional(),
+  }).strict(),
+])
+
+const remoteLibraryStatisticsSchema = z.object({
+  recentCount: z.number().int().nonnegative(),
+  bookmarkCount: z.number().int().nonnegative(),
+  bookmarkListCount: z.number().int().nonnegative(),
+  mediaProgressCount: z.number().int().nonnegative(),
+}).strict()
+
+const remotePlaylistSchema = z.object({
+  id: z.string().min(1).max(128),
+  name: z.string().min(1).max(512),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+}).strict()
+
+const remotePlaylistEntrySchema = z.object({
+  id: z.string().min(1).max(128),
+  playlistId: z.string().min(1).max(128),
+  source: remoteViewSourceSchema,
+  name: z.string().min(1).max(512),
+  position: z.number().int().nonnegative(),
+  createdAt: z.number().int().nonnegative(),
+}).strict()
+
+const remotePlaylistListSchema = z.object({ items: z.array(remotePlaylistSchema).max(1_000) }).strict()
+const remotePlaylistEntryListSchema = z.object({ items: z.array(remotePlaylistEntrySchema).max(10_000) }).strict()
+const remoteDeletedSchema = z.object({ deleted: z.number().int().nonnegative() }).strict()
+
 export type RemoteReaderThumbnailCleanupCommand =
   | { kind: "empty"; limit: number }
   | { kind: "expired"; days: number; limit: number }
@@ -360,6 +404,100 @@ export async function clearRemoteReaderThumbnailFailures(
   const parsed = thumbnailDeletedSchema.safeParse(result)
   if (!parsed.success) throw new Error("Xiranite Reader returned an invalid thumbnail failure cleanup response.")
   return parsed.data.deleted
+}
+
+/**
+ * Remote facade for library metadata. It deliberately forwards every operation
+ * to the running Reader HTTP controller, so `--connect` never opens another
+ * SQLite owner for the NeoView database.
+ */
+export class RemoteReaderLibraryController implements AsyncDisposable {
+  constructor(private readonly options: RemoteReaderHeadlessOptions) {}
+
+  async statistics(): Promise<ReaderLibraryStatistics> {
+    return parseRemoteLibraryResponse(
+      remoteLibraryStatisticsSchema,
+      await remoteJson(this.options, "/reader/library/statistics", {}, "Reader library statistics"),
+      "statistics",
+    )
+  }
+
+  async listPlaylists(): Promise<readonly ReaderPlaylistRecord[]> {
+    return parseRemoteLibraryResponse(
+      remotePlaylistListSchema,
+      await remoteJson(this.options, "/reader/library/playlists", {}, "Reader playlists"),
+      "playlists",
+    ).items
+  }
+
+  async savePlaylist(input: SaveReaderPlaylistInput): Promise<ReaderPlaylistRecord> {
+    return parseRemoteLibraryResponse(
+      remotePlaylistSchema,
+      await remoteJson(this.options, "/reader/library/playlists", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }, "Reader playlist save"),
+      "playlist save",
+    )
+  }
+
+  async removePlaylist(id: string): Promise<boolean> {
+    const response = await remoteResponse(this.options, `/reader/library/playlists/${encodeRemoteLibraryId(id)}`, {
+      method: "DELETE",
+    })
+    if (response.status === 404) return false
+    if (!response.ok) throw await responseError(response, "Reader playlist remove")
+    if (response.status !== 204) throw new Error("Xiranite Reader returned an invalid playlist remove response.")
+    return true
+  }
+
+  async listPlaylistEntries(playlistId: string): Promise<readonly ReaderPlaylistEntryRecord[]> {
+    return parseRemoteLibraryResponse(
+      remotePlaylistEntryListSchema,
+      await remoteJson(this.options, `/reader/library/playlists/${encodeRemoteLibraryId(playlistId)}/items`, {}, "Reader playlist entries"),
+      "playlist entries",
+    ).items
+  }
+
+  async appendPlaylistEntries(
+    playlistId: string,
+    entries: readonly AppendReaderPlaylistEntryInput[],
+  ): Promise<readonly ReaderPlaylistEntryRecord[]> {
+    return parseRemoteLibraryResponse(
+      remotePlaylistEntryListSchema,
+      await remoteJson(this.options, `/reader/library/playlists/${encodeRemoteLibraryId(playlistId)}/items`, {
+        method: "POST",
+        body: JSON.stringify({ entries }),
+      }, "Reader playlist append"),
+      "playlist append",
+    ).items
+  }
+
+  async removePlaylistEntries(playlistId: string, entryIds: readonly string[]): Promise<number> {
+    return parseRemoteLibraryResponse(
+      remoteDeletedSchema,
+      await remoteJson(this.options, `/reader/library/playlists/${encodeRemoteLibraryId(playlistId)}/items`, {
+        method: "DELETE",
+        body: JSON.stringify({ ids: entryIds }),
+      }, "Reader playlist entry remove"),
+      "playlist entry remove",
+    ).deleted
+  }
+
+  async reorderPlaylistEntries(playlistId: string, entryIds: readonly string[]): Promise<void> {
+    const response = await remoteResponse(this.options, `/reader/library/playlists/${encodeRemoteLibraryId(playlistId)}/items/order`, {
+      method: "PUT",
+      body: JSON.stringify({ ids: entryIds }),
+    })
+    if (!response.ok) throw await responseError(response, "Reader playlist reorder")
+    if (response.status !== 204) throw new Error("Xiranite Reader returned an invalid playlist reorder response.")
+  }
+
+  async close(): Promise<void> {}
+
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.close()
+  }
 }
 
 /** Headless adapter over the running XR Reader controller. It owns only sessions it creates. */
@@ -955,14 +1093,35 @@ async function remoteJson(
   init: RequestInit,
   operation: string,
 ): Promise<unknown> {
+  const response = await remoteResponse(options, path, init)
+  if (!response.ok) throw await responseError(response, operation)
+  return await response.json()
+}
+
+async function remoteResponse(
+  options: RemoteReaderHeadlessOptions,
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
   const baseUrl = normalizeLoopbackBaseUrl(options.baseUrl)
   const token = normalizeToken(options.token)
   const headers = new Headers(init.headers)
   headers.set("x-xiranite-token", token)
   if (init.body !== undefined) headers.set("content-type", "application/json")
-  const response = await (options.fetch ?? globalThis.fetch)(new URL(path, baseUrl), { ...init, headers })
-  if (!response.ok) throw await responseError(response, operation)
-  return await response.json()
+  return await (options.fetch ?? globalThis.fetch)(new URL(path, baseUrl), { ...init, headers })
+}
+
+function parseRemoteLibraryResponse<T>(schema: z.ZodType<T>, value: unknown, operation: string): T {
+  const parsed = schema.safeParse(value)
+  if (!parsed.success) throw new Error(`Xiranite Reader returned an invalid ${operation} response.`)
+  return parsed.data
+}
+
+function encodeRemoteLibraryId(value: string): string {
+  if (typeof value !== "string") throw new Error("Reader playlist id must be a string.")
+  const id = value.trim()
+  if (!id || id.length > 128 || id.includes("\0")) throw new Error("Reader playlist id is invalid.")
+  return encodeURIComponent(id)
 }
 
 function diagnosticsHistoryInteger(value: number, name: string): number {

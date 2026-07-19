@@ -20,6 +20,7 @@ import {
 } from "./ThumbnailDatabaseAccessLock.js"
 import type { LegacyThumbnailCategory, LegacyThumbnailRecord } from "./ReadonlyLegacyThumbnailStore.js"
 import type { ResourcePriority, ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import type { ReaderAiTranslationCacheEntry, ReaderAiTranslationPersistentCache } from "../../ports/ReaderAiTranslation.js"
 import { readLegacyThumbnailStatistics } from "./LegacyThumbnailStatistics.js"
 
 export interface WritableLegacyThumbnailStoreOptions {
@@ -42,7 +43,7 @@ type PendingWrite =
   | { kind: "thumbnail"; value: ReaderThumbnailWrite; resolve(): void; reject(reason: unknown): void }
   | { kind: "failure"; value: Omit<ReaderThumbnailFailure, "retryCount">; resolve(): void; reject(reason: unknown): void }
 
-export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, AsyncDisposable {
+export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, ReaderAiTranslationPersistentCache, AsyncDisposable {
   readonly report: LegacyThumbnailDatabaseReport
   readonly #database: WritableSqliteConnection
   readonly #accessLock: ThumbnailDatabaseAccessLock
@@ -403,6 +404,38 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     if (this.#pending.length) await this.flush()
   }
 
+  async load(key: string, model?: string): Promise<ReaderAiTranslationCacheEntry | undefined> {
+    this.#assertOpen()
+    assertKey(key)
+    assertAiTranslationModel(model)
+    const row = this.#database.get("SELECT ai_translation FROM thumbs WHERE key = ?1 LIMIT 1", key)
+    return parseAiTranslation(row?.ai_translation, model)
+  }
+
+  async save(key: string, entry: ReaderAiTranslationCacheEntry): Promise<void> {
+    this.#assertOpen()
+    assertKey(key)
+    const value = normalizeAiTranslation(entry)
+    this.#database.run(
+      `INSERT INTO thumbs (key, date, category, ai_translation)
+       VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT(key) DO UPDATE SET ai_translation=excluded.ai_translation`,
+      key,
+      sqliteTimestamp(new Date()),
+      legacyAiTranslationCategory(key),
+      JSON.stringify(value),
+    )
+  }
+
+  async count(): Promise<number> {
+    this.#assertOpen()
+    const row = this.#database.get("SELECT COUNT(*) AS count FROM thumbs WHERE ai_translation IS NOT NULL")
+    const value = row?.count
+    if (typeof value === "bigint") return Number(value)
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value
+    throw new Error("Legacy AI translation count is invalid.")
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
@@ -595,6 +628,43 @@ function assertKey(value: string): void {
   if (!value || value.length > 32_768 || value.includes("\0")) throw new Error("Thumbnail key must be 1..32768 characters without NUL.")
 }
 
+function assertAiTranslationModel(value: string | undefined): void {
+  if (value !== undefined && (!value.trim() || value.length > 256 || value.includes("\0"))) {
+    throw new RangeError("AI translation model must be 1..256 characters without NUL.")
+  }
+}
+
+function parseAiTranslation(value: unknown, model: string | undefined): ReaderAiTranslationCacheEntry | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined
+    const entry = parsed as Record<string, unknown>
+    if (typeof entry.title !== "string" || !entry.title.trim() || entry.title.length > 16_384) return undefined
+    if (entry.service !== "libre" && entry.service !== "ollama") return undefined
+    const storedModel = typeof entry.model === "string" && entry.model.trim() ? entry.model.trim() : undefined
+    if (entry.service === "ollama" && (!storedModel || (model !== undefined && storedModel !== model))) return undefined
+    if (typeof entry.timestamp !== "number" || !Number.isSafeInteger(entry.timestamp) || entry.timestamp < 0) return undefined
+    return { title: entry.title.trim(), service: entry.service, ...(storedModel ? { model: storedModel } : {}), timestamp: entry.timestamp }
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeAiTranslation(value: ReaderAiTranslationCacheEntry): ReaderAiTranslationCacheEntry {
+  const title = value.title.trim()
+  if (!title || title.length > 16_384) throw new RangeError("AI translation title must be 1..16384 characters.")
+  if (value.service !== "libre" && value.service !== "ollama") throw new TypeError("Unsupported AI translation service.")
+  assertAiTranslationModel(value.model)
+  if (value.service === "ollama" && !value.model) throw new RangeError("Ollama translation cache entries require a model.")
+  if (!Number.isSafeInteger(value.timestamp) || value.timestamp < 0) throw new RangeError("AI translation timestamp must be a non-negative integer.")
+  return { title, service: value.service, ...(value.model ? { model: value.model.trim() } : {}), timestamp: value.timestamp }
+}
+
+function legacyAiTranslationCategory(key: string): LegacyThumbnailCategory {
+  return !key.includes("::") && !key.includes(".") ? "folder" : "file"
+}
+
 function assertCategory(value: string): asserts value is LegacyThumbnailCategory {
   if (value !== "file" && value !== "folder") throw new Error(`Unsupported thumbnail category: ${value}`)
 }
@@ -634,6 +704,7 @@ function normalizePathPrefix(value: string): string {
   if (!prefix || prefix.length > 4_096 || prefix.includes("\0")) {
     throw new RangeError("Thumbnail path prefix must be 1..4096 characters without NUL.")
   }
+
   if (prefix === "/" || prefix === "\\") return prefix
   if (isWindowsPathPrefix(prefix)) {
     const portable = prefix.replaceAll("\\", "/")

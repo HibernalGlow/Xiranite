@@ -37,6 +37,7 @@ export interface ReaderSession extends AsyncDisposable {
   preloadTelemetry(): ReaderPreloadTelemetrySnapshot
   reportPreload(report: ReaderPreloadReport): ReaderPreloadReportResult
   getPage(pageId: PageId): ReaderPage | undefined
+  frameWindow?(centerPageIndex: number, radius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]>
   goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot>
   next(signal?: AbortSignal): Promise<FrameSnapshot>
   previous(signal?: AbortSignal): Promise<FrameSnapshot>

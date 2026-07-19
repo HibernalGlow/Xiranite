@@ -1,4 +1,4 @@
-import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ReaderLayout, ViewSource } from "@xiranite/node-neoview/ui-core"
+import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderAutoRotation, ReaderFitMode, ReaderLayout, ReaderOrientation, ReaderWidePageStretch, ViewSource } from "@xiranite/node-neoview/ui-core"
 import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
 import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
 import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/switch-toast"
@@ -60,6 +60,13 @@ export interface ReaderPageListDto {
   pages: ReaderPageDto[]
   nextCursor?: number
   total: number
+}
+
+export interface ReaderFrameWindowDto {
+  frames: FrameSnapshot[]
+  centerIndex: number
+  radius: number
+  visiblePages: ReaderPageDto[]
 }
 
 export interface ReaderPageCopyActionDto {
@@ -653,7 +660,7 @@ export interface ReaderPageListPreferencesPatch {
 
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
-  viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode }
+  viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
   pageList: ReaderPageListPreferencesDto
   bookmarkList: ReaderBookmarkListPreferencesDto
   historyList: ReaderHistoryListPreferencesDto
@@ -1041,7 +1048,7 @@ export interface ReaderFolderViewPatch {
 }
 
 export interface ReaderViewDefaultsPatch {
-  viewDefaults: { fitMode?: ReaderFitMode; pageMode?: PageMode }
+  viewDefaults: { fitMode?: ReaderFitMode; pageMode?: PageMode; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
 }
 
 export interface ReaderSlideshowConfig {
@@ -1176,6 +1183,7 @@ export interface ReaderHttpClient {
   ): Promise<ReaderLibraryThumbnailBatchDto>
   releaseLibraryThumbnailContext?(contextId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
+  frameWindow?(sessionId: string, centerPageIndex: number, radius: number, signal?: AbortSignal): Promise<ReaderFrameWindowDto>
   mediaProgress?(sessionId: string, signal?: AbortSignal): Promise<ReaderMediaProgressDto | undefined>
   updateMediaProgress?(sessionId: string, progress: Pick<ReaderMediaProgressDto, "position" | "duration" | "completed">, flush?: boolean, signal?: AbortSignal): Promise<ReaderMediaProgressDto>
   subtitleTracks?(sessionId: string, pageId: string, signal?: AbortSignal): Promise<readonly ReaderSubtitleTrackDto[]>
@@ -1606,6 +1614,10 @@ export function createReaderHttpClient(
     ),
     listPages: (sessionId, cursor, limit, signal) => request<ReaderPageListDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/pages?cursor=${cursor}&limit=${limit}`,
+      { signal },
+    ),
+    frameWindow: (sessionId, centerPageIndex, radius, signal) => request<ReaderFrameWindowDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/frame-window?center=${centerPageIndex}&radius=${radius}`,
       { signal },
     ),
     mediaProgress: (sessionId, signal) => request<{ progress: ReaderMediaProgressDto | null }>(

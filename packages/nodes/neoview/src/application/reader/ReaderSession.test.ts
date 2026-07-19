@@ -33,6 +33,22 @@ describe("CoreReaderSession", () => {
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ type: "error", code: "NEXT_BOOK_REQUIRED" }))
   })
 
+  it("[neoview.session.frame-window-cache] reuses identical windows within one frame generation", async () => {
+    const session = new CoreReaderSession("window-cache", book(8), {
+      layout: { pageMode: "double", panorama: true, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: true },
+    })
+    const [first, second] = await Promise.all([
+      session.frameWindow(2, 2),
+      session.frameWindow(2, 2),
+    ])
+    expect(first).toBe(second)
+    expect(first.map((frame) => frame.anchorPageIndex)).toEqual([0, 2, 4, 6])
+    const cached = await session.frameWindow(2, 2)
+    expect(cached).toBe(first)
+    await session.goTo(4)
+    expect(await session.frameWindow(2, 2)).not.toBe(first)
+  })
+
   it("[neoview.session.lifecycle] rejects cancelled navigation and closes idempotently", async () => {
     const sourceBook = book(2)
     const session = new CoreReaderSession("reader-1", sourceBook)

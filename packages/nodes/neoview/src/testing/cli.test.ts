@@ -653,6 +653,11 @@ describe("NeoView CLI", () => {
       stdin: { isTTY: false },
       stdout: { isTTY: false, write: () => true },
     } as CliHost, { createController: async () => reader })).rejects.toThrow("requires an interactive terminal")
+    await expect(runProgram(["settings-backup-ui"], {
+      ...host([]),
+      stdin: { isTTY: false },
+      stdout: { isTTY: false, write: () => true },
+    } as CliHost, { createController: async () => reader })).rejects.toThrow("requires an interactive terminal")
   })
 
   it("[neoview.super-resolution.cli] delegates one manual page to the shared headless workflow", async () => {
