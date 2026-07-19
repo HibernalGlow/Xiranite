@@ -1,6 +1,6 @@
 import { parseToml } from "@xiranite/config"
 
-export type NeoviewConfigFormat = "absent" | "optimized" | "legacy" | "mixed" | "invalid"
+export type NeoviewConfigFormat = "absent" | "optimized" | "envelope" | "legacy" | "mixed" | "invalid"
 
 export interface NeoviewConfigFormatReport {
   format: NeoviewConfigFormat
@@ -26,7 +26,7 @@ export function inspectNeoviewConfigFormat(text: string): NeoviewConfigFormatRep
   }
   const legacyKeys = Object.keys(node).filter((key) => key !== "config")
   if (hasConfig && legacyKeys.length === 0) {
-    return { format: "optimized", message: "NeoView uses the canonical inline config envelope." }
+    return { format: "envelope", message: "NeoView uses the compatible all-in-one config envelope and should be migrated to first-level sections." }
   }
   if (hasConfig) {
     return {
@@ -34,10 +34,23 @@ export function inspectNeoviewConfigFormat(text: string): NeoviewConfigFormatRep
       message: `NeoView mixes optimized config with legacy keys: ${legacyKeys.join(", ")}. Optimized values take precedence.`,
     }
   }
-  return {
+  if (hasDeepNeoviewHeaders(text)) return {
     format: "legacy",
-    message: "NeoView still uses legacy nested tables. It remains readable and will be canonicalized on the next config write.",
+    message: "NeoView uses deep nested tables. It remains readable and will be compacted on the next config write.",
   }
+  return { format: "optimized", message: "NeoView uses first-level sections with deeper values represented inline." }
+}
+
+function hasDeepNeoviewHeaders(text: string): boolean {
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    const match = /^\[(\[?)(nodes\.neoview(?:\..+)?)\]\]?$/.exec(trimmed)
+    if (!match || match[2] === "nodes.neoview") continue
+    if (match[1] === "[") return true
+    const tail = match[2].slice("nodes.neoview.".length)
+    if (tail.includes(".")) return true
+  }
+  return false
 }
 
 function errorMessage(error: unknown): string {

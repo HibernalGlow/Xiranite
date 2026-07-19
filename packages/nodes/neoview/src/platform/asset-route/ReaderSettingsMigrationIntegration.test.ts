@@ -52,7 +52,7 @@ describe("Reader settings migration HTTP integration", () => {
       expect(responseText).not.toContain(configPath)
       expect(JSON.parse(responseText)).toMatchObject({ changed: true, backupCreated: true, strategy: "merge" })
       const written = await readFile(configPath, "utf8")
-      expect(written).toContain("[nodes.neoview]\nconfig = { ")
+      expect(written).toContain("[nodes.neoview.custom]")
       expect(written).toContain("keep = true")
       expect(written).toContain('reading_direction = "right-to-left"')
 
@@ -103,7 +103,7 @@ describe("Reader settings migration HTTP integration", () => {
       expect(restored.status).toBe(200)
       await expect(restored.json()).resolves.toMatchObject({ changed: true, backupCreated: true })
       const written = await readFile(configPath, "utf8")
-      expect(written).toContain("[nodes.neoview]\nconfig = { ")
+      expect(written).toContain("[nodes.neoview.future]")
       expect(written).not.toContain("old = true")
       expect(written).not.toContain("hidden")
     } finally {

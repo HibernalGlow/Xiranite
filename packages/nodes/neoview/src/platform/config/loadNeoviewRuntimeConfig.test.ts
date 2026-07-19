@@ -208,7 +208,7 @@ describe("loadNeoviewSessionOptions", () => {
         edges: { top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32, lockMode: "auto" } },
       } })
       const shellConfig = await readFile(configPath, "utf8")
-      expect(shellConfig).toContain("[nodes.neoview]\nconfig = { ")
+      expect(shellConfig).toContain("[nodes.neoview.panels]")
       expect(shellConfig).toContain("future_controller = \"keep\"")
       expect(shellConfig).not.toContain("[nodes.neoview.panels.edges.top]")
       expect(shellConfig).toContain("future_edge = \"keep\"")
@@ -231,7 +231,7 @@ describe("loadNeoviewSessionOptions", () => {
       }))
       expect(await slideshowPatched?.json()).toMatchObject({ slideshow: { intervalSeconds: 14, loop: true, random: true, fadeTransition: false } })
       const persistedConfig = await readFile(configPath, "utf8")
-      expect(persistedConfig).toContain("[nodes.neoview]\nconfig = { ")
+      expect(persistedConfig).toContain("[nodes.neoview.slideshow]")
       expect(persistedConfig).toContain("interval_seconds = 14")
       expect(persistedConfig).toContain("fade_transition = false")
       const folderPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
@@ -261,7 +261,7 @@ describe("loadNeoviewSessionOptions", () => {
         },
       })
       const folderConfig = await readFile(configPath, "utf8")
-      expect(folderConfig).toContain("[nodes.neoview]\nconfig = { ")
+      expect(folderConfig).toContain("[nodes.neoview.folder]")
       expect(folderConfig).toContain("view_mode = \"details\"")
       expect(folderConfig).toContain("preview_count = 9")
       expect(folderConfig).toContain("thumbnail_width_percent = 36")
@@ -331,7 +331,7 @@ describe("loadNeoviewSessionOptions", () => {
       }))
       expect(await exclusionPatched?.json()).toMatchObject({ excludedPaths: [privatePath] })
       const treeConfig = await readFile(configPath, "utf8")
-      expect(treeConfig).toContain("[nodes.neoview]\nconfig = { ")
+      expect(treeConfig).toContain("[nodes.neoview.folder]")
       expect(treeConfig).toContain("excluded_paths = [")
       expect((await loadNeoviewRuntimeConfig({ configPath })).fileTree).toEqual({ excludedPaths: [privatePath] })
     } finally {
