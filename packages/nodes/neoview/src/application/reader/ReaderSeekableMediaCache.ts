@@ -30,6 +30,7 @@ interface MaterializationRecord {
   settled: boolean
   releaseRequested: boolean
   materialization?: ReaderPageMaterializationLease
+  releasePromise?: Promise<void>
 }
 
 export class ReaderSeekableMediaCache implements AsyncDisposable {
@@ -118,6 +119,7 @@ export class ReaderSeekableMediaCache implements AsyncDisposable {
   }
 
   async retainSessionPages(sessionId: ReaderSessionId, pageIds: ReadonlySet<string>): Promise<void> {
+    if (this.#closed) return
     const pending: Promise<unknown>[] = []
     for (const record of this.#records.values()) {
       if (record.sessionId !== sessionId) continue
@@ -147,7 +149,6 @@ export class ReaderSeekableMediaCache implements AsyncDisposable {
   }
 
   async close(): Promise<void> {
-    if (this.#closed) return
     this.#closed = true
     await Promise.all([...new Set([...this.#records.values()].map((record) => record.sessionId))]
       .map((sessionId) => this.releaseSession(sessionId)))
@@ -197,8 +198,20 @@ export class ReaderSeekableMediaCache implements AsyncDisposable {
 
   async #releaseRecord(record: MaterializationRecord, reservedBytes = record.page.byteLength ?? 0): Promise<void> {
     if (this.#records.get(record.key) !== record) return
-    this.#deleteRecord(record, reservedBytes)
-    await record.materialization?.release()
+    if (record.releasePromise) return record.releasePromise
+    const releasePromise = Promise.resolve()
+      .then(() => record.materialization?.release())
+      .then(
+        () => {
+          this.#deleteRecord(record, reservedBytes)
+        },
+        (error: unknown) => {
+          record.releasePromise = undefined
+          throw error
+        },
+      )
+    record.releasePromise = releasePromise
+    return releasePromise
   }
 
   #deleteRecord(record: MaterializationRecord, reservedBytes: number): void {
