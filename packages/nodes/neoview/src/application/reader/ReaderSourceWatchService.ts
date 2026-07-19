@@ -15,6 +15,9 @@ interface WatchState {
   subscription?: ReaderSourceSubscription
   opening?: Promise<void>
   waiters: Set<() => void>
+  released: boolean
+  releasedPromise: Promise<void>
+  resolveReleased: () => void
 }
 
 export class ReaderSourceWatchService implements AsyncDisposable {
@@ -35,8 +38,10 @@ export class ReaderSourceWatchService implements AsyncDisposable {
     const state = this.#state(sessionId)
     await this.#ensureOpen(sessionId, source, state)
     signal?.throwIfAborted()
+    if (state.released || this.#states.get(sessionId) !== state) return undefined
     if (state.snapshot && state.revision > afterRevision) return state.snapshot
-    await waitForNotification(state.waiters, this.timeoutMs, signal)
+    await waitForNotification(state, this.timeoutMs, signal)
+    if (state.released || this.#states.get(sessionId) !== state) return undefined
     return state.snapshot && state.revision > afterRevision ? state.snapshot : undefined
   }
 
@@ -44,6 +49,8 @@ export class ReaderSourceWatchService implements AsyncDisposable {
     const state = this.#states.get(sessionId)
     if (!state) return
     this.#states.delete(sessionId)
+    state.released = true
+    state.resolveReleased()
     for (const notify of state.waiters) notify()
     state.waiters.clear()
     await state.opening?.catch(() => undefined)
@@ -57,7 +64,17 @@ export class ReaderSourceWatchService implements AsyncDisposable {
   #state(sessionId: string): WatchState {
     let state = this.#states.get(sessionId)
     if (!state) {
-      state = { revision: 0, waiters: new Set() }
+      let resolveReleased!: () => void
+      const releasedPromise = new Promise<void>((resolve) => {
+        resolveReleased = resolve
+      })
+      state = {
+        revision: 0,
+        waiters: new Set(),
+        released: false,
+        releasedPromise,
+        resolveReleased,
+      }
       this.#states.set(sessionId, state)
     }
     return state
@@ -81,7 +98,7 @@ export class ReaderSourceWatchService implements AsyncDisposable {
         state.opening = undefined
       })
     }
-    await state.opening
+    await Promise.race([state.opening, state.releasedPromise])
   }
 
   #publish(
@@ -97,7 +114,7 @@ export class ReaderSourceWatchService implements AsyncDisposable {
   }
 }
 
-function waitForNotification(waiters: Set<() => void>, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+function waitForNotification(state: WatchState, timeoutMs: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout> | undefined
     const finish = () => {
@@ -109,11 +126,15 @@ function waitForNotification(waiters: Set<() => void>, timeoutMs: number, signal
       reject(signal?.reason ?? new DOMException("The operation was aborted", "AbortError"))
     }
     const cleanup = () => {
-      if (timer) clearTimeout(timer)
-      waiters.delete(finish)
+      if (timer !== undefined) clearTimeout(timer)
+      state.waiters.delete(finish)
       signal?.removeEventListener("abort", abort)
     }
-    waiters.add(finish)
+    if (state.released) {
+      finish()
+      return
+    }
+    state.waiters.add(finish)
     timer = setTimeout(finish, timeoutMs)
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) abort()
