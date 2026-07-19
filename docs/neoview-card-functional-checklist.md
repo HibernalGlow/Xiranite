@@ -3047,12 +3047,12 @@
   - 计划测试：无
   - 备注：The 1920x1080 Chromium harness toggles the resident pre-session switch through one write, exposes the editor only while enabled and preserves the active image identity.
 - [ ] `image-trim.reset` 一次重置全部裁剪设置
-  - 六维：`core=C transport=P gui=C cli=C tui=- evidence=P`；阻塞：`transport`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：One named reset restores canonical enabled, edges, link flags, threshold, target and transient message defaults and commits once.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：`neoview.image-trim.reset`、`neoview.image-trim.cli`
-  - 计划测试：`neoview.image-trim.reset-http`、`neoview.image-trim.reset-tui`
-  - 备注：The shared codec, CLI and real Chromium Card restore every canonical field in one mutation, hide the disabled editor, clear crop CSS and preserve the active image identity. HTTP-specific reset and TUI wiring remain incomplete.
+  - 测试：`neoview.image-trim.reset`、`neoview.image-trim.reset-http`、`neoview.image-trim.cli`
+  - 计划测试：`neoview.image-trim.reset-tui`
+  - 备注：The shared codec, authenticated HTTP boundary, CLI and real Chromium Card restore every canonical field in one mutation, hide the disabled editor, clear crop CSS and preserve the active image identity. TUI wiring remains incomplete.
 - [ ] `image-trim.edges` 四边百分比裁剪
   - 六维：`core=C transport=C gui=C cli=C tui=P evidence=P`；阻塞：`tui`、`evidence`
   - 目标：Top, bottom, left and right preserve the 0..45 range, 0.5 step, labels, values and clip-path projection.
@@ -3117,19 +3117,19 @@
   - 计划测试：无
   - 备注：The preset uses the legacy fixed threshold 40 and an explicit white target on the registered image. Unit coverage verifies the detector, store target and visible success state; a dedicated real-browser preset click remains optional evidence.
 - [ ] `image-trim.threshold` 自动检测容差
-  - 六维：`core=C transport=P gui=C cli=C tui=- evidence=P`；阻塞：`transport`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：AutoTrimThreshold preserves 5..100 in steps of 5 and is supplied to detection rather than silently changing manual crop values.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：`neoview.image-trim.threshold`、`neoview.image-trim.cli`
-  - 计划测试：`neoview.image-trim.threshold-http`、`neoview.image-trim.threshold-tui`
-  - 备注：The shared codec, CLI and real Chromium range preserve 5..100 in step-5 increments; keyboard completion persists once and does not start detection. Dedicated HTTP and TUI evidence remains pending.
+  - 测试：`neoview.image-trim.threshold`、`neoview.image-trim.threshold-http`、`neoview.image-trim.cli`
+  - 计划测试：`neoview.image-trim.threshold-tui`
+  - 备注：The shared codec, authenticated HTTP boundary, CLI and real Chromium range preserve 5..100 in step-5 increments; invalid transport input does not persist, and keyboard completion persists once without starting detection. TUI evidence remains pending.
 - [ ] `image-trim.target` 自动检测目标颜色
-  - 六维：`core=C transport=P gui=C cli=C tui=- evidence=P`；阻塞：`transport`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：AutoTrimTarget preserves the exact auto/black/white enum, labels and order.
   - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：`neoview.image-trim.target`、`neoview.image-trim.cli`
-  - 计划测试：`neoview.image-trim.target-http`、`neoview.image-trim.target-tui`
-  - 备注：The shared enum validator, CLI and real Chromium select preserve auto/black/white and reject unknown values without starting detection. Dedicated HTTP/TUI and legacy-import fallback evidence remains pending.
+  - 测试：`neoview.image-trim.target`、`neoview.image-trim.target-http`、`neoview.image-trim.cli`
+  - 计划测试：`neoview.image-trim.target-tui`
+  - 备注：The shared enum validator, authenticated HTTP boundary, CLI and real Chromium select preserve auto/black/white and reject unknown values without persisting or starting detection. TUI and legacy-import fallback evidence remains pending.
 - [x] `image-trim.auto-message` 自动检测反馈文案
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Detection status is visible, bounded and replaceable; loading, success, no-border, not-found and error messages never accumulate DOM nodes.
