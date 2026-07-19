@@ -1,4 +1,5 @@
 import type { ReaderPage } from "../../domain/page/page.js"
+import { waitWithAbort } from "../../domain/page/wait-with-abort.js"
 import type {
   ReaderPageMediaDetails,
   ReaderPageMediaMetadataProviderLoader,
@@ -70,7 +71,7 @@ export class ReaderPageMediaInformationService implements AsyncDisposable {
 
     load.waiters += 1
     try {
-      return await waitForSignal(load.promise, signal)
+      return await waitWithAbort(load.promise, signal)
     } finally {
       load.waiters -= 1
       if (!load.settled && load.waiters === 0) {
@@ -108,25 +109,25 @@ export class ReaderPageMediaInformationService implements AsyncDisposable {
     identity: ReaderPageMediaInformation,
     signal: AbortSignal,
   ): Promise<ReaderPageMediaInformation> {
-    const provider = await waitForSignal(this.#getProvider(), signal)
+    const provider = await waitWithAbort(this.#getProvider(), signal)
     if (!page.entryPath) {
-      const details = await provider.inspect({
+      const details = await waitWithAbort(provider.inspect({
         sourcePath: page.sourcePath,
         priority: "view",
         ownerId: `reader:media-information:${page.id}`,
-      }, signal)
+      }, signal), signal)
       return { ...identity, ...normalizeDetails(details) }
     }
 
-    const source = await page.content.load(signal)
+    const source = await waitWithAbort(page.content.load(signal), signal, (lateSource) => lateSource.close())
     let stream: ReadableStream<Uint8Array> | undefined
     try {
-      stream = await source.open(signal)
-      const details = await provider.inspect({
+      stream = await waitWithAbort(source.open(signal), signal, (lateStream) => lateStream.cancel(signal.reason))
+      const details = await waitWithAbort(provider.inspect({
         sourceStream: stream,
         priority: "view",
         ownerId: `reader:media-information:${page.id}`,
-      }, signal)
+      }, signal), signal)
       return { ...identity, ...normalizeDetails(details) }
     } finally {
       await stream?.cancel("page media information finished").catch(() => undefined)
@@ -199,17 +200,4 @@ function normalizedCodec(value: string | undefined): string | undefined {
   if (typeof value !== "string") return undefined
   const normalized = value.trim()
   return normalized && normalized.length <= 128 ? normalized : undefined
-}
-
-function waitForSignal<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return operation
-  signal.throwIfAborted()
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => {
-      signal.removeEventListener("abort", abort)
-      reject(signal.reason)
-    }
-    signal.addEventListener("abort", abort, { once: true })
-    operation.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort))
-  })
 }
