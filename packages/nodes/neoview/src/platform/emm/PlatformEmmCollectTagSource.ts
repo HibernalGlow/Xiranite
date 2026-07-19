@@ -11,7 +11,6 @@ export interface ReaderEmmCollectTag {
 export interface ReaderEmmCollectTagSnapshot {
   tags: readonly ReaderEmmCollectTag[]
   mixedGender: boolean
-  sourcePath?: string
 }
 
 export interface PlatformEmmCollectTagSourceOptions {
@@ -37,12 +36,11 @@ export class PlatformEmmCollectTagSource {
     signal?.throwIfAborted()
     if (!metadata?.isFile() || metadata.size > MAX_SETTINGS_BYTES) return this.#empty()
     if (this.#cached?.path === path && this.#cached.modifiedAt === metadata.mtimeMs) return this.#cached.snapshot
-    const content = await readFile(path, "utf8")
+    const content = await readFile(path, { encoding: "utf8", signal })
     signal?.throwIfAborted()
     const snapshot: ReaderEmmCollectTagSnapshot = {
       tags: parseCollectTags(content),
       mixedGender: this.#options.mixedGender ?? false,
-      sourcePath: path,
     }
     this.#cached = { path, modifiedAt: metadata.mtimeMs, snapshot }
     return snapshot

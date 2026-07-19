@@ -1,9 +1,14 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { emmTranslationKey, PlatformEmmTranslationSource } from "./PlatformEmmTranslationSource.js"
+
+vi.mock("node:fs/promises", async () => {
+  const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises")
+  return { ...actual, readFile: vi.fn(actual.readFile) }
+})
 
 const roots: string[] = []
 
@@ -42,5 +47,29 @@ describe("PlatformEmmTranslationSource", () => {
     const controller = new AbortController()
     controller.abort(new DOMException("Cancelled", "AbortError"))
     await expect(source.translate([{ category: "artist", tag: "alice" }], controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+  })
+
+  it("[neoview.folder.emm-translation-source-cancel] passes cancellation into an in-flight file read", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-emm-translation-cancel-"))
+    roots.push(root)
+    const path = join(root, "db.text.json")
+    await writeFile(path, JSON.stringify({ data: [] }))
+    const source = new PlatformEmmTranslationSource({ path })
+    const controller = new AbortController()
+    const readFileMock = vi.mocked(readFile)
+    const pendingRead = Promise.withResolvers<string>()
+    readFileMock.mockImplementationOnce(((_path: unknown, options: unknown) => {
+      const signal = typeof options === "object" && options !== null && "signal" in options
+        ? (options as { signal?: AbortSignal }).signal
+        : undefined
+      signal?.addEventListener("abort", () => pendingRead.reject(signal.reason), { once: true })
+      return pendingRead.promise
+    }) as typeof readFile)
+    const pending = source.translate([{ category: "artist", tag: "alice" }], controller.signal)
+
+    await vi.waitFor(() => expect(readFileMock).toHaveBeenCalledWith(path, { encoding: "utf8", signal: controller.signal }))
+    const reason = new DOMException("Cancelled", "AbortError")
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
   })
 })
