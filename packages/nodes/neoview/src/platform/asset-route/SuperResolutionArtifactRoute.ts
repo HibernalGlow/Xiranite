@@ -14,6 +14,7 @@ const PRELOAD_PATH = /^\/reader\/s\/([^/]+)\/upscale-preload$/
 const PRELOAD_ACTION_PATH = /^\/reader\/s\/([^/]+)\/upscale-preload\/(start|pause|retry)$/
 const CACHE_PATH = /^\/reader\/s\/([^/]+)\/upscale-artifact-cache$/
 const CAPABILITIES_PATH = /^\/reader\/s\/([^/]+)\/upscale-capabilities$/
+const SYSTEM_CAPABILITIES_PATH = "/reader/upscale-capabilities"
 const ARTIFACT_KEY_PREFIX = "neoview:super-resolution:v1:"
 export const SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION = "opencomic-system-artifact-v1"
 
@@ -52,6 +53,7 @@ export class SuperResolutionArtifactRoute {
     if (preload) return this.#preloadSnapshot(request, url, preload[1]!)
     const cache = CACHE_PATH.exec(url.pathname)
     if (cache) return this.#artifactCache(request, url, cache[1]!)
+    if (url.pathname === SYSTEM_CAPABILITIES_PATH) return this.#capabilities(request, url)
     const capabilities = CAPABILITIES_PATH.exec(url.pathname)
     if (capabilities) return this.#capabilities(request, url, capabilities[1]!)
     return undefined
@@ -217,12 +219,14 @@ export class SuperResolutionArtifactRoute {
     return jsonResponse(await this.artifacts.clear())
   }
 
-  async #capabilities(request: Request, url: URL, encodedSessionId: string): Promise<Response> {
+  async #capabilities(request: Request, url: URL, encodedSessionId?: string): Promise<Response> {
     if (this.#closed) return jsonResponse({ error: "Reader super-resolution route is closed" }, 410)
     if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
     if (request.method !== "GET") return methodNotAllowed("GET")
-    const sessionId = safeDecode(encodedSessionId)
-    if (!sessionId || !this.reader.getSession(sessionId)) return jsonResponse({ error: "Reader session not found" }, 404)
+    if (encodedSessionId !== undefined) {
+      const sessionId = safeDecode(encodedSessionId)
+      if (!sessionId || !this.reader.getSession(sessionId)) return jsonResponse({ error: "Reader session not found" }, 404)
+    }
     if (!this.pages.inspect) return jsonResponse({ error: "Reader super-resolution capabilities are unavailable" }, 503)
     if ([...url.searchParams.keys()].some((key) => key !== "refresh")) {
       return jsonResponse({ error: "Capabilities accept only refresh=true" }, 400)

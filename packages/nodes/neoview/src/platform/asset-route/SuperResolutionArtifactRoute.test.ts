@@ -255,11 +255,15 @@ describe("SuperResolutionArtifactRoute", () => {
     )
 
     expect((await route.handle(new Request(new URL("/reader/s/session-1/upscale-capabilities", BASE_URL))))?.status).toBe(401)
+    expect((await route.handle(new Request(new URL("/reader/upscale-capabilities", BASE_URL))))?.status).toBe(401)
     expect((await route.handle(authorized("/reader/s/missing/upscale-capabilities")))?.status).toBe(404)
     expect((await route.handle(authorized("/reader/s/session-1/upscale-capabilities?refresh=false")))?.status).toBe(400)
     const response = (await route.handle(authorized("/reader/s/session-1/upscale-capabilities?refresh=true")))!
     await expect(response.json()).resolves.toMatchObject({ available: true, models: [{ id: "anime", scales: [2, 4] }], probedAt: 42 })
     expect(inspect).toHaveBeenCalledWith({ refresh: true, signal: expect.any(AbortSignal) })
+    const systemResponse = (await route.handle(authorized("/reader/upscale-capabilities")))!
+    await expect(systemResponse.json()).resolves.toMatchObject({ available: true, models: [{ id: "anime" }] })
+    expect(inspect).toHaveBeenLastCalledWith({ refresh: false, signal: expect.any(AbortSignal) })
     await store.close()
   })
 

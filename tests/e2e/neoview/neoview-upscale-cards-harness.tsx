@@ -38,6 +38,7 @@ function Harness() {
       { id: "realesr-animevideov3", displayName: "RealESRGAN AnimeVideo v3", engine: "upscayl" as const, scales: [2, 3, 4], modelType: "upscale" as const, family: "RealESRGAN", category: "anime", sizeBytes: 3_751_655, installed: true, sourceDirectories: ["D:/Python/realesrgan"] },
       { id: "external-realcugan-pro", displayName: "RealCUGAN Pro", engine: "realcugan" as const, scales: [2, 3], modelType: "upscale" as const, family: "RealCUGAN", category: "anime-pro", sizeBytes: 15_481_188, installed: true, sourceDirectories: ["D:/Python/realcugan"], noise: [-1, 0, 3], noiseByScale: { 2: [-1, 0, 3], 3: [-1, 0, 3] } },
       { id: "external-realsr-df2k-x4", displayName: "RealSR DF2K x4", engine: "upscayl" as const, scales: [4], modelType: "upscale" as const, family: "RealSR", category: "photo", sizeBytes: 33_541_514, installed: true, sourceDirectories: ["D:/Python/realsr"] },
+      { id: "downloadable", displayName: "Downloadable Model", engine: "upscayl" as const, scales: [4], modelType: "upscale" as const, family: "RealESRGAN", category: "general", installed: false },
     ], engines: [], probedAt: Date.now() }),
     upscalePage: async () => ({ status: "hit" as const, artifactUrl: upscaledUrl, contentType: "image/svg+xml", bytes: 1024, version: "upscaled-v1" }),
     upscalePreloadSnapshots: async () => [{ contextId: "nearby", generation: 1, mode: "nearby" as const, state: "running" as const, planned: 8, settled: 5, failed: 0, cancelled: 0, pending: 3, progress: 0.625, startedAt: 1, updatedAt: 2 }],

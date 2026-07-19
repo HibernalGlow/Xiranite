@@ -37,17 +37,19 @@ describe("reader-http-client", () => {
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
 
     await expect(client.upscaleCapabilities!("reader/1", true)).resolves.toEqual(capability)
+    await expect(client.upscaleCapabilities!()).resolves.toEqual(capability)
     await expect(client.upscalePreloadSnapshots!("reader/1")).resolves.toEqual([])
     await expect(client.upscaleCache!("reader/1")).resolves.toEqual(cache)
     await expect(client.cleanupUpscaleCache!("reader/1", "all")).resolves.toEqual(cleanup)
 
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-capabilities?refresh=true",
+      "http://127.0.0.1:41000/reader/upscale-capabilities",
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-preload",
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-artifact-cache",
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-artifact-cache?kind=all&confirmed=true",
     ])
-    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "POST" })
+    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({ method: "POST" })
     expect(fetchMock.mock.calls.every(([, init]) => new Headers(init?.headers).get("x-xiranite-token") === "reader-token")).toBe(true)
   })
 
