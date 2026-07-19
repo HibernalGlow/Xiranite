@@ -29,13 +29,18 @@ export interface ReaderAdjacentBookRequest {
 export type ReaderBookCandidatePredicate = (entry: ReaderDirectoryEntry) => boolean
 export type ReaderPathIdentity = (path: string) => string
 
+export function readerPathIdentity(path: string, platform: NodeJS.Platform = process.platform): string {
+  const normalized = path.replaceAll("\\", "/")
+  return platform === "win32" ? normalized.toLocaleLowerCase("en-US") : normalized
+}
+
 /** Resolves sibling books without coupling Reader navigation to a GUI browser cache. */
 export class ReaderAdjacentBookService {
   constructor(
     private readonly listingProvider: ReaderDirectoryListingProvider,
     private readonly metadataProvider: ReaderDirectoryMetadataProvider | undefined,
     private readonly isBookCandidate: ReaderBookCandidatePredicate,
-    private readonly pathIdentity: ReaderPathIdentity = defaultPathIdentity,
+    private readonly pathIdentity: ReaderPathIdentity = readerPathIdentity,
   ) {}
 
   async resolve(request: ReaderAdjacentBookRequest, signal?: AbortSignal): Promise<ReaderAdjacentBookCandidate | undefined> {
@@ -60,8 +65,4 @@ export class ReaderAdjacentBookService {
     const target = sorted[targetIndex]
     return target ? { path: target.path, name: target.name, index: targetIndex, total: sorted.length } : undefined
   }
-}
-
-function defaultPathIdentity(path: string): string {
-  return path.replaceAll("\\", "/").toLocaleLowerCase()
 }
