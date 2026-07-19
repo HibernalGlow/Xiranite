@@ -29,7 +29,7 @@ import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
@@ -46,6 +46,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   pageTransition?: ReaderPageTransitionPort
+  slideshowFade?: boolean
   videoController: ReaderVideoController
   sessionId: string
   client: ReaderHttpClient
@@ -58,8 +59,11 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   const viewportRef = useRef<HTMLDivElement>(null)
   const viewport = useObservedSize(viewportRef, panorama)
   const hoverScrollPageKey = `${anchorPageIndex}:${framePages?.map((page) => page.part ?? "full").join(",") ?? "full"}`
+  const slideshowTarget = slideshowFade
+    ? pages.filter((page) => page.mediaKind !== "video").map((page) => page.id).join("\0") || undefined
+    : undefined
   useReaderHoverScroll(viewportRef, { enabled: hoverScrollEnabled && !panorama, speed: hoverScrollSpeed, pageKey: hoverScrollPageKey })
-  if (panorama) return <Suspense fallback={null}><LazyReaderPanoramaFrame sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense>
+  if (panorama) return <ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget}><Suspense fallback={null}><LazyReaderPanoramaFrame sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>
   const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation
   const dimensions = pages.flatMap((page, index) => page.dimensions
     ? [readerImageTrimEffectiveDimensions(page.dimensions, DEFAULT_READER_IMAGE_TRIM, framePages?.[index]?.cropInsets)]
@@ -100,7 +104,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
         : presentation.fitMode === "fit-right"
           ? "grid h-max min-h-full w-max min-w-full items-center justify-items-end p-2"
           : "grid h-max min-h-full w-max min-w-full place-items-center p-2"}>
-        <ReaderPageTransitionLayer pageIndex={pages[0]?.index} store={pageTransition}>
+        <ReaderPageTransitionLayer pageIndex={pages[0]?.index} store={slideshowFade ? undefined : pageTransition} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget}>
           <div
             className="flex shrink-0 items-center justify-center gap-1"
             data-reader-frame="true"

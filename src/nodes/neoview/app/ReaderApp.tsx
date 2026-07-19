@@ -309,6 +309,7 @@ export function ReaderApp({
   const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
   const [media, setMedia] = useState<ReaderMediaConfigDto>()
   const [slideshowConfig, setSlideshowConfig] = useState<ReaderSlideshowConfig>(() => ({ ...INITIAL_SLIDESHOW_CONFIG }))
+  const [slideshowFadeFrame, setSlideshowFadeFrame] = useState<string>()
   const [superResolution, setSuperResolution] = useState<ReaderRuntimeConfigDto["superResolution"]>()
   const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -447,6 +448,7 @@ export function ReaderApp({
         return
       }
       sessionRef.current = opened.sessionId
+      setSlideshowFadeFrame(undefined)
       setSession(opened)
       setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
       presentationTouchedRef.current = false
@@ -469,14 +471,14 @@ export function ReaderApp({
     if (atBoundary && !slideshowAction && switchToast.getSnapshot().enableBoundaryToast) {
       switchToast.show({ title: action === "next" ? "已是最后一页" : "已是第一页" })
     }
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal))
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal), slideshowAction)
     if (updated && !slideshowAction) slideshow.resetOnUserAction()
     return updated
   }
 
   async function goTo(pageIndex: number, slideshowAction = false): Promise<boolean> {
     if (pageIndex === slideshowSessionRef.current?.frame.anchorPageIndex) return false
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal))
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal), slideshowAction)
     if (updated && !slideshowAction) slideshow.resetOnUserAction()
     return updated
   }
@@ -534,6 +536,7 @@ export function ReaderApp({
 
   async function updateNavigation(
     request: (sessionId: string, signal: AbortSignal) => Promise<ReaderNavigationDto>,
+    slideshowAction = false,
   ): Promise<boolean> {
     const sessionId = sessionRef.current
     if (!sessionId || busy || navigationPendingRef.current) return false
@@ -544,7 +547,12 @@ export function ReaderApp({
     setError(undefined)
     try {
       const result = await request(sessionId, controller.signal)
-      if (!controller.signal.aborted) setSession((current) => current ? applyNavigation(current, result) : current)
+      if (!controller.signal.aborted) {
+        setSlideshowFadeFrame(slideshowAction && slideshowConfigRef.current.fadeTransition
+          ? `${sessionId}:${result.frame.generation}`
+          : undefined)
+        setSession((current) => current ? applyNavigation(current, result) : current)
+      }
       return !controller.signal.aborted
     } catch (cause) {
       if (!controller.signal.aborted) setError(errorMessage(cause))
@@ -831,6 +839,7 @@ export function ReaderApp({
       const replacement = await openAdjacentBook(sessionId, direction, controller.signal)
       if (!replacement || controller.signal.aborted) return false
       sessionRef.current = replacement.sessionId
+      setSlideshowFadeFrame(undefined)
       setSession(replacement)
       setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
       presentationTouchedRef.current = false
@@ -1007,6 +1016,7 @@ export function ReaderApp({
     const sessionId = sessionRef.current
     sessionRef.current = undefined
     setSession(undefined)
+    setSlideshowFadeFrame(undefined)
     setMagnifierEnabled(false)
     setBusy(false)
     if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
@@ -1446,6 +1456,7 @@ export function ReaderApp({
                 magnifierSize={viewDefaults.magnifierSize ?? 200}
                 colorFilter={colorFilter}
                 pageTransition={pageTransition}
+                slideshowFade={slideshowFadeFrame === `${session.sessionId}:${session.frame.generation}`}
                 videoController={videoController}
                 sessionId={session.sessionId}
                 client={client}

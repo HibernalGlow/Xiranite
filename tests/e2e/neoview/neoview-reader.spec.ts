@@ -2665,6 +2665,59 @@ test("[neoview.slideshow.config-e2e] loads and persists slideshow controls", asy
   expect(persisted).toContain("fade_transition = false")
 })
 
+test("[neoview.slideshow.fade-e2e] fades the decoded slideshow frame without changing manual page turns", async ({ page }, testInfo) => {
+  await page.setViewportSize(testInfo.project.name === "chromium-card"
+    ? { width: 420, height: 360 }
+    : { width: 1920, height: 1080 })
+  const runtimeErrors: string[] = []
+  page.on("pageerror", (error) => runtimeErrors.push(error.message))
+  page.on("console", (message) => {
+    if (message.type() === "error") runtimeErrors.push(message.text())
+  })
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.__XIRANITE_BACKEND__ = { baseUrl, token }
+  }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+
+  await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  const settings = page.getByRole("dialog")
+  await settings.getByRole("button", { name: "通用" }).click()
+  const interval = settings.getByRole("spinbutton", { name: "幻灯片间隔秒数" })
+  await interval.fill("1")
+  const random = settings.getByRole("switch", { name: "随机顺序" })
+  if (await random.getAttribute("data-state") === "checked") await random.click()
+  const fade = settings.getByRole("switch", { name: "淡入淡出" })
+  if (await fade.getAttribute("data-state") !== "checked") await fade.click()
+  await expect(fade).toHaveAttribute("data-state", "checked")
+  await page.keyboard.press("Escape")
+
+  await page.evaluate(() => {
+    const marker = "__neoviewSlideshowFadeObserved"
+    ;(window as unknown as Record<string, unknown>)[marker] = false
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('[data-reader-page-transition-source="slideshow"]')) return
+      ;(window as unknown as Record<string, unknown>)[marker] = true
+      observer.disconnect()
+    })
+    observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ["data-reader-page-transition-source"] })
+  })
+  const toolbar = page.locator('[data-reader-view-toolbar="true"]')
+  await toolbar.getByRole("button", { name: "展开幻灯片设置" }).click()
+  await toolbar.getByRole("button", { name: "播放幻灯片" }).click()
+  await page.waitForFunction(() => (window as unknown as Record<string, unknown>).__neoviewSlideshowFadeObserved === true, undefined, { timeout: 3_000 })
+  await expect(page.getByRole("img", { name: "002.png" })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath(`neoview-slideshow-fade-${testInfo.project.name}.png`) })
+  await toolbar.getByRole("button", { name: "暂停幻灯片" }).click()
+
+  await page.locator("[data-reader-app]").focus()
+  await page.keyboard.press("ArrowLeft")
+  await expect(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+  await expect(page.locator('[data-reader-page-transition-source="slideshow"]')).toHaveCount(0)
+  expect(runtimeErrors).toEqual([])
+})
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path)

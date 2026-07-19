@@ -64,6 +64,22 @@ describe("ReaderPageTransitionLayer", () => {
     expect(clearTimeoutSpy).toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it("[neoview.slideshow.fade-transition] applies a compositor-only slideshow fade without requiring the general transition setting", () => {
+    vi.useFakeTimers()
+    const view = render(<ReaderPageTransitionLayer pageIndex={1} slideshowFade><img src="/page-1.jpg" /></ReaderPageTransitionLayer>)
+    const image = view.container.querySelector("img")
+    view.rerender(<ReaderPageTransitionLayer pageIndex={2} slideshowFade><img src="/page-2.jpg" /></ReaderPageTransitionLayer>)
+    const layer = view.container.querySelector<HTMLElement>("[data-reader-page-transition-layer]")!
+    expect(layer.dataset.readerPageTransitionSource).toBe("slideshow")
+    expect(layer.dataset.readerPageTransitionType).toBe("slideshow-fade")
+    expect(layer.style.transition).toBe("opacity 180ms ease-out")
+    expect(layer.style.transform).toBe("")
+    expect(view.container.querySelector("img")).toBe(image)
+    act(() => vi.runAllTimers())
+    expect(layer.dataset.readerPageTransitionSource).toBeUndefined()
+    expect(layer.style.opacity).toBe("")
+  })
 })
 
 function enabledStore() {

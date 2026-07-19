@@ -9,10 +9,12 @@ import { projectReaderPageTransitionCss } from "@xiranite/node-neoview/page-tran
 
 import type { ReaderPageTransitionPort } from "./ReaderPageTransitionStore"
 
-export function ReaderPageTransitionLayer({ children, pageIndex, store }: {
+export function ReaderPageTransitionLayer({ children, pageIndex, store, slideshowFade = false, slideshowTarget }: {
   children: ReactNode
   pageIndex?: number
   store?: ReaderPageTransitionPort
+  slideshowFade?: boolean
+  slideshowTarget?: string
 }) {
   const elementRef = useRef<HTMLDivElement>(null)
   const lastPageIndexRef = useRef<number>()
@@ -27,32 +29,47 @@ export function ReaderPageTransitionLayer({ children, pageIndex, store }: {
     const element = elementRef.current
     const previousIndex = lastPageIndexRef.current
     lastPageIndexRef.current = pageIndex
-    if (!element || pageIndex === undefined || previousIndex === undefined || pageIndex === previousIndex || !settings) return
+    if (!element || pageIndex === undefined || previousIndex === undefined || pageIndex === previousIndex) return
+    clearAnimation(element, cleanupTimerRef)
     if (prefersReducedMotion()) {
-      clearAnimation(element, cleanupTimerRef)
       return
     }
 
     const direction = pageIndex > previousIndex ? "next" : "prev"
-    const projected = projectReaderPageTransitionCss(settings, direction)
-    if (!projected.enabled) {
-      clearAnimation(element, cleanupTimerRef)
-      return
+    const startAnimation = () => {
+      const projected = slideshowFade
+        ? { enabled: true as const, from: { opacity: 0 }, to: { opacity: 1 }, transition: `opacity ${SLIDESHOW_FADE_DURATION_MS}ms ease-out` }
+        : settings
+          ? projectReaderPageTransitionCss(settings, direction)
+          : undefined
+      if (!projected?.enabled) return
+
+      element.dataset.readerPageTransitionDirection = direction
+      element.dataset.readerPageTransitionType = slideshowFade ? "slideshow-fade" : settings!.type
+      if (slideshowFade) element.dataset.readerPageTransitionSource = "slideshow"
+      element.style.willChange = slideshowFade ? "opacity" : "transform, opacity"
+      element.style.transition = "none"
+      applyCompositorStyle(element, projected.from)
+      void element.offsetWidth
+      element.style.transition = projected.transition
+      applyCompositorStyle(element, projected.to)
+      cleanupTimerRef.current = setTimeout(() => {
+        clearAnimation(element, cleanupTimerRef)
+      }, (slideshowFade ? SLIDESHOW_FADE_DURATION_MS : settings!.duration) + 50)
     }
 
-    clearTimer(cleanupTimerRef)
-    element.dataset.readerPageTransitionDirection = direction
-    element.dataset.readerPageTransitionType = settings.type
-    element.style.willChange = "transform, opacity"
-    element.style.transition = "none"
-    applyCompositorStyle(element, projected.from)
-    void element.offsetWidth
-    element.style.transition = projected.transition
-    applyCompositorStyle(element, projected.to)
-    cleanupTimerRef.current = setTimeout(() => {
-      clearAnimation(element, cleanupTimerRef)
-    }, settings.duration + 50)
-  }, [pageIndex, settings])
+    if (!slideshowFade || !slideshowTarget || hasCommittedSlideshowTarget(element, slideshowTarget)) {
+      startAnimation()
+      return
+    }
+    const observer = new MutationObserver(() => {
+      if (!hasCommittedSlideshowTarget(element, slideshowTarget)) return
+      observer.disconnect()
+      startAnimation()
+    })
+    observer.observe(element, { attributes: true, subtree: true, attributeFilter: ["data-reader-page-image"] })
+    return () => observer.disconnect()
+  }, [pageIndex, settings, slideshowFade, slideshowTarget])
 
   useEffect(() => () => {
     const element = elementRef.current
@@ -96,10 +113,22 @@ function clearAnimation(
   element.style.removeProperty("will-change")
   delete element.dataset.readerPageTransitionDirection
   delete element.dataset.readerPageTransitionType
+  delete element.dataset.readerPageTransitionSource
 }
 
 function clearTimer(timerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | undefined>): void {
   if (timerRef.current === undefined) return
   clearTimeout(timerRef.current)
   timerRef.current = undefined
+}
+
+const SLIDESHOW_FADE_DURATION_MS = 180
+
+function hasCommittedSlideshowTarget(element: HTMLElement, target: string): boolean {
+  const expected = target.split("\0")
+  const committed = new Set(Array.from(
+    element.querySelectorAll<HTMLElement>("[data-reader-page-image]"),
+    (image) => image.dataset.readerPageImage,
+  ))
+  return expected.every((pageId) => committed.has(pageId))
 }

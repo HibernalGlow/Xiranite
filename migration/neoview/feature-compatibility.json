@@ -1775,10 +1775,10 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "behaviorCases": [
         "开始/暂停",
@@ -1805,12 +1805,15 @@
         "neoview.slideshow.headless-config",
         "neoview.slideshow.local-headless-config",
         "neoview.slideshow.remote-config",
-        "neoview.slideshow.tui-controls"
+        "neoview.slideshow.tui-controls",
+        "neoview.slideshow.fade-transition",
+        "neoview.slideshow.fade-react",
+        "neoview.slideshow.fade-e2e"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [],
       "knownDifferences": [
-        "Core 已覆盖开始/暂停/停止、串行定时导航、循环/随机、手动操作重置、边界、错误恢复与 dispose；GUI 已恢复 1..60 秒滑杆、3/5/10/15 秒预设、循环/随机和倒计时进度环，并通过 canonical TOML 持久化；TUI 复用同一运行时，支持播放/暂停、间隔、循环、随机、本地 canonical TOML 与远端配置持久化、失败回滚和 reset 计时清理；工具栏仅在展开时加载为独立二级 chunk。fadeTransition 当前只在设置与 TOML 中保留，尚未接入切页呈现"
+        "旧版 fadeTransition 开关只读写设置，源码没有任何渲染消费者；XR 将替代契约定义为新图 decode 提交后执行 180ms compositor-only opacity fade，遵循 prefers-reduced-motion，不复制图片 DOM，普通翻页不创建 observer。Core、GUI、TUI、本地/远端配置、失败回滚、reset/dispose、desktop 与 420x360 Chromium 证据均已覆盖"
       ]
     },
     {
