@@ -64,7 +64,7 @@ export class PlatformEmmTranslationSource {
     signal?.throwIfAborted()
     if (!metadata?.isFile() || metadata.size > MAX_TRANSLATION_BYTES) return undefined
     if (this.#cached?.path === path && this.#cached.modifiedAt === metadata.mtimeMs) return this.#cached.dictionary
-    const content = await readFile(path, "utf8")
+    const content = await readFile(path, { encoding: "utf8", signal })
     signal?.throwIfAborted()
     const dictionary = JSON.parse(content) as unknown
     this.#cached = { path, modifiedAt: metadata.mtimeMs, dictionary }
