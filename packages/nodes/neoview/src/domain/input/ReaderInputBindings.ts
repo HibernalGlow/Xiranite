@@ -20,7 +20,7 @@ export {
   type ReaderInputActionDefinition,
 } from "./ReaderInputActions.js"
 
-export const READER_INPUT_CONTEXTS = ["global", "reader", "video", "panel", "editor", "modal"] as const
+export const READER_INPUT_CONTEXTS = ["global", "reader", "video", "panel", "shell", "editor", "modal"] as const
 
 export type ReaderInputContext = typeof READER_INPUT_CONTEXTS[number]
 
@@ -65,9 +65,12 @@ export const READER_INPUT_CONTEXT_PRIORITY: Readonly<Record<ReaderInputContext, 
   reader: 100,
   video: 150,
   panel: 200,
+  shell: 250,
   editor: 300,
   modal: 400,
 }
+
+export const READER_INPUT_GLOBAL_ISOLATION_CONTEXTS: readonly ReaderInputContext[] = ["shell", "editor", "modal"]
 
 export const READER_INPUT_ACTION_CATEGORY_LABELS: Readonly<Record<ReaderInputActionCategory, string>> = {
   navigation: "导航",
@@ -87,6 +90,7 @@ export const READER_INPUT_CONTEXT_LABELS: Readonly<Record<ReaderInputContext, st
   reader: "阅读器",
   video: "视频模式",
   panel: "面板",
+  shell: "界面栏",
   editor: "编辑器",
   modal: "对话框",
 }
@@ -188,7 +192,7 @@ export function matchingReaderInputBinding(
   input: ReaderInputDescriptor,
   contexts: readonly ReaderInputContext[],
 ): ReaderInputBinding | undefined {
-  const isolatesGlobal = contexts.includes("editor") || contexts.includes("modal")
+  const isolatesGlobal = contexts.some((context) => READER_INPUT_GLOBAL_ISOLATION_CONTEXTS.includes(context))
   let match: ReaderInputBinding | undefined
   let matchPriority = Number.NEGATIVE_INFINITY
   for (const candidate of bindings) {

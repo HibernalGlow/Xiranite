@@ -1,5 +1,6 @@
 import {
   matchingReaderInputBinding,
+  READER_INPUT_CONTEXTS,
   readerViewAreaAtPoint,
   type ReaderInputAction,
   type ReaderInputBindingsConfig,
@@ -172,6 +173,8 @@ export function readerInputContexts(target: EventTarget | null): ReaderInputCont
   if (target.closest('[role="dialog"], [aria-modal="true"], [data-input-context="modal"]')) return ["modal"]
   if (target.closest('[data-input-context="video"]')) return ["video"]
   if (target.closest("[data-reader-panel]")) return ["panel"]
+  const explicit = target.closest<HTMLElement>("[data-input-context]")?.dataset.inputContext
+  if (READER_INPUT_CONTEXTS.includes(explicit as ReaderInputContext)) return [explicit as ReaderInputContext]
   return ["reader"]
 }
 

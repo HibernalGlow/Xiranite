@@ -39,6 +39,18 @@ describe("NeoView CLI input binding dispatch", () => {
     })
     const result = JSON.parse(String(output.join(""))) as { matched: boolean; bindingId: string; result: { handled: boolean } }
     expect(result).toMatchObject({ matched: true, bindingId: "cli-context-key", result: { handled: true } })
+
+    output.length = 0
+    await runProgram([
+      "input-bindings-dispatch", root,
+      "--config", configPath,
+      "--input-json", JSON.stringify({ device: "keyboard", code: "KeyK" }),
+      "--contexts-json", JSON.stringify(["shell"]),
+      "--json",
+    ], host(output), {
+      createController: (options = {}) => createReaderHeadlessController({ ...options, progressStore: false, legacyThumbnailDatabasePath: false }),
+    })
+    expect(JSON.parse(String(output.join("")))).toMatchObject({ matched: false, contexts: ["shell"], reason: "binding-not-found" })
   })
 })
 

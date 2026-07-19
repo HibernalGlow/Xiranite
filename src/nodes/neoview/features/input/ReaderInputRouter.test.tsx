@@ -6,7 +6,7 @@ import { readerInputContexts, useReaderInputRouter } from "./ReaderInputRouter"
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe("ReaderInputRouter", () => {
-  it("[neoview.bindings.dom-context] derives editor, modal, panel and reader modes", () => {
+  it("[neoview.bindings.dom-context] derives editor, modal, panel, shell and reader modes", () => {
     const root = document.createElement("div")
     const panel = document.createElement("div")
     panel.dataset.readerPanel = "info"
@@ -35,6 +35,12 @@ describe("ReaderInputRouter", () => {
     video.dataset.inputContext = "video"
     root.append(video)
     expect(readerInputContexts(video)).toEqual(["video"])
+    const shell = document.createElement("div")
+    shell.dataset.inputContext = "shell"
+    const shellChrome = document.createElement("span")
+    shell.append(shellChrome)
+    root.append(shell)
+    expect(readerInputContexts(shellChrome)).toEqual(["shell"])
     expect(readerInputContexts(root)).toEqual(["reader"])
   })
 
@@ -49,6 +55,7 @@ describe("ReaderInputRouter", () => {
     execute.mockClear()
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "ArrowRight", code: "ArrowRight" })
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "ArrowDown", code: "ArrowDown" })
+    fireEvent.keyDown(screen.getByTestId("shell-chrome"), { key: "ArrowDown", code: "ArrowDown" })
     expect(execute).not.toHaveBeenCalled()
   })
 
@@ -60,6 +67,7 @@ describe("ReaderInputRouter", () => {
     fireEvent.pointerUp(screen.getByTestId("reader"), { pointerType: "mouse", button: 0, detail: 1 })
     expect(execute).not.toHaveBeenCalled()
     fireEvent.pointerUp(screen.getByRole("button", { name: "toolbar action" }), { pointerType: "mouse", button: 3, detail: 1 })
+    fireEvent.pointerUp(screen.getByTestId("shell-chrome"), { pointerType: "mouse", button: 3, detail: 1 })
     expect(execute).not.toHaveBeenCalled()
     fireEvent.pointerUp(screen.getByTestId("reader"), { pointerType: "mouse", button: 3, detail: 1 })
     expect(execute).toHaveBeenCalledWith("reader.next-page")
@@ -134,6 +142,7 @@ function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execu
       onPointerUp={router.onPointerUp}
     >
       <input aria-label="editor" />
+      <div data-testid="shell-chrome" data-input-context="shell" tabIndex={-1}>toolbar chrome</div>
       <button type="button">toolbar action</button>
       <button type="button" role="switch" aria-checked="false" aria-label="着色" />
       <input type="range" aria-label="亮度" min={50} max={150} defaultValue={100} />

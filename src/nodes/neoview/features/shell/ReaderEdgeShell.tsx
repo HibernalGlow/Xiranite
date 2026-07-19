@@ -224,6 +224,7 @@ function ReaderEdgeSurface({
           hidden={!visible}
           aria-hidden={!visible || undefined}
           data-reader-edge={edge}
+          data-input-context="shell"
           data-pinned={slot.pinned ? "true" : "false"}
           data-reader-edge-interaction={slot.interaction}
           className={cn(

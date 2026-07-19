@@ -56,7 +56,7 @@ import { loadReaderBackupScheduleConfig } from "./platform/backup/ReaderBackupSc
 import { ReaderBackupScheduleRunner } from "./platform/backup/ReaderBackupScheduleRunner.js"
 import { parseNeoviewBookmarkListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
 import { formatReaderPageTransition, type ReaderPageTransitionPatch } from "./page-transition.js"
-import type { ReaderInputBinding, ReaderInputContext, ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
+import { READER_INPUT_CONTEXTS, type ReaderInputBinding, type ReaderInputContext, type ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
 import { executeReaderHeadlessInputBinding } from "./application/headless/ReaderHeadlessInputBindingExecutor.js"
@@ -3153,7 +3153,7 @@ function parseInputContextsCli(value: string | undefined, cwd: string): ReaderIn
   const raw = value.trim().startsWith("[") ? value : requireCliJson(value, cwd)
   let parsed: unknown
   try { parsed = JSON.parse(raw) } catch (error) { throw usage(`Invalid --contexts-json: ${error instanceof Error ? error.message : String(error)}`) }
-  if (!Array.isArray(parsed) || !parsed.length || parsed.some((entry) => !["global", "reader", "video", "panel", "editor", "modal"].includes(String(entry)))) {
+  if (!Array.isArray(parsed) || !parsed.length || parsed.some((entry) => !READER_INPUT_CONTEXTS.includes(entry as ReaderInputContext))) {
     throw usage("--contexts-json must be a non-empty JSON array of Reader contexts.")
   }
   return parsed as ReaderInputContext[]

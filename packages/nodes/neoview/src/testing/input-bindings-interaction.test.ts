@@ -36,6 +36,7 @@ describe("NeoView input-bindings terminal interaction", () => {
     expect(schema.toInput({ action: "dispatch-binding", path: "book.cbz", inputJson: JSON.stringify({ device: "keyboard", code: "KeyK" }), contextsJson: JSON.stringify(["video"]) })).toMatchObject({
       action: "dispatch-binding", path: "book.cbz", input: { device: "keyboard", code: "KeyK" }, contexts: ["video"],
     })
+    expect(schema.toInput({ action: "dispatch-binding", path: "book.cbz", inputJson: JSON.stringify({ device: "keyboard", code: "KeyK" }), contextsJson: JSON.stringify(["shell"]) })).toMatchObject({ contexts: ["shell"] })
   })
 
   it("[neoview.bindings.tui.conflicts] reports shared conflict validation without claiming a write", async () => {

@@ -11,8 +11,9 @@ describe("ReaderInputBindingsConfig", () => {
       { id: "touch", action: "reader.next-page", context: "reader", enabled: true, input: { device: "touch", gesture: "long-press", fingers: 1, durationMs: 700, moveTolerancePx: 10 } },
       { id: "pad", action: "reader.next-page", context: "reader", enabled: true, input: { device: "gamepad", button: 5 } },
       { id: "area", action: "reader.open-settings", context: "reader", enabled: true, input: { device: "area", area: "bottom-right", button: 2, action: "double-click" } },
+      { id: "shell", action: "shell.toggle-top-toolbar-pin", context: "shell", enabled: true, input: { device: "keyboard", code: "KeyT" } },
     ]
-    expect(parseNeoviewInputBindingsConfig({ items: bindings }).bindings).toHaveLength(7)
+    expect(parseNeoviewInputBindingsConfig({ items: bindings }).bindings).toHaveLength(8)
     expect(parseNeoviewInputBindingsPatch({ inputBindings: { bindings } })).toEqual({
       patch: { inputBindings: { bindings } },
       tomlPatch: { bindings: { items: bindings } },

@@ -24,7 +24,7 @@ describe("ReaderHeadlessInputBindingExecutor", () => {
     expect(controller.previous).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.bindings.context-stack-isolation] suppresses global fallback in editor and modal contexts", async () => {
+  it("[neoview.bindings.context-stack-isolation] suppresses global fallback in shell, editor and modal contexts", async () => {
     const controller = fixture()
     const config = bindings(binding("global", "reader.next-page", "global"))
     await expect(executeReaderHeadlessInputBinding(config, key(), ["editor"], controller)).resolves.toEqual({
@@ -32,6 +32,9 @@ describe("ReaderHeadlessInputBindingExecutor", () => {
     })
     await expect(executeReaderHeadlessInputBinding(config, key(), ["modal"], controller)).resolves.toEqual({
       matched: false, contexts: ["modal"], reason: "binding-not-found",
+    })
+    await expect(executeReaderHeadlessInputBinding(config, key(), ["shell"], controller)).resolves.toEqual({
+      matched: false, contexts: ["shell"], reason: "binding-not-found",
     })
     expect(controller.next).not.toHaveBeenCalled()
   })
