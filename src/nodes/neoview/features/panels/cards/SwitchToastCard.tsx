@@ -15,7 +15,6 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react"
-import { RotateCcw } from "lucide-react"
 import type {
   ReaderSwitchToastPatch,
   ReaderSwitchToastSettings,
@@ -26,6 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ReaderSwitchToastPort } from "../../switch-toast/ReaderSwitchToastStore"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardSaveFeedback, useReaderCardMutation } from "./shared/ReaderCardMutation"
 
 export type SwitchToastSettings = ReaderSwitchToastSettings
 export type SwitchToastPatch = ReaderSwitchToastPatch
@@ -71,39 +71,22 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
     port?.getSnapshot ?? getUndefinedSnapshot,
     port?.getSnapshot ?? getUndefinedSnapshot,
   )
-  const [saveState, setSaveState] = useState<SaveState>({ phase: "idle" })
-  const mountedRef = useRef(true)
-  const retryRef = useRef<(() => Promise<void>)>()
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
-  }, [])
-
-  const runMutation = useCallback((operation: () => Promise<void>, retry = operation) => {
-    retryRef.current = retry
-    setSaveState({ phase: "saving" })
-    void operation().then(() => {
-      if (!mountedRef.current) return
-      retryRef.current = undefined
-      setSaveState({ phase: "saved" })
-    }).catch((cause) => {
-      if (mountedRef.current) setSaveState({ phase: "error", message: errorMessage(cause) })
-    })
-  }, [])
+  const { state: saveState, run: runMutation, markEdited, retry } = useReaderCardMutation()
 
   const update = useCallback((patch: SwitchToastPatch) => {
     if (port) runMutation(() => port.update(patch), () => port.update(patch))
   }, [port, runMutation])
 
   const commit = useCallback(() => {
-    if (port) runMutation(() => port.commit(), () => port.commit())
+    if (!port) return
+    const target = port.getSnapshot()
+    runMutation(() => port.commit(), () => port.update(target))
   }, [port, runMutation])
-
-  const retry = useCallback(() => {
-    const operation = retryRef.current
-    if (operation) runMutation(operation, operation)
-  }, [runMutation])
+  const previewOpacity = useCallback((opacity: number) => {
+    if (!port) return
+    port.preview({ opacity })
+    markEdited()
+  }, [markEdited, port])
 
   if (!settings || !port) {
     return (
@@ -157,7 +140,7 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
             step={0.01}
             value={settings.opacity}
             aria-label="透明度"
-            onChange={(event) => port.preview({ opacity: clampNumber(event.currentTarget.valueAsNumber, 0.1, 1, 0.92) })}
+            onChange={(event) => previewOpacity(clampNumber(event.currentTarget.valueAsNumber, 0.1, 1, 0.92))}
             onPointerUp={(event) => finishPointer(event, commit)}
             onPointerCancel={(event) => finishPointer(event, commit)}
             onKeyUp={(event) => finishRangeKey(event, commit)}
@@ -223,7 +206,7 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
         footer={<>页面模板同样可以使用 <span className="font-mono">{"{{book.*}}"}</span> 变量。</>}
       />
 
-      <SaveFeedback state={saveState} onRetry={retry} />
+      <ReaderCardSaveFeedback state={saveState} onRetry={retry} />
     </section>
   )
 }
@@ -240,7 +223,10 @@ function CardSection({
   children: ReactNode
 }) {
   return (
-    <div className="space-y-2.5 rounded-md border bg-background/50 p-2.5">
+    <div
+      className="space-y-2.5 border-t border-border/70 pt-3 first:border-t-0 first:pt-0"
+      data-reader-card-section={title}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold text-foreground">{title}</div>
@@ -439,26 +425,6 @@ function VariableTable({ values }: { values: readonly (readonly [string, string]
   )
 }
 
-function SaveFeedback({ state, onRetry }: { state: SaveState; onRetry(): void }) {
-  if (state.phase === "saving") {
-    return <p role="status" aria-live="polite" className="text-xs text-muted-foreground">正在保存...</p>
-  }
-  if (state.phase === "saved") {
-    return <p role="status" aria-live="polite" className="text-xs text-muted-foreground">已保存</p>
-  }
-  if (state.phase === "error") {
-    return (
-      <div role="alert" className="flex items-center justify-between gap-2 rounded border border-destructive/50 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
-        <span>保存失败：{state.message}</span>
-        <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-          <RotateCcw />重试
-        </Button>
-      </div>
-    )
-  }
-  return null
-}
-
 function finishPointer(event: PointerEvent<HTMLInputElement>, commit: () => void): void {
   if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   commit()
@@ -483,10 +449,4 @@ function subscribeNoop(): () => void {
 
 function getUndefinedSnapshot(): undefined {
   return undefined
-}
-
-type SaveState = { phase: "idle" | "saving" | "saved" } | { phase: "error"; message: string }
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
 }

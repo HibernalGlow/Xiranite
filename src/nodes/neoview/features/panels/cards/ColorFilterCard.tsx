@@ -7,13 +7,14 @@
  */
 import { READER_COLOR_FILTER_PRESET_IDS, READER_COLOR_FILTER_PRESET_LABELS, type ReaderColorFilterPatch, type ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
 import { RotateCcw } from "lucide-react"
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 
 import type { ReaderColorFilterPort } from "../../color-filter/ReaderColorFilterStore"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardSaveFeedback, useReaderCardMutation } from "./shared/ReaderCardMutation"
 
 const SLIDERS = [
   { key: "brightness", label: "亮度", min: 50, max: 150, suffix: "%" },
@@ -35,31 +36,13 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
   dataPanelActive?: boolean
 }) {
   const settings = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
-  const [saveState, setSaveState] = useState<SaveState>({ phase: "idle" })
-  const mountedRef = useRef(true)
   const scheduledCommitRef = useRef<ReturnType<typeof setTimeout>>()
-  const retryRef = useRef<(() => Promise<void>)>()
+  const { state: saveState, run: runMutation, markEdited, retry } = useReaderCardMutation()
 
   useEffect(() => {
-    mountedRef.current = true
     return () => {
-      mountedRef.current = false
       if (scheduledCommitRef.current) clearTimeout(scheduledCommitRef.current)
     }
-  }, [])
-
-  const runMutation = useCallback((operation: () => Promise<void>, retry = operation) => {
-    retryRef.current = retry
-    setSaveState({ phase: "saving" })
-    void operation()
-      .then(() => {
-        if (!mountedRef.current) return
-        retryRef.current = undefined
-        setSaveState({ phase: "saved" })
-      })
-      .catch((cause) => {
-        if (mountedRef.current) setSaveState({ phase: "error", message: errorMessage(cause) })
-      })
   }, [])
 
   const commit = useCallback(() => {
@@ -73,24 +56,17 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
 
   const update = useCallback((patch: ReaderColorFilterPatch) => {
     store.preview(patch)
-    retryRef.current = () => store.update(patch)
-    setSaveState((current) => current.phase === "saving" ? current : { phase: "idle" })
+    markEdited(() => store.update(patch))
     if (scheduledCommitRef.current) clearTimeout(scheduledCommitRef.current)
     scheduledCommitRef.current = setTimeout(commit, COLOR_FILTER_COMMIT_DELAY_MS)
-  }, [commit, store])
+  }, [commit, markEdited, store])
 
   const preview = useCallback((patch: ReaderColorFilterPatch) => {
     store.preview(patch)
-    retryRef.current = undefined
-    setSaveState((current) => current.phase === "saving" ? current : { phase: "idle" })
-  }, [store])
+    markEdited()
+  }, [markEdited, store])
 
   const reset = useCallback(() => runMutation(() => store.reset(), () => store.reset()), [runMutation, store])
-  const retry = useCallback(() => {
-    const operation = retryRef.current
-    if (operation) runMutation(operation, operation)
-  }, [runMutation])
-
   return (
     <section
       className="space-y-3 text-sm"
@@ -119,7 +95,7 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
       </div>
 
       {settings.colorizeEnabled ? (
-        <div className="space-y-2 rounded-md border bg-background/50 p-2.5">
+        <div className="space-y-2" data-reader-card-control-group="colorize">
           <Field label="着色预设">
             <select
               className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground"
@@ -143,7 +119,7 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
         </div>
       ) : null}
 
-      <div className="space-y-2.5">
+      <div className="space-y-2.5" data-reader-card-control-group="filters">
         {SLIDERS.map((slider) => (
           <FilterSlider
             key={slider.key}
@@ -159,7 +135,7 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
         ))}
       </div>
 
-      <div className="grid gap-2">
+      <div className="flex flex-wrap gap-4 pt-1" data-reader-card-control-group="effects">
         <ToggleRow
           label="反色"
           checked={settings.invert}
@@ -174,7 +150,7 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
         />
       </div>
 
-      <SaveFeedback state={saveState} disabled={disabled} onRetry={retry} />
+      <ReaderCardSaveFeedback state={saveState} disabled={disabled} onRetry={retry} />
     </section>
   )
 }
@@ -194,10 +170,15 @@ function ToggleRow({
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-      <div className="min-w-0">
+      <button
+        type="button"
+        className="min-w-0 text-left disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        onClick={() => onCheckedChange(!checked)}
+      >
         <div className="text-xs text-foreground">{label}</div>
         {description ? <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{description}</p> : null}
-      </div>
+      </button>
       <Switch
         size="sm"
         checked={checked}
@@ -245,8 +226,11 @@ function FilterSlider({
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) onCommit()
   }
   return (
-    <label className="grid grid-cols-[4rem_minmax(0,1fr)_3rem] items-center gap-2 text-xs">
-      <span className="text-muted-foreground">{label}</span>
+    <label className="grid gap-1 text-xs">
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">{label}</span>
+        <output className="tabular-nums text-muted-foreground">{value}{suffix}</output>
+      </span>
       <input
         type="range"
         min={min}
@@ -254,48 +238,13 @@ function FilterSlider({
         value={value}
         disabled={disabled}
         aria-label={label}
-        className="h-5 min-w-0 accent-primary"
+        className="h-2 min-w-0 w-full accent-primary"
         onChange={(event) => onPreview(event.currentTarget.valueAsNumber)}
         onPointerUp={finishPointer}
         onPointerCancel={finishPointer}
         onKeyUp={finishKey}
         onBlur={onCommit}
       />
-      <output className="tabular-nums text-right text-muted-foreground">{value}{suffix}</output>
     </label>
   )
-}
-
-function SaveFeedback({
-  state,
-  disabled,
-  onRetry,
-}: {
-  state: SaveState
-  disabled: boolean
-  onRetry(): void
-}) {
-  if (state.phase === "saving") {
-    return <p role="status" aria-live="polite" className="text-xs text-muted-foreground">正在保存...</p>
-  }
-  if (state.phase === "saved") {
-    return <p role="status" aria-live="polite" className="text-xs text-muted-foreground">已保存</p>
-  }
-  if (state.phase === "error") {
-    return (
-      <div role="alert" className="flex items-center justify-between gap-2 rounded border border-destructive/50 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
-        <span>保存失败：{state.message}</span>
-        <Button type="button" size="sm" variant="outline" onClick={onRetry} disabled={disabled}>
-          <RotateCcw />重试
-        </Button>
-      </div>
-    )
-  }
-  return null
-}
-
-type SaveState = { phase: "idle" | "saving" | "saved" } | { phase: "error"; message: string }
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
 }

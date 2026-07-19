@@ -9,10 +9,14 @@ afterEach(cleanup)
 describe("PageTransitionCard", () => {
   it("[neoview.page-transition.states] keeps the animation switch available without a book", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
-    render(<PageTransitionCard store={store} />)
+    const view = render(<PageTransitionCard store={store} />)
     expect(screen.getByRole("switch", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
     fireEvent.click(screen.getByRole("switch", { name: "启用翻页动画" }))
     expect(screen.getByLabelText("动画类型")).toBeTruthy()
+    expect(Array.from(view.container.querySelectorAll("[data-reader-card-control-group]"), (group) => group.getAttribute("data-reader-card-control-group"))).toEqual([
+      "transition-settings",
+      "transition-preview",
+    ])
   })
 
   it("[neoview.page-transition.preview] previews locally without persisting or navigating", () => {

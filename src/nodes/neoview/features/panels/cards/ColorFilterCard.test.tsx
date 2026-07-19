@@ -9,11 +9,16 @@ afterEach(cleanup)
 describe("ColorFilterCard", () => {
   it("[neoview.color-filter.states] keeps the legacy controls available without a book", async () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
-    render(<ColorFilterCard store={store} />)
+    const view = render(<ColorFilterCard store={store} />)
     expect(screen.getAllByRole("slider")).toHaveLength(5)
-    fireEvent.click(screen.getByRole("switch", { name: "着色" }))
+    expect(Array.from(view.container.querySelectorAll("[data-reader-card-control-group]"), (group) => group.getAttribute("data-reader-card-control-group"))).toEqual([
+      "filters",
+      "effects",
+    ])
+    fireEvent.click(screen.getByRole("button", { name: "着色" }))
     expect(await screen.findByLabelText("着色预设")).toBeTruthy()
     expect(screen.getByText("仅黑白图像")).toBeTruthy()
+    expect(view.container.querySelector('[data-reader-card-control-group="colorize"]')).toBeTruthy()
   })
 
   it("previews a slider and commits once at pointer end", async () => {
