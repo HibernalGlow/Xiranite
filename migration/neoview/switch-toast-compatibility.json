@@ -368,7 +368,7 @@
     {
       "id": "switch-toast.dismiss", "category": "capabilities", "title": "手动关闭与自动过期", "sourceEvidence": ["src/lib/components/ui/toast.svelte"],
       "targetContract": "Every visible switch toast has a keyboard-operable 关闭 command, removes immediately on activation and otherwise expires at its effective duration.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": [], "plannedTestIds": ["neoview.switch-toast.dismiss"], "notes": "Manual dismissal also releases its owned timer."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"}, "testIds": ["neoview.switch-toast.dismiss"], "plannedTestIds": [], "notes": "Manual dismissal also releases its owned timer."
     },
     {
       "id": "switch-toast.bounds", "category": "data-contract", "title": "严格数值、枚举与字符串边界", "sourceEvidence": ["src/lib/cards/info/SwitchToastCard.svelte", "src/lib/settings/types.ts"],

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { DEFAULT_READER_SWITCH_TOAST } from "@xiranite/node-neoview/switch-toast"
@@ -38,6 +38,20 @@ describe("ReaderSwitchToastRuntime", () => {
     expect(host?.style.left).toBe("48px")
     expect(host?.style.top).toBe("72px")
     expect(view.container.querySelector('[data-liquid-glass="true"]')).toBeTruthy()
+    port.dispose()
+  })
+
+  it("[neoview.switch-toast.dismiss] closes a visible message without affecting the host settings", async () => {
+    const port = createReaderSwitchToastStore({ persist: async (settings) => settings })
+    port.hydrate({ ...DEFAULT_READER_SWITCH_TOAST, positionX: 96, positionY: 64 })
+    render(<ReaderSwitchToastRuntime port={port} sourcePath="" />)
+
+    port.show({ title: "可关闭提示", durationMs: 2_600 })
+    expect(await screen.findByText("可关闭提示")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "关闭切换提示" }))
+
+    expect(screen.queryByText("可关闭提示")).toBeNull()
+    expect(port.getSnapshot()).toMatchObject({ positionX: 96, positionY: 64 })
     port.dispose()
   })
 })
