@@ -70,6 +70,29 @@ describe("commitNeoviewConfig", () => {
     expect(writtenText).toContain("[nodes.neoview.reader.book]")
   })
 
+  it("[neoview.settings.atomic-toml-nullish-leaves] omits optional record fields before write-back verification", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+
+    const result = await commitNeoviewConfig({
+      bindings: {
+        radial_menus: {
+          menus: [{
+            id: "default",
+            layers: [[{ id: "open-child", action: null, children: undefined }]],
+          }],
+        },
+      },
+    }, { configPath, strategy: "merge" })
+
+    expect(result.nodeConfig).toEqual({
+      bindings: { radial_menus: { menus: [{ id: "default", layers: [[{ id: "open-child" }]] }] } },
+    })
+    const written = await readFile(configPath, "utf8")
+    expect(written).not.toContain("children")
+    expect(written).not.toContain("action")
+  })
+
   it("overwrite replaces only [nodes.neoview] and is idempotent", async () => {
     const root = await temporaryRoot(roots)
     const configPath = join(root, "xiranite.config.toml")
