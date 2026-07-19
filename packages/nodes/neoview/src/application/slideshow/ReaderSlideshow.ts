@@ -41,16 +41,16 @@ export class ReaderSlideshow {
   constructor(options: ReaderSlideshowOptions, initial: Partial<ReaderSlideshowConfig> = {}) {
     this.#options = options
     const intervalSeconds = normalizeInterval(initial.intervalSeconds ?? 5)
-    this.#snapshot = {
+    this.#snapshot = Object.freeze({
       state: "stopped",
       intervalSeconds,
       loop: initial.loop ?? false,
       random: initial.random ?? false,
       remainingSeconds: 0,
-    }
+    })
   }
 
-  getSnapshot = (): ReaderSlideshowSnapshot => ({ ...this.#snapshot })
+  getSnapshot = (): ReaderSlideshowSnapshot => this.#snapshot
 
   subscribe = (listener: () => void): (() => void) => {
     if (this.#disposed) return () => undefined
@@ -120,7 +120,7 @@ export class ReaderSlideshow {
     if (this.#disposed) return
     this.#disposed = true
     this.#cancelTimer()
-    this.#snapshot = { ...this.#snapshot, state: "stopped", remainingSeconds: 0 }
+    this.#snapshot = Object.freeze({ ...this.#snapshot, state: "stopped", remainingSeconds: 0 })
     this.#listeners.clear()
   }
 
@@ -239,7 +239,7 @@ export class ReaderSlideshow {
 
   #replace(patch: Partial<ReaderSlideshowSnapshot>): void {
     if (this.#disposed) return
-    this.#snapshot = { ...this.#snapshot, ...patch }
+    this.#snapshot = Object.freeze({ ...this.#snapshot, ...patch })
     for (const listener of this.#listeners) {
       if (this.#disposed) break
       try {

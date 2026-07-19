@@ -22,13 +22,17 @@ describe("ReaderSlideshowToolbar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "播放幻灯片" }))
     expect(screen.getByRole("button", { name: "暂停幻灯片" }).getAttribute("aria-pressed")).toBe("true")
-    fireEvent.change(screen.getByRole("spinbutton", { name: "幻灯片间隔" }), { target: { value: "10" } })
+    expect(screen.getByRole("progressbar", { name: "幻灯片倒计时进度" })).toBeTruthy()
+    fireEvent.change(screen.getByRole("slider", { name: "幻灯片间隔" }), { target: { value: "10" } })
     expect(slideshow.getSnapshot().intervalSeconds).toBe(10)
+    fireEvent.click(screen.getByRole("button", { name: "幻灯片间隔 15 秒" }))
+    expect(slideshow.getSnapshot().intervalSeconds).toBe(15)
     fireEvent.click(screen.getByRole("button", { name: "循环播放" }))
     fireEvent.click(screen.getByRole("button", { name: "随机播放" }))
     expect(slideshow.getSnapshot()).toMatchObject({ loop: true, random: true })
     expect(onChange.mock.calls).toEqual([
       [{ intervalSeconds: 10 }],
+      [{ intervalSeconds: 15 }],
       [{ loop: true }],
       [{ random: true }],
     ])

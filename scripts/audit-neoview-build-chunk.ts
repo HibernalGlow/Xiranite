@@ -45,6 +45,8 @@ const readerFrameChunk = neoViewChunks.find((chunk) => chunk.modules.some((modul
 const readerViewToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderViewToolbar\.tsx$/i.test(module)))
 // [neoview.toolbar.page-order-chunk]
 const readerPageOrderToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderPageOrderToolbar\.tsx$/i.test(module)))
+// [neoview.slideshow.chunk]
+const readerSlideshowToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderSlideshowToolbar\.tsx$/i.test(module)))
 if (!readerFrameChunk || readerFrameChunk === neoViewChunk) throw new Error("NeoView ReaderFrame did not produce a deferred production chunk.")
 if (!readerViewToolbarChunk || readerViewToolbarChunk === neoViewChunk) throw new Error("NeoView ReaderViewToolbar did not produce a deferred production chunk.")
 if (!readerPageOrderToolbarChunk || readerPageOrderToolbarChunk === readerViewToolbarChunk || readerPageOrderToolbarChunk === neoViewChunk || readerPageOrderToolbarChunk === initialChunk) {
@@ -52,6 +54,12 @@ if (!readerPageOrderToolbarChunk || readerPageOrderToolbarChunk === readerViewTo
 }
 if (readerPageOrderToolbarChunk.bytes > 8 * 1024) {
   throw new Error(`NeoView page-order toolbar chunk ${readerPageOrderToolbarChunk.fileName} is ${readerPageOrderToolbarChunk.bytes} bytes, above 8 KiB.`)
+}
+if (!readerSlideshowToolbarChunk || readerSlideshowToolbarChunk === readerViewToolbarChunk || readerSlideshowToolbarChunk === neoViewChunk || readerSlideshowToolbarChunk === initialChunk) {
+  throw new Error("NeoView slideshow toolbar did not produce an independent second-level deferred production chunk.")
+}
+if (readerSlideshowToolbarChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView slideshow toolbar chunk ${readerSlideshowToolbarChunk.fileName} is ${readerSlideshowToolbarChunk.bytes} bytes, above 8 KiB.`)
 }
 if (!readerFrameChunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]PageImage\.tsx$/i.test(module))) {
   throw new Error("NeoView PageImage is not colocated with the deferred ReaderFrame chunk.")
@@ -385,6 +393,7 @@ console.log(JSON.stringify({
   neoviewChunk: { fileName: neoViewChunk.fileName, bytes: neoViewChunk.bytes },
   deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   readerPageOrderToolbarChunk: { fileName: readerPageOrderToolbarChunk.fileName, bytes: readerPageOrderToolbarChunk.bytes },
+  readerSlideshowToolbarChunk: { fileName: readerSlideshowToolbarChunk.fileName, bytes: readerSlideshowToolbarChunk.bytes },
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   historyListChunk: { fileName: historyListChunk.fileName, bytes: historyListChunk.bytes },
   historyContextActionsChunk: { fileName: historyContextActionsChunk.fileName, bytes: historyContextActionsChunk.bytes },

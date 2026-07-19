@@ -139,7 +139,7 @@ describe("loadNeoviewSessionOptions", () => {
     })
   })
 
-  it("[neoview.settings.runtime-gui] [neoview.folder.settings-toml] [neoview.folder.search-settings-toml] applies shared TOML defaults", async () => {
+  it("[neoview.settings.runtime-gui] [neoview.slideshow.http.config] [neoview.folder.settings-toml] [neoview.folder.search-settings-toml] applies shared TOML defaults", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-runtime-http-"))
     roots.push(root)
     const bookPath = join(root, "book")
