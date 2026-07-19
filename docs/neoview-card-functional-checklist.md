@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/color-filter-compatibility.json`、`migration/neoview/page-transition-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/progressive-upscale-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/color-filter-compatibility.json`、`migration/neoview/image-trim-compatibility.json`、`migration/neoview/page-transition-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/progressive-upscale-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -1336,15 +1336,15 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：The active frame anchor is displayed as a 1-based current page with the session book total; a zero-page book renders 0 / 0 without starting preload work.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/stores/book/core.svelte.ts`
-  - 测试：`neoview.preload-status.current-page`、`neoview.preload-status.e2e`、`neoview.preload-status.resident-1920x1080`、`neoview.preload-status.no-session`
-  - 计划测试：`neoview.card.preload-status-live`
+  - 测试：`neoview.preload-status.current-page`、`neoview.preload-status.e2e`、`neoview.preload-status.resident-1920x1080`、`neoview.preload-status.no-session`、`neoview.card.preload-status-live`
+  - 计划测试：无
   - 备注：The React Card derives this field from the active session frame and book snapshot; before a session it keeps the legacy 0 / 0 summary shell resident, while Chromium covers both the empty and active states.
 - [ ] `preload.memory-pool` 显示服务端呈现缓存容量
   - 六维：`core=C transport=C gui=P cli=C tui=P evidence=P`；阻塞：`gui`、`tui`、`evidence`
   - 目标：The Card displays server-owned presentation cache entries, bytes, maximum bytes, usage and leases from the shared diagnostics snapshot without presenting the browser predecode retained limit as the legacy memory pool.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
-  - 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.cli`、`neoview.preload-status.memory`
-  - 计划测试：`neoview.preload-status.diagnostics-client`
+  - 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.diagnostics.cli`、`neoview.preload-status.memory`、`neoview.preload-status.diagnostics-client`
+  - 计划测试：无
   - 备注：The browser DTO and Card render server presentation entries, bytes, maxBytes, usage and active leases separately from the bounded browser predecode store; scripted 1920x1080 Chromium proves the lease metric and normal desktop sidebar geometry, while complete status still requires CLI/TUI presentation.
 - [ ] `preload.format` 保持内存与百分比格式
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
@@ -1385,15 +1385,15 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Activation and frame changes update immediately, browser predecode remains event-driven, diagnostics sample at most once every two seconds while active, and retry aborts any superseded request.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
-  - 测试：`neoview.preload-status.refresh`、`neoview.preload-status.e2e`
-  - 计划测试：`neoview.preload-status.diagnostics-cancel`
+  - 测试：`neoview.preload-status.refresh`、`neoview.preload-status.e2e`、`neoview.preload-status.diagnostics-cancel`
+  - 计划测试：无
   - 备注：The Card refreshes diagnostics immediately and at most once per two seconds while mounted, aborts on frame/session changes, exposes sanitized retry, and proves zero polling while collapsed in the scripted desktop flow.
 - [ ] `preload.states` 加载、空、部分、错误、重试与释放状态
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Diagnostics and browser predecode failures degrade independently through stable loading, empty, partial, error, retry and disposed states without showing stale previous-session metrics.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
-  - 测试：`neoview.preload-status.states`、`neoview.preload-status.session-switch`、`neoview.preload-status.resident-1920x1080`、`neoview.preload-status.no-session`
-  - 计划测试：`neoview.preload-status.retry`、`neoview.preload-status.partial-metrics`
+  - 测试：`neoview.preload-status.states`、`neoview.preload-status.session-switch`、`neoview.preload-status.resident-1920x1080`、`neoview.preload-status.no-session`、`neoview.preload-status.retry`
+  - 计划测试：`neoview.preload-status.partial-metrics`
   - 备注：The Card covers loading, resident pre-session, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish.
 - [x] `preload.shell` 保持共享 Card 外壳行为
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
@@ -1406,15 +1406,15 @@
   - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：GUI, CLI and TUI share one versioned, path-free contract for session generation, plan, telemetry, bounded performance metrics and server cache capacity with cancellation and stale-result semantics.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
-  - 测试：`neoview.preload.telemetry`、`neoview.preload.telemetry-generation`、`neoview.preload.performance-telemetry`、`neoview.preload.telemetry-http`、`neoview.diagnostics.wire-schema`、`neoview.preload.action-http`、`neoview.preload.action-client`
-  - 计划测试：`neoview.preload-status.diagnostics-client`、`neoview.preload.action-cli`、`neoview.preload.action-tui`
+  - 测试：`neoview.preload.telemetry`、`neoview.preload.telemetry-generation`、`neoview.preload.performance-telemetry`、`neoview.preload.telemetry-http`、`neoview.diagnostics.wire-schema`、`neoview.preload.action-http`、`neoview.preload.action-client`、`neoview.preload-status.diagnostics-client`
+  - 计划测试：`neoview.preload.action-cli`、`neoview.preload.action-tui`
   - 备注：The browser DTO now consumes the shared diagnostics preload tiers and presentation capacity without a second endpoint; session plan/admission detail and explicit CLI/TUI Card projection remain pending.
 - [ ] `preload.lifecycle` 仅在激活时工作并释放所有观察者
   - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：Hidden, collapsed and unmounted Cards perform no subscriptions or polling; session and frame generation changes abort obsolete requests, and session close clears browser state and server telemetry.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/stores/book/core.svelte.ts`
-  - 测试：`neoview.preload-status-store`、`neoview.preload.telemetry-generation`、`neoview.card.zero-mount`、`neoview.preload-status.session-switch`
-  - 计划测试：`neoview.card.preload-status-live`、`neoview.preload-status.diagnostics-cancel`、`neoview.preload-status.session-close`
+  - 测试：`neoview.preload-status-store`、`neoview.preload.telemetry-generation`、`neoview.card.zero-mount`、`neoview.preload-status.session-switch`、`neoview.card.preload-status-live`、`neoview.preload-status.diagnostics-cancel`
+  - 计划测试：`neoview.preload-status.session-close`
   - 备注：Store unsubscribe, diagnostics polling cancellation on unmount/session/frame change, synchronous cross-session state isolation, browser clear and core close are covered; full session-close integration evidence remains pending.
 - [ ] `preload.persistence` 仅持久化共享 Card 布局
   - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
@@ -1455,8 +1455,8 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document that legacy Tauri memory/cache polling is replaced by authenticated shared diagnostics, session preload plan/telemetry and a separately labelled browser predecode event store; polling is active-only, errors are sanitized and retryable, queue/admission/cancel/clear controls are frozen-scope extensions, cancel and clear are current-session scoped, and only Card layout is persisted.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
-  - 测试：`neoview.preload-status.e2e`
-  - 计划测试：`neoview.preload-status.deviations`、`neoview.preload-status.partial-metrics`、`neoview.preload-status.poll-budget`
+  - 测试：`neoview.preload-status.e2e`、`neoview.preload-status.poll-budget`
+  - 计划测试：`neoview.preload-status.deviations`、`neoview.preload-status.partial-metrics`
   - 备注：The implementation and checklist explicitly separate server presentation cache, aggregate preload telemetry and bounded browser predecode; it preserves the three-behind/five-ahead window, uses active-only sanitized diagnostics, persists no telemetry and reserves cancel/clear for a future session-scoped contract.
 
 #### `bookInfo` 书籍信息
@@ -2280,7 +2280,7 @@
 | `switchToast` | 切换提示 | integration | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `switch-toast` |
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
 | `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
-| `imageTrim` | 图像裁剪 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
+| `imageTrim` | 图像裁剪 | integration | pending | `core=- transport=- gui=- cli=- tui=- evidence=-` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
 | `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=P cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
 | `animatedVideoMode` | 动图视频模式 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制；XR `animated-video-mode` |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
@@ -2766,8 +2766,8 @@
   - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：The canonical preset enum preserves all twelve IDs, Chinese labels, order and redAndBlueGray default: redAndBlue/红蓝, redAndBlueGray/红蓝灰, blueSky/蓝天, violetAndBrown/紫棕, violetAndCarnation/紫粉, paleYellowAndBrown/淡黄棕, red/红色, orange/橙色, yellow/黄色, green/绿色, blue/蓝色 and violet/紫色.
   - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
-  - 测试：`neoview.color-filter.presets`、`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
-  - 计划测试：`neoview.color-filter.presets`、`neoview.color-filter.preset-surfaces`
+  - 测试：`neoview.color-filter.presets`、`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`、`neoview.color-filter.presets`
+  - 计划测试：`neoview.color-filter.preset-surfaces`
   - 备注：Unknown imported preset IDs must normalize to redAndBlueGray while unknown TOML sibling fields remain intact.
 - [ ] `color-filter.custom-colors` 保留自定义颜色点数据契约
   - 六维：`core=C transport=C gui=P cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
@@ -2822,15 +2822,15 @@
   - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Invert and negative remain independent booleans; CSS preserves legacy ordering, including invert(100%) followed by invert(100%) hue-rotate(180deg) when both are enabled.
   - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/utils/colorFilters.ts`
-  - 测试：`neoview.color-filter.css-order`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`
-  - 计划测试：`neoview.color-filter.invert-negative`、`neoview.color-filter.css-order`
+  - 测试：`neoview.color-filter.css-order`、`neoview.color-filter.config-http`、`neoview.color-filter.ui`、`neoview.color-filter.css-order`
+  - 计划测试：`neoview.color-filter.invert-negative`
   - 备注：The legacy double-inversion ordering is preserved; CLI/TUI surfaces remain pending.
 - [ ] `color-filter.reset` 一次重置全部滤镜
   - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：One named reset command atomically restores every canonical default, updates the active frame without remounting it and persists exactly one reset mutation.
   - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
-  - 测试：`neoview.color-filter.reset`、`neoview.color-filter.config-http`
-  - 计划测试：`neoview.color-filter.reset`、`neoview.color-filter.reset-surfaces`
+  - 测试：`neoview.color-filter.reset`、`neoview.color-filter.config-http`、`neoview.color-filter.reset`
+  - 计划测试：`neoview.color-filter.reset-surfaces`
   - 备注：One aggregate reset is implemented; CLI/TUI surfaces remain pending.
 - [x] `color-filter.pipeline` 共享 SVG/CSS 滤镜流水线
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
@@ -2843,15 +2843,15 @@
   - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Import neoview-filter-settings once, validate and normalize it, then persist the only runtime version under [nodes.neoview.image.color_filter] using snake_case fields, serialized atomic PATCH, failure rollback and unknown-field preservation.
   - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
-  - 测试：`neoview.color-filter.legacy-import`、`neoview.color-filter.toml`、`neoview.color-filter.persistence`、`neoview.color-filter.config-http`
-  - 计划测试：`neoview.color-filter.legacy-import`、`neoview.color-filter.toml`、`neoview.color-filter.persistence-rollback`、`neoview.color-filter.persistence-surfaces`
+  - 测试：`neoview.color-filter.legacy-import`、`neoview.color-filter.toml`、`neoview.color-filter.persistence`、`neoview.color-filter.config-http`、`neoview.color-filter.legacy-import`、`neoview.color-filter.toml`
+  - 计划测试：`neoview.color-filter.persistence-rollback`、`neoview.color-filter.persistence-surfaces`
   - 备注：Canonical fields: colorize_enabled, colorize_preset, custom_colors, only_black_and_white, brightness, contrast, saturation, sepia, hue_rotate, invert and negative.
 - [ ] `color-filter.scope` 全局默认与书籍覆盖范围明确
   - 六维：`core=P transport=P gui=P cli=- tui=- evidence=P`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：The Card labels the legacy-equivalent TOML value as the global default. Any book-specific override must use the shared book-settings contract with explicit book-over-global precedence and must never create a second localStorage or component-state source of truth.
   - 源码：`src/lib/stores/filterStore.svelte.ts`
-  - 测试：`neoview.color-filter.scope`
-  - 计划测试：`neoview.color-filter.scope`、`neoview.color-filter.scope-precedence`
+  - 测试：`neoview.color-filter.scope`、`neoview.color-filter.scope`
+  - 计划测试：`neoview.color-filter.scope-precedence`
   - 备注：Global TOML precedence is complete; book-specific override remains pending.
 - [x] `color-filter.states` 加载、条件、提交、错误与回滚状态
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
@@ -2885,8 +2885,8 @@
   - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：One revisioned settings DTO validates exact booleans, preset enum, bounded integers and bounded ColorPoint arrays; GUI, CLI and TUI share normalization, compare-and-set/serialized mutation, stale-result rejection, reset and error semantics.
   - 源码：`src/lib/stores/filterStore.svelte.ts`、`src/lib/utils/colorFilters.ts`
-  - 测试：`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.hydration-race`、`neoview.color-filter.client`
-  - 计划测试：`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.config-race`、`neoview.color-filter.config-surfaces`
+  - 测试：`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`、`neoview.color-filter.hydration-race`、`neoview.color-filter.client`、`neoview.color-filter.config-codec`、`neoview.color-filter.config-http`
+  - 计划测试：`neoview.color-filter.config-race`、`neoview.color-filter.config-surfaces`
   - 备注：Shared codec, HTTP DTO and GUI store are complete; CLI/TUI surfaces remain pending.
 - [ ] `color-filter.lifecycle` 懒加载、订阅、采样取消与释放
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
@@ -2919,10 +2919,420 @@
 
 #### `imageTrim` 图像裁剪
 
+- 细项清单：`migration/neoview/image-trim-compatibility.json`
 - [ ] 启用自动/手动裁边并选择检测模式
 - [ ] 配置阈值、边距、最小裁剪和单双页策略
 - [ ] 预览、重算、复位并处理动画/视频/超分兼容
 - UI 基线：`src/lib/cards/info/ImageTrimCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（12 组，66 项）
+
+- `image-trim-ui.ast-prototype` AST 原型结构基线
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 映射：`image-trim.ast-prototype`、`image-trim.ui-parity`、`image-trim.deviations`
+  - [ ] 冻结 ImageTrimCard.svelte hash sha256:413b50582f039de6e0c563176543242b699c7e1c181322a54130bca578bc06ca
+  - [ ] 冻结 imageTrimStore.svelte.ts hash sha256:bc243bacabdd055c1c5bb6bf7c2ed84750e12522ece937b51c89433be92d1f21
+  - [ ] 原型保留单一 space-y-3 text-sm 根容器、Fragment 和 enabled 条件块
+  - [ ] 原型保留 RotateCcw、Link、Unlink、Wand2、Minus、Square 六个图标 import
+  - [ ] 原型保留 checkbox、四个 range、一个 select、三个动作按钮和条件预览
+  - [ ] 原型保留 $state/$derived、onMount/onDestroy、store subscription 为待人工替换节点
+  - [ ] 生产实现不得直接 import tsx-scaffold 或 Svelte/$lib 运行时
+- `image-trim-ui.shell` Card 外壳、常驻面板与延迟边界
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/CardWindow.svelte`、`src/lib/cards/info/ImageTrimCard.svelte`
+  - 映射：`image-trim.shell`、`image-trim.chunk`
+  - [ ] Card ID imageTrim、标题 图像裁剪、默认 control Panel、可隐藏
+  - [ ] Card 在未打开书籍前也常驻显示设置外壳，不能把整个 Card 隐藏到 session 条件内
+  - [ ] CardRenderer/CardWindow 复用共享折叠、隐藏、排序、宽高和独立窗口行为
+  - [ ] 图标和命令按钮使用 lucide 语义，不以新插画或文字按钮替换原图标
+  - [ ] ImageTrim 编辑器与自动检测重逻辑保持独立 lazy chunk，不进入 Reader entry
+- `image-trim-ui.enable-reset` 启用开关与全部重置
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 映射：`image-trim.enable`、`image-trim.reset`、`image-trim.states`
+  - [ ] 顶部同一行显示 图像裁剪 checkbox 与 RotateCcw 重置按钮
+  - [ ] enabled 默认值、checked 语义和禁用时的条件内容与旧 store 一致
+  - [ ] resetAll 清除四边裁剪、联动、阈值、目标和自动检测消息
+  - [ ] 重置是一个聚合命令，持久化最多产生一次配置 mutation
+  - [ ] 设置加载中显示居中的加载文案，加载失败不会留下半套控件
+- `image-trim-ui.edge-controls` 四边裁剪滑条
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 映射：`image-trim.edges`、`image-trim.bounds`、`image-trim.accessibility`
+  - [ ] 上、下、左、右四组按旧顺序使用 space-y-1 和 text-xs 标题行
+  - [ ] 四个 range 的 min=0、max=45、step=0.5，值后显示百分号
+  - [ ] range 使用 accent-primary h-1 w-full，拖动过程只更新本地呈现
+  - [ ] 滑条支持键盘 Home/End/方向键并暴露 min/max/now
+  - [ ] 边界值、非有限值和四边总和超过可用区域时按共享 codec 归一化
+- `image-trim-ui.vertical-link` 上下联动与图标状态
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 映射：`image-trim.link-vertical`、`image-trim.accessibility`、`image-trim.ui-parity`
+  - [ ] 上裁剪标题左侧保留 Link/Unlink 图标按钮
+  - [ ] linkVertical=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground
+  - [ ] 按钮 title 在 上下联动 与 取消上下联动 之间切换
+  - [ ] 切换联动不重置已有数值，后续上/下滑条按旧比例/规则联动
+  - [ ] 图标按钮有 aria-label、visible focus 和原生键盘操作
+- `image-trim-ui.horizontal-link` 左右联动与图标状态
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 映射：`image-trim.link-horizontal`、`image-trim.accessibility`、`image-trim.ui-parity`
+  - [ ] 左裁剪标题左侧保留 Link/Unlink 图标按钮
+  - [ ] linkHorizontal=true 使用 Link text-primary h-3 w-3，false 使用 Unlink text-muted-foreground
+  - [ ] 按钮 title 在 左右联动 与 取消左右联动 之间切换
+  - [ ] 切换联动不丢失左右值，拖动一侧时保持另一侧的旧联动语义
+  - [ ] 左右联动状态属于设置 DTO，不得藏在组件局部 state
+- `image-trim-ui.preview` 裁剪预览指示器
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 映射：`image-trim.preview`、`image-trim.preview-geometry`、`image-trim.image-stability`
+  - [ ] 四边至少一项大于零时才显示预览，全部为零时不挂载预览 DOM
+  - [ ] 预览为 border-border bg-muted/30 relative aspect-3/4 w-full overflow-hidden rounded border
+  - [ ] 原始区域使用 bg-muted/20 absolute inset-0
+  - [ ] 有效区域使用 bg-primary/10 border-primary/30 absolute rounded-sm border
+  - [ ] 有效区域由 top/bottom/left/right 百分比直接投影
+  - [ ] 中心标签以 text-muted-foreground/60 text-[10px] 显示有效宽高百分比
+- `image-trim-ui.auto-controls` 自动检测、去黑边与去白边
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 映射：`image-trim.auto-detect`、`image-trim.black-border`、`image-trim.white-border`、`image-trim.states`
+  - [ ] 分隔线后保留 自动裁剪 text-muted-foreground text-xs font-medium 标题
+  - [ ] 自动检测按钮使用 Wand2，flex-1、primary tint、检测中禁用
+  - [ ] 去黑边按钮使用 Square h-3 w-3 fill-current
+  - [ ] 去白边按钮使用 Minus h-3 w-3
+  - [ ] 自动检测、去黑边、去白边都读取当前活动 img 的已解码资产，不重新请求第二张图片
+  - [ ] 动作期间按钮禁用，完成/失败/找不到图片时显示稳定消息
+- `image-trim-ui.auto-options` 容差与目标颜色
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 映射：`image-trim.threshold`、`image-trim.target`、`image-trim.bounds`
+  - [ ] 容差 range min=5、max=100、step=5，标题行实时显示数值
+  - [ ] 目标颜色 select 保留 auto、black、white 三个值和旧顺序
+  - [ ] auto/black/white 使用原中文标签 自动/黑色/白色
+  - [ ] 目标颜色使用 bg-background border-border rounded border px-2 py-0.5 text-xs
+  - [ ] 阈值和目标改变不会自动启动检测或改变当前裁剪，直到用户触发动作
+- `image-trim-ui.messages` 加载、检测结果与错误状态
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 映射：`image-trim.states`、`image-trim.auto-message`、`image-trim.error-retry`
+  - [ ] settings 尚未就绪时显示居中 加载中... 状态
+  - [ ] 没有当前图片时显示 未找到当前图片，不伪造结果
+  - [ ] 四边均为零时显示 未检测到明显边框
+  - [ ] 检测成功显示四边一位小数结果
+  - [ ] 检测异常显示 检测失败 且允许再次触发
+  - [ ] 去黑边/去白边完成分别显示 已应用去黑边/已应用去白边
+- `image-trim-ui.media` 动画、视频、超分与单双页兼容
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/layers/PanoramaFrameLayer.svelte`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 映射：`image-trim.media`、`image-trim.double-page`、`image-trim.generation`
+  - [ ] 裁边应用于当前 frame/image contract，不把图片类型假设为静态单页
+  - [ ] 动画和视频帧在切换/重绘时保持裁边设置和取消旧检测结果
+  - [ ] 单双页使用同一四边设置，不意外只裁左页或只裁右页
+  - [ ] 全景/旋转/超分产生新 generation 时拒绝旧 auto-detect 结果
+  - [ ] 不为裁边新增 sharp、Canvas、Blob 或第二条媒体解码链
+- `image-trim-ui.persistence-lifecycle` 设置持久化、缓存与生命周期
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/utils/imageTrace.ts`
+  - 映射：`image-trim.persistence`、`image-trim.cache`、`image-trim.lifecycle`、`image-trim.deviations`
+  - [ ] imageTrimStore 的所有公开设置字段均有版本化共享 DTO
+  - [ ] autoTrimCache 作为有界检测缓存处理，不成为第二份设置真相
+  - [ ] 旧动态缓存键/坏 JSON/过期 generation 按字段归一化而不是使 Card 崩溃
+  - [ ] 设置变更使用 canonical TOML 与串行原子 PATCH，未知未来字段保留
+  - [ ] Card 隐藏、折叠、窗口关闭、导航和 session release 时取消订阅/请求并清理定时器
+  - [ ] imageTrace 日志不得把完整图片、Blob 或敏感路径写入热路径
+
+##### 专用源码级验收项
+
+- [ ] `image-trim.ast-prototype` 审阅 AST 生成的 TSX 原型
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Prototype is a repeatable structural baseline: imports, component hierarchy, class names, conditions, controls, events and unsupported Svelte nodes are reviewed before production React work.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.ast-prototype`
+  - 备注：The scaffold is evidence only; production code must not import it.
+- [ ] `image-trim.enable` 启用或停用图像裁剪
+  - 六维：`core=N/A transport=- gui=- cli=- tui=- evidence=-`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：The checkbox toggles one canonical enabled flag; disabled state keeps the Card resident but removes active crop presentation and expensive detection work.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：`neoview.image-trim.resident`、`neoview.image-trim.resident`
+  - 计划测试：`neoview.image-trim.enable`、`neoview.image-trim.enable`
+  - 备注：Verified by the 1920x1080 harness: the ready Card and enable switch are interactive before opening, and remain mounted after opening.
+- [ ] `image-trim.reset` 一次重置全部裁剪设置
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：One named reset restores canonical enabled, edges, link flags, threshold, target and transient message defaults and commits once.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：`neoview.image-trim.reset`
+  - 计划测试：无
+  - 备注：Headless reset contract remains to be defined with the shared image pipeline.
+- [ ] `image-trim.edges` 四边百分比裁剪
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Top, bottom, left and right preserve the 0..45 range, 0.5 step, labels, values and clip-path projection.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.edges`、`neoview.image-trim.bounds`
+  - 备注：Do not silently change percentages to pixels without recording a deviation.
+- [ ] `image-trim.link-vertical` 上下联动
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：LinkVertical is shared state with exact Link/Unlink icon semantics and linked edge updates.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.link-vertical`
+  - 备注：Keyboard and pointer activation are both required.
+- [ ] `image-trim.link-horizontal` 左右联动
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：LinkHorizontal is shared state with exact Link/Unlink icon semantics and linked edge updates.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.link-horizontal`
+  - 备注：Do not implement a separate local link state in the Card.
+- [ ] `image-trim.bounds` 裁剪值边界和归一化
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Reject non-finite values, clamp edges to 0..45 and preserve a non-empty effective region; imported values normalize field by field.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.bounds`
+  - 备注：Range UI bounds and transport bounds must agree.
+- [ ] `image-trim.preview` 有效裁剪区域预览
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Preview mounts only for non-zero crop values and shows the effective width/height percentage without touching Reader session or requesting media.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.preview`
+  - 备注：The preview is a local geometry indicator, not a second image renderer.
+- [ ] `image-trim.preview-geometry` 预览容器几何和标签
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：The aspect-3/4 overflow-hidden bordered preview retains the original/effective region layers, colors, radius and centered 10px label.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：`neoview.image-trim.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Any token adjustment must be recorded against the legacy screenshot.
+- [ ] `image-trim.auto-detect` 自动检测边框
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Wand2 automatic detection samples the current decoded image, returns four percentages, applies them atomically and reports no-border/not-found/failure states.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.auto-detect`、`neoview.image-trim.sample-budget`
+  - 备注：The target sampling algorithm must be bounded and cancellable.
+- [ ] `image-trim.black-border` 去黑边预设
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Square action invokes the black-border preset for the current image and reports completion or failure without remounting it.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.black-border`
+  - 备注：Preset semantics must stay separate from manual edge editing.
+- [ ] `image-trim.white-border` 去白边预设
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Minus action invokes the white-border preset for the current image and reports completion or failure without remounting it.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.white-border`
+  - 备注：Preset target is an explicit white mode, not a generic invert operation.
+- [ ] `image-trim.threshold` 自动检测容差
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：AutoTrimThreshold preserves 5..100 in steps of 5 and is supplied to detection rather than silently changing manual crop values.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.threshold`
+  - 备注：Use one bounded codec for UI and headless consumers.
+- [ ] `image-trim.target` 自动检测目标颜色
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：AutoTrimTarget preserves the exact auto/black/white enum, labels and order.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.target`
+  - 备注：Unknown imported values fall back to auto.
+- [ ] `image-trim.auto-message` 自动检测反馈文案
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Detection status is visible, bounded and replaceable; loading, success, no-border, not-found and error messages never accumulate DOM nodes.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.messages`
+  - 备注：Text remains inert content; no HTML template execution.
+- [ ] `image-trim.media` 当前媒体帧兼容
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Crop presentation consumes the shared current frame/image contract for static, animated and video media and never assumes a permanent DOM selector.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.media`
+  - 备注：CLI/TUI must expose a typed setting/result contract even when no preview exists.
+- [ ] `image-trim.double-page` 单双页裁剪策略
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：A double-page frame applies the documented four-edge policy to the complete frame or each page according to one shared option; it must not silently crop only one side.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/layers/PanoramaFrameLayer.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.double-page`
+  - 备注：The legacy source exposes the Card but the exact double-page runtime policy still needs characterization.
+- [ ] `image-trim.generation` generation 与迟到结果
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Auto-detect results are committed only when image URL/media generation still matches the request; stale results are dropped and logged with a bounded trace id.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/utils/imageTrace.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.generation`
+  - 备注：Cancellation and stale rejection are separate from UI loading text.
+- [ ] `image-trim.clip-path` clip-path 合并与投影
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：mergeClipPaths and trimToClipPath retain the legacy coordinate convention, percentage precision and safe composition for nested/frame crops.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.clip-path`、`neoview.image-trim.clip-path`
+  - 备注：Browser-safe clip-path projection is covered by ReaderImageTrim tests and the PageImage harness; automatic detection composition remains pending.
+- [ ] `image-trim.effective-dimensions` 裁剪后的有效尺寸
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：getEffectiveDimensions reports truthful dimensions after the crop and presentation transform without claiming an additional decoded asset.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.effective-dimensions`
+  - 备注：Source dimensions and CSS presentation dimensions remain distinct.
+- [ ] `image-trim.persistence` 唯一规范 TOML 持久化
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Before implementation, agree and freeze one versioned [nodes.neoview.image.*] path; serialize strict snake_case fields through a serialized atomic PATCH, preserve unknown fields and roll back on failure.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/settings/types.ts`、`src/lib/settings/settingsManager.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.persistence`、`neoview.image-trim.toml`
+  - 备注：No new Reader business table or second NeoView database is allowed.
+- [ ] `image-trim.cache` 自动检测缓存边界
+  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 目标：autoTrimCache is keyed by stable media identity/generation, bounded by count/bytes, cancellable and invalidated on source changes; cache misses recompute safely.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.cache`、`neoview.image-trim.cache-budget`
+  - 备注：Legacy dynamic storage is evidence, not permission for an unbounded map.
+- [ ] `image-trim.legacy-import` 旧设置兼容导入
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Import legacy trim settings once, normalize missing fields and prevent old local state from overriding canonical TOML on later startup.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/settings/types.ts`、`src/lib/settings/defaults.ts`
+  - 测试：`neoview.image-trim.legacy-import`
+  - 计划测试：无
+  - 备注：Legacy key names and defaults must be recorded once their source settings are characterized.
+- [ ] `image-trim.data-contract` 共享裁剪设置与结果 DTO
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：GUI, CLI and TUI use one browser-safe versioned settings/result contract for edges, links, target, threshold, media generation, effective dimensions and detection outcome.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/utils/imageTrace.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.data-contract`
+  - 备注：ReaderApp remains composition only; no GUI-only second protocol.
+- [ ] `image-trim.states` 默认、禁用、编辑、检测和错误状态
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Cover loading, default, enabled, disabled, editing, linked, previewing, detecting, no-image, no-border, success, failed, retry, pending-write, rollback and disposed states without stale values.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.states`
+  - 备注：Resident shell and session-dependent detection state must be distinguishable.
+- [ ] `image-trim.lifecycle` 订阅、请求和 Card 生命周期
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Card subscriptions, detection requests and cache leases are released on hide/collapse/window close/unmount/session release; no timers or observers survive.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：`neoview.image-trim.lifecycle`、`neoview.image-trim.dispose`
+  - 计划测试：无
+  - 备注：Card hide/unmount subscription cleanup and late persistence disposal are covered; detection/cache/session-release cleanup remains pending.
+- [ ] `image-trim.navigation` 翻页与切书取消
+  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 目标：Navigation invalidates active detection and never applies a result to a newer frame; successful navigation keeps the active img node stable when only crop CSS changes.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/StackView.svelte`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.navigation-cancel`
+  - 备注：No artificial detection result is emitted during initial hydration.
+- [ ] `image-trim.animation` 裁剪与翻页动画共存
+  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 目标：Crop projection composes with page-transition transforms without replacing the frame wrapper or changing animation ownership.
+  - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.animation`
+  - 备注：Crop must remain presentation-only; page transition remains the animation owner.
+- [ ] `image-trim.video` 视频和动图兼容
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Video/animated frames use the same crop contract or an explicit unsupported state; no static-image URL assumption or repeated decoder is introduced.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.video`
+  - 备注：If a media type is unsupported, the Card must expose a stable reason and keep manual settings intact.
+- [ ] `image-trim.upscale` 超分输出兼容
+  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 目标：Crop detects and applies against the currently presented/upscaled frame generation, never against a stale source or a private duplicate artifact.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.upscale-generation`
+  - 备注：The upscale pipeline remains the artifact owner.
+- [ ] `image-trim.shell` 共享 Card 外壳与常驻行为
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：The Card retains title, control Panel default, hideability, collapse, resize, dock/window modes and resident pre-session shell using the shared Card renderer.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/CardWindow.svelte`
+  - 测试：`neoview.image-trim.resident`、`neoview.image-trim.resident`
+  - 计划测试：`neoview.image-trim.shell`
+  - 备注：The resident shell is implemented through the shared registry and verified before/after the harness session toggle; Card window parity remains a broader shell gate.
+- [ ] `image-trim.ui-parity` 旧版层级、标签、图标与密度
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Target preserves the exact group order, Chinese labels, icon meanings, compact spacing/classes, conditional preview and action hierarchy before any intentional improvement is introduced.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：`neoview.image-trim.ui`、`neoview.image-trim.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Changes to tokens, labels or icons require a recorded deviation.
+- [ ] `image-trim.responsive` 1920x1080 与窄 Card 几何
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：The Card remains readable at 1920x1080 and constrained dock/window widths with no horizontal overflow, clipped labels or overlapping controls; 1920x1080 is the primary baseline.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：`neoview.image-trim.ui-1920x1080`
+  - 计划测试：`neoview.image-trim.responsive`
+  - 备注：Use terminal screenshot scripts; do not use the in-app Browser.
+- [ ] `image-trim.accessibility` 原生控件与图标命令可访问
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Checkbox, ranges, select, icon buttons and async actions have accessible names, native keyboard behavior, visible focus and non-stolen focus during detection.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.accessibility`
+  - 备注：Titles alone are not sufficient for icon-only commands.
+- [ ] `image-trim.image-stability` 裁剪操作不重挂活动图片
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Changing edges, links, threshold, target or detection preview preserves the exact active media node and asset identity and creates no duplicate request/decode.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/components/FrameImage.svelte`
+  - 测试：`neoview.image-trim.image-stability`、`neoview.image-trim.image-stability`
+  - 计划测试：`neoview.image-trim.zero-duplicate-request`
+  - 备注：The 1920x1080 harness verifies the same img element and asset URL before and after trim interaction; zero-duplicate-request accounting remains a separate gate.
+- [ ] `image-trim.performance` 采样、DOM、缓存与热路径预算
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Manual slider updates are O(1) and end-only for persistence; detection samples a bounded number of pixels once per media generation; cache, DOM and timers remain bounded and Reader navigation stays within existing gates.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/utils/imageTrace.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.sample-budget`、`neoview.image-trim.performance`
+  - 备注：Build, typecheck, Vitest and Playwright run strictly serial on Windows.
+- [ ] `image-trim.chunk` 独立延迟 chunk
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：ImageTrimCard and detection code stay in an independently auditable deferred chunk with an explicit byte ceiling and no Node builtin in the browser graph.
+  - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.chunk`
+  - 备注：The global entry gate is separate and must not be weakened for this Card.
+- [ ] `image-trim.visual-evidence` 旧版与目标 1920x1080 截图
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：A terminal script captures the expanded legacy Card and target Card at 1920x1080, including enabled/disabled, non-zero preview and auto controls; evidence compares hierarchy, labels, icons, density and geometry.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`
+  - 测试：`neoview.image-trim.ui-1920x1080`、`neoview.image-trim.ui-1920x1080`
+  - 计划测试：无
+  - 备注：Legacy baseline and target screenshot are both captured by terminal scripts at 1920x1080. The target covers resident, enabled, non-zero crop, auto controls and post-open interaction; pixel-level parity remains partial.
+- [ ] `image-trim.deviations` 记录有意改进与替代契约
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：Document any replacement of direct DOM lookup, unbounded legacy cache, per-input writes, second-image sampling, media limitations or token changes while preserving visible control semantics.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.deviations`
+  - 备注：No deviation is approved merely because it is easier to implement.
+- [ ] `image-trim.error-retry` 检测失败与重试
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Detection errors leave the last valid manual settings intact, expose a retryable state and do not poison the cache or disable unrelated controls.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.error-retry`
+  - 备注：A failed auto operation must not reset the user's four-edge values.
+- [ ] `image-trim.cancel` 检测取消
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Navigation, hide, unmount or explicit cancellation aborts detection and leaves no pending request, timer or stale success message.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/utils/imageTrace.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.cancel`
+  - 备注：Cancellation is not reported as a detection failure.
+- [ ] `image-trim.single-double-page` 单双页和页面布局策略
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：The shared layout contract explicitly states how crop percentages apply to single page, double page and panorama frames, including RTL/rotation.
+  - 源码：`src/lib/stores/imageTrimStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/stackview/layers/PanoramaFrameLayer.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.layout-contract`
+  - 备注：This remains a partial boundary until the old runtime policy is characterized.
+- [ ] `image-trim.reset-boundary` 重置和未完成边界
+  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 目标：The compatibility record stays partial until auto detection, persistence, media layout and visual evidence are implemented; reset must not be marked complete by a UI-only mock.
+  - 源码：`src/lib/cards/info/ImageTrimCard.svelte`、`src/lib/stores/imageTrimStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.image-trim.completion-audit`
+  - 备注：Current status is intentionally partial: manual edge editing, shared persistence and CSS projection are implemented; automatic detection, border presets, media policy, cache/lifecycle and full visual parity remain incomplete.
 
 #### `pageTransition` 翻页动画
 
@@ -3746,8 +4156,8 @@
   - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：All six switches/numeric settings use the versioned [nodes.neoview.super_resolution.preferences] contract, preserve legacy defaults and option meanings, and import old upscalePanelSettings/PyO3 values without a second runtime settings store.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stores/upscale/upscalePanelStore.svelte.ts`
-  - 测试：`neoview.super-resolution.preferences-config`、`neoview.super-resolution.legacy-preferences`、`neoview.super-resolution.legacy-settings-import`
-  - 计划测试：`neoview.super-resolution.progressive-settings-http`、`neoview.super-resolution.progressive-settings-gui`、`neoview.super-resolution.progressive-settings-tui`
+  - 测试：`neoview.super-resolution.preferences-config`、`neoview.super-resolution.legacy-preferences`、`neoview.super-resolution.legacy-settings-import`、`neoview.super-resolution.progressive-settings-http`
+  - 计划测试：`neoview.super-resolution.progressive-settings-gui`、`neoview.super-resolution.progressive-settings-tui`
   - 备注：Core parsing and legacy import exist; shared mutation transport and presentation controls remain.
 - [ ] `progressive-upscale.nearby-plan` Nearby pages consume the Reader preload plan
   - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`

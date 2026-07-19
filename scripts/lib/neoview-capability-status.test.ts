@@ -132,6 +132,8 @@ describe("NeoView capability status", () => {
       schemaVersion: 2,
       featureId: "demo-card",
       legacyCardId: "demoCard",
+      panelId: "control",
+      priority: "integration",
       sourceRoot: "legacy/neoview",
       sourceRevision: "revision",
       sourceHash: "sha256:source",
@@ -163,7 +165,12 @@ describe("NeoView capability status", () => {
         notes: "Covered by a fixture.",
       }],
     }
-    expect(detailedChecklistSchema.parse(checklist)).toMatchObject({ astPrototype: checklist.astPrototype, visualTarget: checklist.visualTarget })
+    expect(detailedChecklistSchema.parse(checklist)).toMatchObject({
+      astPrototype: checklist.astPrototype,
+      visualTarget: checklist.visualTarget,
+      panelId: "control",
+      priority: "integration",
+    })
     expect(() => detailedChecklistSchema.parse({ ...checklist, unsupportedNodes: [{ ...checklist.unsupportedNodes[0], unknown: true }] })).toThrow()
   })
 

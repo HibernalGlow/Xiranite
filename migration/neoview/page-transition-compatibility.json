@@ -10,7 +10,10 @@
     {
       "id": "page-transition-ui.enable-reset",
       "title": "启用、条件内容与全部重置",
-      "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
       "acceptanceItems": [
         "启用翻页动画 checkbox 默认关闭",
         "启用开关与重置按钮位于同一标题行",
@@ -19,12 +22,21 @@
         "重置一次恢复 enabled=false、type=none、duration=0、easing=easeOutQuad",
         "设置尚未加载时显示居中的加载中状态"
       ],
-      "mappedChecklistIds": ["page-transition.enable", "page-transition.reset", "page-transition.states", "page-transition.ui-parity"]
+      "mappedChecklistIds": [
+        "page-transition.enable",
+        "page-transition.reset",
+        "page-transition.states",
+        "page-transition.ui-parity"
+      ]
     },
     {
       "id": "page-transition-ui.types",
       "title": "动画类型选项、顺序与方向语义",
-      "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts", "src/lib/stackview/layers/CurrentFrameLayer.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/stores/pageTransitionStore.svelte.ts",
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte"
+      ],
       "acceptanceItems": [
         "类型 select 为全宽紧凑控件",
         "none / 无动画",
@@ -41,12 +53,20 @@
         "fade 对两个方向使用相同透明度语义",
         "none 或 disabled 时不生成动画 class"
       ],
-      "mappedChecklistIds": ["page-transition.types", "page-transition.direction", "page-transition.runtime", "page-transition.ui-parity"]
+      "mappedChecklistIds": [
+        "page-transition.types",
+        "page-transition.direction",
+        "page-transition.runtime",
+        "page-transition.ui-parity"
+      ]
     },
     {
       "id": "page-transition-ui.duration-easing",
       "title": "时长滑杆、缓动选项与 CSS 映射",
-      "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
       "acceptanceItems": [
         "时长 range 最小 0ms、最大 500ms、步长 10ms",
         "时长标题行右侧实时显示当前毫秒值",
@@ -62,12 +82,19 @@
         "缓动 select 顺序固定为 linear、ease、easeIn、easeOut、easeInOut、easeOutQuad、easeOutCubic",
         "默认缓动为 easeOutQuad"
       ],
-      "mappedChecklistIds": ["page-transition.duration", "page-transition.easing", "page-transition.data-contract", "page-transition.ui-parity"]
+      "mappedChecklistIds": [
+        "page-transition.duration",
+        "page-transition.easing",
+        "page-transition.data-contract",
+        "page-transition.ui-parity"
+      ]
     },
     {
       "id": "page-transition-ui.preview",
       "title": "Card 内悬停预览",
-      "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte"
+      ],
       "acceptanceItems": [
         "预览区位于分隔线上方标题之后",
         "预览容器高度 64px 且裁剪溢出",
@@ -76,12 +103,18 @@
         "悬停时 scale(0.95) 且 opacity=0.7",
         "预览不翻页、不请求图片且不改 Reader session"
       ],
-      "mappedChecklistIds": ["page-transition.preview", "page-transition.image-stability", "page-transition.performance"]
+      "mappedChecklistIds": [
+        "page-transition.preview",
+        "page-transition.image-stability",
+        "page-transition.performance"
+      ]
     },
     {
       "id": "page-transition-ui.persistence",
       "title": "旧 localStorage 与目标 TOML 持久化",
-      "sourceEvidence": ["src/lib/stores/pageTransitionStore.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
       "acceptanceItems": [
         "旧 localStorage key 为 neoview-page-transition-settings",
         "旧 JSON 读取后以默认值补齐缺失字段",
@@ -94,12 +127,20 @@
         "滑杆移动仅本地预览，交互结束至多一次 PATCH",
         "reset 使用独占命令并一次写回全部规范默认值"
       ],
-      "mappedChecklistIds": ["page-transition.persistence", "page-transition.reset", "page-transition.data-contract", "page-transition.deviations"]
+      "mappedChecklistIds": [
+        "page-transition.persistence",
+        "page-transition.reset",
+        "page-transition.data-contract",
+        "page-transition.deviations"
+      ]
     },
     {
       "id": "page-transition-ui.runtime-lifecycle",
       "title": "帧变更检测、动画生命周期与稳定 DOM",
-      "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
+      "sourceEvidence": [
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte",
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
       "acceptanceItems": [
         "首次渲染不触发动画",
         "无有效页索引不触发动画",
@@ -114,12 +155,24 @@
         "快速连续翻页由单一有界动画状态合并，不累积 DOM 或 timer",
         "prefers-reduced-motion 时目标实现强制无动画且不改用户保存值"
       ],
-      "mappedChecklistIds": ["page-transition.runtime", "page-transition.direction", "page-transition.reduced-motion", "page-transition.lifecycle", "page-transition.image-stability", "page-transition.performance"]
+      "mappedChecklistIds": [
+        "page-transition.runtime",
+        "page-transition.direction",
+        "page-transition.reduced-motion",
+        "page-transition.lifecycle",
+        "page-transition.image-stability",
+        "page-transition.performance"
+      ]
     },
     {
       "id": "page-transition-ui.shell-accessibility",
       "title": "Card registry、共享外壳、视觉和可访问性",
-      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/CardWindow.svelte", "src/lib/cards/info/PageTransitionCard.svelte"],
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/CardWindow.svelte",
+        "src/lib/cards/info/PageTransitionCard.svelte"
+      ],
       "acceptanceItems": [
         "Card ID 为 pageTransition",
         "标题为翻页动画",
@@ -132,123 +185,589 @@
         "1920x1080 常见 Reader 侧栏内无横向溢出",
         "脚本截图同时记录旧版与目标展开态"
       ],
-      "mappedChecklistIds": ["page-transition.shell", "page-transition.ui-parity", "page-transition.accessibility", "page-transition.lifecycle", "page-transition.performance"]
+      "mappedChecklistIds": [
+        "page-transition.shell",
+        "page-transition.ui-parity",
+        "page-transition.accessibility",
+        "page-transition.lifecycle",
+        "page-transition.performance"
+      ]
     }
   ],
   "items": [
     {
-      "id": "page-transition.enable", "category": "capabilities", "title": "启用并条件挂载翻页动画设置", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
-      "targetContract": "The Card preserves the legacy disabled default and only mounts type, duration, easing and preview controls while enabled.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "CLI and GUI controls are complete; TUI controls remain pending."
+      "id": "page-transition.enable",
+      "category": "capabilities",
+      "title": "启用并条件挂载翻页动画设置",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte"
+      ],
+      "targetContract": "The Card preserves the legacy disabled default and only mounts type, duration, easing and preview controls while enabled.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.config",
+        "neoview.page-transition.http",
+        "neoview.page-transition.ui",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.tui-surface"
+      ],
+      "notes": "CLI and GUI controls are complete; TUI controls remain pending."
     },
     {
-      "id": "page-transition.types", "category": "capabilities", "title": "六种旧版动画类型", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
-      "targetContract": "The shared enum preserves none, fade, slide, slideUp, zoom and flip IDs, labels and order.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.types", "neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "All six IDs, labels and order are shared; CLI selection is complete and TUI remains pending."
+      "id": "page-transition.types",
+      "category": "capabilities",
+      "title": "六种旧版动画类型",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
+      "targetContract": "The shared enum preserves none, fade, slide, slideUp, zoom and flip IDs, labels and order.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.types",
+        "neoview.page-transition.config",
+        "neoview.page-transition.http",
+        "neoview.page-transition.ui",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.tui-surface"
+      ],
+      "notes": "All six IDs, labels and order are shared; CLI selection is complete and TUI remains pending."
     },
     {
-      "id": "page-transition.duration", "category": "capabilities", "title": "0..500ms 时长控制", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
-      "targetContract": "The GUI exposes 0..500ms in 10ms steps while the shared imported-value codec remains bounded.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.bounds", "neoview.page-transition.slider-commit", "neoview.page-transition.http", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "The GUI uses 0..500ms/10ms; CLI uses the same 0..500ms boundary and TUI remains pending."
+      "id": "page-transition.duration",
+      "category": "capabilities",
+      "title": "0..500ms 时长控制",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte"
+      ],
+      "targetContract": "The GUI exposes 0..500ms in 10ms steps while the shared imported-value codec remains bounded.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.bounds",
+        "neoview.page-transition.slider-commit",
+        "neoview.page-transition.http",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.tui-surface"
+      ],
+      "notes": "The GUI uses 0..500ms/10ms; CLI uses the same 0..500ms boundary and TUI remains pending."
     },
     {
-      "id": "page-transition.easing", "category": "capabilities", "title": "七种旧版缓动", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
-      "targetContract": "The shared enum and CSS projection preserve all seven easing IDs, labels, order and cubic-bezier values.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.easing", "neoview.page-transition.css", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "All seven IDs and exact CSS values are shared; CLI selection is complete and TUI remains pending."
+      "id": "page-transition.easing",
+      "category": "capabilities",
+      "title": "七种旧版缓动",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
+      "targetContract": "The shared enum and CSS projection preserve all seven easing IDs, labels, order and cubic-bezier values.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.easing",
+        "neoview.page-transition.css",
+        "neoview.page-transition.http",
+        "neoview.page-transition.ui",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.tui-surface"
+      ],
+      "notes": "All seven IDs and exact CSS values are shared; CLI selection is complete and TUI remains pending."
     },
     {
-      "id": "page-transition.preview", "category": "capabilities", "title": "Card 内无副作用预览", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
-      "targetContract": "Hover preview uses current duration/easing and never navigates, requests media or changes Reader session.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.preview", "neoview.page-transition.ui-1920x1080"], "plannedTestIds": [], "notes": "The preview is local-only and covered by unit and scripted visual evidence."
+      "id": "page-transition.preview",
+      "category": "capabilities",
+      "title": "Card 内无副作用预览",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte"
+      ],
+      "targetContract": "Hover preview uses current duration/easing and never navigates, requests media or changes Reader session.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.preview",
+        "neoview.page-transition.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "The preview is local-only and covered by unit and scripted visual evidence."
     },
     {
-      "id": "page-transition.direction", "category": "capabilities", "title": "按页索引识别前后方向", "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte"],
-      "targetContract": "Frame changes derive next/prev from physical page movement and project the exact legacy directional transform origins.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "complete", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.direction", "neoview.page-transition.runtime", "neoview.page-transition.ui-1920x1080"], "plannedTestIds": [], "notes": "Shared projection and the stable React layer cover both directions."
+      "id": "page-transition.direction",
+      "category": "capabilities",
+      "title": "按页索引识别前后方向",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte"
+      ],
+      "targetContract": "Frame changes derive next/prev from physical page movement and project the exact legacy directional transform origins.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.direction",
+        "neoview.page-transition.runtime",
+        "neoview.page-transition.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "Shared projection and the stable React layer cover both directions."
     },
     {
-      "id": "page-transition.runtime", "category": "capabilities", "title": "稳定帧容器 CSS 动画", "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte"],
-      "targetContract": "One stable frame wrapper animates only transform and opacity, skips initial/unchanged frames and bounds rapid navigation cleanup.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "complete", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.css", "neoview.page-transition.runtime", "neoview.page-transition.lifecycle", "neoview.page-transition.ui-1920x1080"], "plannedTestIds": [], "notes": "The runtime owns one stable wrapper and one cleanup timer."
+      "id": "page-transition.runtime",
+      "category": "capabilities",
+      "title": "稳定帧容器 CSS 动画",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte"
+      ],
+      "targetContract": "One stable frame wrapper animates only transform and opacity, skips initial/unchanged frames and bounds rapid navigation cleanup.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.css",
+        "neoview.page-transition.runtime",
+        "neoview.page-transition.lifecycle",
+        "neoview.page-transition.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "The runtime owns one stable wrapper and one cleanup timer."
     },
     {
-      "id": "page-transition.reduced-motion", "category": "accessibility", "title": "尊重减少动态效果", "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte"],
-      "targetContract": "XR intentionally suppresses runtime animation under prefers-reduced-motion without rewriting the persisted preference.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.reduced-motion"], "plannedTestIds": [], "notes": "Runtime suppression leaves the persisted enabled preference unchanged."
+      "id": "page-transition.reduced-motion",
+      "category": "accessibility",
+      "title": "尊重减少动态效果",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte"
+      ],
+      "targetContract": "XR intentionally suppresses runtime animation under prefers-reduced-motion without rewriting the persisted preference.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.reduced-motion"
+      ],
+      "plannedTestIds": [],
+      "notes": "Runtime suppression leaves the persisted enabled preference unchanged."
     },
     {
-      "id": "page-transition.reset", "category": "capabilities", "title": "一次恢复全部默认值", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/stores/pageTransitionStore.svelte.ts"],
-      "targetContract": "One explicit reset restores all four defaults and commits exactly one canonical mutation.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.reset", "neoview.page-transition.http", "neoview.page-transition.ui", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "GUI and CLI reset are one aggregate mutation; TUI remains pending."
+      "id": "page-transition.reset",
+      "category": "capabilities",
+      "title": "一次恢复全部默认值",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
+      "targetContract": "One explicit reset restores all four defaults and commits exactly one canonical mutation.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.reset",
+        "neoview.page-transition.http",
+        "neoview.page-transition.ui",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.tui-surface"
+      ],
+      "notes": "GUI and CLI reset are one aggregate mutation; TUI remains pending."
     },
     {
-      "id": "page-transition.persistence", "category": "settings", "title": "旧 localStorage 一次导入并写入唯一 TOML", "sourceEvidence": ["src/lib/stores/pageTransitionStore.svelte.ts"],
-      "targetContract": "Import neoview-page-transition-settings once and persist only [nodes.neoview.image.page_transition] through strict serialized atomic PATCH with rollback.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.legacy-import", "neoview.page-transition.toml", "neoview.page-transition.persistence", "neoview.page-transition.http", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.persistence-tui"], "notes": "Legacy localStorage imports once into canonical TOML; CLI persistence is complete and TUI remains pending."
+      "id": "page-transition.persistence",
+      "category": "settings",
+      "title": "旧 localStorage 一次导入并写入唯一 TOML",
+      "sourceEvidence": [
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
+      "targetContract": "Import neoview-page-transition-settings once and persist only [nodes.neoview.image.page_transition] through strict serialized atomic PATCH with rollback.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.legacy-import",
+        "neoview.page-transition.toml",
+        "neoview.page-transition.persistence",
+        "neoview.page-transition.http",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.persistence-tui"
+      ],
+      "notes": "Legacy localStorage imports once into canonical TOML; CLI persistence is complete and TUI remains pending."
     },
     {
-      "id": "page-transition.data-contract", "category": "data-contract", "title": "严格有界共享设置 DTO", "sourceEvidence": ["src/lib/stores/pageTransitionStore.svelte.ts"],
-      "targetContract": "One browser-safe DTO validates booleans, exact enums and bounded duration for GUI, CLI and TUI.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.client", "neoview.page-transition.hydration-race", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "Domain, HTTP, GUI and CLI share one strict DTO; TUI exposure remains pending."
+      "id": "page-transition.data-contract",
+      "category": "data-contract",
+      "title": "严格有界共享设置 DTO",
+      "sourceEvidence": [
+        "src/lib/stores/pageTransitionStore.svelte.ts"
+      ],
+      "targetContract": "One browser-safe DTO validates booleans, exact enums and bounded duration for GUI, CLI and TUI.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.config",
+        "neoview.page-transition.http",
+        "neoview.page-transition.client",
+        "neoview.page-transition.hydration-race",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.tui-surface"
+      ],
+      "notes": "Domain, HTTP, GUI and CLI share one strict DTO; TUI exposure remains pending."
     },
     {
-      "id": "page-transition.states", "category": "interaction-states", "title": "加载、条件、提交、错误与回滚状态", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/cards/CardRenderer.svelte"],
-      "targetContract": "The Card covers lazy loading, disabled conditional content, preview, pending write, rollback, reset and disposal without stale state.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.hydration-race", "neoview.page-transition.persistence", "neoview.page-transition.ui"], "plannedTestIds": ["neoview.page-transition.retry"], "notes": "Conditional, stale hydration and rollback behavior are covered; explicit retry UI remains pending."
+      "id": "page-transition.states",
+      "category": "interaction-states",
+      "title": "加载、条件、提交、错误与回滚状态",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "The Card covers lazy loading, disabled conditional content, preview, pending write, rollback, reset and disposal without stale state.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.hydration-race",
+        "neoview.page-transition.persistence",
+        "neoview.page-transition.ui"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.retry"
+      ],
+      "notes": "Conditional, stale hydration and rollback behavior are covered; explicit retry UI remains pending."
     },
     {
-      "id": "page-transition.shell", "category": "ui-parity", "title": "共享 Card 外壳与延迟加载", "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/CardWindow.svelte"],
-      "targetContract": "pageTransition retains its title, control Panel default, hideability and independent deferred Card chunk.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.registry", "neoview.page-transition.chunk", "neoview.page-transition.ui-1920x1080"], "plannedTestIds": [], "notes": "Registry, shared Card shell and independent lazy chunk are covered."
+      "id": "page-transition.shell",
+      "category": "ui-parity",
+      "title": "共享 Card 外壳与延迟加载",
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/CardWindow.svelte"
+      ],
+      "targetContract": "pageTransition retains its title, control Panel default, hideability and independent deferred Card chunk.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.registry",
+        "neoview.page-transition.chunk",
+        "neoview.page-transition.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "Registry, shared Card shell and independent lazy chunk are covered."
     },
     {
-      "id": "page-transition.ui-parity", "category": "ui-parity", "title": "旧版控件层级、标签、密度与 1920x1080 几何", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte"],
-      "targetContract": "The target preserves compact ordering, Chinese labels, conditional hierarchy and preview geometry, characterized by scripted legacy and target 1920x1080 screenshots.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.ui", "neoview.page-transition.ui-1920x1080"], "plannedTestIds": [], "notes": "Legacy and target 1920x1080 scripted screenshots characterize the compact hierarchy."
+      "id": "page-transition.ui-parity",
+      "category": "ui-parity",
+      "title": "旧版控件层级、标签、密度与 1920x1080 几何",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte"
+      ],
+      "targetContract": "The target preserves compact ordering, Chinese labels, conditional hierarchy and preview geometry, characterized by scripted legacy and target 1920x1080 screenshots.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.ui",
+        "neoview.page-transition.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "Legacy and target 1920x1080 scripted screenshots characterize the compact hierarchy."
     },
     {
-      "id": "page-transition.accessibility", "category": "keyboard-accessibility", "title": "命名控件、原生键盘与焦点语义", "sourceEvidence": ["src/lib/cards/info/PageTransitionCard.svelte", "src/lib/CardWindow.svelte"],
-      "targetContract": "Every checkbox, select, range and icon command has an accessible name and native keyboard behavior with visible focus.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.ui", "neoview.page-transition.ui-1920x1080"], "plannedTestIds": [], "notes": "Native controls and explicit icon labels preserve keyboard and focus semantics."
+      "id": "page-transition.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "命名控件、原生键盘与焦点语义",
+      "sourceEvidence": [
+        "src/lib/cards/info/PageTransitionCard.svelte",
+        "src/lib/CardWindow.svelte"
+      ],
+      "targetContract": "Every checkbox, select, range and icon command has an accessible name and native keyboard behavior with visible focus.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.ui",
+        "neoview.page-transition.ui-1920x1080"
+      ],
+      "plannedTestIds": [],
+      "notes": "Native controls and explicit icon labels preserve keyboard and focus semantics."
     },
     {
-      "id": "page-transition.lifecycle", "category": "lifecycle", "title": "timer、订阅和动画状态释放", "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte", "src/lib/cards/CardRenderer.svelte"],
-      "targetContract": "Rapid navigation owns at most one cleanup timer and hidden/collapsed/unmounted surfaces release every subscription and transient animation state.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.page-transition.lifecycle", "neoview.page-transition.runtime"], "plannedTestIds": [], "notes": "Unmount and rapid navigation clear the single owned timer and transient styles."
+      "id": "page-transition.lifecycle",
+      "category": "lifecycle",
+      "title": "timer、订阅和动画状态释放",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "Rapid navigation owns at most one cleanup timer and hidden/collapsed/unmounted surfaces release every subscription and transient animation state.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "complete"
+      },
+      "testIds": [
+        "neoview.page-transition.lifecycle",
+        "neoview.page-transition.runtime"
+      ],
+      "plannedTestIds": [],
+      "notes": "Unmount and rapid navigation clear the single owned timer and transient styles."
     },
     {
-      "id": "page-transition.image-stability", "category": "performance", "title": "动画保持活动图片与资源身份", "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte"],
-      "targetContract": "Configuration and runtime transitions never remount the active img, change its asset URL or create another decode path.", "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.image-identity", "neoview.page-transition.runtime"], "plannedTestIds": ["neoview.page-transition.zero-duplicate-request"], "notes": "Exact img identity and URL are covered during configuration; a real asset-route request counter remains pending."
+      "id": "page-transition.image-stability",
+      "category": "performance",
+      "title": "动画保持活动图片与资源身份",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte"
+      ],
+      "targetContract": "Configuration and runtime transitions never remount the active img, change its asset URL or create another decode path.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "complete",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.image-identity",
+        "neoview.page-transition.runtime"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.zero-duplicate-request"
+      ],
+      "notes": "Exact img identity and URL are covered during configuration; a real asset-route request counter remains pending."
     },
     {
-      "id": "page-transition.performance", "category": "performance", "title": "合成动画、O(1) 状态与 chunk 预算", "sourceEvidence": ["src/lib/stackview/layers/CurrentFrameLayer.svelte", "src/lib/cards/CardRenderer.svelte"],
-      "targetContract": "Animations use compositor-friendly transform/opacity, bounded O(1) state and one timer; Card/domain remain deferred and navigation stays within existing gates.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "not-applicable", "gui": "partial", "cli": "pending", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.css", "neoview.page-transition.chunk", "neoview.page-transition.runtime", "neoview.page-transition.lifecycle"], "plannedTestIds": ["neoview.page-transition.navigation-performance", "neoview.page-transition.surface-performance"], "notes": "O(1) runtime and 3.7/2.0/5.7 KiB deferred chunks are proven; unified navigation and CLI/TUI timings remain pending."
+      "id": "page-transition.performance",
+      "category": "performance",
+      "title": "合成动画、O(1) 状态与 chunk 预算",
+      "sourceEvidence": [
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte",
+        "src/lib/cards/CardRenderer.svelte"
+      ],
+      "targetContract": "Animations use compositor-friendly transform/opacity, bounded O(1) state and one timer; Card/domain remain deferred and navigation stays within existing gates.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "not-applicable",
+        "gui": "partial",
+        "cli": "pending",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.css",
+        "neoview.page-transition.chunk",
+        "neoview.page-transition.runtime",
+        "neoview.page-transition.lifecycle"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.navigation-performance",
+        "neoview.page-transition.surface-performance"
+      ],
+      "notes": "O(1) runtime and 3.7/2.0/5.7 KiB deferred chunks are proven; unified navigation and CLI/TUI timings remain pending."
     },
     {
-      "id": "page-transition.deviations", "category": "deviations", "title": "记录存储、提交和减少动态效果改进", "sourceEvidence": ["src/lib/stores/pageTransitionStore.svelte.ts", "src/lib/stackview/layers/CurrentFrameLayer.svelte"],
-      "targetContract": "Document localStorage-to-TOML migration, slider end-only persistence, failure rollback and reduced-motion suppression while preserving legacy type/easing math and control hierarchy.", "surfaces": ["GUI", "CLI", "TUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "complete", "tui": "pending", "evidence": "partial"},
-      "testIds": ["neoview.page-transition.config", "neoview.page-transition.http", "neoview.page-transition.legacy-import", "neoview.page-transition.slider-commit", "neoview.page-transition.reduced-motion", "neoview.page-transition.persistence", "neoview.page-transition.surfaces"], "plannedTestIds": ["neoview.page-transition.tui-surface"], "notes": "XR replaces localStorage with TOML, end-only slider writes and reduced-motion suppression; CLI uses the same strict persistence contract and TUI remains pending."
+      "id": "page-transition.deviations",
+      "category": "deviations",
+      "title": "记录存储、提交和减少动态效果改进",
+      "sourceEvidence": [
+        "src/lib/stores/pageTransitionStore.svelte.ts",
+        "src/lib/stackview/layers/CurrentFrameLayer.svelte"
+      ],
+      "targetContract": "Document localStorage-to-TOML migration, slider end-only persistence, failure rollback and reduced-motion suppression while preserving legacy type/easing math and control hierarchy.",
+      "surfaces": [
+        "GUI",
+        "CLI",
+        "TUI"
+      ],
+      "capabilityStatus": {
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "pending",
+        "evidence": "partial"
+      },
+      "testIds": [
+        "neoview.page-transition.config",
+        "neoview.page-transition.http",
+        "neoview.page-transition.legacy-import",
+        "neoview.page-transition.slider-commit",
+        "neoview.page-transition.reduced-motion",
+        "neoview.page-transition.persistence",
+        "neoview.page-transition.surfaces"
+      ],
+      "plannedTestIds": [
+        "neoview.page-transition.tui-surface"
+      ],
+      "notes": "XR replaces localStorage with TOML, end-only slider writes and reduced-motion suppression; CLI uses the same strict persistence contract and TUI remains pending."
     }
   ]
 }

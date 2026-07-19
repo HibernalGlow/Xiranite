@@ -372,7 +372,6 @@
       "priority": "deferred",
       "featureId": "metadata-dimensions-properties",
       "disposition": "migrate",
-      "currentCardId": "info-overlay",
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
@@ -381,6 +380,7 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
+      "currentCardId": "info-overlay",
       "sourceComponent": "src/lib/cards/info/InfoOverlayCard.svelte",
       "sourceDisposition": "component"
     },
@@ -391,7 +391,6 @@
       "priority": "integration",
       "featureId": "metadata-dimensions-properties",
       "disposition": "migrate",
-      "currentCardId": "switch-toast",
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
@@ -400,6 +399,7 @@
         "tui": "not-applicable",
         "evidence": "partial"
       },
+      "currentCardId": "switch-toast",
       "sourceComponent": "src/lib/cards/info/SwitchToastCard.svelte",
       "sourceDisposition": "component"
     },
@@ -506,11 +506,11 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
+        "core": "pending",
+        "transport": "pending",
         "gui": "pending",
-        "cli": "not-applicable",
-        "tui": "not-applicable",
+        "cli": "pending",
+        "tui": "pending",
         "evidence": "pending"
       },
       "currentCardId": "image-trim",
@@ -781,8 +781,6 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
-      "currentCardId": "progressive-upscale",
-      "replacement": "自动超分开关与递进/预超分设置继续合并在 Progressive Card 顶部，保持同一偏好 DTO 与旧版层级语义。",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -791,6 +789,8 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "progressive-upscale",
+      "replacement": "自动超分开关与递进/预超分设置继续合并在 Progressive Card 顶部，保持同一偏好 DTO 与旧版层级语义。",
       "sourceComponent": "src/lib/cards/upscale/UpscaleControlCard.svelte",
       "sourceDisposition": "component"
     },
@@ -801,7 +801,6 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
-      "currentCardId": "upscale-model",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -810,6 +809,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "upscale-model",
       "sourceComponent": "src/lib/cards/upscale/UpscaleModelCard.svelte",
       "sourceDisposition": "component"
     },
@@ -820,7 +820,6 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
-      "currentCardId": "upscale-status",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -829,6 +828,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "upscale-status",
       "sourceComponent": "src/lib/cards/upscale/UpscaleStatusCard.svelte",
       "sourceDisposition": "component"
     },
@@ -839,7 +839,6 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
-      "currentCardId": "upscale-cache",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -848,6 +847,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "upscale-cache",
       "sourceComponent": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
       "sourceDisposition": "component"
     },
@@ -858,7 +858,6 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "migrate",
-      "currentCardId": "upscale-conditions",
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
@@ -867,6 +866,7 @@
         "tui": "not-applicable",
         "evidence": "pending"
       },
+      "currentCardId": "upscale-conditions",
       "sourceComponent": "src/lib/cards/upscale/UpscaleConditionsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -877,9 +877,6 @@
       "priority": "deferred",
       "featureId": "super-resolution",
       "disposition": "replace",
-      "currentCardId": "progressive-upscale",
-      "replacement": "超分控制、模型、状态、缓存和条件能力由同一超分功能域提供，当前不注册独立 Progressive Upscale Card；继续沿用现有超分运行时契约。",
-      "sourceDisposition": "component",
       "capabilityStatus": {
         "core": "complete",
         "transport": "partial",
@@ -888,7 +885,10 @@
         "tui": "partial",
         "evidence": "partial"
       },
-      "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte"
+      "currentCardId": "progressive-upscale",
+      "replacement": "超分控制、模型、状态、缓存和条件能力由同一超分功能域提供，当前不注册独立 Progressive Upscale Card；继续沿用现有超分运行时契约。",
+      "sourceComponent": "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
+      "sourceDisposition": "component"
     },
     {
       "legacyId": "historyList",

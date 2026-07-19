@@ -31,7 +31,7 @@
     { "legacyId": "time", "checklistRef": "migration/neoview/time-information-compatibility.json", "capabilities": ["显示文件创建、修改和访问相关时间", "显示归档条目与书籍记录时间语义", "按本地时区格式化并处理未知时间"] },
     { "legacyId": "sidebarControl", "checklistRef": "migration/neoview/sidebar-control-compatibility.json", "capabilities": ["控制 top/right/bottom/left 边栏显示与 pin", "切换自动隐藏、触发区和展开行为", "恢复布局默认值且不重挂活动阅读图像"] },
     { "legacyId": "colorFilter", "checklistRef": "migration/neoview/color-filter-compatibility.json", "capabilities": ["开关并配置亮度、对比度、饱和度、灰度/反色等颜色效果", "实时预览、单项复位和全部复位", "区分书籍级与全局设置并避免重复渲染链"] },
-    { "legacyId": "imageTrim", "capabilities": ["启用自动/手动裁边并选择检测模式", "配置阈值、边距、最小裁剪和单双页策略", "预览、重算、复位并处理动画/视频/超分兼容"] },
+    { "legacyId": "imageTrim", "checklistRef": "migration/neoview/image-trim-compatibility.json", "capabilities": ["启用自动/手动裁边并选择检测模式", "配置阈值、边距、最小裁剪和单双页策略", "预览、重算、复位并处理动画/视频/超分兼容"] },
     { "legacyId": "pageTransition", "checklistRef": "migration/neoview/page-transition-compatibility.json", "capabilities": ["开关并选择翻页动画类型", "配置持续时间、缓动和方向", "预览、复位并尊重减少动态效果设置"] },
     { "legacyId": "animatedVideoMode", "capabilities": ["控制 GIF/APNG/WebP 动图与视频播放模式", "配置自动播放、循环、静音和控制器", "显示媒体状态并在离屏/关闭时暂停释放"] },
     { "legacyId": "ambientBackground", "capabilities": ["选择纯色、模糊当前页、渐变/动态等阅读背景", "配置强度、模糊、透明度、缩放与更新策略", "预览、复位并限制 GPU/重绘开销"] },

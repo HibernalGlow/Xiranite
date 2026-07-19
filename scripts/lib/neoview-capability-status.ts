@@ -98,6 +98,8 @@ export const detailedChecklistSchema = z.object({
   featureId: z.string().min(1),
   legacyCardId: z.string().min(1),
   title: z.string().optional(),
+  panelId: z.string().min(1).optional(),
+  priority: z.enum(["core", "integration", "deferred"]).optional(),
   sourceRoot: z.string().min(1),
   sourceRevision: z.string().min(1).optional(),
   sourceHash: z.string().min(1).optional(),
