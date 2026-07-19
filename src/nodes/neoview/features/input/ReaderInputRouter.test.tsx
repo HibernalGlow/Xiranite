@@ -65,6 +65,20 @@ describe("ReaderInputRouter", () => {
     expect(execute).toHaveBeenCalledWith("reader.next-page")
   })
 
+  it("[neoview.bindings.panel-controls] does not steal switch or range pointer events", () => {
+    const execute = vi.fn()
+    render(<Harness config={{ bindings: [
+      { id: "next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "mouse", button: 0, action: "press" } },
+      { id: "click", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 0, action: "click" } },
+    ] }} execute={execute} />)
+
+    fireEvent.pointerDown(screen.getByRole("switch", { name: "着色" }), { pointerType: "mouse", pointerId: 11, button: 0 })
+    fireEvent.pointerUp(screen.getByRole("switch", { name: "着色" }), { pointerType: "mouse", pointerId: 11, button: 0, detail: 1 })
+    fireEvent.pointerDown(screen.getByRole("slider", { name: "亮度" }), { pointerType: "mouse", pointerId: 12, button: 0 })
+    fireEvent.pointerUp(screen.getByRole("slider", { name: "亮度" }), { pointerType: "mouse", pointerId: 12, button: 0, detail: 1 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it("[neoview.bindings.keyboard-hold-runtime] dispatches after the threshold and cancels on keyup", () => {
     vi.useFakeTimers()
     const execute = vi.fn()
@@ -121,6 +135,8 @@ function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execu
     >
       <input aria-label="editor" />
       <button type="button">toolbar action</button>
+      <button type="button" role="switch" aria-checked="false" aria-label="着色" />
+      <input type="range" aria-label="亮度" min={50} max={150} defaultValue={100} />
     </div>
   )
 }

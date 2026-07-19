@@ -70,6 +70,31 @@ describe("ReaderGestureInputRuntime", () => {
     act(() => vi.advanceTimersByTime(400))
     expect(dispatch).toHaveBeenCalledWith({ device: "touch", gesture: "long-press", fingers: 1, durationMs: 400, moveTolerancePx: 12 }, target)
   })
+
+  it("[neoview.bindings.panel-controls] ignores drag gestures that start on switch or range controls", () => {
+    const dispatch = vi.fn(() => true)
+    const claimPointer = vi.fn()
+    render(<Harness config={{ bindings: [{
+      id: "gesture",
+      action: "reader.next-page",
+      context: "reader",
+      enabled: true,
+      input: { device: "mouse-gesture", button: 0, directions: ["right"], trigger: "instant" },
+    }] }} dispatch={dispatch} claimPointer={claimPointer} />)
+
+    const toggle = screen.getByRole("switch", { name: "着色" })
+    fireEvent.pointerDown(toggle, { pointerType: "mouse", pointerId: 21, button: 0, clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(toggle, { pointerType: "mouse", pointerId: 21, buttons: 1, clientX: 40, clientY: 0 })
+    fireEvent.pointerUp(toggle, { pointerType: "mouse", pointerId: 21, button: 0, clientX: 40, clientY: 0 })
+
+    const slider = screen.getByRole("slider", { name: "亮度" })
+    fireEvent.pointerDown(slider, { pointerType: "mouse", pointerId: 22, button: 0, clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(slider, { pointerType: "mouse", pointerId: 22, buttons: 1, clientX: 50, clientY: 0 })
+    fireEvent.pointerUp(slider, { pointerType: "mouse", pointerId: 22, button: 0, clientX: 50, clientY: 0 })
+
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(claimPointer).not.toHaveBeenCalled()
+  })
 })
 
 function Harness({ config, claimPointer, dispatch }: {
@@ -78,5 +103,11 @@ function Harness({ config, claimPointer, dispatch }: {
   dispatch(input: ReaderInputDescriptor, target: EventTarget | null): boolean
 }) {
   const target = useRef<HTMLDivElement | null>(null)
-  return <div ref={target} data-testid="gesture-target"><ReaderGestureInputRuntime config={config} target={target} claimPointer={claimPointer} dispatch={dispatch} /></div>
+  return (
+    <div ref={target} data-testid="gesture-target">
+      <button type="button" role="switch" aria-checked="false" aria-label="着色" />
+      <input type="range" aria-label="亮度" min={50} max={150} defaultValue={100} />
+      <ReaderGestureInputRuntime config={config} target={target} claimPointer={claimPointer} dispatch={dispatch} />
+    </div>
+  )
 }
